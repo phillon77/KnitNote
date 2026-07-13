@@ -33,23 +33,27 @@ struct PatternReaderView: View {
         NavigationStack {
             Group {
                 if let pattern, FileManager.default.fileExists(atPath: files.url(projectID: projectID, pattern: pattern).path) {
-                    ZStack(alignment: .top) {
-                        if pattern.kind == .pdf {
-                            PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
-                                .allowsHitTesting(!markupMode)
-                        } else {
-                            ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
-                                .allowsHitTesting(!markupMode)
+                    VStack(spacing: 0) {
+                        PatternMarkupToolbar(document: $markup, tool: $markupTool, color: $markupColor, width: $markupWidth, onClear: { confirmingMarkupClear = true }, onDone: finishMarkup)
+                            .opacity(markupMode ? 1 : 0)
+                            .allowsHitTesting(markupMode)
+                            .accessibilityHidden(!markupMode)
+                            .frame(height: PatternMarkupToolbar.stableHeight)
+
+                        ZStack(alignment: .top) {
+                            if pattern.kind == .pdf {
+                                PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
+                                    .allowsHitTesting(!markupMode)
+                            } else {
+                                ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
+                                    .allowsHitTesting(!markupMode)
+                            }
+                            if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition).allowsHitTesting(!markupMode) }
+                            if markupMode { PatternMarkupOverlay(document: $markup, tool: markupTool, color: markupColor, width: markupWidth) }
                         }
-                        if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition).allowsHitTesting(!markupMode) }
-                        if markupMode { PatternMarkupOverlay(document: $markup, tool: markupTool, color: markupColor, width: markupWidth) }
-                    }
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        if markupMode {
-                            PatternMarkupToolbar(document: $markup, tool: $markupTool, color: $markupColor, width: $markupWidth, onClear: { confirmingMarkupClear = true }, onDone: finishMarkup)
-                        }
-                    }
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+
                         if let project = store.project(id: projectID) {
                             PatternReaderControls(
                                 currentRow: project.currentRow,

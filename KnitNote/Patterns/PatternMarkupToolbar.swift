@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PatternMarkupToolbar: View {
+    static let stableHeight: CGFloat = 60
+
     @Binding var document: PatternMarkupDocument
     @Binding var tool: PatternMarkupTool
     @Binding var color: MarkupColor

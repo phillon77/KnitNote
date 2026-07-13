@@ -4,7 +4,7 @@
 
 **Goal:** Make saved per-page pattern notes visible immediately when reopened and persistent after a full project-store reload.
 
-**Architecture:** `PatternReadingState` gets one explicit note-setting operation that immediately updates both the active note and its page-state entry. The note editor binds directly to the reader-owned active note, while the reader owns Save and Cancel behavior.
+**Architecture:** `PatternReadingState` keeps its explicit note-setting operation for immediate UI state. A dedicated project-store operation writes a note by project ID, pattern ID, and page index without depending on a live reader view. The note sheet reloads the confirmed page state from the store when it closes.
 
 **Tech Stack:** Swift 6, SwiftUI, Swift Testing, Swift Package Manager, Xcode 26.
 
@@ -105,20 +105,50 @@ Expected: 33 tests pass and both builds end with `** BUILD SUCCEEDED **`.
 
 Stage only the two app files and commit `Bind pattern page notes to reader state`.
 
-### Task 3: Final Inspection
+### Task 3: Direct Store Persistence for iPhone
+
+**Files:**
+- Modify: `Sources/KnitNoteCore/Patterns/PatternDocument.swift`
+- Modify: `Sources/KnitNoteCore/Projects/StoredProject.swift`
+- Modify: `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`
+- Modify: `Tests/KnitNoteCoreTests/PatternDocumentTests.swift`
+- Modify: `KnitNote/Patterns/PatternReaderView.swift`
+
+**Interfaces:**
+- Produces: `PatternDocument.setPageNote(_:pageIndex:)`, `StoredProject.savePatternPageNote(patternID:pageIndex:text:)`, and `JSONProjectStore.savePatternPageNote(projectID:patternID:pageIndex:text:)`.
+- Consumes: Stable project, pattern, and zero-based page identifiers captured before presenting the note sheet.
+
+- [ ] **Step 1: Write a failing direct-store test**
+
+Create a project with a PDF pattern, call `store.savePatternPageNote(projectID:patternID:pageIndex:text:)` for page 2, reload `JSONProjectStore`, and expect only `pageStates[2]?.note` to equal the trimmed note.
+
+- [ ] **Step 2: Run the focused test and verify RED**
+
+```bash
+CLANG_MODULE_CACHE_PATH="$PWD/work/swift-cache" swift test --disable-sandbox --scratch-path work/.build --filter dedicatedPageNoteSaveSurvivesWithoutReaderState
+```
+
+Expected: compilation fails because the store operation is missing.
+
+- [ ] **Step 3: Implement the direct persistence chain**
+
+`PatternDocument.setPageNote(_:pageIndex:)` must preserve that page's horizontal and vertical highlight positions while replacing only its note. `StoredProject` locates the pattern and calls it. `JSONProjectStore` performs the mutation and atomic archive write.
+
+- [ ] **Step 4: Route sheet Save and dismissal through the store**
+
+Capture the page index when opening the editor. Save calls the dedicated store API with that captured index. Add a sheet `onDismiss` callback that reloads `state` from the stored pattern's `readingState`, then restores the confirmed PDF page index and current page note without navigating the PDF.
+
+- [ ] **Step 5: Run all tests and platform builds**
+
+Run the existing full Swift test command plus iOS and macOS build commands. Expected: 34 tests pass and both builds succeed.
+
+- [ ] **Step 6: Commit**
+
+Stage only the five listed files and commit `Save pattern page notes directly to the store`.
+
+### Task 4: Final Inspection
 
 **Files:** Verify only.
 
-- [ ] **Step 1: Check the final tree**
-
-```bash
-git diff --check
-git status --short
-git log -4 --oneline
-```
-
-Expected: no whitespace errors; only the preserved localization change remains unstaged.
-
-- [ ] **Step 2: Hand off manual verification**
-
-Ask the user to save and immediately reopen a note, cancel a changed draft, switch pages, and leave and reopen the pattern reader.
+- [ ] **Step 1:** Run `git diff --check`, `git status --short`, and `git log -4 --oneline`; only the preserved localization change may remain.
+- [ ] **Step 2:** Ask the user to test immediate reopen and full reader reopen on both iPhone and iPad.

@@ -20,7 +20,7 @@ struct PDFReaderView: UIViewRepresentable {
 
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
-        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private var restoreGate = PatternReadingRestoreGate(); private var restoreAttempts = 0; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
+        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
         init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error }
         func make(url: URL) -> PDFView {
             let view=PDFView(); view.autoScales=true; view.displayMode = .singlePage; view.displayDirection = .horizontal
@@ -83,11 +83,12 @@ extension PDFReaderView {
             let targetIndex=state.pdfRestorePageIndex(pageCount:doc.pageCount)
             let currentIndex=view.currentPage.map { doc.index(for:$0) }
             guard currentIndex != targetIndex, let page=doc.page(at:targetIndex) else { return }
+            pageRequestGate.request(targetIndex)
             view.autoScales=true
             view.go(to:page)
         }
         @objc private func changed(_ note: Notification) { sample(note.object as? PDFView) }
-        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; state.transitionToPDFPage(visiblePage); state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
+        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; guard pageRequestGate.shouldAcceptSample(visiblePage) else { return }; state.transitionToPDFPage(visiblePage); state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }
 }

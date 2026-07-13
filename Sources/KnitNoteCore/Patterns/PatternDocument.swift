@@ -113,6 +113,22 @@ public struct PatternReadingRestoreGate: Sendable {
     public mutating func didRestore() { canSample = true }
 }
 
+public struct PatternPDFPageRequestGate: Sendable {
+    public private(set) var requestedPageIndex: Int?
+    public init() {}
+
+    public mutating func request(_ pageIndex: Int) {
+        requestedPageIndex = max(0, pageIndex)
+    }
+
+    public mutating func shouldAcceptSample(_ pageIndex: Int) -> Bool {
+        guard let requestedPageIndex else { return true }
+        guard pageIndex == requestedPageIndex else { return false }
+        self.requestedPageIndex = nil
+        return true
+    }
+}
+
 public extension PatternDocument {
     var readingState: PatternReadingState {
         .init(pageIndex: pageIndex, zoomScale: zoomScale, offsetX: contentOffsetX, offsetY: contentOffsetY, highlightEnabled: highlightEnabled, highlightPosition: pageStates[pageIndex]?.horizontalPosition ?? highlightPosition, highlightMode: highlightMode, verticalHighlightPosition: pageStates[pageIndex]?.verticalPosition ?? verticalHighlightPosition, pageNote: pageStates[pageIndex]?.note ?? "", pageStates: pageStates)

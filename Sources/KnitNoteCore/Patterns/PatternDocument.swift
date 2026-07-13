@@ -41,6 +41,14 @@ public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
             pageStates = [pageIndex: PatternPageState(horizontalPosition: highlightPosition, verticalPosition: verticalHighlightPosition)]
         }
     }
+
+    public mutating func setPageNote(_ text: String, pageIndex: Int) {
+        let cleanPageIndex = max(0, pageIndex)
+        let existing = pageStates[cleanPageIndex]
+        let horizontal = existing?.horizontalPosition ?? (cleanPageIndex == self.pageIndex ? highlightPosition : 0.5)
+        let vertical = existing?.verticalPosition ?? (cleanPageIndex == self.pageIndex ? verticalHighlightPosition : 0.5)
+        pageStates[cleanPageIndex] = PatternPageState(horizontalPosition: horizontal, verticalPosition: vertical, note: text)
+    }
 }
 
 public struct PatternReadingState: Equatable, Sendable {

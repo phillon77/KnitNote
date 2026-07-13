@@ -24,6 +24,7 @@ public struct ProjectArchive: Codable, Sendable {
     public func deleteNote(projectID: UUID, row: Int) throws { try mutate(id: projectID) { $0.deleteNote(row: row) } }
     public func addPattern(projectID: UUID, pattern: PatternDocument) throws { try mutate(id: projectID) { $0.addPattern(pattern) } }
     public func deletePattern(projectID: UUID, id: UUID) throws { try mutate(id: projectID) { $0.deletePattern(id: id) } }
+    public func savePatternPageNote(projectID: UUID, patternID: UUID, pageIndex: Int, text: String) throws { try mutate(id: projectID) { $0.savePatternPageNote(patternID: patternID, pageIndex: pageIndex, text: text) } }
     public func updatePatternState(projectID: UUID, id: UUID, pageIndex: Int, highlightPosition: Double) throws { try mutate(id: projectID) { $0.updatePatternState(id: id, pageIndex: pageIndex, highlightPosition: highlightPosition) } }
     public func updatePatternState(projectID: UUID, id: UUID, state: PatternReadingState) throws { try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) } }
     public func project(id: UUID) -> StoredProject? { projects.first { $0.id == id } }

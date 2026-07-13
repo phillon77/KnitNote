@@ -186,6 +186,21 @@ import Testing
     #expect(reloaded.pageStates[2]?.note == "chart note")
 }
 
+@MainActor @Test func dedicatedPageNoteSaveSurvivesWithoutReaderState() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Cardigan")
+    let projectID = store.projects[0].id
+    let pattern = PatternDocument(displayName: "Chart", kind: .pdf, storedFilename: "chart.pdf")
+    try store.addPattern(projectID: projectID, pattern: pattern)
+
+    try store.savePatternPageNote(projectID: projectID, patternID: pattern.id, pageIndex: 2, text: "  iPhone note  ")
+
+    let reloaded = try #require(JSONProjectStore(url: url).projects[0].patterns.first)
+    #expect(reloaded.pageStates[2]?.note == "iPhone note")
+    #expect(reloaded.pageStates[0]?.note == nil)
+}
+
 @Test func legacyPatternMigratesHighlightsToItsSavedPage() throws {
     let original = PatternDocument(displayName: "Legacy", kind: .pdf, storedFilename: "legacy.pdf")
     var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])

@@ -59,6 +59,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public mutating func addPattern(_ pattern: PatternDocument) { patterns.append(pattern); updatedAt = .now }
     public mutating func deletePattern(id: UUID) { patterns.removeAll { $0.id == id }; updatedAt = .now }
     public mutating func renamePattern(id: UUID, name: String) { if let i = patterns.firstIndex(where: {$0.id == id}) { patterns[i].displayName = name; updatedAt = .now } }
+    public mutating func savePatternPageNote(patternID: UUID, pageIndex: Int, text: String, now: Date = .now) { if let i = patterns.firstIndex(where: {$0.id == patternID}) { patterns[i].setPageNote(text, pageIndex: pageIndex); updatedAt = now } }
     public mutating func updatePatternState(id: UUID, state: PatternReadingState, now: Date = .now) { if let i = patterns.firstIndex(where: {$0.id == id}) { patterns[i].pageIndex=state.pageIndex; patterns[i].zoomScale=state.zoomScale; patterns[i].contentOffsetX=state.offsetX; patterns[i].contentOffsetY=state.offsetY; patterns[i].highlightEnabled=state.highlightEnabled; patterns[i].highlightPosition=state.highlightPosition; patterns[i].highlightMode=state.highlightMode; patterns[i].verticalHighlightPosition=state.verticalHighlightPosition; patterns[i].pageStates=state.pageStates; patterns[i].lastOpenedAt = now; updatedAt = now } }
     public mutating func updatePatternState(id: UUID, pageIndex: Int, highlightPosition: Double) { updatePatternState(id: id, state: .init(pageIndex: pageIndex, highlightPosition: highlightPosition)) }
 

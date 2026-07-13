@@ -12,6 +12,7 @@ struct PatternReaderView: View {
     @State private var saveError: String?
     @State private var showingPageNote = false
     @State private var originalPageNote = ""
+    @State private var editingPageNoteIndex = 0
     @State private var markupMode = false
     @State private var markup = PatternMarkupDocument()
     @State private var markupTool = PatternMarkupTool.pen
@@ -91,6 +92,7 @@ struct PatternReaderView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
+                        editingPageNoteIndex = state.pageIndex
                         originalPageNote = state.pageNote
                         showingPageNote = true
                     } label: {
@@ -100,13 +102,11 @@ struct PatternReaderView: View {
             }
             .alert("patterns.invalid", isPresented: $loadError) { Button("common.ok") { dismiss() } }
             .alert("error.saveFailed", isPresented: Binding(get:{saveError != nil},set:{if !$0{saveError=nil}})) { Button("common.ok"){} } message:{Text(saveError ?? "")}
-            .sheet(isPresented: $showingPageNote) {
+            .sheet(isPresented: $showingPageNote, onDismiss: reloadSavedPageNote) {
                 EditPatternPageNoteView(pageNumber: state.pageIndex + 1, text: $state.pageNote) {
-                    state.setPageNote(state.pageNote)
-                    _ = save()
+                    savePageNoteDirectly()
                 } onCancel: {
                     state.setPageNote(originalPageNote)
-                    _ = save()
                 }
             }
             .confirmationDialog("patterns.markup.clear.confirm", isPresented: $confirmingMarkupClear) {
@@ -142,6 +142,22 @@ struct PatternReaderView: View {
         let target = min(pageCount - 1, max(0, state.pageIndex + delta))
         guard target != state.pageIndex else { return }
         pdfNavigator.go(to: target)
+    }
+
+    private func savePageNoteDirectly() {
+        let text = state.pageNote
+        do {
+            try store.savePatternPageNote(projectID: projectID, patternID: patternID, pageIndex: editingPageNoteIndex, text: text)
+            if editingPageNoteIndex == state.pageIndex { state.setPageNote(text) }
+        } catch {
+            saveError = error.localizedDescription
+        }
+    }
+
+    private func reloadSavedPageNote() {
+        guard editingPageNoteIndex == state.pageIndex,
+              let saved = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID })?.pageStates[editingPageNoteIndex]?.note else { return }
+        state.setPageNote(saved)
     }
 
     private func loadMarkup(page: Int) {

@@ -3,14 +3,9 @@ import SwiftUI
 struct EditPatternPageNoteView: View {
     @Environment(\.dismiss) private var dismiss
     let pageNumber: Int
-    let onSave: (String) -> Void
-    @State private var text: String
-
-    init(pageNumber: Int, initialText: String, onSave: @escaping (String) -> Void) {
-        self.pageNumber = pageNumber
-        self.onSave = onSave
-        _text = State(initialValue: initialText)
-    }
+    @Binding var text: String
+    let onSave: () -> Void
+    let onCancel: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -19,11 +14,14 @@ struct EditPatternPageNoteView: View {
                 .navigationTitle(String(format: String(localized: "patterns.pageNote.page"), pageNumber))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("common.cancel") { dismiss() }
+                        Button("common.cancel") {
+                            onCancel()
+                            dismiss()
+                        }
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("common.save") {
-                            onSave(text)
+                            onSave()
                             dismiss()
                         }
                     }

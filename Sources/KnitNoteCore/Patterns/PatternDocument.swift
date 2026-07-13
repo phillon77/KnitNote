@@ -92,6 +92,11 @@ public struct PatternReadingState: Equatable, Sendable {
         pageNote = pageStates[pageIndex]?.note ?? ""
     }
 
+    public mutating func setPageNote(_ text: String) {
+        pageNote = text
+        saveCurrentPage()
+    }
+
     public mutating func loadPage(_ index: Int) {
         pageIndex = max(0, index)
         let saved = pageStates[pageIndex] ?? PatternPageState()

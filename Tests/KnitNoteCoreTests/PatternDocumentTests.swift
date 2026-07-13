@@ -160,6 +160,32 @@ import Testing
     #expect(state.pageNote == "first repeat")
 }
 
+@Test func settingPageNoteImmediatelyUpdatesActivePageState() {
+    var state = PatternReadingState(pageIndex: 2)
+
+    state.setPageNote("  sleeve repeat  ")
+
+    #expect(state.pageNote == "sleeve repeat")
+    #expect(state.pageStates[2]?.note == "sleeve repeat")
+}
+
+@MainActor @Test func pageNoteSurvivesProjectStoreReload() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Sweater")
+    let projectID = store.projects[0].id
+    let pattern = PatternDocument(displayName: "Sleeve", kind: .pdf, storedFilename: "sleeve.pdf")
+    try store.addPattern(projectID: projectID, pattern: pattern)
+    var state = PatternReadingState(pageIndex: 2)
+    state.setPageNote("chart note")
+
+    try store.updatePatternState(projectID: projectID, id: pattern.id, state: state)
+
+    let reloaded = try #require(JSONProjectStore(url: url).projects[0].patterns.first)
+    #expect(reloaded.readingState.pageNote == "chart note")
+    #expect(reloaded.pageStates[2]?.note == "chart note")
+}
+
 @Test func legacyPatternMigratesHighlightsToItsSavedPage() throws {
     let original = PatternDocument(displayName: "Legacy", kind: .pdf, storedFilename: "legacy.pdf")
     var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])

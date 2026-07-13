@@ -11,6 +11,7 @@ struct PatternReaderView: View {
     @State private var pageCount = 0
     @State private var saveError: String?
     @State private var showingPageNote = false
+    @State private var originalPageNote = ""
     @State private var markupMode = false
     @State private var markup = PatternMarkupDocument()
     @State private var markupTool = PatternMarkupTool.pen
@@ -90,6 +91,7 @@ struct PatternReaderView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
+                        originalPageNote = state.pageNote
                         showingPageNote = true
                     } label: {
                         Label("patterns.pageNote", systemImage: state.pageNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "doc.text" : "doc.text.fill")
@@ -99,9 +101,11 @@ struct PatternReaderView: View {
             .alert("patterns.invalid", isPresented: $loadError) { Button("common.ok") { dismiss() } }
             .alert("error.saveFailed", isPresented: Binding(get:{saveError != nil},set:{if !$0{saveError=nil}})) { Button("common.ok"){} } message:{Text(saveError ?? "")}
             .sheet(isPresented: $showingPageNote) {
-                EditPatternPageNoteView(pageNumber: state.pageIndex + 1, initialText: state.pageNote) { text in
-                    state.pageNote = text
-                    state.saveCurrentPage()
+                EditPatternPageNoteView(pageNumber: state.pageIndex + 1, text: $state.pageNote) {
+                    state.setPageNote(state.pageNote)
+                    _ = save()
+                } onCancel: {
+                    state.setPageNote(originalPageNote)
                     _ = save()
                 }
             }

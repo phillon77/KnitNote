@@ -32,19 +32,18 @@ struct PatternReaderView: View {
                             ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
                         }
                         if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition) }
+                    }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
                         if let project = store.project(id: projectID) {
-                            VStack {
-                                Spacer()
-                                PatternReaderControls(
-                                    currentRow: project.currentRow,
-                                    pageIndex: state.pageIndex,
-                                    pageCount: pattern.kind == .pdf ? pageCount : 0,
-                                    onPreviousPage: { state.movePDFPage(by: -1, pageCount: pageCount) },
-                                    onNextPage: { state.movePDFPage(by: 1, pageCount: pageCount) },
-                                    onUndoRow: undoRow,
-                                    onCompleteRow: completeRow
-                                )
-                            }
+                            PatternReaderControls(
+                                currentRow: project.currentRow,
+                                pageIndex: state.pageIndex,
+                                pageCount: pattern.kind == .pdf ? pageCount : 0,
+                                onPreviousPage: { state.movePDFPage(by: -1, pageCount: pageCount) },
+                                onNextPage: { state.movePDFPage(by: 1, pageCount: pageCount) },
+                                onUndoRow: undoRow,
+                                onCompleteRow: completeRow
+                            )
                         }
                     }
                 } else {

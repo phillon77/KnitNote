@@ -27,6 +27,8 @@ Use a very pale blue-to-lavender watercolor gradient for general page background
 
 Place the complete illustration as a responsive hero at the top of the Projects screen. Use aspect-fit sizing with a shorter presentation on iPhone and a wider presentation on iPad and Mac. Content begins below the image; text must not be overlaid on the artwork.
 
+Use the same complete illustration on the native iOS launch screen with aspect-fit presentation and a matching soft sky background. The launch screen must not add a timed delay or simulate app content. Mac opens directly into its normal window.
+
 Represent projects as soft white cards. A card contains a project photo when available, otherwise a lavender yarn placeholder, plus project name, current row, and recent activity. The most recently used project receives stronger visual priority. A thin yarn-like line may communicate progress without replacing accessible text.
 
 The row counter remains visually focused on the large number. The Complete Row action uses a subtle berry-to-lavender treatment; undo, notes, and pattern actions use translucent soft-white capsules. Completion feedback may use a brief flower glint and haptic feedback, and must respect Reduce Motion.
@@ -71,6 +73,7 @@ Use the brand colors only for surrounding controls: translucent blue-lavender to
 ## Version One Scope
 
 - Add the original artwork as an optimized app asset.
+- Add a native iOS launch screen using the complete artwork without an artificial delay.
 - Add a full responsive hero to Projects.
 - Establish semantic theme colors, gradient backgrounds, cards, buttons, sheets, and tab styling.
 - Add the original Lemon empty-state asset.

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D3702212370914BD0EFFE039"
-               BuildableName = "KnitNote.app"
+               BuildableName = "KnitNoteWatch.app"
                BlueprintName = "KnitNoteWatch"
                ReferencedContainer = "container:KnitNote.xcodeproj">
             </BuildableReference>
@@ -31,7 +31,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D3702212370914BD0EFFE039"
-            BuildableName = "KnitNote.app"
+            BuildableName = "KnitNoteWatch.app"
             BlueprintName = "KnitNoteWatch"
             ReferencedContainer = "container:KnitNote.xcodeproj">
          </BuildableReference>
@@ -54,7 +54,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D3702212370914BD0EFFE039"
-            BuildableName = "KnitNote.app"
+            BuildableName = "KnitNoteWatch.app"
             BlueprintName = "KnitNoteWatch"
             ReferencedContainer = "container:KnitNote.xcodeproj">
          </BuildableReference>
@@ -71,7 +71,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D3702212370914BD0EFFE039"
-            BuildableName = "KnitNote.app"
+            BuildableName = "KnitNoteWatch.app"
             BlueprintName = "KnitNoteWatch"
             ReferencedContainer = "container:KnitNote.xcodeproj">
          </BuildableReference>

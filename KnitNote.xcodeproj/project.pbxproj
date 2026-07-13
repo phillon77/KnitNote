@@ -333,10 +333,10 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					ABFEFD40E9C4B3B0EB287FB5 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = 9CFPAUL5N5;
 					};
 					D3702212370914BD0EFFE039 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = 9CFPAUL5N5;
 					};
 				};
 			};
@@ -459,7 +459,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.KnitNote.watch;
-				PRODUCT_NAME = KnitNote;
+				PRODUCT_NAME = KnitNoteWatch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -557,7 +557,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 9CFPAUL5N5;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -615,7 +615,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 9CFPAUL5N5;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -654,7 +654,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.KnitNote.watch;
-				PRODUCT_NAME = KnitNote;
+				PRODUCT_NAME = KnitNoteWatch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;

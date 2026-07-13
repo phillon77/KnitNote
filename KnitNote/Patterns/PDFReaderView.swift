@@ -56,7 +56,9 @@ extension PDFReaderView {
             Task { @MainActor [weak self] in self?.pageCount = loadedPageCount }
             NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewPageChanged, object:view)
             NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewScaleChanged, object:view)
-            timer=Timer.scheduledTimer(withTimeInterval:0.25,repeats:true){[weak self] _ in self?.sample()}
+            timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.sample() }
+            }
             return view
         }
         func restore(_ view: PDFView, state: PatternReadingState) {

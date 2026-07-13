@@ -19,5 +19,8 @@ public struct PatternFileService: Sendable {
         return PatternDocument(id:id, displayName:source.deletingPathExtension().lastPathComponent, kind:kind, storedFilename:filename)
     }
     public func url(projectID: UUID, pattern: PatternDocument) -> URL { root.appendingPathComponent(projectID.uuidString).appendingPathComponent(pattern.storedFilename) }
-    public func delete(projectID: UUID, pattern: PatternDocument) throws { try FileManager.default.removeItem(at: url(projectID: projectID, pattern: pattern)) }
+    public func delete(projectID: UUID, pattern: PatternDocument) throws {
+        try FileManager.default.removeItem(at: url(projectID: projectID, pattern: pattern))
+        try? PatternMarkupFileService(root: root).deletePatternMarkup(projectID: projectID, patternID: pattern.id)
+    }
 }

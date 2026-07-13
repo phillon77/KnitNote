@@ -11,7 +11,14 @@ struct PatternReaderView: View {
     @State private var pageCount = 0
     @State private var saveError: String?
     @State private var showingPageNote = false
+    @State private var markupMode = false
+    @State private var markup = PatternMarkupDocument()
+    @State private var markupTool = PatternMarkupTool.pen
+    @State private var markupColor = MarkupColor.red
+    @State private var markupWidth = 0.008
+    @State private var confirmingMarkupClear = false
     private let files = PatternFileService.live()
+    private let markupFiles = PatternMarkupFileService.live()
 
     init(projectID: UUID, pattern: PatternDocument) {
         self.projectID = projectID
@@ -28,10 +35,18 @@ struct PatternReaderView: View {
                     ZStack(alignment: .top) {
                         if pattern.kind == .pdf {
                             PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, pageCount: $pageCount, loadError: $loadError)
+                                .allowsHitTesting(!markupMode)
                         } else {
                             ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
+                                .allowsHitTesting(!markupMode)
                         }
-                        if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition) }
+                        if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition).allowsHitTesting(!markupMode) }
+                        if markupMode { PatternMarkupOverlay(document: $markup, tool: markupTool, color: markupColor, width: markupWidth) }
+                    }
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if markupMode {
+                            PatternMarkupToolbar(document: $markup, tool: $markupTool, color: $markupColor, width: $markupWidth, onClear: { confirmingMarkupClear = true }, onDone: finishMarkup)
+                        }
                     }
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         if let project = store.project(id: projectID) {
@@ -66,6 +81,9 @@ struct PatternReaderView: View {
                     } label: { Label("patterns.highlightMode", systemImage: "scope") }
                 }
                 ToolbarItem(placement: .primaryAction) {
+                    Button("patterns.markup", systemImage: "pencil.and.outline") { markupMode.toggle() }
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingPageNote = true
                     } label: {
@@ -82,10 +100,16 @@ struct PatternReaderView: View {
                     _ = save()
                 }
             }
+            .confirmationDialog("patterns.markup.clear.confirm", isPresented: $confirmingMarkupClear) {
+                Button("patterns.markup.clear", role: .destructive) { markup.clear() }
+                Button("common.cancel", role: .cancel) {}
+            }
         }
         .interactiveDismissDisabled()
-        .onDisappear { _ = save() }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { _ = save() } }
+        .onAppear { loadMarkup(page: state.pageIndex) }
+        .onDisappear { saveMarkup(page: state.pageIndex); _ = save() }
+        .onChange(of: state.pageIndex) { oldPage, newPage in saveMarkup(page: oldPage); loadMarkup(page: newPage) }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { saveMarkup(page: state.pageIndex); _ = save() } }
     }
 
     @discardableResult private func save() -> Bool {
@@ -103,4 +127,16 @@ struct PatternReaderView: View {
         do { try store.undoRow(id: projectID) }
         catch { saveError = error.localizedDescription }
     }
+
+    private func loadMarkup(page: Int) {
+        do { markup = try markupFiles.load(projectID: projectID, patternID: patternID, pageIndex: page) }
+        catch { markup = PatternMarkupDocument(); saveError = error.localizedDescription }
+    }
+
+    private func saveMarkup(page: Int) {
+        do { try markupFiles.save(markup, projectID: projectID, patternID: patternID, pageIndex: page) }
+        catch { saveError = error.localizedDescription }
+    }
+
+    private func finishMarkup() { saveMarkup(page: state.pageIndex); markupMode = false }
 }

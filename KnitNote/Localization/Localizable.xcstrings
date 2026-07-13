@@ -530,6 +530,21 @@
         }
       }
     },
+    "patterns.markup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Markup" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "手寫標記" } } } },
+    "patterns.markup.pen" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pen" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "畫筆" } } } },
+    "patterns.markup.eraser" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Eraser" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "橡皮擦" } } } },
+    "patterns.markup.color" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Color" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顏色" } } } },
+    "patterns.markup.color.black" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Black" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "黑色" } } } },
+    "patterns.markup.color.red" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Red" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紅色" } } } },
+    "patterns.markup.color.blue" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Blue" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "藍色" } } } },
+    "patterns.markup.color.green" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Green" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "綠色" } } } },
+    "patterns.markup.width" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Width" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "粗細" } } } },
+    "patterns.markup.width.thin" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Thin" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "細" } } } },
+    "patterns.markup.width.medium" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Medium" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "中" } } } },
+    "patterns.markup.width.thick" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Thick" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "粗" } } } },
+    "patterns.markup.undo" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Undo" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "復原筆跡" } } } },
+    "patterns.markup.clear" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear Page" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "清除本頁" } } } },
+    "patterns.markup.clear.confirm" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear all markup on this page?" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要清除本頁所有筆跡嗎？" } } } },
     "patterns.nextPage" : {
       "localizations" : {
         "en" : {

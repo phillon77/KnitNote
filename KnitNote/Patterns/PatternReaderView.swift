@@ -30,7 +30,7 @@ struct PatternReaderView: View {
                         } else {
                             ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
                         }
-                        if pattern.kind != .pdf, state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition) }
+                        if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition) }
                         if pattern.kind == .pdf, pageCount > 0 {
                             VStack { Spacer(); Text(verbatim: "\(state.pageIndex + 1) / \(pageCount)").font(.caption.monospacedDigit()).padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule()).padding() }.allowsHitTesting(false)
                         }
@@ -44,15 +44,7 @@ struct PatternReaderView: View {
             .navigationTitle(pattern?.displayName ?? String(localized: "patterns.title"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("common.ok") { if save() { dismiss() } } }
-                ToolbarItem(placement: .primaryAction) {
-                    Toggle("patterns.highlight", isOn: Binding(
-                        get:{state.highlightEnabled},
-                        set:{enabled in
-                            if enabled, pattern?.kind == .pdf { state.enablePDFHighlightOnCurrentPage() }
-                            else { state.highlightEnabled=enabled }
-                        }
-                    ))
-                }
+                ToolbarItem(placement: .primaryAction) { Toggle("patterns.highlight", isOn: $state.highlightEnabled) }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Picker("patterns.highlightMode", selection: $state.highlightMode) {

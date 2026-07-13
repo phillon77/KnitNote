@@ -23,6 +23,6 @@ import Testing
     let id = store.projects[0].id
     try store.saveNote(projectID: id, row: 2, text: "K2tog")
     let data = try Data(contentsOf: url)
-    #expect(String(decoding: data, as: UTF8.self).contains("\"version\":5"))
+    #expect(String(decoding: data, as: UTF8.self).contains("\"version\":6"))
     #expect(JSONProjectStore(url: url).projects[0].rowNotes[0].text == "K2tog")
 }

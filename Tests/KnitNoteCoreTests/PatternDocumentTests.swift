@@ -30,12 +30,12 @@ import Testing
     #expect(project.patterns[0].contentOffsetX == 0.2)
 }
 
-@MainActor @Test func storeWritesArchiveVersionFive() throws {
+@MainActor @Test func storeWritesArchiveVersionSix() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store = JSONProjectStore(url: url)
     try store.add(name: "Sweater")
     try store.addPattern(projectID: store.projects[0].id, pattern: PatternDocument(displayName: "Chart", kind: .image, storedFilename: "x.png"))
-    #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"version\":5"))
+    #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"version\":6"))
 }
 
 @Test func highlightModeDefaultsAndPositionsClamp() {
@@ -221,7 +221,7 @@ import Testing
 }
 
 @Test func patternGroupsOmitEmptyProjectsAndKeepOwners() throws {
-    var empty = try StoredProject(name: "Empty")
+    let empty = try StoredProject(name: "Empty")
     var scarf = try StoredProject(name: "Scarf")
     let chart = PatternDocument(displayName: "Chart", kind: .pdf, storedFilename: "chart.pdf")
     scarf.addPattern(chart)

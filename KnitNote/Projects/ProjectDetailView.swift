@@ -4,7 +4,7 @@ struct ProjectDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
-    @State private var showingRename = false
+    @State private var showingEdit = false
     @State private var editingRow: Int?
     @State private var showingAllNotes = false
     @State private var showingPatterns = false
@@ -79,8 +79,8 @@ struct ProjectDetailView: View {
                 }
             }
             .navigationTitle(project.name)
-            .toolbar { Button("project.rename", systemImage: "pencil") { showingRename = true } }
-            .sheet(isPresented: $showingRename) { RenameProjectView(projectID: projectID) }
+            .toolbar { Button("project.edit", systemImage: "pencil") { showingEdit = true } }
+            .sheet(isPresented: $showingEdit) { EditProjectView(projectID: projectID) }
             .sheet(item: $editingRow) { EditRowNoteView(projectID: projectID, row: $0) }
             .sheet(isPresented: $showingAllNotes) { AllNotesView(projectID: projectID) }
             .sheet(isPresented: $showingPatterns) { ProjectPatternsView(projectID: projectID) }

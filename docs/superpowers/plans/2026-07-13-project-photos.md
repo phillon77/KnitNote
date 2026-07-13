@@ -73,7 +73,7 @@ Commit as `Add optional project photo metadata`.
 
 - [ ] **Step 1: Write failing service tests**
 
-Use ImageIO/CoreGraphics in the test helper to create a 2400×1200 JPEG. Verify saving returns `"<project-id>.jpg"`, the stored image has a maximum dimension of 1600, invalid bytes throw `.invalidImage`, a second save replaces the file, and delete is idempotent.
+Use ImageIO/CoreGraphics in the test helper to create a 2400×1200 JPEG. Verify saving returns a unique `"<project-id>-<uuid>.jpg"` filename, the stored image has a maximum dimension of 1600, invalid bytes throw `.invalidImage`, repeated saves preserve the earlier file for rollback, and delete is idempotent.
 
 - [ ] **Step 2: Run the focused tests and verify RED**
 
@@ -81,7 +81,7 @@ Expected: compilation fails because `ProjectPhotoFileService` does not exist.
 
 - [ ] **Step 3: Implement minimal normalization and atomic storage**
 
-Decode with `CGImageSourceCreateWithData`, create a thumbnail using `kCGImageSourceThumbnailMaxPixelSize: 1600` and transform handling, encode JPEG at quality `0.86` with `CGImageDestination`, create the photo directory, and atomically write to `<UUID>.jpg`.
+Decode with `CGImageSourceCreateWithData`, create a thumbnail using `kCGImageSourceThumbnailMaxPixelSize: 1600` and transform handling, encode JPEG at quality `0.86` with `CGImageDestination`, create the photo directory, and atomically write to `<project-id>-<uuid>.jpg`.
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 

@@ -26,6 +26,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public private(set) var updatedAt: Date
     public private(set) var rowNotes: [RowNote]
     public private(set) var patterns: [PatternDocument]
+    public private(set) var photoFilename: String?
 
     public init(id: UUID = UUID(), name: String, currentRow: Int = 0, now: Date = .now) throws {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -34,6 +35,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         createdAt = now; updatedAt = now
         rowNotes = []
         patterns = []
+        photoFilename = nil
     }
     public mutating func rename(to value: String, now: Date = .now) throws {
         let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -42,6 +44,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     }
     public mutating func completeRow(now: Date = .now) { currentRow += 1; updatedAt = now }
     public mutating func undoRow(now: Date = .now) { currentRow = max(0, currentRow - 1); updatedAt = now }
+    public mutating func setPhotoFilename(_ filename: String?, now: Date = .now) { photoFilename = filename; updatedAt = now }
     public var sortedNotes: [RowNote] { rowNotes.sorted { $0.row > $1.row } }
     public func note(row: Int) -> RowNote? { rowNotes.first { $0.row == row } }
     public mutating func saveNote(row: Int, text: String, now: Date = .now) throws {
@@ -63,11 +66,11 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public mutating func updatePatternState(id: UUID, state: PatternReadingState, now: Date = .now) { if let i = patterns.firstIndex(where: {$0.id == id}) { patterns[i].pageIndex=state.pageIndex; patterns[i].zoomScale=state.zoomScale; patterns[i].contentOffsetX=state.offsetX; patterns[i].contentOffsetY=state.offsetY; patterns[i].highlightEnabled=state.highlightEnabled; patterns[i].highlightPosition=state.highlightPosition; patterns[i].highlightMode=state.highlightMode; patterns[i].verticalHighlightPosition=state.verticalHighlightPosition; patterns[i].pageStates=state.pageStates; patterns[i].lastOpenedAt = now; updatedAt = now } }
     public mutating func updatePatternState(id: UUID, pageIndex: Int, highlightPosition: Double) { updatePatternState(id: id, state: .init(pageIndex: pageIndex, highlightPosition: highlightPosition)) }
 
-    enum CodingKeys: String, CodingKey { case id, name, currentRow, createdAt, updatedAt, rowNotes, patterns }
+    enum CodingKeys: String, CodingKey { case id, name, currentRow, createdAt, updatedAt, rowNotes, patterns, photoFilename }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); name = try c.decode(String.self, forKey: .name)
         currentRow = try c.decode(Int.self, forKey: .currentRow); createdAt = try c.decode(Date.self, forKey: .createdAt)
-        updatedAt = try c.decode(Date.self, forKey: .updatedAt); rowNotes = try c.decodeIfPresent([RowNote].self, forKey: .rowNotes) ?? []; patterns = try c.decodeIfPresent([PatternDocument].self, forKey: .patterns) ?? []
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt); rowNotes = try c.decodeIfPresent([RowNote].self, forKey: .rowNotes) ?? []; patterns = try c.decodeIfPresent([PatternDocument].self, forKey: .patterns) ?? []; photoFilename = try c.decodeIfPresent(String.self, forKey: .photoFilename)
     }
 }

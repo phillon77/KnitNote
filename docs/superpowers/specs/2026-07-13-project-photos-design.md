@@ -17,7 +17,7 @@ Let people attach one optional photo to each knitting project, show it consisten
 
 `StoredProject` gains an optional `photoFilename: String?`. The JSON archive stores only this filename, never image bytes or a Photos asset identifier.
 
-`ProjectPhotoFileService` owns photo files beneath the same KnitNote application-support area as the project archive. It accepts image data, decodes and normalizes orientation, scales the longest edge to at most 1600 pixels, encodes a high-quality JPEG, and writes atomically using a project-specific filename. The service can load, replace, and delete a photo.
+`ProjectPhotoFileService` owns photo files beneath the same KnitNote application-support area as the project archive. It accepts image data, decodes and normalizes orientation, scales the longest edge to at most 1600 pixels, encodes a high-quality JPEG, and writes atomically using a unique filename containing the project ID and a new UUID. The service can load and delete a photo.
 
 Replacing a photo writes the new file successfully before updating the model. After persistence succeeds, the previous file is removed. Removing a photo clears the model only after the file operation succeeds. Deleting a project also deletes its photo; a missing file is treated as an already-complete cleanup.
 

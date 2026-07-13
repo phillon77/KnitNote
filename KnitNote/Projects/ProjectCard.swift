@@ -2,16 +2,14 @@ import SwiftUI
 
 struct ProjectCard: View {
     let project: StoredProject
+    let photoURL: URL?
 
     var body: some View {
         WatercolorCard {
             HStack(spacing: 16) {
-                Image(systemName: "balloon.2.fill")
-                    .font(.title2)
-                    .foregroundStyle(WatercolorTheme.actionBerry, WatercolorTheme.lavender)
-                    .frame(width: 48, height: 48)
-                    .background(WatercolorTheme.lavender.opacity(0.22), in: .circle)
-                    .accessibilityHidden(true)
+                ProjectPhotoView(url: photoURL)
+                    .frame(width: 58, height: 58)
+                    .clipShape(.rect(cornerRadius: 14))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(project.name)

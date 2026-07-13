@@ -17,6 +17,10 @@ targets:
       - path: KnitNote
         excludes:
           - LaunchScreen.storyboard
+          - Localization/InfoPlist.xcstrings
+      - path: KnitNote/Localization/InfoPlist.xcstrings
+        buildPhase: resources
+        destinationFilters: [iOS]
       - path: KnitNote/LaunchScreen.storyboard
         buildPhase: resources
         destinationFilters: [iOS]
@@ -33,6 +37,8 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.lifestyle
         "INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphoneos*]": LaunchScreen
         "INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphonesimulator*]": LaunchScreen
+        "INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]": "Take a photo for your knitting project."
+        "INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphonesimulator*]": "Take a photo for your knitting project."
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
   KnitNoteWatch:
     type: application

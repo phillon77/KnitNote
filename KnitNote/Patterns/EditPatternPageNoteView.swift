@@ -11,6 +11,7 @@ struct EditPatternPageNoteView: View {
         NavigationStack {
             TextEditor(text: $text)
                 .padding()
+                .background(WatercolorTheme.softWhite)
                 .navigationTitle(String(format: String(localized: "patterns.pageNote.page"), pageNumber))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -27,5 +28,6 @@ struct EditPatternPageNoteView: View {
                     }
                 }
         }
+        .tint(WatercolorTheme.actionBerry)
     }
 }

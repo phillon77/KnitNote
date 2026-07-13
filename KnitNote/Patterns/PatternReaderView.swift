@@ -150,6 +150,7 @@ struct PatternReaderView: View {
                 Button("common.cancel", role: .cancel) {}
             }
         }
+        .tint(WatercolorTheme.actionBerry)
         .interactiveDismissDisabled()
         .onAppear { loadMarkup(page: state.pageIndex) }
         .onDisappear { saveMarkup(page: state.pageIndex); _ = save() }

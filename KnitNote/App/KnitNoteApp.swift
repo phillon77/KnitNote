@@ -18,6 +18,7 @@ struct KnitNoteApp: App {
             RootView(storedLanguage: $storedLanguage)
                 .environment(\.locale, Locale(identifier: language.rawValue))
                 .environmentObject(projectStore)
+                .preferredColorScheme(.light)
         }
     }
 }

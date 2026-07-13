@@ -15,6 +15,11 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources:
       - path: KnitNote
+        excludes:
+          - LaunchScreen.storyboard
+      - path: KnitNote/LaunchScreen.storyboard
+        buildPhase: resources
+        destinationFilters: [iOS]
       - path: Sources/KnitNoteCore
     settings:
       base:
@@ -23,9 +28,11 @@ targets:
         MARKETING_VERSION: 1.0.0
         CURRENT_PROJECT_VERSION: 1
         PRODUCT_NAME: KnitNote
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
         INFOPLIST_KEY_CFBundleDisplayName: KnitNote
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.lifestyle
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        "INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphoneos*]": LaunchScreen
+        "INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphonesimulator*]": LaunchScreen
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
   KnitNoteWatch:
     type: application

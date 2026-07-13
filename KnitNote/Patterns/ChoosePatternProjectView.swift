@@ -13,6 +13,8 @@ struct ChoosePatternProjectView: View {
                     dismiss()
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(WatercolorBackground())
             .navigationTitle("patterns.chooseProject")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -20,5 +22,6 @@ struct ChoosePatternProjectView: View {
                 }
             }
         }
+        .tint(WatercolorTheme.actionBerry)
     }
 }

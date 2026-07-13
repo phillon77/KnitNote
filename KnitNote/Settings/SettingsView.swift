@@ -12,7 +12,10 @@ struct SettingsView: View {
                     Text("language.english").tag(LanguageSelection.english.rawValue)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(WatercolorBackground())
             .navigationTitle("nav.settings")
         }
+        .tint(WatercolorTheme.actionBerry)
     }
 }

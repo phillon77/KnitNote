@@ -13,7 +13,7 @@ struct ProjectPatternsView: View {
     var body: some View { NavigationStack { List(store.project(id: projectID)?.patterns ?? []) { pattern in
         Button { selectedPattern = pattern } label: { Label(pattern.displayName, systemImage: pattern.kind == .pdf ? "doc.richtext" : "photo") }
             .swipeActions { Button("common.delete", role: .destructive) { pendingDeletion = pattern } }
-    }.navigationTitle("patterns.title").toolbar {
+    }.scrollContentBackground(.hidden).background(WatercolorBackground()).navigationTitle("patterns.title").toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("common.ok") { dismiss() } }
         ToolbarItem(placement: .primaryAction) { Button("patterns.add", systemImage: "plus") { importing = true } }
     }.fileImporter(isPresented: $importing, allowedContentTypes: [.pdf,.png,.jpeg,.heic]) { result in
@@ -26,7 +26,7 @@ struct ProjectPatternsView: View {
         Button("common.delete", role:.destructive) { deletePending() }; Button("common.cancel",role:.cancel){pendingDeletion=nil}
       }
       .alert("patterns.error", isPresented: Binding(get:{errorMessage != nil},set:{if !$0{errorMessage=nil}})) { Button("common.ok"){} } message:{Text(errorMessage ?? "")}
-    } }
+    }.tint(WatercolorTheme.actionBerry) }
 
     private func deletePending() {
         guard let pattern=pendingDeletion else{return}

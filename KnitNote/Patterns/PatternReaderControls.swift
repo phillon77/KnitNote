@@ -16,6 +16,7 @@ struct PatternReaderControls: View {
                     Button(action: onPreviousPage) {
                         Label("patterns.previousPage", systemImage: "chevron.left")
                     }
+                    .tint(WatercolorTheme.actionBerry)
                     .disabled(pageIndex == 0)
                     Spacer()
                     Text(verbatim: "\(pageIndex + 1) / \(pageCount)")
@@ -24,6 +25,7 @@ struct PatternReaderControls: View {
                     Button(action: onNextPage) {
                         Label("patterns.nextPage", systemImage: "chevron.right")
                     }
+                    .tint(WatercolorTheme.actionBerry)
                     .disabled(pageIndex >= pageCount - 1)
                 }
                 .labelStyle(.titleAndIcon)
@@ -51,11 +53,13 @@ struct PatternReaderControls: View {
                     Label("project.completeRow", systemImage: "plus.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(WatercolorTheme.actionBerry)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(WatercolorTheme.softWhite.opacity(0.94), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: WatercolorTheme.lavender.opacity(0.2), radius: 8, y: 3)
         .padding(.horizontal)
         .padding(.bottom, 8)
     }

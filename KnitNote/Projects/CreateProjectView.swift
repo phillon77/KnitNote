@@ -9,6 +9,8 @@ struct CreateProjectView: View {
     var body: some View {
         NavigationStack {
             Form { TextField("project.name", text: $name) }
+                .scrollContentBackground(.hidden)
+                .background(WatercolorBackground())
                 .navigationTitle("project.create")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("common.cancel") { dismiss() } }
@@ -22,6 +24,7 @@ struct CreateProjectView: View {
                 )) { Button("common.ok") {} } message: { Text(errorMessage ?? "") }
         }
         .frame(minWidth: 320, minHeight: 180)
+        .tint(WatercolorTheme.actionBerry)
     }
 
     private func create() {

@@ -20,7 +20,11 @@ struct PatternLibraryView: View {
         NavigationStack {
             Group {
                 if patternGroups(from: store.projects).isEmpty {
-                    ContentUnavailableView("patterns.library.empty.title", systemImage: "doc.text.image", description: Text("patterns.library.empty.message"))
+                    ZStack {
+                        WatercolorBackground()
+                        LemonEmptyState(title: "patterns.library.empty.title", message: "patterns.library.empty.message")
+                            .padding()
+                    }
                 } else {
                     List {
                         ForEach(patternGroups(from: store.projects)) { group in
@@ -35,6 +39,8 @@ struct PatternLibraryView: View {
                             }
                         }
                     }
+                    .scrollContentBackground(.hidden)
+                    .background(WatercolorBackground())
                 }
             }
             .navigationTitle("nav.patterns")
@@ -61,6 +67,7 @@ struct PatternLibraryView: View {
                 Button("common.ok") {}
             } message: { Text(errorMessage ?? "") }
         }
+        .tint(WatercolorTheme.actionBerry)
     }
 
     private func importPattern(_ result: Result<URL, Error>) {

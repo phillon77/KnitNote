@@ -14,6 +14,21 @@ struct RootView: View {
             SettingsView(storedLanguage: $storedLanguage)
                 .tabItem { Label("nav.settings", systemImage: "gearshape") }
         }
+        .tint(WatercolorTheme.actionBerry)
+        .watercolorTabBar()
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func watercolorTabBar() -> some View {
+        #if os(iOS)
+        self
+            .toolbarBackground(WatercolorTheme.softWhite.opacity(0.96), for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+        #else
+        self
+        #endif
     }
 }
 
@@ -22,6 +37,13 @@ private struct PlaceholderView: View {
     let symbol: String
 
     var body: some View {
-        ContentUnavailableView(title, systemImage: symbol, description: Text("common.comingSoon"))
+        NavigationStack {
+            ZStack {
+                WatercolorBackground()
+                LemonEmptyState(title: title, message: "common.comingSoon")
+                    .padding()
+            }
+            .navigationTitle(title)
+        }
     }
 }

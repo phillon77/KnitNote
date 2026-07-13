@@ -34,7 +34,7 @@ struct HighlightOverlay: View {
 
     private func verticalBand(in size: CGSize) -> some View {
         RoundedRectangle(cornerRadius: 6)
-            .fill(.yellow.opacity(0.32))
+            .fill(.pink.opacity(0.32))
             .frame(width: 44)
             .overlay(alignment: .bottom) { Image(systemName: "line.3.horizontal").rotationEffect(.degrees(90)).padding().foregroundStyle(.secondary) }
             .position(x: max(22, min(size.width - 22, size.width * verticalPosition)), y: size.height / 2)

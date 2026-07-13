@@ -1,0 +1,9 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "project.completeRow" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "+1 Row" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "+1 排" } } } },
+    "project.undo" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Undo" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "復原" } } } },
+    "sample.projectName" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "My First Scarf" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "我的第一條圍巾" } } } }
+  },
+  "version" : "1.0"
+}

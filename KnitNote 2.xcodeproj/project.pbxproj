@@ -1,0 +1,549 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
+		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
+		12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
+		214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */; };
+		326D6303F4CB969B6F1667DA /* JSONProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */; };
+		3B4F33C9BB928655D1287371 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1FE7F6E3926F76E8684A55 /* SettingsView.swift */; };
+		3C6BE637ADCCABE03A6E9540 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD5B158A45CBD8018FC499A /* AppLanguage.swift */; };
+		3CA4295D672D7BB3EEC8EF3B /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D483F31D056F9F52B2EC563 /* ProjectsView.swift */; };
+		52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */; };
+		66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
+		6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */; };
+		6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
+		70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
+		8A0D44321A0B878C18C93038 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431158CF5C9EC212EABD87BA /* RootView.swift */; };
+		8D693E6491BBB929413B5E7E /* RenameProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89256E2E3D8EFEE2525D6DD9 /* RenameProjectView.swift */; };
+		8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
+		B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */; };
+		BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */; };
+		C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
+		CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD5B158A45CBD8018FC499A /* AppLanguage.swift */; };
+		D8C39A1514196D426E41EA7E /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07AC936135E44C341839B236 /* ProjectDetailView.swift */; };
+		DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
+		E857AC39E1C3EAB1D2C0735A /* KnitNoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		07AC936135E44C341839B236 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
+		1112E674E478840A2286F6BA /* KnitNoteWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnitNoteWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		121DC898B51C86C11B40705C /* KnitNoteCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCore.swift; sourceTree = "<group>"; };
+		14B46C9D90D2250C063CBEB9 /* KnitNote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnitNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingProject.swift; sourceTree = "<group>"; };
+		2A4E4878CC053C86851B7DDD /* .keep */ = {isa = PBXFileReference; path = .keep; sourceTree = "<group>"; };
+		2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredProject.swift; sourceTree = "<group>"; };
+		2D483F31D056F9F52B2EC563 /* ProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsView.swift; sourceTree = "<group>"; };
+		3C1FE7F6E3926F76E8684A55 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		3CD5B158A45CBD8018FC499A /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		431158CF5C9EC212EABD87BA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStore.swift; sourceTree = "<group>"; };
+		75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectView.swift; sourceTree = "<group>"; };
+		89256E2E3D8EFEE2525D6DD9 /* RenameProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenameProjectView.swift; sourceTree = "<group>"; };
+		94A3A973C57BA3A256E78283 /* LanguageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettings.swift; sourceTree = "<group>"; };
+		A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteApp.swift; sourceTree = "<group>"; };
+		C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteWatchApp.swift; sourceTree = "<group>"; };
+		C65533430112873329E49422 /* WatchCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCounterView.swift; sourceTree = "<group>"; };
+		E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		05636426C59DEAB3CEAD6A80 /* Localization */ = {
+			isa = PBXGroup;
+			children = (
+				3CD5B158A45CBD8018FC499A /* AppLanguage.swift */,
+				94A3A973C57BA3A256E78283 /* LanguageSettings.swift */,
+			);
+			path = Localization;
+			sourceTree = "<group>";
+		};
+		0ADFE4B616722EE6405BBCB7 /* KnitNoteCore */ = {
+			isa = PBXGroup;
+			children = (
+				121DC898B51C86C11B40705C /* KnitNoteCore.swift */,
+				05636426C59DEAB3CEAD6A80 /* Localization */,
+				ADC03985307A33CF231A2728 /* Projects */,
+				8BD3900E36112649B3129656 /* Resources */,
+			);
+			name = KnitNoteCore;
+			path = Sources/KnitNoteCore;
+			sourceTree = "<group>";
+		};
+		3749410B591F9345227F4449 /* Localization */ = {
+			isa = PBXGroup;
+			children = (
+				E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */,
+			);
+			path = Localization;
+			sourceTree = "<group>";
+		};
+		4D55FE9FD7B400E4A1009DF1 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */,
+				431158CF5C9EC212EABD87BA /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		65DC28AC37D32EA9468D7BDE /* Projects */ = {
+			isa = PBXGroup;
+			children = (
+				75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */,
+				07AC936135E44C341839B236 /* ProjectDetailView.swift */,
+				2D483F31D056F9F52B2EC563 /* ProjectsView.swift */,
+				89256E2E3D8EFEE2525D6DD9 /* RenameProjectView.swift */,
+			);
+			path = Projects;
+			sourceTree = "<group>";
+		};
+		74E746C56AB9D2B0682463AA /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				3C1FE7F6E3926F76E8684A55 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		75215C9D724CD12DF1595F4E /* KnitNote */ = {
+			isa = PBXGroup;
+			children = (
+				4D55FE9FD7B400E4A1009DF1 /* App */,
+				3749410B591F9345227F4449 /* Localization */,
+				65DC28AC37D32EA9468D7BDE /* Projects */,
+				74E746C56AB9D2B0682463AA /* Settings */,
+			);
+			path = KnitNote;
+			sourceTree = "<group>";
+		};
+		8BD3900E36112649B3129656 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2A4E4878CC053C86851B7DDD /* .keep */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		9BC10CC549E3CC0E29EE734A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				14B46C9D90D2250C063CBEB9 /* KnitNote.app */,
+				1112E674E478840A2286F6BA /* KnitNoteWatch.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A2875FC623ACA3B0597786CF /* KnitNoteWatch */ = {
+			isa = PBXGroup;
+			children = (
+				C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */,
+				599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */,
+				C65533430112873329E49422 /* WatchCounterView.swift */,
+			);
+			path = KnitNoteWatch;
+			sourceTree = "<group>";
+		};
+		ADC03985307A33CF231A2728 /* Projects */ = {
+			isa = PBXGroup;
+			children = (
+				5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */,
+				1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */,
+				2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */,
+			);
+			path = Projects;
+			sourceTree = "<group>";
+		};
+		BFE7ACE6E08F193BC58351A7 = {
+			isa = PBXGroup;
+			children = (
+				75215C9D724CD12DF1595F4E /* KnitNote */,
+				0ADFE4B616722EE6405BBCB7 /* KnitNoteCore */,
+				A2875FC623ACA3B0597786CF /* KnitNoteWatch */,
+				9BC10CC549E3CC0E29EE734A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		ABFEFD40E9C4B3B0EB287FB5 /* KnitNote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3138E9B12DC538906F9C9DFE /* Build configuration list for PBXNativeTarget "KnitNote" */;
+			buildPhases = (
+				7F8243B94B9721271496D369 /* Sources */,
+				D72DC11952E505F69C264F17 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KnitNote;
+			packageProductDependencies = (
+			);
+			productName = KnitNote;
+			productReference = 14B46C9D90D2250C063CBEB9 /* KnitNote.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D3702212370914BD0EFFE039 /* KnitNoteWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 48D15CAE91A1ED02AEAF6568 /* Build configuration list for PBXNativeTarget "KnitNoteWatch" */;
+			buildPhases = (
+				B141C3A9B9F07A5A0C5D756F /* Sources */,
+				F9E999C8E2418A6909FEF078 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KnitNoteWatch;
+			packageProductDependencies = (
+			);
+			productName = KnitNoteWatch;
+			productReference = 1112E674E478840A2286F6BA /* KnitNoteWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C3D817B8651440BF1170DB4F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					ABFEFD40E9C4B3B0EB287FB5 = {
+						DevelopmentTeam = "";
+					};
+					D3702212370914BD0EFFE039 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 0A941A9426F1DA45F01D7B07 /* Build configuration list for PBXProject "KnitNote" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				"zh-Hant",
+			);
+			mainGroup = BFE7ACE6E08F193BC58351A7;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 9BC10CC549E3CC0E29EE734A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				ABFEFD40E9C4B3B0EB287FB5 /* KnitNote */,
+				D3702212370914BD0EFFE039 /* KnitNoteWatch */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D72DC11952E505F69C264F17 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F9E999C8E2418A6909FEF078 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7F8243B94B9721271496D369 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
+				52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */,
+				214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */,
+				E857AC39E1C3EAB1D2C0735A /* KnitNoteApp.swift in Sources */,
+				66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */,
+				8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */,
+				DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */,
+				D8C39A1514196D426E41EA7E /* ProjectDetailView.swift in Sources */,
+				3CA4295D672D7BB3EEC8EF3B /* ProjectsView.swift in Sources */,
+				8D693E6491BBB929413B5E7E /* RenameProjectView.swift in Sources */,
+				8A0D44321A0B878C18C93038 /* RootView.swift in Sources */,
+				3B4F33C9BB928655D1287371 /* SettingsView.swift in Sources */,
+				70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B141C3A9B9F07A5A0C5D756F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3C6BE637ADCCABE03A6E9540 /* AppLanguage.swift in Sources */,
+				326D6303F4CB969B6F1667DA /* JSONProjectStore.swift in Sources */,
+				6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */,
+				BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */,
+				12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */,
+				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
+				00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */,
+				0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		23FB596AB0C7EC57AFC23628 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.KnitNote.watch;
+				PRODUCT_NAME = KnitNote;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		429FD8AEC84281FEC5FCF09E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.KnitNote;
+				PRODUCT_NAME = KnitNote;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A4D6276A5170CE73E3DF79E5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.KnitNote;
+				PRODUCT_NAME = KnitNote;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CF30C0CCD253A7AB335A4915 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		E2486F10996EEDF5A8B428BF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		EC88FCB1FDCA61DA42A75284 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.KnitNote.watch;
+				PRODUCT_NAME = KnitNote;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0A941A9426F1DA45F01D7B07 /* Build configuration list for PBXProject "KnitNote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E2486F10996EEDF5A8B428BF /* Debug */,
+				CF30C0CCD253A7AB335A4915 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3138E9B12DC538906F9C9DFE /* Build configuration list for PBXNativeTarget "KnitNote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A4D6276A5170CE73E3DF79E5 /* Debug */,
+				429FD8AEC84281FEC5FCF09E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		48D15CAE91A1ED02AEAF6568 /* Build configuration list for PBXNativeTarget "KnitNoteWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EC88FCB1FDCA61DA42A75284 /* Debug */,
+				23FB596AB0C7EC57AFC23628 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C3D817B8651440BF1170DB4F /* Project object */;
+}

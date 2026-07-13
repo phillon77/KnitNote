@@ -23,7 +23,10 @@ extension PDFReaderView {
         @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private var restoreGate = PatternReadingRestoreGate(); private var restoreAttempts = 0; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
         init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error }
         func make(url: URL) -> PDFView {
-            let view=PDFView(); view.autoScales=true; view.displayMode = .singlePageContinuous; view.displayDirection = .vertical
+            let view=PDFView(); view.autoScales=true; view.displayMode = .singlePage; view.displayDirection = .horizontal
+#if !os(macOS)
+            view.usePageViewController(true, withViewOptions: nil)
+#endif
             guard let doc=PDFDocument(url:url), doc.pageCount > 0 else { error=true; return view }
             view.document=doc; pageCount=doc.pageCount; self.view=view
             NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewPageChanged, object:view)
@@ -32,8 +35,11 @@ extension PDFReaderView {
             return view
         }
         func restore(_ view: PDFView, state: PatternReadingState) {
-            guard restoreGate.beginRestoring() else { return }
-            scheduleRestore(view)
+            if restoreGate.beginRestoring() {
+                scheduleRestore(view)
+            } else if restoreGate.canSample {
+                showRequestedPage(in: view, state: state)
+            }
         }
         private func scheduleRestore(_ view: PDFView) {
             Task { @MainActor [weak self, weak view] in
@@ -52,7 +58,7 @@ extension PDFReaderView {
 #else
             view.layoutIfNeeded()
 #endif
-            if initialState.zoomScale > 0.1 { view.scaleFactor=CGFloat(initialState.zoomScale) }
+            view.autoScales=true
             view.go(to: page)
             Task { @MainActor [weak self, weak view] in
                 await Task.yield()
@@ -67,8 +73,16 @@ extension PDFReaderView {
                 }
             }
         }
+        private func showRequestedPage(in view: PDFView, state: PatternReadingState) {
+            guard let doc=view.document, doc.pageCount > 0 else { return }
+            let targetIndex=state.pdfRestorePageIndex(pageCount:doc.pageCount)
+            let currentIndex=view.currentPage.map { doc.index(for:$0) }
+            guard currentIndex != targetIndex, let page=doc.page(at:targetIndex) else { return }
+            view.autoScales=true
+            view.go(to:page)
+        }
         @objc private func changed(_ note: Notification) { sample(note.object as? PDFView) }
-        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; state.pageIndex=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; state.zoomScale=Double(view.scaleFactor); state.offsetX=0; state.offsetY=0 }
+        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; state.pageIndex=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }
 }

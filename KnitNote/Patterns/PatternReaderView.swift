@@ -32,7 +32,32 @@ struct PatternReaderView: View {
                         }
                         if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition) }
                         if pattern.kind == .pdf, pageCount > 0 {
-                            VStack { Spacer(); Text(verbatim: "\(state.pageIndex + 1) / \(pageCount)").font(.caption.monospacedDigit()).padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule()).padding() }.allowsHitTesting(false)
+                            VStack {
+                                Spacer()
+                                HStack {
+                                    Button {
+                                        state.movePDFPage(by: -1, pageCount: pageCount)
+                                    } label: {
+                                        Label("patterns.previousPage", systemImage: "chevron.left")
+                                    }
+                                    .disabled(state.pageIndex == 0)
+                                    Spacer()
+                                    Text(verbatim: "\(state.pageIndex + 1) / \(pageCount)")
+                                        .font(.caption.monospacedDigit())
+                                    Spacer()
+                                    Button {
+                                        state.movePDFPage(by: 1, pageCount: pageCount)
+                                    } label: {
+                                        Label("patterns.nextPage", systemImage: "chevron.right")
+                                    }
+                                    .disabled(state.pageIndex >= pageCount - 1)
+                                }
+                                .labelStyle(.iconOnly)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(.regularMaterial, in: Capsule())
+                                .padding()
+                            }
                         }
                     }
                 } else {

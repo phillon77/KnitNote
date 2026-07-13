@@ -46,6 +46,18 @@ public struct PatternReadingState: Equatable, Sendable {
         guard pageCount > 0 else { return 0 }
         return min(pageIndex, pageCount - 1)
     }
+
+    public mutating func movePDFPage(by delta: Int, pageCount: Int) {
+        guard pageCount > 0 else {
+            pageIndex = 0
+            offsetX = 0
+            offsetY = 0
+            return
+        }
+        pageIndex = min(pageCount - 1, max(0, pageIndex + delta))
+        offsetX = 0
+        offsetY = 0
+    }
 }
 
 public struct PatternReadingRestoreGate: Sendable {

@@ -103,3 +103,15 @@ import Testing
     #expect(top.pdfRestorePageIndex(pageCount: 8) == 2)
     #expect(bottom.pdfRestorePageIndex(pageCount: 8) == 2)
 }
+
+@Test func discretePDFPageMovementClampsAndClearsOffsets() {
+    var state=PatternReadingState(pageIndex:1,offsetX:0.4,offsetY:0.7)
+    state.movePDFPage(by:1,pageCount:3)
+    #expect(state.pageIndex == 2)
+    #expect(state.offsetX == 0)
+    #expect(state.offsetY == 0)
+    state.movePDFPage(by:1,pageCount:3)
+    #expect(state.pageIndex == 2)
+    state.movePDFPage(by:-9,pageCount:3)
+    #expect(state.pageIndex == 0)
+}

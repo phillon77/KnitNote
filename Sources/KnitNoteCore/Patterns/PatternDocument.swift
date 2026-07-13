@@ -121,7 +121,7 @@ public struct PatternPDFPageRequestGate: Sendable {
         requestedPageIndex = max(0, pageIndex)
     }
 
-    public mutating func shouldAcceptSample(_ pageIndex: Int) -> Bool {
+    public mutating func accepts(_ pageIndex: Int) -> Bool {
         guard let requestedPageIndex else { return true }
         guard pageIndex == requestedPageIndex else { return false }
         self.requestedPageIndex = nil

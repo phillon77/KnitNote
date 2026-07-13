@@ -96,18 +96,17 @@ import Testing
     #expect(gate.canSample)
 }
 
-@Test func pdfReaderIgnoresOldPageSamplesUntilRequestedPageAppears() {
+@Test func pdfPageRequestRejectsStaleCallbacksUntilTargetIsConfirmed() {
     var gate = PatternPDFPageRequestGate()
-    gate.request(1)
+    gate.request(2)
 
-    let acceptsOldPage = gate.shouldAcceptSample(0)
-    #expect(!acceptsOldPage)
-    #expect(gate.requestedPageIndex == 1)
-    let acceptsRequestedPage = gate.shouldAcceptSample(1)
-    #expect(acceptsRequestedPage)
+    let stale = gate.accepts(1)
+    let confirmed = gate.accepts(2)
+    let laterSwipe = gate.accepts(3)
+    #expect(!stale)
+    #expect(confirmed)
+    #expect(laterSwipe)
     #expect(gate.requestedPageIndex == nil)
-    let acceptsLaterPage = gate.shouldAcceptSample(2)
-    #expect(acceptsLaterPage)
 }
 
 @Test func pdfRestorePageIsIndependentOfPageOffset() {

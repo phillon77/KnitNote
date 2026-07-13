@@ -1,17 +1,29 @@
 import Foundation
 public enum PatternKind: String, Codable, Sendable { case image, pdf }
 public enum HighlightMode: String, Codable, CaseIterable, Sendable { case horizontal, vertical, cross }
+public struct PatternPageState: Codable, Hashable, Sendable {
+    public var horizontalPosition: Double
+    public var verticalPosition: Double
+    public var note: String?
+    public init(horizontalPosition: Double = 0.5, verticalPosition: Double = 0.5, note: String? = nil) {
+        self.horizontalPosition = min(1, max(0, horizontalPosition))
+        self.verticalPosition = min(1, max(0, verticalPosition))
+        let clean = note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        self.note = clean.isEmpty ? nil : clean
+    }
+}
 public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID; public var displayName: String; public let kind: PatternKind; public let storedFilename: String
     public let createdAt: Date; public var lastOpenedAt: Date?; public var pageIndex: Int
     public var zoomScale: Double; public var contentOffsetX: Double; public var contentOffsetY: Double
     public var highlightEnabled: Bool; public var highlightPosition: Double; public var highlightMode: HighlightMode; public var verticalHighlightPosition: Double
+    public var pageStates: [Int: PatternPageState]
     public init(id: UUID = UUID(), displayName: String, kind: PatternKind, storedFilename: String, createdAt: Date = .now) {
         self.id=id; self.displayName=displayName; self.kind=kind; self.storedFilename=storedFilename; self.createdAt=createdAt
-        pageIndex=0; zoomScale=1; contentOffsetX=0; contentOffsetY=0; highlightEnabled=false; highlightPosition=0.5; highlightMode = .horizontal; verticalHighlightPosition = 0.5
+        pageIndex=0; zoomScale=1; contentOffsetX=0; contentOffsetY=0; highlightEnabled=false; highlightPosition=0.5; highlightMode = .horizontal; verticalHighlightPosition = 0.5; pageStates = [:]
     }
 
-    enum CodingKeys: String, CodingKey { case id, displayName, kind, storedFilename, createdAt, lastOpenedAt, pageIndex, zoomScale, contentOffsetX, contentOffsetY, highlightEnabled, highlightPosition, highlightMode, verticalHighlightPosition }
+    enum CodingKeys: String, CodingKey { case id, displayName, kind, storedFilename, createdAt, lastOpenedAt, pageIndex, zoomScale, contentOffsetX, contentOffsetY, highlightEnabled, highlightPosition, highlightMode, verticalHighlightPosition, pageStates }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); displayName = try c.decode(String.self, forKey: .displayName)
@@ -23,6 +35,11 @@ public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
         highlightPosition = min(1, max(0, try c.decodeIfPresent(Double.self, forKey: .highlightPosition) ?? 0.5))
         highlightMode = try c.decodeIfPresent(HighlightMode.self, forKey: .highlightMode) ?? .horizontal
         verticalHighlightPosition = min(1, max(0, try c.decodeIfPresent(Double.self, forKey: .verticalHighlightPosition) ?? 0.5))
+        if let saved = try c.decodeIfPresent([Int: PatternPageState].self, forKey: .pageStates) {
+            pageStates = saved
+        } else {
+            pageStates = [pageIndex: PatternPageState(horizontalPosition: highlightPosition, verticalPosition: verticalHighlightPosition)]
+        }
     }
 }
 
@@ -35,11 +52,15 @@ public struct PatternReadingState: Equatable, Sendable {
     public var highlightPosition: Double
     public var highlightMode: HighlightMode
     public var verticalHighlightPosition: Double
-    public init(pageIndex: Int = 0, zoomScale: Double = 1, offsetX: Double = 0, offsetY: Double = 0, highlightEnabled: Bool = false, highlightPosition: Double = 0.5, highlightMode: HighlightMode = .horizontal, verticalHighlightPosition: Double = 0.5) {
+    public var pageNote: String
+    public var pageStates: [Int: PatternPageState]
+    public init(pageIndex: Int = 0, zoomScale: Double = 1, offsetX: Double = 0, offsetY: Double = 0, highlightEnabled: Bool = false, highlightPosition: Double = 0.5, highlightMode: HighlightMode = .horizontal, verticalHighlightPosition: Double = 0.5, pageNote: String = "", pageStates: [Int: PatternPageState] = [:]) {
         self.pageIndex = max(0, pageIndex); self.zoomScale = max(0.1, zoomScale)
         self.offsetX = min(1, max(0, offsetX)); self.offsetY = min(1, max(0, offsetY)); self.highlightEnabled = highlightEnabled
         self.highlightPosition = min(1, max(0, highlightPosition)); self.highlightMode = highlightMode
         self.verticalHighlightPosition = min(1, max(0, verticalHighlightPosition))
+        self.pageNote = pageNote
+        self.pageStates = pageStates
     }
 
     public func pdfRestorePageIndex(pageCount: Int) -> Int {
@@ -58,6 +79,19 @@ public struct PatternReadingState: Equatable, Sendable {
         offsetX = 0
         offsetY = 0
     }
+
+    public mutating func saveCurrentPage() {
+        pageStates[pageIndex] = PatternPageState(horizontalPosition: highlightPosition, verticalPosition: verticalHighlightPosition, note: pageNote)
+        pageNote = pageStates[pageIndex]?.note ?? ""
+    }
+
+    public mutating func loadPage(_ index: Int) {
+        pageIndex = max(0, index)
+        let saved = pageStates[pageIndex] ?? PatternPageState()
+        highlightPosition = saved.horizontalPosition
+        verticalHighlightPosition = saved.verticalPosition
+        pageNote = saved.note ?? ""
+    }
 }
 
 public struct PatternReadingRestoreGate: Sendable {
@@ -74,6 +108,6 @@ public struct PatternReadingRestoreGate: Sendable {
 
 public extension PatternDocument {
     var readingState: PatternReadingState {
-        .init(pageIndex: pageIndex, zoomScale: zoomScale, offsetX: contentOffsetX, offsetY: contentOffsetY, highlightEnabled: highlightEnabled, highlightPosition: highlightPosition, highlightMode: highlightMode, verticalHighlightPosition: verticalHighlightPosition)
+        .init(pageIndex: pageIndex, zoomScale: zoomScale, offsetX: contentOffsetX, offsetY: contentOffsetY, highlightEnabled: highlightEnabled, highlightPosition: pageStates[pageIndex]?.horizontalPosition ?? highlightPosition, highlightMode: highlightMode, verticalHighlightPosition: pageStates[pageIndex]?.verticalPosition ?? verticalHighlightPosition, pageNote: pageStates[pageIndex]?.note ?? "", pageStates: pageStates)
     }
 }

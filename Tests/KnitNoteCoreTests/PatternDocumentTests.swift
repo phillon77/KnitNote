@@ -25,12 +25,12 @@ import Testing
     #expect(project.patterns[0].contentOffsetX == 0.2)
 }
 
-@MainActor @Test func storeWritesArchiveVersionFour() throws {
+@MainActor @Test func storeWritesArchiveVersionFive() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store = JSONProjectStore(url: url)
     try store.add(name: "Sweater")
     try store.addPattern(projectID: store.projects[0].id, pattern: PatternDocument(displayName: "Chart", kind: .image, storedFilename: "x.png"))
-    #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"version\":4"))
+    #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"version\":5"))
 }
 
 @Test func highlightModeDefaultsAndPositionsClamp() {
@@ -114,4 +114,40 @@ import Testing
     #expect(state.pageIndex == 2)
     state.movePDFPage(by:-9,pageCount:3)
     #expect(state.pageIndex == 0)
+}
+
+@Test func pageStatesKeepIndependentHighlightsAndTrimNotes() {
+    var state = PatternReadingState(pageIndex: 0, highlightPosition: 0.2, verticalHighlightPosition: 0.8)
+    state.pageNote = "  first repeat  "
+    state.saveCurrentPage()
+
+    state.loadPage(1)
+    #expect(state.highlightPosition == 0.5)
+    #expect(state.verticalHighlightPosition == 0.5)
+    state.highlightPosition = 0.7
+    state.pageNote = "   "
+    state.saveCurrentPage()
+
+    #expect(state.pageStates[0]?.note == "first repeat")
+    #expect(state.pageStates[1]?.horizontalPosition == 0.7)
+    #expect(state.pageStates[1]?.note == nil)
+
+    state.loadPage(0)
+    #expect(state.highlightPosition == 0.2)
+    #expect(state.verticalHighlightPosition == 0.8)
+    #expect(state.pageNote == "first repeat")
+}
+
+@Test func legacyPatternMigratesHighlightsToItsSavedPage() throws {
+    let original = PatternDocument(displayName: "Legacy", kind: .pdf, storedFilename: "legacy.pdf")
+    var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+    object["pageIndex"] = 3
+    object["highlightPosition"] = 0.25
+    object["verticalHighlightPosition"] = 0.75
+    object.removeValue(forKey: "pageStates")
+
+    let decoded = try JSONDecoder().decode(PatternDocument.self, from: JSONSerialization.data(withJSONObject: object))
+
+    #expect(decoded.pageStates[3]?.horizontalPosition == 0.25)
+    #expect(decoded.pageStates[3]?.verticalPosition == 0.75)
 }

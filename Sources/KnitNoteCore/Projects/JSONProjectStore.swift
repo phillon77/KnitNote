@@ -38,7 +38,7 @@ public struct ProjectArchive: Codable, Sendable {
     private func persist() throws {
         projects.sort { $0.updatedAt > $1.updatedAt }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let data = try JSONEncoder().encode(ProjectArchive(version: 4, projects: projects))
+        let data = try JSONEncoder().encode(ProjectArchive(version: 5, projects: projects))
         try data.write(to: url, options: .atomic)
     }
 }

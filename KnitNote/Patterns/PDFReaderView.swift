@@ -27,8 +27,13 @@ extension PDFReaderView {
 #if !os(macOS)
             view.usePageViewController(true, withViewOptions: nil)
 #endif
-            guard let doc=PDFDocument(url:url), doc.pageCount > 0 else { error=true; return view }
-            view.document=doc; pageCount=doc.pageCount; self.view=view
+            guard let doc=PDFDocument(url:url), doc.pageCount > 0 else {
+                Task { @MainActor [weak self] in self?.error = true }
+                return view
+            }
+            view.document=doc; self.view=view
+            let loadedPageCount = doc.pageCount
+            Task { @MainActor [weak self] in self?.pageCount = loadedPageCount }
             NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewPageChanged, object:view)
             NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewScaleChanged, object:view)
             timer=Timer.scheduledTimer(withTimeInterval:0.25,repeats:true){[weak self] _ in self?.sample()}

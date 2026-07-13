@@ -53,14 +53,14 @@ extension PDFReaderView {
             view.layoutIfNeeded()
 #endif
             if initialState.zoomScale > 0.1 { view.scaleFactor=CGFloat(initialState.zoomScale) }
-            view.go(to: page)
+            let bounds=page.bounds(for:.mediaBox)
+            let point=CGPoint(x:bounds.minX+bounds.width*initialState.offsetX,y:bounds.minY+bounds.height*initialState.offsetY)
+            view.go(to:PDFDestination(page:page,at:point))
             Task { @MainActor [weak self, weak view] in
                 await Task.yield()
                 guard let self, let view, let doc=view.document else { return }
-                let current=view.currentPage.flatMap{doc.index(for:$0)}
+                let current=view.currentDestination?.page.map{doc.index(for:$0)}
                 if current == self.initialState.pdfRestorePageIndex(pageCount:doc.pageCount) {
-                    self.state.offsetX=0
-                    self.state.offsetY=0
                     self.restoreGate.didRestore()
                 } else if self.restoreAttempts < 5 {
                     self.scheduleRestore(view)
@@ -68,7 +68,17 @@ extension PDFReaderView {
             }
         }
         @objc private func changed(_ note: Notification) { sample(note.object as? PDFView) }
-        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; state.pageIndex=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; state.zoomScale=Double(view.scaleFactor); state.offsetX=0; state.offsetY=0 }
+        private func sample(_ source: PDFView? = nil) {
+            guard restoreGate.canSample, let view=source ?? view else{return}
+            state.zoomScale=Double(view.scaleFactor)
+            guard let doc=view.document, let destination=view.currentDestination, let page=destination.page else{return}
+            let bounds=page.bounds(for:.mediaBox)
+            state.setPDFAnchor(
+                pageIndex:doc.index(for:page),
+                offsetX:Double((destination.point.x-bounds.minX)/max(1,bounds.width)),
+                offsetY:Double((destination.point.y-bounds.minY)/max(1,bounds.height))
+            )
+        }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }
 }

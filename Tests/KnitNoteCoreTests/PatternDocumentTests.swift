@@ -103,3 +103,13 @@ import Testing
     #expect(top.pdfRestorePageIndex(pageCount: 8) == 2)
     #expect(bottom.pdfRestorePageIndex(pageCount: 8) == 2)
 }
+
+@Test func pdfAnchorUpdatesPageAndPointAsOneUnit() {
+    var state = PatternReadingState(pageIndex: 1, offsetX: 0, offsetY: 0)
+
+    state.setPDFAnchor(pageIndex: 3, offsetX: 0.25, offsetY: 0.7)
+
+    #expect(state.pageIndex == 3)
+    #expect(state.offsetX == 0.25)
+    #expect(state.offsetY == 0.7)
+}

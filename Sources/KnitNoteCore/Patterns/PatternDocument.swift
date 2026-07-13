@@ -46,6 +46,12 @@ public struct PatternReadingState: Equatable, Sendable {
         guard pageCount > 0 else { return 0 }
         return min(pageIndex, pageCount - 1)
     }
+
+    public mutating func setPDFAnchor(pageIndex: Int, offsetX: Double, offsetY: Double) {
+        self.pageIndex = max(0, pageIndex)
+        self.offsetX = min(1, max(0, offsetX))
+        self.offsetY = min(1, max(0, offsetY))
+    }
 }
 
 public struct PatternReadingRestoreGate: Sendable {

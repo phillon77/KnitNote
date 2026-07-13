@@ -113,3 +113,15 @@ import Testing
     #expect(state.offsetX == 0.25)
     #expect(state.offsetY == 0.7)
 }
+
+@Test func pdfHighlightAnchorClampsAndPersists() throws {
+    var project = try StoredProject(name:"Chart")
+    let pattern=PatternDocument(displayName:"Chart",kind:.pdf,storedFilename:"chart.pdf")
+    project.addPattern(pattern)
+    let state=PatternReadingState(highlightEnabled:true,highlightPosition:0.3,highlightMode:.cross,verticalHighlightPosition:0.8,highlightPageIndex:-2)
+
+    project.updatePatternState(id:pattern.id,state:state)
+
+    #expect(project.patterns[0].highlightPageIndex == 0)
+    #expect(project.patterns[0].readingState.highlightPageIndex == 0)
+}

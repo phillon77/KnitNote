@@ -5,13 +5,13 @@ public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID; public var displayName: String; public let kind: PatternKind; public let storedFilename: String
     public let createdAt: Date; public var lastOpenedAt: Date?; public var pageIndex: Int
     public var zoomScale: Double; public var contentOffsetX: Double; public var contentOffsetY: Double
-    public var highlightEnabled: Bool; public var highlightPosition: Double; public var highlightMode: HighlightMode; public var verticalHighlightPosition: Double
+    public var highlightEnabled: Bool; public var highlightPosition: Double; public var highlightMode: HighlightMode; public var verticalHighlightPosition: Double; public var highlightPageIndex: Int
     public init(id: UUID = UUID(), displayName: String, kind: PatternKind, storedFilename: String, createdAt: Date = .now) {
         self.id=id; self.displayName=displayName; self.kind=kind; self.storedFilename=storedFilename; self.createdAt=createdAt
-        pageIndex=0; zoomScale=1; contentOffsetX=0; contentOffsetY=0; highlightEnabled=false; highlightPosition=0.5; highlightMode = .horizontal; verticalHighlightPosition = 0.5
+        pageIndex=0; zoomScale=1; contentOffsetX=0; contentOffsetY=0; highlightEnabled=false; highlightPosition=0.5; highlightMode = .horizontal; verticalHighlightPosition = 0.5; highlightPageIndex = 0
     }
 
-    enum CodingKeys: String, CodingKey { case id, displayName, kind, storedFilename, createdAt, lastOpenedAt, pageIndex, zoomScale, contentOffsetX, contentOffsetY, highlightEnabled, highlightPosition, highlightMode, verticalHighlightPosition }
+    enum CodingKeys: String, CodingKey { case id, displayName, kind, storedFilename, createdAt, lastOpenedAt, pageIndex, zoomScale, contentOffsetX, contentOffsetY, highlightEnabled, highlightPosition, highlightMode, verticalHighlightPosition, highlightPageIndex }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); displayName = try c.decode(String.self, forKey: .displayName)
@@ -23,6 +23,7 @@ public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
         highlightPosition = min(1, max(0, try c.decodeIfPresent(Double.self, forKey: .highlightPosition) ?? 0.5))
         highlightMode = try c.decodeIfPresent(HighlightMode.self, forKey: .highlightMode) ?? .horizontal
         verticalHighlightPosition = min(1, max(0, try c.decodeIfPresent(Double.self, forKey: .verticalHighlightPosition) ?? 0.5))
+        highlightPageIndex = max(0, try c.decodeIfPresent(Int.self, forKey: .highlightPageIndex) ?? pageIndex)
     }
 }
 
@@ -35,11 +36,13 @@ public struct PatternReadingState: Equatable, Sendable {
     public var highlightPosition: Double
     public var highlightMode: HighlightMode
     public var verticalHighlightPosition: Double
-    public init(pageIndex: Int = 0, zoomScale: Double = 1, offsetX: Double = 0, offsetY: Double = 0, highlightEnabled: Bool = false, highlightPosition: Double = 0.5, highlightMode: HighlightMode = .horizontal, verticalHighlightPosition: Double = 0.5) {
+    public var highlightPageIndex: Int
+    public init(pageIndex: Int = 0, zoomScale: Double = 1, offsetX: Double = 0, offsetY: Double = 0, highlightEnabled: Bool = false, highlightPosition: Double = 0.5, highlightMode: HighlightMode = .horizontal, verticalHighlightPosition: Double = 0.5, highlightPageIndex: Int = 0) {
         self.pageIndex = max(0, pageIndex); self.zoomScale = max(0.1, zoomScale)
         self.offsetX = min(1, max(0, offsetX)); self.offsetY = min(1, max(0, offsetY)); self.highlightEnabled = highlightEnabled
         self.highlightPosition = min(1, max(0, highlightPosition)); self.highlightMode = highlightMode
         self.verticalHighlightPosition = min(1, max(0, verticalHighlightPosition))
+        self.highlightPageIndex = max(0, highlightPageIndex)
     }
 
     public func pdfRestorePageIndex(pageCount: Int) -> Int {
@@ -68,6 +71,6 @@ public struct PatternReadingRestoreGate: Sendable {
 
 public extension PatternDocument {
     var readingState: PatternReadingState {
-        .init(pageIndex: pageIndex, zoomScale: zoomScale, offsetX: contentOffsetX, offsetY: contentOffsetY, highlightEnabled: highlightEnabled, highlightPosition: highlightPosition, highlightMode: highlightMode, verticalHighlightPosition: verticalHighlightPosition)
+        .init(pageIndex: pageIndex, zoomScale: zoomScale, offsetX: contentOffsetX, offsetY: contentOffsetY, highlightEnabled: highlightEnabled, highlightPosition: highlightPosition, highlightMode: highlightMode, verticalHighlightPosition: verticalHighlightPosition, highlightPageIndex: highlightPageIndex)
     }
 }

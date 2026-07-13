@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
-@Test func onlyIPadUsesMaximizedSafePatternLayout() {
-    #expect(patternReaderLayout(isPad: true) == .maximizedSafe)
-    #expect(patternReaderLayout(isPad: false) == .standard)
+@Test func onlyIPadUsesFullScreenPatternPresentation() {
+    #expect(patternReaderPresentation(isPad: true) == .fullScreen)
+    #expect(patternReaderPresentation(isPad: false) == .sheet)
 }
 
 @Test func patternStateClampsAndPersistsAsV3() throws {

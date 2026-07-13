@@ -21,7 +21,7 @@ struct ProjectPatternsView: View {
         var copied: PatternDocument?
         do { let pattern = try files.importFile(from: url, projectID: projectID); copied=pattern; try store.addPattern(projectID: projectID, pattern: pattern) }
         catch { if let copied { try? files.delete(projectID:projectID,pattern:copied) }; errorMessage = error.localizedDescription }
-    }.sheet(item: $selectedPattern) { PatternReaderView(projectID: projectID, pattern: $0) }
+    }.patternReaderPresentation(item: $selectedPattern) { PatternReaderView(projectID: projectID, pattern: $0) }
       .confirmationDialog("patterns.delete.title", isPresented: Binding(get:{pendingDeletion != nil},set:{if !$0{pendingDeletion=nil}})) {
         Button("common.delete", role:.destructive) { deletePending() }; Button("common.cancel",role:.cancel){pendingDeletion=nil}
       }

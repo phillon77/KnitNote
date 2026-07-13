@@ -42,7 +42,7 @@ struct PatternLibraryView: View {
                 Button("patterns.add", systemImage: "plus") { showingProjectChooser = true }
                     .disabled(store.projects.isEmpty)
             }
-            .sheet(item: $selectedPattern) { selection in
+            .patternReaderPresentation(item: $selectedPattern) { selection in
                 PatternReaderView(projectID: selection.projectID, pattern: selection.pattern)
             }
             .sheet(isPresented: $showingProjectChooser) {

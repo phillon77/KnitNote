@@ -3,6 +3,40 @@ import SwiftUI
 import UIKit
 #endif
 
+private struct PatternReaderPresentationModifier<Item: Identifiable, Reader: View>: ViewModifier {
+    @Binding var item: Item?
+    @ViewBuilder let reader: (Item) -> Reader
+
+    private var presentation: PatternReaderPresentation {
+#if os(iOS)
+        patternReaderPresentation(isPad: UIDevice.current.userInterfaceIdiom == .pad)
+#else
+        .sheet
+#endif
+    }
+
+    func body(content: Content) -> some View {
+#if os(iOS)
+        if presentation == .fullScreen {
+            content.fullScreenCover(item: $item, content: reader)
+        } else {
+            content.sheet(item: $item, content: reader)
+        }
+#else
+        content.sheet(item: $item, content: reader)
+#endif
+    }
+}
+
+extension View {
+    func patternReaderPresentation<Item: Identifiable, Reader: View>(
+        item: Binding<Item?>,
+        @ViewBuilder content: @escaping (Item) -> Reader
+    ) -> some View {
+        modifier(PatternReaderPresentationModifier(item: item, reader: content))
+    }
+}
+
 struct PatternReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -33,26 +67,16 @@ struct PatternReaderView: View {
     }
 
     private var pattern: PatternDocument? { store.project(id: projectID)?.patterns.first { $0.id == patternID } }
-    private var readerLayout: PatternReaderLayout {
-#if os(iOS)
-        patternReaderLayout(isPad: UIDevice.current.userInterfaceIdiom == .pad)
-#else
-        .standard
-#endif
-    }
-
     var body: some View {
         NavigationStack {
             Group {
                 if let pattern, FileManager.default.fileExists(atPath: files.url(projectID: projectID, pattern: pattern).path) {
                     VStack(spacing: 0) {
-                        if readerLayout == .standard {
-                            PatternMarkupToolbar(document: $markup, tool: $markupTool, color: $markupColor, width: $markupWidth, onClear: { confirmingMarkupClear = true }, onDone: finishMarkup)
-                                .opacity(markupMode ? 1 : 0)
-                                .allowsHitTesting(markupMode)
-                                .accessibilityHidden(!markupMode)
-                                .frame(height: PatternMarkupToolbar.stableHeight)
-                        }
+                        PatternMarkupToolbar(document: $markup, tool: $markupTool, color: $markupColor, width: $markupWidth, onClear: { confirmingMarkupClear = true }, onDone: finishMarkup)
+                            .opacity(markupMode ? 1 : 0)
+                            .allowsHitTesting(markupMode)
+                            .accessibilityHidden(!markupMode)
+                            .frame(height: PatternMarkupToolbar.stableHeight)
 
                         ZStack(alignment: .top) {
                             if pattern.kind == .pdf {
@@ -76,8 +100,7 @@ struct PatternReaderView: View {
                                 onPreviousPage: { navigatePDF(by: -1) },
                                 onNextPage: { navigatePDF(by: 1) },
                                 onUndoRow: undoRow,
-                                onCompleteRow: completeRow,
-                                compact: readerLayout == .maximizedSafe
+                                onCompleteRow: completeRow
                             )
                         }
                     }
@@ -90,50 +113,26 @@ struct PatternReaderView: View {
             .navigationTitle(pattern?.displayName ?? String(localized: "patterns.title"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("common.ok") { if save() { dismiss() } } }
-                if readerLayout == .maximizedSafe && markupMode {
-                    ToolbarItemGroup(placement: .primaryAction) {
-                        Button("patterns.markup.pen", systemImage: "pencil.tip") { markupTool = .pen }
-                            .tint(markupTool == .pen ? .accentColor : .secondary)
-                        Button("patterns.markup.eraser", systemImage: "eraser") { markupTool = .eraser }
-                            .tint(markupTool == .eraser ? .accentColor : .secondary)
-                        Menu("patterns.markup.color", systemImage: "paintpalette") {
-                            ForEach(MarkupColor.allCases, id: \.self) { value in
-                                Button(String(localized: "patterns.markup.color.\(value.rawValue)")) { markupColor = value; markupTool = .pen }
-                            }
+                ToolbarItem(placement: .primaryAction) { Toggle("patterns.highlight", isOn: $state.highlightEnabled) }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Picker("patterns.highlightMode", selection: $state.highlightMode) {
+                            Text("patterns.highlight.horizontal").tag(HighlightMode.horizontal)
+                            Text("patterns.highlight.vertical").tag(HighlightMode.vertical)
+                            Text("patterns.highlight.cross").tag(HighlightMode.cross)
                         }
-                        Menu("patterns.markup.width", systemImage: "lineweight") {
-                            Button("patterns.markup.width.thin") { markupWidth = 0.004 }
-                            Button("patterns.markup.width.medium") { markupWidth = 0.008 }
-                            Button("patterns.markup.width.thick") { markupWidth = 0.016 }
-                        }
-                        Button("patterns.markup.undo", systemImage: "arrow.uturn.backward") { markup.undo() }
-                            .disabled(markup.strokes.isEmpty)
-                        Button("patterns.markup.clear", systemImage: "trash", role: .destructive) { confirmingMarkupClear = true }
-                            .disabled(markup.strokes.isEmpty)
-                        Button("common.ok", action: finishMarkup)
-                    }
-                } else {
-                    ToolbarItem(placement: .primaryAction) { Toggle("patterns.highlight", isOn: $state.highlightEnabled) }
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Picker("patterns.highlightMode", selection: $state.highlightMode) {
-                                Text("patterns.highlight.horizontal").tag(HighlightMode.horizontal)
-                                Text("patterns.highlight.vertical").tag(HighlightMode.vertical)
-                                Text("patterns.highlight.cross").tag(HighlightMode.cross)
-                            }
-                        } label: { Label("patterns.highlightMode", systemImage: "scope") }
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("patterns.markup", systemImage: "pencil.and.outline") { markupMode.toggle() }
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            editingPageNoteIndex = state.pageIndex
-                            originalPageNote = state.pageNote
-                            showingPageNote = true
-                        } label: {
-                            Label("patterns.pageNote", systemImage: state.pageNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "doc.text" : "doc.text.fill")
-                        }
+                    } label: { Label("patterns.highlightMode", systemImage: "scope") }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("patterns.markup", systemImage: "pencil.and.outline") { markupMode.toggle() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        editingPageNoteIndex = state.pageIndex
+                        originalPageNote = state.pageNote
+                        showingPageNote = true
+                    } label: {
+                        Label("patterns.pageNote", systemImage: state.pageNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "doc.text" : "doc.text.fill")
                     }
                 }
             }

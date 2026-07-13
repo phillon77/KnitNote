@@ -1,27 +1,46 @@
 import PDFKit
 import SwiftUI
 
+@MainActor final class PDFPageNavigator: ObservableObject {
+    private weak var view: PDFView?
+    private var request: ((Int) -> Void)?
+
+    func attach(_ view: PDFView, request: @escaping (Int) -> Void) {
+        self.view = view
+        self.request = request
+    }
+
+    func go(to pageIndex: Int) {
+        guard let view, let document = view.document, document.pageCount > 0 else { return }
+        let target = min(document.pageCount - 1, max(0, pageIndex))
+        guard let page = document.page(at: target) else { return }
+        request?(target)
+        view.autoScales = true
+        view.go(to: page)
+    }
+}
+
 #if os(macOS)
 struct PDFReaderView: NSViewRepresentable {
-    let url: URL; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
+    let url: URL; let navigator: PDFPageNavigator; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
     func makeNSView(context: Context) -> PDFView { makeView(context: context) }
     func updateNSView(_ view: PDFView, context: Context) { context.coordinator.restore(view, state: state) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator) }
     private func makeView(context: Context) -> PDFView { context.coordinator.make(url: url) }
 }
 #else
 struct PDFReaderView: UIViewRepresentable {
-    let url: URL; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
+    let url: URL; let navigator: PDFPageNavigator; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
     func updateUIView(_ view: PDFView, context: Context) { context.coordinator.restore(view, state: state) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator) }
 }
 #endif
 
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
-        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
-        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error }
+        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private let navigator: PDFPageNavigator; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
+        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, navigator: PDFPageNavigator) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; self.navigator=navigator }
         func make(url: URL) -> PDFView {
             let view=PDFView(); view.autoScales=true; view.displayMode = .singlePage; view.displayDirection = .horizontal
 #if !os(macOS)
@@ -32,6 +51,7 @@ extension PDFReaderView {
                 return view
             }
             view.document=doc; self.view=view
+            navigator.attach(view) { [weak self] target in self?.pageRequestGate.request(target) }
             let loadedPageCount = doc.pageCount
             Task { @MainActor [weak self] in self?.pageCount = loadedPageCount }
             NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewPageChanged, object:view)
@@ -42,8 +62,6 @@ extension PDFReaderView {
         func restore(_ view: PDFView, state: PatternReadingState) {
             if restoreGate.beginRestoring() {
                 scheduleRestore(view)
-            } else if restoreGate.canSample {
-                showRequestedPage(in: view, state: state)
             }
         }
         private func scheduleRestore(_ view: PDFView) {
@@ -78,17 +96,8 @@ extension PDFReaderView {
                 }
             }
         }
-        private func showRequestedPage(in view: PDFView, state: PatternReadingState) {
-            guard let doc=view.document, doc.pageCount > 0 else { return }
-            let targetIndex=state.pdfRestorePageIndex(pageCount:doc.pageCount)
-            let currentIndex=view.currentPage.map { doc.index(for:$0) }
-            guard currentIndex != targetIndex, let page=doc.page(at:targetIndex) else { return }
-            pageRequestGate.request(targetIndex)
-            view.autoScales=true
-            view.go(to:page)
-        }
         @objc private func changed(_ note: Notification) { sample(note.object as? PDFView) }
-        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; guard pageRequestGate.shouldAcceptSample(visiblePage) else { return }; state.transitionToPDFPage(visiblePage); state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
+        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; guard pageRequestGate.accepts(visiblePage) else { return }; state.transitionToPDFPage(visiblePage); state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }
 }

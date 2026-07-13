@@ -17,6 +17,7 @@ struct PatternReaderView: View {
     @State private var markupColor = MarkupColor.red
     @State private var markupWidth = 0.008
     @State private var confirmingMarkupClear = false
+    @StateObject private var pdfNavigator = PDFPageNavigator()
     private let files = PatternFileService.live()
     private let markupFiles = PatternMarkupFileService.live()
 
@@ -34,7 +35,7 @@ struct PatternReaderView: View {
                 if let pattern, FileManager.default.fileExists(atPath: files.url(projectID: projectID, pattern: pattern).path) {
                     ZStack(alignment: .top) {
                         if pattern.kind == .pdf {
-                            PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, pageCount: $pageCount, loadError: $loadError)
+                            PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
                                 .allowsHitTesting(!markupMode)
                         } else {
                             ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
@@ -54,8 +55,8 @@ struct PatternReaderView: View {
                                 currentRow: project.currentRow,
                                 pageIndex: state.pageIndex,
                                 pageCount: pattern.kind == .pdf ? pageCount : 0,
-                                onPreviousPage: { state.movePDFPage(by: -1, pageCount: pageCount) },
-                                onNextPage: { state.movePDFPage(by: 1, pageCount: pageCount) },
+                                onPreviousPage: { navigatePDF(by: -1) },
+                                onNextPage: { navigatePDF(by: 1) },
                                 onUndoRow: undoRow,
                                 onCompleteRow: completeRow
                             )
@@ -126,6 +127,13 @@ struct PatternReaderView: View {
     private func undoRow() {
         do { try store.undoRow(id: projectID) }
         catch { saveError = error.localizedDescription }
+    }
+
+    private func navigatePDF(by delta: Int) {
+        guard pageCount > 0 else { return }
+        let target = min(pageCount - 1, max(0, state.pageIndex + delta))
+        guard target != state.pageIndex else { return }
+        pdfNavigator.go(to: target)
     }
 
     private func loadMarkup(page: Int) {

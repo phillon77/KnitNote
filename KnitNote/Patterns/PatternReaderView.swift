@@ -44,7 +44,15 @@ struct PatternReaderView: View {
             .navigationTitle(pattern?.displayName ?? String(localized: "patterns.title"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("common.ok") { if save() { dismiss() } } }
-                ToolbarItem(placement: .primaryAction) { Toggle("patterns.highlight", isOn: $state.highlightEnabled) }
+                ToolbarItem(placement: .primaryAction) {
+                    Toggle("patterns.highlight", isOn: Binding(
+                        get:{state.highlightEnabled},
+                        set:{enabled in
+                            if enabled, pattern?.kind == .pdf { state.enablePDFHighlightOnCurrentPage() }
+                            else { state.highlightEnabled=enabled }
+                        }
+                    ))
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Picker("patterns.highlightMode", selection: $state.highlightMode) {

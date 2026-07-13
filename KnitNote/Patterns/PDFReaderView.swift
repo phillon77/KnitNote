@@ -22,7 +22,7 @@ struct PDFReaderView: UIViewRepresentable {
 
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
-        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private var restoreGate = PatternReadingRestoreGate(); private var restoreAttempts = 0; private weak var view: PDFView?; private var highlightAnnotations:[PDFAnnotation]=[]; private var activeAxis:HighlightDragAxis?; nonisolated(unsafe) private var timer: Timer?
+        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private var restoreGate = PatternReadingRestoreGate(); private weak var view: PDFView?; private var highlightAnnotations:[PDFAnnotation]=[]; private var activeAxis:HighlightDragAxis?; nonisolated(unsafe) private var timer: Timer?
         init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error }
         func make(url: URL) -> PDFView {
             let view=PDFView(); view.autoScales=true; view.displayMode = .singlePageContinuous; view.displayDirection = .vertical
@@ -54,7 +54,6 @@ extension PDFReaderView {
             guard let doc=view.document, doc.pageCount > 0 else { return }
             let targetIndex=initialState.pdfRestorePageIndex(pageCount:doc.pageCount)
             guard let page=doc.page(at:targetIndex) else { return }
-            restoreAttempts += 1
 #if os(macOS)
             view.layoutSubtreeIfNeeded()
 #else
@@ -66,20 +65,20 @@ extension PDFReaderView {
             view.go(to:PDFDestination(page:page,at:point))
             Task { @MainActor [weak self, weak view] in
                 await Task.yield()
-                guard let self, let view, let doc=view.document else { return }
-                let current=view.currentDestination?.page.map{doc.index(for:$0)}
-                if current == self.initialState.pdfRestorePageIndex(pageCount:doc.pageCount) {
-                    self.restoreGate.didRestore()
-                } else if self.restoreAttempts < 5 {
-                    self.scheduleRestore(view)
-                }
+                guard let self, let view else { return }
+                self.restoreGate.didRestore()
+                self.sample(view)
             }
         }
         @objc private func changed(_ note: Notification) { let source=note.object as? PDFView; sample(source); if let source { refreshHighlights(in:source) } }
         private func sample(_ source: PDFView? = nil) {
             guard restoreGate.canSample, let view=source ?? view else{return}
             state.zoomScale=Double(view.scaleFactor)
-            guard let doc=view.document, let destination=view.currentDestination, let page=destination.page else{return}
+            guard let doc=view.document else{return}
+            guard let destination=view.currentDestination, let page=destination.page else {
+                if let currentPage=view.currentPage { state.pageIndex=doc.index(for:currentPage) }
+                return
+            }
             let bounds=page.bounds(for:.mediaBox)
             state.setPDFAnchor(
                 pageIndex:doc.index(for:page),

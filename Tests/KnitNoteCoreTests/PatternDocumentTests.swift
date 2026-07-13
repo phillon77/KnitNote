@@ -125,3 +125,12 @@ import Testing
     #expect(project.patterns[0].highlightPageIndex == 0)
     #expect(project.patterns[0].readingState.highlightPageIndex == 0)
 }
+
+@Test func enablingPDFHighlightAnchorsItToCurrentPage() {
+    var state=PatternReadingState(pageIndex:3,highlightEnabled:false,highlightPageIndex:0)
+
+    state.enablePDFHighlightOnCurrentPage()
+
+    #expect(state.highlightEnabled)
+    #expect(state.highlightPageIndex == 3)
+}

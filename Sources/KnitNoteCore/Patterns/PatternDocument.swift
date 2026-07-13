@@ -55,6 +55,11 @@ public struct PatternReadingState: Equatable, Sendable {
         self.offsetX = min(1, max(0, offsetX))
         self.offsetY = min(1, max(0, offsetY))
     }
+
+    public mutating func enablePDFHighlightOnCurrentPage() {
+        highlightEnabled = true
+        highlightPageIndex = pageIndex
+    }
 }
 
 public struct PatternReadingRestoreGate: Sendable {

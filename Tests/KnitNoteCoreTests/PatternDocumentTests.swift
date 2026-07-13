@@ -2,6 +2,11 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
+@Test func onlyIPadUsesMaximizedSafePatternLayout() {
+    #expect(patternReaderLayout(isPad: true) == .maximizedSafe)
+    #expect(patternReaderLayout(isPad: false) == .standard)
+}
+
 @Test func patternStateClampsAndPersistsAsV3() throws {
     var project = try StoredProject(name: "Sweater")
     let pattern = PatternDocument(displayName: "Chart", kind: .pdf, storedFilename: "one.pdf")

@@ -1,6 +1,8 @@
 import Foundation
 public enum PatternKind: String, Codable, Sendable { case image, pdf }
 public enum HighlightMode: String, Codable, CaseIterable, Sendable { case horizontal, vertical, cross }
+public enum PatternReaderLayout: Sendable { case standard, maximizedSafe }
+public func patternReaderLayout(isPad: Bool) -> PatternReaderLayout { isPad ? .maximizedSafe : .standard }
 public struct PatternPageState: Codable, Hashable, Sendable {
     public var horizontalPosition: Double
     public var verticalPosition: Double

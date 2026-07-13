@@ -1,140 +1,150 @@
 import PDFKit
 import SwiftUI
 
-private enum HighlightDragAxis { case horizontal, vertical }
-
 #if os(macOS)
 struct PDFReaderView: NSViewRepresentable {
     let url: URL; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
-    func makeNSView(context: Context) -> PDFView { makeView(context: context) }
-    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.restore(view, state: state) }
+    func makeNSView(context: Context) -> PDFView { context.coordinator.make(url: url) }
+    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError) }
-    private func makeView(context: Context) -> PDFView { context.coordinator.make(url: url) }
 }
 #else
 struct PDFReaderView: UIViewRepresentable {
     let url: URL; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
-    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.restore(view, state: state) }
+    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError) }
 }
 #endif
 
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
-        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private var restoreGate = PatternReadingRestoreGate(); private weak var view: PDFView?; private var highlightAnnotations:[PDFAnnotation]=[]; private var activeAxis:HighlightDragAxis?; nonisolated(unsafe) private var timer: Timer?
-        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error }
-        func make(url: URL) -> PDFView {
-            let view=PDFView(); view.autoScales=true; view.displayMode = .singlePageContinuous; view.displayDirection = .vertical
-            guard let doc=PDFDocument(url:url), doc.pageCount > 0 else { error=true; return view }
-            view.document=doc; pageCount=doc.pageCount; self.view=view
-            NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewPageChanged, object:view)
-            NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewScaleChanged, object:view)
+        @Binding private var state: PatternReadingState
+        @Binding private var pageCount: Int
+        @Binding private var error: Bool
+        private let initialState: PatternReadingState
+        private var restoreGate = PatternReadingRestoreGate()
+        private var wasHighlightEnabled: Bool
+        private weak var view: PDFView?
+        nonisolated(unsafe) private var timer: Timer?
 #if os(macOS)
-            let pan=NSPanGestureRecognizer(target:self,action:#selector(handlePan(_:))); pan.delegate=self; view.addGestureRecognizer(pan)
+        private let horizontalBand = NSView()
+        private let verticalBand = NSView()
 #else
-            let pan=UIPanGestureRecognizer(target:self,action:#selector(handlePan(_:))); pan.delegate=self; pan.cancelsTouchesInView=false; view.addGestureRecognizer(pan)
+        private let horizontalBand = UIView()
+        private let verticalBand = UIView()
 #endif
-            timer=Timer.scheduledTimer(withTimeInterval:0.25,repeats:true){[weak self] _ in self?.sample()}
+
+        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>) {
+            _state = state; initialState = state.wrappedValue; wasHighlightEnabled = state.wrappedValue.highlightEnabled
+            _pageCount = pageCount; _error = error
+        }
+
+        func make(url: URL) -> PDFView {
+            let view = PDFView(); view.autoScales = true; view.displayMode = .singlePageContinuous; view.displayDirection = .vertical
+            guard let document = PDFDocument(url: url), document.pageCount > 0 else { error = true; return view }
+            view.document = document; pageCount = document.pageCount; self.view = view
+            configureBands(in: view)
+            NotificationCenter.default.addObserver(self, selector: #selector(changed(_:)), name: .PDFViewPageChanged, object: view)
+            NotificationCenter.default.addObserver(self, selector: #selector(changed(_:)), name: .PDFViewScaleChanged, object: view)
+            timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.tick() }
+            }
             return view
         }
-        func restore(_ view: PDFView, state: PatternReadingState) {
-            refreshHighlights(in:view)
+
+        func update(_ view: PDFView) {
+            if state.highlightEnabled && !wasHighlightEnabled, let document = view.document, let page = view.currentPage {
+                state.highlightPageIndex = document.index(for: page)
+            }
+            wasHighlightEnabled = state.highlightEnabled
+            refreshBands(in: view)
             guard restoreGate.beginRestoring() else { return }
-            scheduleRestore(view)
-        }
-        private func scheduleRestore(_ view: PDFView) {
             Task { @MainActor [weak self, weak view] in
                 try? await Task.sleep(for: .milliseconds(100))
-                guard let self, let view else { return }
-                self.attemptRestore(view)
-            }
-        }
-        private func attemptRestore(_ view: PDFView) {
-            guard let doc=view.document, doc.pageCount > 0 else { return }
-            let targetIndex=initialState.pdfRestorePageIndex(pageCount:doc.pageCount)
-            guard let page=doc.page(at:targetIndex) else { return }
+                guard let self, let view, let document = view.document, document.pageCount > 0 else { return }
+                let index = self.initialState.pdfRestorePageIndex(pageCount: document.pageCount)
+                guard let page = document.page(at: index) else { return }
 #if os(macOS)
-            view.layoutSubtreeIfNeeded()
+                view.layoutSubtreeIfNeeded()
 #else
-            view.layoutIfNeeded()
+                view.layoutIfNeeded()
 #endif
-            if initialState.zoomScale > 0.1 { view.scaleFactor=CGFloat(initialState.zoomScale) }
-            let bounds=page.bounds(for:.mediaBox)
-            let point=CGPoint(x:bounds.minX+bounds.width*initialState.offsetX,y:bounds.minY+bounds.height*initialState.offsetY)
-            view.go(to:PDFDestination(page:page,at:point))
-            Task { @MainActor [weak self, weak view] in
+                if self.initialState.zoomScale > 0.1 { view.scaleFactor = CGFloat(self.initialState.zoomScale) }
+                let bounds = page.bounds(for: .mediaBox)
+                let point = CGPoint(x: bounds.minX + bounds.width * self.initialState.offsetX, y: bounds.minY + bounds.height * self.initialState.offsetY)
+                view.go(to: PDFDestination(page: page, at: point))
                 await Task.yield()
-                guard let self, let view else { return }
-                self.restoreGate.didRestore()
-                self.sample(view)
+                self.restoreGate.didRestore(); self.sample(view); self.refreshBands(in: view)
             }
         }
-        @objc private func changed(_ note: Notification) { let source=note.object as? PDFView; sample(source); if let source { refreshHighlights(in:source) } }
-        private func sample(_ source: PDFView? = nil) {
-            guard restoreGate.canSample, let view=source ?? view else{return}
-            state.zoomScale=Double(view.scaleFactor)
-            guard let doc=view.document else{return}
-            guard let destination=view.currentDestination, let page=destination.page else {
-                if let currentPage=view.currentPage { state.pageIndex=doc.index(for:currentPage) }
+
+        private func tick() { guard let view else { return }; sample(view); refreshBands(in: view) }
+        @objc private func changed(_ note: Notification) { guard let view = note.object as? PDFView else { return }; sample(view); refreshBands(in: view) }
+
+        private func sample(_ view: PDFView) {
+            guard restoreGate.canSample else { return }
+            state.zoomScale = Double(view.scaleFactor)
+            guard let document = view.document else { return }
+            guard let destination = view.currentDestination, let page = destination.page else {
+                if let page = view.currentPage { state.pageIndex = document.index(for: page) }
                 return
             }
-            let bounds=page.bounds(for:.mediaBox)
+            let bounds = page.bounds(for: .mediaBox)
             state.setPDFAnchor(
-                pageIndex:doc.index(for:page),
-                offsetX:Double((destination.point.x-bounds.minX)/max(1,bounds.width)),
-                offsetY:Double((destination.point.y-bounds.minY)/max(1,bounds.height))
+                pageIndex: document.index(for: page),
+                offsetX: Double((destination.point.x - bounds.minX) / max(1, bounds.width)),
+                offsetY: Double((destination.point.y - bounds.minY) / max(1, bounds.height))
             )
         }
-        private func refreshHighlights(in view:PDFView) {
-            clearHighlights()
-            guard state.highlightEnabled, let doc=view.document, doc.pageCount > 0 else{return}
-            let index=min(state.highlightPageIndex,doc.pageCount-1); guard let page=doc.page(at:index) else{return}
-            let bounds=page.bounds(for:.mediaBox); let thickness=44/max(0.1,view.scaleFactor)
-            if state.highlightMode == .horizontal || state.highlightMode == .cross {
-                let center=bounds.maxY-bounds.height*state.highlightPosition
-                let rect=CGRect(x:bounds.minX,y:max(bounds.minY,min(bounds.maxY-thickness,center-thickness/2)),width:bounds.width,height:thickness)
-                addHighlight(to:page,bounds:rect,horizontal:true)
-            }
-            if state.highlightMode == .vertical || state.highlightMode == .cross {
-                let center=bounds.minX+bounds.width*state.verticalHighlightPosition
-                let rect=CGRect(x:max(bounds.minX,min(bounds.maxX-thickness,center-thickness/2)),y:bounds.minY,width:thickness,height:bounds.height)
-                addHighlight(to:page,bounds:rect,horizontal:false)
-            }
-        }
-        private func addHighlight(to page:PDFPage,bounds:CGRect,horizontal:Bool) {
-            let annotation=PDFAnnotation(bounds:bounds,forType:.square,withProperties:nil); annotation.border=PDFBorder(); annotation.border?.lineWidth=0
+
+        private func refreshBands(in view: PDFView) {
+            guard state.highlightEnabled, let document = view.document, document.pageCount > 0 else { horizontalBand.isHidden = true; verticalBand.isHidden = true; return }
+            let index = min(state.highlightPageIndex, document.pageCount - 1)
+            guard let page = document.page(at: index) else { return }
+            let pageBounds = page.bounds(for: .mediaBox); let thickness = 44 / max(0.1, view.scaleFactor)
+            let horizontalCenter = pageBounds.maxY - pageBounds.height * state.highlightPosition
+            let horizontalRect = CGRect(x: pageBounds.minX, y: max(pageBounds.minY, min(pageBounds.maxY - thickness, horizontalCenter - thickness / 2)), width: pageBounds.width, height: thickness)
+            let verticalCenter = pageBounds.minX + pageBounds.width * state.verticalHighlightPosition
+            let verticalRect = CGRect(x: max(pageBounds.minX, min(pageBounds.maxX - thickness, verticalCenter - thickness / 2)), y: pageBounds.minY, width: thickness, height: pageBounds.height)
+            horizontalBand.frame = view.convert(horizontalRect, from: page).standardized
+            verticalBand.frame = view.convert(verticalRect, from: page).standardized
+            horizontalBand.isHidden = !(state.highlightMode == .horizontal || state.highlightMode == .cross)
+            verticalBand.isHidden = !(state.highlightMode == .vertical || state.highlightMode == .cross)
 #if os(macOS)
-            annotation.color = .clear; annotation.interiorColor = (horizontal ? NSColor.systemYellow : NSColor.systemPink).withAlphaComponent(0.32)
+            view.addSubview(horizontalBand, positioned: .above, relativeTo: nil); view.addSubview(verticalBand, positioned: .above, relativeTo: nil)
 #else
-            annotation.color = .clear; annotation.interiorColor = (horizontal ? UIColor.systemYellow : UIColor.systemPink).withAlphaComponent(0.32)
+            view.bringSubviewToFront(horizontalBand); view.bringSubviewToFront(verticalBand)
 #endif
-            page.addAnnotation(annotation); highlightAnnotations.append(annotation)
         }
-        private func clearHighlights() { for annotation in highlightAnnotations { annotation.page?.removeAnnotation(annotation) }; highlightAnnotations.removeAll() }
-        private func hitAxis(at point:CGPoint,in view:PDFView)->HighlightDragAxis? {
-            for annotation in highlightAnnotations.reversed() { guard let page=annotation.page else{continue}; if view.convert(annotation.bounds,from:page).insetBy(dx:-12,dy:-12).contains(point) { return annotation.bounds.width > annotation.bounds.height ? .horizontal : .vertical } }; return nil
+
+        private func moveBand(horizontal: Bool, point: CGPoint, in view: PDFView) {
+            guard let document = view.document, let page = view.page(for: point, nearest: true) else { return }
+            let pagePoint = view.convert(point, to: page); let bounds = page.bounds(for: .mediaBox)
+            state.highlightPageIndex = document.index(for: page)
+            if horizontal { state.highlightPosition = min(1, max(0, Double((bounds.maxY - pagePoint.y) / max(1, bounds.height)))) }
+            else { state.verticalHighlightPosition = min(1, max(0, Double((pagePoint.x - bounds.minX) / max(1, bounds.width)))) }
+            refreshBands(in: view)
         }
-        private func moveHighlight(to point:CGPoint,in view:PDFView) {
-            guard let axis=activeAxis,let doc=view.document,let page=view.page(for:point,nearest:true) else{return}; let p=view.convert(point,to:page); let b=page.bounds(for:.mediaBox); state.highlightPageIndex=doc.index(for:page)
-            if axis == .horizontal { state.highlightPosition=min(1,max(0,Double((b.maxY-p.y)/max(1,b.height)))) } else { state.verticalHighlightPosition=min(1,max(0,Double((p.x-b.minX)/max(1,b.width)))) }
-            refreshHighlights(in:view)
-        }
+
 #if os(macOS)
-        @objc fileprivate func handlePan(_ gesture:NSPanGestureRecognizer) { guard let view else{return}; if gesture.state == .began { activeAxis=hitAxis(at:gesture.location(in:view),in:view) }; if gesture.state == .began || gesture.state == .changed { moveHighlight(to:gesture.location(in:view),in:view) }; if gesture.state == .ended || gesture.state == .cancelled { activeAxis=nil } }
+        private func configureBands(in view: PDFView) {
+            for (band, color) in [(horizontalBand, NSColor.systemYellow), (verticalBand, NSColor.systemPink)] { band.wantsLayer = true; band.layer?.backgroundColor = color.withAlphaComponent(0.32).cgColor; band.layer?.cornerRadius = 6; view.addSubview(band) }
+            horizontalBand.addGestureRecognizer(NSPanGestureRecognizer(target: self, action: #selector(dragHorizontal(_:))))
+            verticalBand.addGestureRecognizer(NSPanGestureRecognizer(target: self, action: #selector(dragVertical(_:))))
+        }
+        @objc private func dragHorizontal(_ gesture: NSPanGestureRecognizer) { guard let view else { return }; moveBand(horizontal: true, point: gesture.location(in: view), in: view) }
+        @objc private func dragVertical(_ gesture: NSPanGestureRecognizer) { guard let view else { return }; moveBand(horizontal: false, point: gesture.location(in: view), in: view) }
 #else
-        @objc fileprivate func handlePan(_ gesture:UIPanGestureRecognizer) { guard let view else{return}; if gesture.state == .began { activeAxis=hitAxis(at:gesture.location(in:view),in:view) }; if gesture.state == .began || gesture.state == .changed { moveHighlight(to:gesture.location(in:view),in:view) }; if gesture.state == .ended || gesture.state == .cancelled { activeAxis=nil } }
+        private func configureBands(in view: PDFView) {
+            for (band, color) in [(horizontalBand, UIColor.systemYellow), (verticalBand, UIColor.systemPink)] { band.backgroundColor = color.withAlphaComponent(0.32); band.layer.cornerRadius = 6; view.addSubview(band) }
+            horizontalBand.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragHorizontal(_:))))
+            verticalBand.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragVertical(_:))))
+        }
+        @objc private func dragHorizontal(_ gesture: UIPanGestureRecognizer) { guard let view else { return }; moveBand(horizontal: true, point: gesture.location(in: view), in: view) }
+        @objc private func dragVertical(_ gesture: UIPanGestureRecognizer) { guard let view else { return }; moveBand(horizontal: false, point: gesture.location(in: view), in: view) }
 #endif
+
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }
 }
-
-#if os(macOS)
-extension PDFReaderView.Coordinator:NSGestureRecognizerDelegate {
-    func gestureRecognizerShouldBegin(_ gestureRecognizer:NSGestureRecognizer)->Bool { guard let view else{return false}; return hitAxis(at:gestureRecognizer.location(in:view),in:view) != nil }
-}
-#else
-extension PDFReaderView.Coordinator:UIGestureRecognizerDelegate {
-    func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,shouldReceive touch:UITouch)->Bool { guard let view else{return false}; return hitAxis(at:touch.location(in:view),in:view) != nil }
-}
-#endif

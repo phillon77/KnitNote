@@ -7,7 +7,7 @@ struct RootView: View {
         TabView {
             ProjectsView()
                 .tabItem { Label("nav.projects", systemImage: "square.grid.2x2") }
-            PlaceholderView(title: "nav.patterns", symbol: "doc.text.image")
+            PatternLibraryView()
                 .tabItem { Label("nav.patterns", systemImage: "doc.text.image") }
             PlaceholderView(title: "nav.yarn", symbol: "shippingbox")
                 .tabItem { Label("nav.yarn", systemImage: "shippingbox") }

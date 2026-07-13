@@ -291,6 +291,12 @@
         }
       }
     },
+    "patterns.chooseProject" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Project" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇作品" } }
+      }
+    },
     "patterns.delete.title" : {
       "localizations" : {
         "en" : {
@@ -451,6 +457,18 @@
         }
       }
     },
+    "patterns.library.empty.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a pattern to a project to see it here." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將圖解加入作品後，就會顯示在這裡。" } }
+      }
+    },
+    "patterns.library.empty.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No Patterns Yet" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還沒有圖解" } }
+      }
+    },
     "patterns.missing" : {
       "localizations" : {
         "en" : {
@@ -481,6 +499,18 @@
             "value" : "圖解"
           }
         }
+      }
+    },
+    "patterns.pageNote" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page Note" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "本頁筆記" } }
+      }
+    },
+    "patterns.pageNote.page" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page %d Note" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第 %d 頁筆記" } }
       }
     },
     "patterns.nextPage" : {

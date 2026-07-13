@@ -69,15 +69,22 @@ public struct PatternReadingState: Equatable, Sendable {
     }
 
     public mutating func movePDFPage(by delta: Int, pageCount: Int) {
-        guard pageCount > 0 else {
-            pageIndex = 0
-            offsetX = 0
-            offsetY = 0
-            return
-        }
-        pageIndex = min(pageCount - 1, max(0, pageIndex + delta))
+        guard pageCount > 0 else { return }
+        let target = min(pageCount - 1, max(0, pageIndex + delta))
+        guard target != pageIndex else { return }
+        saveCurrentPage()
         offsetX = 0
         offsetY = 0
+        loadPage(target)
+    }
+
+    public mutating func transitionToPDFPage(_ target: Int) {
+        let cleanTarget = max(0, target)
+        guard cleanTarget != pageIndex else { return }
+        saveCurrentPage()
+        offsetX = 0
+        offsetY = 0
+        loadPage(cleanTarget)
     }
 
     public mutating func saveCurrentPage() {

@@ -105,15 +105,24 @@ import Testing
 }
 
 @Test func discretePDFPageMovementClampsAndClearsOffsets() {
-    var state=PatternReadingState(pageIndex:1,offsetX:0.4,offsetY:0.7)
+    var state=PatternReadingState(pageIndex:1,offsetX:0.4,offsetY:0.7,highlightPosition:0.2,verticalHighlightPosition:0.8,pageNote:"page two")
     state.movePDFPage(by:1,pageCount:3)
     #expect(state.pageIndex == 2)
     #expect(state.offsetX == 0)
     #expect(state.offsetY == 0)
+    #expect(state.highlightPosition == 0.5)
+    #expect(state.pageNote.isEmpty)
+    state.highlightPosition = 0.7
+    state.pageNote = "page three"
     state.movePDFPage(by:1,pageCount:3)
     #expect(state.pageIndex == 2)
     state.movePDFPage(by:-9,pageCount:3)
     #expect(state.pageIndex == 0)
+    state.movePDFPage(by:1,pageCount:3)
+    #expect(state.pageIndex == 1)
+    #expect(state.highlightPosition == 0.2)
+    #expect(state.verticalHighlightPosition == 0.8)
+    #expect(state.pageNote == "page two")
 }
 
 @Test func pageStatesKeepIndependentHighlightsAndTrimNotes() {
@@ -150,4 +159,18 @@ import Testing
 
     #expect(decoded.pageStates[3]?.horizontalPosition == 0.25)
     #expect(decoded.pageStates[3]?.verticalPosition == 0.75)
+}
+
+@Test func patternGroupsOmitEmptyProjectsAndKeepOwners() throws {
+    var empty = try StoredProject(name: "Empty")
+    var scarf = try StoredProject(name: "Scarf")
+    let chart = PatternDocument(displayName: "Chart", kind: .pdf, storedFilename: "chart.pdf")
+    scarf.addPattern(chart)
+
+    let groups = patternGroups(from: [empty, scarf])
+
+    #expect(groups.count == 1)
+    #expect(groups[0].id == scarf.id)
+    #expect(groups[0].projectName == "Scarf")
+    #expect(groups[0].patterns == [chart])
 }

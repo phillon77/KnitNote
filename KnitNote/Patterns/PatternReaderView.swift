@@ -10,6 +10,7 @@ struct PatternReaderView: View {
     @State private var loadError = false
     @State private var pageCount = 0
     @State private var saveError: String?
+    @State private var showingPageNote = false
     private let files = PatternFileService.live()
 
     init(projectID: UUID, pattern: PatternDocument) {
@@ -79,9 +80,23 @@ struct PatternReaderView: View {
                         }
                     } label: { Label("patterns.highlightMode", systemImage: "scope") }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingPageNote = true
+                    } label: {
+                        Label("patterns.pageNote", systemImage: state.pageNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "doc.text" : "doc.text.fill")
+                    }
+                }
             }
             .alert("patterns.invalid", isPresented: $loadError) { Button("common.ok") { dismiss() } }
             .alert("error.saveFailed", isPresented: Binding(get:{saveError != nil},set:{if !$0{saveError=nil}})) { Button("common.ok"){} } message:{Text(saveError ?? "")}
+            .sheet(isPresented: $showingPageNote) {
+                EditPatternPageNoteView(pageNumber: state.pageIndex + 1, initialText: state.pageNote) { text in
+                    state.pageNote = text
+                    state.saveCurrentPage()
+                    _ = save()
+                }
+            }
         }
         .interactiveDismissDisabled()
         .onDisappear { _ = save() }
@@ -89,6 +104,7 @@ struct PatternReaderView: View {
     }
 
     @discardableResult private func save() -> Bool {
+        state.saveCurrentPage()
         do { try store.updatePatternState(projectID: projectID, id: patternID, state: state); return true }
         catch { saveError=error.localizedDescription; return false }
     }

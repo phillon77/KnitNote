@@ -2,6 +2,22 @@ import Foundation
 
 public enum ProjectValidationError: Error, Equatable { case emptyName }
 
+public struct PatternProjectGroup: Identifiable, Equatable, Sendable {
+    public let id: UUID
+    public let projectName: String
+    public let patterns: [PatternDocument]
+    public init(id: UUID, projectName: String, patterns: [PatternDocument]) {
+        self.id = id; self.projectName = projectName; self.patterns = patterns
+    }
+}
+
+public func patternGroups(from projects: [StoredProject]) -> [PatternProjectGroup] {
+    projects.compactMap { project in
+        guard !project.patterns.isEmpty else { return nil }
+        return PatternProjectGroup(id: project.id, projectName: project.name, patterns: project.patterns)
+    }
+}
+
 public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String

@@ -82,7 +82,7 @@ extension PDFReaderView {
             view.go(to:page)
         }
         @objc private func changed(_ note: Notification) { sample(note.object as? PDFView) }
-        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; state.pageIndex=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
+        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; state.transitionToPDFPage(visiblePage); state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }
 }

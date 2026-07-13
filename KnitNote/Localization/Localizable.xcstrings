@@ -274,7 +274,22 @@
         }
       }
     },
-    "notes.row.format" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Row %d" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第 %d 排" } } } },
+    "notes.row.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row %d"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %d 排"
+          }
+        }
+      }
+    },
     "patterns.add" : {
       "localizations" : {
         "en" : {
@@ -293,8 +308,18 @@
     },
     "patterns.chooseProject" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Project" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇作品" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Project"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇作品"
+          }
+        }
       }
     },
     "patterns.delete.title" : {
@@ -459,14 +484,34 @@
     },
     "patterns.library.empty.message" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a pattern to a project to see it here." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將圖解加入作品後，就會顯示在這裡。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a pattern to a project to see it here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將圖解加入作品後，就會顯示在這裡。"
+          }
+        }
       }
     },
     "patterns.library.empty.title" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No Patterns Yet" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還沒有圖解" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Patterns Yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有圖解"
+          }
+        }
       }
     },
     "patterns.missing" : {
@@ -481,6 +526,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找不到圖解檔案"
+          }
+        }
+      }
+    },
+    "patterns.nextPage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Page"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一頁"
           }
         }
       }
@@ -503,28 +564,32 @@
     },
     "patterns.pageNote" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page Note" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "本頁筆記" } }
-      }
-    },
-    "patterns.pageNote.page" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page %d Note" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第 %d 頁筆記" } }
-      }
-    },
-    "patterns.nextPage" : {
-      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Next Page"
+            "value" : "Page Note"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下一頁"
+            "value" : "本頁筆記"
+          }
+        }
+      }
+    },
+    "patterns.pageNote.page" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %d Note"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %d 頁筆記"
           }
         }
       }
@@ -610,7 +675,6 @@
       }
     },
     "project.currentRow" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

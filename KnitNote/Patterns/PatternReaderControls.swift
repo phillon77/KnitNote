@@ -26,7 +26,7 @@ struct PatternReaderControls: View {
                     }
                     .disabled(pageIndex >= pageCount - 1)
                 }
-                .labelStyle(.iconOnly)
+                .labelStyle(.titleAndIcon)
             }
 
             HStack(spacing: 16) {

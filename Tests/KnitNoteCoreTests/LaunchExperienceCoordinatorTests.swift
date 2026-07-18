@@ -41,6 +41,17 @@ private func resumeNext(_ sleeper: ManualLaunchSleeper) async {
     await Task.yield()
 }
 
+@MainActor
+private func waitForPhase(
+    _ expectedPhase: LaunchExperiencePhase,
+    coordinator: LaunchExperienceCoordinator
+) async {
+    for _ in 0..<100 {
+        if coordinator.phase == expectedPhase { return }
+        await Task.yield()
+    }
+}
+
 @Test @MainActor
 func repeatedStartIsIgnoredForTheColdLaunchLifetime() async {
     let sleeper = ManualLaunchSleeper()
@@ -52,6 +63,12 @@ func repeatedStartIsIgnoredForTheColdLaunchLifetime() async {
 
     #expect(await sleeper.pendingDurations() == [LaunchExperienceTiming.revealKickoffMilliseconds])
     #expect(coordinator.phase == .revealing)
+
+    coordinator.skip()
+    await waitForPendingSleep(sleeper, count: 2)
+    await resumeNext(sleeper) // Drain the cancelled reveal wait.
+    await resumeNext(sleeper) // Finish the replacement skip transition.
+    #expect(coordinator.phase == .complete)
 }
 
 @Test @MainActor
@@ -95,6 +112,7 @@ func reduceMotionSkipsLocalAnimationAndSettling() async {
     #expect(coordinator.phase == .enteringHome)
     #expect(await sleeper.pendingDurations() == [LaunchExperienceTiming.reduceMotionHomeTransitionMilliseconds])
     await resumeNext(sleeper)
+    await waitForPhase(.complete, coordinator: coordinator)
     #expect(coordinator.phase == .complete)
 }
 

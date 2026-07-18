@@ -14,6 +14,9 @@ public enum LaunchExperienceTiming {
     public static let skipHomeTransitionMilliseconds = normalHomeTransitionMilliseconds
     public static let reduceMotionHomeTransitionMilliseconds = normalHomeTransitionMilliseconds
 
+    public static let homeTransitionSeconds =
+        Double(normalHomeTransitionMilliseconds) / 1_000
+
     public static let normalTotalMilliseconds =
         revealMilliseconds
         + localAnimationMilliseconds

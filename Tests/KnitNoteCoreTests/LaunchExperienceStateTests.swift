@@ -35,3 +35,7 @@ import Testing
 @Test func normalLaunchStillLastsTwentySixHundredMilliseconds() {
     #expect(LaunchExperienceTiming.normalTotalMilliseconds == 2_600)
 }
+
+@Test func homeTransitionExposesSecondsForSwiftUI() {
+    #expect(LaunchExperienceTiming.homeTransitionSeconds == 0.6)
+}

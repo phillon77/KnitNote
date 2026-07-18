@@ -3,11 +3,15 @@ import SwiftUI
 struct FamilyLaunchAnimationView: View {
     private static let paintingAspectRatio = 2560.0 / 1440.0
 
+    /// Source and destination frames supplied to this view must both be
+    /// measured in this coordinate space. The root container installs it.
+    static let rootCoordinateSpaceName = "KnitNoteRoot"
+
     let phase: LaunchExperiencePhase
     let destinationFrame: CGRect
 
-    @State private var motionProgress: CGFloat = 0
     @State private var blinkProgress: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if phase == .complete {
@@ -22,38 +26,35 @@ struct FamilyLaunchAnimationView: View {
                     width: canvasWidth,
                     height: canvasWidth / Self.paintingAspectRatio
                 )
-                let outerFrame = geometry.frame(in: .global)
+                let outerFrame = geometry.frame(
+                    in: .named(Self.rootCoordinateSpaceName)
+                )
                 let sourceFrame = CGRect(
                     x: outerFrame.midX - (canvasSize.width / 2),
                     y: outerFrame.midY - (canvasSize.height / 2),
                     width: canvasSize.width,
                     height: canvasSize.height
                 )
-                let isEnteringHome = phase == .enteringHome
-                let scaleX = isEnteringHome && sourceFrame.width > 0
-                    ? destinationFrame.width / sourceFrame.width
-                    : 1
-                let scaleY = isEnteringHome && sourceFrame.height > 0
-                    ? destinationFrame.height / sourceFrame.height
-                    : 1
-                let destinationOffset = CGSize(
-                    width: isEnteringHome ? destinationFrame.midX - sourceFrame.midX : 0,
-                    height: isEnteringHome ? destinationFrame.midY - sourceFrame.midY : 0
-                )
-                let motion = PaintingOverlayMotion(
+                let transition = PaintingCompositeTransition(
                     phase: phase,
-                    motionProgress: motionProgress,
-                    blinkProgress: blinkProgress
+                    sourceFrame: sourceFrame,
+                    destinationFrame: destinationFrame,
+                    reduceMotion: reduceMotion
+                )
+                let blink = PaintingBlinkState(
+                    phase: phase,
+                    progress: blinkProgress
                 )
 
-                layeredPainting(size: canvasSize, motion: motion)
+                layeredPainting(size: canvasSize, blink: blink)
                     .frame(width: canvasSize.width, height: canvasSize.height)
-                    .scaleEffect(x: scaleX, y: scaleY)
+                    .scaleEffect(x: transition.scaleX, y: transition.scaleY)
+                    .opacity(transition.opacity)
                     .position(
-                        x: geometry.size.width / 2 + destinationOffset.width,
-                        y: geometry.size.height / 2 + destinationOffset.height
+                        x: geometry.size.width / 2 + transition.offset.width,
+                        y: geometry.size.height / 2 + transition.offset.height
                     )
-                    .animation(.easeInOut(duration: 0.6), value: isEnteringHome)
+                    .animation(.easeInOut(duration: 0.6), value: transition)
             }
             .aspectRatio(Self.paintingAspectRatio, contentMode: .fit)
             .task(id: phase) {
@@ -66,33 +67,10 @@ struct FamilyLaunchAnimationView: View {
 
     private func layeredPainting(
         size: CGSize,
-        motion: PaintingOverlayMotion
+        blink: PaintingBlinkState
     ) -> some View {
         ZStack {
             paintingImage(size: size)
-                .accessibilityHidden(true)
-
-            originalPixelOverlay(region: .handsAndYarn, size: size)
-                .rotationEffect(
-                    .degrees(motion.handsRotationDegrees),
-                    anchor: anchor(for: .handsAndYarn)
-                )
-                .offset(motion.handsOffset)
-                .accessibilityHidden(true)
-
-            originalPixelOverlay(region: .yarnBall, size: size)
-                .rotationEffect(
-                    .degrees(motion.yarnRotationDegrees),
-                    anchor: anchor(for: .yarnBall)
-                )
-                .accessibilityHidden(true)
-
-            originalPixelOverlay(region: .lemonEars, size: size)
-                .rotationEffect(
-                    .degrees(motion.earsRotationDegrees),
-                    anchor: anchor(for: .lemonEars)
-                )
-                .offset(motion.earsOffset)
                 .accessibilityHidden(true)
 
             originalPixelOverlay(
@@ -100,16 +78,16 @@ struct FamilyLaunchAnimationView: View {
                 maskRegion: .lemonEyes,
                 size: size
             )
-            .opacity(motion.blinkOpacity)
+            .opacity(blink.opacity)
             .accessibilityHidden(true)
 
             originalPixelOverlay(region: .lemonEyes, size: size)
                 .scaleEffect(
                     x: 1,
-                    y: motion.blinkScaleY,
+                    y: blink.scaleY,
                     anchor: anchor(for: .lemonEyes)
                 )
-                .opacity(motion.blinkOpacity)
+                .opacity(blink.opacity)
                 .accessibilityHidden(true)
         }
         .frame(width: size.width, height: size.height)
@@ -166,13 +144,10 @@ struct FamilyLaunchAnimationView: View {
     @MainActor
     private func animateLocalPainting(for phase: LaunchExperiencePhase) async {
         resetLocalPainting()
-        guard phase == .animating else { return }
+        guard phase == .animating, !reduceMotion else { return }
 
         for cycle in 0..<2 {
             guard !Task.isCancelled else { return }
-            withAnimation(.easeInOut(duration: 0.28)) {
-                motionProgress = 1
-            }
 
             if cycle == 0 {
                 do {
@@ -204,9 +179,6 @@ struct FamilyLaunchAnimationView: View {
                 }
             }
 
-            withAnimation(.easeInOut(duration: 0.28)) {
-                motionProgress = 0
-            }
             do {
                 try await Task.sleep(for: .milliseconds(280))
             } catch {
@@ -222,7 +194,6 @@ struct FamilyLaunchAnimationView: View {
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) {
-            motionProgress = 0
             blinkProgress = 0
         }
     }

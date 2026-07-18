@@ -24,63 +24,78 @@ struct PaintingOverlayRegion: Sendable, Equatable {
     )
 }
 
-struct PaintingOverlayMotion: Sendable, Equatable {
-    let handsOffset: CGSize
-    let handsRotationDegrees: CGFloat
-    let yarnRotationDegrees: CGFloat
-    let earsOffset: CGSize
-    let earsRotationDegrees: CGFloat
-    let blinkOpacity: Double
-    let blinkScaleY: CGFloat
+struct PaintingBlinkState: Sendable, Equatable {
+    let opacity: Double
+    let scaleY: CGFloat
 
-    static let resting = PaintingOverlayMotion(
-        handsOffset: .zero,
-        handsRotationDegrees: 0,
-        yarnRotationDegrees: 0,
-        earsOffset: .zero,
-        earsRotationDegrees: 0,
-        blinkOpacity: 0,
-        blinkScaleY: 1
-    )
+    static let resting = PaintingBlinkState(opacity: 0, scaleY: 1)
 
-    init(
-        phase: LaunchExperiencePhase,
-        motionProgress: CGFloat,
-        blinkProgress: CGFloat
-    ) {
+    init(phase: LaunchExperiencePhase, progress: CGFloat) {
         guard phase == .animating else {
             self = .resting
             return
         }
 
-        let motionProgress = min(max(motionProgress, 0), 1)
-        let blinkProgress = min(max(blinkProgress, 0), 1)
+        let progress = min(max(progress, 0), 1)
         self.init(
-            handsOffset: CGSize(width: 0, height: -0.45 * motionProgress),
-            handsRotationDegrees: 0.18 * motionProgress,
-            yarnRotationDegrees: -0.18 * motionProgress,
-            earsOffset: CGSize(width: 0, height: -0.25 * motionProgress),
-            earsRotationDegrees: 0.15 * motionProgress,
-            blinkOpacity: Double(blinkProgress),
-            blinkScaleY: 1 - (0.65 * blinkProgress)
+            opacity: Double(progress),
+            scaleY: 1 - (0.65 * progress)
         )
     }
 
-    private init(
-        handsOffset: CGSize,
-        handsRotationDegrees: CGFloat,
-        yarnRotationDegrees: CGFloat,
-        earsOffset: CGSize,
-        earsRotationDegrees: CGFloat,
-        blinkOpacity: Double,
-        blinkScaleY: CGFloat
+    private init(opacity: Double, scaleY: CGFloat) {
+        self.opacity = opacity
+        self.scaleY = scaleY
+    }
+}
+
+/// The whole-painting transition, expressed entirely in the shared
+/// `KnitNoteRoot` coordinate space.
+struct PaintingCompositeTransition: Sendable, Equatable {
+    let scaleX: CGFloat
+    let scaleY: CGFloat
+    let offset: CGSize
+    let opacity: Double
+
+    init(
+        phase: LaunchExperiencePhase,
+        sourceFrame: CGRect,
+        destinationFrame: CGRect,
+        reduceMotion: Bool
     ) {
-        self.handsOffset = handsOffset
-        self.handsRotationDegrees = handsRotationDegrees
-        self.yarnRotationDegrees = yarnRotationDegrees
-        self.earsOffset = earsOffset
-        self.earsRotationDegrees = earsRotationDegrees
-        self.blinkOpacity = blinkOpacity
-        self.blinkScaleY = blinkScaleY
+        guard phase == .enteringHome else {
+            scaleX = 1
+            scaleY = 1
+            offset = .zero
+            opacity = 1
+            return
+        }
+
+        guard !reduceMotion else {
+            scaleX = 1
+            scaleY = 1
+            offset = .zero
+            opacity = 0
+            return
+        }
+
+        guard sourceFrame.width > 0,
+              sourceFrame.height > 0,
+              destinationFrame.width > 0,
+              destinationFrame.height > 0 else {
+            scaleX = 1
+            scaleY = 1
+            offset = .zero
+            opacity = 1
+            return
+        }
+
+        scaleX = destinationFrame.width / sourceFrame.width
+        scaleY = destinationFrame.height / sourceFrame.height
+        offset = CGSize(
+            width: destinationFrame.midX - sourceFrame.midX,
+            height: destinationFrame.midY - sourceFrame.midY
+        )
+        opacity = 1
     }
 }

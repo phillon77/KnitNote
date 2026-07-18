@@ -148,6 +148,14 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
     #expect(!source.contains("blinkProgress = 1"))
 }
 
+@Test func launchCannotRegressToWholeImageOnlyMotion() throws {
+    let source = try launchAnimationSource()
+    #expect(source.contains("featheredHandsMask"))
+    #expect(source.contains("originalPixelOverlay(region: .handsAndYarn"))
+    #expect(source.contains("sourceRegion: .lemonEyeCoverSource"))
+    #expect(source.contains("motion.eyeScaleY"))
+}
+
 private func launchAnimationSource() throws -> String {
     let repositoryRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()

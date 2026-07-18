@@ -82,14 +82,14 @@ struct FamilyLaunchAnimationView: View {
         )) { context in
             let frame = timelineFrame(at: context.date)
             let camera = cameraTransform(frame: frame, size: size)
-            let blink = PaintingBlinkState(
-                phase: phase,
-                progress: CGFloat(frame.blinkProgress)
+            let motion = PaintingOverlayMotion(
+                handProgress: frame.handProgress,
+                blinkProgress: frame.blinkProgress
             )
 
             revealedPainting(
                 size: size,
-                blink: blink,
+                motion: motion,
                 transitionOpacity: transitionOpacity
             )
             .scaleEffect(camera.scale)
@@ -131,10 +131,10 @@ struct FamilyLaunchAnimationView: View {
 
     private func revealedPainting(
         size: CGSize,
-        blink: PaintingBlinkState,
+        motion: PaintingOverlayMotion,
         transitionOpacity: Double
     ) -> some View {
-        layeredPainting(size: size, blink: blink)
+        layeredPainting(size: size, motion: motion)
             .transaction { transaction in
                 if phase != .animating {
                     transaction.animation = nil
@@ -155,10 +155,21 @@ struct FamilyLaunchAnimationView: View {
 
     private func layeredPainting(
         size: CGSize,
-        blink: PaintingBlinkState
+        motion: PaintingOverlayMotion
     ) -> some View {
         ZStack {
             paintingImage(size: size)
+                .accessibilityHidden(true)
+
+            originalPixelOverlay(region: .handsAndYarn, size: size)
+                .mask { featheredHandsMask(size: size) }
+                .rotationEffect(
+                    .degrees(motion.handsRotationDegrees),
+                    anchor: anchor(for: .handsAndYarn)
+                )
+                .offset(
+                    y: CGFloat(motion.handsVerticalTravel) * max(1, size.width / 390)
+                )
                 .accessibilityHidden(true)
 
             originalPixelOverlay(
@@ -166,20 +177,42 @@ struct FamilyLaunchAnimationView: View {
                 maskRegion: .lemonEyes,
                 size: size
             )
-            .opacity(blink.opacity)
+            .opacity(motion.eyeCoverOpacity)
             .accessibilityHidden(true)
 
             originalPixelOverlay(region: .lemonEyes, size: size)
                 .scaleEffect(
                     x: 1,
-                    y: blink.scaleY,
+                    y: motion.eyeScaleY,
                     anchor: anchor(for: .lemonEyes)
                 )
-                .opacity(blink.opacity)
+                .opacity(motion.eyeCoverOpacity)
                 .accessibilityHidden(true)
         }
         .frame(width: size.width, height: size.height)
+        .compositingGroup()
         .clipped()
+    }
+
+    private func featheredHandsMask(size: CGSize) -> some View {
+        Canvas { context, _ in
+            context.addFilter(.blur(radius: max(2, size.width * 0.005)))
+            let regions = [
+                CGRect(x: 0.304, y: 0.335, width: 0.058, height: 0.135),
+                CGRect(x: 0.348, y: 0.335, width: 0.058, height: 0.135),
+                CGRect(x: 0.320, y: 0.385, width: 0.078, height: 0.115)
+            ]
+            for region in regions {
+                let rect = CGRect(
+                    x: region.minX * size.width,
+                    y: region.minY * size.height,
+                    width: region.width * size.width,
+                    height: region.height * size.height
+                )
+                context.fill(Path(ellipseIn: rect), with: .color(.white))
+            }
+        }
+        .frame(width: size.width, height: size.height)
     }
 
     private func paintingImage(size: CGSize) -> some View {

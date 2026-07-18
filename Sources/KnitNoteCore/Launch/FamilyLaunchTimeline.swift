@@ -20,6 +20,24 @@ public struct FamilyLaunchFrame: Sendable, Equatable {
     }
 }
 
+public struct PaintingOverlayMotion: Sendable, Equatable {
+    public let handsRotationDegrees: Double
+    public let handsVerticalTravel: Double
+    public let needleCounterRotationDegrees: Double
+    public let eyeCoverOpacity: Double
+    public let eyeScaleY: Double
+
+    public init(handProgress: Double, blinkProgress: Double) {
+        let hand = min(max(handProgress, -1), 1)
+        let blink = min(max(blinkProgress, 0), 1)
+        handsRotationDegrees = 1.4 * hand
+        handsVerticalTravel = 1.8 * hand
+        needleCounterRotationDegrees = -0.7 * hand
+        eyeCoverOpacity = blink
+        eyeScaleY = 1 - (0.9 * blink)
+    }
+}
+
 public enum FamilyLaunchTimeline {
     public static let handsEndMilliseconds = 1_100
     public static let firstWideEndMilliseconds = 1_800

@@ -33,12 +33,14 @@ import Testing
 
 @Test func lemonShotFocusesLemonAndCompletesOneBlink() {
     let open = FamilyLaunchTimeline.frame(atMilliseconds: 2_150)
-    let closed = FamilyLaunchTimeline.frame(atMilliseconds: 2_420)
+    let closingFinished = FamilyLaunchTimeline.frame(atMilliseconds: 2_320)
+    let closed = FamilyLaunchTimeline.frame(atMilliseconds: 2_450)
     let reopened = FamilyLaunchTimeline.frame(atMilliseconds: 2_650)
     #expect(closed.cameraZoom >= 2.5)
     #expect(closed.cameraFocusX == FamilyLaunchTimeline.lemonFocusX)
     #expect(closed.cameraFocusY == FamilyLaunchTimeline.lemonFocusY)
     #expect(open.blinkProgress == 0)
+    #expect(closingFinished.blinkProgress == 1)
     #expect(closed.blinkProgress == 1)
     #expect(reopened.blinkProgress == 0)
     #expect(closed.handProgress == 0)

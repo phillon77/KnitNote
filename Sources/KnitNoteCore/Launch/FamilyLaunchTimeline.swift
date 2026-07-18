@@ -48,7 +48,7 @@ public enum FamilyLaunchTimeline {
     public static let handsFocusX = 0.345
     public static let handsFocusY = 0.425
     public static let lemonFocusX = 0.665
-    public static let lemonFocusY = 0.755
+    public static let lemonFocusY = 0.80
 
     public static func frame(atMilliseconds elapsed: Int) -> FamilyLaunchFrame {
         let time = min(max(elapsed, 0), localSequenceMilliseconds)
@@ -121,10 +121,12 @@ public enum FamilyLaunchTimeline {
 
     private static func blinkProgress(at time: Int) -> Double {
         switch time {
-        case 2_250..<2_420:
-            return smooth(Double(time - 2_250) / 170)
-        case 2_420..<2_580:
-            return 1 - smooth(Double(time - 2_420) / 160)
+        case 2_150..<2_300:
+            return smooth(Double(time - 2_150) / 150)
+        case 2_300..<2_500:
+            return 1
+        case 2_500..<2_650:
+            return 1 - smooth(Double(time - 2_500) / 150)
         default:
             return 0
         }

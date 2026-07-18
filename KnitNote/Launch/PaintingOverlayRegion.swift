@@ -16,11 +16,11 @@ struct PaintingOverlayRegion: Sendable, Equatable {
     )
 
     static let lemonEyes = PaintingOverlayRegion(
-        rect: CGRect(x: 0.63, y: 0.738, width: 0.05, height: 0.024)
+        rect: CGRect(x: 0.625, y: 0.785, width: 0.052, height: 0.030)
     )
 
     static let lemonEyeCoverSource = PaintingOverlayRegion(
-        rect: CGRect(x: 0.63, y: 0.714, width: 0.05, height: 0.024)
+        rect: CGRect(x: 0.625, y: 0.758, width: 0.052, height: 0.030)
     )
 }
 

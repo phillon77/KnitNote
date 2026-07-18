@@ -156,6 +156,20 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
     #expect(source.contains("motion.eyeScaleY"))
 }
 
+@Test func lemonEyeMaskTargetsTheFaceInsteadOfTheEarLine() throws {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let source = try String(
+        contentsOf: repositoryRoot
+            .appendingPathComponent("KnitNote/Launch/PaintingOverlayRegion.swift"),
+        encoding: .utf8
+    )
+    #expect(source.contains("rect: CGRect(x: 0.625, y: 0.785"))
+    #expect(source.contains("rect: CGRect(x: 0.625, y: 0.758"))
+}
+
 private func launchAnimationSource() throws -> String {
     let repositoryRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()

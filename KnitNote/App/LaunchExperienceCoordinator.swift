@@ -16,30 +16,29 @@ final class LaunchExperienceCoordinator: ObservableObject {
         state = LaunchExperienceState(reduceMotion: reduceMotion)
         phase = .revealing
         playbackTask = Task { [weak self] in
-            guard let self else { return }
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
-            advance()
+            self?.advance()
             if reduceMotion {
                 try? await Task.sleep(for: .milliseconds(350))
                 guard !Task.isCancelled else { return }
-                advance()
+                self?.advance()
                 return
             }
             try? await Task.sleep(for: .milliseconds(1_400))
             guard !Task.isCancelled else { return }
-            advance()
+            self?.advance()
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
-            advance()
+            self?.advance()
             try? await Task.sleep(for: .milliseconds(600))
             guard !Task.isCancelled else { return }
-            advance()
+            self?.advance()
         }
     }
 
     func skip() {
-        guard phase != .complete && phase != .enteringHome else { return }
+        guard didStart, phase != .complete && phase != .enteringHome else { return }
         playbackTask?.cancel()
         state?.skip()
         publishState()

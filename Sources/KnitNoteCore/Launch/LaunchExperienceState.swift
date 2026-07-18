@@ -11,7 +11,7 @@ public enum LaunchExperienceTiming {
     public static let revealVisualMilliseconds = 280
     public static let revealMilliseconds =
         revealKickoffMilliseconds + revealVisualMilliseconds
-    public static let localAnimationMilliseconds = 1_400
+    public static let localAnimationMilliseconds = 2_800
     public static let settlingMilliseconds = 300
     public static let normalHomeTransitionMilliseconds = 600
     public static let skipHomeTransitionMilliseconds = normalHomeTransitionMilliseconds

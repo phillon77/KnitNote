@@ -90,8 +90,8 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
     #expect(LaunchExperienceTiming.reduceMotionHomeTransitionMilliseconds == 600)
 }
 
-@Test func normalLaunchStillLastsTwentySixHundredMilliseconds() {
-    #expect(LaunchExperienceTiming.normalTotalMilliseconds == 2_600)
+@Test func normalLaunchLastsFourSeconds() {
+    #expect(LaunchExperienceTiming.normalTotalMilliseconds == 4_000)
 }
 
 @Test func homeTransitionExposesSecondsForSwiftUI() {

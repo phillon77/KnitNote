@@ -278,7 +278,7 @@ Build `FamilyLaunchAnimationView` from:
 - hands motion limited to at most 2 points of translation and 0.7 degrees of rotation, repeated twice only during `.animating`;
 - yarn-ball motion limited to 1.2 degrees of rotation;
 - Lemon ear motion limited to 1 point and 0.8 degrees;
-- a SwiftUI `Path` eyelid stroke using sampled dark-gray/brown theme colors, visible briefly during `.animating` and hidden in all final states;
+- a blink made only from the original eye-area pixels using a small vertical compression and mask, visible briefly during `.animating` and reset in all final states; do not draw a new eyelid line;
 - `.accessibilityLabel(Text("art.familyHero.accessibility"))` on the composite and `.accessibilityHidden(true)` on every overlay.
 
 Use a fixed painting aspect ratio of `2560.0 / 1440.0` so every mask remains aligned on iPhone, iPad, and Mac.

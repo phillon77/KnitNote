@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 final class LaunchExperienceCoordinator: ObservableObject {
     @Published private(set) var phase: LaunchExperiencePhase = .revealing
+    @Published private(set) var revealProgress: Double = 0
     private var state: LaunchExperienceState?
     private var playbackTask: Task<Void, Never>?
     private var didStart = false
@@ -15,8 +16,12 @@ final class LaunchExperienceCoordinator: ObservableObject {
         didStart = true
         state = LaunchExperienceState(reduceMotion: reduceMotion)
         phase = .revealing
+        revealProgress = 0
         playbackTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.revealMilliseconds))
+            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.revealKickoffMilliseconds))
+            guard !Task.isCancelled else { return }
+            self?.revealProgress = 1
+            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.revealVisualMilliseconds))
             guard !Task.isCancelled else { return }
             self?.advance()
             if reduceMotion {
@@ -40,6 +45,7 @@ final class LaunchExperienceCoordinator: ObservableObject {
     func skip() {
         guard didStart, phase != .complete && phase != .enteringHome else { return }
         playbackTask?.cancel()
+        revealProgress = 1
         state?.skip()
         publishState()
         playbackTask = Task { [weak self] in

@@ -99,7 +99,15 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
 
 @Test func paintingRevealUsesTheSharedThreeHundredMillisecondTiming() {
     #expect(LaunchExperienceTiming.revealMilliseconds == 300)
+    #expect(LaunchExperienceTiming.revealKickoffMilliseconds > 0)
+    #expect(LaunchExperienceTiming.revealVisualMilliseconds > 0)
+    #expect(
+        LaunchExperienceTiming.revealKickoffMilliseconds
+        + LaunchExperienceTiming.revealVisualMilliseconds
+        == LaunchExperienceTiming.revealMilliseconds
+    )
     #expect(LaunchExperienceTiming.revealSeconds == 0.3)
+    #expect(LaunchExperienceTiming.revealVisualSeconds == 0.28)
 }
 
 @Test func paintingRevealComposesWithTheExistingHomeTransitionOpacity() {

@@ -7,7 +7,10 @@ public enum LaunchExperiencePhase: Sendable, Equatable {
 }
 
 public enum LaunchExperienceTiming {
-    public static let revealMilliseconds = 300
+    public static let revealKickoffMilliseconds = 20
+    public static let revealVisualMilliseconds = 280
+    public static let revealMilliseconds =
+        revealKickoffMilliseconds + revealVisualMilliseconds
     public static let localAnimationMilliseconds = 1_400
     public static let settlingMilliseconds = 300
     public static let normalHomeTransitionMilliseconds = 600
@@ -16,6 +19,9 @@ public enum LaunchExperienceTiming {
 
     public static let revealSeconds =
         Double(revealMilliseconds) / 1_000
+
+    public static let revealVisualSeconds =
+        Double(revealVisualMilliseconds) / 1_000
 
     public static let homeTransitionSeconds =
         Double(normalHomeTransitionMilliseconds) / 1_000

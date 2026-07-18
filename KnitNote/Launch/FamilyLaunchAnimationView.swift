@@ -9,9 +9,9 @@ struct FamilyLaunchAnimationView: View {
 
     let phase: LaunchExperiencePhase
     let destinationFrame: CGRect
+    let revealProgress: Double
 
     @State private var blinkProgress: CGFloat = 0
-    @State private var revealProgress: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -61,6 +61,10 @@ struct FamilyLaunchAnimationView: View {
                             transitionOpacity: transition.opacity
                         )
                     )
+                    .animation(
+                        .easeInOut(duration: LaunchExperienceTiming.revealVisualSeconds),
+                        value: revealProgress
+                    )
                     .position(
                         x: geometry.size.width / 2 + transition.offset.width,
                         y: geometry.size.height / 2 + transition.offset.height
@@ -76,9 +80,6 @@ struct FamilyLaunchAnimationView: View {
             .aspectRatio(Self.paintingAspectRatio, contentMode: .fit)
             .task(id: phase) {
                 await animateLocalPainting(for: phase)
-            }
-            .task {
-                await revealPainting()
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("art.familyHero.accessibility"))
@@ -162,15 +163,6 @@ struct FamilyLaunchAnimationView: View {
     }
 
     @MainActor
-    private func revealPainting() async {
-        await Task.yield()
-        guard !Task.isCancelled else { return }
-        withAnimation(.easeInOut(duration: LaunchExperienceTiming.revealSeconds)) {
-            revealProgress = 1
-        }
-    }
-
-    @MainActor
     private func animateLocalPainting(for phase: LaunchExperiencePhase) async {
         resetLocalPainting()
         guard phase == .animating, !reduceMotion else { return }
@@ -232,7 +224,8 @@ private struct FamilyLaunchAnimationView_Previews: PreviewProvider {
     static var previews: some View {
         FamilyLaunchAnimationView(
             phase: .animating,
-            destinationFrame: CGRect(x: 32, y: 32, width: 256, height: 144)
+            destinationFrame: CGRect(x: 32, y: 32, width: 256, height: 144),
+            revealProgress: 1
         )
         .frame(width: 960, height: 540)
         .previewDisplayName("Family painting animation")

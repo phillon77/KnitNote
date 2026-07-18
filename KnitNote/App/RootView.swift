@@ -35,7 +35,8 @@ struct RootView: View {
                 if launchExperience.showsOverlay {
                     FamilyLaunchAnimationView(
                         phase: launchExperience.phase,
-                        destinationFrame: destinationFrame
+                        destinationFrame: destinationFrame,
+                        revealProgress: launchExperience.revealProgress
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(.rect)

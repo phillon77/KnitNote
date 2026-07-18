@@ -11,6 +11,7 @@ struct FamilyLaunchAnimationView: View {
     let destinationFrame: CGRect
 
     @State private var blinkProgress: CGFloat = 0
+    @State private var revealProgress: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -54,7 +55,12 @@ struct FamilyLaunchAnimationView: View {
                     }
                     .frame(width: canvasSize.width, height: canvasSize.height)
                     .scaleEffect(x: transition.scaleX, y: transition.scaleY)
-                    .opacity(transition.opacity)
+                    .opacity(
+                        launchPaintingOpacity(
+                            revealProgress: revealProgress,
+                            transitionOpacity: transition.opacity
+                        )
+                    )
                     .position(
                         x: geometry.size.width / 2 + transition.offset.width,
                         y: geometry.size.height / 2 + transition.offset.height
@@ -70,6 +76,9 @@ struct FamilyLaunchAnimationView: View {
             .aspectRatio(Self.paintingAspectRatio, contentMode: .fit)
             .task(id: phase) {
                 await animateLocalPainting(for: phase)
+            }
+            .task {
+                await revealPainting()
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("art.familyHero.accessibility"))
@@ -150,6 +159,15 @@ struct FamilyLaunchAnimationView: View {
 
     private func anchor(for region: PaintingOverlayRegion) -> UnitPoint {
         UnitPoint(x: region.rect.midX, y: region.rect.midY)
+    }
+
+    @MainActor
+    private func revealPainting() async {
+        await Task.yield()
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeInOut(duration: LaunchExperienceTiming.revealSeconds)) {
+            revealProgress = 1
+        }
     }
 
     @MainActor

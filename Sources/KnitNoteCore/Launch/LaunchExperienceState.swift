@@ -14,6 +14,9 @@ public enum LaunchExperienceTiming {
     public static let skipHomeTransitionMilliseconds = normalHomeTransitionMilliseconds
     public static let reduceMotionHomeTransitionMilliseconds = normalHomeTransitionMilliseconds
 
+    public static let revealSeconds =
+        Double(revealMilliseconds) / 1_000
+
     public static let homeTransitionSeconds =
         Double(normalHomeTransitionMilliseconds) / 1_000
 
@@ -22,6 +25,15 @@ public enum LaunchExperienceTiming {
         + localAnimationMilliseconds
         + settlingMilliseconds
         + normalHomeTransitionMilliseconds
+}
+
+public func launchPaintingOpacity(
+    revealProgress: Double,
+    transitionOpacity: Double
+) -> Double {
+    let revealProgress = min(max(revealProgress, 0), 1)
+    let transitionOpacity = min(max(transitionOpacity, 0), 1)
+    return revealProgress * transitionOpacity
 }
 
 public func launchHomeIsInteractive(phase: LaunchExperiencePhase) -> Bool {

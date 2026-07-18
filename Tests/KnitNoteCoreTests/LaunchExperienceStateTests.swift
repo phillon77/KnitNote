@@ -37,6 +37,52 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
     state.skip(); #expect(state.phase == .complete)
 }
 
+@Test func skipFromEveryLaterPhaseNeverMovesBackward() {
+    var animating = LaunchExperienceState(reduceMotion: false)
+    animating.advance()
+    #expect(animating.phase == .animating)
+    animating.skip()
+    #expect(animating.phase == .enteringHome)
+
+    var settling = LaunchExperienceState(reduceMotion: false)
+    settling.advance()
+    settling.advance()
+    #expect(settling.phase == .settling)
+    settling.skip()
+    #expect(settling.phase == .enteringHome)
+
+    var enteringHome = LaunchExperienceState(reduceMotion: false)
+    enteringHome.advance()
+    enteringHome.advance()
+    enteringHome.advance()
+    #expect(enteringHome.phase == .enteringHome)
+    enteringHome.skip()
+    #expect(enteringHome.phase == .enteringHome)
+
+    var complete = LaunchExperienceState(reduceMotion: false)
+    complete.advance()
+    complete.advance()
+    complete.advance()
+    complete.advance()
+    #expect(complete.phase == .complete)
+    complete.skip()
+    #expect(complete.phase == .complete)
+}
+
+@Test func completePhaseRemainsStableAfterRepeatedAdvances() {
+    var state = LaunchExperienceState(reduceMotion: false)
+    state.advance()
+    state.advance()
+    state.advance()
+    state.advance()
+    #expect(state.phase == .complete)
+
+    for _ in 0..<3 {
+        state.advance()
+        #expect(state.phase == .complete)
+    }
+}
+
 @Test func everyHomeTransitionGetsTheFullVisualTransitionLifetime() {
     #expect(LaunchExperienceTiming.normalHomeTransitionMilliseconds == 600)
     #expect(LaunchExperienceTiming.skipHomeTransitionMilliseconds == 600)
@@ -49,4 +95,17 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
 
 @Test func homeTransitionExposesSecondsForSwiftUI() {
     #expect(LaunchExperienceTiming.homeTransitionSeconds == 0.6)
+}
+
+@Test func paintingRevealUsesTheSharedThreeHundredMillisecondTiming() {
+    #expect(LaunchExperienceTiming.revealMilliseconds == 300)
+    #expect(LaunchExperienceTiming.revealSeconds == 0.3)
+}
+
+@Test func paintingRevealComposesWithTheExistingHomeTransitionOpacity() {
+    #expect(launchPaintingOpacity(revealProgress: 0, transitionOpacity: 1) == 0)
+    #expect(launchPaintingOpacity(revealProgress: 0.5, transitionOpacity: 1) == 0.5)
+    #expect(launchPaintingOpacity(revealProgress: 1, transitionOpacity: 1) == 1)
+    #expect(launchPaintingOpacity(revealProgress: 0.5, transitionOpacity: 0.5) == 0.25)
+    #expect(launchPaintingOpacity(revealProgress: 1, transitionOpacity: 0) == 0)
 }

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import KnitNoteCore
 
@@ -116,4 +117,33 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
     #expect(launchPaintingOpacity(revealProgress: 1, transitionOpacity: 1) == 1)
     #expect(launchPaintingOpacity(revealProgress: 0.5, transitionOpacity: 0.5) == 0.25)
     #expect(launchPaintingOpacity(revealProgress: 1, transitionOpacity: 0) == 0)
+}
+
+@Test func paintingRevealAnimationIsScopedInsideTheGeometryTransition() throws {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let source = try String(
+        contentsOf: repositoryRoot
+            .appendingPathComponent("KnitNote/Launch/FamilyLaunchAnimationView.swift"),
+        encoding: .utf8
+    )
+
+    let revealStart = try #require(source.range(of: "private func revealedPainting("))
+    let revealEnd = try #require(
+        source.range(of: "private func layeredPainting(", range: revealStart.upperBound..<source.endIndex)
+    )
+    let revealScope = source[revealStart.lowerBound..<revealEnd.lowerBound]
+
+    #expect(revealScope.contains(".opacity("))
+    #expect(revealScope.contains("value: revealProgress"))
+    #expect(!revealScope.contains(".scaleEffect("))
+    #expect(!revealScope.contains(".position("))
+
+    let bodyBeforeRevealHelper = source[..<revealStart.lowerBound]
+    #expect(bodyBeforeRevealHelper.contains("revealedPainting("))
+    #expect(bodyBeforeRevealHelper.contains(".scaleEffect("))
+    #expect(bodyBeforeRevealHelper.contains(".position("))
+    #expect(bodyBeforeRevealHelper.contains("value: phase"))
 }

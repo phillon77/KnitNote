@@ -47,24 +47,12 @@ struct FamilyLaunchAnimationView: View {
                     progress: blinkProgress
                 )
 
-                layeredPainting(size: canvasSize, blink: blink)
-                    .transaction { transaction in
-                        if phase != .animating {
-                            transaction.animation = nil
-                        }
-                    }
-                    .frame(width: canvasSize.width, height: canvasSize.height)
+                revealedPainting(
+                    size: canvasSize,
+                    blink: blink,
+                    transitionOpacity: transition.opacity
+                )
                     .scaleEffect(x: transition.scaleX, y: transition.scaleY)
-                    .opacity(
-                        launchPaintingOpacity(
-                            revealProgress: revealProgress,
-                            transitionOpacity: transition.opacity
-                        )
-                    )
-                    .animation(
-                        .easeInOut(duration: LaunchExperienceTiming.revealVisualSeconds),
-                        value: revealProgress
-                    )
                     .position(
                         x: geometry.size.width / 2 + transition.offset.width,
                         y: geometry.size.height / 2 + transition.offset.height
@@ -84,6 +72,30 @@ struct FamilyLaunchAnimationView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("art.familyHero.accessibility"))
         }
+    }
+
+    private func revealedPainting(
+        size: CGSize,
+        blink: PaintingBlinkState,
+        transitionOpacity: Double
+    ) -> some View {
+        layeredPainting(size: size, blink: blink)
+            .transaction { transaction in
+                if phase != .animating {
+                    transaction.animation = nil
+                }
+            }
+            .frame(width: size.width, height: size.height)
+            .opacity(
+                launchPaintingOpacity(
+                    revealProgress: revealProgress,
+                    transitionOpacity: transitionOpacity
+                )
+            )
+            .animation(
+                .easeInOut(duration: LaunchExperienceTiming.revealVisualSeconds),
+                value: revealProgress
+            )
     }
 
     private func layeredPainting(

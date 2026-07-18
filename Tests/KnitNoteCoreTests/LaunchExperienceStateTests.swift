@@ -120,15 +120,7 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
 }
 
 @Test func paintingRevealAnimationIsScopedInsideTheGeometryTransition() throws {
-    let repositoryRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-    let source = try String(
-        contentsOf: repositoryRoot
-            .appendingPathComponent("KnitNote/Launch/FamilyLaunchAnimationView.swift"),
-        encoding: .utf8
-    )
+    let source = try launchAnimationSource()
 
     let revealStart = try #require(source.range(of: "private func revealedPainting("))
     let revealEnd = try #require(
@@ -146,4 +138,24 @@ func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePha
     #expect(bodyBeforeRevealHelper.contains(".scaleEffect("))
     #expect(bodyBeforeRevealHelper.contains(".position("))
     #expect(bodyBeforeRevealHelper.contains("value: phase"))
+}
+
+@Test func launchViewSamplesTheTimelineEveryAnimationFrame() throws {
+    let source = try launchAnimationSource()
+    #expect(source.contains("TimelineView(.animation"))
+    #expect(source.contains("FamilyLaunchTimeline.frame(atMilliseconds:"))
+    #expect(source.contains("cameraTransform(frame:"))
+    #expect(!source.contains("blinkProgress = 1"))
+}
+
+private func launchAnimationSource() throws -> String {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    return try String(
+        contentsOf: repositoryRoot
+            .appendingPathComponent("KnitNote/Launch/FamilyLaunchAnimationView.swift"),
+        encoding: .utf8
+    )
 }

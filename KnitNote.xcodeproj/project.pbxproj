@@ -18,6 +18,7 @@
 		240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		27A3D14010BEAF07C41EE93C /* ProjectPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */; };
+		2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */; };
 		2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */; };
 		3067B978D7AD5AD41407CF05 /* RowNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE75A4BC6F25D9138B684ADF /* RowNote.swift */; };
@@ -63,6 +64,7 @@
 		D9D96422EAA83DBC4E03A060 /* PaintingOverlayRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */; };
 		DA95835CF1FE8ED5122062AF /* ProjectPatternsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */; };
 		DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
+		DC39760B7C07407210A12CF0 /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */; };
 		E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
@@ -77,6 +79,7 @@
 
 /* Begin PBXFileReference section */
 		07AC936135E44C341839B236 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
+		09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchTimeline.swift; sourceTree = "<group>"; };
 		1112E674E478840A2286F6BA /* KnitNoteWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnitNoteWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		121DC898B51C86C11B40705C /* KnitNoteCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCore.swift; sourceTree = "<group>"; };
 		14B46C9D90D2250C063CBEB9 /* KnitNote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnitNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -179,6 +182,7 @@
 		179F52A90796543AF192B87A /* Launch */ = {
 			isa = PBXGroup;
 			children = (
+				09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */,
 				F3AAE108F03B9699F488B637 /* LaunchExperienceCoordinator.swift */,
 				964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */,
 			);
@@ -446,6 +450,7 @@
 				E7B3D88A524E639567C68181 /* EditRowNoteView.swift in Sources */,
 				6F1E62E6245C4628E176F414 /* FamilyHeroFramePreferenceKey.swift in Sources */,
 				89AA9318C5AEB7CD5C2DA4F8 /* FamilyLaunchAnimationView.swift in Sources */,
+				2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */,
 				36584501F2661D8E10A19BE6 /* HighlightOverlay.swift in Sources */,
 				064665149A05CC8E272CA59B /* ImageReaderView.swift in Sources */,
 				214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */,
@@ -489,6 +494,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3C6BE637ADCCABE03A6E9540 /* AppLanguage.swift in Sources */,
+				DC39760B7C07407210A12CF0 /* FamilyLaunchTimeline.swift in Sources */,
 				326D6303F4CB969B6F1667DA /* JSONProjectStore.swift in Sources */,
 				6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */,
 				BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */,

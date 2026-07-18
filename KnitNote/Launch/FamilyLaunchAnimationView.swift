@@ -11,7 +11,7 @@ struct FamilyLaunchAnimationView: View {
     let destinationFrame: CGRect
     let revealProgress: Double
 
-    @State private var blinkProgress: CGFloat = 0
+    @State private var localAnimationStartDate: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -42,14 +42,8 @@ struct FamilyLaunchAnimationView: View {
                     destinationFrame: destinationFrame,
                     reduceMotion: reduceMotion
                 )
-                let blink = PaintingBlinkState(
-                    phase: phase,
-                    progress: blinkProgress
-                )
-
-                revealedPainting(
+                timelinePainting(
                     size: canvasSize,
-                    blink: blink,
                     transitionOpacity: transition.opacity
                 )
                     .scaleEffect(x: transition.scaleX, y: transition.scaleY)
@@ -66,12 +60,73 @@ struct FamilyLaunchAnimationView: View {
                     )
             }
             .aspectRatio(Self.paintingAspectRatio, contentMode: .fit)
-            .task(id: phase) {
-                await animateLocalPainting(for: phase)
+            .onChange(of: phase, initial: true) { _, nextPhase in
+                if nextPhase == .animating {
+                    localAnimationStartDate = Date()
+                } else if nextPhase != .settling {
+                    localAnimationStartDate = nil
+                }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("art.familyHero.accessibility"))
         }
+    }
+
+    private func timelinePainting(
+        size: CGSize,
+        transitionOpacity: Double
+    ) -> some View {
+        TimelineView(.animation(
+            minimumInterval: 1.0 / 60.0,
+            paused: phase != .animating && phase != .settling
+        )) { context in
+            let frame = timelineFrame(at: context.date)
+            let camera = cameraTransform(frame: frame, size: size)
+            let blink = PaintingBlinkState(
+                phase: phase,
+                progress: CGFloat(frame.blinkProgress)
+            )
+
+            revealedPainting(
+                size: size,
+                blink: blink,
+                transitionOpacity: transitionOpacity
+            )
+            .scaleEffect(camera.scale)
+            .offset(camera.offset)
+            .frame(width: size.width, height: size.height)
+            .clipped()
+        }
+    }
+
+    private func timelineFrame(at date: Date) -> FamilyLaunchFrame {
+        guard !reduceMotion else {
+            return FamilyLaunchTimeline.frame(atMilliseconds: 0)
+        }
+        guard phase == .animating || phase == .settling,
+              let localAnimationStartDate else {
+            return FamilyLaunchTimeline.frame(
+                atMilliseconds: phase == .enteringHome
+                    ? FamilyLaunchTimeline.localSequenceMilliseconds
+                    : 0
+            )
+        }
+        let elapsed = Int(date.timeIntervalSince(localAnimationStartDate) * 1_000)
+        return FamilyLaunchTimeline.frame(atMilliseconds: elapsed)
+    }
+
+    private func cameraTransform(
+        frame: FamilyLaunchFrame,
+        size: CGSize
+    ) -> (scale: CGFloat, offset: CGSize) {
+        let scale = CGFloat(frame.cameraZoom)
+        return (
+            scale,
+            CGSize(
+                width: (0.5 - frame.cameraFocusX) * size.width * scale,
+                height: (0.5 - frame.cameraFocusY) * size.height * scale
+            )
+        )
     }
 
     private func revealedPainting(
@@ -174,62 +229,6 @@ struct FamilyLaunchAnimationView: View {
         UnitPoint(x: region.rect.midX, y: region.rect.midY)
     }
 
-    @MainActor
-    private func animateLocalPainting(for phase: LaunchExperiencePhase) async {
-        resetLocalPainting()
-        guard phase == .animating, !reduceMotion else { return }
-
-        for cycle in 0..<2 {
-            guard !Task.isCancelled else { return }
-
-            if cycle == 0 {
-                do {
-                    try await Task.sleep(for: .milliseconds(180))
-                } catch {
-                    return
-                }
-                withAnimation(.easeIn(duration: 0.06)) {
-                    blinkProgress = 1
-                }
-                do {
-                    try await Task.sleep(for: .milliseconds(70))
-                } catch {
-                    return
-                }
-                withAnimation(.easeOut(duration: 0.08)) {
-                    blinkProgress = 0
-                }
-                do {
-                    try await Task.sleep(for: .milliseconds(30))
-                } catch {
-                    return
-                }
-            } else {
-                do {
-                    try await Task.sleep(for: .milliseconds(280))
-                } catch {
-                    return
-                }
-            }
-
-            do {
-                try await Task.sleep(for: .milliseconds(280))
-            } catch {
-                return
-            }
-        }
-
-        resetLocalPainting()
-    }
-
-    @MainActor
-    private func resetLocalPainting() {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            blinkProgress = 0
-        }
-    }
 }
 
 private struct FamilyLaunchAnimationView_Previews: PreviewProvider {

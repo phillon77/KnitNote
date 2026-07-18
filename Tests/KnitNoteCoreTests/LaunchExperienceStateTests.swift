@@ -1,6 +1,17 @@
 import Testing
 @testable import KnitNoteCore
 
+@Test(arguments: [
+    LaunchExperiencePhase.revealing,
+    .animating,
+    .settling,
+    .enteringHome,
+    .complete
+])
+func homeInteractionIsEnabledOnlyAfterLaunchCompletes(phase: LaunchExperiencePhase) {
+    #expect(launchHomeIsInteractive(phase: phase) == (phase == .complete))
+}
+
 @Test func normalLaunchVisitsEveryPhaseOnce() {
     var state = LaunchExperienceState(reduceMotion: false)
     #expect(state.phase == .revealing)

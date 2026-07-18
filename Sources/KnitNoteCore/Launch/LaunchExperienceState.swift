@@ -24,6 +24,10 @@ public enum LaunchExperienceTiming {
         + normalHomeTransitionMilliseconds
 }
 
+public func launchHomeIsInteractive(phase: LaunchExperiencePhase) -> Bool {
+    phase == .complete
+}
+
 public struct LaunchExperienceState: Sendable, Equatable {
     public private(set) var phase: LaunchExperiencePhase = .revealing
     public let reduceMotion: Bool

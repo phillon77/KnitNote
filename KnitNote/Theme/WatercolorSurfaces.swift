@@ -49,7 +49,10 @@ struct FamilyHeroView: View {
             let layout = familyHeroLayout(width: proxy.size.width, isPad: isPad)
             let imageSize = aspectFitSize(
                 availableWidth: proxy.size.width,
-                maximumHeight: heroHeight(layout)
+                maximumHeight: familyHeroMaximumImageHeight(
+                    proposedHeight: Double(heroHeight(layout)),
+                    containerHeight: Double(proxy.size.height)
+                )
             )
 
             Image("FamilyKnittingHero")
@@ -88,8 +91,9 @@ struct FamilyHeroView: View {
 
     private func aspectFitSize(
         availableWidth: CGFloat,
-        maximumHeight: CGFloat
+        maximumHeight: Double
     ) -> CGSize {
+        let maximumHeight = CGFloat(maximumHeight)
         let width = min(
             availableWidth,
             maximumHeight * Self.paintingAspectRatio

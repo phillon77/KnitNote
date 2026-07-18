@@ -30,6 +30,7 @@ struct RootView: View {
                         value: launchExperience.homeOpacity
                     )
                     .accessibilityHidden(!homeIsAccessible)
+                    .allowsHitTesting(homeIsAccessible)
 
                 if launchExperience.showsOverlay {
                     FamilyLaunchAnimationView(
@@ -74,8 +75,7 @@ struct RootView: View {
     }
 
     private var homeIsAccessible: Bool {
-        launchExperience.phase == .enteringHome
-            || launchExperience.phase == .complete
+        launchHomeIsInteractive(phase: launchExperience.phase)
     }
 }
 

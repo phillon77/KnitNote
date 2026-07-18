@@ -11,3 +11,8 @@ import Testing
     #expect(familyHeroLayout(width: 390, isPad: false) == .phone(height: 150))
     #expect(familyHeroLayout(width: 1024, isPad: true) == .wide(height: 300))
 }
+
+@Test func familyHeroImageHeightNeverExceedsItsContainer() {
+    #expect(familyHeroMaximumImageHeight(proposedHeight: 300, containerHeight: 150) == 150)
+    #expect(familyHeroMaximumImageHeight(proposedHeight: 300, containerHeight: 300) == 300)
+}

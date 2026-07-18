@@ -24,3 +24,10 @@ public enum FamilyHeroLayout: Equatable, Sendable {
 public func familyHeroLayout(width: Double, isPad: Bool) -> FamilyHeroLayout {
     isPad || width >= 700 ? .wide(height: 300) : .phone(height: 150)
 }
+
+public func familyHeroMaximumImageHeight(
+    proposedHeight: Double,
+    containerHeight: Double
+) -> Double {
+    min(proposedHeight, containerHeight)
+}

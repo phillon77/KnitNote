@@ -17,12 +17,22 @@ The animation must preserve the original faces, composition, colors, and hand-dr
 
 ## Visual Sequence
 
-The normal sequence lasts approximately 2.6 seconds:
+The normal sequence lasts approximately 4 seconds and uses deliberate camera
+movement so the two local actions remain clearly visible on a phone screen:
 
-1. **Painting reveal, 0.0–0.3 seconds:** The complete original painting fades in through a soft white glow.
-2. **Living painting, 0.3–1.7 seconds:** The mother's hands, knitting needles, and nearby yarn make two small knitting motions. The purple yarn ball turns slightly. Lemon blinks once and gently moves an ear.
-3. **Return to still art, 1.7–2.0 seconds:** All local motion eases to a stop at the exact original-painting pose.
-4. **Enter the app, 2.0–2.6 seconds:** The still painting scales and moves into the existing FamilyKnittingHero position. The Projects title, project cards, add button, and navigation controls fade in around it.
+1. **Hands close-up, 0.0–1.1 seconds:** The complete painting reveals while the
+   camera pushes in toward the mother's hands. Her hands, knitting needles, and
+   nearby yarn make two clearly visible but gentle knitting motions.
+2. **First wide shot, 1.1–1.8 seconds:** The camera pulls back to the complete
+   painting and briefly settles there.
+3. **Lemon close-up, 1.8–2.8 seconds:** The camera pushes in toward Lemon's face,
+   holds long enough to establish focus, and Lemon completes one unmistakable
+   blink.
+4. **Final wide shot, 2.8–3.4 seconds:** The camera pulls back to the complete
+   original painting. Every local overlay returns to its exact resting pose.
+5. **Enter the app, 3.4–4.0 seconds:** The still painting scales and moves into
+   the existing `FamilyKnittingHero` position. The Projects title, project cards,
+   add button, and navigation controls fade in around it.
 
 There is no launch text, logo animation, music, or sound effect. The experience should feel as though the original painting quietly came alive for a moment.
 
@@ -31,13 +41,19 @@ There is no launch text, logo animation, music, or sound effect. The experience 
 The existing `FamilyKnittingHero` image remains the authoritative full painting and the final still frame. Small transparent overlays are derived from that same source image for:
 
 - the mother's hands, knitting needles, and nearby yarn;
-- the purple yarn-ball surface;
-- Lemon's eyelids;
-- Lemon's ears.
+- Lemon's eyelids.
 
-The overlays may be cropped and alpha-masked, but must not redraw, regenerate, restyle, or reinterpret the family artwork. Motion amplitudes must remain small enough that the base painting and overlay edges never visibly separate.
+The overlays may be cropped and alpha-masked, but must not redraw, regenerate,
+restyle, or reinterpret the family artwork. Local movement uses feathered masks
+instead of visible rectangular crops. Motion amplitudes must be large enough to
+read clearly at iPhone size while remaining small enough that overlay edges do
+not visibly separate from the base painting.
 
-If a clean overlay cannot be derived without changing the drawing, that particular movement is omitted. Preserving the daughter's artwork takes priority over adding motion.
+The approved sequence requires both the hand motion and Lemon blink. If either
+cannot be derived cleanly from the source pixels, implementation stops for a
+revised masking approach instead of silently omitting the requested movement.
+Preserving the daughter's artwork still takes priority over adding unrelated
+motion.
 
 ## App Architecture
 
@@ -47,7 +63,14 @@ A small state model owns the phases `revealing`, `animating`, `settling`, `enter
 
 ### FamilyLaunchAnimationView
 
-This SwiftUI view renders the full painting and optional overlay layers. It receives the current phase and Reduce Motion value, but does not own application data or navigation. Missing overlays fall back to the complete still painting.
+This SwiftUI view renders the full painting, camera framing, and local overlay
+layers. A deterministic timeline supplies camera focus, zoom, hand-motion, and
+blink progress values. The view receives the timeline state and Reduce Motion
+value, but does not own application data or navigation.
+
+Camera framing always transforms the complete painting around normalized hand,
+Lemon, or full-painting focal points. Local overlays move inside that transformed
+painting, so camera motion and character motion share one coordinate system.
 
 ### Root Integration
 
@@ -66,13 +89,16 @@ The animation must not replace the iOS static launch storyboard. The storyboard 
 ## Failure Handling
 
 - If the full painting is unavailable, skip the launch experience and show the normal Projects screen.
-- If one or more overlay assets are unavailable, play the sequence with the full painting only.
+- If a required hand or eye layer is unavailable, bypass the local-action sequence
+  and enter the Projects screen without presenting a misleading motion-only launch.
 - Repeated taps, phase completion callbacks, and scene changes must not run completion twice.
 - Orientation or window-size changes during playback recompute the destination frame rather than preserving a stale offset.
 
 ## Testing and Acceptance
 
-Unit tests cover phase progression, idempotent skip, cold-launch-only behavior, Reduce Motion behavior, and completion convergence.
+Unit tests cover phase progression, the four-second timeline, camera focal points,
+non-zero hand motion, a complete blink cycle, idempotent skip, cold-launch-only
+behavior, Reduce Motion behavior, and completion convergence.
 
 Build and manual acceptance cover:
 
@@ -82,8 +108,13 @@ Build and manual acceptance cover:
 - tap-to-skip during each phase;
 - Reduce Motion enabled;
 - background and foreground transitions without replay;
-- missing optional overlay fallback;
+- missing required overlay fallback directly to the Projects screen;
 - clean alignment with the Projects hero image at the end of the transition;
+- video or frame-sequence confirmation that the hand motion is visibly different
+  between its two extrema at iPhone size;
+- video or frame-sequence confirmation that Lemon's open-eye and closed-eye frames
+  are visibly different during the Lemon close-up;
+- clean feathered overlay edges with no rectangular crop seams during either close-up;
 - no regression to projects, row counting, notes, photos, patterns, markup, localization, or Watch builds.
 
 ## Out of Scope

@@ -25,3 +25,13 @@ import Testing
     state.advance(); #expect(state.phase == .complete)
     state.skip(); #expect(state.phase == .complete)
 }
+
+@Test func everyHomeTransitionGetsTheFullVisualTransitionLifetime() {
+    #expect(LaunchExperienceTiming.normalHomeTransitionMilliseconds == 600)
+    #expect(LaunchExperienceTiming.skipHomeTransitionMilliseconds == 600)
+    #expect(LaunchExperienceTiming.reduceMotionHomeTransitionMilliseconds == 600)
+}
+
+@Test func normalLaunchStillLastsTwentySixHundredMilliseconds() {
+    #expect(LaunchExperienceTiming.normalTotalMilliseconds == 2_600)
+}

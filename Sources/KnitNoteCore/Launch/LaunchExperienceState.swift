@@ -6,6 +6,21 @@ public enum LaunchExperiencePhase: Sendable, Equatable {
     case complete
 }
 
+public enum LaunchExperienceTiming {
+    public static let revealMilliseconds = 300
+    public static let localAnimationMilliseconds = 1_400
+    public static let settlingMilliseconds = 300
+    public static let normalHomeTransitionMilliseconds = 600
+    public static let skipHomeTransitionMilliseconds = normalHomeTransitionMilliseconds
+    public static let reduceMotionHomeTransitionMilliseconds = normalHomeTransitionMilliseconds
+
+    public static let normalTotalMilliseconds =
+        revealMilliseconds
+        + localAnimationMilliseconds
+        + settlingMilliseconds
+        + normalHomeTransitionMilliseconds
+}
+
 public struct LaunchExperienceState: Sendable, Equatable {
     public private(set) var phase: LaunchExperiencePhase = .revealing
     public let reduceMotion: Bool

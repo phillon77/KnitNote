@@ -54,7 +54,10 @@ struct FamilyLaunchAnimationView: View {
                         x: geometry.size.width / 2 + transition.offset.width,
                         y: geometry.size.height / 2 + transition.offset.height
                     )
-                    .animation(.easeInOut(duration: 0.6), value: transition)
+                    // Deliberately animate only the phase edge into enteringHome.
+                    // Destination changes during that fixed phase snap to converge;
+                    // Task 4 must publish the hero frame before the phase begins.
+                    .animation(.easeInOut(duration: 0.6), value: phase)
             }
             .aspectRatio(Self.paintingAspectRatio, contentMode: .fit)
             .task(id: phase) {

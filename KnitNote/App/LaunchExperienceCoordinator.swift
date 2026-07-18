@@ -16,22 +16,22 @@ final class LaunchExperienceCoordinator: ObservableObject {
         state = LaunchExperienceState(reduceMotion: reduceMotion)
         phase = .revealing
         playbackTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.revealMilliseconds))
             guard !Task.isCancelled else { return }
             self?.advance()
             if reduceMotion {
-                try? await Task.sleep(for: .milliseconds(350))
+                try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.reduceMotionHomeTransitionMilliseconds))
                 guard !Task.isCancelled else { return }
                 self?.advance()
                 return
             }
-            try? await Task.sleep(for: .milliseconds(1_400))
+            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.localAnimationMilliseconds))
             guard !Task.isCancelled else { return }
             self?.advance()
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.settlingMilliseconds))
             guard !Task.isCancelled else { return }
             self?.advance()
-            try? await Task.sleep(for: .milliseconds(600))
+            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.normalHomeTransitionMilliseconds))
             guard !Task.isCancelled else { return }
             self?.advance()
         }
@@ -43,7 +43,7 @@ final class LaunchExperienceCoordinator: ObservableObject {
         state?.skip()
         publishState()
         playbackTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(280))
+            try? await Task.sleep(for: .milliseconds(LaunchExperienceTiming.skipHomeTransitionMilliseconds))
             guard !Task.isCancelled else { return }
             self?.advance()
         }

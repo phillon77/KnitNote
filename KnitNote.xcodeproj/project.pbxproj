@@ -40,6 +40,7 @@
 		6AA7291F406E7FCF8B1382C6 /* LemonEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282D4248758A8480ED49B7C0 /* LemonEmptyState.swift */; };
 		6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */; };
 		6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
+		6F1E62E6245C4628E176F414 /* FamilyHeroFramePreferenceKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E071B2A89B3F9BEB0EEED2 /* FamilyHeroFramePreferenceKey.swift */; };
 		70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
 		757DDC30D4CF9EF3EAABCD99 /* LaunchExperienceCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18568436C15FBAABF2FA5A05 /* LaunchExperienceCoordinator.swift */; };
 		81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5F160074737C554D783176A /* LaunchScreen.storyboard */; platformFilters = (ios, ); };
@@ -117,6 +118,7 @@
 		94A3A973C57BA3A256E78283 /* LanguageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettings.swift; sourceTree = "<group>"; };
 		9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightOverlay.swift; sourceTree = "<group>"; };
 		964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchExperienceState.swift; sourceTree = "<group>"; };
+		96E071B2A89B3F9BEB0EEED2 /* FamilyHeroFramePreferenceKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyHeroFramePreferenceKey.swift; sourceTree = "<group>"; };
 		99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternDocument.swift; sourceTree = "<group>"; };
 		A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteApp.swift; sourceTree = "<group>"; };
 		BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchAnimationView.swift; sourceTree = "<group>"; };
@@ -283,6 +285,7 @@
 		9EE6E3997B8A05A231ECB4D4 /* Launch */ = {
 			isa = PBXGroup;
 			children = (
+				96E071B2A89B3F9BEB0EEED2 /* FamilyHeroFramePreferenceKey.swift */,
 				BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */,
 				DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */,
 			);
@@ -441,6 +444,7 @@
 				F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */,
 				585606C343A35128411BC2E1 /* EditProjectView.swift in Sources */,
 				E7B3D88A524E639567C68181 /* EditRowNoteView.swift in Sources */,
+				6F1E62E6245C4628E176F414 /* FamilyHeroFramePreferenceKey.swift in Sources */,
 				89AA9318C5AEB7CD5C2DA4F8 /* FamilyLaunchAnimationView.swift in Sources */,
 				36584501F2661D8E10A19BE6 /* HighlightOverlay.swift in Sources */,
 				064665149A05CC8E272CA59B /* ImageReaderView.swift in Sources */,

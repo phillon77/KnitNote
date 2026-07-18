@@ -42,13 +42,31 @@ struct YarnPrimaryButtonStyle: ButtonStyle {
 }
 
 struct FamilyHeroView: View {
+    private static let paintingAspectRatio: CGFloat = 2560.0 / 1440.0
+
     var body: some View {
         GeometryReader { proxy in
             let layout = familyHeroLayout(width: proxy.size.width, isPad: isPad)
+            let imageSize = aspectFitSize(
+                availableWidth: proxy.size.width,
+                maximumHeight: heroHeight(layout)
+            )
+
             Image("FamilyKnittingHero")
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: heroHeight(layout))
+                .frame(width: imageSize.width, height: imageSize.height)
+                .background {
+                    GeometryReader { imageProxy in
+                        Color.clear.preference(
+                            key: FamilyHeroFramePreferenceKey.self,
+                            value: imageProxy.frame(
+                                in: .named(FamilyLaunchAnimationView.rootCoordinateSpaceName)
+                            )
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel(Text("art.familyHero.accessibility"))
         }
         .frame(height: isPad ? 300 : 150)
@@ -66,5 +84,19 @@ struct FamilyHeroView: View {
         switch layout {
         case let .phone(height), let .wide(height): CGFloat(height)
         }
+    }
+
+    private func aspectFitSize(
+        availableWidth: CGFloat,
+        maximumHeight: CGFloat
+    ) -> CGSize {
+        let width = min(
+            availableWidth,
+            maximumHeight * Self.paintingAspectRatio
+        )
+        return CGSize(
+            width: width,
+            height: width / Self.paintingAspectRatio
+        )
     }
 }

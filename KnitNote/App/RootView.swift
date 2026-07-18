@@ -1,9 +1,64 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct RootView: View {
     @Binding var storedLanguage: String
+    @EnvironmentObject private var launchExperience: LaunchExperienceCoordinator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var heroFrame: CGRect = .zero
 
     var body: some View {
+        GeometryReader { geometry in
+            let destinationFrame = FamilyHeroDestination.resolved(
+                liveFrame: heroFrame,
+                containerSize: geometry.size
+            )
+
+            ZStack {
+                WatercolorTheme.softWhite
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+
+                homeTabs
+                    .opacity(launchExperience.homeOpacity)
+                    .animation(
+                        .easeInOut(duration: LaunchExperienceTiming.homeTransitionSeconds),
+                        value: launchExperience.homeOpacity
+                    )
+                    .accessibilityHidden(!homeIsAccessible)
+
+                if launchExperience.showsOverlay {
+                    FamilyLaunchAnimationView(
+                        phase: launchExperience.phase,
+                        destinationFrame: destinationFrame
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(.rect)
+                    .onTapGesture {
+                        launchExperience.skip()
+                    }
+                }
+            }
+            .coordinateSpace(name: FamilyLaunchAnimationView.rootCoordinateSpaceName)
+            .onPreferenceChange(FamilyHeroFramePreferenceKey.self) { nextFrame in
+                if FamilyHeroDestination.isValid(nextFrame) {
+                    heroFrame = nextFrame
+                }
+            }
+            .task {
+                launchExperience.start(reduceMotion: reduceMotion)
+                if !FamilyHeroArtworkAvailability.isAvailable {
+                    launchExperience.skip()
+                }
+            }
+        }
+    }
+
+    private var homeTabs: some View {
         TabView {
             ProjectsView()
                 .tabItem { Label("nav.projects", systemImage: "square.grid.2x2") }
@@ -16,6 +71,24 @@ struct RootView: View {
         }
         .tint(WatercolorTheme.actionBerry)
         .watercolorTabBar()
+    }
+
+    private var homeIsAccessible: Bool {
+        launchExperience.phase == .enteringHome
+            || launchExperience.phase == .complete
+    }
+}
+
+private enum FamilyHeroArtworkAvailability {
+    @MainActor
+    static var isAvailable: Bool {
+        #if os(iOS)
+        UIImage(named: "FamilyKnittingHero") != nil
+        #elseif os(macOS)
+        NSImage(named: "FamilyKnittingHero") != nil
+        #else
+        false
+        #endif
     }
 }
 

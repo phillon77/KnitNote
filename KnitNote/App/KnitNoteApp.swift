@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct KnitNoteApp: App {
     @StateObject private var projectStore = JSONProjectStore.live()
+    @StateObject private var launchExperience = LaunchExperienceCoordinator()
     @AppStorage("languageSelection") private var storedLanguage = LanguageSelection.system.rawValue
 
     private var selection: LanguageSelection {
@@ -18,6 +19,7 @@ struct KnitNoteApp: App {
             RootView(storedLanguage: $storedLanguage)
                 .environment(\.locale, Locale(identifier: language.rawValue))
                 .environmentObject(projectStore)
+                .environmentObject(launchExperience)
                 .preferredColorScheme(.light)
         }
     }

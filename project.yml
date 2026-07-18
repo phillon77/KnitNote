@@ -46,6 +46,8 @@ targets:
     sources:
       - path: KnitNoteWatch
       - path: Sources/KnitNoteCore
+        excludes:
+          - Launch/LaunchExperienceCoordinator.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.KnitNote.watch

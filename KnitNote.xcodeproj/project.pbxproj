@@ -15,6 +15,8 @@
 		1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */; };
 		20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
 		214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */; };
+		240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
+		24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		27A3D14010BEAF07C41EE93C /* ProjectPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */; };
 		2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */; };
 		2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */; };
@@ -39,6 +41,7 @@
 		6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */; };
 		6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
 		70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
+		757DDC30D4CF9EF3EAABCD99 /* LaunchExperienceCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18568436C15FBAABF2FA5A05 /* LaunchExperienceCoordinator.swift */; };
 		81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5F160074737C554D783176A /* LaunchScreen.storyboard */; platformFilters = (ios, ); };
 		8A0D44321A0B878C18C93038 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431158CF5C9EC212EABD87BA /* RootView.swift */; };
 		8AC28A12A7BFBEE2063DDC88 /* ProjectPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */; };
@@ -75,6 +78,7 @@
 		121DC898B51C86C11B40705C /* KnitNoteCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCore.swift; sourceTree = "<group>"; };
 		14B46C9D90D2250C063CBEB9 /* KnitNote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnitNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1587DA4ECD08A93EFE0BB89A /* WatercolorSurfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatercolorSurfaces.swift; sourceTree = "<group>"; };
+		18568436C15FBAABF2FA5A05 /* LaunchExperienceCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchExperienceCoordinator.swift; sourceTree = "<group>"; };
 		1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingProject.swift; sourceTree = "<group>"; };
 		1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternProjectView.swift; sourceTree = "<group>"; };
 		27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryView.swift; sourceTree = "<group>"; };
@@ -110,6 +114,7 @@
 		90CE1C0101996F572112D739 /* PatternReaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderControls.swift; sourceTree = "<group>"; };
 		94A3A973C57BA3A256E78283 /* LanguageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettings.swift; sourceTree = "<group>"; };
 		9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightOverlay.swift; sourceTree = "<group>"; };
+		964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchExperienceState.swift; sourceTree = "<group>"; };
 		99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternDocument.swift; sourceTree = "<group>"; };
 		A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteApp.swift; sourceTree = "<group>"; };
 		C05B67645287474EA73C4DDF /* ProjectCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCard.swift; sourceTree = "<group>"; };
@@ -154,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				121DC898B51C86C11B40705C /* KnitNoteCore.swift */,
+				179F52A90796543AF192B87A /* Launch */,
 				05636426C59DEAB3CEAD6A80 /* Localization */,
 				8D4DBBB5F086B5F2BE0A2692 /* Patterns */,
 				ADC03985307A33CF231A2728 /* Projects */,
@@ -162,6 +168,14 @@
 			);
 			name = KnitNoteCore;
 			path = Sources/KnitNoteCore;
+			sourceTree = "<group>";
+		};
+		179F52A90796543AF192B87A /* Launch */ = {
+			isa = PBXGroup;
+			children = (
+				964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */,
+			);
+			path = Launch;
 			sourceTree = "<group>";
 		};
 		367640414936CD240A016BEB /* Theme */ = {
@@ -187,6 +201,7 @@
 			isa = PBXGroup;
 			children = (
 				A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */,
+				18568436C15FBAABF2FA5A05 /* LaunchExperienceCoordinator.swift */,
 				431158CF5C9EC212EABD87BA /* RootView.swift */,
 			);
 			path = App;
@@ -419,6 +434,8 @@
 				66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */,
 				8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */,
 				DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */,
+				757DDC30D4CF9EF3EAABCD99 /* LaunchExperienceCoordinator.swift in Sources */,
+				240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */,
 				6AA7291F406E7FCF8B1382C6 /* LemonEmptyState.swift in Sources */,
 				6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */,
 				E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */,
@@ -457,6 +474,7 @@
 				BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */,
 				12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */,
 				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
+				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,
 				20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */,
 				DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */,
 				5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */,

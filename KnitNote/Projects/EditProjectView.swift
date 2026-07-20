@@ -5,6 +5,9 @@ struct EditProjectView: View {
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
     @State private var name = ""
+    @State private var toolType: ProjectToolType?
+    @State private var toolSize = ""
+    @State private var toolNotes = ""
     @State private var selectedPhotoData: Data?
     @State private var removesExistingPhoto = false
     @State private var isPhotoLoading = false
@@ -24,6 +27,35 @@ struct EditProjectView: View {
                         isLoading: $isPhotoLoading
                     )
                 }
+                Section("project.tool.section") {
+                    Picker("project.tool.type", selection: $toolType) {
+                        Text("project.tool.type.none").tag(ProjectToolType?.none)
+                        ForEach(ProjectToolType.allCases, id: \.self) { toolType in
+                            Text(toolTypeLocalizationKey(toolType)).tag(Optional(toolType))
+                        }
+                    }
+                    TextField("project.tool.size", text: $toolSize)
+                    TextField("project.tool.notes", text: $toolNotes, axis: .vertical)
+                }
+                if let project {
+                    Section("project.status") {
+                        if let completedAt = project.completedAt {
+                            LabeledContent("project.status.completed") {
+                                Text(completedAt, format: .dateTime.year().month().day())
+                            }
+                            Button("project.status.resume", systemImage: "arrow.counterclockwise") {
+                                changeCompletion(resume: true)
+                            }
+                        } else {
+                            LabeledContent("project.status") {
+                                Text("project.status.inProgress")
+                            }
+                            Button("project.status.markCompleted", systemImage: "checkmark.seal") {
+                                changeCompletion(resume: false)
+                            }
+                        }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(WatercolorBackground())
@@ -41,7 +73,12 @@ struct EditProjectView: View {
         }
         .frame(minWidth: 340, minHeight: 420)
         .tint(WatercolorTheme.actionBerry)
-        .onAppear { name = project?.name ?? "" }
+        .onAppear {
+            name = project?.name ?? ""
+            toolType = project?.toolType
+            toolSize = project?.toolSize ?? ""
+            toolNotes = project?.toolNotes ?? ""
+        }
     }
 
     private var project: StoredProject? { store.project(id: projectID) }
@@ -56,7 +93,38 @@ struct EditProjectView: View {
             photoChange = .unchanged
         }
         do {
-            try store.updateProject(id: projectID, name: name, photoChange: photoChange)
+            try store.updateProject(
+                id: projectID,
+                name: name,
+                toolType: toolType,
+                toolSize: toolSize,
+                toolNotes: toolNotes,
+                photoChange: photoChange
+            )
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func toolTypeLocalizationKey(_ toolType: ProjectToolType) -> LocalizedStringKey {
+        switch toolType {
+        case .crochetHook:
+            "project.tool.type.crochetHook"
+        case .knittingNeedles:
+            "project.tool.type.knittingNeedles"
+        case .other:
+            "project.tool.type.other"
+        }
+    }
+
+    private func changeCompletion(resume: Bool) {
+        do {
+            if resume {
+                try store.resumeProject(projectID: projectID)
+            } else {
+                try store.markCompleted(projectID: projectID)
+            }
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

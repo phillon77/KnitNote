@@ -30,12 +30,15 @@ import Testing
     #expect(project.patterns[0].contentOffsetX == 0.2)
 }
 
-@MainActor @Test func storeWritesArchiveVersionSix() throws {
+@MainActor @Test func storeWritesArchiveVersionNine() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store = JSONProjectStore(url: url)
     try store.add(name: "Sweater")
     try store.addPattern(projectID: store.projects[0].id, pattern: PatternDocument(displayName: "Chart", kind: .image, storedFilename: "x.png"))
-    #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"version\":6"))
+    let object = try #require(
+        JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+    )
+    #expect(object["version"] as? Int == 9)
 }
 
 @Test func highlightModeDefaultsAndPositionsClamp() {

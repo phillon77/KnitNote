@@ -11,6 +11,20 @@ struct SettingsView: View {
                     Text("language.traditionalChinese").tag(LanguageSelection.traditionalChinese.rawValue)
                     Text("language.english").tag(LanguageSelection.english.rawValue)
                 }
+
+                Section("calculator.tools.title") {
+                    NavigationLink {
+                        GaugeCalculatorView()
+                    } label: {
+                        Label("calculator.gauge.title", systemImage: "ruler")
+                    }
+
+                    NavigationLink {
+                        EvenStitchAdjustmentCalculatorView()
+                    } label: {
+                        Label("calculator.adjustment.title", systemImage: "arrow.up.arrow.down")
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(WatercolorBackground())

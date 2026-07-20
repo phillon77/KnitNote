@@ -1,14 +1,26 @@
 import SwiftUI
 
+struct CounterRowSelection: Identifiable {
+    let counterID: UUID
+    let row: Int
+
+    var id: String { "\(counterID.uuidString)-\(row)" }
+}
+
+private struct JournalEntryRoute: Identifiable {
+    let id: UUID
+}
+
 struct ProjectDetailView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
     @State private var showingEdit = false
-    @State private var editingRow: Int?
+    @State private var editingNote: CounterRowSelection?
+    @State private var managingCounter: ProjectCounter?
     @State private var showingAllNotes = false
     @State private var showingPatterns = false
-    @State private var showGlint = false
+    @State private var showingJournalEditor = false
+    @State private var selectedJournalEntry: JournalEntryRoute?
 
     var body: some View {
         if let project = store.project(id: projectID) {
@@ -16,56 +28,114 @@ struct ProjectDetailView: View {
                 WatercolorBackground()
                 ScrollView {
                     VStack(spacing: 22) {
-                        Text(project.name)
-                            .font(.title2.bold())
-                            .foregroundStyle(WatercolorTheme.ink)
-                        WatercolorCard {
-                            ZStack(alignment: .topTrailing) {
-                                VStack(spacing: 4) {
-                                    Text("project.currentRow")
-                                        .foregroundStyle(.secondary)
-                                    Text(project.currentRow, format: .number)
-                                        .font(.system(size: 88, weight: .bold, design: .rounded))
-                                        .monospacedDigit()
-                                        .foregroundStyle(WatercolorTheme.ink)
-                                }
-                                .frame(maxWidth: .infinity)
-                                Image(systemName: "sparkle")
-                                    .foregroundStyle(WatercolorTheme.flower)
-                                    .scaleEffect(showGlint ? 1.2 : 0.01)
-                                    .opacity(showGlint ? 1 : 0)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        Button(action: completeRow) {
-                            Label("project.completeRow", systemImage: "plus.circle.fill")
-                        }
-                        .buttonStyle(YarnPrimaryButtonStyle())
+                        ProjectPhotoView(url: store.photoURL(for: project))
+                            .frame(width: 96, height: 96)
+                            .clipShape(.rect(cornerRadius: 22))
 
-                        HStack(spacing: 10) {
-                            supportingButton("project.undo", icon: "arrow.uturn.backward") {
-                                try? store.undoRow(id: projectID)
-                            }
-                            .disabled(project.currentRow == 0)
-                            supportingButton("notes.edit", icon: "note.text") { editingRow = project.currentRow }
-                            supportingButton("patterns.open", icon: "doc.text.image") { showingPatterns = true }
+                        if project.isCompleted {
+                            Label("project.status.completed", systemImage: "checkmark.seal.fill")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(WatercolorTheme.actionBerry)
                         }
 
-                        if !project.sortedNotes.isEmpty {
+                        if hasToolDetails(project) {
                             WatercolorCard {
                                 VStack(alignment: .leading, spacing: 12) {
-                                    Text("notes.recent").font(.headline)
-                                    ForEach(project.sortedNotes.prefix(3)) { note in
-                                        Button { editingRow = note.row } label: {
+                                    Text("project.tool.section")
+                                        .font(.headline)
+                                    if let toolType = project.toolType {
+                                        LabeledContent("project.tool.type") {
+                                            Text(toolTypeLocalizationKey(toolType))
+                                        }
+                                    }
+                                    if let toolSize = project.toolSize,
+                                       !toolSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        LabeledContent("project.tool.size") {
+                                            Text(toolSize)
+                                        }
+                                    }
+                                    if let toolNotes = project.toolNotes,
+                                       !toolNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        LabeledContent("project.tool.notes") {
+                                            Text(toolNotes)
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+
+                        WatercolorCard {
+                            CounterSelectorGrid(
+                                counters: project.counters,
+                                selectedCounterID: project.selectedCounterID,
+                                isEnabled: !project.isCompleted,
+                                onIncrement: { counterID in
+                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
+                                    try? store.incrementCounter(projectID: projectID, counterID: counterID)
+                                },
+                                onManage: { counterID in
+                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
+                                    managingCounter = project.counters.first { $0.id == counterID }
+                                }
+                            )
+                        }
+
+                        WatercolorCard {
+                            NavigationLink {
+                                KnittingCalculatorsView()
+                            } label: {
+                                Label("calculator.tools.title", systemImage: "ruler")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+
+                        projectActionCard("notes.edit", icon: "note.text") {
+                            editingNote = CounterRowSelection(
+                                counterID: project.selectedCounterID,
+                                row: project.selectedCounter.value
+                            )
+                        }
+
+                        projectActionCard("patterns.open", icon: "doc.text.image") {
+                            showingPatterns = true
+                        }
+
+                        WatercolorCard {
+                            ProjectJournalSection(
+                                project: project,
+                                thumbnailURL: store.journalThumbnailURL(for:),
+                                onAdd: { showingJournalEditor = true },
+                                onOpen: { entry in
+                                    selectedJournalEntry = JournalEntryRoute(id: entry.id)
+                                }
+                            )
+                        }
+
+                        let sortedNotes = project.selectedCounter.rowNotes.sorted { $0.row > $1.row }
+                        if !sortedNotes.isEmpty {
+                            WatercolorCard {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("notes.recent")
+                                        .font(.headline)
+                                    ForEach(sortedNotes.prefix(3)) { note in
+                                        Button {
+                                            editingNote = CounterRowSelection(
+                                                counterID: project.selectedCounterID,
+                                                row: note.row
+                                            )
+                                        } label: {
                                             HStack {
-                                                Text(note.row, format: .number).font(.headline.monospacedDigit())
-                                                Text(note.text).lineLimit(1)
+                                                Text(note.row, format: .number)
+                                                    .font(.headline.monospacedDigit())
+                                                Text(note.text)
+                                                    .lineLimit(1)
                                                 Spacer()
                                             }
                                         }
                                         .buttonStyle(.plain)
                                     }
-                                    if project.rowNotes.count > 3 {
+                                    if sortedNotes.count > 3 {
                                         Button("notes.all") { showingAllNotes = true }
                                     }
                                 }
@@ -79,34 +149,68 @@ struct ProjectDetailView: View {
                 }
             }
             .navigationTitle(project.name)
-            .toolbar { Button("project.edit", systemImage: "pencil") { showingEdit = true } }
-            .sheet(isPresented: $showingEdit) { EditProjectView(projectID: projectID) }
-            .sheet(item: $editingRow) { EditRowNoteView(projectID: projectID, row: $0) }
-            .sheet(isPresented: $showingAllNotes) { AllNotesView(projectID: projectID) }
-            .sheet(isPresented: $showingPatterns) { ProjectPatternsView(projectID: projectID) }
+            .toolbar {
+                Button("project.edit", systemImage: "pencil") { showingEdit = true }
+            }
+            .sheet(isPresented: $showingEdit) {
+                EditProjectView(projectID: projectID)
+            }
+            .sheet(item: $managingCounter) { counter in
+                EditCounterNameView(counter: counter) { name, value in
+                    try? store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value)
+                }
+            }
+            .sheet(item: $editingNote) { selection in
+                EditRowNoteView(
+                    projectID: projectID,
+                    counterID: selection.counterID,
+                    row: selection.row
+                )
+            }
+            .sheet(isPresented: $showingAllNotes) {
+                AllNotesView(projectID: projectID, counterID: project.selectedCounterID)
+            }
+            .sheet(isPresented: $showingPatterns) {
+                ProjectPatternsView(projectID: projectID)
+            }
+            .sheet(isPresented: $showingJournalEditor) {
+                EditProjectJournalEntryView(projectID: projectID)
+            }
+            .sheet(item: $selectedJournalEntry) { route in
+                ProjectJournalEntryDetailView(projectID: projectID, entryID: route.id)
+            }
         }
     }
 
-    private func completeRow() {
-        try? store.completeRow(id: projectID)
-        guard !reduceMotion else { return }
-        withAnimation(.easeOut(duration: 0.18)) { showGlint = true }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(260))
-            withAnimation(.easeIn(duration: 0.18)) { showGlint = false }
+    private func hasToolDetails(_ project: StoredProject) -> Bool {
+        let hasSize = !(project.toolSize?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+        let hasNotes = !(project.toolNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+        return project.toolType != nil || hasSize || hasNotes
+    }
+
+    private func toolTypeLocalizationKey(_ toolType: ProjectToolType) -> LocalizedStringKey {
+        switch toolType {
+        case .crochetHook:
+            "project.tool.type.crochetHook"
+        case .knittingNeedles:
+            "project.tool.type.knittingNeedles"
+        case .other:
+            "project.tool.type.other"
         }
     }
 
-    private func supportingButton(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .labelStyle(.iconOnly)
-                .frame(minWidth: 44, minHeight: 44)
+    private func projectActionCard(
+        _ title: LocalizedStringKey,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        WatercolorCard {
+            Button(action: action) {
+                Label(title, systemImage: icon)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.bordered)
-        .tint(WatercolorTheme.actionBerry)
-        .accessibilityLabel(Text(title))
     }
 }
-
-extension Int: @retroactive Identifiable { public var id: Int { self } }

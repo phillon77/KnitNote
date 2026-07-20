@@ -11,17 +11,15 @@ struct ProjectCard: View {
                     .frame(width: 58, height: 58)
                     .clipShape(.rect(cornerRadius: 14))
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(project.name)
                         .font(.headline)
                         .foregroundStyle(WatercolorTheme.ink)
-                    HStack(spacing: 5) {
-                        Text("project.currentRow")
-                        Text(project.currentRow, format: .number)
-                            .monospacedDigit()
+                    if project.isCompleted {
+                        Label("project.status.completed", systemImage: "checkmark.seal.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(WatercolorTheme.actionBerry)
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")

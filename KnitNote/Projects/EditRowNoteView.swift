@@ -1,11 +1,42 @@
 import SwiftUI
+
 struct EditRowNoteView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: JSONProjectStore
-    let projectID: UUID; let row: Int
+    let projectID: UUID
+    let counterID: UUID
+    let row: Int
     @State private var text = ""
-    var body: some View { NavigationStack { Form { Section { TextEditor(text: $text).frame(minHeight: 160) } header: { Text(verbatim: String(format: String(localized: "notes.row.format"), row)) } }.scrollContentBackground(.hidden).background(WatercolorBackground()).navigationTitle("notes.edit").toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("common.cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) { Button("common.save") { try? store.saveNote(projectID: projectID, row: row, text: text); dismiss() } }
-    }}.frame(minWidth: 340, minHeight: 280).tint(WatercolorTheme.actionBerry).onAppear { text = store.project(id: projectID)?.note(row: row)?.text ?? "" } }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $text)
+                        .frame(minHeight: 160)
+                } header: {
+                    Text(verbatim: String(format: String(localized: "notes.row.format"), row))
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(WatercolorBackground())
+            .navigationTitle("notes.edit")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common.cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("common.save") {
+                        try? store.saveNote(projectID: projectID, counterID: counterID, row: row, text: text)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 340, minHeight: 280)
+        .tint(WatercolorTheme.actionBerry)
+        .onAppear {
+            text = store.project(id: projectID)?.note(counterID: counterID, row: row)?.text ?? ""
+        }
+    }
 }

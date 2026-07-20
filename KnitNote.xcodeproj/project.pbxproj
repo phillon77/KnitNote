@@ -7,60 +7,101 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
+		01969CEC3E446A5A02192151 /* YarnEditorFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */; };
+		02288F6B6BDCDFC985672ED6 /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
+		02A8AC06B5EB1AE99351FED1 /* CreateYarnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */; };
 		064665149A05CC8E272CA59B /* ImageReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */; };
 		0C5577C16097062613E39E51 /* PatternLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */; };
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
+		0FFD14D844495F2E62249E5D /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
+		1A75459733F6F0B98DFB463F /* ProjectJournalSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BBADB1223BF69225A1DF48C /* ProjectJournalSection.swift */; };
+		1B1D92121445E45CFD4386A7 /* YarnPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72200A671E5D5C5B6A0E39D2 /* YarnPhotoView.swift */; };
+		1CB5C82E85693EC431A030B2 /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */; };
 		20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
+		2117BE8DBD549F7B8C10181C /* CameraCapturePhotoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */; };
 		214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */; };
 		240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
+		26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1636706F0E1A52CEA341F56 /* ChooseYarnProjectsView.swift */; };
 		27A3D14010BEAF07C41EE93C /* ProjectPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */; };
 		2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */; };
+		2CC1A69EE25E2BC8EF9FDB37 /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
+		2DDBE8B1B70E14C61110D1F1 /* ProjectCounterName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */; };
 		2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */; };
 		3067B978D7AD5AD41407CF05 /* RowNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE75A4BC6F25D9138B684ADF /* RowNote.swift */; };
 		326D6303F4CB969B6F1667DA /* JSONProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */; };
 		34DB8128866B07153BA47DD8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3A8BA0F1D4ABF2AA7472AEE6 /* Assets.xcassets */; };
+		353A18D950BE57FAB2C7F3D6 /* EditYarnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDACACFA5A882F4B425E44A4 /* EditYarnView.swift */; };
 		36584501F2661D8E10A19BE6 /* HighlightOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */; };
 		3B4F33C9BB928655D1287371 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1FE7F6E3926F76E8684A55 /* SettingsView.swift */; };
 		3C6BE637ADCCABE03A6E9540 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD5B158A45CBD8018FC499A /* AppLanguage.swift */; };
 		3CA4295D672D7BB3EEC8EF3B /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D483F31D056F9F52B2EC563 /* ProjectsView.swift */; };
+		3DF82E72F81800C8080884A3 /* YarnPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */; };
+		4738B2850ED925926970AEE2 /* CameraCapturePhotoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */; };
+		49C3DCD3D65CBFECF0DE94E9 /* GaugeCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED53386A158E8DF747E954D /* GaugeCalculatorView.swift */; };
+		4FA4DFBFB3C4C0211CF579C2 /* JournalPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */; };
+		50FD51A80636056A79BEEF1C /* StoredYarn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */; };
 		5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
 		51864AD110E9811C0839F35D /* ProjectPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */; };
 		52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */; };
+		52FA8A3EA61D356F594109C4 /* EvenStitchAdjustmentCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F8A59940BD2F1CA4BFD2E3 /* EvenStitchAdjustmentCalculatorView.swift */; };
 		5536B07A38E71EE08FCBEFB8 /* WatercolorSurfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1587DA4ECD08A93EFE0BB89A /* WatercolorSurfaces.swift */; };
 		57027A881A62D015E3538D3C /* ChoosePatternProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */; };
 		585606C343A35128411BC2E1 /* EditProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B159464A91F0F008CBAD167 /* EditProjectView.swift */; };
 		58DF31DB4249DCFC5A6451E2 /* ProjectPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */; };
+		6007144FFB9445FE542F6513 /* YarnLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */; };
+		62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
+		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
+		660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600A5A211EF6682DED675574 /* EditCounterNameView.swift */; };
 		66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
 		68362824FB4BC12615282608 /* PatternReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C207C026A98D9C668822C9A /* PatternReaderView.swift */; };
 		6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */; };
 		6AA7291F406E7FCF8B1382C6 /* LemonEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282D4248758A8480ED49B7C0 /* LemonEmptyState.swift */; };
+		6AF16B60E9057AC4B2FD2EDE /* YarnDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451B0A168DC2F848CEE98A74 /* YarnDetailView.swift */; };
 		6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */; };
 		6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
 		6F1E62E6245C4628E176F414 /* FamilyHeroFramePreferenceKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E071B2A89B3F9BEB0EEED2 /* FamilyHeroFramePreferenceKey.swift */; };
 		70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
+		7268B20D129F4E40432255B5 /* ProjectJournalEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD7EFB82C9BFC4FF9F2EE78 /* ProjectJournalEntryDetailView.swift */; };
+		74876C768CC7C9A9FB5066A9 /* YarnCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF42C26BEFE47601ED68433 /* YarnCard.swift */; };
+		7656DEB167A5633003EF3883 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
+		774C92AA4520877CB17C1614 /* EditProjectJournalEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */; };
 		81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5F160074737C554D783176A /* LaunchScreen.storyboard */; platformFilters = (ios, ); };
+		829313A3B81FEE7B46C7EEA5 /* ProjectCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A51559E4B7599CA640466E3 /* ProjectCounter.swift */; };
 		89AA9318C5AEB7CD5C2DA4F8 /* FamilyLaunchAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */; };
 		8A0D44321A0B878C18C93038 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431158CF5C9EC212EABD87BA /* RootView.swift */; };
 		8AC28A12A7BFBEE2063DDC88 /* ProjectPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */; };
 		8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
+		941A6C75385E9861EA992A1B /* StoredYarn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */; };
+		971900674C9C5D5FD20475B3 /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
+		A8EFB5CB1EF4319452A430B3 /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
 		A8F65FDC2EB37F7CC35B551D /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
+		B04213B037CEDDEC3674BF68 /* ProjectCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A51559E4B7599CA640466E3 /* ProjectCounter.swift */; };
+		B5A75428269E1AAD4CF98DE0 /* ProjectJournalAsyncPublicationGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */; };
+		B6416630292A021B3D6F3B87 /* YarnPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */; };
 		B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */; };
 		BCA2F5D135FB115F9E282FF7 /* RowNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE75A4BC6F25D9138B684ADF /* RowNote.swift */; };
 		BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */; };
 		BFFC9B5E14DA29A679963137 /* ProjectCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05B67645287474EA73C4DDF /* ProjectCard.swift */; };
+		C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */; };
+		C3E90DEDFB9803CEBE02190B /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
 		C42138FBF27EB5F5C43060FA /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
+		C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */; };
 		C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
 		CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD5B158A45CBD8018FC499A /* AppLanguage.swift */; };
 		CE0C9AB59E4E7FB73A73A1C1 /* PatternMarkupFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */; };
+		CE312200163E82C3B64BC745 /* RowIntervalAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A809FA0EA2975C2A10383B6 /* RowIntervalAdjustmentView.swift */; };
 		D07094398C60EA09111D098E /* LaunchExperienceCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3AAE108F03B9699F488B637 /* LaunchExperienceCoordinator.swift */; };
+		D1DE59CB01C60B48B3511FAA /* YarnInventoryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317AA99C4071F5F032A42C9E /* YarnInventoryText.swift */; };
 		D56C0BDFF30C510581164CC1 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */; platformFilters = (ios, ); };
 		D8C39A1514196D426E41EA7E /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07AC936135E44C341839B236 /* ProjectDetailView.swift */; };
+		D9AF7E5D37109091A4968B09 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		D9D96422EAA83DBC4E03A060 /* PaintingOverlayRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */; };
 		DA95835CF1FE8ED5122062AF /* ProjectPatternsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */; };
 		DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
@@ -70,18 +111,25 @@
 		E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
 		E7B3D88A524E639567C68181 /* EditRowNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3620C73CD8D7A61B1C59473E /* EditRowNoteView.swift */; };
 		E857AC39E1C3EAB1D2C0735A /* KnitNoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */; };
+		E88D1831ACE8064F70B3844B /* ProjectJournalAsyncPublicationGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */; };
 		EA6EC18E3BA8C13E7F88D518 /* CameraCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */; };
+		F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
+		F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
 		F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */; };
 		F7BFE7FD7E58B7487B0D7018 /* PatternMarkupFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */; };
+		F88E0C44F56AF747CE0AA935 /* YarnPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F0D9377602621B5C978D56F /* YarnPhotoPicker.swift */; };
 		FDD10510A53A1E0DE226355B /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoFileService.swift; sourceTree = "<group>"; };
 		07AC936135E44C341839B236 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchTimeline.swift; sourceTree = "<group>"; };
+		1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingCalculatorsView.swift; sourceTree = "<group>"; };
 		1112E674E478840A2286F6BA /* KnitNoteWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnitNoteWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		121DC898B51C86C11B40705C /* KnitNoteCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCore.swift; sourceTree = "<group>"; };
+		12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLibraryView.swift; sourceTree = "<group>"; };
 		14B46C9D90D2250C063CBEB9 /* KnitNote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnitNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1587DA4ECD08A93EFE0BB89A /* WatercolorSurfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatercolorSurfaces.swift; sourceTree = "<group>"; };
 		1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingProject.swift; sourceTree = "<group>"; };
@@ -90,11 +138,17 @@
 		282D4248758A8480ED49B7C0 /* LemonEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LemonEmptyState.swift; sourceTree = "<group>"; };
 		2A4E4878CC053C86851B7DDD /* .keep */ = {isa = PBXFileReference; path = .keep; sourceTree = "<group>"; };
 		2B159464A91F0F008CBAD167 /* EditProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectView.swift; sourceTree = "<group>"; };
+		2BBADB1223BF69225A1DF48C /* ProjectJournalSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalSection.swift; sourceTree = "<group>"; };
 		2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredProject.swift; sourceTree = "<group>"; };
 		2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupToolbar.swift; sourceTree = "<group>"; };
+		2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredYarn.swift; sourceTree = "<group>"; };
 		2D483F31D056F9F52B2EC563 /* ProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsView.swift; sourceTree = "<group>"; };
 		2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatercolorTheme.swift; sourceTree = "<group>"; };
+		30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCounterName.swift; sourceTree = "<group>"; };
+		317AA99C4071F5F032A42C9E /* YarnInventoryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnInventoryText.swift; sourceTree = "<group>"; };
+		33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterSelectorGrid.swift; sourceTree = "<group>"; };
 		3620C73CD8D7A61B1C59473E /* EditRowNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRowNoteView.swift; sourceTree = "<group>"; };
+		3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalAsyncPublicationGate.swift; sourceTree = "<group>"; };
 		3A8BA0F1D4ABF2AA7472AEE6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3C1FE7F6E3926F76E8684A55 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3C207C026A98D9C668822C9A /* PatternReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderView.swift; sourceTree = "<group>"; };
@@ -102,34 +156,58 @@
 		3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCaptureView.swift; sourceTree = "<group>"; };
 		431158CF5C9EC212EABD87BA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkup.swift; sourceTree = "<group>"; };
+		451B0A168DC2F848CEE98A74 /* YarnDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnDetailView.swift; sourceTree = "<group>"; };
 		459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternsView.swift; sourceTree = "<group>"; };
 		45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageReaderView.swift; sourceTree = "<group>"; };
 		46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatercolorThemePolicy.swift; sourceTree = "<group>"; };
+		4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapturePhotoEncoder.swift; sourceTree = "<group>"; };
 		557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoFileService.swift; sourceTree = "<group>"; };
 		599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectJournalEntryView.swift; sourceTree = "<group>"; };
 		5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStore.swift; sourceTree = "<group>"; };
+		600A5A211EF6682DED675574 /* EditCounterNameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditCounterNameView.swift; sourceTree = "<group>"; };
 		6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupFileService.swift; sourceTree = "<group>"; };
 		68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternFileService.swift; sourceTree = "<group>"; };
+		6A809FA0EA2975C2A10383B6 /* RowIntervalAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentView.swift; sourceTree = "<group>"; };
+		6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentCalculator.swift; sourceTree = "<group>"; };
+		6F0D9377602621B5C978D56F /* YarnPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoPicker.swift; sourceTree = "<group>"; };
 		70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupOverlay.swift; sourceTree = "<group>"; };
 		70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoView.swift; sourceTree = "<group>"; };
+		72200A671E5D5C5B6A0E39D2 /* YarnPhotoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoView.swift; sourceTree = "<group>"; };
 		75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectView.swift; sourceTree = "<group>"; };
+		7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalPhotoFileService.swift; sourceTree = "<group>"; };
 		7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllNotesView.swift; sourceTree = "<group>"; };
+		7ED53386A158E8DF747E954D /* GaugeCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculatorView.swift; sourceTree = "<group>"; };
 		80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoPicker.swift; sourceTree = "<group>"; };
 		84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPatternPageNoteView.swift; sourceTree = "<group>"; };
+		87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalPreviewLoader.swift; sourceTree = "<group>"; };
+		87F8A59940BD2F1CA4BFD2E3 /* EvenStitchAdjustmentCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentCalculatorView.swift; sourceTree = "<group>"; };
+		8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentInputParser.swift; sourceTree = "<group>"; };
 		90CE1C0101996F572112D739 /* PatternReaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderControls.swift; sourceTree = "<group>"; };
 		94A3A973C57BA3A256E78283 /* LanguageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettings.swift; sourceTree = "<group>"; };
 		9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightOverlay.swift; sourceTree = "<group>"; };
 		964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchExperienceState.swift; sourceTree = "<group>"; };
 		96E071B2A89B3F9BEB0EEED2 /* FamilyHeroFramePreferenceKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyHeroFramePreferenceKey.swift; sourceTree = "<group>"; };
 		99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternDocument.swift; sourceTree = "<group>"; };
+		9A51559E4B7599CA640466E3 /* ProjectCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCounter.swift; sourceTree = "<group>"; };
+		9CF42C26BEFE47601ED68433 /* YarnCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnCard.swift; sourceTree = "<group>"; };
+		9FD7EFB82C9BFC4FF9F2EE78 /* ProjectJournalEntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntryDetailView.swift; sourceTree = "<group>"; };
+		A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnEditorFields.swift; sourceTree = "<group>"; };
 		A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteApp.swift; sourceTree = "<group>"; };
+		AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateYarnView.swift; sourceTree = "<group>"; };
 		BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchAnimationView.swift; sourceTree = "<group>"; };
+		BDACACFA5A882F4B425E44A4 /* EditYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditYarnView.swift; sourceTree = "<group>"; };
 		C05B67645287474EA73C4DDF /* ProjectCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCard.swift; sourceTree = "<group>"; };
 		C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteWatchApp.swift; sourceTree = "<group>"; };
 		C65533430112873329E49422 /* WatchCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCounterView.swift; sourceTree = "<group>"; };
 		C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		D157077494138E6450BAC49F /* GaugeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculator.swift; sourceTree = "<group>"; };
 		DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaintingOverlayRegion.swift; sourceTree = "<group>"; };
+		E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntry.swift; sourceTree = "<group>"; };
 		E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentCalculator.swift; sourceTree = "<group>"; };
+		F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalPhotoPicker.swift; sourceTree = "<group>"; };
+		F1636706F0E1A52CEA341F56 /* ChooseYarnProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseYarnProjectsView.swift; sourceTree = "<group>"; };
 		F3AAE108F03B9699F488B637 /* LaunchExperienceCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchExperienceCoordinator.swift; sourceTree = "<group>"; };
 		F5F160074737C554D783176A /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReaderView.swift; sourceTree = "<group>"; };
@@ -168,12 +246,14 @@
 			isa = PBXGroup;
 			children = (
 				121DC898B51C86C11B40705C /* KnitNoteCore.swift */,
+				FC1D51A444F323A1A8388B2D /* Calculators */,
 				179F52A90796543AF192B87A /* Launch */,
 				05636426C59DEAB3CEAD6A80 /* Localization */,
 				8D4DBBB5F086B5F2BE0A2692 /* Patterns */,
 				ADC03985307A33CF231A2728 /* Projects */,
 				8BD3900E36112649B3129656 /* Resources */,
 				D2A26E1A33BD10C640FB127A /* Theme */,
+				1DE36FE3821C2C812015C7B9 /* Yarn */,
 			);
 			name = KnitNoteCore;
 			path = Sources/KnitNoteCore;
@@ -187,6 +267,32 @@
 				964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */,
 			);
 			path = Launch;
+			sourceTree = "<group>";
+		};
+		1B10CD60C11ED3A2073BCA1F /* Yarn */ = {
+			isa = PBXGroup;
+			children = (
+				F1636706F0E1A52CEA341F56 /* ChooseYarnProjectsView.swift */,
+				AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */,
+				BDACACFA5A882F4B425E44A4 /* EditYarnView.swift */,
+				9CF42C26BEFE47601ED68433 /* YarnCard.swift */,
+				451B0A168DC2F848CEE98A74 /* YarnDetailView.swift */,
+				A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */,
+				317AA99C4071F5F032A42C9E /* YarnInventoryText.swift */,
+				12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */,
+				6F0D9377602621B5C978D56F /* YarnPhotoPicker.swift */,
+				72200A671E5D5C5B6A0E39D2 /* YarnPhotoView.swift */,
+			);
+			path = Yarn;
+			sourceTree = "<group>";
+		};
+		1DE36FE3821C2C812015C7B9 /* Yarn */ = {
+			isa = PBXGroup;
+			children = (
+				2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */,
+				02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */,
+			);
+			path = Yarn;
 			sourceTree = "<group>";
 		};
 		367640414936CD240A016BEB /* Theme */ = {
@@ -222,11 +328,18 @@
 			children = (
 				7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */,
 				3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */,
+				33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */,
 				75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */,
+				600A5A211EF6682DED675574 /* EditCounterNameView.swift */,
+				5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */,
 				2B159464A91F0F008CBAD167 /* EditProjectView.swift */,
 				3620C73CD8D7A61B1C59473E /* EditRowNoteView.swift */,
+				F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */,
 				C05B67645287474EA73C4DDF /* ProjectCard.swift */,
+				30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */,
 				07AC936135E44C341839B236 /* ProjectDetailView.swift */,
+				9FD7EFB82C9BFC4FF9F2EE78 /* ProjectJournalEntryDetailView.swift */,
+				2BBADB1223BF69225A1DF48C /* ProjectJournalSection.swift */,
 				80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */,
 				70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */,
 				2D483F31D056F9F52B2EC563 /* ProjectsView.swift */,
@@ -248,12 +361,14 @@
 				3A8BA0F1D4ABF2AA7472AEE6 /* Assets.xcassets */,
 				F5F160074737C554D783176A /* LaunchScreen.storyboard */,
 				4D55FE9FD7B400E4A1009DF1 /* App */,
+				B5C29EE15A136556F7B91BBE /* Calculators */,
 				9EE6E3997B8A05A231ECB4D4 /* Launch */,
 				3749410B591F9345227F4449 /* Localization */,
 				00FA7869BBC2022A1F3126E0 /* Patterns */,
 				65DC28AC37D32EA9468D7BDE /* Projects */,
 				74E746C56AB9D2B0682463AA /* Settings */,
 				367640414936CD240A016BEB /* Theme */,
+				1B10CD60C11ED3A2073BCA1F /* Yarn */,
 			);
 			path = KnitNote;
 			sourceTree = "<group>";
@@ -309,13 +424,30 @@
 		ADC03985307A33CF231A2728 /* Projects */ = {
 			isa = PBXGroup;
 			children = (
+				4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */,
 				5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */,
 				1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */,
+				9A51559E4B7599CA640466E3 /* ProjectCounter.swift */,
+				3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */,
+				E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */,
+				7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */,
+				87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */,
 				557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */,
 				FE75A4BC6F25D9138B684ADF /* RowNote.swift */,
 				2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */,
 			);
 			path = Projects;
+			sourceTree = "<group>";
+		};
+		B5C29EE15A136556F7B91BBE /* Calculators */ = {
+			isa = PBXGroup;
+			children = (
+				87F8A59940BD2F1CA4BFD2E3 /* EvenStitchAdjustmentCalculatorView.swift */,
+				7ED53386A158E8DF747E954D /* GaugeCalculatorView.swift */,
+				1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */,
+				6A809FA0EA2975C2A10383B6 /* RowIntervalAdjustmentView.swift */,
+			);
+			path = Calculators;
 			sourceTree = "<group>";
 		};
 		BFE7ACE6E08F193BC58351A7 = {
@@ -334,6 +466,17 @@
 				46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */,
 			);
 			path = Theme;
+			sourceTree = "<group>";
+		};
+		FC1D51A444F323A1A8388B2D /* Calculators */ = {
+			isa = PBXGroup;
+			children = (
+				EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */,
+				8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */,
+				D157077494138E6450BAC49F /* GaugeCalculator.swift */,
+				6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */,
+			);
+			path = Calculators;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -442,20 +585,34 @@
 			files = (
 				E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */,
 				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
+				4738B2850ED925926970AEE2 /* CameraCapturePhotoEncoder.swift in Sources */,
 				EA6EC18E3BA8C13E7F88D518 /* CameraCaptureView.swift in Sources */,
 				57027A881A62D015E3538D3C /* ChoosePatternProjectView.swift in Sources */,
+				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
+				C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */,
 				52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */,
+				02A8AC06B5EB1AE99351FED1 /* CreateYarnView.swift in Sources */,
+				660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */,
 				F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */,
+				774C92AA4520877CB17C1614 /* EditProjectJournalEntryView.swift in Sources */,
 				585606C343A35128411BC2E1 /* EditProjectView.swift in Sources */,
 				E7B3D88A524E639567C68181 /* EditRowNoteView.swift in Sources */,
+				353A18D950BE57FAB2C7F3D6 /* EditYarnView.swift in Sources */,
+				971900674C9C5D5FD20475B3 /* EvenStitchAdjustmentCalculator.swift in Sources */,
+				52FA8A3EA61D356F594109C4 /* EvenStitchAdjustmentCalculatorView.swift in Sources */,
+				F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */,
 				6F1E62E6245C4628E176F414 /* FamilyHeroFramePreferenceKey.swift in Sources */,
 				89AA9318C5AEB7CD5C2DA4F8 /* FamilyLaunchAnimationView.swift in Sources */,
 				2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */,
+				62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */,
+				49C3DCD3D65CBFECF0DE94E9 /* GaugeCalculatorView.swift in Sources */,
 				36584501F2661D8E10A19BE6 /* HighlightOverlay.swift in Sources */,
 				064665149A05CC8E272CA59B /* ImageReaderView.swift in Sources */,
 				214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */,
+				4FA4DFBFB3C4C0211CF579C2 /* JournalPhotoPicker.swift in Sources */,
 				E857AC39E1C3EAB1D2C0735A /* KnitNoteApp.swift in Sources */,
 				66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */,
+				C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */,
 				8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */,
 				DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */,
 				D07094398C60EA09111D098E /* LaunchExperienceCoordinator.swift in Sources */,
@@ -473,19 +630,38 @@
 				F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */,
 				68362824FB4BC12615282608 /* PatternReaderView.swift in Sources */,
 				BFFC9B5E14DA29A679963137 /* ProjectCard.swift in Sources */,
+				B04213B037CEDDEC3674BF68 /* ProjectCounter.swift in Sources */,
+				2DDBE8B1B70E14C61110D1F1 /* ProjectCounterName.swift in Sources */,
 				D8C39A1514196D426E41EA7E /* ProjectDetailView.swift in Sources */,
+				B5A75428269E1AAD4CF98DE0 /* ProjectJournalAsyncPublicationGate.swift in Sources */,
+				A8EFB5CB1EF4319452A430B3 /* ProjectJournalEntry.swift in Sources */,
+				7268B20D129F4E40432255B5 /* ProjectJournalEntryDetailView.swift in Sources */,
+				1CB5C82E85693EC431A030B2 /* ProjectJournalPhotoFileService.swift in Sources */,
+				0FFD14D844495F2E62249E5D /* ProjectJournalPreviewLoader.swift in Sources */,
+				1A75459733F6F0B98DFB463F /* ProjectJournalSection.swift in Sources */,
 				DA95835CF1FE8ED5122062AF /* ProjectPatternsView.swift in Sources */,
 				58DF31DB4249DCFC5A6451E2 /* ProjectPhotoFileService.swift in Sources */,
 				8AC28A12A7BFBEE2063DDC88 /* ProjectPhotoPicker.swift in Sources */,
 				27A3D14010BEAF07C41EE93C /* ProjectPhotoView.swift in Sources */,
 				3CA4295D672D7BB3EEC8EF3B /* ProjectsView.swift in Sources */,
 				8A0D44321A0B878C18C93038 /* RootView.swift in Sources */,
+				65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */,
+				CE312200163E82C3B64BC745 /* RowIntervalAdjustmentView.swift in Sources */,
 				3067B978D7AD5AD41407CF05 /* RowNote.swift in Sources */,
 				3B4F33C9BB928655D1287371 /* SettingsView.swift in Sources */,
 				70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */,
+				941A6C75385E9861EA992A1B /* StoredYarn.swift in Sources */,
 				5536B07A38E71EE08FCBEFB8 /* WatercolorSurfaces.swift in Sources */,
 				2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */,
 				A8F65FDC2EB37F7CC35B551D /* WatercolorThemePolicy.swift in Sources */,
+				74876C768CC7C9A9FB5066A9 /* YarnCard.swift in Sources */,
+				6AF16B60E9057AC4B2FD2EDE /* YarnDetailView.swift in Sources */,
+				01969CEC3E446A5A02192151 /* YarnEditorFields.swift in Sources */,
+				D1DE59CB01C60B48B3511FAA /* YarnInventoryText.swift in Sources */,
+				6007144FFB9445FE542F6513 /* YarnLibraryView.swift in Sources */,
+				B6416630292A021B3D6F3B87 /* YarnPhotoFileService.swift in Sources */,
+				F88E0C44F56AF747CE0AA935 /* YarnPhotoPicker.swift in Sources */,
+				1B1D92121445E45CFD4386A7 /* YarnPhotoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -494,7 +670,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				3C6BE637ADCCABE03A6E9540 /* AppLanguage.swift in Sources */,
+				2117BE8DBD549F7B8C10181C /* CameraCapturePhotoEncoder.swift in Sources */,
+				02288F6B6BDCDFC985672ED6 /* EvenStitchAdjustmentCalculator.swift in Sources */,
+				7656DEB167A5633003EF3883 /* EvenStitchAdjustmentInputParser.swift in Sources */,
 				DC39760B7C07407210A12CF0 /* FamilyLaunchTimeline.swift in Sources */,
+				D9AF7E5D37109091A4968B09 /* GaugeCalculator.swift in Sources */,
 				326D6303F4CB969B6F1667DA /* JSONProjectStore.swift in Sources */,
 				6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */,
 				BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */,
@@ -505,11 +685,19 @@
 				DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */,
 				5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */,
 				CE0C9AB59E4E7FB73A73A1C1 /* PatternMarkupFileService.swift in Sources */,
+				829313A3B81FEE7B46C7EEA5 /* ProjectCounter.swift in Sources */,
+				E88D1831ACE8064F70B3844B /* ProjectJournalAsyncPublicationGate.swift in Sources */,
+				C3E90DEDFB9803CEBE02190B /* ProjectJournalEntry.swift in Sources */,
+				00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */,
+				F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */,
 				51864AD110E9811C0839F35D /* ProjectPhotoFileService.swift in Sources */,
+				2CC1A69EE25E2BC8EF9FDB37 /* RowIntervalAdjustmentCalculator.swift in Sources */,
 				BCA2F5D135FB115F9E282FF7 /* RowNote.swift in Sources */,
 				00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */,
+				50FD51A80636056A79BEEF1C /* StoredYarn.swift in Sources */,
 				0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */,
 				C42138FBF27EB5F5C43060FA /* WatercolorThemePolicy.swift in Sources */,
+				3DF82E72F81800C8080884A3 /* YarnPhotoFileService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -541,8 +729,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
-				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "Take a photo for your knitting project.";
-				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphonesimulator*]" = "Take a photo for your knitting project.";
+				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "Take photos for your knitting projects and journal entries.";
+				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphonesimulator*]" = "Take photos for your knitting projects and journal entries.";
 				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphoneos*]" = LaunchScreen;
 				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphonesimulator*]" = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -571,8 +759,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = KnitNote;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
-				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "Take a photo for your knitting project.";
-				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphonesimulator*]" = "Take a photo for your knitting project.";
+				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "Take photos for your knitting projects and journal entries.";
+				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphonesimulator*]" = "Take photos for your knitting projects and journal entries.";
 				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphoneos*]" = LaunchScreen;
 				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphonesimulator*]" = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

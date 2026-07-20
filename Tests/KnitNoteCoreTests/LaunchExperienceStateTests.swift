@@ -2,6 +2,17 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
+@Test func rootViewImmediatelyShowsHomeWithoutInAppLaunchAnimation() throws {
+    let root = try appSource("KnitNote/App/RootView.swift")
+    let app = try appSource("KnitNote/App/KnitNoteApp.swift")
+
+    #expect(!root.contains("FamilyLaunchAnimationView"))
+    #expect(!root.contains("LaunchExperienceCoordinator"))
+    #expect(!root.contains("launchExperience"))
+    #expect(!app.contains("LaunchExperienceCoordinator"))
+    #expect(!app.contains("environmentObject(launchExperience)"))
+}
+
 @Test(arguments: [
     LaunchExperiencePhase.revealing,
     .animating,
@@ -178,6 +189,17 @@ private func launchAnimationSource() throws -> String {
     return try String(
         contentsOf: repositoryRoot
             .appendingPathComponent("KnitNote/Launch/FamilyLaunchAnimationView.swift"),
+        encoding: .utf8
+    )
+}
+
+private func appSource(_ relativePath: String) throws -> String {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    return try String(
+        contentsOf: repositoryRoot.appendingPathComponent(relativePath),
         encoding: .utf8
     )
 }

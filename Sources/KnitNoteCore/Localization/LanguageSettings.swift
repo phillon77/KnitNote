@@ -22,4 +22,15 @@ public final class LanguageSettings {
             return first.hasPrefix("zh-hant") ? .traditionalChinese : .english
         }
     }
+
+    public func resolvedLocale(
+        systemLanguages: [String] = Locale.preferredLanguages,
+        regionLocale: Locale = .current
+    ) -> Locale {
+        let language = resolvedLanguage(systemLanguages: systemLanguages)
+        guard let region = regionLocale.region?.identifier else {
+            return Locale(identifier: language.rawValue)
+        }
+        return Locale(identifier: "\(language.rawValue)_\(region)")
+    }
 }

@@ -3,23 +3,21 @@ import SwiftUI
 @main
 struct KnitNoteApp: App {
     @StateObject private var projectStore = JSONProjectStore.live()
-    @StateObject private var launchExperience = LaunchExperienceCoordinator()
     @AppStorage("languageSelection") private var storedLanguage = LanguageSelection.system.rawValue
 
     private var selection: LanguageSelection {
         LanguageSelection(rawValue: storedLanguage) ?? .system
     }
 
-    private var language: AppLanguage {
-        LanguageSettings(selection: selection).resolvedLanguage()
+    private var appLocale: Locale {
+        LanguageSettings(selection: selection).resolvedLocale()
     }
 
     var body: some Scene {
         WindowGroup {
             RootView(storedLanguage: $storedLanguage)
-                .environment(\.locale, Locale(identifier: language.rawValue))
+                .environment(\.locale, appLocale)
                 .environmentObject(projectStore)
-                .environmentObject(launchExperience)
                 .preferredColorScheme(.light)
         }
     }

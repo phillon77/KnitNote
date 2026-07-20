@@ -68,6 +68,7 @@ func repeatedStartIsIgnoredForTheColdLaunchLifetime() async {
     await waitForPendingSleep(sleeper, count: 2)
     await resumeNext(sleeper) // Drain the cancelled reveal wait.
     await resumeNext(sleeper) // Finish the replacement skip transition.
+    await waitForPhase(.complete, coordinator: coordinator)
     #expect(coordinator.phase == .complete)
 }
 
@@ -94,6 +95,7 @@ func normalPlaybackPublishesRevealAndVisitsEveryTimedPhase() async {
     await waitForPendingSleep(sleeper)
     #expect(coordinator.phase == .enteringHome)
     await resumeNext(sleeper)
+    await waitForPhase(.complete, coordinator: coordinator)
     #expect(coordinator.phase == .complete)
     #expect(!coordinator.showsOverlay)
 }
@@ -132,6 +134,7 @@ func skipCancelsPlaybackAndStaleWakeupsCannotMoveThePhaseBackward() async {
     #expect(coordinator.phase == .enteringHome)
     #expect(coordinator.revealProgress == 1)
     await resumeNext(sleeper) // Finish the skip transition.
+    await waitForPhase(.complete, coordinator: coordinator)
     #expect(coordinator.phase == .complete)
     coordinator.skip()
     #expect(coordinator.phase == .complete)
@@ -154,6 +157,7 @@ func skipAfterRevealPreservesPublishedRevealWithoutCompletingTwice() async {
     await resumeNext(sleeper) // Old reveal-visual sleep.
     #expect(coordinator.phase == .enteringHome)
     await resumeNext(sleeper) // Skip transition.
+    await waitForPhase(.complete, coordinator: coordinator)
     #expect(coordinator.phase == .complete)
     #expect(coordinator.revealProgress == 1)
 }

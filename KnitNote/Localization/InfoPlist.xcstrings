@@ -26,18 +26,18 @@
       }
     },
     "NSCameraUsageDescription" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Take a photo for your knitting project."
+            "value" : "Take photos for your knitting projects and journal entries."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拍攝照片加入你的編織作品。"
+            "value" : "拍攝照片加入你的編織作品與編織日記。"
           }
         }
       }

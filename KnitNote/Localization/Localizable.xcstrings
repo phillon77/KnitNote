@@ -34,6 +34,791 @@
         }
       }
     },
+    "calculator.adjustment.accessibility.summary.edge.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@ %@" } }
+      }
+    },
+    "calculator.adjustment.accessibility.summary.full.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ %@ %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@ %@ %@" } }
+      }
+    },
+    "calculator.adjustment.accessibility.summary.interval.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@ %@" } }
+      }
+    },
+    "calculator.adjustment.current" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Current stitches" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前針數" } }
+      }
+    },
+    "calculator.adjustment.edgeSummary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "One edge stitch is reserved on each side." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "左右各保留 1 針。" } }
+      }
+    },
+    "calculator.adjustment.failure.cannotPreserveEdges" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This adjustment cannot preserve one edge stitch on each side." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這次調整無法左右各保留 1 針。" } }
+      }
+    },
+    "calculator.adjustment.failure.exceedsSupportedLimit.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter 100,000 stitches or fewer (maximum %lld)." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入不超過 100,000 針（上限 %lld）。" } }
+      }
+    },
+    "calculator.adjustment.failure.invalidCounts" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter valid current and target stitch counts." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入有效的目前針數與目標針數。" } }
+      }
+    },
+    "calculator.adjustment.failure.requiresMultipleRows" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This adjustment cannot be completed evenly in one row. Divide it across multiple rows." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這次調整無法在一排內平均完成，請分成多排進行。" } }
+      }
+    },
+    "calculator.adjustment.input.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stitch Counts" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "針數" } }
+      }
+    },
+    "calculator.adjustment.interval.decrease.adjacent" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease adjacent stitches throughout the row." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "整排連續將相鄰 2 針併成 1 針。" } }
+      }
+    },
+    "calculator.adjustment.interval.decrease.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease after every %@ stitches." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每織 %@ 針減 1 針。" } }
+      }
+    },
+    "calculator.adjustment.interval.decrease.singular" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease after every 1 stitch." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每織 1 針減 1 針。" } }
+      }
+    },
+    "calculator.adjustment.interval.decrease.single.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease after every %lld stitches." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每織 %lld 針減 1 針。" } }
+      }
+    },
+    "calculator.adjustment.interval.increase.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase after every %@ stitches." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每織 %@ 針加 1 針。" } }
+      }
+    },
+    "calculator.adjustment.interval.increase.singular" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase after every 1 stitch." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每織 1 針加 1 針。" } }
+      }
+    },
+    "calculator.adjustment.interval.increase.single.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase after every %lld stitches." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每織 %lld 針加 1 針。" } }
+      }
+    },
+    "calculator.adjustment.interval.range.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@–%@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@～%@" } }
+      }
+    },
+    "calculator.adjustment.reservesEdgeStitches" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reserve one edge stitch on each side" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "左右各保留 1 針" } }
+      }
+    },
+    "calculator.adjustment.step.decreaseOne" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease the next 2 stitches into 1" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將接下來 2 針併成 1 針" } }
+      }
+    },
+    "calculator.adjustment.step.edge.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knit %lld edge stitch" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織 %lld 針邊針" } }
+      }
+    },
+    "calculator.adjustment.step.increaseOne" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase 1 stitch" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加 1 針" } }
+      }
+    },
+    "calculator.adjustment.step.knit.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knit %lld stitches" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織 %lld 針" } }
+      }
+    },
+    "calculator.adjustment.step.knit.singular" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knit 1 stitch" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織 1 針" } }
+      }
+    },
+    "calculator.adjustment.steps.show" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show complete steps" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "查看完整步驟" } }
+      }
+    },
+    "calculator.adjustment.summary.decrease.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease %lld stitches evenly." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "平均減 %lld 針。" } }
+      }
+    },
+    "calculator.adjustment.summary.decrease.singular" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease 1 stitch evenly." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "平均減 1 針。" } }
+      }
+    },
+    "calculator.adjustment.summary.increase.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase %lld stitches evenly." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "平均加 %lld 針。" } }
+      }
+    },
+    "calculator.adjustment.summary.increase.singular" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase 1 stitch evenly." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "平均加 1 針。" } }
+      }
+    },
+    "calculator.adjustment.summary.unchanged" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No increases or decreases are needed." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不需要加針或減針。" } }
+      }
+    },
+    "calculator.adjustment.target" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Target stitches" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目標針數" } }
+      }
+    },
+    "calculator.adjustment.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Even Increase / Decrease" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "等距加針／減針" } }
+      }
+    },
+    "calculator.adjustment.mode.oneRow" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "One Row" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單排分配" } }
+      }
+    },
+    "calculator.adjustment.mode.acrossRows" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Across Rows" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跨段分配" } }
+      }
+    },
+    "calculator.adjustment.rows.input.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Row Distribution" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跨段分配" } }
+      }
+    },
+    "calculator.adjustment.rows.operation" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Operation" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "操作" } }
+      }
+    },
+    "calculator.adjustment.rows.operation.increase" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加針" } }
+      }
+    },
+    "calculator.adjustment.rows.operation.decrease" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "減針" } }
+      }
+    },
+    "calculator.adjustment.rows.totalRows" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Total rows" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "總段數" } }
+      }
+    },
+    "calculator.adjustment.rows.totalStitches" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Total stitches to change" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "總加減針數" } }
+      }
+    },
+    "calculator.adjustment.rows.style" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Adjustment style" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每次做法" } }
+      }
+    },
+    "calculator.adjustment.rows.style.singleSide" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "1 stitch each time" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每次單側 1 針" } }
+      }
+    },
+    "calculator.adjustment.rows.style.bothSides" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "1 stitch on each side" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每次左右各 1 針" } }
+      }
+    },
+    "calculator.adjustment.rows.details.show" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show adjustment rows" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "查看調整段數" } }
+      }
+    },
+    "calculator.adjustment.rows.interval.everyRow" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Every row" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每段" } }
+      }
+    },
+    "calculator.adjustment.rows.failure.symmetricEven" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "For matching changes on both sides, enter an even number of stitches." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "左右對稱加減針時，總針數請輸入偶數。" } }
+      }
+    },
+    "calculator.adjustment.rows.failure.insufficientRows" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "There are not enough rows to distribute these changes once per row." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "指定段數不足，無法以每段最多一次平均完成。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.increase.singleSide.exact.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, increase 1 stitch on one side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，單側加 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.increase.singleSide.range.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, increase 1 stitch on one side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，單側加 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.increase.bothSides.exact.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, increase 1 stitch on each side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，左右各加 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.increase.bothSides.range.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, increase 1 stitch on each side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，左右各加 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.decrease.singleSide.exact.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, decrease 1 stitch on one side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，單側減 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.decrease.singleSide.range.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, decrease 1 stitch on one side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，單側減 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.decrease.bothSides.exact.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, decrease 1 stitch on each side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，左右各減 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.summary.decrease.bothSides.range.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, decrease 1 stitch on each side. Adjustment rows: %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@，左右各減 1 針；調整段數：%lld。" } }
+      }
+    },
+    "calculator.adjustment.rows.interval.exact.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Every %lld rows" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每 %lld 段" } }
+      }
+    },
+    "calculator.adjustment.rows.interval.range.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About every %@ rows" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "約每 %@ 段" } }
+      }
+    },
+    "calculator.adjustment.rows.range.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld–%lld" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld～%lld" } }
+      }
+    },
+    "calculator.adjustment.rows.detail.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Row %lld." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第 %lld 段。" } }
+      }
+    },
+    "calculator.adjustment.rows.failure.exceedsSupportedLimit.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter 100,000 or fewer (maximum %lld)." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入不超過 100,000（上限 %lld）。" } }
+      }
+    },
+    "calculator.adjustment.validation.positiveInteger" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a whole number greater than 0." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入大於 0 的整數。" } }
+      }
+    },
+    "calculator.gauge.density" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gauge Density"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密度"
+          }
+        }
+      }
+    },
+    "calculator.gauge.exact" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exact Result"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "精確結果"
+          }
+        }
+      }
+    },
+    "calculator.gauge.recommendation.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended: %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議數量：%lld"
+          }
+        }
+      }
+    },
+    "calculator.gauge.recommended" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議"
+          }
+        }
+      }
+    },
+    "calculator.gauge.rows.density.centimeters.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ rows per centimeter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每公分 %@ 排"
+          }
+        }
+      }
+    },
+    "calculator.gauge.rows.density.inches.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ rows per inch"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每英吋 %@ 排"
+          }
+        }
+      }
+    },
+    "calculator.gauge.rows.optional" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Row Calculation (Optional)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排數計算（選填）"
+          }
+        }
+      }
+    },
+    "calculator.gauge.rows.recommendation" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended rows"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議排數"
+          }
+        }
+      }
+    },
+    "calculator.gauge.rows.recommendation.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended rows: %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議排數：%lld"
+          }
+        }
+      }
+    },
+    "calculator.gauge.sampleHeight" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swatch Height"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樣本高度"
+          }
+        }
+      }
+    },
+    "calculator.gauge.sampleRows" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rows in Swatch"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樣本排數"
+          }
+        }
+      }
+    },
+    "calculator.gauge.sampleStitches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stitches in Swatch"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樣本針數"
+          }
+        }
+      }
+    },
+    "calculator.gauge.sampleWidth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swatch Width"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樣本寬度"
+          }
+        }
+      }
+    },
+    "calculator.gauge.stitches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stitch Calculation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "針數計算"
+          }
+        }
+      }
+    },
+    "calculator.gauge.stitches.density.centimeters.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ stitches per centimeter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每公分 %@ 針"
+          }
+        }
+      }
+    },
+    "calculator.gauge.stitches.density.inches.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ stitches per inch"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每英吋 %@ 針"
+          }
+        }
+      }
+    },
+    "calculator.gauge.stitches.recommendation" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended stitches"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議針數"
+          }
+        }
+      }
+    },
+    "calculator.gauge.stitches.recommendation.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended stitches: %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議針數：%lld"
+          }
+        }
+      }
+    },
+    "calculator.gauge.targetHeight" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target Height"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標高度"
+          }
+        }
+      }
+    },
+    "calculator.gauge.targetWidth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target Width"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標寬度"
+          }
+        }
+      }
+    },
+    "calculator.gauge.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gauge Calculator"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密度計算"
+          }
+        }
+      }
+    },
+    "calculator.gauge.unit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "單位"
+          }
+        }
+      }
+    },
+    "calculator.gauge.unit.centimeters" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Centimeters"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公分"
+          }
+        }
+      }
+    },
+    "calculator.gauge.unit.inches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inches"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英吋"
+          }
+        }
+      }
+    },
+    "calculator.tools.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Knitting Calculators"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編織計算工具"
+          }
+        }
+      }
+    },
+    "calculator.validation.positive" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a value greater than 0."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入大於 0 的數值。"
+          }
+        }
+      }
+    },
     "common.cancel" : {
       "localizations" : {
         "en" : {
@@ -51,6 +836,7 @@
       }
     },
     "common.comingSoon" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82,6 +868,22 @@
         }
       }
     },
+    "common.done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
     "common.ok" : {
       "localizations" : {
         "en" : {
@@ -98,6 +900,22 @@
         }
       }
     },
+    "common.retry" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試一次"
+          }
+        }
+      }
+    },
     "common.save" : {
       "localizations" : {
         "en" : {
@@ -110,6 +928,313 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存"
+          }
+        }
+      }
+    },
+    "counter.accessibility.collapse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse controls for %@, current value %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收合 %@ 的計數器控制，目前數值 %lld"
+          }
+        }
+      }
+    },
+    "counter.accessibility.decrement" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decrease %@, current value %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "減少 %@，目前數值 %lld"
+          }
+        }
+      }
+    },
+    "counter.accessibility.expand" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand controls for %@, current value %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開 %@ 的計數器控制，目前數值 %lld"
+          }
+        }
+      }
+    },
+    "counter.accessibility.increment" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Increase %@, current value %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增加 %@，目前數值 %lld"
+          }
+        }
+      }
+    },
+    "counter.accessibility.note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit note for %@, current value %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯 %@ 的筆記，目前數值 %lld"
+          }
+        }
+      }
+    },
+    "counter.accessibility.rename" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename %@, current value %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名 %@，目前數值 %lld"
+          }
+        }
+      }
+    },
+    "counter.accessibility.tapHoldHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to increase by one. Touch and hold to manage."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下增加一，長按開啟管理。"
+          }
+        }
+      }
+    },
+    "counter.collapse" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse counters"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收合計數器"
+          }
+        }
+      }
+    },
+    "counter.decrement" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decrease counter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "減少計數器"
+          }
+        }
+      }
+    },
+    "counter.defaultName" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counter %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計數器 %lld"
+          }
+        }
+      }
+    },
+    "counter.expand" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand counters"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開計數器"
+          }
+        }
+      }
+    },
+    "counter.increment" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Increase counter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增加計數器"
+          }
+        }
+      }
+    },
+    "counter.manage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Counter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理計數器"
+          }
+        }
+      }
+    },
+    "counter.minusOne" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decrease by 1"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "減 1"
+          }
+        }
+      }
+    },
+    "counter.name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
+          }
+        }
+      }
+    },
+    "counter.rename" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Counter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名計數器"
+          }
+        }
+      }
+    },
+    "counter.reset" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset to Zero"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歸零"
+          }
+        }
+      }
+    },
+    "counter.summary" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Six project counters"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "六個作品計數器"
+          }
+        }
+      }
+    },
+    "counter.value" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "數值"
           }
         }
       }
@@ -920,6 +2045,7 @@
       }
     },
     "project.completeRow" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -947,22 +2073,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建立"
-          }
-        }
-      }
-    },
-    "project.currentRow" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current row"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前排數"
           }
         }
       }
@@ -1050,8 +2160,18 @@
     },
     "project.photo.accessibility" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Project photo" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "作品照片" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品照片"
+          }
+        }
       }
     },
     "project.photo.choose" : {
@@ -1167,7 +2287,216 @@
         }
       }
     },
+    "project.status" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project Status"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品狀態"
+          }
+        }
+      }
+    },
+    "project.status.completed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已完成"
+          }
+        }
+      }
+    },
+    "project.status.inProgress" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Progress"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進行中"
+          }
+        }
+      }
+    },
+    "project.status.markCompleted" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as Completed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標記為已完成"
+          }
+        }
+      }
+    },
+    "project.status.resume" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume Project"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復為進行中"
+          }
+        }
+      }
+    },
+    "project.tool.notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備註"
+          }
+        }
+      }
+    },
+    "project.tool.section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tools"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用工具"
+          }
+        }
+      }
+    },
+    "project.tool.size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尺寸"
+          }
+        }
+      }
+    },
+    "project.tool.type" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tool type"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具類型"
+          }
+        }
+      }
+    },
+    "project.tool.type.crochetHook" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crochet hook"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鉤針"
+          }
+        }
+      }
+    },
+    "project.tool.type.knittingNeedles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Knitting needles"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "棒針"
+          }
+        }
+      }
+    },
+    "project.tool.type.none" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not set"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定"
+          }
+        }
+      }
+    },
+    "project.tool.type.other" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他"
+          }
+        }
+      }
+    },
     "project.undo" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1260,6 +2589,836 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "語言"
+          }
+        }
+      }
+    },
+    "yarn.accessibility.card" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yarn: %@%@%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毛線：%@%@%@"
+          }
+        }
+      }
+    },
+    "yarn.accessibility.photo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yarn photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毛線照片"
+          }
+        }
+      }
+    },
+    "yarn.brand" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brand"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "品牌"
+          }
+        }
+      }
+    },
+    "yarn.color" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顏色"
+          }
+        }
+      }
+    },
+    "yarn.colorCode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Code"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "色號"
+          }
+        }
+      }
+    },
+    "yarn.create" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Yarn"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增毛線"
+          }
+        }
+      }
+    },
+    "yarn.delete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Yarn"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除毛線"
+          }
+        }
+      }
+    },
+    "yarn.delete.confirm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this yarn?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要刪除這款毛線嗎？"
+          }
+        }
+      }
+    },
+    "yarn.dyeLot" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dye Lot"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "染缸批號"
+          }
+        }
+      }
+    },
+    "yarn.edit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Yarn"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯毛線"
+          }
+        }
+      }
+    },
+    "yarn.empty.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add yarn to keep its details, photo, and inventory together."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增毛線，以集中管理詳細資料、照片與庫存。"
+          }
+        }
+      }
+    },
+    "yarn.empty.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Yarn Yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有毛線"
+          }
+        }
+      }
+    },
+    "yarn.error.archiveUnavailable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your saved library couldn’t be opened, so no changes were written. Restore it or restart KnitNote, then try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟已儲存的資料庫，因此未寫入任何變更。請還原資料或重新啟動 KnitNote 後再試一次。"
+          }
+        }
+      }
+    },
+    "yarn.error.deleteFailed.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The yarn wasn’t deleted. Try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毛線尚未刪除，請再試一次。"
+          }
+        }
+      }
+    },
+    "yarn.error.deleteFailed.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t Delete Yarn"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法刪除毛線"
+          }
+        }
+      }
+    },
+    "yarn.error.invalidNumber" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a valid number."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入有效數字。"
+          }
+        }
+      }
+    },
+    "yarn.error.linkedProjectsChanged" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One or more linked projects changed. Review the project links and try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一個或多個關聯作品已變更。請檢查作品連結後再試一次。"
+          }
+        }
+      }
+    },
+    "yarn.error.loadFailed.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote won’t show an empty library or save changes while the archive is unreadable. Restore access to the saved file, then retry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封存檔無法讀取時，KnitNote 不會顯示空資料庫或儲存變更。請先恢復已儲存檔案的存取權，再試一次。"
+          }
+        }
+      }
+    },
+    "yarn.error.loadFailed.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t Open Saved Library"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟已儲存的資料庫"
+          }
+        }
+      }
+    },
+    "yarn.error.negativeInventory" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inventory cannot be negative."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "庫存不可為負數。"
+          }
+        }
+      }
+    },
+    "yarn.error.photoInvalid" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote couldn’t use that photo. Choose another photo and try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote 無法使用該照片。請選擇其他照片後再試一次。"
+          }
+        }
+      }
+    },
+    "yarn.error.saveRetry" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t save your changes. Your entries are still here; try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存變更。輸入內容仍保留在此，請再試一次。"
+          }
+        }
+      }
+    },
+    "yarn.inventory.balls" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balls remaining: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘毛線球：%@"
+          }
+        }
+      }
+    },
+    "yarn.inventory.grams" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grams remaining: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘公克：%@"
+          }
+        }
+      }
+    },
+    "yarn.library.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yarn Library"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毛線庫"
+          }
+        }
+      }
+    },
+    "yarn.linkedProjects" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked Projects"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關聯作品"
+          }
+        }
+      }
+    },
+    "yarn.name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
+          }
+        }
+      }
+    },
+    "yarn.notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備註"
+          }
+        }
+      }
+    },
+    "yarn.photo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片"
+          }
+        }
+      }
+    },
+    "yarn.photo.choose" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇照片"
+          }
+        }
+      }
+    },
+    "yarn.photo.loadFailed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load the selected photo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入所選照片。"
+          }
+        }
+      }
+    },
+    "yarn.photo.remove" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除照片"
+          }
+        }
+      }
+    },
+    "yarn.photo.replace" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace Photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更換照片"
+          }
+        }
+      }
+    },
+    "yarn.photo.take" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take Photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍攝照片"
+          }
+        }
+      }
+    },
+    "yarn.remainingBalls" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remaining Balls"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘毛線球"
+          }
+        }
+      }
+    },
+    "yarn.remainingGrams" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remaining Grams"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘公克"
+          }
+        }
+      }
+    },
+    "yarn.series" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Series"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系列"
+          }
+        }
+      }
+    },
+    "journal.accessibility.add" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add journal entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增編織日記" } }
+      }
+    },
+    "journal.accessibility.fullPhoto" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry photo" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記照片" } }
+      }
+    },
+    "journal.accessibility.photo" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry photo" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記照片" } }
+      }
+    },
+    "journal.add" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add journal entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增日記" } }
+      }
+    },
+    "journal.add.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New journal entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增日記" } }
+      }
+    },
+    "journal.caption.label" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Caption (optional)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "說明（選填）" } }
+      }
+    },
+    "journal.caption.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a note about this progress" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記下這次進度" } }
+      }
+    },
+    "journal.card.accessibility.withCaption.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry, %1$@, %2$@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記，%1$@，%2$@" } }
+      }
+    },
+    "journal.card.accessibility.withCaption.loading.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry, photo loading, %1$@, %2$@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記，照片載入中，%1$@，%2$@" } }
+      }
+    },
+    "journal.card.accessibility.withCaption.unavailable.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry, photo unavailable, %1$@, %2$@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記，照片無法載入，%1$@，%2$@" } }
+      }
+    },
+    "journal.card.accessibility.withoutCaption.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry, %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記，%@" } }
+      }
+    },
+    "journal.card.accessibility.withoutCaption.loading.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry, photo loading, %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記，照片載入中，%@" } }
+      }
+    },
+    "journal.card.accessibility.withoutCaption.unavailable.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal entry, photo unavailable, %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記，照片無法載入，%@" } }
+      }
+    },
+    "journal.delete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
+      }
+    },
+    "journal.delete.confirm.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This journal entry and its photos will be permanently deleted." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這則日記與照片將永久刪除。" } }
+      }
+    },
+    "journal.delete.confirm.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete journal entry?" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除這則日記？" } }
+      }
+    },
+    "journal.detail.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Journal Entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "日記內容" } }
+      }
+    },
+    "journal.edit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯" } }
+      }
+    },
+    "journal.edit.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit journal entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯日記" } }
+      }
+    },
+    "journal.empty.active" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Record the first progress on this project." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記錄這件作品的第一個進度吧" } }
+      }
+    },
+    "journal.empty.completed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No journal entries were recorded." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這件作品沒有日記紀錄" } }
+      }
+    },
+    "journal.error.delete.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't delete journal entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法刪除日記" } }
+      }
+    },
+    "journal.error.deleteFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The journal entry couldn't be deleted. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法刪除日記，請再試一次。" } }
+      }
+    },
+    "journal.error.invalidImage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a valid image and try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請選擇有效的照片後再試一次。" } }
+      }
+    },
+    "journal.error.notFound" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This journal entry is no longer available." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這則日記已無法使用。" } }
+      }
+    },
+    "journal.error.projectCompleted" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This completed project's journal is read-only." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "作品已完成，編織日記僅供查看" } }
+      }
+    },
+    "journal.error.save.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't save journal entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存日記" } }
+      }
+    },
+    "journal.error.saveFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The journal entry couldn't be saved. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存日記，請再試一次。" } }
+      }
+    },
+    "journal.photo.camera" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "相機" } }
+      }
+    },
+    "journal.photo.library" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Photo Library" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "照片圖庫" } }
+      }
+    },
+    "journal.photo.loadFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't load photo" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法載入照片" } }
+      }
+    },
+    "journal.photo.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading photo" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在載入照片" } }
+      }
+    },
+    "journal.photo.select" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select a photo" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇照片" } }
+      }
+    },
+    "journal.photo.unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Photo unavailable" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法載入照片" } }
+      }
+    },
+    "journal.readOnly.completed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This completed project's journal is read-only." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "作品已完成，編織日記僅供查看" } }
+      }
+    },
+    "journal.saving" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Saving journal entry" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在儲存日記" } }
+      }
+    },
+    "journal.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knitting Journal" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織日記" } }
+      }
+    },
+    "yarn.storageLocation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage Location"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收納位置"
           }
         }
       }

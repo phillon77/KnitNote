@@ -56,9 +56,11 @@ struct PatternReaderView: View {
     @State private var markupColor = MarkupColor.red
     @State private var markupWidth = 0.008
     @State private var confirmingMarkupClear = false
+    @State private var managingCounter: ProjectCounter?
     @StateObject private var pdfNavigator = PDFPageNavigator()
     private let files = PatternFileService.live()
     private let markupFiles = PatternMarkupFileService.live()
+    private let counterRailSafeAreaWidth: CGFloat = 64
 
     init(projectID: UUID, pattern: PatternDocument) {
         self.projectID = projectID
@@ -79,30 +81,36 @@ struct PatternReaderView: View {
                             .frame(height: PatternMarkupToolbar.stableHeight)
 
                         ZStack(alignment: .top) {
-                            if pattern.kind == .pdf {
-                                PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
-                                    .allowsHitTesting(!markupMode)
-                            } else {
-                                ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
-                                    .allowsHitTesting(!markupMode)
+                            ZStack(alignment: .top) {
+                                if pattern.kind == .pdf {
+                                    PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
+                                        .allowsHitTesting(!markupMode)
+                                } else {
+                                    ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
+                                        .allowsHitTesting(!markupMode)
+                                }
+                                if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition).allowsHitTesting(!markupMode) }
+                                if markupMode { PatternMarkupOverlay(document: $markup, tool: markupTool, color: markupColor, width: markupWidth) }
                             }
-                            if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition).allowsHitTesting(!markupMode) }
-                            if markupMode { PatternMarkupOverlay(document: $markup, tool: markupTool, color: markupColor, width: markupWidth) }
+                            .padding(.trailing, counterRailSafeAreaWidth)
+
+                            if let project = store.project(id: projectID), !markupMode {
+                                PatternReaderControls(
+                                    counters: project.counters,
+                                    isEnabled: !project.isCompleted,
+                                    pageIndex: state.pageIndex,
+                                    pageCount: pattern.kind == .pdf ? pageCount : 0,
+                                    onPreviousPage: { navigatePDF(by: -1) },
+                                    onNextPage: { navigatePDF(by: 1) },
+                                    onIncrement: incrementCounter,
+                                    onManage: { counterID in
+                                        managingCounter = project.counters.first { $0.id == counterID }
+                                    }
+                                )
+                            }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
-
-                        if let project = store.project(id: projectID) {
-                            PatternReaderControls(
-                                currentRow: project.currentRow,
-                                pageIndex: state.pageIndex,
-                                pageCount: pattern.kind == .pdf ? pageCount : 0,
-                                onPreviousPage: { navigatePDF(by: -1) },
-                                onNextPage: { navigatePDF(by: 1) },
-                                onUndoRow: undoRow,
-                                onCompleteRow: completeRow
-                            )
-                        }
                     }
                 } else {
                     ContentUnavailableView { Label("patterns.missing", systemImage: "exclamationmark.triangle") } actions: {
@@ -145,6 +153,11 @@ struct PatternReaderView: View {
                     state.setPageNote(originalPageNote)
                 }
             }
+            .sheet(item: $managingCounter) { counter in
+                EditCounterNameView(counter: counter) { name, value in
+                    updateCounter(counter, name: name, value: value)
+                }
+            }
             .confirmationDialog("patterns.markup.clear.confirm", isPresented: $confirmingMarkupClear) {
                 Button("patterns.markup.clear", role: .destructive) { markup.clear() }
                 Button("common.cancel", role: .cancel) {}
@@ -164,13 +177,16 @@ struct PatternReaderView: View {
         catch { saveError=error.localizedDescription; return false }
     }
 
-    private func completeRow() {
-        do { try store.completeRow(id: projectID) }
+    private func incrementCounter(_ counterID: UUID) {
+        do {
+            try store.selectCounter(projectID: projectID, counterID: counterID)
+            try store.incrementCounter(projectID: projectID, counterID: counterID)
+        }
         catch { saveError = error.localizedDescription }
     }
 
-    private func undoRow() {
-        do { try store.undoRow(id: projectID) }
+    private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) {
+        do { try store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value) }
         catch { saveError = error.localizedDescription }
     }
 

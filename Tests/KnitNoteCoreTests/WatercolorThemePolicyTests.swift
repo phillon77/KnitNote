@@ -1,5 +1,20 @@
+import Foundation
 import Testing
 @testable import KnitNoteCore
+
+@Test func projectsHomeRemovesPaintingButKeepsWatercolorTheme() throws {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let source = try String(
+        contentsOf: repositoryRoot.appendingPathComponent("KnitNote/Projects/ProjectsView.swift"),
+        encoding: .utf8
+    )
+
+    #expect(!source.contains("FamilyHeroView()"))
+    #expect(source.contains("WatercolorBackground()"))
+}
 
 @Test func watercolorPaletteUsesAccessibleActionInk() {
     #expect(WatercolorPalette.actionBerry.hex == 0x9A3F70)

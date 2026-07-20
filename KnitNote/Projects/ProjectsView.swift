@@ -11,7 +11,6 @@ struct ProjectsView: View {
                 WatercolorBackground()
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        FamilyHeroView()
                         if store.projects.isEmpty {
                             LemonEmptyState(
                                 title: "projects.empty.title",

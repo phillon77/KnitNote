@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct WatchCounterView: View {
+    @ObservedObject var coordinator: WatchSyncCoordinator
     @State private var project = KnittingProject(name: String(localized: "sample.projectName"))
 
     var body: some View {

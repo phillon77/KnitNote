@@ -2,31 +2,51 @@
 import Foundation
 import WatchConnectivity
 
-final class PhoneWatchSession: NSObject, WCSessionDelegate, @unchecked Sendable {
-    typealias EnvelopeReply = @Sendable (WatchConnectivityEnvelope) -> Void
-    typealias ReceivedEnvelope = @Sendable (
-        WatchConnectivityEnvelope,
-        EnvelopeReply?
-    ) -> Void
+protocol WatchConnectivitySessionOperations: AnyObject {
+    var delegate: (any WCSessionDelegate)? { get set }
+    var isReachable: Bool { get }
 
-    var onReceivedEnvelope: ReceivedEnvelope?
-    var onReachabilityChanged: (@Sendable (Bool) -> Void)?
-    var onActivationCompleted: (@Sendable (WCSessionActivationState, Error?) -> Void)?
-    var onTransferCompleted: (@Sendable (WatchConnectivityEnvelope?, Error?) -> Void)?
+    func activate()
+    func updateApplicationContext(_ applicationContext: [String: Any]) throws
+    func sendMessage(
+        _ message: [String: Any],
+        replyHandler: (([String: Any]) -> Void)?,
+        errorHandler: ((Error) -> Void)?
+    )
+    func enqueueUserInfo(_ userInfo: [String: Any])
+}
 
-    private let session: WCSession
+extension WCSession: WatchConnectivitySessionOperations {
+    func enqueueUserInfo(_ userInfo: [String: Any]) {
+        transferUserInfo(userInfo)
+    }
+}
+
+@MainActor
+final class PhoneWatchSession: NSObject, WCSessionDelegate, WatchConnectivityTransport {
+    var onReceivedEnvelope: WatchConnectivityReceivedEnvelope?
+    var onReachabilityChanged: WatchConnectivityReachabilityChanged?
+    var onActivationCompleted: WatchConnectivityActivationCompleted?
+    var onTransferCompleted: WatchConnectivityTransferCompleted?
+
+    private let session: any WatchConnectivitySessionOperations
+    private let isSupported: @Sendable () -> Bool
 
     var isReachable: Bool {
-        WCSession.isSupported() && session.isReachable
+        isSupported() && session.isReachable
     }
 
-    init(session: WCSession = .default) {
+    init(
+        session: any WatchConnectivitySessionOperations = WCSession.default,
+        isSupported: @escaping @Sendable () -> Bool = { WCSession.isSupported() }
+    ) {
         self.session = session
+        self.isSupported = isSupported
         super.init()
     }
 
     func activate() {
-        guard WCSession.isSupported() else { return }
+        guard isSupported() else { return }
         session.delegate = self
         session.activate()
     }
@@ -37,105 +57,153 @@ final class PhoneWatchSession: NSObject, WCSessionDelegate, @unchecked Sendable 
 
     func sendMessage(
         _ envelope: WatchConnectivityEnvelope,
-        reply: @escaping @Sendable (WatchConnectivityEnvelope) -> Void,
-        failure: @escaping @Sendable (Error) -> Void
+        reply: @escaping WatchConnectivityEnvelopeReply,
+        failure: @escaping WatchConnectivityFailure
     ) {
+        let dictionary: [String: Any]
         do {
-            session.sendMessage(
-                try envelope.dictionaryRepresentation(),
-                replyHandler: { dictionary in
-                    do {
-                        reply(try WatchConnectivityEnvelope(dictionary: dictionary))
-                    } catch {
-                        failure(error)
-                    }
-                },
-                errorHandler: failure
-            )
+            dictionary = try envelope.dictionaryRepresentation()
         } catch {
             failure(error)
+            return
         }
+
+        let completion = WatchConnectivityMessageCompletion(reply: reply, failure: failure)
+        session.sendMessage(
+            dictionary,
+            replyHandler: { dictionary in
+                let dictionaryBox = WatchConnectivitySendableDictionary(dictionary)
+                Task { @MainActor in
+                    completion.receive(dictionaryBox.value)
+                }
+            },
+            errorHandler: { error in
+                Task { @MainActor in
+                    completion.fail(error)
+                }
+            }
+        )
     }
 
     func transferUserInfo(_ envelope: WatchConnectivityEnvelope) {
         do {
-            session.transferUserInfo(try envelope.dictionaryRepresentation())
+            session.enqueueUserInfo(try envelope.dictionaryRepresentation())
         } catch {
             onTransferCompleted?(envelope, error)
         }
     }
 
-    func session(
+    nonisolated func session(
         _ session: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        onActivationCompleted?(activationState, error)
-    }
-
-    func sessionDidBecomeInactive(_ session: WCSession) {
-        onActivationCompleted?(.inactive, nil)
-    }
-
-    func sessionDidDeactivate(_ session: WCSession) {
-        onActivationCompleted?(.notActivated, nil)
-        if WCSession.isSupported() {
-            session.activate()
+        let activated = activationState == .activated
+        Task { @MainActor [weak self] in
+            self?.onActivationCompleted?(activated, error)
         }
     }
 
-    func sessionReachabilityDidChange(_ session: WCSession) {
-        onReachabilityChanged?(session.isReachable)
+    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
+        Task { @MainActor [weak self] in
+            self?.onActivationCompleted?(false, nil)
+        }
     }
 
-    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        receive(applicationContext)
+    nonisolated func sessionDidDeactivate(_ session: WCSession) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            onActivationCompleted?(false, nil)
+            if isSupported() {
+                self.session.activate()
+            }
+        }
     }
 
-    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        receive(message)
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        let reachable = session.isReachable
+        Task { @MainActor [weak self] in
+            self?.onReachabilityChanged?(reachable)
+        }
     }
 
-    func session(
+    nonisolated func session(
+        _ session: WCSession,
+        didReceiveApplicationContext applicationContext: [String: Any]
+    ) {
+        let dictionaryBox = WatchConnectivitySendableDictionary(applicationContext)
+        Task { @MainActor [weak self] in
+            self?.receive(dictionaryBox.value)
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        let dictionaryBox = WatchConnectivitySendableDictionary(message)
+        Task { @MainActor [weak self] in
+            self?.receive(dictionaryBox.value)
+        }
+    }
+
+    nonisolated func session(
         _ session: WCSession,
         didReceiveMessage message: [String: Any],
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
-        let replyBox = ReplyHandlerBox(replyHandler)
-        receive(message) { envelope in
-            guard let dictionary = try? envelope.dictionaryRepresentation() else { return }
-            replyBox.call(dictionary)
+        let dictionaryBox = WatchConnectivitySendableDictionary(message)
+        let replyBox = WatchConnectivityReplyHandlerBox(replyHandler)
+        Task { @MainActor [weak self] in
+            guard let self else {
+                replyBox.fail()
+                return
+            }
+            receive(dictionaryBox.value, replyBox: replyBox)
         }
     }
 
-    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        receive(userInfo)
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        let dictionaryBox = WatchConnectivitySendableDictionary(userInfo)
+        Task { @MainActor [weak self] in
+            self?.receive(dictionaryBox.value)
+        }
     }
 
-    func session(
+    nonisolated func session(
         _ session: WCSession,
         didFinish userInfoTransfer: WCSessionUserInfoTransfer,
         error: Error?
     ) {
-        let envelope = try? WatchConnectivityEnvelope(dictionary: userInfoTransfer.userInfo)
-        onTransferCompleted?(envelope, error)
+        let dictionaryBox = WatchConnectivitySendableDictionary(userInfoTransfer.userInfo)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let envelope = try WatchConnectivityEnvelope(dictionary: dictionaryBox.value)
+                onTransferCompleted?(envelope, error)
+            } catch let decodingError {
+                onTransferCompleted?(nil, error ?? decodingError)
+            }
+        }
     }
 
-    private func receive(_ dictionary: [String: Any], reply: EnvelopeReply? = nil) {
-        guard let envelope = try? WatchConnectivityEnvelope(dictionary: dictionary) else { return }
-        onReceivedEnvelope?(envelope, reply)
-    }
-}
+    private func receive(
+        _ dictionary: [String: Any],
+        replyBox: WatchConnectivityReplyHandlerBox? = nil
+    ) {
+        guard let envelope = try? WatchConnectivityEnvelope(dictionary: dictionary) else {
+            replyBox?.fail()
+            return
+        }
+        guard let onReceivedEnvelope else {
+            replyBox?.fail()
+            return
+        }
 
-private final class ReplyHandlerBox: @unchecked Sendable {
-    private let handler: ([String: Any]) -> Void
-
-    init(_ handler: @escaping ([String: Any]) -> Void) {
-        self.handler = handler
-    }
-
-    func call(_ dictionary: [String: Any]) {
-        handler(dictionary)
+        let reply: WatchConnectivityEnvelopeReply?
+        if let replyBox {
+            reply = { envelope in replyBox.reply(with: envelope) }
+        } else {
+            reply = nil
+        }
+        onReceivedEnvelope(envelope, reply)
     }
 }
 #endif

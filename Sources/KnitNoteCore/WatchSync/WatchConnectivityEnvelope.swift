@@ -78,6 +78,115 @@ public enum WatchConnectivityEnvelope: Equatable, Sendable {
     }
 }
 
+public typealias WatchConnectivityEnvelopeReply = @Sendable (WatchConnectivityEnvelope) -> Void
+public typealias WatchConnectivityFailure = @Sendable (Error) -> Void
+public typealias WatchConnectivityReceivedEnvelope = @Sendable (
+    WatchConnectivityEnvelope,
+    WatchConnectivityEnvelopeReply?
+) -> Void
+public typealias WatchConnectivityReachabilityChanged = @Sendable (Bool) -> Void
+public typealias WatchConnectivityActivationCompleted = @Sendable (Bool, Error?) -> Void
+public typealias WatchConnectivityTransferCompleted = @Sendable (
+    WatchConnectivityEnvelope?,
+    Error?
+) -> Void
+
+@MainActor
+public protocol WatchConnectivityTransport: AnyObject {
+    var onReceivedEnvelope: WatchConnectivityReceivedEnvelope? { get set }
+    var onReachabilityChanged: WatchConnectivityReachabilityChanged? { get set }
+    var onActivationCompleted: WatchConnectivityActivationCompleted? { get set }
+    var onTransferCompleted: WatchConnectivityTransferCompleted? { get set }
+    var isReachable: Bool { get }
+
+    func activate()
+    func updateApplicationContext(_ envelope: WatchConnectivityEnvelope) throws
+    func sendMessage(
+        _ envelope: WatchConnectivityEnvelope,
+        reply: @escaping WatchConnectivityEnvelopeReply,
+        failure: @escaping WatchConnectivityFailure
+    )
+    func transferUserInfo(_ envelope: WatchConnectivityEnvelope)
+}
+
+final class WatchConnectivityReplyHandlerBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handler: (([String: Any]) -> Void)?
+
+    init(_ handler: @escaping ([String: Any]) -> Void) {
+        self.handler = handler
+    }
+
+    func reply(with envelope: WatchConnectivityEnvelope) {
+        do {
+            call(try envelope.dictionaryRepresentation())
+        } catch {
+            fail()
+        }
+    }
+
+    func fail() {
+        call([:])
+    }
+
+    func call(_ dictionary: [String: Any]) {
+        let handler = lock.withLock {
+            defer { self.handler = nil }
+            return self.handler
+        }
+        handler?(dictionary)
+    }
+}
+
+final class WatchConnectivitySendableDictionary: @unchecked Sendable {
+    let value: [String: Any]
+
+    init(_ value: [String: Any]) {
+        self.value = value
+    }
+}
+
+@MainActor
+final class WatchConnectivityMessageCompletion {
+    private var reply: WatchConnectivityEnvelopeReply?
+    private var failure: WatchConnectivityFailure?
+
+    init(
+        reply: @escaping WatchConnectivityEnvelopeReply,
+        failure: @escaping WatchConnectivityFailure
+    ) {
+        self.reply = reply
+        self.failure = failure
+    }
+
+    func receive(_ dictionary: [String: Any]) {
+        do {
+            complete(with: .success(try WatchConnectivityEnvelope(dictionary: dictionary)))
+        } catch {
+            complete(with: .failure(error))
+        }
+    }
+
+    func fail(_ error: Error) {
+        complete(with: .failure(error))
+    }
+
+    private func complete(with result: Result<WatchConnectivityEnvelope, Error>) {
+        guard reply != nil || failure != nil else { return }
+        let reply = self.reply
+        let failure = self.failure
+        self.reply = nil
+        self.failure = nil
+
+        switch result {
+        case let .success(envelope):
+            reply?(envelope)
+        case let .failure(error):
+            failure?(error)
+        }
+    }
+}
+
 private extension WatchConnectivityEnvelope {
     enum Keys {
         static let kind = "kind"

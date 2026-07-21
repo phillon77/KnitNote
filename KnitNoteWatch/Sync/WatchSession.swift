@@ -31,6 +31,7 @@ final class WatchSession: NSObject, WCSessionDelegate, WatchConnectivityTranspor
 
     private let session: any WatchConnectivitySessionOperations
     private let isSupported: @Sendable () -> Bool
+    private nonisolated let receiveFIFO = WatchConnectivityReceiveFIFO()
 
     var isReachable: Bool {
         isSupported() && session.isReachable
@@ -115,17 +116,11 @@ final class WatchSession: NSObject, WCSessionDelegate, WatchConnectivityTranspor
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
-        let dictionaryBox = WatchConnectivitySendableDictionary(applicationContext)
-        Task { @MainActor [weak self] in
-            self?.receive(dictionaryBox.value)
-        }
+        enqueueReceived(applicationContext)
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        let dictionaryBox = WatchConnectivitySendableDictionary(message)
-        Task { @MainActor [weak self] in
-            self?.receive(dictionaryBox.value)
-        }
+        enqueueReceived(message)
     }
 
     nonisolated func session(
@@ -133,21 +128,40 @@ final class WatchSession: NSObject, WCSessionDelegate, WatchConnectivityTranspor
         didReceiveMessage message: [String: Any],
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
-        let dictionaryBox = WatchConnectivitySendableDictionary(message)
         let replyBox = WatchConnectivityReplyHandlerBox(replyHandler)
-        Task { @MainActor [weak self] in
-            guard let self else {
-                replyBox.fail()
-                return
-            }
-            receive(dictionaryBox.value, replyBox: replyBox)
-        }
+        enqueueReceived(message, replyBox: replyBox)
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        let dictionaryBox = WatchConnectivitySendableDictionary(userInfo)
+        enqueueReceived(userInfo)
+    }
+
+    private nonisolated func enqueueReceived(
+        _ dictionary: [String: Any],
+        replyBox: WatchConnectivityReplyHandlerBox? = nil
+    ) {
+        let delivery = WatchConnectivityInboundDelivery(
+            dictionary: dictionary,
+            replyBox: replyBox
+        )
+        guard receiveFIFO.enqueue(delivery) else { return }
+        let fifo = receiveFIFO
         Task { @MainActor [weak self] in
-            self?.receive(dictionaryBox.value)
+            guard let self else {
+                while let abandoned = fifo.dequeue() {
+                    if let replyBox = abandoned.replyBox {
+                        replyBox.fail()
+                    }
+                }
+                return
+            }
+            drainReceiveFIFO()
+        }
+    }
+
+    private func drainReceiveFIFO() {
+        while let delivery = receiveFIFO.dequeue() {
+            receive(delivery.dictionary, replyBox: delivery.replyBox)
         }
     }
 

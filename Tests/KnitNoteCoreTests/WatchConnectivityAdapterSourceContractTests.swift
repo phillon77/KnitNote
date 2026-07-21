@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import KnitNoteCore
 
 @Suite struct WatchConnectivityAdapterSourceContractTests {
     @Test func adaptersIsolateCallbacksAndExposeInjectableSessionOperations() throws {
@@ -33,6 +34,40 @@ import Testing
             #expect(adapter.contains("WatchConnectivityMessageCompletion"))
             #expect(!adapter.contains("guard let dictionary = try? envelope.dictionaryRepresentation() else { return }"))
         }
+    }
+
+    @Test func everyRawReceivePathUsesOneSharedFIFODrain() throws {
+        for path in [
+            "KnitNote/WatchSync/PhoneWatchSession.swift",
+            "KnitNoteWatch/Sync/WatchSession.swift"
+        ] {
+            let adapter = try source(path)
+
+            #expect(adapter.contains("private nonisolated let receiveFIFO"))
+            #expect(adapter.components(separatedBy: "enqueueReceived(").count - 1 == 5)
+            #expect(adapter.contains("while let delivery = receiveFIFO.dequeue()"))
+            #expect(!adapter.contains("Task { @MainActor [weak self] in\n            self?.receive(dictionaryBox.value)"))
+        }
+    }
+
+    @Test func receiveFIFORequestsExactlyOneDrainAndKeepsInsertionOrder() throws {
+        let fifo = WatchConnectivityReceiveFIFO()
+        let deliveries = (0..<4).map {
+            WatchConnectivityInboundDelivery(dictionary: ["sequence": $0], replyBox: nil)
+        }
+
+        #expect(fifo.enqueue(deliveries[0]))
+        #expect(!fifo.enqueue(deliveries[1]))
+        #expect(!fifo.enqueue(deliveries[2]))
+        #expect(!fifo.enqueue(deliveries[3]))
+
+        var received: [Int] = []
+        while let delivery = fifo.dequeue() {
+            received.append(try #require(delivery.dictionary["sequence"] as? Int))
+        }
+        #expect(received == [0, 1, 2, 3])
+
+        #expect(fifo.enqueue(deliveries[0]))
     }
 
     private func source(_ path: String) throws -> String {

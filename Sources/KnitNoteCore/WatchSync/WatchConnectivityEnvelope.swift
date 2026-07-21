@@ -146,6 +146,53 @@ final class WatchConnectivitySendableDictionary: @unchecked Sendable {
     }
 }
 
+final class WatchConnectivityInboundDelivery: @unchecked Sendable {
+    let dictionary: [String: Any]
+    let replyBox: WatchConnectivityReplyHandlerBox?
+
+    init(
+        dictionary: [String: Any],
+        replyBox: WatchConnectivityReplyHandlerBox?
+    ) {
+        self.dictionary = dictionary
+        self.replyBox = replyBox
+    }
+}
+
+final class WatchConnectivityReceiveFIFO: @unchecked Sendable {
+    private let lock = NSLock()
+    private var deliveries: [WatchConnectivityInboundDelivery] = []
+    private var head = 0
+    private var drainScheduled = false
+
+    func enqueue(_ delivery: WatchConnectivityInboundDelivery) -> Bool {
+        lock.withLock {
+            deliveries.append(delivery)
+            guard !drainScheduled else { return false }
+            drainScheduled = true
+            return true
+        }
+    }
+
+    func dequeue() -> WatchConnectivityInboundDelivery? {
+        lock.withLock {
+            guard head < deliveries.count else {
+                deliveries.removeAll(keepingCapacity: true)
+                head = 0
+                drainScheduled = false
+                return nil
+            }
+            let delivery = deliveries[head]
+            head += 1
+            if head == deliveries.count {
+                deliveries.removeAll(keepingCapacity: true)
+                head = 0
+            }
+            return delivery
+        }
+    }
+}
+
 @MainActor
 final class WatchConnectivityMessageCompletion {
     private var reply: WatchConnectivityEnvelopeReply?

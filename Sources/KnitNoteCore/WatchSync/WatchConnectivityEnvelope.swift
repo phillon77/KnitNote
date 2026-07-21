@@ -80,13 +80,13 @@ public enum WatchConnectivityEnvelope: Equatable, Sendable {
 
 public typealias WatchConnectivityEnvelopeReply = @Sendable (WatchConnectivityEnvelope) -> Void
 public typealias WatchConnectivityFailure = @Sendable (Error) -> Void
-public typealias WatchConnectivityReceivedEnvelope = @Sendable (
+public typealias WatchConnectivityReceivedEnvelope = @MainActor @Sendable (
     WatchConnectivityEnvelope,
     WatchConnectivityEnvelopeReply?
 ) -> Void
-public typealias WatchConnectivityReachabilityChanged = @Sendable (Bool) -> Void
-public typealias WatchConnectivityActivationCompleted = @Sendable (Bool, Error?) -> Void
-public typealias WatchConnectivityTransferCompleted = @Sendable (
+public typealias WatchConnectivityReachabilityChanged = @MainActor @Sendable (Bool) -> Void
+public typealias WatchConnectivityActivationCompleted = @MainActor @Sendable (Bool, Error?) -> Void
+public typealias WatchConnectivityTransferCompleted = @MainActor @Sendable (
     WatchConnectivityEnvelope?,
     Error?
 ) -> Void

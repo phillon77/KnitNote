@@ -298,6 +298,123 @@ import Testing
         #expect(restarted.project(id: fixture.projectID)?.counters[0].value == 0)
         #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
     }
+
+    @Test @MainActor func reconciliationDeduplicatesAnAmbiguousReceiptStillInWatchQueue() throws {
+        let fixture = try DurableWatchFixture()
+        let prepared = PreparedWatchCommand(command: fixture.command, expectedCounterRevision: 42)
+        try AtomicWatchSyncFile<PreparedWatchCommand>(url: fixture.preparedURL).save(prepared)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+        #expect(try store.recoverWatchCommandPersistence(
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        ) == .requiresFreshHandshake)
+
+        let state = try store.reconcileWatchQueueHandshakeDurably(
+            queuedCommandIDs: [fixture.command.id],
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        )
+        _ = try store.applyWatchCommandDurably(
+            fixture.command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(2)
+        )
+
+        #expect(state == .ready)
+        #expect(store.project(id: fixture.projectID)?.counters[0].value == 0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
+        let loaded = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()
+        #expect(try #require(loaded).contains(fixture.command.id))
+    }
+
+    @Test @MainActor func reconciliationQuarantinesAnAmbiguousReceiptAbsentFromWatchQueue() throws {
+        let fixture = try DurableWatchFixture()
+        let prepared = PreparedWatchCommand(command: fixture.command, expectedCounterRevision: 42)
+        try AtomicWatchSyncFile<PreparedWatchCommand>(url: fixture.preparedURL).save(prepared)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+        #expect(try store.recoverWatchCommandPersistence(
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        ) == .requiresFreshHandshake)
+
+        let state = try store.reconcileWatchQueueHandshakeDurably(
+            queuedCommandIDs: [],
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(state == .ready)
+        #expect(store.project(id: fixture.projectID)?.counters[0].value == 0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
+        let loaded = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()
+        let ledger = try #require(loaded)
+        #expect(!ledger.requiresFreshHandshake)
+        #expect(!ledger.contains(fixture.command.id))
+        let names = try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path)
+        #expect(names.contains {
+            $0.hasPrefix("prepared-watch-command.corrupt-") && $0.hasSuffix(".json")
+        })
+    }
+
+    @Test @MainActor func healthyHandshakeDoesNotSeedUnprocessedQueueIDs() throws {
+        let fixture = try DurableWatchFixture()
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        let state = try store.reconcileWatchQueueHandshakeDurably(
+            queuedCommandIDs: [fixture.command.id],
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        )
+        _ = try store.applyWatchCommandDurably(
+            fixture.command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(state == .ready)
+        #expect(store.project(id: fixture.projectID)?.counters[0].value == 1)
+    }
+
+    @Test @MainActor func durableResetThenIncrementPreservesCommandOrder() throws {
+        let fixture = try DurableWatchFixture(value: 7)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+        let reset = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .reset
+        )
+        let increment = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .increment
+        )
+
+        _ = try store.applyWatchCommandDurably(
+            reset,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        )
+        _ = try store.applyWatchCommandDurably(
+            increment,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(store.project(id: fixture.projectID)?.counters[0].value == 1)
+    }
 }
 
 private struct InjectedWatchSyncFailure: Error {}

@@ -12,9 +12,11 @@ struct KnitNoteApp: App {
         let projectStore = JSONProjectStore.live()
         _projectStore = StateObject(wrappedValue: projectStore)
 #if os(iOS)
+        let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(projectStore: projectStore)
         _phoneWatchSyncCoordinator = StateObject(
-            wrappedValue: PhoneWatchSyncCoordinator(projectStore: projectStore)
+            wrappedValue: phoneWatchSyncCoordinator
         )
+        phoneWatchSyncCoordinator.start()
 #endif
     }
 
@@ -32,11 +34,6 @@ struct KnitNoteApp: App {
                 .environment(\.locale, appLocale)
                 .environmentObject(projectStore)
                 .preferredColorScheme(.light)
-#if os(iOS)
-                .onAppear {
-                    phoneWatchSyncCoordinator.start()
-                }
-#endif
         }
     }
 }

@@ -163,6 +163,44 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         try ledgerFile.save(ledger)
     }
 
+    public func reconcileWatchQueueHandshakeDurably(
+        queuedCommandIDs: [UUID],
+        ledgerURL: URL,
+        preparedCommandURL: URL,
+        now: Date = .now
+    ) throws -> WatchCommandRecoveryState {
+        let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+        var ledger = try loadLedgerRecoveringCorruption(from: ledgerFile)
+        guard ledger.requiresFreshHandshake else { return .ready }
+
+        let preparedFile = AtomicWatchSyncFile<PreparedWatchCommand>(url: preparedCommandURL)
+        let prepared: PreparedWatchCommand?
+        do {
+            prepared = try preparedFile.load()
+        } catch {
+            try preparedFile.quarantineCorruptFile()
+            prepared = nil
+        }
+
+        let queuedIDs = Set(queuedCommandIDs)
+        if let prepared, !queuedIDs.contains(prepared.command.id) {
+            // This receipt cannot be correlated with work the Watch can replay.
+            // Move it aside before clearing the handshake so recovery cannot loop.
+            try preparedFile.quarantineCorruptFile()
+        }
+
+        for id in queuedCommandIDs where !ledger.contains(id) {
+            ledger.record(id, at: now)
+        }
+        ledger.markHandshakeComplete()
+        try ledgerFile.save(ledger)
+
+        if let prepared, queuedIDs.contains(prepared.command.id) {
+            try removePreparedCommand(at: preparedCommandURL)
+        }
+        return .ready
+    }
+
     private func loadLedgerRecoveringCorruption(
         from file: AtomicWatchSyncFile<ProcessedWatchCommandLedger>
     ) throws -> ProcessedWatchCommandLedger {

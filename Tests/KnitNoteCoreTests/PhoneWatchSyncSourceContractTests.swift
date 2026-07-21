@@ -8,6 +8,7 @@ import Testing
         #expect(app.contains("@StateObject private var phoneWatchSyncCoordinator"))
         #expect(app.contains("PhoneWatchSyncCoordinator("))
         #expect(app.contains("phoneWatchSyncCoordinator.start()"))
+        #expect(!app.contains(".onAppear"))
     }
 
     @Test func coordinatorObservesProjectChangesAndSerializesIncomingEnvelopes() throws {
@@ -38,9 +39,49 @@ import Testing
     @Test func queueHandshakeOnlySeedsIDsDuringRecovery() throws {
         let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
 
-        #expect(coordinator.contains("if requiresFreshHandshake {"))
-        #expect(coordinator.contains("completeWatchQueueHandshake("))
-        #expect(coordinator.contains("recoverWatchCommandPersistence("))
+        #expect(coordinator.contains("recoveryState: WatchCommandRecoveryState?"))
+        #expect(coordinator.contains("reconcileWatchQueueHandshakeDurably("))
+        #expect(!coordinator.contains("completeWatchQueueHandshake("))
+    }
+
+    @Test func transientCommandFailureNeverAcknowledgesTheCommand() throws {
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+
+        #expect(!coordinator.contains("rejection: .storageFailure"))
+        #expect(coordinator.contains("catch WatchCommandPersistenceError.requiresFreshHandshake"))
+        #expect(coordinator.contains("catch {\n            recoveryState = nil\n            sendSnapshot(reply: reply)"))
+    }
+
+    @Test func ingressEnqueuesSynchronouslyBeforeAnotherCallbackCanOvertakeIt() throws {
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+        let ingress = try #require(coordinator.range(of: "transport.onReceivedEnvelope"))
+        let nextCallback = try #require(
+            coordinator.range(of: "transport.onActivationCompleted", range: ingress.upperBound..<coordinator.endIndex)
+        )
+        let callbackBody = coordinator[ingress.lowerBound..<nextCallback.lowerBound]
+
+        #expect(callbackBody.contains("self?.enqueue(envelope, reply: reply)"))
+        #expect(!callbackBody.contains("Task {"))
+    }
+
+    @Test func failedApplicationContextPublicationRemainsDirty() throws {
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+        let publish = try #require(coordinator.range(of: "private func publish(_ snapshot:"))
+        let suffix = coordinator[publish.lowerBound...]
+        let update = try #require(suffix.range(of: "try transport.updateApplicationContext"))
+        let marker = try #require(suffix.range(of: "lastPublishedProjects = snapshot.projects"))
+
+        #expect(update.lowerBound < marker.lowerBound)
+        #expect(coordinator.contains("publishLatestSnapshotIfChanged()"))
+    }
+
+    @Test func startupSeparatesOneTimeSetupFromRetryableActivation() throws {
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+
+        #expect(coordinator.contains("private func configureOnce()"))
+        #expect(coordinator.contains("private func activate()"))
+        #expect(coordinator.contains("scheduleActivationRetry()"))
+        #expect(coordinator.contains("activationRetryTask"))
     }
 
     private func source(_ path: String) throws -> String {

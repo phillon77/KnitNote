@@ -13,9 +13,11 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
 
     private var projectSubscription: AnyCancellable?
     private var serialTask: Task<Void, Never> = Task {}
+    private var activationRetryTask: Task<Void, Never>?
     private var lastPublishedProjects: [WatchProjectSnapshot]?
-    private var requiresFreshHandshake = false
-    private var hasStarted = false
+    private var recoveryState: WatchCommandRecoveryState?
+    private var isConfigured = false
+    private var isActivating = false
 
     init(
         projectStore: JSONProjectStore,
@@ -36,25 +38,32 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     }
 
     func start() {
-        guard !hasStarted else { return }
-        hasStarted = true
+        configureOnce()
+        activate()
+        publishLatestSnapshotIfChanged()
+    }
+
+    private func configureOnce() {
+        guard !isConfigured else { return }
+        isConfigured = true
 
         transport.onReceivedEnvelope = { [weak self] envelope, reply in
-            Task { @MainActor in
-                _ = self?.enqueue(envelope, reply: reply)
-            }
+            _ = self?.enqueue(envelope, reply: reply)
         }
         transport.onActivationCompleted = { [weak self] activated, _ in
-            guard activated else { return }
-            Task { @MainActor in
-                self?.publishLatestSnapshot()
+            guard let self else { return }
+            isActivating = false
+            if activated {
+                activationRetryTask?.cancel()
+                activationRetryTask = nil
+                publishLatestSnapshotIfChanged()
+            } else {
+                scheduleActivationRetry()
             }
         }
         transport.onReachabilityChanged = { [weak self] reachable in
             guard reachable else { return }
-            Task { @MainActor in
-                self?.publishLatestSnapshotIfChanged()
-            }
+            self?.publishLatestSnapshotIfChanged()
         }
 
         projectSubscription = projectStore.$projects
@@ -67,17 +76,30 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
             }
 
         do {
-            requiresFreshHandshake = try projectStore.recoverWatchCommandPersistence(
+            recoveryState = try projectStore.recoverWatchCommandPersistence(
                 ledgerURL: ledgerURL,
                 preparedCommandURL: preparedCommandURL,
                 now: now()
-            ) == .requiresFreshHandshake
+            )
         } catch {
-            requiresFreshHandshake = true
+            recoveryState = nil
         }
+    }
 
+    private func activate() {
+        guard !isActivating else { return }
+        isActivating = true
         transport.activate()
-        publishLatestSnapshot()
+    }
+
+    private func scheduleActivationRetry() {
+        guard activationRetryTask == nil else { return }
+        activationRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            activationRetryTask = nil
+            activate()
+        }
     }
 
     func publishLatestSnapshot() {
@@ -125,40 +147,35 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         _ command: WatchCounterCommand,
         reply: WatchConnectivityEnvelopeReply?
     ) {
-        guard !requiresFreshHandshake else {
+        guard recoveryState != .requiresFreshHandshake else {
             // A snapshot reply is deliberately not an acknowledgement: the Watch
             // retains this command and includes its ID in the required handshake.
             sendSnapshot(reply: reply)
             return
         }
 
-        let acknowledgement: WatchCommandAcknowledgement
         do {
-            acknowledgement = try projectStore.applyWatchCommandDurably(
+            let acknowledgement = try projectStore.applyWatchCommandDurably(
                 command,
                 ledgerURL: ledgerURL,
                 preparedCommandURL: preparedCommandURL,
                 now: now()
             )
+            recoveryState = .ready
+            let envelope = WatchConnectivityEnvelope.acknowledgement(acknowledgement)
+            if let reply {
+                reply(envelope)
+            } else {
+                transport.transferUserInfo(envelope)
+            }
+            publish(acknowledgement.snapshot)
         } catch WatchCommandPersistenceError.requiresFreshHandshake {
-            requiresFreshHandshake = true
+            recoveryState = .requiresFreshHandshake
             sendSnapshot(reply: reply)
-            return
         } catch {
-            acknowledgement = WatchCommandAcknowledgement(
-                commandID: command.id,
-                rejection: .storageFailure,
-                snapshot: latestSnapshot()
-            )
+            recoveryState = nil
+            sendSnapshot(reply: reply)
         }
-
-        let envelope = WatchConnectivityEnvelope.acknowledgement(acknowledgement)
-        if let reply {
-            reply(envelope)
-        } else {
-            transport.transferUserInfo(envelope)
-        }
-        publish(acknowledgement.snapshot)
     }
 
     private func handleQueueHandshake(
@@ -166,26 +183,21 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         reply: WatchConnectivityEnvelopeReply?
     ) {
         do {
-            let recovery = try projectStore.recoverWatchCommandPersistence(
+            recoveryState = try projectStore.recoverWatchCommandPersistence(
                 ledgerURL: ledgerURL,
                 preparedCommandURL: preparedCommandURL,
                 now: now()
             )
-            requiresFreshHandshake = requiresFreshHandshake || recovery == .requiresFreshHandshake
-            if requiresFreshHandshake {
-                try projectStore.completeWatchQueueHandshake(
+            if recoveryState == .requiresFreshHandshake {
+                recoveryState = try projectStore.reconcileWatchQueueHandshakeDurably(
                     queuedCommandIDs: commandIDs,
-                    ledgerURL: ledgerURL,
-                    now: now()
-                )
-                requiresFreshHandshake = try projectStore.recoverWatchCommandPersistence(
                     ledgerURL: ledgerURL,
                     preparedCommandURL: preparedCommandURL,
                     now: now()
-                ) == .requiresFreshHandshake
+                )
             }
         } catch {
-            requiresFreshHandshake = true
+            recoveryState = nil
         }
         sendSnapshot(reply: reply)
     }
@@ -208,8 +220,13 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     }
 
     private func publish(_ snapshot: WatchSyncSnapshot) {
-        lastPublishedProjects = snapshot.projects
-        try? transport.updateApplicationContext(.snapshot(snapshot))
+        do {
+            try transport.updateApplicationContext(.snapshot(snapshot))
+            lastPublishedProjects = snapshot.projects
+        } catch {
+            // Leave the marker unchanged so start, reachability, or the next
+            // project event retries this exact authoritative payload.
+        }
     }
 
     private func latestSnapshot() -> WatchSyncSnapshot {

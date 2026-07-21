@@ -328,6 +328,7 @@ enum ProjectJournalPhotoReferencePolicy {
         ledger: inout ProcessedWatchCommandLedger,
         now: Date = .now
     ) throws -> WatchCommandAcknowledgement {
+        try ensureArchiveAvailable()
         if ledger.contains(command.id) {
             return try watchAcknowledgement(for: command.id, rejection: nil, now: now)
         }

@@ -289,6 +289,47 @@ import Testing
         #expect(fixture.store.project(id: project.id)?.counters[0].value == 0)
         #expect(!ledger.contains(command.id))
     }
+
+    @Test @MainActor func unreadableArchiveKeepsNewCommandRetryable() throws {
+        let archiveURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try Data("not JSON".utf8).write(to: archiveURL, options: .atomic)
+        let store = JSONProjectStore(url: archiveURL)
+        let command = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .increment
+        )
+        var ledger = ProcessedWatchCommandLedger()
+
+        #expect(store.loadError == .unreadableArchive)
+        #expect(throws: ProjectStoreError.archiveUnavailable) {
+            try store.applyWatchCommand(command, ledger: &ledger, now: date(1_000))
+        }
+        #expect(store.projects.isEmpty)
+        #expect(ledger.entries.isEmpty)
+    }
+
+    @Test @MainActor func unreadableArchiveIsCheckedBeforeDuplicateLookup() throws {
+        let archiveURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try Data("not JSON".utf8).write(to: archiveURL, options: .atomic)
+        let store = JSONProjectStore(url: archiveURL)
+        let command = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .increment
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(command.id, at: date(900))
+        let unchangedLedger = ledger
+
+        #expect(throws: ProjectStoreError.archiveUnavailable) {
+            try store.applyWatchCommand(command, ledger: &ledger, now: date(1_000))
+        }
+        #expect(store.projects.isEmpty)
+        #expect(ledger == unchangedLedger)
+    }
 }
 
 private func date(_ seconds: TimeInterval) -> Date {

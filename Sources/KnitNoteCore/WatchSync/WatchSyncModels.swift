@@ -24,7 +24,7 @@ public struct WatchProjectSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let name: String
     public let isCompleted: Bool
     public let updatedAt: Date
-    public var counters: [WatchCounterSnapshot]
+    public let counters: [WatchCounterSnapshot]
     public let selectedCounterID: UUID
 
     public init(
@@ -82,6 +82,18 @@ public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
         self.generatedAt = generatedAt
         self.projects = projects
     }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard schemaVersion == Self.currentSchemaVersion else {
+            throw WatchSyncValidationError.unsupportedSchema
+        }
+
+        self.schemaVersion = schemaVersion
+        self.generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+        self.projects = try container.decode([WatchProjectSnapshot].self, forKey: .projects)
+    }
 }
 
 public enum WatchCounterOperation: String, Codable, Equatable, Sendable {
@@ -115,6 +127,21 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         self.operation = operation
         self.createdAt = createdAt
     }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard schemaVersion == Self.currentSchemaVersion else {
+            throw WatchSyncValidationError.unsupportedSchema
+        }
+
+        self.schemaVersion = schemaVersion
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.projectID = try container.decode(UUID.self, forKey: .projectID)
+        self.counterID = try container.decode(UUID.self, forKey: .counterID)
+        self.operation = try container.decode(WatchCounterOperation.self, forKey: .operation)
+        self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+    }
 }
 
 public enum WatchCommandRejection: String, Codable, Equatable, Sendable {
@@ -141,17 +168,6 @@ public enum WatchSyncCodec {
     public static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .millisecondsSince1970
-        let value = try decoder.decode(type, from: data)
-
-        if let snapshot = value as? WatchSyncSnapshot,
-           snapshot.schemaVersion != WatchSyncSnapshot.currentSchemaVersion {
-            throw WatchSyncValidationError.unsupportedSchema
-        }
-        if let command = value as? WatchCounterCommand,
-           command.schemaVersion != WatchCounterCommand.currentSchemaVersion {
-            throw WatchSyncValidationError.unsupportedSchema
-        }
-
-        return value
+        return try decoder.decode(type, from: data)
     }
 }

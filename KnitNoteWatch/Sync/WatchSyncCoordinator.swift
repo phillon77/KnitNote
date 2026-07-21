@@ -6,6 +6,7 @@ import Foundation
 final class WatchSyncCoordinator: ObservableObject {
     @Published private(set) var snapshot: WatchSyncSnapshot?
     @Published private(set) var pendingCount: Int
+    @Published private(set) var pendingCounterIDs: Set<UUID>
     @Published private(set) var selectedProjectID: UUID?
     @Published private(set) var selectedCounterID: UUID?
     @Published private(set) var localizedErrorReason: String?
@@ -16,11 +17,15 @@ final class WatchSyncCoordinator: ObservableObject {
     private let localize: (String) -> String
 
     private var state: WatchOptimisticState
+    private var deliveryState = WatchHeadDeliveryState()
     private var requiresSnapshot: Bool
-    private var isStarted = false
-    private var isHandshakeInFlight = false
+    private var isConfigured = false
+    private var isActivating = false
+    private var isActivated = false
     private var reachableHandshakeCompleted = false
-    private var interactiveCommandID: UUID?
+    private var handshakeAttemptID: UUID?
+    private var activationRetryTask: Task<Void, Never>?
+    private var handshakeRetryTask: Task<Void, Never>?
 
     init(
         transport: (any WatchConnectivityTransport)? = nil,
@@ -51,15 +56,14 @@ final class WatchSyncCoordinator: ObservableObject {
         requiresSnapshot = recovery.requiresSnapshot
         snapshot = state.snapshot
         pendingCount = state.pendingCommands.count
+        pendingCounterIDs = state.pendingCounterIDs
         selectedProjectID = state.selectedProjectID
         selectedCounterID = state.selectedCounterID
     }
 
     func start() {
-        guard !isStarted else { return }
-        isStarted = true
-        configureTransport()
-        transport.activate()
+        configureOnce()
+        activate()
 
         if requiresSnapshot {
             requestSnapshotInBackground()
@@ -76,6 +80,10 @@ final class WatchSyncCoordinator: ObservableObject {
 
     func reset(projectID: UUID, counterID: UUID) {
         enqueue(projectID: projectID, counterID: counterID, operation: .reset)
+    }
+
+    func hasPending(projectID: UUID, counterID: UUID) -> Bool {
+        state.hasPending(projectID: projectID, counterID: counterID)
     }
 
     func selectProject(_ projectID: UUID?) {
@@ -105,15 +113,29 @@ final class WatchSyncCoordinator: ObservableObject {
         }
     }
 
-    private func configureTransport() {
+    private func configureOnce() {
+        guard !isConfigured else { return }
+        isConfigured = true
+
         transport.onActivationCompleted = { [weak self] activated, _ in
-            guard let self, activated else { return }
-            reachableHandshakeCompleted = false
-            beginHandshakeAndReplay()
+            guard let self else { return }
+            invalidateDeliveryAttempts()
+            isActivating = false
+            isActivated = activated
+            if activated {
+                activationRetryTask?.cancel()
+                activationRetryTask = nil
+                beginHandshakeAndReplay()
+            } else {
+                scheduleActivationRetry()
+            }
         }
         transport.onReachabilityChanged = { [weak self] reachable in
-            guard let self, reachable else { return }
-            reachableHandshakeCompleted = false
+            guard let self else { return }
+            invalidateDeliveryAttempts()
+            guard reachable else {
+                return
+            }
             beginHandshakeAndReplay()
         }
         transport.onTransferCompleted = { _, _ in
@@ -122,6 +144,28 @@ final class WatchSyncCoordinator: ObservableObject {
         }
         transport.onReceivedEnvelope = { [weak self] envelope, _ in
             self?.receive(envelope)
+        }
+    }
+
+    private func invalidateDeliveryAttempts() {
+        reachableHandshakeCompleted = false
+        handshakeAttemptID = nil
+        deliveryState.cancelInteractiveDelivery()
+    }
+
+    private func activate() {
+        guard isConfigured, !isActivating, !isActivated else { return }
+        isActivating = true
+        transport.activate()
+    }
+
+    private func scheduleActivationRetry() {
+        guard activationRetryTask == nil else { return }
+        activationRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            activationRetryTask = nil
+            activate()
         }
     }
 
@@ -145,13 +189,10 @@ final class WatchSyncCoordinator: ObservableObject {
         guard persistThenPublish(candidate) else { return }
         localizedErrorReason = nil
 
-        if transport.isReachable, reachableHandshakeCompleted {
-            sendNextPendingInteractively()
+        if reachableHandshakeCompleted {
+            deliverHeadIfNeeded()
         } else {
-            if transport.isReachable {
-                beginHandshakeAndReplay(transferPendingCommands: false)
-            }
-            transport.transferUserInfo(.command(command))
+            beginHandshakeAndReplay()
         }
     }
 
@@ -171,6 +212,7 @@ final class WatchSyncCoordinator: ObservableObject {
     private func publish(_ candidate: WatchOptimisticState) {
         snapshot = candidate.snapshot
         pendingCount = candidate.pendingCommands.count
+        pendingCounterIDs = candidate.pendingCounterIDs
         selectedProjectID = candidate.selectedProjectID
         selectedCounterID = candidate.selectedCounterID
     }
@@ -186,82 +228,112 @@ final class WatchSyncCoordinator: ObservableObject {
         var candidate = state
         guard candidate.acknowledge(acknowledgement) else { return }
         guard persistThenPublish(candidate) else {
-            interactiveCommandID = nil
+            deliveryState.cancelInteractiveDelivery()
+            reachableHandshakeCompleted = false
+            beginHandshakeAndReplay()
             return
         }
 
-        if interactiveCommandID == acknowledgement.commandID {
-            interactiveCommandID = nil
-        }
+        _ = deliveryState.acknowledge(acknowledgement.commandID)
         if let rejection = acknowledgement.rejection {
             setError(rejection)
         } else {
             localizedErrorReason = nil
         }
-        sendNextPendingInteractively()
+        deliverHeadIfNeeded()
     }
 
-    private func beginHandshakeAndReplay(transferPendingCommands: Bool = true) {
+    private func beginHandshakeAndReplay() {
+        reachableHandshakeCompleted = false
+        deliveryState.cancelInteractiveDelivery()
         let handshake = WatchConnectivityEnvelope.queueHandshake(
             state.pendingCommands.map(\.id)
         )
         transport.transferUserInfo(handshake)
-        if transferPendingCommands {
-            for command in state.pendingCommands {
-                transport.transferUserInfo(.command(command))
-            }
-        }
+        deliverHeadIfNeeded()
 
-        guard transport.isReachable, !isHandshakeInFlight else { return }
-        isHandshakeInFlight = true
+        guard transport.isReachable, handshakeAttemptID == nil else { return }
+        let attemptID = UUID()
+        handshakeAttemptID = attemptID
         transport.sendMessage(
             handshake,
             reply: { [weak self] envelope in
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    isHandshakeInFlight = false
+                    guard let self, handshakeAttemptID == attemptID else { return }
+                    handshakeAttemptID = nil
+                    handshakeRetryTask?.cancel()
+                    handshakeRetryTask = nil
                     receive(envelope)
                     reachableHandshakeCompleted = true
-                    sendNextPendingInteractively()
+                    deliverHeadIfNeeded()
                 }
             },
             failure: { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    self?.isHandshakeInFlight = false
+                    guard let self, handshakeAttemptID == attemptID else { return }
+                    handshakeAttemptID = nil
+                    scheduleHandshakeRetry()
                 }
             }
         )
     }
 
-    private func sendNextPendingInteractively() {
-        guard reachableHandshakeCompleted,
-              transport.isReachable,
-              interactiveCommandID == nil,
-              let command = state.pendingCommands.first
-        else {
-            return
+    private func deliverHeadIfNeeded() {
+        guard let command = state.nextPendingCommand else { return }
+
+        if deliveryState.prepareBackgroundTransfer(for: command.id) {
+            transport.transferUserInfo(.command(command))
         }
 
-        interactiveCommandID = command.id
+        guard reachableHandshakeCompleted, transport.isReachable else { return }
+        let attemptID = UUID()
+        guard deliveryState.beginInteractiveDelivery(
+            for: command.id,
+            attemptID: attemptID
+        ) != nil else { return }
+
         transport.sendMessage(
             .command(command),
             reply: { [weak self] envelope in
                 Task { @MainActor [weak self] in
-                    guard let self, interactiveCommandID == command.id else { return }
-                    receive(envelope)
-                    if interactiveCommandID == command.id {
-                        interactiveCommandID = nil
+                    guard let self, deliveryState.finishInteractiveDelivery(
+                        commandID: command.id,
+                        attemptID: attemptID
+                    ) else { return }
+
+                    switch envelope {
+                    case let .acknowledgement(acknowledgement)
+                        where acknowledgement.commandID == command.id:
+                        receive(envelope)
+                    case .snapshot:
+                        receive(envelope)
+                        beginHandshakeAndReplay()
+                    default:
+                        receive(envelope)
+                        beginHandshakeAndReplay()
                     }
                 }
             },
             failure: { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    guard self?.interactiveCommandID == command.id else { return }
-                    self?.interactiveCommandID = nil
+                    guard let self, deliveryState.finishInteractiveDelivery(
+                        commandID: command.id,
+                        attemptID: attemptID
+                    ) else { return }
+                    beginHandshakeAndReplay()
                 }
             }
         )
-        transport.transferUserInfo(.command(command))
+    }
+
+    private func scheduleHandshakeRetry() {
+        guard handshakeRetryTask == nil else { return }
+        handshakeRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            handshakeRetryTask = nil
+            beginHandshakeAndReplay()
+        }
     }
 
     private func requestSnapshotInBackground() {

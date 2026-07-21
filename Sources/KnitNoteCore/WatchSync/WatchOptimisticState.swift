@@ -30,6 +30,20 @@ public struct WatchOptimisticState: Equatable, Sendable {
         )
     }
 
+    public var nextPendingCommand: WatchCounterCommand? {
+        pendingCommands.first
+    }
+
+    public var pendingCounterIDs: Set<UUID> {
+        Set(pendingCommands.map(\.counterID))
+    }
+
+    public func hasPending(projectID: UUID, counterID: UUID) -> Bool {
+        pendingCommands.contains {
+            $0.projectID == projectID && $0.counterID == counterID
+        }
+    }
+
     @discardableResult
     public mutating func makeAndEnqueue(
         projectID: UUID,
@@ -71,13 +85,11 @@ public struct WatchOptimisticState: Equatable, Sendable {
 
     @discardableResult
     public mutating func acknowledge(_ acknowledgement: WatchCommandAcknowledgement) -> Bool {
-        guard let index = pendingCommands.firstIndex(where: {
-            $0.id == acknowledgement.commandID
-        }) else {
+        guard pendingCommands.first?.id == acknowledgement.commandID else {
             return false
         }
 
-        pendingCommands.remove(at: index)
+        pendingCommands.removeFirst()
         authoritativeSnapshot = acknowledgement.snapshot
         repairSelection()
         return true
@@ -175,5 +187,54 @@ public struct WatchOptimisticState: Equatable, Sendable {
             generatedAt: snapshot.generatedAt,
             projects: projects
         )
+    }
+}
+
+public struct WatchHeadDeliveryState: Equatable, Sendable {
+    public private(set) var headCommandID: UUID?
+    public private(set) var interactiveAttemptID: UUID?
+    private var backgroundTransferPrepared = false
+
+    public init() {}
+
+    public mutating func prepareBackgroundTransfer(for commandID: UUID) -> Bool {
+        if let headCommandID {
+            guard headCommandID == commandID else { return false }
+        } else {
+            headCommandID = commandID
+        }
+        guard !backgroundTransferPrepared else { return false }
+        backgroundTransferPrepared = true
+        return true
+    }
+
+    public mutating func beginInteractiveDelivery(
+        for commandID: UUID,
+        attemptID: UUID = UUID()
+    ) -> UUID? {
+        guard headCommandID == commandID, interactiveAttemptID == nil else { return nil }
+        interactiveAttemptID = attemptID
+        return attemptID
+    }
+
+    @discardableResult
+    public mutating func finishInteractiveDelivery(
+        commandID: UUID,
+        attemptID: UUID
+    ) -> Bool {
+        guard headCommandID == commandID, interactiveAttemptID == attemptID else { return false }
+        interactiveAttemptID = nil
+        return true
+    }
+
+    public mutating func cancelInteractiveDelivery() {
+        interactiveAttemptID = nil
+    }
+
+    @discardableResult
+    public mutating func acknowledge(_ commandID: UUID) -> Bool {
+        guard headCommandID == commandID else { return false }
+        self = WatchHeadDeliveryState()
+        return true
     }
 }

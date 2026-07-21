@@ -109,6 +109,51 @@ import Testing
         #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 5)
     }
 
+    @Test func acknowledgementForLaterCommandCannotAdvancePastQueueHead() throws {
+        let fixture = try Fixture(value: 4)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let first = fixture.command(.increment, offset: 1)
+        let second = fixture.command(.increment, offset: 2)
+        #expect(state.enqueue(first) == nil)
+        #expect(state.enqueue(second) == nil)
+
+        let acknowledged = state.acknowledge(.init(
+            commandID: second.id,
+            rejection: nil,
+            snapshot: try fixture.snapshot(value: 6)
+        ))
+
+        #expect(!acknowledged)
+        #expect(state.pendingCommands == [first, second])
+        #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 6)
+    }
+
+    @Test func duplicateHeadAcknowledgementCannotRegressNextPendingCommand() throws {
+        let fixture = try Fixture(value: 4)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let first = fixture.command(.increment, offset: 1)
+        let second = fixture.command(.increment, offset: 2)
+        #expect(state.enqueue(first) == nil)
+        #expect(state.enqueue(second) == nil)
+        let firstAcknowledged = state.acknowledge(.init(
+            commandID: first.id,
+            rejection: nil,
+            snapshot: try fixture.snapshot(value: 5)
+        ))
+        #expect(firstAcknowledged)
+
+        let duplicate = state.acknowledge(.init(
+            commandID: first.id,
+            rejection: nil,
+            snapshot: try fixture.snapshot(value: 99)
+        ))
+
+        #expect(!duplicate)
+        #expect(state.nextPendingCommand == second)
+        #expect(state.pendingCommands == [second])
+        #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 6)
+    }
+
     @Test func retryKeepsTheOriginalCommandIdentity() throws {
         let fixture = try Fixture(value: 0)
         var state = WatchOptimisticState(cache: fixture.cache)
@@ -192,6 +237,47 @@ import Testing
         #expect(state.selectedCounterID == fixture.counterIDs[1])
     }
 
+    @Test func pendingStateIsQueryablePerCounter() throws {
+        let fixture = try Fixture(value: 4)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let first = fixture.command(.increment)
+        let second = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterIDs[1],
+            operation: .reset
+        )
+        #expect(state.enqueue(first) == nil)
+        #expect(state.enqueue(second) == nil)
+
+        #expect(state.nextPendingCommand == first)
+        #expect(state.pendingCounterIDs == Set([fixture.counterID, fixture.counterIDs[1]]))
+        #expect(state.hasPending(projectID: fixture.projectID, counterID: fixture.counterID))
+        #expect(!state.hasPending(projectID: UUID(), counterID: fixture.counterID))
+    }
+
+    @Test func headDeliveryTransfersOnceAndAdvancesOnlyAfterMatchingAck() throws {
+        let fixture = try Fixture(value: 0)
+        let first = fixture.command(.increment, offset: 1)
+        let second = fixture.command(.increment, offset: 2)
+        var delivery = WatchHeadDeliveryState()
+
+        let firstTransfer = delivery.prepareBackgroundTransfer(for: first.id)
+        let duplicateTransfer = delivery.prepareBackgroundTransfer(for: first.id)
+        let overtakingTransfer = delivery.prepareBackgroundTransfer(for: second.id)
+        #expect(firstTransfer)
+        #expect(!duplicateTransfer)
+        #expect(!overtakingTransfer)
+        #expect(delivery.headCommandID == first.id)
+
+        let firstAck = delivery.acknowledge(first.id)
+        let secondTransfer = delivery.prepareBackgroundTransfer(for: second.id)
+        let duplicateAck = delivery.acknowledge(first.id)
+        #expect(firstAck)
+        #expect(secondTransfer)
+        #expect(!duplicateAck)
+        #expect(delivery.headCommandID == second.id)
+    }
+
     @Test func coordinatorSourcePreservesDurabilityAndReplayContracts() throws {
         let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
 
@@ -214,7 +300,9 @@ import Testing
         #expect(coordinator.contains("candidate.acknowledge(acknowledgement)"))
         #expect(coordinator.contains("case .queueHandshake:"))
         #expect(coordinator.contains("pendingCommands.map(\\.id)"))
-        #expect(coordinator.contains("for command in state.pendingCommands"))
+        #expect(!coordinator.contains("for command in state.pendingCommands"))
+        #expect(coordinator.contains("state.nextPendingCommand"))
+        #expect(coordinator.contains("private func deliverHeadIfNeeded()"))
 
         let transferCompletion = try #require(coordinator.range(of: "onTransferCompleted ="))
         let receiveConfiguration = try #require(coordinator.range(
@@ -239,10 +327,10 @@ import Testing
     @Test func transportCompletionsHopToMainActorAndDoNotOvertakeQueueHead() throws {
         let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
 
-        #expect(coordinator.components(separatedBy: "Task { @MainActor").count - 1 == 4)
-        #expect(coordinator.contains("if transport.isReachable, reachableHandshakeCompleted"))
+        #expect(coordinator.components(separatedBy: "Task { @MainActor").count - 1 >= 4)
+        #expect(coordinator.contains("reachableHandshakeCompleted"))
 
-        let sendNext = try #require(coordinator.range(of: "private func sendNextPendingInteractively()"))
+        let sendNext = try #require(coordinator.range(of: "private func deliverHeadIfNeeded()"))
         let requestSnapshot = try #require(coordinator.range(
             of: "private func requestSnapshotInBackground()",
             range: sendNext.upperBound..<coordinator.endIndex
@@ -250,7 +338,22 @@ import Testing
         let sendNextBody = coordinator[sendNext.lowerBound..<requestSnapshot.lowerBound]
         let interactiveSend = try #require(sendNextBody.range(of: "transport.sendMessage("))
         let retainedTransfer = try #require(sendNextBody.range(of: "transport.transferUserInfo(.command(command))"))
-        #expect(interactiveSend.lowerBound < retainedTransfer.lowerBound)
+        #expect(retainedTransfer.lowerBound < interactiveSend.lowerBound)
+    }
+
+    @Test func coordinatorRetriesLifecycleAndPublishesPerCounterPendingState() throws {
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+
+        #expect(coordinator.contains("@Published private(set) var pendingCounterIDs"))
+        #expect(coordinator.contains("func hasPending(projectID: UUID, counterID: UUID)"))
+        #expect(coordinator.contains("private func configureOnce()"))
+        #expect(coordinator.contains("private func activate()"))
+        #expect(coordinator.contains("scheduleActivationRetry()"))
+        #expect(coordinator.contains("activationRetryTask"))
+        #expect(coordinator.contains("private func invalidateDeliveryAttempts()"))
+        #expect(coordinator.components(separatedBy: "invalidateDeliveryAttempts()").count - 1 >= 3)
+        #expect(coordinator.contains("case .snapshot:"))
+        #expect(coordinator.contains("beginHandshakeAndReplay()"))
     }
 
     private func source(_ path: String) throws -> String {

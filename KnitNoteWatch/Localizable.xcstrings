@@ -1,9 +1,20 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "project.completeRow" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "+1 Row" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "+1 排" } } } },
-    "project.undo" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Undo" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "復原" } } } },
-    "sample.projectName" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "My First Scarf" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "我的第一條圍巾" } } } }
+    "watch.counter.actions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Counter actions" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "計數器操作" } } } },
+    "watch.counter.cancel" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消" } } } },
+    "watch.counter.decrement" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease by 1" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "減 1" } } } },
+    "watch.counter.incrementHint" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Increment by 1" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加 1" } } } },
+    "watch.counter.reset" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset to zero" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "歸零" } } } },
+    "watch.project.completed" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已完成" } } } },
+    "watch.projects.empty" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No projects yet" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "尚無作品" } } } },
+    "watch.projects.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Projects" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "作品" } } } },
+    "watch.sync.error.counterMissing" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This counter is no longer available." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此計數器已不存在" } } } },
+    "watch.sync.error.projectCompleted" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed project; counters are read-only." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "作品已完成，計數器僅供查看" } } } },
+    "watch.sync.error.projectMissing" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This project is no longer available." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此作品已不存在" } } } },
+    "watch.sync.error.storageFailure" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't save this counter change." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存此計數器變更" } } } },
+    "watch.sync.error.unsupportedSchema" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Update KnitNote on iPhone and Apple Watch to continue syncing." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請更新 iPhone 與 Apple Watch 上的 KnitNote 以繼續同步" } } } },
+    "watch.sync.pending" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Waiting to sync" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "待同步" } } } }
   },
   "version" : "1.0"
 }

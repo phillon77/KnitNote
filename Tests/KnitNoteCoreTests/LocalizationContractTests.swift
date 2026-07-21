@@ -2,6 +2,38 @@ import Foundation
 import Testing
 
 @Suite struct LocalizationContractTests {
+    private let requiredWatchTranslations = [
+        "watch.projects.title": ["en": "Projects", "zh-Hant": "作品"],
+        "watch.projects.empty": ["en": "No projects yet", "zh-Hant": "尚無作品"],
+        "watch.project.completed": ["en": "Completed", "zh-Hant": "已完成"],
+        "watch.sync.pending": ["en": "Waiting to sync", "zh-Hant": "待同步"],
+        "watch.sync.error.projectCompleted": [
+            "en": "Completed project; counters are read-only.",
+            "zh-Hant": "作品已完成，計數器僅供查看",
+        ],
+        "watch.sync.error.projectMissing": [
+            "en": "This project is no longer available.",
+            "zh-Hant": "此作品已不存在",
+        ],
+        "watch.sync.error.counterMissing": [
+            "en": "This counter is no longer available.",
+            "zh-Hant": "此計數器已不存在",
+        ],
+        "watch.sync.error.unsupportedSchema": [
+            "en": "Update KnitNote on iPhone and Apple Watch to continue syncing.",
+            "zh-Hant": "請更新 iPhone 與 Apple Watch 上的 KnitNote 以繼續同步",
+        ],
+        "watch.sync.error.storageFailure": [
+            "en": "Couldn't save this counter change.",
+            "zh-Hant": "無法儲存此計數器變更",
+        ],
+        "watch.counter.incrementHint": ["en": "Increment by 1", "zh-Hant": "加 1"],
+        "watch.counter.actions": ["en": "Counter actions", "zh-Hant": "計數器操作"],
+        "watch.counter.decrement": ["en": "Decrease by 1", "zh-Hant": "減 1"],
+        "watch.counter.reset": ["en": "Reset to zero", "zh-Hant": "歸零"],
+        "watch.counter.cancel": ["en": "Cancel", "zh-Hant": "取消"],
+    ]
+
     private let requiredYarnKeys = [
         "yarn.library.title",
         "yarn.create",
@@ -218,6 +250,20 @@ import Testing
                 let translation = try #require(translations[language] as? [String: Any])
                 let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
                 #expect(!(try #require(stringUnit["value"] as? String)).isEmpty)
+            }
+        }
+    }
+
+    @Test func watchStringsHaveCompleteExactEnglishAndTraditionalChineseCopy() throws {
+        let strings = try watchCatalogStrings()
+
+        for (key, expectedValues) in requiredWatchTranslations {
+            let entry = try #require(strings[key] as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            for (language, expectedValue) in expectedValues {
+                let translation = try #require(localizations[language] as? [String: Any])
+                let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
+                #expect(stringUnit["value"] as? String == expectedValue)
             }
         }
     }
@@ -595,6 +641,13 @@ import Testing
     private func catalogStrings() throws -> [String: Any] {
         let root = repositoryRoot
         let catalogURL = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return try #require(catalog["strings"] as? [String: Any])
+    }
+
+    private func watchCatalogStrings() throws -> [String: Any] {
+        let catalogURL = repositoryRoot.appending(path: "KnitNoteWatch/Localizable.xcstrings")
         let data = try Data(contentsOf: catalogURL)
         let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         return try #require(catalog["strings"] as? [String: Any])

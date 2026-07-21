@@ -33,7 +33,7 @@ struct WatchCounterView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "exclamationmark.triangle.fill")
                     Text(verbatim: errorReason)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.caption2)
                 .foregroundStyle(.white)

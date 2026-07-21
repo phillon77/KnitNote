@@ -49,7 +49,6 @@ struct ProjectListView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(project.name)
                     .font(.headline)
-                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if project.isCompleted {

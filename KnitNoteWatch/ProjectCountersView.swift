@@ -9,42 +9,53 @@ struct ProjectCountersView: View {
         coordinator.snapshot?.projects.first { $0.id == projectID }
     }
 
+    private var actionableCounterID: UUID? {
+        guard let actionCounterID,
+              let project,
+              !project.isCompleted,
+              project.counters.contains(where: { $0.id == actionCounterID })
+        else { return nil }
+        return actionCounterID
+    }
+
     var body: some View {
         ZStack {
             WatchWatercolorBackground()
 
             if let project {
                 counterList(for: project)
-                    .confirmationDialog(
-                        "watch.counter.actions",
-                        isPresented: actionDialogIsPresented,
-                        titleVisibility: .visible
-                    ) {
-                        if let counterID = actionCounterID {
-                            Button("watch.counter.decrement") {
-                                coordinator.decrement(projectID: project.id, counterID: counterID)
-                                actionCounterID = nil
-                            }
-                            Button("watch.counter.reset", role: .destructive) {
-                                coordinator.reset(projectID: project.id, counterID: counterID)
-                                actionCounterID = nil
-                            }
-                        }
-                        Button("watch.counter.cancel", role: .cancel) {
-                            actionCounterID = nil
-                        }
-                    }
             } else {
                 Text("watch.sync.error.projectMissing")
                     .font(.callout)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(WatchWatercolorTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding()
+            }
+        }
+        .confirmationDialog(
+            "watch.counter.actions",
+            isPresented: actionDialogIsPresented,
+            titleVisibility: .visible
+        ) {
+            if let counterID = actionableCounterID {
+                Button("watch.counter.decrement") {
+                    perform(.decrement, counterID: counterID)
+                }
+                Button("watch.counter.reset", role: .destructive) {
+                    perform(.reset, counterID: counterID)
+                }
+            }
+            Button("watch.counter.cancel", role: .cancel) {
+                actionCounterID = nil
             }
         }
         .navigationTitle(project?.name ?? "")
         .onAppear {
             coordinator.selectProject(projectID)
+        }
+        .onChange(of: coordinator.snapshot) { _, _ in
+            dismissInvalidActionIfNeeded()
         }
     }
 
@@ -60,17 +71,39 @@ struct ProjectCountersView: View {
         }
     }
 
+    @ViewBuilder
     private func counterRow(
         _ counter: WatchCounterSnapshot,
         in project: WatchProjectSnapshot
     ) -> some View {
         let isPending = coordinator.hasPending(projectID: project.id, counterID: counter.id)
+        let row = counterRowContent(counter, in: project, isPending: isPending)
+            .disabled(project.isCompleted)
+            .opacity(project.isCompleted ? 0.72 : 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "\(project.name), \(counter.name), \(counter.value)"))
+            .accessibilityValue(counterAccessibilityValue(
+                counter: counter,
+                project: project,
+                isPending: isPending
+            ))
 
-        return VStack(alignment: .leading, spacing: 5) {
+        if project.isCompleted {
+            row.accessibilityHint(Text("watch.sync.error.projectCompleted"))
+        } else {
+            activeCounterRow(row, counter: counter)
+        }
+    }
+
+    private func counterRowContent(
+        _ counter: WatchCounterSnapshot,
+        in project: WatchProjectSnapshot,
+        isPending: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(counter.name)
                     .font(.callout.weight(.semibold))
-                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -112,46 +145,89 @@ struct ProjectCountersView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(WatchWatercolorTheme.lavender.opacity(0.5), lineWidth: 1)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard !project.isCompleted else { return }
-            coordinator.selectCounter(counter.id)
-            coordinator.increment(projectID: project.id, counterID: counter.id)
+    }
+
+    private func activeCounterRow<Row: View>(
+        _ row: Row,
+        counter: WatchCounterSnapshot
+    ) -> some View {
+        row
+            .contentShape(Rectangle())
+            .onTapGesture {
+                perform(.increment, counterID: counter.id)
+            }
+            .onLongPressGesture(minimumDuration: 0.55) {
+                presentActionsIfAvailable(counterID: counter.id)
+            }
+            .accessibilityHint(Text("watch.counter.incrementHint"))
+            .accessibilityAction(named: Text("watch.counter.incrementHint")) {
+                perform(.increment, counterID: counter.id)
+            }
+            .accessibilityAction(named: Text("watch.counter.decrement")) {
+                perform(.decrement, counterID: counter.id)
+            }
+            .accessibilityAction(named: Text("watch.counter.reset")) {
+                perform(.reset, counterID: counter.id)
+            }
+    }
+
+    private func counterAccessibilityValue(
+        counter: WatchCounterSnapshot,
+        project: WatchProjectSnapshot,
+        isPending: Bool
+    ) -> Text {
+        var value = Text(counter.value, format: .number)
+        if isPending {
+            value = value + Text(verbatim: ", ") + Text("watch.sync.pending")
         }
-        .onLongPressGesture(minimumDuration: 0.55) {
-            guard !project.isCompleted else { return }
-            coordinator.selectCounter(counter.id)
-            actionCounterID = counter.id
+        if project.isCompleted {
+            value = value + Text(verbatim: ", ") + Text("watch.project.completed")
         }
-        .disabled(project.isCompleted)
-        .opacity(project.isCompleted ? 0.72 : 1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: "\(project.name), \(counter.name), \(counter.value)"))
-        .accessibilityHint(
-            project.isCompleted
-                ? Text("watch.sync.error.projectCompleted")
-                : Text("watch.counter.incrementHint")
-        )
-        .accessibilityAction(named: Text("watch.counter.incrementHint")) {
-            guard !project.isCompleted else { return }
-            coordinator.selectCounter(counter.id)
-            coordinator.increment(projectID: project.id, counterID: counter.id)
+        return value
+    }
+
+    private func currentActiveProject(containing counterID: UUID) -> WatchProjectSnapshot? {
+        guard let project,
+              !project.isCompleted,
+              project.counters.contains(where: { $0.id == counterID })
+        else { return nil }
+        return project
+    }
+
+    private func presentActionsIfAvailable(counterID: UUID) {
+        guard let project = currentActiveProject(containing: counterID) else { return }
+        coordinator.selectProject(project.id)
+        coordinator.selectCounter(counterID)
+        actionCounterID = counterID
+    }
+
+    private func perform(_ operation: WatchCounterOperation, counterID: UUID) {
+        guard let project = currentActiveProject(containing: counterID) else {
+            actionCounterID = nil
+            return
         }
-        .accessibilityAction(named: Text("watch.counter.decrement")) {
-            guard !project.isCompleted else { return }
-            coordinator.selectCounter(counter.id)
-            coordinator.decrement(projectID: project.id, counterID: counter.id)
+
+        coordinator.selectProject(project.id)
+        coordinator.selectCounter(counterID)
+        switch operation {
+        case .increment:
+            coordinator.increment(projectID: project.id, counterID: counterID)
+        case .decrement:
+            coordinator.decrement(projectID: project.id, counterID: counterID)
+        case .reset:
+            coordinator.reset(projectID: project.id, counterID: counterID)
         }
-        .accessibilityAction(named: Text("watch.counter.reset")) {
-            guard !project.isCompleted else { return }
-            coordinator.selectCounter(counter.id)
-            coordinator.reset(projectID: project.id, counterID: counter.id)
-        }
+        actionCounterID = nil
+    }
+
+    private func dismissInvalidActionIfNeeded() {
+        guard actionCounterID != nil, actionableCounterID == nil else { return }
+        actionCounterID = nil
     }
 
     private var actionDialogIsPresented: Binding<Bool> {
         Binding(
-            get: { actionCounterID != nil },
+            get: { actionableCounterID != nil },
             set: { if !$0 { actionCounterID = nil } }
         )
     }

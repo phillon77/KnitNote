@@ -45,6 +45,10 @@ targets:
         buildPhase: resources
         destinationFilters: [iOS]
       - path: Sources/KnitNoteCore
+    dependencies:
+      - target: KnitNoteWatch
+        embed: true
+        platformFilter: iOS
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
@@ -55,6 +59,11 @@ targets:
   KnitNoteWatch:
     type: application
     platform: watchOS
+    info:
+      path: KnitNoteWatch/Info.plist
+      properties:
+        CFBundleDisplayName: KnitNote
+        WKCompanionAppBundleIdentifier: com.phillon.KnitNote
     sources:
       - path: KnitNoteWatch
       - path: Sources/KnitNoteCore
@@ -63,11 +72,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
-        GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: 1.0.0
         CURRENT_PROJECT_VERSION: 1
         PRODUCT_NAME: KnitNoteWatch
-        INFOPLIST_KEY_CFBundleDisplayName: KnitNote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 schemes:
   KnitNote:

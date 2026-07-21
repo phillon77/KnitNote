@@ -50,6 +50,7 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
     public let defaultOrdinal: Int
     public private(set) var customName: String?
     public private(set) var value: Int
+    public private(set) var mutationRevision: UInt64
     public private(set) var rowNotes: [RowNote]
 
     public init(
@@ -57,6 +58,7 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
         defaultOrdinal: Int,
         customName: String? = nil,
         value: Int = 0,
+        mutationRevision: UInt64 = 0,
         rowNotes: [RowNote] = []
     ) {
         let cleanName = customName?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -64,11 +66,12 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
         self.defaultOrdinal = defaultOrdinal
         self.customName = cleanName?.isEmpty == false ? cleanName : nil
         self.value = max(0, value)
+        self.mutationRevision = mutationRevision
         self.rowNotes = rowNotes
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, defaultOrdinal, customName, value, rowNotes
+        case id, defaultOrdinal, customName, value, mutationRevision, rowNotes
     }
 
     public init(from decoder: Decoder) throws {
@@ -78,25 +81,45 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
             defaultOrdinal: try container.decode(Int.self, forKey: .defaultOrdinal),
             customName: try container.decodeIfPresent(String.self, forKey: .customName),
             value: try container.decode(Int.self, forKey: .value),
+            mutationRevision: try container.decodeIfPresent(
+                UInt64.self,
+                forKey: .mutationRevision
+            ) ?? 0,
             rowNotes: try container.decode([RowNote].self, forKey: .rowNotes)
+        )
+    }
+
+    public func displayName(locale: Locale) -> String {
+        customName ?? String(
+            format: String(
+                localized: "counter.defaultName",
+                defaultValue: "Counter %lld",
+                bundle: .main,
+                locale: locale
+            ),
+            locale: locale,
+            defaultOrdinal
         )
     }
 
     mutating func increment() -> Bool {
         guard value < .max else { return false }
         value += 1
+        mutationRevision &+= 1
         return true
     }
 
     mutating func decrement() -> Bool {
         guard value > 0 else { return false }
         value -= 1
+        mutationRevision &+= 1
         return true
     }
 
     mutating func reset() -> Bool {
         guard value != 0 else { return false }
         value = 0
+        mutationRevision &+= 1
         return true
     }
 
@@ -105,6 +128,9 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
         let normalizedValue = max(0, value)
         let didChangeValue = self.value != normalizedValue
         self.value = normalizedValue
+        if didChangeValue {
+            mutationRevision &+= 1
+        }
         return didRename || didChangeValue
     }
 

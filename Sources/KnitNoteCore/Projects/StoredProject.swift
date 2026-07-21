@@ -309,6 +309,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
                 defaultOrdinal: ordinal,
                 customName: candidate?.customName,
                 value: candidate?.value ?? 0,
+                mutationRevision: candidate?.mutationRevision ?? 0,
                 rowNotes: candidate?.rowNotes ?? []
             )
         }

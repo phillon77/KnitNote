@@ -323,6 +323,52 @@ enum ProjectJournalPhotoReferencePolicy {
     public func renameCounter(projectID: UUID, counterID: UUID, name: String?) throws {
         try mutate(id: projectID) { $0.renameCounter(id: counterID, to: name) }
     }
+    public func applyWatchCommand(
+        _ command: WatchCounterCommand,
+        ledger: inout ProcessedWatchCommandLedger,
+        now: Date = .now
+    ) throws -> WatchCommandAcknowledgement {
+        if ledger.contains(command.id) {
+            return try watchAcknowledgement(for: command.id, rejection: nil, now: now)
+        }
+
+        let rejection: WatchCommandRejection?
+        if command.schemaVersion != WatchCounterCommand.currentSchemaVersion {
+            rejection = .unsupportedSchema
+        } else if let project = project(id: command.projectID) {
+            if !project.counters.contains(where: { $0.id == command.counterID }) {
+                rejection = .counterMissing
+            } else if project.isCompleted {
+                rejection = .projectCompleted
+            } else {
+                rejection = nil
+            }
+        } else {
+            rejection = .projectMissing
+        }
+
+        if let rejection {
+            ledger.record(command.id, at: now)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: rejection,
+                now: now
+            )
+        }
+
+        try mutate(id: command.projectID) { project in
+            switch command.operation {
+            case .increment:
+                project.incrementCounter(id: command.counterID, now: now)
+            case .decrement:
+                project.decrementCounter(id: command.counterID, now: now)
+            case .reset:
+                project.resetCounter(id: command.counterID, now: now)
+            }
+        }
+        ledger.record(command.id, at: now)
+        return try watchAcknowledgement(for: command.id, rejection: nil, now: now)
+    }
     public func saveNote(projectID: UUID, counterID: UUID, row: Int, text: String) throws {
         try mutate(id: projectID) { try $0.saveNote(counterID: counterID, row: row, text: text) }
     }
@@ -560,6 +606,21 @@ enum ProjectJournalPhotoReferencePolicy {
     }
     public func journalThumbnailURL(for entry: ProjectJournalEntry) -> URL? {
         journalPhotoService.url(filename: entry.thumbnailFilename)
+    }
+    private func watchAcknowledgement(
+        for commandID: UUID,
+        rejection: WatchCommandRejection?,
+        now: Date
+    ) throws -> WatchCommandAcknowledgement {
+        WatchCommandAcknowledgement(
+            commandID: commandID,
+            rejection: rejection,
+            snapshot: try WatchSnapshotBuilder.make(
+                projects: projects,
+                locale: .current,
+                generatedAt: now
+            )
+        )
     }
     private func mutate(id: UUID, _ body: (inout StoredProject) throws -> Void) throws {
         guard let index = projects.firstIndex(where: { $0.id == id }) else { return }

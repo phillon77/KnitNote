@@ -3,10 +3,16 @@ import Foundation
 public struct PreparedWatchCommand: Codable, Equatable, Sendable {
     public let command: WatchCounterCommand
     public let expectedCounterRevision: UInt64
+    public let expectedCounterValue: Int?
 
-    public init(command: WatchCounterCommand, expectedCounterRevision: UInt64) {
+    public init(
+        command: WatchCounterCommand,
+        expectedCounterRevision: UInt64,
+        expectedCounterValue: Int? = nil
+    ) {
         self.command = command
         self.expectedCounterRevision = expectedCounterRevision
+        self.expectedCounterValue = expectedCounterValue
     }
 }
 
@@ -61,7 +67,19 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         }
 
         if counter.mutationRevision == prepared.expectedCounterRevision {
-            _ = try applyWatchCommand(prepared.command, ledger: &ledger, now: now)
+            if let expectedValue = prepared.expectedCounterValue {
+                guard counter.value == expectedValue else {
+                    try requireFreshHandshake(ledger: &ledger, file: ledgerFile)
+                    return .requiresFreshHandshake
+                }
+                if prepared.isAcceptedNoOp {
+                    ledger.record(prepared.command.id, at: now)
+                } else {
+                    _ = try applyWatchCommand(prepared.command, ledger: &ledger, now: now)
+                }
+            } else {
+                _ = try applyWatchCommand(prepared.command, ledger: &ledger, now: now)
+            }
         } else if
             prepared.expectedCounterRevision != UInt64.max,
             counter.mutationRevision == prepared.expectedCounterRevision + 1
@@ -115,7 +133,8 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         let preparedFile = AtomicWatchSyncFile<PreparedWatchCommand>(url: preparedCommandURL)
         try preparedFile.save(PreparedWatchCommand(
             command: command,
-            expectedCounterRevision: counter.mutationRevision
+            expectedCounterRevision: counter.mutationRevision,
+            expectedCounterValue: counter.value
         ))
         try failureInjector(.afterPreparedCommandSave)
 
@@ -133,10 +152,15 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         ledgerURL: URL,
         now: Date = .now
     ) throws {
-        var ledger = ProcessedWatchCommandLedger()
-        for id in queuedCommandIDs { ledger.record(id, at: now) }
-        ledger.markHandshakeComplete()
-        try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL).save(ledger)
+        let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+        var ledger = try loadLedgerRecoveringCorruption(from: ledgerFile)
+        for id in queuedCommandIDs where !ledger.contains(id) {
+            ledger.record(id, at: now)
+        }
+        if ledger.requiresFreshHandshake {
+            ledger.markHandshakeComplete()
+        }
+        try ledgerFile.save(ledger)
     }
 
     private func loadLedgerRecoveringCorruption(
@@ -163,5 +187,17 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
     private func removePreparedCommand(at url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
+    }
+}
+
+private extension PreparedWatchCommand {
+    var isAcceptedNoOp: Bool {
+        guard let expectedCounterValue else { return false }
+        return switch command.operation {
+        case .increment:
+            expectedCounterValue == Int.max
+        case .decrement, .reset:
+            expectedCounterValue == 0
+        }
     }
 }

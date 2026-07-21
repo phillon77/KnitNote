@@ -129,6 +129,70 @@ import Testing
         #expect(ledger.contains(fixture.command.id))
     }
 
+    @Test @MainActor func routineHandshakePreservesProcessedHistory() throws {
+        let fixture = try DurableWatchFixture()
+        let oldProcessedID = UUID()
+        let queuedID = UUID()
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(oldProcessedID, at: fixture.now.addingTimeInterval(-100 * 86_400))
+        try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: fixture.ledgerURL).save(ledger)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        try store.completeWatchQueueHandshake(
+            queuedCommandIDs: [queuedID],
+            ledgerURL: fixture.ledgerURL,
+            now: fixture.now
+        )
+
+        let loaded = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()
+        let persisted = try #require(loaded)
+        #expect(persisted.contains(oldProcessedID))
+        #expect(persisted.contains(queuedID))
+        #expect(!persisted.requiresFreshHandshake)
+    }
+
+    @Test @MainActor func directHandshakeQuarantinesCorruptLedgerAndSeedsQueue() throws {
+        let fixture = try DurableWatchFixture()
+        let queuedID = UUID()
+        try Data("not JSON".utf8).write(to: fixture.ledgerURL, options: .atomic)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        try store.completeWatchQueueHandshake(
+            queuedCommandIDs: [queuedID],
+            ledgerURL: fixture.ledgerURL,
+            now: fixture.now
+        )
+
+        let loaded = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()
+        let persisted = try #require(loaded)
+        #expect(persisted.contains(queuedID))
+        #expect(!persisted.requiresFreshHandshake)
+        let names = try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path)
+        #expect(names.contains {
+            $0.hasPrefix("processed-watch-commands.corrupt-") && $0.hasSuffix(".json")
+        })
+    }
+
+    @Test func preparedReceiptRecordsExpectedCounterValue() {
+        let command = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .reset
+        )
+
+        let prepared = PreparedWatchCommand(
+            command: command,
+            expectedCounterRevision: 7,
+            expectedCounterValue: 0
+        )
+
+        #expect(prepared.expectedCounterValue == 0)
+    }
+
     @Test(arguments: WatchCommandPersistenceBoundary.allCases)
     @MainActor func restartAfterEveryCrashBoundaryProducesOneMutation(
         boundary: WatchCommandPersistenceBoundary
@@ -172,6 +236,51 @@ import Testing
         #expect(ledger.contains(fixture.command.id))
     }
 
+    @Test(
+        arguments: NoOpWatchCommandCase.allCases,
+        WatchCommandPersistenceBoundary.allCases
+    )
+    @MainActor func restartAfterNoOpCrashRecordsWithoutChangingCounter(
+        noOp: NoOpWatchCommandCase,
+        boundary: WatchCommandPersistenceBoundary
+    ) throws {
+        let fixture = try DurableWatchFixture(operation: noOp.operation, value: noOp.value)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(throws: InjectedWatchSyncFailure.self) {
+            try store.applyWatchCommandDurably(
+                fixture.command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now,
+                failureInjector: { reached in
+                    if reached == boundary { throw InjectedWatchSyncFailure() }
+                }
+            )
+        }
+
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+        #expect(try restarted.recoverWatchCommandPersistence(
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        ) == .ready)
+        _ = try restarted.applyWatchCommandDurably(
+            fixture.command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(2)
+        )
+
+        let counter = try #require(restarted.project(id: fixture.projectID)?.counters[0])
+        #expect(counter.value == noOp.value)
+        #expect(counter.mutationRevision == 0)
+        let loaded = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()
+        #expect(try #require(loaded).contains(fixture.command.id))
+    }
+
     @Test @MainActor func unverifiablePreparedRevisionRequiresHandshakeWithoutReplay() throws {
         let fixture = try DurableWatchFixture()
         let prepared = PreparedWatchCommand(command: fixture.command, expectedCounterRevision: 42)
@@ -192,6 +301,27 @@ import Testing
 }
 
 private struct InjectedWatchSyncFailure: Error {}
+
+enum NoOpWatchCommandCase: CaseIterable, Sendable {
+    case decrementAtZero
+    case resetAtZero
+    case incrementAtMaximum
+
+    var operation: WatchCounterOperation {
+        switch self {
+        case .decrementAtZero: .decrement
+        case .resetAtZero: .reset
+        case .incrementAtMaximum: .increment
+        }
+    }
+
+    var value: Int {
+        switch self {
+        case .decrementAtZero, .resetAtZero: 0
+        case .incrementAtMaximum: .max
+        }
+    }
+}
 
 private final class WatchSyncTemporaryDirectory {
     let url: URL
@@ -215,18 +345,22 @@ private final class WatchSyncTemporaryDirectory {
     let command: WatchCounterCommand
     let now = Date(timeIntervalSince1970: 1_000)
 
-    init() throws {
+    init(operation: WatchCounterOperation = .increment, value: Int = 0) throws {
         directory = try WatchSyncTemporaryDirectory()
         archiveURL = directory.url.appendingPathComponent("projects-v1.json")
         ledgerURL = WatchSyncPaths.processedLedger(in: directory.url)
         preparedURL = WatchSyncPaths.preparedCommand(in: directory.url)
-        let project = try StoredProject(name: "Watch project", now: now)
+        let project = try StoredProject(
+            name: "Watch project",
+            counters: [ProjectCounter(defaultOrdinal: 1, value: value)],
+            now: now
+        )
         projectID = project.id
         counterID = project.counters[0].id
         command = WatchCounterCommand(
             projectID: projectID,
             counterID: counterID,
-            operation: .increment,
+            operation: operation,
             createdAt: now
         )
         try JSONEncoder().encode(ProjectArchive(

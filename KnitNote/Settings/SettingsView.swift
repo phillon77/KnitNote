@@ -25,6 +25,8 @@ struct SettingsView: View {
                         Label("calculator.adjustment.title", systemImage: "arrow.up.arrow.down")
                     }
                 }
+
+                BackupSettingsSection()
             }
             .scrollContentBackground(.hidden)
             .background(WatercolorBackground())

@@ -1,4 +1,5 @@
 import CoreGraphics
+import Dispatch
 import Foundation
 import ImageIO
 import Testing
@@ -655,6 +656,965 @@ import UniformTypeIdentifiers
     #expect(FileManager.default.fileExists(atPath: yarnPhotoService.url(filename: filename).path))
 }
 
+@MainActor @Test func reloadReplacesPublishedProjectsAndYarns() throws {
+    let fixture = try StoreBackupFixture.make()
+    defer { fixture.cleanup() }
+    let store = JSONProjectStore(url: fixture.archiveURL)
+    try fixture.writeArchive(projectName: "Restored project", yarnName: "Restored yarn")
+
+    try store.reloadFromDisk()
+
+    #expect(store.projects.map(\.name) == ["Restored project"])
+    #expect(store.yarns.map(\.name) == ["Restored yarn"])
+    #expect(store.loadError == nil)
+}
+
+@MainActor @Test func successfulReloadAdvancesDataGenerationAndRejectsStalePatternMarkupSave() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let archiveURL = root.appendingPathComponent("projects-v1.json")
+    let store = JSONProjectStore(url: archiveURL)
+    try store.add(name: "Original")
+    let projectID = try #require(store.projects.first?.id)
+    let pattern = PatternDocument(
+        displayName: "Chart",
+        kind: .pdf,
+        storedFilename: "\(UUID().uuidString).pdf"
+    )
+    try store.addPattern(projectID: projectID, pattern: pattern)
+    let staleGeneration = store.dataGeneration
+    let staleDocument = PatternMarkupDocument(strokes: [
+        .init(points: [.init(x: 0.1, y: 0.2)], color: .red, width: 0.006),
+    ])
+    try store.savePatternMarkup(
+        staleDocument,
+        projectID: projectID,
+        patternID: pattern.id,
+        pageIndex: 0,
+        expectedDataGeneration: staleGeneration
+    )
+
+    let restoredDocument = PatternMarkupDocument(strokes: [
+        .init(points: [.init(x: 0.8, y: 0.9)], color: .blue, width: 0.012),
+    ])
+    try PatternMarkupFileService(root: root.appendingPathComponent("Patterns"))
+        .save(restoredDocument, projectID: projectID, patternID: pattern.id, pageIndex: 0)
+    try store.reloadFromDisk()
+
+    #expect(store.dataGeneration != staleGeneration)
+    #expect(try store.loadPatternMarkup(
+        projectID: projectID,
+        patternID: pattern.id,
+        pageIndex: 0
+    ) == restoredDocument)
+    #expect(throws: ProjectStoreError.staleDataGeneration) {
+        try store.savePatternMarkup(
+            staleDocument,
+            projectID: projectID,
+            patternID: pattern.id,
+            pageIndex: 0,
+            expectedDataGeneration: staleGeneration
+        )
+    }
+    #expect(try store.loadPatternMarkup(
+        projectID: projectID,
+        patternID: pattern.id,
+        pageIndex: 0
+    ) == restoredDocument)
+}
+
+@MainActor @Test func failedReloadPreservesEveryPublishedValue() throws {
+    let fixture = try StoreBackupFixture.make()
+    defer { fixture.cleanup() }
+    let store = JSONProjectStore(url: fixture.archiveURL)
+    let projectsBefore = store.projects
+    let yarnsBefore = store.yarns
+    try Data("not JSON".utf8).write(to: fixture.archiveURL, options: .atomic)
+
+    #expect(throws: ProjectStoreError.unreadableArchive) {
+        try store.reloadFromDisk()
+    }
+
+    #expect(store.projects == projectsBefore)
+    #expect(store.yarns == yarnsBefore)
+    #expect(store.loadError == .unreadableArchive)
+}
+
+@MainActor @Test func reloadRejectsFutureProjectArchiveWithoutDowngradingIt() throws {
+    let fixture = try StoreBackupFixture.make()
+    defer { fixture.cleanup() }
+    let store = fixture.store
+    let projectsBefore = store.projects
+    let future = ProjectArchive(
+        version: ProjectArchive.currentVersion + 1,
+        projects: projectsBefore,
+        yarns: store.yarns
+    )
+    let futureData = try JSONEncoder().encode(future)
+    try futureData.write(to: fixture.archiveURL, options: .atomic)
+
+    #expect(throws: ProjectStoreError.unreadableArchive) {
+        try store.reloadFromDisk()
+    }
+
+    #expect(store.projects == projectsBefore)
+    #expect(try Data(contentsOf: fixture.archiveURL) == futureData)
+    #expect(store.loadError == .unreadableArchive)
+}
+
+@MainActor @Test func liveStoreRecoversRollbackWhenLiveRootIsMissing() throws {
+    let fixture = try StoreLaunchRecoveryFixture.interruptedAfterLiveRename()
+    defer { fixture.cleanup() }
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.map(\.name) == ["Original project"])
+    #expect(store.loadError == nil)
+    #expect(FileManager.default.fileExists(atPath: fixture.liveRoot.path))
+    #expect(!FileManager.default.fileExists(atPath: fixture.rollbackRoot.path))
+}
+
+@MainActor @Test func validLiveRootWinsOverStaleRollback() throws {
+    let fixture = try StoreLaunchRecoveryFixture.validLiveWithStaleRollback()
+    defer { fixture.cleanup() }
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.map(\.name) == ["Installed project"])
+    #expect(store.loadError == nil)
+    #expect(!FileManager.default.fileExists(atPath: fixture.rollbackRoot.path))
+}
+
+@MainActor @Test func liveStoreRemovesAbandonedExportAndStagedArtifacts() throws {
+    let fixture = try StoreLaunchRecoveryFixture.validLiveWithAbandonedArtifacts()
+    defer { fixture.cleanup() }
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.map(\.name) == ["Current project"])
+    #expect(!FileManager.default.fileExists(atPath: fixture.exportRoot.path))
+    #expect(!FileManager.default.fileExists(atPath: fixture.stagedRoot.path))
+    #expect(FileManager.default.fileExists(atPath: fixture.unrecognizedRoot.path))
+}
+
+@MainActor @Test func failedLiveRecoveryPreservesOnlyValidRollback() throws {
+    let fixture = try StoreLaunchRecoveryFixture.invalidLiveWithValidRollback()
+    defer { fixture.cleanup() }
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.isEmpty)
+    #expect(store.loadError == .unreadableArchive)
+    #expect(FileManager.default.fileExists(atPath: fixture.liveRoot.path))
+    #expect(FileManager.default.fileExists(atPath: fixture.rollbackRoot.path))
+}
+
+@MainActor @Test func missingLiveWithTwoValidRollbacksPreservesBoth() throws {
+    let fixture = try StoreLaunchRecoveryFixture.interruptedAfterLiveRename()
+    defer { fixture.cleanup() }
+    let secondRollback = fixture.workRoot.appendingPathComponent(
+        "Rollback-\(UUID().uuidString)",
+        isDirectory: true
+    )
+    try fixture.writeArchive(projectName: "Other original", to: secondRollback)
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.isEmpty)
+    #expect(store.loadError == .unreadableArchive)
+    #expect(!FileManager.default.fileExists(atPath: fixture.liveRoot.path))
+    #expect(FileManager.default.fileExists(atPath: fixture.rollbackRoot.path))
+    #expect(FileManager.default.fileExists(atPath: secondRollback.path))
+}
+
+@MainActor @Test func validLiveRootPreservesMalformedRollbackName() throws {
+    let fixture = try StoreLaunchRecoveryFixture.validLiveOnly()
+    defer { fixture.cleanup() }
+    let malformedRollback = fixture.workRoot.appendingPathComponent(
+        "Rollback-not-a-uuid",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+        at: malformedRollback,
+        withIntermediateDirectories: true
+    )
+    let marker = malformedRollback.appendingPathComponent("preserve.txt")
+    try Data("preserve".utf8).write(to: marker)
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.map(\.name) == ["Current project"])
+    #expect(store.loadError == nil)
+    #expect(FileManager.default.fileExists(atPath: malformedRollback.path))
+    #expect(FileManager.default.fileExists(atPath: marker.path))
+}
+
+@MainActor @Test func launchCleanupPreservesGeneratedSymlinksAndNonDirectories() throws {
+    let fixture = try StoreLaunchRecoveryFixture.validLiveOnly()
+    defer { fixture.cleanup() }
+    let outsideTarget = fixture.root.appendingPathComponent(
+        "OutsideArtifactTarget",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(at: outsideTarget, withIntermediateDirectories: true)
+    let outsideMarker = outsideTarget.appendingPathComponent("preserve.txt")
+    try Data("outside".utf8).write(to: outsideMarker)
+
+    let symlinkArtifacts = [
+        fixture.workRoot.appendingPathComponent(
+            "Rollback-\(UUID().uuidString)",
+            isDirectory: true
+        ),
+        fixture.workRoot.appendingPathComponent(
+            "\(UUID().uuidString).knitnote-backup",
+            isDirectory: true
+        ),
+        fixture.workRoot.appendingPathComponent(
+            "Staged-\(UUID().uuidString)",
+            isDirectory: true
+        ),
+    ]
+    for artifact in symlinkArtifacts {
+        try FileManager.default.createSymbolicLink(
+            at: artifact,
+            withDestinationURL: outsideTarget
+        )
+    }
+    let fileArtifacts = [
+        fixture.workRoot.appendingPathComponent("Rollback-\(UUID().uuidString)"),
+        fixture.workRoot.appendingPathComponent("\(UUID().uuidString).knitnote-backup"),
+        fixture.workRoot.appendingPathComponent("Staged-\(UUID().uuidString)"),
+    ]
+    for artifact in fileArtifacts {
+        try Data("not a directory".utf8).write(to: artifact)
+    }
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.map(\.name) == ["Current project"])
+    #expect(store.loadError == nil)
+    for artifact in symlinkArtifacts + fileArtifacts {
+        #expect(FileManager.default.fileExists(atPath: artifact.path))
+    }
+    #expect(FileManager.default.fileExists(atPath: outsideMarker.path))
+}
+
+@MainActor @Test func symbolicWorkRootFailsVisiblyAndPreservesOutsideTarget() throws {
+    let fixture = try StoreLaunchRecoveryFixture.validLiveOnly()
+    defer { fixture.cleanup() }
+    try FileManager.default.removeItem(at: fixture.workRoot)
+    let outsideWorkRoot = fixture.root.appendingPathComponent(
+        "OutsideWorkRoot",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+        at: outsideWorkRoot,
+        withIntermediateDirectories: true
+    )
+    let outsideArtifact = outsideWorkRoot.appendingPathComponent(
+        "\(UUID().uuidString).knitnote-backup",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+        at: outsideArtifact,
+        withIntermediateDirectories: true
+    )
+    let marker = outsideArtifact.appendingPathComponent("preserve.txt")
+    try Data("outside".utf8).write(to: marker)
+    try FileManager.default.createSymbolicLink(
+        at: fixture.workRoot,
+        withDestinationURL: outsideWorkRoot
+    )
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.isEmpty)
+    #expect(store.loadError == .unreadableArchive)
+    #expect(FileManager.default.fileExists(atPath: fixture.liveRoot.path))
+    #expect(FileManager.default.fileExists(atPath: marker.path))
+    let workValues = try fixture.workRoot.resourceValues(forKeys: [.isSymbolicLinkKey])
+    #expect(workValues.isSymbolicLink == true)
+}
+
+@MainActor @Test func exportSerializesProjectYarnAndJournalMutations() async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(metadataBlocker: blocker)
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+    let store = fixture.store
+    let project = try #require(store.projects.first)
+    let export = Task { @MainActor in
+        try await store.exportBackup(appVersion: "1.0")
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    #expect(store.isDataOperationInProgress)
+    #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try store.add(name: "Blocked project")
+    }
+    #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try store.rename(id: project.id, to: "Blocked rename")
+    }
+    #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try store.addYarn(StoredYarn(name: "Blocked yarn"))
+    }
+    #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try store.savePatternMarkup(
+            PatternMarkupDocument(strokes: [
+                .init(points: [.init(x: 0.2, y: 0.3)], color: .green, width: 0.006),
+            ]),
+            projectID: project.id,
+            patternID: UUID(),
+            pageIndex: 0,
+            expectedDataGeneration: store.dataGeneration
+        )
+    }
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try await store.addJournalEntry(
+            projectID: project.id,
+            photoData: try makeStoreJPEG(red: 0.3),
+            caption: nil
+        )
+    }
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        _ = try await store.exportBackup(appVersion: "1.0")
+    }
+
+    blocker.resume()
+    let artifact = try await export.value
+    #expect(!store.isDataOperationInProgress)
+    try store.add(name: "Allowed afterward")
+    store.cleanupBackupArtifact(at: artifact)
+    #expect(!FileManager.default.fileExists(atPath: artifact.path))
+}
+
+@MainActor @Test func activePatternImportRejectsExportAndRestore() async throws {
+    let patternBlocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(patternBlocker: patternBlocker)
+    defer {
+        patternBlocker.resume()
+        fixture.cleanup()
+    }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    let projectID = try #require(fixture.store.projects.first?.id)
+    let source = fixture.root.appendingPathComponent("chart.pdf")
+    try makeStorePatternPDF(at: source)
+    let patternImport = Task { @MainActor in
+        try await fixture.store.importPattern(from: source, projectID: projectID)
+    }
+    #expect(await Task.detached { patternBlocker.waitUntilBlocked() }.value)
+
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        _ = try await fixture.store.exportBackup(appVersion: "1.0")
+    }
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try await fixture.store.restoreBackup(staged)
+    }
+    #expect(!fixture.store.isDataOperationInProgress)
+
+    patternBlocker.resume()
+    _ = try await patternImport.value
+    fixture.store.cancelBackupRestore(staged)
+}
+
+@MainActor @Test(arguments: [
+    KnitNoteBackupReplacementStep.beforeLiveMove,
+    .afterLiveMove,
+    .afterStagedMove,
+])
+func restoreRejectsPatternWritesAtEveryReplacementStep(
+    _ blockedStep: KnitNoteBackupReplacementStep
+) async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(
+        replacementBlocker: blocker,
+        blockedReplacementStep: blockedStep
+    )
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    let project = try #require(fixture.store.projects.first)
+    let source = fixture.root.appendingPathComponent("blocked.pdf")
+    try makeStorePatternPDF(at: source)
+    let restore = Task { @MainActor in
+        try await fixture.store.restoreBackup(staged)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try fixture.store.savePatternMarkup(
+            PatternMarkupDocument(strokes: [
+                .init(points: [.init(x: 0.4, y: 0.5)], color: .black, width: 0.006),
+            ]),
+            projectID: project.id,
+            patternID: UUID(),
+            pageIndex: 0,
+            expectedDataGeneration: fixture.store.dataGeneration
+        )
+    }
+    #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try fixture.store.deletePattern(projectID: project.id, id: UUID())
+    }
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        _ = try await fixture.store.importPattern(from: source, projectID: project.id)
+    }
+
+    blocker.resume()
+    try await restore.value
+    #expect(fixture.store.projects.map(\.name) == ["replacement"])
+}
+
+@MainActor @Test func activeJournalPhotoTransactionRejectsExportAndRestore() async throws {
+    let journalBlocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(journalBlocker: journalBlocker)
+    defer {
+        journalBlocker.resume()
+        fixture.cleanup()
+    }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    let projectID = try #require(fixture.store.projects.first?.id)
+    let journalAddition = Task { @MainActor in
+        try await fixture.store.addJournalEntry(
+            projectID: projectID,
+            photoData: try makeStoreJPEG(red: 0.6),
+            caption: "active"
+        )
+    }
+    #expect(await Task.detached { journalBlocker.waitUntilBlocked() }.value)
+
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        _ = try await fixture.store.exportBackup(appVersion: "1.0")
+    }
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try await fixture.store.restoreBackup(staged)
+    }
+    #expect(!fixture.store.isDataOperationInProgress)
+
+    journalBlocker.resume()
+    try await journalAddition.value
+    fixture.store.cancelBackupRestore(staged)
+}
+
+@MainActor @Test func prepareBackupRestoreReturnsIndependentOwnedCopyAndCancelRemovesIt() async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(stageBlocker: blocker)
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+
+    let preparation = Task { @MainActor in
+        try await fixture.store.prepareBackupRestore(
+            from: fixture.replacementPackage
+        )
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+    #expect(!fixture.store.isDataOperationInProgress)
+    try fixture.store.add(name: "Allowed during preparation")
+
+    blocker.resume()
+    let staged = try await preparation.value
+    try FileManager.default.removeItem(at: fixture.replacementPackage)
+
+    #expect(staged.root.deletingLastPathComponent() == fixture.workRoot)
+    #expect(FileManager.default.fileExists(
+        atPath: staged.root.appendingPathComponent("Data/projects-v1.json").path
+    ))
+    fixture.store.cancelBackupRestore(staged)
+    #expect(!FileManager.default.fileExists(atPath: staged.root.path))
+}
+
+@MainActor @Test func restoreSerializesMutationReloadsAndCommits() async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(replacementBlocker: blocker)
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    let restore = Task { @MainActor in
+        try await fixture.store.restoreBackup(staged)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    #expect(fixture.store.isDataOperationInProgress)
+    #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try fixture.store.add(name: "Blocked during restore")
+    }
+    blocker.resume()
+    try await restore.value
+
+    #expect(fixture.store.projects.map(\.name) == ["replacement"])
+    #expect(fixture.store.yarns.map(\.name) == ["replacement yarn"])
+    #expect(!fixture.store.isDataOperationInProgress)
+    #expect(try fixture.rollbackRoots().isEmpty)
+}
+
+@MainActor @Test func publicCleanupAndCancelCannotDeleteActiveRestoreRollback() async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(replacementBlocker: blocker)
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    let restore = Task { @MainActor in
+        try await fixture.store.restoreBackup(staged)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+    let rollbackRoot = try #require(fixture.rollbackRoots().first)
+    let forgedCancellation = StagedKnitNoteBackup(
+        root: rollbackRoot,
+        preview: staged.preview
+    )
+
+    fixture.store.cleanupBackupArtifact(at: rollbackRoot)
+    fixture.store.cancelBackupRestore(forgedCancellation)
+
+    #expect(FileManager.default.fileExists(atPath: rollbackRoot.path))
+    blocker.resume()
+    try await restore.value
+    #expect(fixture.store.projects.map(\.name) == ["replacement"])
+    #expect(!FileManager.default.fileExists(atPath: rollbackRoot.path))
+}
+
+@MainActor @Test func restoreReloadFailureRollsBackAndReloadsOriginal() async throws {
+    let fixture = try StoreBackupFixture.make(corruptInstalledArchive: true)
+    defer { fixture.cleanup() }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+
+    await #expect(throws: KnitNoteBackupError.installFailedOriginalPreserved) {
+        try await fixture.store.restoreBackup(staged)
+    }
+
+    #expect(fixture.store.projects.map(\.name) == ["original"])
+    #expect(fixture.store.yarns.map(\.name) == ["original yarn"])
+    #expect(try fixture.diskProjectName() == "original")
+    #expect(try fixture.rollbackRoots().isEmpty)
+    #expect(!fixture.store.isDataOperationInProgress)
+}
+
+@MainActor @Test func restoreSucceedsWhenCommitCleanupPartiallyDeletesThenFails() async throws {
+    let fixture = try StoreBackupFixture.make(partialCommitCleanupFailure: true)
+    defer { fixture.cleanup() }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+
+    try await fixture.store.restoreBackup(staged)
+
+    #expect(fixture.store.projects.map(\.name) == ["replacement"])
+    #expect(fixture.store.yarns.map(\.name) == ["replacement yarn"])
+    #expect(try fixture.diskProjectName() == "replacement")
+    #expect(try fixture.rollbackRoots().isEmpty)
+    #expect(try fixture.cleanupRoots().count == 1)
+    try fixture.store.add(name: "Usable after deferred cleanup")
+    #expect(fixture.store.projects.contains { $0.name == "Usable after deferred cleanup" })
+}
+
+@MainActor @Test func restoreRevalidatesOwnedStageImmediatelyBeforeInstall() async throws {
+    let fixture = try StoreBackupFixture.make()
+    defer { fixture.cleanup() }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    try Data("not JSON".utf8).write(
+        to: staged.root.appendingPathComponent("Data/projects-v1.json"),
+        options: .atomic
+    )
+
+    await #expect(throws: KnitNoteBackupError.invalidArchive) {
+        try await fixture.store.restoreBackup(staged)
+    }
+
+    #expect(fixture.store.projects.map(\.name) == ["original"])
+    #expect(try fixture.diskProjectName() == "original")
+    #expect(try fixture.rollbackRoots().isEmpty)
+    #expect(!fixture.store.isDataOperationInProgress)
+}
+
+@MainActor @Test func restoreRejectsStagedRootSymlinkBeforeTouchingLive() async throws {
+    let fixture = try StoreBackupFixture.make()
+    defer { fixture.cleanup() }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    let alternate = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    try FileManager.default.removeItem(at: staged.root)
+    try FileManager.default.createSymbolicLink(
+        at: staged.root,
+        withDestinationURL: alternate.root
+    )
+
+    await #expect(throws: KnitNoteBackupError.unsafePackageEntry) {
+        try await fixture.store.restoreBackup(staged)
+    }
+
+    #expect(fixture.store.projects.map(\.name) == ["original"])
+    #expect(try fixture.diskProjectName() == "original")
+    #expect(try fixture.rollbackRoots().isEmpty)
+    #expect(!fixture.store.isDataOperationInProgress)
+}
+
+@MainActor @Test func restoreReportsRollbackFailureWhenOriginalCannotBeReinstalled() async throws {
+    let fixture = try StoreBackupFixture.make(
+        corruptInstalledArchive: true,
+        failRollback: true
+    )
+    defer { fixture.cleanup() }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+
+    await #expect(throws: KnitNoteBackupError.rollbackFailed) {
+        try await fixture.store.restoreBackup(staged)
+    }
+
+    #expect(fixture.store.projects.map(\.name) == ["original"])
+    #expect(try fixture.rollbackRoots().count == 1)
+    #expect(!fixture.store.isDataOperationInProgress)
+}
+
+private struct StoreLaunchRecoveryFixture {
+    let root: URL
+    let applicationSupport: URL
+    let liveRoot: URL
+    let workRoot: URL
+    let rollbackRoot: URL
+    let exportRoot: URL
+    let stagedRoot: URL
+    let unrecognizedRoot: URL
+
+    static func interruptedAfterLiveRename() throws -> Self {
+        let fixture = try make()
+        try writeArchive(projectName: "Original project", to: fixture.rollbackRoot)
+        return fixture
+    }
+
+    static func validLiveWithStaleRollback() throws -> Self {
+        let fixture = try make()
+        try writeArchive(projectName: "Installed project", to: fixture.liveRoot)
+        try writeArchive(projectName: "Original project", to: fixture.rollbackRoot)
+        return fixture
+    }
+
+    static func validLiveOnly() throws -> Self {
+        let fixture = try make()
+        try writeArchive(projectName: "Current project", to: fixture.liveRoot)
+        return fixture
+    }
+
+    static func validLiveWithAbandonedArtifacts() throws -> Self {
+        let fixture = try make()
+        try writeArchive(projectName: "Current project", to: fixture.liveRoot)
+        for artifact in [fixture.exportRoot, fixture.stagedRoot, fixture.unrecognizedRoot] {
+            try FileManager.default.createDirectory(
+                at: artifact,
+                withIntermediateDirectories: true
+            )
+            try Data("partial".utf8).write(to: artifact.appendingPathComponent("partial.tmp"))
+        }
+        return fixture
+    }
+
+    static func invalidLiveWithValidRollback() throws -> Self {
+        let fixture = try make()
+        try FileManager.default.createDirectory(
+            at: fixture.liveRoot,
+            withIntermediateDirectories: true
+        )
+        try Data("not JSON".utf8).write(
+            to: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        )
+        try writeArchive(projectName: "Only recoverable project", to: fixture.rollbackRoot)
+        return fixture
+    }
+
+    func cleanup() {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func writeArchive(projectName: String, to root: URL) throws {
+        try Self.writeArchive(projectName: projectName, to: root)
+    }
+
+    private static func make() throws -> Self {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let applicationSupport = root.appendingPathComponent(
+            "Application Support",
+            isDirectory: true
+        )
+        let liveRoot = applicationSupport.appendingPathComponent("KnitNote", isDirectory: true)
+        let workRoot = applicationSupport.appendingPathComponent(
+            ".KnitNote-BackupWork",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        return Self(
+            root: root,
+            applicationSupport: applicationSupport,
+            liveRoot: liveRoot,
+            workRoot: workRoot,
+            rollbackRoot: workRoot.appendingPathComponent(
+                "Rollback-\(UUID().uuidString)",
+                isDirectory: true
+            ),
+            exportRoot: workRoot.appendingPathComponent(
+                "\(UUID().uuidString).knitnote-backup",
+                isDirectory: true
+            ),
+            stagedRoot: workRoot.appendingPathComponent(
+                "Staged-\(UUID().uuidString)",
+                isDirectory: true
+            ),
+            unrecognizedRoot: workRoot.appendingPathComponent(
+                "Staged-not-a-uuid",
+                isDirectory: true
+            )
+        )
+    }
+
+    private static func writeArchive(projectName: String, to root: URL) throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let archive = ProjectArchive(
+            version: 9,
+            projects: [try StoredProject(name: projectName)],
+            yarns: []
+        )
+        try JSONEncoder().encode(archive).write(
+            to: root.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+    }
+}
+
+@MainActor private struct StoreBackupFixture {
+    private struct InjectedFailure: Error {}
+
+    let root: URL
+    let liveRoot: URL
+    let archiveURL: URL
+    let workRoot: URL
+    let replacementPackage: URL
+    let service: KnitNoteBackupService
+    let store: JSONProjectStore
+
+    static func make(
+        metadataBlocker: StoreOperationBlocker? = nil,
+        stageBlocker: StoreOperationBlocker? = nil,
+        journalBlocker: StoreOperationBlocker? = nil,
+        patternBlocker: StoreOperationBlocker? = nil,
+        replacementBlocker: StoreOperationBlocker? = nil,
+        blockedReplacementStep: KnitNoteBackupReplacementStep = .afterStagedMove,
+        corruptInstalledArchive: Bool = false,
+        failRollback: Bool = false,
+        partialCommitCleanupFailure: Bool = false
+    ) throws -> Self {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let liveRoot = root.appendingPathComponent("KnitNote", isDirectory: true)
+        let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
+        let workRoot = root.appendingPathComponent("BackupWork", isDirectory: true)
+        try writeArchive(
+            projectName: "replacement",
+            yarnName: "replacement yarn",
+            to: archiveURL
+        )
+        let packageBuilder = KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
+        let replacementPackage = try packageBuilder.createPackage(appVersion: "1.0")
+        try writeArchive(
+            projectName: "original",
+            yarnName: "original yarn",
+            to: archiveURL
+        )
+
+        let service: KnitNoteBackupService
+        if let metadataBlocker {
+            service = KnitNoteBackupService(
+                liveRoot: liveRoot,
+                workRoot: workRoot,
+                resourceMetadata: { url in
+                    if url.standardizedFileURL == archiveURL.standardizedFileURL {
+                        metadataBlocker.blockOnce()
+                    }
+                    return try backupMetadata(for: url)
+                }
+            )
+        } else if let stageBlocker {
+            service = KnitNoteBackupService(
+                liveRoot: liveRoot,
+                workRoot: workRoot,
+                afterStageCopy: { _ in stageBlocker.blockOnce() }
+            )
+        } else {
+            service = KnitNoteBackupService(
+                liveRoot: liveRoot,
+                workRoot: workRoot,
+                replacementStepHook: { step in
+                    if step == blockedReplacementStep {
+                        if corruptInstalledArchive {
+                            try Data("not JSON".utf8).write(
+                                to: archiveURL,
+                                options: .atomic
+                            )
+                        }
+                        replacementBlocker?.blockOnce()
+                    }
+                    if step == .beforeRollback, failRollback {
+                        throw InjectedFailure()
+                    }
+                },
+                cleanupItem: { cleanupRoot in
+                    guard partialCommitCleanupFailure,
+                          cleanupRoot.lastPathComponent.hasPrefix("Cleanup-") else {
+                        try FileManager.default.removeItem(at: cleanupRoot)
+                        return
+                    }
+                    try FileManager.default.removeItem(
+                        at: cleanupRoot.appendingPathComponent("projects-v1.json")
+                    )
+                    throw InjectedFailure()
+                }
+            )
+        }
+        let journalService: ProjectJournalPhotoFileService?
+        if let journalBlocker {
+            journalService = ProjectJournalPhotoFileService(
+                directory: liveRoot.appendingPathComponent("ProjectJournalPhotos"),
+                writeData: { data, url in
+                    try data.write(to: url, options: .atomic)
+                    if ProjectJournalPhotoFilename.isFullImage(url.lastPathComponent) {
+                        journalBlocker.blockOnce()
+                    }
+                }
+            )
+        } else {
+            journalService = nil
+        }
+        let patternService: PatternFileService?
+        if let patternBlocker {
+            patternService = PatternFileService(
+                root: liveRoot.appendingPathComponent("Patterns"),
+                copyFile: { source, destination in
+                    patternBlocker.blockOnce()
+                    try FileManager.default.copyItem(at: source, to: destination)
+                }
+            )
+        } else {
+            patternService = nil
+        }
+        let store = JSONProjectStore(
+            url: archiveURL,
+            journalPhotoService: journalService,
+            patternFileService: patternService,
+            backupService: service
+        )
+        return Self(
+            root: root,
+            liveRoot: liveRoot,
+            archiveURL: archiveURL,
+            workRoot: workRoot,
+            replacementPackage: replacementPackage,
+            service: service,
+            store: store
+        )
+    }
+
+    func cleanup() {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func writeArchive(projectName: String, yarnName: String) throws {
+        try Self.writeArchive(
+            projectName: projectName,
+            yarnName: yarnName,
+            to: archiveURL
+        )
+    }
+
+    func diskProjectName() throws -> String {
+        let archive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: archiveURL)
+        )
+        return try #require(archive.projects.first?.name)
+    }
+
+    func rollbackRoots() throws -> [URL] {
+        guard FileManager.default.fileExists(atPath: workRoot.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(
+            at: workRoot,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasPrefix("Rollback-") }
+    }
+
+    func cleanupRoots() throws -> [URL] {
+        guard FileManager.default.fileExists(atPath: workRoot.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(
+            at: workRoot,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasPrefix("Cleanup-") }
+    }
+
+    private static func writeArchive(
+        projectName: String,
+        yarnName: String,
+        to archiveURL: URL
+    ) throws {
+        try FileManager.default.createDirectory(
+            at: archiveURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let project = try StoredProject(name: projectName)
+        var yarn = try StoredYarn(name: yarnName)
+        yarn.setLinkedProjectIDs([project.id])
+        let archive = ProjectArchive(version: 9, projects: [project], yarns: [yarn])
+        try JSONEncoder().encode(archive).write(to: archiveURL, options: .atomic)
+    }
+}
+
+private final class StoreOperationBlocker: @unchecked Sendable {
+    private let blocked = DispatchSemaphore(value: 0)
+    private let continuation = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var hasBlocked = false
+
+    func blockOnce() {
+        lock.lock()
+        guard !hasBlocked else {
+            lock.unlock()
+            return
+        }
+        hasBlocked = true
+        lock.unlock()
+        blocked.signal()
+        continuation.wait()
+    }
+
+    func waitUntilBlocked() -> Bool {
+        blocked.wait(timeout: .now() + 10) == .success
+    }
+
+    func resume() {
+        continuation.signal()
+    }
+}
+
+private func backupMetadata(for url: URL) throws -> KnitNoteBackupResourceMetadata {
+    let values = try url.resourceValues(forKeys: [
+        .isRegularFileKey,
+        .isDirectoryKey,
+        .isSymbolicLinkKey,
+        .fileSizeKey,
+        .volumeIdentifierKey,
+    ])
+    return (
+        isRegularFile: values.isRegularFile,
+        isDirectory: values.isDirectory,
+        isSymbolicLink: values.isSymbolicLink,
+        fileSize: values.fileSize.map(Int64.init),
+        physicalVolumeIdentifier: values.volumeIdentifier.map(String.init(describing:))
+    )
+}
+
 private func makeStoreJPEG(red: CGFloat) throws -> Data {
     let context = try #require(CGContext(
         data: nil,
@@ -673,4 +1633,13 @@ private func makeStoreJPEG(red: CGFloat) throws -> Data {
     CGImageDestinationAddImage(destination, image, nil)
     #expect(CGImageDestinationFinalize(destination))
     return data as Data
+}
+
+private func makeStorePatternPDF(at url: URL) throws {
+    var mediaBox = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let consumer = try #require(CGDataConsumer(url: url as CFURL))
+    let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
+    context.beginPDFPage(nil)
+    context.endPDFPage()
+    context.closePDF()
 }

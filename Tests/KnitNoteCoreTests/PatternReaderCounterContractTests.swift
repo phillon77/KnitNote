@@ -44,6 +44,23 @@ import Testing
         #expect(reader.contains("isEnabled: !project.isCompleted"))
     }
 
+    @Test func everyPatternManagedFileWriteRoutesThroughTheStoreCoordinator() throws {
+        let projectPatterns = try sourceFile("KnitNote/Patterns/ProjectPatternsView.swift")
+        let library = try sourceFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(projectPatterns.contains("store.importPattern(from:"))
+        #expect(library.contains("store.importPattern(from:"))
+        #expect(projectPatterns.contains("store.deletePattern(projectID:"))
+        #expect(reader.contains("store.savePatternMarkup("))
+        #expect(reader.contains("expectedDataGeneration:"))
+        #expect(reader.contains("store.loadPatternMarkup("))
+        #expect(!projectPatterns.contains("PatternFileService.live()"))
+        #expect(!library.contains("PatternFileService.live()"))
+        #expect(!reader.contains("PatternMarkupFileService.live()"))
+        #expect(!reader.contains("markupFiles.save("))
+    }
+
     private func sourceFile(_ path: String) throws -> String {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()

@@ -14,7 +14,6 @@ struct PatternLibraryView: View {
     @State private var importProjectID: UUID?
     @State private var importing = false
     @State private var errorMessage: String?
-    private let files = PatternFileService.live()
 
     var body: some View {
         NavigationStack {
@@ -72,16 +71,14 @@ struct PatternLibraryView: View {
 
     private func importPattern(_ result: Result<URL, Error>) {
         guard let projectID = importProjectID, case .success(let url) = result else { return }
-        let access = url.startAccessingSecurityScopedResource()
-        defer { if access { url.stopAccessingSecurityScopedResource() } }
-        var copied: PatternDocument?
-        do {
-            let pattern = try files.importFile(from: url, projectID: projectID)
-            copied = pattern
-            try store.addPattern(projectID: projectID, pattern: pattern)
-        } catch {
-            if let copied { try? files.delete(projectID: projectID, pattern: copied) }
-            errorMessage = error.localizedDescription
+        Task { @MainActor in
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            do {
+                _ = try await store.importPattern(from: url, projectID: projectID)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }

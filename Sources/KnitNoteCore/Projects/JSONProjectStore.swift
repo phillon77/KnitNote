@@ -2,6 +2,13 @@ import Combine
 import Foundation
 
 public struct ProjectArchive: Codable, Sendable {
+    public static let currentVersion = 9
+    public static let minimumSupportedVersion = 1
+
+    public static func isSupported(version: Int) -> Bool {
+        (minimumSupportedVersion...currentVersion).contains(version)
+    }
+
     public let version: Int
     public var projects: [StoredProject]
     public var yarns: [StoredYarn]
@@ -36,6 +43,8 @@ public enum ProjectStoreError: Error, Equatable, Sendable {
     case unreadableArchive
     case archiveUnavailable
     case invalidYarnProjectLinks
+    case patternNotFound
+    case staleDataGeneration
     case persistenceFailed
 }
 
@@ -58,17 +67,51 @@ enum ProjectJournalPhotoReferencePolicy {
     @Published public private(set) var projects: [StoredProject] = []
     @Published public private(set) var yarns: [StoredYarn] = []
     @Published public private(set) var loadError: ProjectStoreError?
+    @Published public private(set) var isDataOperationInProgress = false
+    @Published public private(set) var dataGeneration: UInt64 = 0
     private let url: URL
     private let photoService: ProjectPhotoFileService
     private let yarnPhotoService: YarnPhotoFileService
     private let journalPhotoService: ProjectJournalPhotoFileService
+    private let patternFileService: PatternFileService
+    private let patternMarkupFileService: PatternMarkupFileService
+    private let backupService: KnitNoteBackupService
     private var activeJournalPhotoTransactions = 0
+    private var activePatternTransactions = 0
 
-    public init(
+    public convenience init(
         url: URL,
         photoService: ProjectPhotoFileService? = nil,
         yarnPhotoService: YarnPhotoFileService? = nil,
-        journalPhotoService: ProjectJournalPhotoFileService? = nil
+        journalPhotoService: ProjectJournalPhotoFileService? = nil,
+        patternFileService: PatternFileService? = nil,
+        patternMarkupFileService: PatternMarkupFileService? = nil
+    ) {
+        let liveRoot = url.deletingLastPathComponent()
+        let workRoot = liveRoot.deletingLastPathComponent().appendingPathComponent(
+            ".KnitNote-BackupWork",
+            isDirectory: true
+        )
+        self.init(
+            url: url,
+            photoService: photoService,
+            yarnPhotoService: yarnPhotoService,
+            journalPhotoService: journalPhotoService,
+            patternFileService: patternFileService,
+            patternMarkupFileService: patternMarkupFileService,
+            backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
+        )
+    }
+
+    init(
+        url: URL,
+        photoService: ProjectPhotoFileService? = nil,
+        yarnPhotoService: YarnPhotoFileService? = nil,
+        journalPhotoService: ProjectJournalPhotoFileService? = nil,
+        patternFileService: PatternFileService? = nil,
+        patternMarkupFileService: PatternMarkupFileService? = nil,
+        backupService: KnitNoteBackupService,
+        initialLoadError: ProjectStoreError? = nil
     ) {
         self.url = url
         self.photoService = photoService ?? ProjectPhotoFileService(
@@ -80,15 +123,110 @@ enum ProjectJournalPhotoReferencePolicy {
         self.journalPhotoService = journalPhotoService ?? ProjectJournalPhotoFileService(
             directory: url.deletingLastPathComponent().appendingPathComponent("ProjectJournalPhotos", isDirectory: true)
         )
-        load()
+        self.patternFileService = patternFileService ?? PatternFileService(
+            root: url.deletingLastPathComponent().appendingPathComponent("Patterns", isDirectory: true)
+        )
+        self.patternMarkupFileService = patternMarkupFileService ?? PatternMarkupFileService(
+            root: self.patternFileService.root
+        )
+        self.backupService = backupService
+        if let initialLoadError {
+            loadError = initialLoadError
+        } else {
+            load()
+        }
     }
+
     public static func live() -> JSONProjectStore {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return JSONProjectStore(url: base.appendingPathComponent("KnitNote/projects-v1.json"))
+        return live(baseDirectory: base)
+    }
+
+    public static func live(baseDirectory: URL) -> JSONProjectStore {
+        let liveRoot = baseDirectory.appendingPathComponent("KnitNote", isDirectory: true)
+        let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
+        let workRoot = baseDirectory.appendingPathComponent(
+            ".KnitNote-BackupWork",
+            isDirectory: true
+        )
+        let backupService = KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
+        do {
+            try backupService.recoverInterruptedReplacement()
+            return JSONProjectStore(url: archiveURL, backupService: backupService)
+        } catch {
+            return JSONProjectStore(
+                url: archiveURL,
+                backupService: backupService,
+                initialLoadError: .unreadableArchive
+            )
+        }
     }
     public func retryLoad() {
         guard loadError != nil else { return }
-        load()
+        try? reloadFromDisk()
+    }
+
+    public func reloadFromDisk() throws {
+        guard !isDataOperationInProgress else {
+            throw KnitNoteBackupError.operationInProgress
+        }
+        try reloadFromDiskDuringDataOperation()
+    }
+
+    public func exportBackup(appVersion: String) async throws -> URL {
+        try beginDataOperation()
+        defer { isDataOperationInProgress = false }
+        let service = backupService
+        return try await Task.detached(priority: .userInitiated) {
+            try service.createPackage(appVersion: appVersion)
+        }.value
+    }
+
+    public func prepareBackupRestore(from packageURL: URL) async throws -> StagedKnitNoteBackup {
+        let accessedSecurityScope = packageURL.startAccessingSecurityScopedResource()
+        defer {
+            if accessedSecurityScope {
+                packageURL.stopAccessingSecurityScopedResource()
+            }
+        }
+        let service = backupService
+        return try await Task.detached(priority: .userInitiated) {
+            try service.stagePackage(at: packageURL)
+        }.value
+    }
+
+    public func cancelBackupRestore(_ backup: StagedKnitNoteBackup) {
+        removeOwnedBackupArtifact(at: backup.root, kind: .stagedRestore)
+    }
+
+    public func cleanupBackupArtifact(at url: URL) {
+        removeOwnedBackupArtifact(at: url, kind: .exportPackage)
+    }
+
+    public func restoreBackup(_ backup: StagedKnitNoteBackup) async throws {
+        try beginDataOperation()
+        defer { isDataOperationInProgress = false }
+        let service = backupService
+        let installation = try await Task.detached(priority: .userInitiated) {
+            try service.install(backup)
+        }.value
+
+        do {
+            try reloadFromDiskDuringDataOperation()
+        } catch {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try service.rollback(installation)
+                }.value
+                try reloadFromDiskDuringDataOperation()
+            } catch {
+                throw KnitNoteBackupError.rollbackFailed
+            }
+            throw KnitNoteBackupError.installFailedOriginalPreserved
+        }
+        await Task.detached(priority: .utility) {
+            service.commit(installation)
+        }.value
     }
     public func add(name: String) throws { try add(name: name, photoData: nil) }
     public func add(name: String, photoData: Data?) throws {
@@ -192,10 +330,92 @@ enum ProjectJournalPhotoReferencePolicy {
         try mutate(id: projectID) { $0.deleteNote(counterID: counterID, row: row) }
     }
     public func addPattern(projectID: UUID, pattern: PatternDocument) throws { try mutate(id: projectID) { $0.addPattern(pattern) } }
-    public func deletePattern(projectID: UUID, id: UUID) throws { try mutate(id: projectID) { $0.deletePattern(id: id) } }
-    public func savePatternPageNote(projectID: UUID, patternID: UUID, pageIndex: Int, text: String) throws { try mutate(id: projectID) { $0.savePatternPageNote(patternID: patternID, pageIndex: pageIndex, text: text) } }
+    public func importPattern(from source: URL, projectID: UUID) async throws -> PatternDocument {
+        try ensureArchiveAvailable()
+        guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
+        activePatternTransactions += 1
+        defer { activePatternTransactions -= 1 }
+        let service = patternFileService
+        let pattern = try await Task.detached(priority: .userInitiated) {
+            try service.importFile(from: source, projectID: projectID)
+        }.value
+        do {
+            try Task.checkCancellation()
+            guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
+            try addPattern(projectID: projectID, pattern: pattern)
+            return pattern
+        } catch {
+            try? service.delete(projectID: projectID, pattern: pattern)
+            throw error
+        }
+    }
+    public func deletePattern(projectID: UUID, id: UUID) throws {
+        try ensureArchiveAvailable()
+        guard let pattern = project(id: projectID)?.patterns.first(where: { $0.id == id }) else {
+            return
+        }
+        activePatternTransactions += 1
+        defer { activePatternTransactions -= 1 }
+        try mutate(id: projectID) { $0.deletePattern(id: id) }
+        try? patternFileService.delete(projectID: projectID, pattern: pattern)
+    }
+    public func savePatternPageNote(
+        projectID: UUID,
+        patternID: UUID,
+        pageIndex: Int,
+        text: String,
+        expectedDataGeneration: UInt64? = nil
+    ) throws {
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        try mutate(id: projectID) {
+            $0.savePatternPageNote(patternID: patternID, pageIndex: pageIndex, text: text)
+        }
+    }
     public func updatePatternState(projectID: UUID, id: UUID, pageIndex: Int, highlightPosition: Double) throws { try mutate(id: projectID) { $0.updatePatternState(id: id, pageIndex: pageIndex, highlightPosition: highlightPosition) } }
-    public func updatePatternState(projectID: UUID, id: UUID, state: PatternReadingState) throws { try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) } }
+    public func updatePatternState(
+        projectID: UUID,
+        id: UUID,
+        state: PatternReadingState,
+        expectedDataGeneration: UInt64? = nil
+    ) throws {
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) }
+    }
+    public func patternURL(projectID: UUID, pattern: PatternDocument) -> URL {
+        patternFileService.url(projectID: projectID, pattern: pattern)
+    }
+    public func loadPatternMarkup(
+        projectID: UUID,
+        patternID: UUID,
+        pageIndex: Int
+    ) throws -> PatternMarkupDocument {
+        try patternMarkupFileService.load(
+            projectID: projectID,
+            patternID: patternID,
+            pageIndex: pageIndex
+        )
+    }
+    public func savePatternMarkup(
+        _ document: PatternMarkupDocument,
+        projectID: UUID,
+        patternID: UUID,
+        pageIndex: Int,
+        expectedDataGeneration: UInt64
+    ) throws {
+        try ensureArchiveAvailable()
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        guard project(id: projectID)?.patterns.contains(where: { $0.id == patternID }) == true else {
+            throw ProjectStoreError.patternNotFound
+        }
+        activePatternTransactions += 1
+        defer { activePatternTransactions -= 1 }
+        try patternMarkupFileService.save(
+            document,
+            projectID: projectID,
+            patternID: patternID,
+            pageIndex: pageIndex
+        )
+    }
     public func project(id: UUID) -> StoredProject? { projects.first { $0.id == id } }
     public func addJournalEntry(
         projectID: UUID,
@@ -350,22 +570,48 @@ enum ProjectJournalPhotoReferencePolicy {
     private func load() {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         do {
-            let data = try Data(contentsOf: url)
-            let archive = try JSONDecoder().decode(ProjectArchive.self, from: data)
-            let loadedProjects = archive.projects.sorted { $0.updatedAt > $1.updatedAt }
-            let projectIDs = Set(loadedProjects.map(\.id))
-            yarns = archive.yarns.map { yarn in
-                var yarn = yarn
-                yarn.setLinkedProjectIDs(yarn.linkedProjectIDs.intersection(projectIDs), now: yarn.updatedAt)
-                return yarn
-            }.sorted { $0.updatedAt > $1.updatedAt }
-            projects = loadedProjects
-            loadError = nil
-            reconcileYarnPhotos()
-            reconcileJournalPhotos()
+            try reloadFromDiskDuringDataOperation()
         } catch {
             loadError = .unreadableArchive
         }
+    }
+
+    private func reloadFromDiskDuringDataOperation() throws {
+        let decoded: (projects: [StoredProject], yarns: [StoredYarn])
+        do {
+            decoded = try decodeArchiveFromDisk()
+        } catch {
+            loadError = .unreadableArchive
+            throw ProjectStoreError.unreadableArchive
+        }
+        projects = decoded.projects
+        yarns = decoded.yarns
+        dataGeneration &+= 1
+        loadError = nil
+        reconcileYarnPhotos()
+        reconcileJournalPhotos()
+    }
+
+    private func decodeArchiveFromDisk() throws -> (
+        projects: [StoredProject],
+        yarns: [StoredYarn]
+    ) {
+        let data = try Data(contentsOf: url)
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: data)
+        guard ProjectArchive.isSupported(version: archive.version) else {
+            throw ProjectStoreError.unreadableArchive
+        }
+        let loadedProjects = archive.projects.sorted { $0.updatedAt > $1.updatedAt }
+        let projectIDs = Set(loadedProjects.map(\.id))
+        let loadedYarns = archive.yarns.map { yarn in
+            var yarn = yarn
+            yarn.setLinkedProjectIDs(
+                yarn.linkedProjectIDs.intersection(projectIDs),
+                now: yarn.updatedAt
+            )
+            return yarn
+        }.sorted { $0.updatedAt > $1.updatedAt }
+        return (loadedProjects, loadedYarns)
     }
     private func persist(projects stagedProjects: [StoredProject], yarns stagedYarns: [StoredYarn]) throws {
         try ensureArchiveAvailable()
@@ -377,7 +623,11 @@ enum ProjectJournalPhotoReferencePolicy {
             let sortedProjects = stagedProjects.sorted { $0.updatedAt > $1.updatedAt }
             let sortedYarns = stagedYarns.sorted { $0.updatedAt > $1.updatedAt }
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let data = try JSONEncoder().encode(ProjectArchive(version: 9, projects: sortedProjects, yarns: sortedYarns))
+            let data = try JSONEncoder().encode(ProjectArchive(
+                version: ProjectArchive.currentVersion,
+                projects: sortedProjects,
+                yarns: sortedYarns
+            ))
             try data.write(to: url, options: .atomic)
             projects = sortedProjects
             yarns = sortedYarns
@@ -416,8 +666,68 @@ enum ProjectJournalPhotoReferencePolicy {
     }
 
     private func ensureArchiveAvailable() throws {
+        guard !isDataOperationInProgress else {
+            throw KnitNoteBackupError.operationInProgress
+        }
         guard loadError == nil else {
             throw ProjectStoreError.archiveUnavailable
         }
+    }
+
+    private func validateExpectedDataGeneration(_ expected: UInt64?) throws {
+        try ensureArchiveAvailable()
+        guard expected == nil || expected == dataGeneration else {
+            throw ProjectStoreError.staleDataGeneration
+        }
+    }
+
+    private func beginDataOperation() throws {
+        guard !isDataOperationInProgress,
+              activeJournalPhotoTransactions == 0,
+              activePatternTransactions == 0 else {
+            throw KnitNoteBackupError.operationInProgress
+        }
+        isDataOperationInProgress = true
+    }
+
+    private enum OwnedBackupArtifactKind {
+        case exportPackage
+        case stagedRestore
+
+        func accepts(filename: String) -> Bool {
+            switch self {
+            case .exportPackage:
+                let suffix = ".knitnote-backup"
+                guard filename.hasSuffix(suffix) else { return false }
+                return UUID(uuidString: String(filename.dropLast(suffix.count))) != nil
+            case .stagedRestore:
+                let prefix = "Staged-"
+                guard filename.hasPrefix(prefix) else { return false }
+                return UUID(uuidString: String(filename.dropFirst(prefix.count))) != nil
+            }
+        }
+    }
+
+    private func removeOwnedBackupArtifact(
+        at artifact: URL,
+        kind: OwnedBackupArtifactKind
+    ) {
+        let standardizedArtifact = artifact.standardizedFileURL
+        guard standardizedArtifact.deletingLastPathComponent().path
+                == backupService.workRoot.standardizedFileURL.path,
+              kind.accepts(filename: standardizedArtifact.lastPathComponent),
+              let workValues = try? backupService.workRoot.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+              ),
+              workValues.isDirectory == true,
+              workValues.isSymbolicLink != true,
+              let artifactValues = try? standardizedArtifact.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+              ),
+              artifactValues.isDirectory == true,
+              artifactValues.isSymbolicLink != true else {
+            return
+        }
+        try? FileManager.default.removeItem(at: standardizedArtifact)
     }
 }

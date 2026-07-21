@@ -4,7 +4,20 @@ import ImageIO
 public enum PatternFileError: Error, Equatable { case empty, tooLarge, unsupported, invalidContent }
 public struct PatternFileService: Sendable {
     public let root: URL
-    public init(root: URL) { self.root = root }
+    private let copyFile: @Sendable (URL, URL) throws -> Void
+    public init(root: URL) {
+        self.root = root
+        copyFile = { source, destination in
+            try FileManager.default.copyItem(at: source, to: destination)
+        }
+    }
+    init(
+        root: URL,
+        copyFile: @escaping @Sendable (URL, URL) throws -> Void
+    ) {
+        self.root = root
+        self.copyFile = copyFile
+    }
     public static func live() -> PatternFileService { .init(root: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("KnitNote/Patterns")) }
     public func importFile(from source: URL, projectID: UUID) throws -> PatternDocument {
         let size = try source.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
@@ -15,7 +28,7 @@ public struct PatternFileService: Sendable {
         else if ["png","jpg","jpeg","heic"].contains(ext) { kind = .image; guard let image=CGImageSourceCreateWithURL(source as CFURL,nil), CGImageSourceGetCount(image)>0 else { throw PatternFileError.invalidContent } }
         else { throw PatternFileError.unsupported }
         let id=UUID(); let dir=root.appendingPathComponent(projectID.uuidString); try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let filename="\(id.uuidString).\(ext)"; try FileManager.default.copyItem(at: source, to: dir.appendingPathComponent(filename))
+        let filename="\(id.uuidString).\(ext)"; try copyFile(source, dir.appendingPathComponent(filename))
         return PatternDocument(id:id, displayName:source.deletingPathExtension().lastPathComponent, kind:kind, storedFilename:filename)
     }
     public func url(projectID: UUID, pattern: PatternDocument) -> URL { root.appendingPathComponent(projectID.uuidString).appendingPathComponent(pattern.storedFilename) }

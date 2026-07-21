@@ -1,6 +1,6 @@
 name: KnitNote
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.phillon
   deploymentTarget:
     iOS: "18.0"
     macOS: "15.0"
@@ -13,6 +13,26 @@ targets:
   KnitNote:
     type: application
     supportedDestinations: [iOS, macOS]
+    info:
+      path: KnitNote/Info.plist
+      properties:
+        CFBundleDisplayName: KnitNote
+        LSApplicationCategoryType: public.app-category.lifestyle
+        UILaunchStoryboardName: LaunchScreen
+        NSCameraUsageDescription: Take photos for your knitting projects and journal entries.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.phillon.KnitNote.backup
+            UTTypeDescription: KnitNote Backup
+            UTTypeConformsTo:
+              - com.apple.package
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - knitnote-backup
     sources:
       - path: KnitNote
         excludes:
@@ -27,19 +47,11 @@ targets:
       - path: Sources/KnitNoteCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.KnitNote
-        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
         MARKETING_VERSION: 1.0.0
         CURRENT_PROJECT_VERSION: 1
         PRODUCT_NAME: KnitNote
-        ASSETCATALOG_COMPILER_APPICON_NAME: ""
-        INFOPLIST_KEY_CFBundleDisplayName: KnitNote
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.lifestyle
-        "INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphoneos*]": LaunchScreen
-        "INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphonesimulator*]": LaunchScreen
-        "INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]": "Take photos for your knitting projects and journal entries."
-        "INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphonesimulator*]": "Take photos for your knitting projects and journal entries."
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   KnitNoteWatch:
     type: application
     platform: watchOS
@@ -50,12 +62,13 @@ targets:
           - Launch/LaunchExperienceCoordinator.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.KnitNote.watch
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
         GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: 1.0.0
         CURRENT_PROJECT_VERSION: 1
         PRODUCT_NAME: KnitNoteWatch
         INFOPLIST_KEY_CFBundleDisplayName: KnitNote
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 schemes:
   KnitNote:
     build:

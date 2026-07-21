@@ -1,6 +1,176 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "backup.alert.dismiss" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    },
+    "backup.cancel" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "backup.error.exportFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote couldn't create a backup. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法建立 KnitNote 備份，請再試一次。" } }
+      }
+    },
+    "backup.error.invalid" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This backup is damaged or incomplete and can't be restored." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此備份已損毀或不完整，無法還原。" } }
+      }
+    },
+    "backup.error.operationInProgress" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Another data operation is already in progress. Please wait and try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "另一項資料操作正在進行，請稍候再試。" } }
+      }
+    },
+    "backup.error.storageOrAccess" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote couldn't access the backup, or there isn't enough storage space." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote 無法存取備份，或裝置儲存空間不足。" } }
+      }
+    },
+    "backup.error.unsupportedVersion" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This backup was created by a newer version of KnitNote. Update the app before restoring it." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此備份由較新版 KnitNote 建立，請更新 App 後再還原。" } }
+      }
+    },
+    "backup.export" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Complete Backup" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯出完整備份" } }
+      }
+    },
+    "backup.export.accessibility" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Export a complete KnitNote backup" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯出完整的 KnitNote 備份" } }
+      }
+    },
+    "backup.export.success" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Backup exported." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備份已匯出。" } }
+      }
+    },
+    "backup.preparing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing backup…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在準備備份⋯" } }
+      }
+    },
+    "backup.preview.date" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Backup created" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備份建立時間" } }
+      }
+    },
+    "backup.preview.projects" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld project" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld projects" } }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個作品" } }
+            }
+          }
+        }
+      }
+    },
+    "backup.preview.yarns" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld yarn" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld yarns" } }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld 筆毛線" } }
+            }
+          }
+        }
+      }
+    },
+    "backup.progress.accessibility" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Backup operation in progress" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備份操作正在進行" } }
+      }
+    },
+    "backup.replace.warning" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restoring will replace all current KnitNote data." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還原後將取代目前所有 KnitNote 資料。" } }
+      }
+    },
+    "backup.restore" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore from Backup" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從備份還原" } }
+      }
+    },
+    "backup.restore.accessibility" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a KnitNote backup to restore" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇要還原的 KnitNote 備份" } }
+      }
+    },
+    "backup.restore.confirm" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replace and Restore" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取代並還原" } }
+      }
+    },
+    "backup.restore.originalPreserved" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore failed. Your original data was preserved." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還原失敗，原有資料已保留。" } }
+      }
+    },
+    "backup.restore.recoveryRequired" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore and recovery both failed. Stop using KnitNote and recover the app's data from a device backup." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還原與資料回復皆失敗。請停止使用 KnitNote，並從裝置備份復原 App 資料。" } }
+      }
+    },
+    "backup.restore.success" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Backup restored." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備份已還原。" } }
+      }
+    },
+    "backup.restoring" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restoring backup…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在還原備份⋯" } }
+      }
+    },
+    "backup.section" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Data Backup" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "資料備份" } }
+      }
+    },
     "art.familyHero.accessibility" : {
       "localizations" : {
         "en" : {

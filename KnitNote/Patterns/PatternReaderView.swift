@@ -56,10 +56,9 @@ struct PatternReaderView: View {
     @State private var markupColor = MarkupColor.red
     @State private var markupWidth = 0.008
     @State private var confirmingMarkupClear = false
+    @State private var expectedDataGeneration: UInt64?
     @State private var managingCounter: ProjectCounter?
     @StateObject private var pdfNavigator = PDFPageNavigator()
-    private let files = PatternFileService.live()
-    private let markupFiles = PatternMarkupFileService.live()
     private let counterRailSafeAreaWidth: CGFloat = 64
 
     init(projectID: UUID, pattern: PatternDocument) {
@@ -72,7 +71,7 @@ struct PatternReaderView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let pattern, FileManager.default.fileExists(atPath: files.url(projectID: projectID, pattern: pattern).path) {
+                if let pattern, FileManager.default.fileExists(atPath: store.patternURL(projectID: projectID, pattern: pattern).path) {
                     VStack(spacing: 0) {
                         PatternMarkupToolbar(document: $markup, tool: $markupTool, color: $markupColor, width: $markupWidth, onClear: { confirmingMarkupClear = true }, onDone: finishMarkup)
                             .opacity(markupMode ? 1 : 0)
@@ -83,10 +82,10 @@ struct PatternReaderView: View {
                         ZStack(alignment: .top) {
                             ZStack(alignment: .top) {
                                 if pattern.kind == .pdf {
-                                    PDFReaderView(url: files.url(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
+                                    PDFReaderView(url: store.patternURL(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
                                         .allowsHitTesting(!markupMode)
                                 } else {
-                                    ImageReaderView(url: files.url(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
+                                    ImageReaderView(url: store.patternURL(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
                                         .allowsHitTesting(!markupMode)
                                 }
                                 if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition).allowsHitTesting(!markupMode) }
@@ -165,7 +164,10 @@ struct PatternReaderView: View {
         }
         .tint(WatercolorTheme.actionBerry)
         .interactiveDismissDisabled()
-        .onAppear { loadMarkup(page: state.pageIndex) }
+        .onAppear {
+            if expectedDataGeneration == nil { expectedDataGeneration = store.dataGeneration }
+            loadMarkup(page: state.pageIndex)
+        }
         .onDisappear { saveMarkup(page: state.pageIndex); _ = save() }
         .onChange(of: state.pageIndex) { oldPage, newPage in saveMarkup(page: oldPage); loadMarkup(page: newPage) }
         .onChange(of: scenePhase) { _, phase in if phase != .active { saveMarkup(page: state.pageIndex); _ = save() } }
@@ -173,7 +175,15 @@ struct PatternReaderView: View {
 
     @discardableResult private func save() -> Bool {
         state.saveCurrentPage()
-        do { try store.updatePatternState(projectID: projectID, id: patternID, state: state); return true }
+        do {
+            try store.updatePatternState(
+                projectID: projectID,
+                id: patternID,
+                state: state,
+                expectedDataGeneration: expectedDataGeneration
+            )
+            return true
+        }
         catch { saveError=error.localizedDescription; return false }
     }
 
@@ -200,7 +210,13 @@ struct PatternReaderView: View {
     private func savePageNoteDirectly() {
         let text = state.pageNote
         do {
-            try store.savePatternPageNote(projectID: projectID, patternID: patternID, pageIndex: editingPageNoteIndex, text: text)
+            try store.savePatternPageNote(
+                projectID: projectID,
+                patternID: patternID,
+                pageIndex: editingPageNoteIndex,
+                text: text,
+                expectedDataGeneration: expectedDataGeneration
+            )
             if editingPageNoteIndex == state.pageIndex { state.setPageNote(text) }
         } catch {
             saveError = error.localizedDescription
@@ -214,12 +230,27 @@ struct PatternReaderView: View {
     }
 
     private func loadMarkup(page: Int) {
-        do { markup = try markupFiles.load(projectID: projectID, patternID: patternID, pageIndex: page) }
+        do {
+            markup = try store.loadPatternMarkup(
+                projectID: projectID,
+                patternID: patternID,
+                pageIndex: page
+            )
+        }
         catch { markup = PatternMarkupDocument(); saveError = error.localizedDescription }
     }
 
     private func saveMarkup(page: Int) {
-        do { try markupFiles.save(markup, projectID: projectID, patternID: patternID, pageIndex: page) }
+        guard let expectedDataGeneration else { return }
+        do {
+            try store.savePatternMarkup(
+                markup,
+                projectID: projectID,
+                patternID: patternID,
+                pageIndex: page,
+                expectedDataGeneration: expectedDataGeneration
+            )
+        }
         catch { saveError = error.localizedDescription }
     }
 

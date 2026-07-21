@@ -154,6 +154,60 @@ import Testing
         #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 6)
     }
 
+    @Test func delayedHeadAcknowledgementKeepsNewerAuthorityAndReplaysOnlyRemainingSuffix() throws {
+        let fixture = try Fixture(value: 4)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let first = fixture.command(.increment, offset: 1)
+        let second = fixture.command(.increment, offset: 2)
+        #expect(state.enqueue(first) == nil)
+        #expect(state.enqueue(second) == nil)
+        let newerApplicationContext = try fixture.snapshot(
+            value: 5,
+            generatedAt: Date(timeIntervalSince1970: 40)
+        )
+        state.replaceSnapshot(newerApplicationContext)
+
+        let acknowledged = state.acknowledge(.init(
+            commandID: first.id,
+            rejection: nil,
+            snapshot: try fixture.snapshot(
+                value: 5,
+                generatedAt: Date(timeIntervalSince1970: 30)
+            )
+        ))
+
+        #expect(acknowledged)
+        #expect(state.pendingCommands == [second])
+        #expect(state.cache.snapshot == newerApplicationContext)
+        #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 6)
+    }
+
+    @Test func equalTimestampHeadAcknowledgementDeterministicallyReplacesAuthority() throws {
+        let fixture = try Fixture(value: 4)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let command = fixture.command(.increment)
+        #expect(state.enqueue(command) == nil)
+        state.replaceSnapshot(try fixture.snapshot(
+            value: 99,
+            generatedAt: Date(timeIntervalSince1970: 30)
+        ))
+        let acknowledgementSnapshot = try fixture.snapshot(
+            value: 5,
+            generatedAt: Date(timeIntervalSince1970: 30)
+        )
+
+        let acknowledged = state.acknowledge(.init(
+            commandID: command.id,
+            rejection: nil,
+            snapshot: acknowledgementSnapshot
+        ))
+
+        #expect(acknowledged)
+        #expect(state.pendingCommands.isEmpty)
+        #expect(state.cache.snapshot == acknowledgementSnapshot)
+        #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 5)
+    }
+
     @Test func retryKeepsTheOriginalCommandIdentity() throws {
         let fixture = try Fixture(value: 0)
         var state = WatchOptimisticState(cache: fixture.cache)
@@ -278,6 +332,33 @@ import Testing
         #expect(delivery.headCommandID == second.id)
     }
 
+    @Test func failedBackgroundTransferMakesOnlyTheMatchingHeadRetryable() throws {
+        let fixture = try Fixture(value: 0)
+        let first = fixture.command(.increment, offset: 1)
+        let second = fixture.command(.increment, offset: 2)
+        var delivery = WatchHeadDeliveryState()
+        let firstPreparation = delivery.prepareBackgroundTransfer(for: first.id)
+        #expect(firstPreparation)
+
+        let mismatchedFailure = delivery.failBackgroundTransfer(for: second.id)
+        let stillPrepared = delivery.prepareBackgroundTransfer(for: first.id)
+        let matchingFailure = delivery.failBackgroundTransfer(for: first.id)
+        let retryPreparation = delivery.prepareBackgroundTransfer(for: first.id)
+        #expect(!mismatchedFailure)
+        #expect(!stillPrepared)
+        #expect(matchingFailure)
+        #expect(retryPreparation)
+
+        let firstAcknowledgement = delivery.acknowledge(first.id)
+        let secondPreparation = delivery.prepareBackgroundTransfer(for: second.id)
+        let staleFailure = delivery.failBackgroundTransfer(for: first.id)
+        let duplicateSecondPreparation = delivery.prepareBackgroundTransfer(for: second.id)
+        #expect(firstAcknowledgement)
+        #expect(secondPreparation)
+        #expect(!staleFailure)
+        #expect(!duplicateSecondPreparation)
+    }
+
     @Test func coordinatorSourcePreservesDurabilityAndReplayContracts() throws {
         let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
 
@@ -356,6 +437,22 @@ import Testing
         #expect(coordinator.contains("beginHandshakeAndReplay()"))
     }
 
+    @Test func coordinatorRetriesOnlyFailedMatchingCommandTransfersAfterDelay() throws {
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+
+        let transferCompletion = try #require(coordinator.range(of: "onTransferCompleted ="))
+        let receiveConfiguration = try #require(coordinator.range(
+            of: "onReceivedEnvelope =",
+            range: transferCompletion.upperBound..<coordinator.endIndex
+        ))
+        let completionBody = coordinator[transferCompletion.lowerBound..<receiveConfiguration.lowerBound]
+        #expect(completionBody.contains("case let .command(command)? = envelope"))
+        #expect(completionBody.contains("error != nil"))
+        #expect(completionBody.contains("deliveryState.failBackgroundTransfer(for: command.id)"))
+        #expect(completionBody.contains("scheduleHandshakeRetry()"))
+        #expect(coordinator.contains("Task.sleep(for: .seconds(2))"))
+    }
+
     private func source(_ path: String) throws -> String {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()
@@ -413,12 +510,15 @@ private struct Fixture {
         )
     }
 
-    func snapshot(value: Int) throws -> WatchSyncSnapshot {
+    func snapshot(
+        value: Int,
+        generatedAt: Date = Date(timeIntervalSince1970: 30)
+    ) throws -> WatchSyncSnapshot {
         let counters = counterIDs.enumerated().map { index, id in
             WatchCounterSnapshot(id: id, name: "Counter \(index + 1)", value: index == 0 ? value : 0)
         }
         return WatchSyncSnapshot(
-            generatedAt: Date(timeIntervalSince1970: 30),
+            generatedAt: generatedAt,
             projects: [try WatchProjectSnapshot(
                 id: projectID,
                 name: "Sweater",

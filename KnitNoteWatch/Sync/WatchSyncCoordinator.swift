@@ -138,9 +138,15 @@ final class WatchSyncCoordinator: ObservableObject {
             }
             beginHandshakeAndReplay()
         }
-        transport.onTransferCompleted = { _, _ in
-            // Delivery is not authority. The durable queue changes only for a
-            // matching command response from the iPhone.
+        transport.onTransferCompleted = { [weak self] envelope, error in
+            guard let self,
+                  error != nil,
+                  case let .command(command)? = envelope,
+                  deliveryState.failBackgroundTransfer(for: command.id)
+            else { return }
+            // Transfer completion is not authority. A failed matching head is
+            // retried after a bounded delay and remains durably queued.
+            scheduleHandshakeRetry()
         }
         transport.onReceivedEnvelope = { [weak self] envelope, _ in
             self?.receive(envelope)

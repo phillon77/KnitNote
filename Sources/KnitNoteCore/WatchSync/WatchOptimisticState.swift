@@ -90,7 +90,11 @@ public struct WatchOptimisticState: Equatable, Sendable {
         }
 
         pendingCommands.removeFirst()
-        authoritativeSnapshot = acknowledgement.snapshot
+        if authoritativeSnapshot.map({
+            acknowledgement.snapshot.generatedAt >= $0.generatedAt
+        }) ?? true {
+            authoritativeSnapshot = acknowledgement.snapshot
+        }
         repairSelection()
         return true
     }
@@ -215,6 +219,13 @@ public struct WatchHeadDeliveryState: Equatable, Sendable {
         guard headCommandID == commandID, interactiveAttemptID == nil else { return nil }
         interactiveAttemptID = attemptID
         return attemptID
+    }
+
+    @discardableResult
+    public mutating func failBackgroundTransfer(for commandID: UUID) -> Bool {
+        guard headCommandID == commandID, backgroundTransferPrepared else { return false }
+        backgroundTransferPrepared = false
+        return true
     }
 
     @discardableResult

@@ -12,9 +12,11 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
     }
 
     public private(set) var entries: [Entry]
+    public private(set) var requiresFreshHandshake: Bool
 
-    public init(entries: [Entry] = []) {
+    public init(entries: [Entry] = [], requiresFreshHandshake: Bool = false) {
         self.entries = entries
+        self.requiresFreshHandshake = requiresFreshHandshake
     }
 
     public func contains(_ id: UUID) -> Bool {
@@ -34,5 +36,27 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
         entries = newest.filter {
             protectedIDs.contains($0.id) || $0.processedAt >= cutoff
         }
+    }
+
+    public mutating func markRequiresFreshHandshake() {
+        requiresFreshHandshake = true
+    }
+
+    public mutating func markHandshakeComplete() {
+        requiresFreshHandshake = false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case entries
+        case requiresFreshHandshake
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        entries = try container.decode([Entry].self, forKey: .entries)
+        requiresFreshHandshake = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .requiresFreshHandshake
+        ) ?? false
     }
 }

@@ -9,7 +9,7 @@
 - macOS：26.5.2（25F84），Apple Silicon
 - SDK：iOS／iOS Simulator 26.5、macOS 26.5、watchOS／watchOS Simulator 26.5
 - 實體 iPhone：iPhone 17 Pro Max，iOS 26.5.2（23F84），已連線
-- 實體 Apple Watch：Apple Watch Ultra 2，watchOS 26.5（23T570），已連線但 Developer Mode 關閉
+- 實體 Apple Watch：Apple Watch Ultra 2，watchOS 26.5（23T570），已配對、Developer Mode 已啟用
 - iOS bundle ID：`com.phillon.KnitNote`
 - Watch bundle ID：`com.phillon.KnitNote.watch`
 - 版本／build：`1.0.0`／`1`
@@ -64,7 +64,9 @@ Test run with 494 tests in 32 suites passed after 1.054 seconds.
 
 ## 實體配對 iPhone／Apple Watch 功能清單
 
-以下項目尚未聲稱通過。Apple Watch Ultra 2 可被偵測，但 Developer Mode 關閉；`devicectl` 回傳 `CoreDeviceError 10005`，因此目前無法由開發工具安裝、啟動或觀察 Watch App。啟用 Developer Mode 需要使用者在實體裝置上確認，並可能重新啟動手錶。
+2026-07-22 使用者啟用 Apple Watch Developer Mode 後，`devicectl device info details` 顯示 `developerModeStatus: enabled`、`ddiServicesAvailable: true`。舊 archive 的開發 provisioning profile 只列出 iPad 與 iPhone UDID，直接安裝 Watch App 因 `0xe8008012` 被拒；使用 `-allowProvisioningDeviceRegistration` 登錄此 Watch 並產生 `com.phillon.KnitNote.watch` 專用 profile 後，實體 Watch Debug build、安裝與啟動均 exit 0。Xcode Devices 顯示已安裝 bundle `com.phillon.KnitNote.watch`、build `1`。
+
+實體 Watch 截圖確認 App 能前景開啟，但畫面顯示「尚無作品」。iPhone 同時安裝舊開發 bundle `com.example.KnitNote` 與發行 bundle `com.phillon.KnitNote`；兩者資料容器彼此隔離，而 Watch companion 正確連結後者，因此不能用舊 bundle 的既有資料完成發行版同步驗收。iPhone 截圖同時顯示裝置停在鎖定畫面，尚未在發行 bundle 建立合成測試作品，所以下列功能清單仍未聲稱通過。
 
 - [ ] 初次同步顯示 iPhone 作品快照
 - [ ] Watch 按一下立即 +1，iPhone 收到相同結果
@@ -80,7 +82,7 @@ Test run with 494 tests in 32 suites passed after 1.054 seconds.
 
 ## App Store Connect Validate App
 
-2026-07-22 在 Xcode Organizer 開啟修正前的 `/tmp/KnitNoteRelease/KnitNote-iOS.xcarchive`，選擇「Validate App」與建議設定。Xcode 顯示 `KnitNote 1.0.0 (1)` 與 iOS + watchOS 內容；companion 關聯另由 processed plist 的 `WKCompanionAppBundleIdentifier` 證明。Organizer 在重新簽署階段失敗：
+2026-07-22 第一次在 Xcode Organizer 開啟修正前的 `/tmp/KnitNoteRelease/KnitNote-iOS.xcarchive`，選擇「Validate App」與建議設定。Xcode 顯示 `KnitNote 1.0.0 (1)` 與 iOS + watchOS 內容；companion 關聯另由 processed plist 的 `WKCompanionAppBundleIdentifier` 證明。Organizer 在重新簽署階段失敗：
 
 ```text
 codesign command failed
@@ -88,7 +90,15 @@ KnitNote.app: replacing existing signature
 KnitNote.app: errSecInternalComponent
 ```
 
-本機同時存在有效的 Apple Development 與 Apple Distribution identity；CLI 對 App 副本以 Distribution identity 重新簽署也會等待私鑰授權，顯示目前阻塞在鑰匙圈私鑰存取，而非已回報的 packaging／localization／icon／privacy 驗證訊息。修正後的 `/tmp/KnitNote-WatchCheck-Application.xcarchive` 尚未完成 Organizer Validate App。未執行上傳，也未送審。
+使用者允許 Xcode／codesign 存取 Apple Distribution 私鑰後，再對修正後的 `/tmp/KnitNote-WatchCheck-Application.xcarchive` 執行推薦的 Validate App。Organizer 完成 iOS 與 Watch 重新簽署並回報：
+
+```text
+App validation complete:
+KnitNote 1.0.0 (1) validated
+Your app successfully passed all validation checks.
+```
+
+Organizer archive 狀態顯示 `Validation succeeded`，時間為 2026-07-22 09:32（Asia/Taipei）。未執行上傳，也未送審。
 
 ## 最終靜態檢查
 
@@ -100,7 +110,4 @@ exit 0
 
 ## 發布結論
 
-自動測試、五個 Release 目的地、iOS／macOS signed archive、內嵌 Watch metadata、嚴格簽章檢查，以及實體 iPhone 安裝／啟動均完成。發布仍被以下兩項阻擋：
-
-1. 在 Apple Watch 開啟 Developer Mode 後完成上述實機同步與 VoiceOver 清單。
-2. 讓 Xcode 可使用 Apple Distribution 私鑰後重新執行 Organizer Validate App，記錄所有訊息並取得成功結果。
+自動測試、五個 Release 目的地、iOS／macOS signed archive、內嵌 Watch metadata、嚴格簽章檢查、實體 iPhone 與 Watch 安裝／啟動，以及修正後 archive 的 Organizer Validate App 均完成。發布仍被實體同步與 VoiceOver 清單阻擋；需先在解鎖的 `com.phillon.KnitNote` 建立合成測試作品，再由使用者在 Watch 上執行點按、長按、飛航模式與 VoiceOver 操作。

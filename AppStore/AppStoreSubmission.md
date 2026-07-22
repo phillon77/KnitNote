@@ -21,13 +21,14 @@
 - [x] iPhone／Watch 版本與 build 一致
 - [x] 修正後 release candidate `/tmp/KnitNote-WatchCheck-Application.xcarchive` 包含 Watch App，且 strict codesign 通過
 - [x] 該修正版成功安裝並啟動於實體 iPhone
+- [x] Apple Watch Developer Mode、裝置登錄、實機安裝與啟動
 - [ ] 實體 Apple Watch 功能與 VoiceOver 驗收
 
 ## 發布門檻
 
 - [x] SwiftPM 測試與五個 Release build 目的地通過
 - [x] iOS 與 macOS signed archives 建立成功
-- [ ] Xcode Organizer Validate App 成功
+- [x] 修正後 archive 通過 Xcode Organizer Validate App
 - [ ] 完成 App Store Connect metadata、隱私、截圖與 build 對照
 - [ ] 使用者明確批准後才可提交 App Review
 

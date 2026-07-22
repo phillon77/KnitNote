@@ -68,6 +68,15 @@ struct PatternReaderView: View {
     }
 
     private var pattern: PatternDocument? { store.project(id: projectID)?.patterns.first { $0.id == patternID } }
+
+    private var readerIsPad: Bool {
+#if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+#else
+        false
+#endif
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -79,37 +88,28 @@ struct PatternReaderView: View {
                             .accessibilityHidden(!markupMode)
                             .frame(height: PatternMarkupToolbar.stableHeight)
 
-                        ZStack(alignment: .top) {
-                            ZStack(alignment: .top) {
-                                if pattern.kind == .pdf {
-                                    PDFReaderView(url: store.patternURL(projectID: projectID, pattern: pattern), navigator: pdfNavigator, state: $state, pageCount: $pageCount, loadError: $loadError)
-                                        .allowsHitTesting(!markupMode)
-                                } else {
-                                    ImageReaderView(url: store.patternURL(projectID: projectID, pattern: pattern), state: $state, loadError: $loadError)
-                                        .allowsHitTesting(!markupMode)
+                        GeometryReader { proxy in
+                            let layout = PatternReaderLayoutPolicy.resolve(
+                                isPad: readerIsPad,
+                                width: proxy.size.width,
+                                height: proxy.size.height
+                            )
+                            VStack(spacing: 0) {
+                                readerCanvas(pattern: pattern, layout: layout)
+                                if pattern.kind == .pdf,
+                                   pageCount > 0,
+                                   layout.pageControlPlacement == .reservedBelow,
+                                   !markupMode {
+                                    PatternPageControls(
+                                        pageIndex: state.pageIndex,
+                                        pageCount: pageCount,
+                                        onPreviousPage: { navigatePDF(by: -1) },
+                                        onNextPage: { navigatePDF(by: 1) }
+                                    )
+                                    .background(.ultraThinMaterial)
                                 }
-                                if state.highlightEnabled { HighlightOverlay(mode: state.highlightMode, horizontalPosition: $state.highlightPosition, verticalPosition: $state.verticalHighlightPosition).allowsHitTesting(!markupMode) }
-                                if markupMode { PatternMarkupOverlay(document: $markup, tool: markupTool, color: markupColor, width: markupWidth) }
-                            }
-                            .padding(.trailing, counterRailSafeAreaWidth)
-
-                            if let project = store.project(id: projectID), !markupMode {
-                                PatternReaderControls(
-                                    counters: project.counters,
-                                    isEnabled: !project.isCompleted,
-                                    pageIndex: state.pageIndex,
-                                    pageCount: pattern.kind == .pdf ? pageCount : 0,
-                                    onPreviousPage: { navigatePDF(by: -1) },
-                                    onNextPage: { navigatePDF(by: 1) },
-                                    onIncrement: incrementCounter,
-                                    onManage: { counterID in
-                                        managingCounter = project.counters.first { $0.id == counterID }
-                                    }
-                                )
                             }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
                     }
                 } else {
                     ContentUnavailableView { Label("patterns.missing", systemImage: "exclamationmark.triangle") } actions: {
@@ -117,7 +117,6 @@ struct PatternReaderView: View {
                     }
                 }
             }
-            .navigationTitle(pattern?.displayName ?? String(localized: "patterns.title"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("common.ok") { if save() { dismiss() } } }
                 ToolbarItem(placement: .primaryAction) { Toggle("patterns.highlight", isOn: $state.highlightEnabled) }
@@ -171,6 +170,70 @@ struct PatternReaderView: View {
         .onDisappear { saveMarkup(page: state.pageIndex); _ = save() }
         .onChange(of: state.pageIndex) { oldPage, newPage in saveMarkup(page: oldPage); loadMarkup(page: newPage) }
         .onChange(of: scenePhase) { _, phase in if phase != .active { saveMarkup(page: state.pageIndex); _ = save() } }
+    }
+
+    @ViewBuilder
+    private func readerCanvas(
+        pattern: PatternDocument,
+        layout: PatternReaderLayoutPolicy
+    ) -> some View {
+        ZStack(alignment: .top) {
+            ZStack(alignment: .top) {
+                if pattern.kind == .pdf {
+                    PDFReaderView(
+                        url: store.patternURL(projectID: projectID, pattern: pattern),
+                        navigator: pdfNavigator,
+                        state: $state,
+                        pageCount: $pageCount,
+                        loadError: $loadError
+                    )
+                    .allowsHitTesting(!markupMode)
+                } else {
+                    ImageReaderView(
+                        url: store.patternURL(projectID: projectID, pattern: pattern),
+                        state: $state,
+                        loadError: $loadError
+                    )
+                    .allowsHitTesting(!markupMode)
+                }
+                if state.highlightEnabled {
+                    HighlightOverlay(
+                        mode: state.highlightMode,
+                        horizontalPosition: $state.highlightPosition,
+                        verticalPosition: $state.verticalHighlightPosition
+                    )
+                    .allowsHitTesting(!markupMode)
+                }
+                if markupMode {
+                    PatternMarkupOverlay(
+                        document: $markup,
+                        tool: markupTool,
+                        color: markupColor,
+                        width: markupWidth
+                    )
+                }
+            }
+            .padding(.trailing, counterRailSafeAreaWidth)
+            .accessibilityLabel(Text(pattern.displayName))
+
+            if let project = store.project(id: projectID), !markupMode {
+                PatternReaderControls(
+                    counters: project.counters,
+                    isEnabled: !project.isCompleted,
+                    pageIndex: state.pageIndex,
+                    pageCount: pattern.kind == .pdf ? pageCount : 0,
+                    showsOverlayPageControls: layout.pageControlPlacement == .overlay,
+                    onPreviousPage: { navigatePDF(by: -1) },
+                    onNextPage: { navigatePDF(by: 1) },
+                    onIncrement: incrementCounter,
+                    onManage: { counterID in
+                        managingCounter = project.counters.first { $0.id == counterID }
+                    }
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 
     @discardableResult private func save() -> Bool {

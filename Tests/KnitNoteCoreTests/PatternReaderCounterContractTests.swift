@@ -35,6 +35,22 @@ import Testing
         #expect(source.contains(".padding(.trailing, counterRailSafeAreaWidth)"))
     }
 
+    @Test func iPadPortraitCanReservePageControlsOutsideTheReaderOverlay() throws {
+        let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(controls.contains("struct PatternPageControls: View"))
+        #expect(reader.contains("pageControlPlacement == .reservedBelow"))
+        #expect(reader.contains("PatternPageControls("))
+    }
+
+    @Test func readerHasNoVisibleNavigationTitleButKeepsAnAccessibilityName() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(!reader.contains(".navigationTitle(pattern?.displayName"))
+        #expect(reader.contains(".accessibilityLabel(Text(pattern.displayName))"))
+    }
+
     @Test func completedProjectLocksPatternReaderCounters() throws {
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")

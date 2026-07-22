@@ -1,40 +1,12 @@
 import SwiftUI
 
-struct PatternReaderControls: View {
-    @Environment(\.locale) private var locale
-    let counters: [ProjectCounter]
-    let isEnabled: Bool
+struct PatternPageControls: View {
     let pageIndex: Int
     let pageCount: Int
     let onPreviousPage: () -> Void
     let onNextPage: () -> Void
-    let onIncrement: (UUID) -> Void
-    let onManage: (UUID) -> Void
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            if pageCount > 0 {
-                VStack {
-                    Spacer()
-                    pageControls
-                }
-            }
-            HStack {
-                Spacer()
-                VStack(spacing: 8) {
-                    ForEach(counters) { counter in
-                        counterButton(counter)
-                    }
-                }
-                .padding(6)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.trailing, 8)
-            }
-        }
-        .padding(.bottom, 8)
-    }
-
-    private var pageControls: some View {
         HStack {
             Button(action: onPreviousPage) {
                 Label("patterns.previousPage", systemImage: "chevron.left")
@@ -52,8 +24,49 @@ struct PatternReaderControls: View {
         .labelStyle(.titleAndIcon)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: Capsule())
-        .padding(.horizontal, 14)
+    }
+}
+
+struct PatternReaderControls: View {
+    @Environment(\.locale) private var locale
+    let counters: [ProjectCounter]
+    let isEnabled: Bool
+    let pageIndex: Int
+    let pageCount: Int
+    let showsOverlayPageControls: Bool
+    let onPreviousPage: () -> Void
+    let onNextPage: () -> Void
+    let onIncrement: (UUID) -> Void
+    let onManage: (UUID) -> Void
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            if showsOverlayPageControls, pageCount > 0 {
+                VStack {
+                    Spacer()
+                    PatternPageControls(
+                        pageIndex: pageIndex,
+                        pageCount: pageCount,
+                        onPreviousPage: onPreviousPage,
+                        onNextPage: onNextPage
+                    )
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.horizontal, 14)
+                }
+            }
+            HStack {
+                Spacer()
+                VStack(spacing: 8) {
+                    ForEach(counters) { counter in
+                        counterButton(counter)
+                    }
+                }
+                .padding(6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.trailing, 8)
+            }
+        }
+        .padding(.bottom, 8)
     }
 
     private func counterButton(_ counter: ProjectCounter) -> some View {

@@ -32,8 +32,24 @@ import Testing
             for value in forbidden {
                 #expect(!archiveText.localizedCaseInsensitiveContains(value))
                 #expect(!filenames.localizedCaseInsensitiveContains(value))
+                #expect(package.files.values.allSatisfy { data in
+                    !String(decoding: data, as: UTF8.self).localizedCaseInsensitiveContains(value)
+                })
             }
         }
+    }
+
+    @Test func visualFixturesAreRealSwatchesAndLanguageNeutralCharts() throws {
+        let fixture = try StoreScreenshotFixtures.make(language: .zhHant)
+        let imagePayloads = fixture.files.filter { !$0.key.hasSuffix(".pdf") && !$0.key.hasSuffix(".json") }
+        #expect(!imagePayloads.isEmpty)
+        #expect(imagePayloads.values.allSatisfy { $0.count > 400 })
+
+        let pdf = try #require(fixture.files.first { $0.key.hasSuffix(".pdf") }?.value)
+        let pdfText = String(decoding: pdf, as: UTF8.self)
+        #expect(!pdfText.contains("Cloud Shawl"))
+        #expect(!pdfText.contains("Rows"))
+        #expect(!pdfText.contains("Finishing"))
     }
 
     @Test func installationWritesOnlyInsideTheRequestedTemporaryRoot() throws {
@@ -56,6 +72,7 @@ import Testing
             "projects",
             "counters",
             "patternHighlight",
+            "patternCrossHighlight",
             "patternMarkup",
             "patternNotes",
             "journal",

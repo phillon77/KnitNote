@@ -89,7 +89,10 @@ def compose_frame(frame: dict, root: Path) -> Path:
     canvas.paste(shadow, mask=shadow.getchannel("A"))
 
     with Image.open(raw_path) as source:
-        capture = ImageOps.fit(source.convert("RGB"), (box_width, box_height), method=Image.Resampling.LANCZOS)
+        expected_size = (width, height)
+        if source.size != expected_size:
+            raise ValueError(f"raw capture has size {source.size}, expected {expected_size}: {raw_path}")
+        capture = source.convert("RGB").resize((box_width, box_height), Image.Resampling.LANCZOS)
     mask = Image.new("L", (box_width, box_height), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, box_width, box_height), radius=radius, fill=255)
     canvas.paste(capture, (left, top), mask)

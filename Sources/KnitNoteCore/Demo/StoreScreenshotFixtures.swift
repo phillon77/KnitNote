@@ -9,6 +9,7 @@ public enum StoreScreenshotScene: String, CaseIterable, Sendable {
     case projects
     case counters
     case patternHighlight
+    case patternCrossHighlight
     case patternMarkup
     case patternNotes
     case journal
@@ -144,7 +145,7 @@ public enum StoreScreenshotFixtures {
         encoder.outputFormatting = [.sortedKeys]
         let archive = try JSONDecoder().decode(ProjectArchive.self, from: encoder.encode(payload))
 
-        let swatch = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nWQAAAAASUVORK5CYII=")!
+        let swatch = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAABwElEQVR42u2ZMWrDQBBFdxUfw1XS5AjGTapcICcIOYiP4srkEi7cCR/BEGxcqDEYAmnUplBwlEg73zAsLvZNZayHikFC+3jxdGwDk56KFbAgFpRzJuvl9vltNnptvdxefhfLxNViM0T7t+hPgczvgjpuXzeHXWM8cqUx8XRseV4Mpkq9h//+vH+clslc9RXb102xTLycpLvPWfceju41hHDYNaUxcagaqb0+zKcFMjHlYn20f4vSmIisohosKKuLYV42w0laMH9cDPMaMti8YO5enl5HXs42fJ6/bIsphKkwL5uJq8UG8zKYWL9/YF4G86MamFeKwcVQDRaU18XoYjbDSVowdDHBYPN0MR9DFxNDFxMMXYwu5mNwMVSDBeV1Mcwr0MU8DF1MMNi8YOhidDEfQxeji/kYuhhdDNVgQTd1MbqYzXCSFgxdTDDYPF3Mx9DFxNDFBEMXo4v5GFwM1WBBeV0M8wp0MQ9DFxMMNi8YuhhdzMfQxehiPoYuRhdDNVjQTV2MLmYznKQFQxcTDDZPF/MxdDExdDHB0MXoYj4GF0M1WFBeF8O8Al3Mw9DFBIPNC4YuRhfzMXQxupiP+QZOcitNavVs2gAAAABJRU5ErkJggg==")!
         var files: [String: Data] = [
             "ProjectPhotos/\(firstProjectPhoto)": swatch,
             "Patterns/\(projectID.uuidString)/\(pattern.storedFilename)": makePatternPDF(),
@@ -219,8 +220,8 @@ public enum StoreScreenshotFixtures {
     }
 
     private static func makePatternPDF() -> Data {
-        let pageOne = "BT /F1 24 Tf 72 730 Td (Cloud Shawl Pattern) Tj /F1 13 Tf 0 -42 Td (Rows 1-24: K2 P2 repeat) Tj 0 -30 Td (Rows 25-40: lace chart repeat) Tj 0 -45 Td (+  o  +  o  +  o  +  o) Tj 0 -24 Td (o  +  o  +  o  +  o  +) Tj ET"
-        let pageTwo = "BT /F1 24 Tf 72 730 Td (Finishing Notes) Tj /F1 13 Tf 0 -42 Td (Shape neckline evenly across 20 rows.) Tj 0 -30 Td (Block gently and allow to dry flat.) Tj ET"
+        let pageOne = "BT /F1 24 Tf 72 730 Td (1) Tj /F1 13 Tf 0 -42 Td (1 - 24) Tj 0 -30 Td (25 - 40) Tj 0 -45 Td (+  o  +  o  +  o  +  o) Tj 0 -24 Td (o  +  o  +  o  +  o  +) Tj ET"
+        let pageTwo = "BT /F1 24 Tf 72 730 Td (2) Tj /F1 13 Tf 0 -42 Td (20 - 10) Tj 0 -30 Td (+  +  o  +  +  o  +  +) Tj ET"
         let objects = [
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",

@@ -74,9 +74,15 @@ def validate_manifest(frames: list[dict]) -> None:
 
 def validate_images(root: Path, frames: list[dict]) -> None:
     for frame in frames:
+        raw_path = root / "Raw" / frame["locale"] / frame["platform"] / frame["filename"]
         path = root / "Generated" / frame["locale"] / frame["platform"] / frame["filename"]
+        if not raw_path.is_file():
+            fail(f"missing raw screenshot: {raw_path}")
         if not path.is_file():
             fail(f"missing generated screenshot: {path}")
+        with Image.open(raw_path) as raw:
+            if raw.size != (frame["width"], frame["height"]):
+                fail(f"incorrect raw image size: {raw_path} is {raw.size}")
         with Image.open(path) as image:
             if image.size != (frame["width"], frame["height"]):
                 fail(f"incorrect image size: {path} is {image.size}")
@@ -85,6 +91,10 @@ def validate_images(root: Path, frames: list[dict]) -> None:
             metadata = json.dumps(image.info, ensure_ascii=False, default=str)
             if any(term in metadata for term in DENYLIST):
                 fail(f"private-data marker in image metadata: {path}")
+        for inspected_path in (raw_path, path):
+            payload = inspected_path.read_bytes()
+            if any(term.encode("utf-8") in payload for term in DENYLIST):
+                fail(f"private-data marker in encoded image: {inspected_path}")
 
 
 def main() -> int:

@@ -20,9 +20,15 @@ enum WatchWatercolorTheme {
 
 struct WatchCounterView: View {
     @ObservedObject var coordinator: WatchSyncCoordinator
+    @State private var path: [UUID]
+
+    init(coordinator: WatchSyncCoordinator, initialProjectID: UUID? = nil) {
+        self.coordinator = coordinator
+        _path = State(initialValue: initialProjectID.map { [$0] } ?? [])
+    }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ProjectListView(coordinator: coordinator)
                 .navigationDestination(for: UUID.self) { projectID in
                     ProjectCountersView(projectID: projectID, coordinator: coordinator)

@@ -4,6 +4,7 @@ import OSLog
 struct StoreScreenshotRootView: View {
     @EnvironmentObject private var store: JSONProjectStore
     let scene: StoreScreenshotScene
+    let readinessToken: String
 
     var body: some View {
         Group {
@@ -13,11 +14,13 @@ struct StoreScreenshotRootView: View {
             case .counters:
                 projectScene(kind: .counters)
             case .patternHighlight:
-                patternScene
+                patternScene(presentation: .highlight)
+            case .patternCrossHighlight:
+                patternScene(presentation: .crossHighlight)
             case .patternMarkup:
-                patternScene
+                patternScene(presentation: .markup)
             case .patternNotes:
-                patternScene
+                patternScene(presentation: .notes)
             case .journal:
                 projectScene(kind: .journal)
             case .yarn:
@@ -34,14 +37,18 @@ struct StoreScreenshotRootView: View {
         }
         .onAppear {
             Logger(subsystem: "com.phillon.KnitNote", category: "StoreScreenshots")
-                .notice("storeScreenshot.ready")
+                .notice("storeScreenshot.ready.\(readinessToken, privacy: .public)")
         }
     }
 
     @ViewBuilder
-    private var patternScene: some View {
+    private func patternScene(presentation: PatternReaderStorePresentation) -> some View {
         if let project = store.projects.first, let pattern = project.patterns.first {
-            PatternReaderView(projectID: project.id, pattern: pattern)
+            PatternReaderView(
+                projectID: project.id,
+                pattern: pattern,
+                storePresentation: presentation
+            )
         } else {
             ProgressView()
         }

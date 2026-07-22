@@ -418,10 +418,10 @@ import Testing
         let app = try source("KnitNoteWatch/KnitNoteWatchApp.swift")
 
         #expect(app.contains("@StateObject private var watchSyncCoordinator"))
-        #expect(app.contains("WatchSyncCoordinator()"))
+        #expect(app.contains("let watchSyncCoordinator = WatchSyncCoordinator("))
         #expect(app.contains("watchSyncCoordinator.start()"))
         #expect(app.contains("WatchCounterView(coordinator: watchSyncCoordinator)"))
-        #expect(app.components(separatedBy: "WatchSyncCoordinator()").count - 1 == 1)
+        #expect(app.components(separatedBy: "let watchSyncCoordinator = WatchSyncCoordinator(").count - 1 == 1)
     }
 
     @Test func transportCompletionsHopToMainActorAndDoNotOvertakeQueueHead() throws {

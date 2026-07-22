@@ -10,7 +10,15 @@ struct KnitNoteApp: App {
     @AppStorage("languageSelection") private var storedLanguage = LanguageSelection.system.rawValue
 
     init() {
-        let screenshotMode = StoreScreenshotMode.current()
+        let screenshotMode: StoreScreenshotMode?
+        switch StoreScreenshotMode.resolve() {
+        case .notRequested:
+            screenshotMode = nil
+        case let .ready(mode):
+            screenshotMode = mode
+        case .invalid:
+            preconditionFailure("Invalid App Store screenshot request; refusing to open the live store")
+        }
         self.screenshotMode = screenshotMode
         let projectStore = screenshotMode.map {
             JSONProjectStore.live(baseDirectory: $0.baseDirectory)
@@ -42,7 +50,10 @@ struct KnitNoteApp: App {
         WindowGroup {
             Group {
                 if let screenshotMode {
-                    StoreScreenshotRootView(scene: screenshotMode.scene)
+                    StoreScreenshotRootView(
+                        scene: screenshotMode.scene,
+                        readinessToken: screenshotMode.readinessToken
+                    )
                 } else {
                     RootView(storedLanguage: $storedLanguage)
                 }

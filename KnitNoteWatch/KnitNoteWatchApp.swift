@@ -6,9 +6,19 @@ struct KnitNoteWatchApp: App {
     private let screenshotMode: WatchStoreScreenshotMode?
 
     init() {
-        let screenshotMode = WatchStoreScreenshotMode.current()
+        let screenshotMode: WatchStoreScreenshotMode?
+        switch WatchStoreScreenshotMode.resolve() {
+        case .notRequested:
+            screenshotMode = nil
+        case let .ready(mode):
+            screenshotMode = mode
+        case .invalid:
+            preconditionFailure("Invalid Watch screenshot request; refusing to open the live cache")
+        }
         self.screenshotMode = screenshotMode
-        let watchSyncCoordinator = WatchSyncCoordinator()
+        let watchSyncCoordinator = WatchSyncCoordinator(
+            applicationSupportRoot: screenshotMode?.baseDirectory
+        )
         _watchSyncCoordinator = StateObject(wrappedValue: watchSyncCoordinator)
         if screenshotMode == nil {
             watchSyncCoordinator.start()
@@ -18,8 +28,10 @@ struct KnitNoteWatchApp: App {
     var body: some Scene {
         WindowGroup {
             if let screenshotMode {
-                WatchStoreScreenshotRootView(scene: screenshotMode.scene)
-                    .environment(\.locale, screenshotMode.locale)
+                WatchStoreScreenshotHost(
+                    mode: screenshotMode,
+                    coordinator: watchSyncCoordinator
+                )
             } else {
                 WatchCounterView(coordinator: watchSyncCoordinator)
             }

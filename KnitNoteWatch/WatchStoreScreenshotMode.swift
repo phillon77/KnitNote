@@ -10,24 +10,83 @@ enum WatchStoreScreenshotScene: String {
 struct WatchStoreScreenshotMode {
     let scene: WatchStoreScreenshotScene
     let locale: Locale
+    let baseDirectory: URL
+    let projectID: UUID
+    let readinessToken: String
 
-    static func current(processInfo: ProcessInfo = .processInfo) -> WatchStoreScreenshotMode? {
+    static func resolve(processInfo: ProcessInfo = .processInfo) -> WatchStoreScreenshotResolution {
 #if DEBUG
         let arguments = processInfo.arguments
-        guard value(after: "-storeScreenshotMode", in: arguments) == "YES",
-              let sceneValue = value(after: "-storeScreenshotScene", in: arguments),
+        guard value(after: "-storeScreenshotMode", in: arguments) == "YES" else {
+            return .notRequested
+        }
+        guard let sceneValue = value(after: "-storeScreenshotScene", in: arguments),
               let scene = WatchStoreScreenshotScene(rawValue: sceneValue),
               let language = value(after: "-storeScreenshotLanguage", in: arguments),
-              ["zh-Hant", "en"].contains(language) else {
-            return nil
+              ["zh-Hant", "en"].contains(language),
+              let readinessToken = value(after: "-storeScreenshotToken", in: arguments),
+              !readinessToken.isEmpty else {
+            return .invalid
         }
-        return WatchStoreScreenshotMode(
-            scene: scene,
-            locale: Locale(identifier: language == "zh-Hant" ? "zh-Hant" : "en")
-        )
+
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "KnitNoteWatchStoreScreenshots", directoryHint: .isDirectory)
+            .appending(path: language, directoryHint: .isDirectory)
+        do {
+            if FileManager.default.fileExists(atPath: root.path) {
+                try FileManager.default.removeItem(at: root)
+            }
+            let fixture = try makeFixture(language: language)
+            try AtomicWatchSyncFile<WatchSyncCache>(url: WatchSyncPaths.watchCache(in: root))
+                .save(fixture.cache)
+            return .ready(WatchStoreScreenshotMode(
+                scene: scene,
+                locale: Locale(identifier: language == "zh-Hant" ? "zh-Hant" : "en"),
+                baseDirectory: root,
+                projectID: fixture.projectID,
+                readinessToken: readinessToken
+            ))
+        } catch {
+            return .invalid
+        }
 #else
-        return nil
+        return .notRequested
 #endif
+    }
+
+    private static func makeFixture(language: String) throws -> (cache: WatchSyncCache, projectID: UUID) {
+        let projectID = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!
+        let counterNames = language == "zh-Hant"
+            ? ["排數", "花樣重複", "袖窿", "領口", "左袖", "右袖"]
+            : ["Rows", "Pattern Repeat", "Armhole", "Neckline", "Left Sleeve", "Right Sleeve"]
+        let counters = zip(counterNames, [48, 6, 12, 4, 18, 18]).enumerated().map { index, item in
+            WatchCounterSnapshot(
+                id: UUID(uuidString: String(format: "30000000-0000-4000-8000-%012d", index + 1))!,
+                name: item.0,
+                value: item.1
+            )
+        }
+        let project = try WatchProjectSnapshot(
+            id: projectID,
+            name: language == "zh-Hant" ? "雲朵披肩" : "Cloud Shawl",
+            isCompleted: false,
+            updatedAt: Date(timeIntervalSince1970: 1_767_225_600),
+            counters: counters,
+            selectedCounterID: counters[0].id
+        )
+        let snapshot = WatchSyncSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 1_767_225_600),
+            projects: [project]
+        )
+        return (
+            WatchSyncCache(
+                snapshot: snapshot,
+                pendingCommands: [],
+                selectedProjectID: projectID,
+                selectedCounterID: counters[0].id
+            ),
+            projectID
+        )
     }
 
     private static func value(after flag: String, in arguments: [String]) -> String? {
@@ -38,32 +97,22 @@ struct WatchStoreScreenshotMode {
     }
 }
 
-struct WatchStoreScreenshotRootView: View {
-    let scene: WatchStoreScreenshotScene
+enum WatchStoreScreenshotResolution {
+    case notRequested
+    case ready(WatchStoreScreenshotMode)
+    case invalid
+}
 
-    private let counters = [
-        ("排數", "Rows", 48),
-        ("花樣重複", "Pattern Repeat", 6),
-        ("袖窿", "Armhole", 12),
-        ("領口", "Neckline", 4),
-        ("左袖", "Left Sleeve", 18),
-        ("右袖", "Right Sleeve", 18),
-    ]
-
-    @Environment(\.locale) private var locale
-
-    private var isChinese: Bool { locale.identifier.hasPrefix("zh") }
+struct WatchStoreScreenshotHost: View {
+    let mode: WatchStoreScreenshotMode
+    @ObservedObject var coordinator: WatchSyncCoordinator
 
     var body: some View {
-        ZStack {
-            WatchWatercolorBackground()
-            switch scene {
-            case .watchProjects:
-                projectList
-            case .watchCounters:
-                counterList
-            }
-        }
+        WatchCounterView(
+            coordinator: coordinator,
+            initialProjectID: mode.scene == .watchCounters ? mode.projectID : nil
+        )
+        .environment(\.locale, mode.locale)
         .overlay(alignment: .bottomTrailing) {
             Color.clear
                 .frame(width: 1, height: 1)
@@ -71,57 +120,7 @@ struct WatchStoreScreenshotRootView: View {
         }
         .onAppear {
             Logger(subsystem: "com.phillon.KnitNote.watch", category: "StoreScreenshots")
-                .notice("storeScreenshot.ready")
-        }
-        .tint(WatchWatercolorTheme.berry)
-    }
-
-    private var projectList: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 8) {
-                    projectRow(isChinese ? "雲朵披肩" : "Cloud Shawl", detail: isChinese ? "編織中" : "In progress")
-                    projectRow(isChinese ? "莓果帽" : "Berry Hat", detail: isChinese ? "編織中" : "In progress")
-                }
-                .padding(.horizontal, 4)
-            }
-            .navigationTitle(isChinese ? "作品" : "Projects")
-        }
-    }
-
-    private func projectRow(_ name: String, detail: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.headline)
-                Text(detail).font(.caption2).foregroundStyle(WatchWatercolorTheme.berry)
-            }
-            Spacer(minLength: 2)
-            Image(systemName: "chevron.right").font(.caption.bold())
-        }
-        .foregroundStyle(WatchWatercolorTheme.ink)
-        .padding(10)
-        .background(WatchWatercolorTheme.softWhite.opacity(0.92), in: .rect(cornerRadius: 14))
-    }
-
-    private var counterList: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
-                ForEach(Array(counters.enumerated()), id: \.offset) { _, counter in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(isChinese ? counter.0 : counter.1)
-                            .font(.callout.weight(.semibold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(counter.2, format: .number)
-                            .font(.system(.title2, design: .rounded, weight: .bold))
-                            .monospacedDigit()
-                    }
-                    .foregroundStyle(WatchWatercolorTheme.ink)
-                    .padding(.horizontal, 10)
-                    .frame(minHeight: 58)
-                    .background(WatchWatercolorTheme.softWhite.opacity(0.92), in: .rect(cornerRadius: 14))
-                }
-            }
-            .padding(.horizontal, 4)
+                .notice("storeScreenshot.ready.\(mode.readinessToken, privacy: .public)")
         }
     }
 }

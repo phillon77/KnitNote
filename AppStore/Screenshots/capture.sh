@@ -22,11 +22,44 @@ require_variable() {
   fi
 }
 
+verify_dedicated_device() {
+  local udid="$1" platform="$2"
+  python3 - "$udid" "$platform" <<'PY'
+import json, subprocess, sys
+udid, platform = sys.argv[1:]
+payload = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "--json"]))
+device = next((item for values in payload["devices"].values() for item in values if item.get("udid") == udid), None)
+if device is None or not device.get("isAvailable", False):
+    raise SystemExit(f"unavailable screenshot simulator: {udid}")
+name = device.get("name", "")
+if not name.startswith("KnitNote Store"):
+    raise SystemExit(f"refusing non-dedicated simulator {name!r}; name must start with 'KnitNote Store'")
+identifier = device.get("deviceTypeIdentifier", "")
+required = {
+    "iphone": ("iPhone-17-Pro-Max",),
+    "ipad": ("iPad-Pro-13-inch-M4", "iPad-Pro-13-inch-M5"),
+    "watch": ("Apple-Watch-Series-10-46mm", "Apple-Watch-Series-11-46mm"),
+}[platform]
+if not any(value in identifier for value in required):
+    raise SystemExit(f"wrong {platform} screenshot device: {identifier or name}")
+PY
+}
+
+prepare_device() {
+  local udid="$1" locale="$2"
+  xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+  xcrun simctl erase "$udid"
+  xcrun simctl boot "$udid"
+  xcrun simctl bootstatus "$udid" -b
+  xcrun simctl spawn "$udid" defaults write NSGlobalDomain AppleLanguages -array "$locale"
+  xcrun simctl spawn "$udid" defaults write NSGlobalDomain AppleLocale "$locale"
+}
+
 wait_for_ready() {
-  local udid="$1"
+  local udid="$1" token="$2"
   for _ in {1..20}; do
-    if xcrun simctl spawn "$udid" log show --last 10s --style compact \
-      --predicate 'eventMessage CONTAINS "storeScreenshot.ready"' 2>/dev/null | grep -q 'storeScreenshot.ready'; then
+    if xcrun simctl spawn "$udid" log show --last 30s --style compact \
+      --predicate "eventMessage CONTAINS '$token'" 2>/dev/null | grep -q "$token"; then
       return 0
     fi
     sleep 0.5
@@ -35,9 +68,35 @@ wait_for_ready() {
   return 1
 }
 
+wait_for_mac_ready() {
+  local token="$1"
+  for _ in {1..20}; do
+    if /usr/bin/log show --last 30s --style compact \
+      --predicate "eventMessage CONTAINS '$token'" 2>/dev/null | grep -q "$token"; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "timed out waiting for storeScreenshot.ready.$token on macOS" >&2
+  return 1
+}
+
+verify_dimensions() {
+  local file="$1" expected_width="$2" expected_height="$3"
+  local actual_width actual_height
+  actual_width="$(sips -g pixelWidth "$file" | awk '/pixelWidth/ {print $2}')"
+  actual_height="$(sips -g pixelHeight "$file" | awk '/pixelHeight/ {print $2}')"
+  if [[ "$actual_width" != "$expected_width" || "$actual_height" != "$expected_height" ]]; then
+    echo "wrong raw dimensions for $file: ${actual_width}x${actual_height}, expected ${expected_width}x${expected_height}" >&2
+    return 1
+  fi
+}
+
 capture_simulator() {
-  local platform="$1" scene="$2" filename="$3"
+  local platform="$1" scene="$2" filename="$3" width="$4" height="$5"
   local udid app bundle
+  local token
+  token="$(uuidgen)"
   case "$platform" in
     iphone) udid="$IPHONE_UDID"; app="$IOS_APP"; bundle="com.phillon.KnitNote" ;;
     ipad) udid="$IPAD_UDID"; app="$IOS_APP"; bundle="com.phillon.KnitNote" ;;
@@ -46,24 +105,28 @@ capture_simulator() {
   esac
 
   [[ -d "$app" ]] || { echo "missing built app: $app" >&2; return 2; }
-  xcrun simctl boot "$udid" >/dev/null 2>&1 || true
-  xcrun simctl bootstatus "$udid" -b
   xcrun simctl install "$udid" "$app"
-  xcrun simctl status_bar "$udid" override \
-    --time 9:41 --batteryState charged --batteryLevel 100 \
-    --wifiBars 3 --cellularBars 4 >/dev/null 2>&1 || true
+  if [[ "$platform" != "watch" ]]; then
+    xcrun simctl status_bar "$udid" override \
+      --time 9:41 --batteryState charged --batteryLevel 100 \
+      --wifiBars 3 --cellularBars 4
+  fi
   xcrun simctl terminate "$udid" "$bundle" >/dev/null 2>&1 || true
   xcrun simctl launch "$udid" "$bundle" \
     -storeScreenshotMode YES \
     -storeScreenshotScene "$scene" \
-    -storeScreenshotLanguage "$LOCALE" >/dev/null
-  wait_for_ready "$udid"
+    -storeScreenshotLanguage "$LOCALE" \
+    -storeScreenshotToken "$token" >/dev/null
+  wait_for_ready "$udid" "$token"
   mkdir -p "$(dirname "$filename")"
   xcrun simctl io "$udid" screenshot "$filename"
+  verify_dimensions "$filename" "$width" "$height"
 }
 
 capture_mac() {
-  local scene="$1" filename="$2"
+  local scene="$1" filename="$2" width="$3" height="$4"
+  local token
+  token="$(uuidgen)"
   [[ -d "$MAC_APP" ]] || { echo "missing built app: $MAC_APP" >&2; return 2; }
   [[ -n "${MAC_CAPTURE_RECT:-}" ]] || {
     echo "MAC_CAPTURE_RECT (x,y,width,height for a 16:10 window) is required" >&2
@@ -73,30 +136,38 @@ capture_mac() {
   open -n "$MAC_APP" --args \
     -storeScreenshotMode YES \
     -storeScreenshotScene "$scene" \
-    -storeScreenshotLanguage "$LOCALE"
-  sleep 3
+    -storeScreenshotLanguage "$LOCALE" \
+    -storeScreenshotToken "$token"
+  wait_for_mac_ready "$token"
   mkdir -p "$(dirname "$filename")"
   screencapture -x -R "$MAC_CAPTURE_RECT" "$filename"
+  verify_dimensions "$filename" "$width" "$height"
 }
 
 require_variable IPHONE_UDID
 require_variable IPAD_UDID
 require_variable WATCH_UDID
+verify_dedicated_device "$IPHONE_UDID" iphone
+verify_dedicated_device "$IPAD_UDID" ipad
+verify_dedicated_device "$WATCH_UDID" watch
+prepare_device "$IPHONE_UDID" "$LOCALE"
+prepare_device "$IPAD_UDID" "$LOCALE"
+prepare_device "$WATCH_UDID" "$LOCALE"
 
-while IFS=$'\t' read -r platform scene filename; do
+while IFS=$'\t' read -r platform scene filename width height; do
   output="$ROOT/Raw/$LOCALE/$platform/$filename"
   echo "Capturing $LOCALE $platform $scene"
   if [[ "$platform" == "mac" ]]; then
-    capture_mac "$scene" "$output"
+    capture_mac "$scene" "$output" "$width" "$height"
   else
-    capture_simulator "$platform" "$scene" "$output"
+    capture_simulator "$platform" "$scene" "$output" "$width" "$height"
   fi
 done < <(python3 - "$MANIFEST" "$LOCALE" <<'PY'
 import json, sys
 manifest, locale = sys.argv[1:]
 for frame in json.load(open(manifest, encoding="utf-8"))["frames"]:
     if frame["locale"] == locale:
-        print(frame["platform"], frame["scene"], frame["filename"], sep="\t")
+        print(frame["platform"], frame["scene"], frame["filename"], frame["width"], frame["height"], sep="\t")
 PY
 )
 

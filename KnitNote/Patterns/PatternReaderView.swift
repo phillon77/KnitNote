@@ -61,10 +61,29 @@ struct PatternReaderView: View {
     @StateObject private var pdfNavigator = PDFPageNavigator()
     private let counterRailSafeAreaWidth: CGFloat = 64
 
-    init(projectID: UUID, pattern: PatternDocument) {
+    init(
+        projectID: UUID,
+        pattern: PatternDocument,
+        storePresentation: PatternReaderStorePresentation = .standard
+    ) {
         self.projectID = projectID
         patternID = pattern.id
-        _state = State(initialValue: pattern.readingState)
+        var initialState = pattern.readingState
+        switch storePresentation {
+        case .standard:
+            break
+        case .highlight:
+            initialState.highlightEnabled = true
+            initialState.highlightMode = .horizontal
+        case .crossHighlight:
+            initialState.highlightEnabled = true
+            initialState.highlightMode = .cross
+        case .markup, .notes:
+            break
+        }
+        _state = State(initialValue: initialState)
+        _markupMode = State(initialValue: storePresentation == .markup)
+        _showingPageNote = State(initialValue: storePresentation == .notes)
     }
 
     private var pattern: PatternDocument? { store.project(id: projectID)?.patterns.first { $0.id == patternID } }
@@ -319,4 +338,12 @@ struct PatternReaderView: View {
     }
 
     private func finishMarkup() { saveMarkup(page: state.pageIndex); markupMode = false }
+}
+
+enum PatternReaderStorePresentation: Equatable {
+    case standard
+    case highlight
+    case crossHighlight
+    case markup
+    case notes
 }

@@ -15,6 +15,33 @@ struct WatercolorBackground: View {
     }
 }
 
+struct ProjectsPaintingBackground: View {
+    var body: some View {
+        ZStack {
+            WatercolorBackground()
+
+            Image("FamilyKnittingHero")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.30)
+
+            LinearGradient(
+                colors: [
+                    WatercolorTheme.background.opacity(0.72),
+                    WatercolorTheme.background.opacity(0.50),
+                    WatercolorTheme.background.opacity(0.32)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .ignoresSafeArea()
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 struct WatercolorCard<Content: View>: View {
     @ViewBuilder let content: Content
 

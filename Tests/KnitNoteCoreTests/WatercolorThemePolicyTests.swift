@@ -3,17 +3,28 @@ import Testing
 @testable import KnitNoteCore
 
 @Test func projectsHomeRemovesPaintingButKeepsWatercolorTheme() throws {
-    let repositoryRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-    let source = try String(
-        contentsOf: repositoryRoot.appendingPathComponent("KnitNote/Projects/ProjectsView.swift"),
-        encoding: .utf8
-    )
+    let source = try appSource("KnitNote/Projects/ProjectsView.swift")
 
     #expect(!source.contains("FamilyHeroView()"))
     #expect(source.contains("WatercolorBackground()"))
+}
+
+@Test func projectsPaintingBackgroundUsesTheApprovedArtworkAndVeil() throws {
+    let source = try appSource("KnitNote/Theme/WatercolorSurfaces.swift")
+    let start = try #require(source.range(of: "struct ProjectsPaintingBackground: View"))
+    let end = try #require(source.range(of: "struct WatercolorCard", range: start.upperBound..<source.endIndex))
+    let background = String(source[start.lowerBound..<end.lowerBound])
+
+    #expect(background.contains("WatercolorBackground()"))
+    #expect(background.contains("Image(\"FamilyKnittingHero\")"))
+    #expect(background.contains(".scaledToFill()"))
+    #expect(background.contains(".opacity(0.30)"))
+    #expect(background.contains("WatercolorTheme.background.opacity(0.72)"))
+    #expect(background.contains("WatercolorTheme.background.opacity(0.50)"))
+    #expect(background.contains("WatercolorTheme.background.opacity(0.32)"))
+    #expect(background.contains(".ignoresSafeArea()"))
+    #expect(background.contains(".allowsHitTesting(false)"))
+    #expect(background.contains(".accessibilityHidden(true)"))
 }
 
 @Test func watercolorPaletteUsesAccessibleActionInk() {
@@ -30,4 +41,15 @@ import Testing
 @Test func familyHeroImageHeightNeverExceedsItsContainer() {
     #expect(familyHeroMaximumImageHeight(proposedHeight: 300, containerHeight: 150) == 150)
     #expect(familyHeroMaximumImageHeight(proposedHeight: 300, containerHeight: 300) == 300)
+}
+
+private func appSource(_ relativePath: String) throws -> String {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    return try String(
+        contentsOf: repositoryRoot.appendingPathComponent(relativePath),
+        encoding: .utf8
+    )
 }

@@ -43,6 +43,23 @@ import Testing
         #expect(project.contains("WKCompanionAppBundleIdentifier: com.phillon.KnitNote"))
     }
 
+    @Test func releaseCandidateUsesBuildTwoAcrossAppAndWatch() throws {
+        let specification = try source("project.yml")
+        let generatedProject = try source("KnitNote.xcodeproj/project.pbxproj")
+
+        #expect(
+            specification.components(
+                separatedBy: "CURRENT_PROJECT_VERSION: 2"
+            ).count == 3
+        )
+        #expect(
+            generatedProject.components(
+                separatedBy: "CURRENT_PROJECT_VERSION = 2;"
+            ).count == 5
+        )
+        #expect(!generatedProject.contains("CURRENT_PROJECT_VERSION = 1;"))
+    }
+
     @Test func watchInfoMarksTheEmbeddedProductAsAWatchApplication() throws {
         let watchInfo = try plist("KnitNoteWatch/Info.plist")
         let project = try source("project.yml")

@@ -40,6 +40,9 @@ targets:
         excludes:
           - LaunchScreen.storyboard
           - Localization/InfoPlist.xcstrings
+          - PrivacyInfo.xcprivacy
+      - path: KnitNote/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: KnitNote/Localization/InfoPlist.xcstrings
         buildPhase: resources
         destinationFilters: [iOS]
@@ -55,7 +58,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
         MARKETING_VERSION: 1.0.0
-        CURRENT_PROJECT_VERSION: 1
+        CURRENT_PROJECT_VERSION: 2
         PRODUCT_NAME: KnitNote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   KnitNoteWatch:
@@ -71,6 +74,10 @@ targets:
         WKCompanionAppBundleIdentifier: com.phillon.KnitNote
     sources:
       - path: KnitNoteWatch
+        excludes:
+          - PrivacyInfo.xcprivacy
+      - path: KnitNoteWatch/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: Sources/KnitNoteCore
         excludes:
           - Launch/LaunchExperienceCoordinator.swift
@@ -78,7 +85,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
         MARKETING_VERSION: 1.0.0
-        CURRENT_PROJECT_VERSION: 1
+        CURRENT_PROJECT_VERSION: 2
         PRODUCT_NAME: KnitNoteWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 schemes:

@@ -74,6 +74,7 @@
 		6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */; };
 		6AA7291F406E7FCF8B1382C6 /* LemonEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282D4248758A8480ED49B7C0 /* LemonEmptyState.swift */; };
 		6AF16B60E9057AC4B2FD2EDE /* YarnDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451B0A168DC2F848CEE98A74 /* YarnDetailView.swift */; };
+		6BC049BFAF91A56D66CF016D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */; };
 		6C1465A6FA4F7D7B674D34CA /* KnitNoteBackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */; };
 		6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */; };
 		6E227D5A775B6659FDBE3247 /* WatchConnectivityEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926C002CC977A56CD9D4B192 /* WatchConnectivityEnvelope.swift */; };
@@ -144,6 +145,7 @@
 		E857AC39E1C3EAB1D2C0735A /* KnitNoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */; };
 		E88D1831ACE8064F70B3844B /* ProjectJournalAsyncPublicationGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */; };
 		EA6EC18E3BA8C13E7F88D518 /* CameraCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */; };
+		EFCF881CA8E318B938F4E3B7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */; };
 		F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
@@ -207,6 +209,7 @@
 		2D483F31D056F9F52B2EC563 /* ProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsView.swift; sourceTree = "<group>"; };
 		2DA26ED7A66F7AB3B45C0A7F /* WatchReliableSnapshotFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchReliableSnapshotFingerprint.swift; sourceTree = "<group>"; };
 		2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatercolorTheme.swift; sourceTree = "<group>"; };
+		3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCounterName.swift; sourceTree = "<group>"; };
 		317AA99C4071F5F032A42C9E /* YarnInventoryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnInventoryText.swift; sourceTree = "<group>"; };
 		33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterSelectorGrid.swift; sourceTree = "<group>"; };
@@ -272,6 +275,7 @@
 		A05992C5E9E4384B11D3C46A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnEditorFields.swift; sourceTree = "<group>"; };
 		A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteApp.swift; sourceTree = "<group>"; };
+		A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilder.swift; sourceTree = "<group>"; };
 		AE2721C6AB54E5F271947F0E /* ProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
 		AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateYarnView.swift; sourceTree = "<group>"; };
@@ -449,6 +453,7 @@
 				3A8BA0F1D4ABF2AA7472AEE6 /* Assets.xcassets */,
 				5D0CCE222E5B3D6656AA2345 /* Info.plist */,
 				F5F160074737C554D783176A /* LaunchScreen.storyboard */,
+				3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */,
 				4D55FE9FD7B400E4A1009DF1 /* App */,
 				B5C29EE15A136556F7B91BBE /* Calculators */,
 				9EE6E3997B8A05A231ECB4D4 /* Launch */,
@@ -544,6 +549,7 @@
 				67B197FE70BCFA63ECA25D5C /* Info.plist */,
 				C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */,
 				599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */,
+				A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */,
 				9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */,
 				AE2721C6AB54E5F271947F0E /* ProjectListView.swift */,
 				C65533430112873329E49422 /* WatchCounterView.swift */,
@@ -707,6 +713,7 @@
 				D56C0BDFF30C510581164CC1 /* InfoPlist.xcstrings in Resources */,
 				81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */,
 				6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */,
+				EFCF881CA8E318B938F4E3B7 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -716,6 +723,7 @@
 			files = (
 				E77F0B8B83D0C5B49F48117B /* Assets.xcassets in Resources */,
 				B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */,
+				6BC049BFAF91A56D66CF016D /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -894,7 +902,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
@@ -910,7 +918,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -933,7 +941,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1078,7 +1086,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;

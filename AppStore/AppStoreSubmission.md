@@ -51,8 +51,8 @@
 
 - `READY`：繁體中文 metadata 已通過欄位長度、關鍵字與禁語檢查。
 - `READY`：English (U.S.) metadata 已通過欄位長度、關鍵字與禁語檢查。
-- `READY`：雙語支援／隱私網站已通過本機內容、連結、手機與桌面版面檢查。
-- `NOT STARTED`：公開支援與隱私網址。
+- `VERIFIED`：雙語支援／隱私網站已通過本機內容、連結、手機與桌面版面檢查。
+- `VERIFIED`：公開支援、行銷與隱私網址均以 HTTPS 回傳 200；證據見 `Verification/PublicSiteVerification.md`。
 
 ## Privacy／隱私
 
@@ -63,8 +63,9 @@
 
 ## Screenshots／截圖
 
-- `NOT STARTED`：繁中與英文 iPhone、iPad、Apple Watch、Mac 截圖。
-- `BLOCKED`：只可使用合成示範資料；不得出現家庭照片、個人檔名或真實裝置資料。
+- `IN PROGRESS`：繁中與英文 iPhone、iPad、Apple Watch、Mac 共 28 張截圖的清單、隔離資料與產圖工具已完成。
+- `VERIFIED`：截圖模式只使用暫存合成資料；不會開啟正式 Application Support，亦不含家庭照片、個人檔名或真實裝置資料。
+- `BLOCKED`：macOS `simdiskimaged` 服務需重啟後才能擷取、逐張目視核准並產出最終檔案。
 
 ## Review information／審核資訊
 

@@ -8,7 +8,7 @@ struct ProjectsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                WatercolorBackground()
+                ProjectsPaintingBackground()
                 ScrollView {
                     LazyVStack(spacing: 16) {
                         if store.projects.isEmpty {

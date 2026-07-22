@@ -2,11 +2,29 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
-@Test func projectsHomeRemovesPaintingButKeepsWatercolorTheme() throws {
+@Test func projectsHomeUsesThePaintingSurfaceWithoutRestoringTheHeroBanner() throws {
     let source = try appSource("KnitNote/Projects/ProjectsView.swift")
 
     #expect(!source.contains("FamilyHeroView()"))
-    #expect(source.contains("WatercolorBackground()"))
+    #expect(source.contains("ProjectsPaintingBackground()"))
+    #expect(!source.contains("WatercolorBackground()"))
+
+    let background = try #require(source.range(of: "ProjectsPaintingBackground()"))
+    let scrollView = try #require(source.range(of: "ScrollView {"))
+    #expect(background.lowerBound < scrollView.lowerBound)
+}
+
+@Test func otherPrimaryScreensKeepTheGenericWatercolorBackground() throws {
+    let paths = [
+        "KnitNote/Projects/ProjectDetailView.swift",
+        "KnitNote/Patterns/PatternLibraryView.swift",
+        "KnitNote/Yarn/YarnLibraryView.swift",
+        "KnitNote/Settings/SettingsView.swift"
+    ]
+
+    for path in paths {
+        #expect(try appSource(path).contains("WatercolorBackground()"), "Missing generic background in \(path)")
+    }
 }
 
 @Test func projectsPaintingBackgroundUsesTheApprovedArtworkAndVeil() throws {

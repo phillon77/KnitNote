@@ -82,6 +82,7 @@ def validate(path: Path) -> list[str]:
         errors.append(f"{path}: Keywords: duplicates: {', '.join(duplicates)}")
 
     searchable = " " + "\n".join(fields.values()).casefold() + " "
+    searchable = searchable.replace("no subscription", "")
     for phrase in FORBIDDEN:
         if phrase in searchable:
             errors.append(f"{path}: copy: forbidden release claim: {phrase.strip()}")

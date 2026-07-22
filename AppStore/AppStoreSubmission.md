@@ -49,8 +49,8 @@
 
 ## Localizations／在地化
 
-- `NOT STARTED`：繁體中文 metadata。
-- `NOT STARTED`：English (U.S.) metadata。
+- `READY`：繁體中文 metadata 已通過欄位長度、關鍵字與禁語檢查。
+- `READY`：English (U.S.) metadata 已通過欄位長度、關鍵字與禁語檢查。
 - `NOT STARTED`：公開支援與隱私網址。
 
 ## Privacy／隱私

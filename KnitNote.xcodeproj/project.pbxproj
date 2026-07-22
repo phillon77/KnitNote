@@ -107,6 +107,7 @@
 		A8121B8CC33DEC5E639C59CA /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2721C6AB54E5F271947F0E /* ProjectListView.swift */; };
 		A8EFB5CB1EF4319452A430B3 /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
 		A8F65FDC2EB37F7CC35B551D /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
+		ABA3AABF79B56CA98AB86ACD /* WatchStoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */; };
 		B04213B037CEDDEC3674BF68 /* ProjectCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A51559E4B7599CA640466E3 /* ProjectCounter.swift */; };
 		B19C5BC23A17FC1EE6880A62 /* WatchOptimisticState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */; };
 		B5A75428269E1AAD4CF98DE0 /* ProjectJournalAsyncPublicationGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */; };
@@ -306,6 +307,7 @@
 		F53F8478B3089817AE2FFFA1 /* PreparedWatchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparedWatchCommand.swift; sourceTree = "<group>"; };
 		F5F160074737C554D783176A /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReaderView.swift; sourceTree = "<group>"; };
+		FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStoreScreenshotMode.swift; sourceTree = "<group>"; };
 		FE75A4BC6F25D9138B684ADF /* RowNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowNote.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -571,6 +573,7 @@
 				9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */,
 				AE2721C6AB54E5F271947F0E /* ProjectListView.swift */,
 				C65533430112873329E49422 /* WatchCounterView.swift */,
+				FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */,
 				C5CFF967E86FC4710ED9A997 /* Sync */,
 			);
 			path = KnitNoteWatch;
@@ -900,6 +903,7 @@
 				F59CD3994A2771D81C0BED0A /* WatchReliableSnapshotFingerprint.swift in Sources */,
 				625C39A0B9A33D2FADACCA3E /* WatchSession.swift in Sources */,
 				CF7719013B31CD9396441639 /* WatchSnapshotBuilder.swift in Sources */,
+				ABA3AABF79B56CA98AB86ACD /* WatchStoreScreenshotMode.swift in Sources */,
 				C816A92D53BDA5A3586F7216 /* WatchSyncCache.swift in Sources */,
 				8D0F39BD34FDE02B7DFC6A64 /* WatchSyncCoordinator.swift in Sources */,
 				F88B0DA6E2D5A7B55286CC20 /* WatchSyncModels.swift in Sources */,

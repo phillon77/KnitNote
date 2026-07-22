@@ -21,6 +21,19 @@ import Testing
         #expect(source.contains("return LanguageSettings(selection: selection).resolvedLocale()"))
     }
 
+    @Test func watchAppHasAnIsolatedDebugOnlyScreenshotRoute() throws {
+        let appSource = try sourceText("KnitNoteWatch/KnitNoteWatchApp.swift")
+        let modeSource = try sourceText("KnitNoteWatch/WatchStoreScreenshotMode.swift")
+
+        #expect(modeSource.contains("#if DEBUG"))
+        #expect(modeSource.contains("-storeScreenshotMode"))
+        #expect(modeSource.contains("watchProjects"))
+        #expect(modeSource.contains("watchCounters"))
+        #expect(appSource.contains("WatchStoreScreenshotMode.current()"))
+        #expect(appSource.contains("if let screenshotMode"))
+        #expect(appSource.contains("watchSyncCoordinator.start()"))
+    }
+
     @Test func screenshotRootCoversEveryApprovedScene() throws {
         let source = try sourceText("KnitNote/App/StoreScreenshotRootView.swift")
 

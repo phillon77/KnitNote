@@ -1,0 +1,61 @@
+# KnitNote App Store screenshots
+
+This directory produces the 28 approved screenshots (14 Traditional Chinese and 14 English) from deterministic synthetic app data. It never reads the live Application Support store and never uses family photos.
+
+## One-time setup
+
+1. Install Python dependencies into a temporary virtual environment:
+
+   ```bash
+   python3 -m venv /tmp/knitnote-screenshots-venv
+   /tmp/knitnote-screenshots-venv/bin/python -m pip install --upgrade pip
+   /tmp/knitnote-screenshots-venv/bin/pip install -r AppStore/Screenshots/requirements.txt
+   ```
+
+2. Create dedicated iPhone, iPad, and Apple Watch screenshot simulators. Do not point the variables below at a simulator containing personal test data.
+
+3. Build the Debug screenshot binaries:
+
+   ```bash
+   xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Debug \
+     -destination 'generic/platform=iOS Simulator' \
+     -derivedDataPath /tmp/KnitNoteScreenshots build
+   xcodebuild -project KnitNote.xcodeproj -scheme KnitNoteWatch -configuration Debug \
+     -destination 'generic/platform=watchOS Simulator' \
+     -derivedDataPath /tmp/KnitNoteScreenshotsWatch build
+   xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Debug \
+     -destination 'generic/platform=macOS' \
+     -derivedDataPath /tmp/KnitNoteScreenshotsMac build
+   ```
+
+## Capture and compose
+
+Export the three dedicated simulator identifiers and the Mac 16:10 capture rectangle. The Mac app window must be positioned inside that rectangle before capture.
+
+```bash
+export IPHONE_UDID='<dedicated iPhone 17 Pro Max UDID>'
+export IPAD_UDID='<dedicated iPad Pro 13-inch UDID>'
+export WATCH_UDID='<dedicated Apple Watch 46mm UDID>'
+export MAC_CAPTURE_RECT='x,y,width,height'
+
+AppStore/Screenshots/capture.sh zh-Hant
+AppStore/Screenshots/capture.sh en
+/tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/compose.py AppStore/Screenshots/manifest.json
+/tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/validate.py AppStore/Screenshots/manifest.json
+```
+
+To check all 28 definitions before raw captures exist, append `--manifest-only`.
+
+Raw captures are written under `Raw/`. Final opaque RGB files are written under `Generated/<locale>/<platform>/`. The composition keeps at least 79% of every frame as real UI, with the headline and restrained watercolor accents limited to the outer margin.
+
+## Review gate
+
+Before upload, inspect every generated frame at 100% and verify:
+
+- all UI and headline text match the selected language;
+- status bars are deterministic and no control, pattern, counter, or note is covered;
+- no personal names, email addresses, local file paths, photos, or GPS metadata appear;
+- the screenshot is a faithful representation of the shipped app;
+- `validate.py` prints `28 screenshots valid`.
+
+`Raw/` is transient and must not be committed. Commit final `Generated/` files only after visual approval.

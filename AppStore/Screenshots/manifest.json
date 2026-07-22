@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "frames": [
+    {"locale":"zh-Hant","platform":"iphone","scene":"projects","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"把每件作品，織到完成","filename":"01-projects.png"},
+    {"locale":"zh-Hant","platform":"iphone","scene":"counters","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"六組計數器，輕點就記","filename":"02-counters.png"},
+    {"locale":"zh-Hant","platform":"iphone","scene":"patternHighlight","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"織圖與進度，同一個畫面","filename":"03-pattern-progress.png"},
+    {"locale":"zh-Hant","platform":"iphone","scene":"journal","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"留住每一步成果","filename":"04-journal.png"},
+    {"locale":"zh-Hant","platform":"iphone","scene":"calculators","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"毛線與計算，井然有序","filename":"05-calculators.png"},
+    {"locale":"zh-Hant","platform":"ipad","scene":"patternHighlight","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"讓織圖成為主角","filename":"06-pattern-focus.png"},
+    {"locale":"zh-Hant","platform":"ipad","scene":"patternHighlight","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"橫向或交叉高亮","filename":"07-pattern-highlight.png"},
+    {"locale":"zh-Hant","platform":"ipad","scene":"patternMarkup","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"手寫標記重要細節","filename":"08-pattern-markup.png"},
+    {"locale":"zh-Hant","platform":"ipad","scene":"patternNotes","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"頁面筆記與六組計數","filename":"09-pattern-notes.png"},
+    {"locale":"zh-Hant","platform":"mac","scene":"projects","device":"Mac 16:10","width":2880,"height":1800,"headline":"在大螢幕整理所有作品","filename":"10-mac-projects.png"},
+    {"locale":"zh-Hant","platform":"mac","scene":"patternHighlight","device":"Mac 16:10","width":2880,"height":1800,"headline":"集中管理每份織圖","filename":"11-mac-patterns.png"},
+    {"locale":"zh-Hant","platform":"mac","scene":"yarn","device":"Mac 16:10","width":2880,"height":1800,"headline":"看清家中的毛線庫","filename":"12-mac-yarn.png"},
+    {"locale":"zh-Hant","platform":"watch","scene":"watchProjects","device":"Apple Watch 46mm","width":416,"height":496,"headline":"抬腕就能繼續計數","filename":"13-watch-projects.png"},
+    {"locale":"zh-Hant","platform":"watch","scene":"watchCounters","device":"Apple Watch 46mm","width":416,"height":496,"headline":"離線也能使用六組計數器","filename":"14-watch-counters.png"},
+
+    {"locale":"en","platform":"iphone","scene":"projects","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"Knit every project to completion","filename":"01-projects.png"},
+    {"locale":"en","platform":"iphone","scene":"counters","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"Six counters, one simple tap","filename":"02-counters.png"},
+    {"locale":"en","platform":"iphone","scene":"patternHighlight","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"Patterns and progress together","filename":"03-pattern-progress.png"},
+    {"locale":"en","platform":"iphone","scene":"journal","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"Keep every step of the journey","filename":"04-journal.png"},
+    {"locale":"en","platform":"iphone","scene":"calculators","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"Yarn and calculations, organized","filename":"05-calculators.png"},
+    {"locale":"en","platform":"ipad","scene":"patternHighlight","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"Let the pattern take center stage","filename":"06-pattern-focus.png"},
+    {"locale":"en","platform":"ipad","scene":"patternHighlight","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"Highlight rows or chart positions","filename":"07-pattern-highlight.png"},
+    {"locale":"en","platform":"ipad","scene":"patternMarkup","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"Mark important details by hand","filename":"08-pattern-markup.png"},
+    {"locale":"en","platform":"ipad","scene":"patternNotes","device":"iPad Pro 13-inch","width":2064,"height":2752,"headline":"Page notes beside all six counters","filename":"09-pattern-notes.png"},
+    {"locale":"en","platform":"mac","scene":"projects","device":"Mac 16:10","width":2880,"height":1800,"headline":"Manage every project on a larger screen","filename":"10-mac-projects.png"},
+    {"locale":"en","platform":"mac","scene":"patternHighlight","device":"Mac 16:10","width":2880,"height":1800,"headline":"Keep every pattern together","filename":"11-mac-patterns.png"},
+    {"locale":"en","platform":"mac","scene":"yarn","device":"Mac 16:10","width":2880,"height":1800,"headline":"See your yarn inventory clearly","filename":"12-mac-yarn.png"},
+    {"locale":"en","platform":"watch","scene":"watchProjects","device":"Apple Watch 46mm","width":416,"height":496,"headline":"Raise your wrist and keep counting","filename":"13-watch-projects.png"},
+    {"locale":"en","platform":"watch","scene":"watchCounters","device":"Apple Watch 46mm","width":416,"height":496,"headline":"All six counters work offline","filename":"14-watch-counters.png"}
+  ]
+}

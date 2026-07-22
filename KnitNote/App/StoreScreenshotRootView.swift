@@ -1,4 +1,5 @@
 import SwiftUI
+import OSLog
 
 struct StoreScreenshotRootView: View {
     @EnvironmentObject private var store: JSONProjectStore
@@ -30,6 +31,10 @@ struct StoreScreenshotRootView: View {
                 .font(.caption2)
                 .opacity(0.01)
                 .accessibilityIdentifier("storeScreenshot.ready")
+        }
+        .onAppear {
+            Logger(subsystem: "com.phillon.KnitNote", category: "StoreScreenshots")
+                .notice("storeScreenshot.ready")
         }
     }
 

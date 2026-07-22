@@ -5,3 +5,5 @@ work/
 *.xcuserstate
 xcuserdata/
 .DS_Store
+AppStore/Screenshots/Raw/
+AppStore/Screenshots/__pycache__/

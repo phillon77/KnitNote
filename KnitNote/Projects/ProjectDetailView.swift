@@ -38,77 +38,14 @@ struct ProjectDetailView: View {
                                 .foregroundStyle(WatercolorTheme.actionBerry)
                         }
 
-                        if hasToolDetails(project) {
-                            WatercolorCard {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("project.tool.section")
-                                        .font(.headline)
-                                    if let toolType = project.toolType {
-                                        LabeledContent("project.tool.type") {
-                                            Text(toolTypeLocalizationKey(toolType))
-                                        }
-                                    }
-                                    if let toolSize = project.toolSize,
-                                       !toolSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        LabeledContent("project.tool.size") {
-                                            Text(toolSize)
-                                        }
-                                    }
-                                    if let toolNotes = project.toolNotes,
-                                       !toolNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        LabeledContent("project.tool.notes") {
-                                            Text(toolNotes)
-                                        }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-
-                        WatercolorCard {
-                            CounterSelectorGrid(
-                                counters: project.counters,
-                                selectedCounterID: project.selectedCounterID,
-                                isEnabled: !project.isCompleted,
-                                onIncrement: { counterID in
-                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
-                                    try? store.incrementCounter(projectID: projectID, counterID: counterID)
-                                },
-                                onManage: { counterID in
-                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
-                                    managingCounter = project.counters.first { $0.id == counterID }
-                                }
-                            )
-                        }
-
-                        WatercolorCard {
-                            NavigationLink {
-                                KnittingCalculatorsView()
-                            } label: {
-                                Label("calculator.tools.title", systemImage: "ruler")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                        projectActionCard("patterns.open", icon: "doc.text.image") {
+                            showingPatterns = true
                         }
 
                         projectActionCard("notes.edit", icon: "note.text") {
                             editingNote = CounterRowSelection(
                                 counterID: project.selectedCounterID,
                                 row: project.selectedCounter.value
-                            )
-                        }
-
-                        projectActionCard("patterns.open", icon: "doc.text.image") {
-                            showingPatterns = true
-                        }
-
-                        WatercolorCard {
-                            ProjectJournalSection(
-                                project: project,
-                                thumbnailURL: store.journalThumbnailURL(for:),
-                                onAdd: { showingJournalEditor = true },
-                                onOpen: { entry in
-                                    selectedJournalEntry = JournalEntryRoute(id: entry.id)
-                                }
                             )
                         }
 
@@ -141,6 +78,69 @@ struct ProjectDetailView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                        }
+
+                        WatercolorCard {
+                            CounterSelectorGrid(
+                                counters: project.counters,
+                                selectedCounterID: project.selectedCounterID,
+                                isEnabled: !project.isCompleted,
+                                onIncrement: { counterID in
+                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
+                                    try? store.incrementCounter(projectID: projectID, counterID: counterID)
+                                },
+                                onManage: { counterID in
+                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
+                                    managingCounter = project.counters.first { $0.id == counterID }
+                                }
+                            )
+                        }
+
+                        if hasToolDetails(project) {
+                            WatercolorCard {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("project.tool.section")
+                                        .font(.headline)
+                                    if let toolType = project.toolType {
+                                        LabeledContent("project.tool.type") {
+                                            Text(toolTypeLocalizationKey(toolType))
+                                        }
+                                    }
+                                    if let toolSize = project.toolSize,
+                                       !toolSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        LabeledContent("project.tool.size") {
+                                            Text(toolSize)
+                                        }
+                                    }
+                                    if let toolNotes = project.toolNotes,
+                                       !toolNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        LabeledContent("project.tool.notes") {
+                                            Text(toolNotes)
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+
+                        WatercolorCard {
+                            NavigationLink {
+                                KnittingCalculatorsView()
+                            } label: {
+                                Label("calculator.tools.title", systemImage: "ruler")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+
+                        WatercolorCard {
+                            ProjectJournalSection(
+                                project: project,
+                                thumbnailURL: store.journalThumbnailURL(for:),
+                                onAdd: { showingJournalEditor = true },
+                                onOpen: { entry in
+                                    selectedJournalEntry = JournalEntryRoute(id: entry.id)
+                                }
+                            )
                         }
                     }
                     .padding()

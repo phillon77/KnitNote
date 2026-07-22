@@ -638,6 +638,23 @@ import Testing
         #expect(source.contains("onDone(savedName, value)"))
     }
 
+    @Test func traditionalChineseUsesKnittingPatternTerminology() throws {
+        let strings = try catalogStrings()
+        let values = strings.values.compactMap { entry -> String? in
+            guard let entry = entry as? [String: Any],
+                  let localizations = entry["localizations"] as? [String: Any],
+                  let translation = localizations["zh-Hant"] as? [String: Any],
+                  let stringUnit = translation["stringUnit"] as? [String: Any]
+            else { return nil }
+            return stringUnit["value"] as? String
+        }
+        let forbidden = values.filter { $0.contains("圖解") }
+        #expect(forbidden.isEmpty)
+        #expect(try localizedValue("patterns.title", language: "zh-Hant", strings: strings) == "織圖")
+        #expect(try localizedValue("patterns.open", language: "zh-Hant", strings: strings) == "織圖")
+        #expect(try localizedValue("patterns.add", language: "zh-Hant", strings: strings) == "加入織圖")
+    }
+
     private func catalogStrings() throws -> [String: Any] {
         let root = repositoryRoot
         let catalogURL = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")

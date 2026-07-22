@@ -3,14 +3,18 @@ import Testing
 
 @Suite("Project journal view contracts")
 struct ProjectJournalViewContractTests {
-    @Test func projectPlacesJournalAfterSupportingActionCardsAndBeforeRecentNotes() throws {
+    @Test func projectPlacesJournalAfterNotesCountersAndCalculators() throws {
         let source = try projectSource(named: "ProjectDetailView")
         let patterns = try #require(source.range(of: "projectActionCard(\"patterns.open\""))
-        let journal = try #require(source.range(of: "ProjectJournalSection("))
         let recentNotes = try #require(source.range(of: "let sortedNotes"))
+        let counters = try #require(source.range(of: "CounterSelectorGrid("))
+        let calculators = try #require(source.range(of: "KnittingCalculatorsView()"))
+        let journal = try #require(source.range(of: "ProjectJournalSection("))
 
-        #expect(patterns.lowerBound < journal.lowerBound)
-        #expect(journal.lowerBound < recentNotes.lowerBound)
+        #expect(patterns.lowerBound < recentNotes.lowerBound)
+        #expect(recentNotes.lowerBound < counters.lowerBound)
+        #expect(counters.lowerBound < calculators.lowerBound)
+        #expect(calculators.lowerBound < journal.lowerBound)
         #expect(source.contains("WatercolorCard"))
     }
 

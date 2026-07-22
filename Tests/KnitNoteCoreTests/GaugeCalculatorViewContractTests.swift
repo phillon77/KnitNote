@@ -28,14 +28,14 @@ struct GaugeCalculatorViewContractTests {
         #expect(project.contains("calculator.tools.title"))
     }
 
-    @Test func projectPlacesCalculatorMenuBetweenCountersAndNotes() throws {
+    @Test func projectPlacesCalculatorMenuBetweenCountersAndJournal() throws {
         let project = try appSource("KnitNote/Projects/ProjectDetailView.swift")
         let counters = try #require(project.range(of: "CounterSelectorGrid("))
         let calculators = try #require(project.range(of: "KnittingCalculatorsView()"))
-        let notes = try #require(project.range(of: "\"notes.edit\""))
+        let journal = try #require(project.range(of: "ProjectJournalSection("))
 
         #expect(counters.lowerBound < calculators.lowerBound)
-        #expect(calculators.lowerBound < notes.lowerBound)
+        #expect(calculators.lowerBound < journal.lowerBound)
     }
 
     @Test func gaugeResultsShowDensityExactAndRecommendation() throws {

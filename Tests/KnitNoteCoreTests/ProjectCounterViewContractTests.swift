@@ -12,12 +12,12 @@ import Testing
         #expect(!source.contains("project.undo"))
     }
 
-    @Test func projectDetailPlacesCountersBeforeNotesAndPatterns() throws {
+    @Test func projectDetailPlacesNotesBeforeCounters() throws {
         let source = try projectSource(named: "ProjectDetailView")
         let counters = try #require(source.range(of: "CounterSelectorGrid("))
         let notes = try #require(source.range(of: "projectActionCard(\"notes.edit\""))
 
-        #expect(counters.lowerBound < notes.lowerBound)
+        #expect(notes.lowerBound < counters.lowerBound)
     }
 
     @Test func projectDetailShowsPhotoOrDefaultIconBeforeCounters() throws {

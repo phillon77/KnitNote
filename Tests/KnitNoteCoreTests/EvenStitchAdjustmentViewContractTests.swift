@@ -198,8 +198,8 @@ struct EvenStitchAdjustmentViewContractTests {
 
         let counters = try #require(project.range(of: "CounterSelectorGrid("))
         let tools = try #require(project.range(of: "KnittingCalculatorsView()"))
-        let notes = try #require(project.range(of: "\"notes.edit\""))
-        #expect(counters.lowerBound < tools.lowerBound && tools.lowerBound < notes.lowerBound)
+        let journal = try #require(project.range(of: "ProjectJournalSection("))
+        #expect(counters.lowerBound < tools.lowerBound && tools.lowerBound < journal.lowerBound)
     }
 
     @Test func projectNoteAndPatternActionsMatchTheFullWidthCalculatorCardStyle() throws {
@@ -215,13 +215,13 @@ struct EvenStitchAdjustmentViewContractTests {
         #expect(!project.contains("supportingButton("))
         #expect(!project.contains(".labelStyle(.iconOnly)"))
 
-        let tools = try #require(project.range(of: "KnittingCalculatorsView()"))
-        let notes = try #require(project.range(of: "\"notes.edit\"", range: tools.upperBound..<project.endIndex))
-        let patterns = try #require(project.range(of: "\"patterns.open\"", range: notes.upperBound..<project.endIndex))
-        let journal = try #require(project.range(of: "ProjectJournalSection(", range: patterns.upperBound..<project.endIndex))
-        #expect(tools.lowerBound < notes.lowerBound)
-        #expect(notes.lowerBound < patterns.lowerBound)
-        #expect(patterns.lowerBound < journal.lowerBound)
+        let patterns = try #require(project.range(of: "\"patterns.open\""))
+        let notes = try #require(project.range(of: "\"notes.edit\"", range: patterns.upperBound..<project.endIndex))
+        let tools = try #require(project.range(of: "KnittingCalculatorsView()", range: notes.upperBound..<project.endIndex))
+        let journal = try #require(project.range(of: "ProjectJournalSection(", range: tools.upperBound..<project.endIndex))
+        #expect(patterns.lowerBound < notes.lowerBound)
+        #expect(notes.lowerBound < tools.lowerBound)
+        #expect(tools.lowerBound < journal.lowerBound)
     }
 }
 

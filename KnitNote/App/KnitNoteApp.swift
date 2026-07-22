@@ -3,20 +3,27 @@ import SwiftUI
 @main
 struct KnitNoteApp: App {
     @StateObject private var projectStore: JSONProjectStore
+    private let screenshotMode: StoreScreenshotMode?
 #if os(iOS)
     @StateObject private var phoneWatchSyncCoordinator: PhoneWatchSyncCoordinator
 #endif
     @AppStorage("languageSelection") private var storedLanguage = LanguageSelection.system.rawValue
 
     init() {
-        let projectStore = JSONProjectStore.live()
+        let screenshotMode = StoreScreenshotMode.current()
+        self.screenshotMode = screenshotMode
+        let projectStore = screenshotMode.map {
+            JSONProjectStore.live(baseDirectory: $0.baseDirectory)
+        } ?? JSONProjectStore.live()
         _projectStore = StateObject(wrappedValue: projectStore)
 #if os(iOS)
         let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(projectStore: projectStore)
         _phoneWatchSyncCoordinator = StateObject(
             wrappedValue: phoneWatchSyncCoordinator
         )
-        phoneWatchSyncCoordinator.start()
+        if screenshotMode == nil {
+            phoneWatchSyncCoordinator.start()
+        }
 #endif
     }
 
@@ -25,12 +32,21 @@ struct KnitNoteApp: App {
     }
 
     private var appLocale: Locale {
-        LanguageSettings(selection: selection).resolvedLocale()
+        if let screenshotMode {
+            return screenshotMode.locale
+        }
+        return LanguageSettings(selection: selection).resolvedLocale()
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView(storedLanguage: $storedLanguage)
+            Group {
+                if let screenshotMode {
+                    StoreScreenshotRootView(scene: screenshotMode.scene)
+                } else {
+                    RootView(storedLanguage: $storedLanguage)
+                }
+            }
                 .environment(\.locale, appLocale)
                 .environmentObject(projectStore)
                 .preferredColorScheme(.light)

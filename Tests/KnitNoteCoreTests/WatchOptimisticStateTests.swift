@@ -237,6 +237,25 @@ import Testing
         #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 11)
     }
 
+    @Test func delayedSnapshotCannotRegressNewerAuthoritativeState() throws {
+        let fixture = try Fixture(value: 1)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let newer = try fixture.snapshot(
+            value: 2,
+            generatedAt: Date(timeIntervalSince1970: 40)
+        )
+        let delayed = try fixture.snapshot(
+            value: 1,
+            generatedAt: Date(timeIntervalSince1970: 30)
+        )
+
+        state.replaceSnapshot(newer)
+        state.replaceSnapshot(delayed)
+
+        #expect(state.cache.snapshot == newer)
+        #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 2)
+    }
+
     @Test func replacementSnapshotRepairsSelectionsThatNoLongerExist() throws {
         let fixture = try Fixture(value: 4)
         let other = try Fixture(value: 8)

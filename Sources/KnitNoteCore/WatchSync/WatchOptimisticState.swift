@@ -100,6 +100,9 @@ public struct WatchOptimisticState: Equatable, Sendable {
     }
 
     public mutating func replaceSnapshot(_ snapshot: WatchSyncSnapshot) {
+        guard authoritativeSnapshot.map({
+            snapshot.generatedAt >= $0.generatedAt
+        }) ?? true else { return }
         authoritativeSnapshot = snapshot
         repairSelection()
     }

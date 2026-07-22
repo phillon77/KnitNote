@@ -14,7 +14,9 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     private var projectSubscription: AnyCancellable?
     private var serialTask: Task<Void, Never> = Task {}
     private var activationRetryTask: Task<Void, Never>?
+    private var reliableSnapshotRetryTask: Task<Void, Never>?
     private var lastPublishedProjects: [WatchProjectSnapshot]?
+    private var reliableSnapshotTransferState = WatchReliableSnapshotTransferState()
     private var recoveryState: WatchCommandRecoveryState?
     private var isConfigured = false
     private var isActivating = false
@@ -64,6 +66,14 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         transport.onReachabilityChanged = { [weak self] reachable in
             guard reachable else { return }
             self?.publishLatestSnapshotIfChanged()
+        }
+        transport.onTransferCompleted = { [weak self] envelope, error in
+            guard let self,
+                  error != nil,
+                  case let .snapshot(snapshot)? = envelope,
+                  reliableSnapshotTransferState.recordFailure(of: snapshot)
+            else { return }
+            scheduleReliableSnapshotRetry()
         }
 
         projectSubscription = projectStore.$projects
@@ -207,16 +217,17 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         let envelope = WatchConnectivityEnvelope.snapshot(snapshot)
         if let reply {
             reply(envelope)
-        } else {
-            transport.transferUserInfo(envelope)
         }
         publish(snapshot)
     }
 
     private func publishLatestSnapshotIfChanged() {
         let snapshot = latestSnapshot()
-        guard snapshot.projects != lastPublishedProjects else { return }
-        publish(snapshot)
+        if snapshot.projects != lastPublishedProjects {
+            publish(snapshot)
+        } else {
+            queueReliableSnapshotIfNeeded(snapshot)
+        }
     }
 
     private func publish(_ snapshot: WatchSyncSnapshot) {
@@ -226,6 +237,23 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         } catch {
             // Leave the marker unchanged so start, reachability, or the next
             // project event retries this exact authoritative payload.
+        }
+
+        queueReliableSnapshotIfNeeded(snapshot)
+    }
+
+    private func queueReliableSnapshotIfNeeded(_ snapshot: WatchSyncSnapshot) {
+        guard reliableSnapshotTransferState.prepareTransfer(of: snapshot) else { return }
+        transport.transferUserInfo(.snapshot(snapshot))
+    }
+
+    private func scheduleReliableSnapshotRetry() {
+        guard reliableSnapshotRetryTask == nil else { return }
+        reliableSnapshotRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            reliableSnapshotRetryTask = nil
+            queueReliableSnapshotIfNeeded(latestSnapshot())
         }
     }
 

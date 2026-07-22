@@ -84,6 +84,18 @@ import Testing
         #expect(coordinator.contains("activationRetryTask"))
     }
 
+    @Test func coldLaunchAndStructuralChangesAlsoUseReliableTransfer() throws {
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+
+        #expect(coordinator.contains("reliableSnapshotTransferState"))
+        #expect(coordinator.contains("prepareTransfer(of: snapshot)"))
+        #expect(coordinator.contains("transport.transferUserInfo(.snapshot(snapshot))"))
+        #expect(coordinator.contains("transport.onTransferCompleted ="))
+        #expect(coordinator.contains("recordFailure(of: snapshot)"))
+        #expect(coordinator.contains("scheduleReliableSnapshotRetry()"))
+        #expect(!coordinator.contains("lastReliablyTransferredFingerprint"))
+    }
+
     private func source(_ path: String) throws -> String {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()

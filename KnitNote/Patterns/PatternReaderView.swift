@@ -183,6 +183,7 @@ struct PatternReaderView: View {
                     PDFReaderView(
                         url: store.patternURL(projectID: projectID, pattern: pattern),
                         navigator: pdfNavigator,
+                        scaleMode: layout.pdfScaleMode,
                         state: $state,
                         pageCount: $pageCount,
                         loadError: $loadError

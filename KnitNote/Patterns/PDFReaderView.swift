@@ -15,24 +15,23 @@ import SwiftUI
         let target = min(document.pageCount - 1, max(0, pageIndex))
         guard let page = document.page(at: target) else { return }
         request?(target)
-        view.autoScales = true
         view.go(to: page)
     }
 }
 
 #if os(macOS)
 struct PDFReaderView: NSViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
     func makeNSView(context: Context) -> PDFView { makeView(context: context) }
-    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.restore(view, state: state) }
+    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator) }
     private func makeView(context: Context) -> PDFView { context.coordinator.make(url: url) }
 }
 #else
 struct PDFReaderView: UIViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
-    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.restore(view, state: state) }
+    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator) }
 }
 #endif
@@ -40,6 +39,15 @@ struct PDFReaderView: UIViewRepresentable {
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
         @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private let navigator: PDFPageNavigator; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
+        private struct ScaleSignature: Equatable {
+            let mode: PatternPDFScaleMode
+            let size: CGSize
+            let pageIndex: Int
+        }
+
+        private var latestScaleMode = PatternPDFScaleMode.automatic
+        private var lastScaleSignature: ScaleSignature?
+
         init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, navigator: PDFPageNavigator) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; self.navigator=navigator }
         func make(url: URL) -> PDFView {
             let view=PDFView(); view.autoScales=true; view.displayMode = .singlePage; view.displayDirection = .horizontal
@@ -61,9 +69,16 @@ extension PDFReaderView {
             }
             return view
         }
-        func restore(_ view: PDFView, state: PatternReadingState) {
+        func update(
+            _ view: PDFView,
+            state: PatternReadingState,
+            scaleMode: PatternPDFScaleMode
+        ) {
+            latestScaleMode = scaleMode
             if restoreGate.beginRestoring() {
                 scheduleRestore(view)
+            } else if restoreGate.canSample {
+                applyScaleMode(scaleMode, to: view)
             }
         }
         private func scheduleRestore(_ view: PDFView) {
@@ -93,12 +108,54 @@ extension PDFReaderView {
                     self.state.offsetX=0
                     self.state.offsetY=0
                     self.restoreGate.didRestore()
+                    self.applyScaleMode(self.latestScaleMode, to: view)
                 } else if self.restoreAttempts < 5 {
                     self.scheduleRestore(view)
                 }
             }
         }
-        @objc private func changed(_ note: Notification) { sample(note.object as? PDFView) }
+
+        private func applyScaleMode(_ mode: PatternPDFScaleMode, to view: PDFView) {
+            guard let page = view.currentPage,
+                  let document = view.document
+            else { return }
+#if os(macOS)
+            view.layoutSubtreeIfNeeded()
+#else
+            view.layoutIfNeeded()
+#endif
+            let signature = ScaleSignature(
+                mode: mode,
+                size: view.bounds.size,
+                pageIndex: document.index(for: page)
+            )
+            guard signature != lastScaleSignature else { return }
+            lastScaleSignature = signature
+
+            switch mode {
+            case .automatic:
+                view.autoScales = true
+            case .fitWidth:
+                let pageWidth = page.bounds(for: view.displayBox).width
+                let availableWidth = max(1, view.bounds.width - 16)
+                guard pageWidth > 0 else { return }
+                let widthScale = availableWidth / pageWidth
+                let sizeToFit = view.scaleFactorForSizeToFit
+                view.autoScales = false
+                view.minScaleFactor = min(sizeToFit, widthScale)
+                view.maxScaleFactor = max(widthScale * 4, widthScale)
+                view.scaleFactor = widthScale
+            }
+        }
+
+        @objc private func changed(_ note: Notification) {
+            guard let view = note.object as? PDFView else { return }
+            if note.name == .PDFViewPageChanged {
+                lastScaleSignature = nil
+                applyScaleMode(latestScaleMode, to: view)
+            }
+            sample(view)
+        }
         private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; guard pageRequestGate.accepts(visiblePage) else { return }; state.transitionToPDFPage(visiblePage); state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }

@@ -67,6 +67,7 @@ targets:
         CFBundleDisplayName: KnitNote
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
         WKCompanionAppBundleIdentifier: com.phillon.KnitNote
     sources:
       - path: KnitNoteWatch

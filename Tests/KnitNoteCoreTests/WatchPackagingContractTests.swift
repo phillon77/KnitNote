@@ -43,6 +43,14 @@ import Testing
         #expect(project.contains("WKCompanionAppBundleIdentifier: com.phillon.KnitNote"))
     }
 
+    @Test func watchInfoMarksTheEmbeddedProductAsAWatchApplication() throws {
+        let watchInfo = try plist("KnitNoteWatch/Info.plist")
+        let project = try source("project.yml")
+
+        #expect(watchInfo["WKApplication"] as? Bool == true)
+        #expect(project.contains("WKApplication: true"))
+    }
+
     @Test func generatedProjectHasCompleteIOSOnlyEmbedContract() throws {
         try validateGeneratedProject(try source("KnitNote.xcodeproj/project.pbxproj"))
     }

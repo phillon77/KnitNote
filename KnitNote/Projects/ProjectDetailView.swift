@@ -38,11 +38,11 @@ struct ProjectDetailView: View {
                                 .foregroundStyle(WatercolorTheme.actionBerry)
                         }
 
-                        projectActionCard("patterns.open", icon: "doc.text.image") {
+                        projectActionCard("patterns.open", icon: "doc.text.image", isPopulated: !project.patterns.isEmpty) {
                             showingPatterns = true
                         }
 
-                        projectActionCard("notes.edit", icon: "note.text") {
+                        projectActionCard("notes.edit", icon: "note.text", isPopulated: project.counters.contains { !$0.rowNotes.isEmpty }) {
                             editingNote = CounterRowSelection(
                                 counterID: project.selectedCounterID,
                                 row: project.selectedCounter.value
@@ -202,11 +202,13 @@ struct ProjectDetailView: View {
     private func projectActionCard(
         _ title: LocalizedStringKey,
         icon: String,
+        isPopulated: Bool,
         action: @escaping () -> Void
     ) -> some View {
         WatercolorCard {
             Button(action: action) {
                 Label(title, systemImage: icon)
+                    .foregroundStyle(isPopulated ? WatercolorTheme.actionBerry : Color.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(.rect)
             }

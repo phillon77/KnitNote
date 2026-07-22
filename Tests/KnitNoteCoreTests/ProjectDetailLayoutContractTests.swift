@@ -25,11 +25,26 @@ import Testing
         #expect(calculator.lowerBound < journal.lowerBound)
     }
 
+    @Test func populatedProjectContentUsesBerryLabels() throws {
+        let detail = try projectSource()
+        let journal = try source(at: "KnitNote/Projects/ProjectJournalSection.swift")
+
+        #expect(detail.contains("isPopulated: !project.patterns.isEmpty"))
+        #expect(detail.contains("project.counters.contains { !$0.rowNotes.isEmpty }"))
+        #expect(detail.contains("isPopulated: Bool"))
+        #expect(detail.contains("isPopulated ? WatercolorTheme.actionBerry : Color.primary"))
+        #expect(journal.contains("project.journalEntries.isEmpty ? Color.primary : WatercolorTheme.actionBerry"))
+    }
+
     private func projectSource() throws -> String {
+        try source(at: "KnitNote/Projects/ProjectDetailView.swift")
+    }
+
+    private func source(at relativePath: String) throws -> String {
         let root = URL(filePath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         return try String(
-            contentsOf: root.appending(path: "KnitNote/Projects/ProjectDetailView.swift"),
+            contentsOf: root.appending(path: relativePath),
             encoding: .utf8
         )
     }

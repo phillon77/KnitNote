@@ -40,6 +40,7 @@ struct ProjectJournalSection: View {
             HStack {
                 Text("journal.title")
                     .font(.headline)
+                    .foregroundStyle(project.journalEntries.isEmpty ? Color.primary : WatercolorTheme.actionBerry)
                 Spacer()
                 if !project.isCompleted {
                     Button("journal.add", systemImage: "plus", action: onAdd)

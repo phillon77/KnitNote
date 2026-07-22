@@ -118,7 +118,9 @@ struct WatchStoreScreenshotHost: View {
                 .frame(width: 1, height: 1)
                 .accessibilityIdentifier("storeScreenshot.ready")
         }
-        .onAppear {
+        .task {
+            try? await Task.sleep(for: .seconds(0.8))
+            guard !Task.isCancelled else { return }
             Logger(subsystem: "com.phillon.KnitNote.watch", category: "StoreScreenshots")
                 .notice("storeScreenshot.ready.\(mode.readinessToken, privacy: .public)")
         }

@@ -35,7 +35,9 @@ struct StoreScreenshotRootView: View {
                 .opacity(0.01)
                 .accessibilityIdentifier("storeScreenshot.ready")
         }
-        .onAppear {
+        .task {
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled else { return }
             Logger(subsystem: "com.phillon.KnitNote", category: "StoreScreenshots")
                 .notice("storeScreenshot.ready.\(readinessToken, privacy: .public)")
         }

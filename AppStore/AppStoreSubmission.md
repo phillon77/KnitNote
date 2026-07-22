@@ -30,8 +30,8 @@
 - [x] iOS／Watch 與 macOS Build 2 signed archives 建立成功
 - [x] 主 App、Watch App 與 macOS App 都已打包經稽核的 `PrivacyInfo.xcprivacy`
 - [x] Build 1 修正後 archive 通過 Xcode Organizer Validate App
-- [ ] Build 2 最終 archive 通過 Xcode Organizer Validate App
+- [x] Build 2 最終 archive 通過 Xcode Organizer Validate App
 - [ ] 完成 App Store Connect metadata、隱私、截圖與 build 對照
 - [ ] 使用者明確批准後才可提交 App Review
 
-目前先不要上傳或送審；下一個門檻是用 Xcode Organizer 驗證 Build 2，之後再完成 App Store Connect metadata、隱私問卷、截圖與 build 對照。Build 2 靜態驗收見 `Verification/Build2ArchiveVerification.md`，隱私稽核見 `Verification/PrivacyAudit.md`，Watch 實機證據見 `Verification/WatchSyncVerification.md`。
+目前尚未上傳或送審。下一個門檻是完成 App Store Connect metadata、隱私問卷、截圖與 Build 2 對照，並在送審前取得使用者明確批准。Build 2 驗收見 `Verification/Build2ArchiveVerification.md`，隱私稽核見 `Verification/PrivacyAudit.md`，Watch 實機證據見 `Verification/WatchSyncVerification.md`。

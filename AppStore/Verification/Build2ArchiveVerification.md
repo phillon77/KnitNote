@@ -44,6 +44,18 @@
 
 主 App 宣告經原始碼與 release binary 稽核確認的 File Timestamp `C617.1`、`3B52.1`，以及 User Defaults `CA92.1`。Watch 只宣告其 app-container 檔案行為所需的 File Timestamp `C617.1`。兩者均宣告不追蹤、不收集資料；完整依據見 `PrivacyAudit.md`。
 
+## App Store Connect 驗證
+
+2026-07-23 06:41（Asia/Taipei）在 Xcode Organizer 對 iOS／Watch archive 執行建議設定的 Validate App。Xcode 回報：
+
+```text
+App validation complete:
+KnitNote 1.0.0 (2) validated
+Your app successfully passed all validation checks.
+```
+
+Organizer archive 狀態顯示 `Validation succeeded`，Submission Status 顯示 `Validated`、Build Number `2`。未執行 Distribute App，未上傳，也未送審。
+
 ## 結論與下一門檻
 
-Build 2 已通過本機測試、Release 建置、封存內容、隱私權清單位置與嚴格簽章驗證。尚未對這兩份 Build 2 archives 執行 Xcode Organizer 的 Validate App，也未上傳或送審。
+Build 2 已通過本機測試、Release 建置、封存內容、隱私權清單位置、嚴格簽章驗證，以及 Xcode Organizer 的 App Store Connect 驗證。下一步是完成 App Store Connect metadata、隱私問卷、截圖與 Build 2 對照；上傳與送審仍需使用者另外明確批准。

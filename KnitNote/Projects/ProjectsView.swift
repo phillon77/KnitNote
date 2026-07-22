@@ -8,7 +8,6 @@ struct ProjectsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                ProjectsPaintingBackground()
                 ScrollView {
                     LazyVStack(spacing: 16) {
                         if store.projects.isEmpty {
@@ -37,6 +36,9 @@ struct ProjectsView: View {
                     .padding(.bottom, 32)
                     .frame(maxWidth: .infinity)
                 }
+            }
+            .background {
+                ProjectsPaintingBackground()
             }
             .navigationTitle("nav.projects")
             .navigationDestination(for: UUID.self) { ProjectDetailView(projectID: $0) }

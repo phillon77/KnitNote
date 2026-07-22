@@ -6,12 +6,28 @@ import Testing
     let source = try appSource("KnitNote/Projects/ProjectsView.swift")
 
     #expect(!source.contains("FamilyHeroView()"))
-    #expect(source.contains("ProjectsPaintingBackground()"))
     #expect(!source.contains("WatercolorBackground()"))
 
-    let background = try #require(source.range(of: "ProjectsPaintingBackground()"))
-    let scrollView = try #require(source.range(of: "ScrollView {"))
-    #expect(background.lowerBound < scrollView.lowerBound)
+    #expect(source.components(separatedBy: "ProjectsPaintingBackground()").count == 2)
+
+    let rootStack = try #require(source.range(of: "            ZStack {\n"))
+    #expect(source[rootStack.upperBound...].hasPrefix("                ScrollView {"))
+
+    let rootStackClosing = try #require(
+        source.range(of: "            }\n            .background {", range: rootStack.upperBound..<source.endIndex)
+    )
+    let paintingModifier = try #require(
+        source.range(
+            of: "            .background {\n                ProjectsPaintingBackground()\n            }",
+            range: rootStackClosing.lowerBound..<source.endIndex
+        )
+    )
+    let navigationTitle = try #require(
+        source.range(of: "            .navigationTitle", range: paintingModifier.upperBound..<source.endIndex)
+    )
+
+    #expect(rootStackClosing.lowerBound < paintingModifier.lowerBound)
+    #expect(paintingModifier.upperBound < navigationTitle.lowerBound)
 }
 
 @Test func otherPrimaryScreensKeepTheGenericWatercolorBackground() throws {

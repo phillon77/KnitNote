@@ -26,7 +26,7 @@
 
 ## 發布門檻
 
-- [x] SwiftPM 522 項測試與五個 Release build 目的地通過
+- [x] SwiftPM 535 項測試與 iOS、macOS、watchOS、Release build 目的地通過
 - [x] iOS／Watch 與 macOS Build 2 signed archives 建立成功
 - [x] 主 App、Watch App 與 macOS App 都已打包經稽核的 `PrivacyInfo.xcprivacy`
 - [x] Build 1 修正後 archive 通過 Xcode Organizer Validate App

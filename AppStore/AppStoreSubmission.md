@@ -51,12 +51,14 @@
 
 - `READY`：繁體中文 metadata 已通過欄位長度、關鍵字與禁語檢查。
 - `READY`：English (U.S.) metadata 已通過欄位長度、關鍵字與禁語檢查。
+- `READY`：雙語支援／隱私網站已通過本機內容、連結、手機與桌面版面檢查。
 - `NOT STARTED`：公開支援與隱私網址。
 
 ## Privacy／隱私
 
 - `VERIFIED`：不追蹤、不含廣告／分析 SDK、不傳送使用資料到開發者伺服器。
 - `VERIFIED`：主 App、Watch 與 macOS archive 均含經稽核的隱私權清單。
+- `READY`：雙語公開隱私權政策來源已完成。
 - `NOT STARTED`：App Store Connect「App 隱私權」問卷。
 
 ## Screenshots／截圖

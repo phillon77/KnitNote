@@ -67,6 +67,28 @@ import Testing
         }
     }
 
+    @Test @MainActor func installedFixtureLoadsThroughTheProductionStore() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "knitnote-store-load-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fixture = try StoreScreenshotFixtures.make(language: .en)
+        _ = try JSONDecoder().decode(ProjectArchive.self, from: fixture.archiveData())
+        let baseDirectory = try fixture.install(in: root)
+        let directStore = JSONProjectStore(
+            url: baseDirectory.appending(path: "KnitNote/projects-v1.json")
+        )
+        #expect(directStore.loadError == nil)
+        #expect(directStore.projects.count == 2)
+        let store = JSONProjectStore.live(baseDirectory: baseDirectory)
+
+        #expect(store.loadError == nil)
+        #expect(store.projects.count == 2)
+        #expect(store.projects.first?.counters.count == 6)
+        #expect(store.projects.first?.patterns.count == 1)
+        #expect(store.yarns.count == 3)
+    }
+
     @Test func everyApprovedScreenshotSceneHasAStableLaunchValue() {
         #expect(StoreScreenshotScene.allCases.map(\.rawValue) == [
             "projects",

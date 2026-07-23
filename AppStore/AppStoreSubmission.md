@@ -26,7 +26,7 @@
 
 ## 發布門檻
 
-- [x] SwiftPM 535 項測試與 iOS、macOS、watchOS、Release build 目的地通過
+- [x] SwiftPM 536 項測試與 iOS、macOS、watchOS、Release build 目的地通過
 - [x] iOS／Watch 與 macOS Build 2 signed archives 建立成功
 - [x] 主 App、Watch App 與 macOS App 都已打包經稽核的 `PrivacyInfo.xcprivacy`
 - [x] Build 1 修正後 archive 通過 Xcode Organizer Validate App
@@ -63,9 +63,9 @@
 
 ## Screenshots／截圖
 
-- `IN PROGRESS`：繁中與英文 iPhone、iPad、Apple Watch、Mac 共 28 張截圖的清單、隔離資料與產圖工具已完成。
-- `STATIC VERIFIED`：Debug 截圖模式只使用暫存合成資料；無效或 Release 截圖請求會立即終止，不會開啟正式 Application Support。仍待模擬器恢復後做執行期確認。
-- `BLOCKED`：macOS `simdiskimaged` 服務需重啟後才能擷取、逐張目視核准並產出最終檔案。
+- `VERIFIED`：繁中與英文 iPhone、iPad、Apple Watch、Mac 共 28 張最終截圖已產出，尺寸與格式自動驗證全部通過。
+- `VERIFIED`：Debug 截圖模式已在四種平台執行；隔離的合成資料可由正式資料儲存層讀取，不會開啟正式 Application Support。
+- `VERIFIED`：兩份 contact sheet 與織圖、高亮、手寫、頁面筆記、六組計數器等重點畫面已逐張目視檢查；英文 iPad 系統日期與介面語言一致。
 
 ## Review information／審核資訊
 

@@ -48,6 +48,7 @@ public enum StoreScreenshotFixtures {
     private static let projectID = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!
     private static let secondProjectID = UUID(uuidString: "10000000-0000-4000-8000-000000000002")!
     private static let patternID = UUID(uuidString: "20000000-0000-4000-8000-000000000001")!
+    private static let projectPhotoToken = UUID(uuidString: "21000000-0000-4000-8000-000000000001")!
     private static let fixedDate = Date(timeIntervalSince1970: 1_767_225_600)
 
     public static func make(language: StoreScreenshotLanguage) throws -> StoreScreenshotFixturePackage {
@@ -74,7 +75,7 @@ public enum StoreScreenshotFixtures {
             id: patternID,
             displayName: copy.patternName,
             kind: .pdf,
-            storedFilename: "cloud-shawl.pdf",
+            storedFilename: "\(patternID.uuidString).pdf",
             createdAt: fixedDate
         )
         pattern.pageIndex = 0
@@ -92,7 +93,7 @@ public enum StoreScreenshotFixtures {
         ]
 
         let journalEntries = try makeJournalEntries(copy: copy)
-        let firstProjectPhoto = "cloud-shawl-project.jpg"
+        let firstProjectPhoto = "\(projectID.uuidString)-\(projectPhotoToken.uuidString).jpg"
         let projectPayloads = [
             ProjectPayload(
                 id: projectID,
@@ -214,7 +215,13 @@ public enum StoreScreenshotFixtures {
                 notes: nil,
                 now: fixedDate
             )
-            yarn.setPhotoFilename("yarn-\(index + 1).jpg", now: fixedDate)
+            let photoToken = UUID(
+                uuidString: String(format: "51000000-0000-4000-8000-%012d", index + 1)
+            )!
+            yarn.setPhotoFilename(
+                "\(id.uuidString)-\(photoToken.uuidString).jpg",
+                now: fixedDate
+            )
             return yarn
         }
     }

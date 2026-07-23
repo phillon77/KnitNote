@@ -47,12 +47,18 @@ PY
 
 prepare_device() {
   local udid="$1" locale="$2"
+  local region
+  case "$locale" in
+    zh-Hant) region="zh_TW" ;;
+    en) region="en_US" ;;
+    *) echo "unsupported screenshot locale: $locale" >&2; return 2 ;;
+  esac
   xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
   xcrun simctl erase "$udid"
   xcrun simctl boot "$udid"
   xcrun simctl bootstatus "$udid" -b
   xcrun simctl spawn "$udid" defaults write NSGlobalDomain AppleLanguages -array "$locale"
-  xcrun simctl spawn "$udid" defaults write NSGlobalDomain AppleLocale "$locale"
+  xcrun simctl spawn "$udid" defaults write NSGlobalDomain AppleLocale "$region"
 }
 
 wait_for_ready() {
@@ -81,6 +87,10 @@ wait_for_mac_ready() {
   return 1
 }
 
+settle_after_ready() {
+  sleep "${SCREENSHOT_SETTLE_SECONDS:-2}"
+}
+
 verify_dimensions() {
   local file="$1" expected_width="$2" expected_height="$3"
   local actual_width actual_height
@@ -90,6 +100,17 @@ verify_dimensions() {
     echo "wrong raw dimensions for $file: ${actual_width}x${actual_height}, expected ${expected_width}x${expected_height}" >&2
     return 1
   fi
+}
+
+normal_mac_app_is_running() {
+  local pid command
+  while IFS= read -r pid; do
+    command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+    if [[ -n "$command" && "$command" != *"/CoreSimulator/"* ]]; then
+      return 0
+    fi
+  done < <(pgrep -x KnitNote || true)
+  return 1
 }
 
 capture_simulator() {
@@ -106,9 +127,7 @@ capture_simulator() {
 
   [[ -d "$app" ]] || { echo "missing built app: $app" >&2; return 2; }
   xcrun simctl install "$udid" "$app"
-  if [[ "$platform" == "watch" ]]; then
-    xcrun simctl status_bar "$udid" override --time 9:41
-  else
+  if [[ "$platform" != "watch" ]]; then
     xcrun simctl status_bar "$udid" override \
       --time 9:41 --batteryState charged --batteryLevel 100 \
       --wifiBars 3 --cellularBars 4
@@ -120,6 +139,7 @@ capture_simulator() {
     -storeScreenshotLanguage "$LOCALE" \
     -storeScreenshotToken "$token" >/dev/null
   wait_for_ready "$udid" "$token"
+  settle_after_ready
   mkdir -p "$(dirname "$filename")"
   xcrun simctl io "$udid" screenshot "$filename"
   verify_dimensions "$filename" "$width" "$height"
@@ -130,7 +150,7 @@ capture_mac() {
   local token
   token="$(uuidgen)"
   [[ -d "$MAC_APP" ]] || { echo "missing built app: $MAC_APP" >&2; return 2; }
-  if pgrep -x KnitNote >/dev/null; then
+  if normal_mac_app_is_running; then
     echo "Close the normal KnitNote app before isolated Mac capture" >&2
     return 2
   fi
@@ -163,6 +183,7 @@ APPLESCRIPT
   done
   [[ "$window_configured" == 1 ]] || { echo "unable to size the isolated KnitNote window" >&2; return 1; }
   wait_for_mac_ready "$token"
+  settle_after_ready
   local window_id
   window_id="$(swift -module-cache-path /tmp/knitnote-screenshot-swift-cache "$ROOT/mac_window_id.swift" "$app_pid")"
   [[ -n "$window_id" ]] || { echo "unable to identify isolated KnitNote window" >&2; return 1; }

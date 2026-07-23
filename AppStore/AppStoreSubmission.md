@@ -32,9 +32,9 @@
 - [x] Build 1 修正後 archive 通過 Xcode Organizer Validate App
 - [x] Build 2 最終 archive 通過 Xcode Organizer Validate App
 - [ ] 完成 App Store Connect metadata、隱私、截圖與 build 對照
-- [ ] 使用者明確批准後才可提交 App Review
+- [x] 使用者已於 2026-07-23 明確授權繼續送審
 
-Build 2 已上傳至 App Store Connect，但尚未送審。下一個門檻是完成 metadata、隱私問卷、截圖與 Build 2 對照，並在送審前取得使用者明確批准。Build 2 驗收見 `Verification/Build2ArchiveVerification.md`，上傳證據見 `Verification/AppStoreConnectUploadVerification.md`，隱私稽核見 `Verification/PrivacyAudit.md`，Watch 實機證據見 `Verification/WatchSyncVerification.md`。
+Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文 metadata、截圖、審核資訊、年齡分級、內容版權、出口法規與隱私問卷已完成。正式送審前剩下的主要阻擋是英文 App Store 名稱：`KnitNote` 已由其他 App 使用，英文（美國）在地化因此無法儲存。使用者批准替代英文名稱後，才能完成原定的雙語 v1 並送審。App Store Connect 實際狀態見 `Verification/AppStoreConnectSubmissionVerification.md`。
 
 ## Commercial configuration／商業設定
 
@@ -51,6 +51,8 @@ Build 2 已上傳至 App Store Connect，但尚未送審。下一個門檻是完
 
 - `READY`：繁體中文 metadata 已通過欄位長度、關鍵字與禁語檢查。
 - `READY`：English (U.S.) metadata 已通過欄位長度、關鍵字與禁語檢查。
+- `SAVED`：iOS／macOS 繁體中文版本 metadata 已儲存至 App Store Connect。
+- `BLOCKED`：英文（美國）App 名稱 `KnitNote` 已由其他 App 使用；英文 App 資訊與版本在地化無法儲存，等待使用者批准新的英文商店名稱。
 - `VERIFIED`：雙語支援／隱私網站已通過本機內容、連結、手機與桌面版面檢查。
 - `VERIFIED`：公開支援、行銷與隱私網址均以 HTTPS 回傳 200；證據見 `Verification/PublicSiteVerification.md`。
 
@@ -59,18 +61,24 @@ Build 2 已上傳至 App Store Connect，但尚未送審。下一個門檻是完
 - `VERIFIED`：不追蹤、不含廣告／分析 SDK、不傳送使用資料到開發者伺服器。
 - `VERIFIED`：主 App、Watch 與 macOS archive 均含經稽核的隱私權清單。
 - `READY`：雙語公開隱私權政策來源已完成。
-- `NOT STARTED`：App Store Connect「App 隱私權」問卷。
+- `PUBLISHED`：App Store Connect「App 隱私權」問卷已發佈為「不收集資料」。
+- `PENDING`：公開隱私權政策 URL 已備妥，但 App Store Connect 的政策 URL 編輯視窗仍顯示儲存按鈕停用，需在英文名稱阻擋排除後再次核對。
 
 ## Screenshots／截圖
 
 - `VERIFIED`：繁中與英文 iPhone、iPad、Apple Watch、Mac 共 28 張最終截圖已產出，尺寸與格式自動驗證全部通過。
 - `VERIFIED`：Debug 截圖模式已在四種平台執行；隔離的合成資料可由正式資料儲存層讀取，不會開啟正式 Application Support。
 - `VERIFIED`：兩份 contact sheet 與織圖、高亮、手寫、頁面筆記、六組計數器等重點畫面已逐張目視檢查；英文 iPad 系統日期與介面語言一致。
+- `UPLOADED`：繁中 iPhone 5 張、iPad 4 張、Apple Watch 2 張與 Mac 3 張截圖已依核准順序上傳。
+- `PENDING`：英文 14 張截圖等待英文（美國）在地化成功建立後上傳。
 
 ## Review information／審核資訊
 
 - `READY`：公開聯絡信箱 `lzz.1999@icloud.com`。
-- `NOT STARTED`：審核備註、電話、年齡分級與出口法規答案。
+- `SAVED`：iOS 與 macOS 均設定免登入、審核聯絡人與測試步驟。
+- `SAVED`：全球年齡分級 4+，主要類別「生活風格」、次要類別「工具程式」。
+- `SAVED`：內容版權聲明為 App 可存取使用者選擇的第三方內容，且具必要權利。
+- `SAVED`：iOS／Watch 與 macOS Build 2 均完成出口法規答案，不使用需申報的加密演算法。
 
 ## Manual release／手動發佈
 
@@ -78,4 +86,6 @@ Build 2 已上傳至 App Store Connect，但尚未送審。下一個門檻是完
 
 ## Final approval boundary／最終批准界線
 
-- `BLOCKED`：沒有使用者在完整上架頁面核對後另行明確批准，不得點擊 Add for Review、Submit for Review 或同等送審控制項。
+- `AUTHORIZED`：使用者已明確要求繼續送審。
+- `BLOCKED`：原定 v1 必須同時支援繁體中文與英文；英文名稱 `KnitNote` 被占用。不得自行變更品牌名稱，須先取得使用者對替代英文商店名稱的批准。
+- `NOT SUBMITTED`：尚未點擊 Add for Review 或 Submit for Review。

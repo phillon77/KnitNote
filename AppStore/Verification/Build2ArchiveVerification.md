@@ -54,8 +54,8 @@ KnitNote 1.0.0 (2) validated
 Your app successfully passed all validation checks.
 ```
 
-Organizer archive 狀態顯示 `Validation succeeded`，Submission Status 顯示 `Validated`、Build Number `2`。未執行 Distribute App，未上傳，也未送審。
+Organizer archive 狀態顯示 `Validation succeeded`，Submission Status 顯示 `Validated`、Build Number `2`。本節記錄的驗證當下尚未執行 Distribute App；後續上傳結果見 `AppStoreConnectUploadVerification.md`。
 
 ## 結論與下一門檻
 
-Build 2 已通過本機測試、Release 建置、封存內容、隱私權清單位置、嚴格簽章驗證，以及 Xcode Organizer 的 App Store Connect 驗證。下一步是完成 App Store Connect metadata、隱私問卷、截圖與 Build 2 對照；上傳與送審仍需使用者另外明確批准。
+Build 2 已通過本機測試、Release 建置、封存內容、隱私權清單位置、嚴格簽章驗證，以及 Xcode Organizer 的 App Store Connect 驗證。兩個平台的 Build 2 已於後續流程上傳；下一步是完成 App Store Connect metadata、隱私問卷、截圖與 Build 2 對照。送審仍需使用者另外明確批准。

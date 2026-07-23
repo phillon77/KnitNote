@@ -26,7 +26,7 @@
 
 ## 發布門檻
 
-- [x] SwiftPM 536 項測試與 iOS、macOS、watchOS、Release build 目的地通過
+- [x] SwiftPM 537 項測試與 iOS、macOS、watchOS、Release build 目的地通過
 - [x] iOS／Watch 與 macOS Build 2 signed archives 建立成功
 - [x] 主 App、Watch App 與 macOS App 都已打包經稽核的 `PrivacyInfo.xcprivacy`
 - [x] Build 1 修正後 archive 通過 Xcode Organizer Validate App
@@ -34,7 +34,7 @@
 - [ ] 完成 App Store Connect metadata、隱私、截圖與 build 對照
 - [ ] 使用者明確批准後才可提交 App Review
 
-目前尚未上傳或送審。下一個門檻是完成 App Store Connect metadata、隱私問卷、截圖與 Build 2 對照，並在送審前取得使用者明確批准。Build 2 驗收見 `Verification/Build2ArchiveVerification.md`，隱私稽核見 `Verification/PrivacyAudit.md`，Watch 實機證據見 `Verification/WatchSyncVerification.md`。
+Build 2 已上傳至 App Store Connect，但尚未送審。下一個門檻是完成 metadata、隱私問卷、截圖與 Build 2 對照，並在送審前取得使用者明確批准。Build 2 驗收見 `Verification/Build2ArchiveVerification.md`，上傳證據見 `Verification/AppStoreConnectUploadVerification.md`，隱私稽核見 `Verification/PrivacyAudit.md`，Watch 實機證據見 `Verification/WatchSyncVerification.md`。
 
 ## Commercial configuration／商業設定
 
@@ -45,7 +45,7 @@
 
 - `VERIFIED`：iOS／iPadOS／watchOS 與 macOS 版本 `1.0.0`、Build `2`。
 - `VERIFIED`：iOS／Watch Build 2 已通過 Xcode Organizer Validate App。
-- `NOT STARTED`：將 Build 2 上傳並等待 App Store Connect 處理完成。
+- `UPLOADED`：iOS／iPadOS／Watch 與 macOS Build 2 均已由 Xcode Organizer 上傳至 Apple；等待 App Store Connect 完成後續處理。
 
 ## Localizations／在地化
 

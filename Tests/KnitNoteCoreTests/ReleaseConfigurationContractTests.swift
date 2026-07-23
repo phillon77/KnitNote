@@ -12,6 +12,25 @@ import Testing
         #expect(yaml.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
     }
 
+    @Test func macAppStoreBuildUsesSandboxWithUserSelectedFileAccess() throws {
+        let yaml = try sourceText("project.yml")
+        let generatedProject = try sourceText("KnitNote.xcodeproj/project.pbxproj")
+        let entitlementData = try? Data(
+            contentsOf: releaseConfigurationRepositoryRoot.appending(path: "KnitNote/KnitNote-macOS.entitlements")
+        )
+        let entitlements = try entitlementData.map {
+            try PropertyListSerialization.propertyList(from: $0, options: [], format: nil)
+        } as? [String: Any]
+
+        #expect(yaml.contains("\"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]\": KnitNote/KnitNote-macOS.entitlements"))
+        let generatedSetting = "\"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]\" = \"KnitNote/KnitNote-macOS.entitlements\";"
+        #expect(generatedProject.components(separatedBy: generatedSetting).count - 1 == 2)
+        #expect(entitlementData != nil)
+        #expect(entitlements?["com.apple.security.app-sandbox"] as? Bool == true)
+        #expect(entitlements?["com.apple.security.files.user-selected.read-write"] as? Bool == true)
+        #expect(entitlements?.count == 2)
+    }
+
     @Test func submissionSourceHasEveryRequiredSection() throws {
         let text = try sourceText("AppStore/AppStoreSubmission.md")
 

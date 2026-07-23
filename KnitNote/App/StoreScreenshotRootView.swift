@@ -3,6 +3,7 @@ import OSLog
 
 struct StoreScreenshotRootView: View {
     @EnvironmentObject private var store: JSONProjectStore
+    @State private var contentReady = false
     let scene: StoreScreenshotScene
     let readinessToken: String
 
@@ -35,8 +36,14 @@ struct StoreScreenshotRootView: View {
                 .opacity(0.01)
                 .accessibilityIdentifier("storeScreenshot.ready")
         }
-        .task {
-            try? await Task.sleep(for: .seconds(1.2))
+        .onAppear {
+            if !scene.requiresPDFReadiness {
+                contentReady = true
+            }
+        }
+        .task(id: contentReady) {
+            guard contentReady else { return }
+            try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             Logger(subsystem: "com.phillon.KnitNote", category: "StoreScreenshots")
                 .notice("storeScreenshot.ready.\(readinessToken, privacy: .public)")
@@ -49,7 +56,8 @@ struct StoreScreenshotRootView: View {
             PatternReaderView(
                 projectID: project.id,
                 pattern: pattern,
-                storePresentation: presentation
+                storePresentation: presentation,
+                onStoreScreenshotReady: { contentReady = true }
             )
         } else {
             ProgressView()
@@ -105,4 +113,15 @@ struct StoreScreenshotRootView: View {
 private enum ProjectSceneKind {
     case counters
     case journal
+}
+
+private extension StoreScreenshotScene {
+    var requiresPDFReadiness: Bool {
+        switch self {
+        case .patternHighlight, .patternCrossHighlight, .patternMarkup, .patternNotes:
+            true
+        case .projects, .counters, .journal, .yarn, .calculators:
+            false
+        }
+    }
 }

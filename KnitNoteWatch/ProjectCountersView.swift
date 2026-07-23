@@ -3,6 +3,7 @@ import SwiftUI
 struct ProjectCountersView: View {
     let projectID: UUID
     @ObservedObject var coordinator: WatchSyncCoordinator
+    let onStoreScreenshotReady: @MainActor @Sendable () -> Void
     @State private var actionCounterID: UUID?
 
     private var project: WatchProjectSnapshot? {
@@ -68,6 +69,9 @@ struct ProjectCountersView: View {
             }
             .padding(.horizontal, 4)
             .padding(.bottom, 8)
+        }
+        .onAppear {
+            onStoreScreenshotReady()
         }
     }
 

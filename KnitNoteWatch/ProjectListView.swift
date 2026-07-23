@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProjectListView: View {
     @ObservedObject var coordinator: WatchSyncCoordinator
+    let onStoreScreenshotReady: @MainActor @Sendable () -> Void
 
     private var projects: [WatchProjectSnapshot] {
         coordinator.snapshot?.projects ?? []
@@ -38,6 +39,9 @@ struct ProjectListView: View {
                     }
                     .padding(.horizontal, 4)
                     .padding(.bottom, 8)
+                }
+                .onAppear {
+                    onStoreScreenshotReady()
                 }
             }
         }

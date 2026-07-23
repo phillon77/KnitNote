@@ -64,7 +64,7 @@
 ## Screenshots／截圖
 
 - `IN PROGRESS`：繁中與英文 iPhone、iPad、Apple Watch、Mac 共 28 張截圖的清單、隔離資料與產圖工具已完成。
-- `VERIFIED`：截圖模式只使用暫存合成資料；不會開啟正式 Application Support，亦不含家庭照片、個人檔名或真實裝置資料。
+- `STATIC VERIFIED`：Debug 截圖模式只使用暫存合成資料；無效或 Release 截圖請求會立即終止，不會開啟正式 Application Support。仍待模擬器恢復後做執行期確認。
 - `BLOCKED`：macOS `simdiskimaged` 服務需重啟後才能擷取、逐張目視核准並產出最終檔案。
 
 ## Review information／審核資訊

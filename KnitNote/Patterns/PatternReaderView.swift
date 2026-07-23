@@ -60,11 +60,13 @@ struct PatternReaderView: View {
     @State private var managingCounter: ProjectCounter?
     @StateObject private var pdfNavigator = PDFPageNavigator()
     private let counterRailSafeAreaWidth: CGFloat = 64
+    private let onStoreScreenshotReady: @MainActor () -> Void
 
     init(
         projectID: UUID,
         pattern: PatternDocument,
-        storePresentation: PatternReaderStorePresentation = .standard
+        storePresentation: PatternReaderStorePresentation = .standard,
+        onStoreScreenshotReady: @escaping @MainActor () -> Void = {}
     ) {
         self.projectID = projectID
         patternID = pattern.id
@@ -84,6 +86,7 @@ struct PatternReaderView: View {
         _state = State(initialValue: initialState)
         _markupMode = State(initialValue: storePresentation == .markup)
         _showingPageNote = State(initialValue: storePresentation == .notes)
+        self.onStoreScreenshotReady = onStoreScreenshotReady
     }
 
     private var pattern: PatternDocument? { store.project(id: projectID)?.patterns.first { $0.id == patternID } }
@@ -205,7 +208,8 @@ struct PatternReaderView: View {
                         scaleMode: layout.pdfScaleMode,
                         state: $state,
                         pageCount: $pageCount,
-                        loadError: $loadError
+                        loadError: $loadError,
+                        onReady: onStoreScreenshotReady
                     )
                     .allowsHitTesting(!markupMode)
                 } else {

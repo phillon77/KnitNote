@@ -15,11 +15,14 @@ struct WatchStoreScreenshotMode {
     let readinessToken: String
 
     static func resolve(processInfo: ProcessInfo = .processInfo) -> WatchStoreScreenshotResolution {
-#if DEBUG
         let arguments = processInfo.arguments
-        guard value(after: "-storeScreenshotMode", in: arguments) == "YES" else {
+        guard arguments.contains("-storeScreenshotMode") else {
             return .notRequested
         }
+        guard value(after: "-storeScreenshotMode", in: arguments) == "YES" else {
+            return .invalid
+        }
+#if DEBUG
         guard let sceneValue = value(after: "-storeScreenshotScene", in: arguments),
               let scene = WatchStoreScreenshotScene(rawValue: sceneValue),
               let language = value(after: "-storeScreenshotLanguage", in: arguments),
@@ -50,7 +53,7 @@ struct WatchStoreScreenshotMode {
             return .invalid
         }
 #else
-        return .notRequested
+        return .invalid
 #endif
     }
 
@@ -106,11 +109,13 @@ enum WatchStoreScreenshotResolution {
 struct WatchStoreScreenshotHost: View {
     let mode: WatchStoreScreenshotMode
     @ObservedObject var coordinator: WatchSyncCoordinator
+    @State private var contentReady = false
 
     var body: some View {
         WatchCounterView(
             coordinator: coordinator,
-            initialProjectID: mode.scene == .watchCounters ? mode.projectID : nil
+            initialProjectID: mode.scene == .watchCounters ? mode.projectID : nil,
+            onStoreScreenshotReady: { contentReady = true }
         )
         .environment(\.locale, mode.locale)
         .overlay(alignment: .bottomTrailing) {
@@ -118,8 +123,9 @@ struct WatchStoreScreenshotHost: View {
                 .frame(width: 1, height: 1)
                 .accessibilityIdentifier("storeScreenshot.ready")
         }
-        .task {
-            try? await Task.sleep(for: .seconds(0.8))
+        .task(id: contentReady) {
+            guard contentReady else { return }
+            await Task.yield()
             guard !Task.isCancelled else { return }
             Logger(subsystem: "com.phillon.KnitNote.watch", category: "StoreScreenshots")
                 .notice("storeScreenshot.ready.\(mode.readinessToken, privacy: .public)")

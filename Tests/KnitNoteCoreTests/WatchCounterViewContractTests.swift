@@ -6,12 +6,26 @@ import Testing
         let root = try source("KnitNoteWatch/WatchCounterView.swift")
 
         #expect(root.contains("NavigationStack"))
-        #expect(root.contains("ProjectListView(coordinator: coordinator)"))
+        #expect(root.contains("ProjectListView("))
+        #expect(root.contains("coordinator: coordinator"))
         #expect(root.contains(".navigationDestination(for: UUID.self)"))
-        #expect(root.contains("ProjectCountersView(projectID: projectID, coordinator: coordinator)"))
+        #expect(root.contains("ProjectCountersView("))
+        #expect(root.contains("projectID: projectID"))
         #expect(root.contains("coordinator.localizedErrorReason"))
         #expect(root.contains("Text(verbatim: errorReason)"))
+        #expect(root.contains("onStoreScreenshotReady: onStoreScreenshotReady"))
+        #expect(!root.contains("if path.isEmpty"))
         #expect(!root.contains(".lineLimit("))
+
+        let list = try source("KnitNoteWatch/ProjectListView.swift")
+        #expect(list.contains("let onStoreScreenshotReady: @MainActor @Sendable () -> Void"))
+        #expect(list.contains("onStoreScreenshotReady()"))
+
+        let counters = try source("KnitNoteWatch/ProjectCountersView.swift")
+        let counterListStart = try #require(counters.range(of: "private func counterList"))
+        let counterListSource = counters[counterListStart.lowerBound...]
+        #expect(counterListSource.contains("onStoreScreenshotReady()"))
+        #expect(!counters.contains("coordinator.selectProject(projectID)\n            onStoreScreenshotReady()"))
         #expect(root.contains("Color(watchTheme: WatercolorPalette.sky)"))
         #expect(!root.contains("KnittingProject"))
         #expect(!root.contains("sample.projectName"))

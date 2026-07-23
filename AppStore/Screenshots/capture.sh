@@ -106,7 +106,9 @@ capture_simulator() {
 
   [[ -d "$app" ]] || { echo "missing built app: $app" >&2; return 2; }
   xcrun simctl install "$udid" "$app"
-  if [[ "$platform" != "watch" ]]; then
+  if [[ "$platform" == "watch" ]]; then
+    xcrun simctl status_bar "$udid" override --time 9:41
+  else
     xcrun simctl status_bar "$udid" override \
       --time 9:41 --batteryState charged --batteryLevel 100 \
       --wifiBars 3 --cellularBars 4
@@ -128,20 +130,48 @@ capture_mac() {
   local token
   token="$(uuidgen)"
   [[ -d "$MAC_APP" ]] || { echo "missing built app: $MAC_APP" >&2; return 2; }
-  [[ -n "${MAC_CAPTURE_RECT:-}" ]] || {
-    echo "MAC_CAPTURE_RECT (x,y,width,height for a 16:10 window) is required" >&2
+  if pgrep -x KnitNote >/dev/null; then
+    echo "Close the normal KnitNote app before isolated Mac capture" >&2
     return 2
-  }
-  pkill -x KnitNote >/dev/null 2>&1 || true
-  open -n "$MAC_APP" --args \
+  fi
+  "$MAC_APP/Contents/MacOS/KnitNote" \
     -storeScreenshotMode YES \
     -storeScreenshotScene "$scene" \
     -storeScreenshotLanguage "$LOCALE" \
-    -storeScreenshotToken "$token"
+    -storeScreenshotToken "$token" >/tmp/knitnote-store-screenshot-mac.log 2>&1 &
+  local app_pid=$!
+  trap "kill '$app_pid' >/dev/null 2>&1 || true; wait '$app_pid' 2>/dev/null || true" EXIT
+  local window_configured=0
+  for _ in {1..20}; do
+    if osascript - "$app_pid" <<'APPLESCRIPT' >/dev/null 2>&1
+on run argv
+  set targetPID to item 1 of argv as integer
+  tell application "System Events"
+    tell first application process whose unix id is targetPID
+      set frontmost to true
+      set position of window 1 to {20, 50}
+      set size of window 1 to {1440, 900}
+    end tell
+  end tell
+end run
+APPLESCRIPT
+    then
+      window_configured=1
+      break
+    fi
+    sleep 0.5
+  done
+  [[ "$window_configured" == 1 ]] || { echo "unable to size the isolated KnitNote window" >&2; return 1; }
   wait_for_mac_ready "$token"
+  local window_id
+  window_id="$(swift -module-cache-path /tmp/knitnote-screenshot-swift-cache "$ROOT/mac_window_id.swift" "$app_pid")"
+  [[ -n "$window_id" ]] || { echo "unable to identify isolated KnitNote window" >&2; return 1; }
   mkdir -p "$(dirname "$filename")"
-  screencapture -x -R "$MAC_CAPTURE_RECT" "$filename"
+  screencapture -x -o -l "$window_id" "$filename"
   verify_dimensions "$filename" "$width" "$height"
+  kill "$app_pid" >/dev/null 2>&1 || true
+  wait "$app_pid" 2>/dev/null || true
+  trap - EXIT
 }
 
 require_variable IPHONE_UDID

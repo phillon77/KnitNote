@@ -21,24 +21,24 @@ import SwiftUI
 
 #if os(macOS)
 struct PDFReaderView: NSViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; let onReady: @MainActor () -> Void
     func makeNSView(context: Context) -> PDFView { makeView(context: context) }
     func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator, onReady: onReady) }
     private func makeView(context: Context) -> PDFView { context.coordinator.make(url: url) }
 }
 #else
 struct PDFReaderView: UIViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; let onReady: @MainActor () -> Void
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
     func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator, onReady: onReady) }
 }
 #endif
 
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
-        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private let navigator: PDFPageNavigator; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
+        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private let navigator: PDFPageNavigator; private let onReady: @MainActor () -> Void; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private var reportedReady = false; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
         private struct ScaleSignature: Equatable {
             let mode: PatternPDFScaleMode
             let size: CGSize
@@ -48,7 +48,7 @@ extension PDFReaderView {
         private var latestScaleMode = PatternPDFScaleMode.automatic
         private var lastScaleSignature: ScaleSignature?
 
-        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, navigator: PDFPageNavigator) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; self.navigator=navigator }
+        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, navigator: PDFPageNavigator, onReady: @escaping @MainActor () -> Void) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; self.navigator=navigator; self.onReady=onReady }
         func make(url: URL) -> PDFView {
             let view=PDFView(); view.autoScales=true; view.displayMode = .singlePage; view.displayDirection = .horizontal
 #if !os(macOS)
@@ -109,6 +109,10 @@ extension PDFReaderView {
                     self.state.offsetY=0
                     self.restoreGate.didRestore()
                     self.applyScaleMode(self.latestScaleMode, to: view)
+                    if !self.reportedReady {
+                        self.reportedReady = true
+                        self.onReady()
+                    }
                 } else if self.restoreAttempts < 5 {
                     self.scheduleRestore(view)
                 }

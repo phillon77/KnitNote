@@ -10,6 +10,9 @@ import Testing
         #expect(source.contains("StoreScreenshotFixtures.make"))
         #expect(source.contains("FileManager.default.temporaryDirectory"))
         #expect(!source.contains("applicationSupportDirectory"))
+        #expect(source.contains("#else\n        return .invalid"))
+        #expect(source.contains("guard arguments.contains(\"-storeScreenshotMode\") else"))
+        #expect(source.contains("guard argumentValue(after: \"-storeScreenshotMode\", in: arguments) == \"YES\" else"))
     }
 
     @Test func productionAppDoesNotStartWatchSyncForSyntheticScreenshotData() throws {
@@ -38,6 +41,9 @@ import Testing
         #expect(modeSource.contains("WatchStoreScreenshotHost"))
         #expect(modeSource.contains("WatchCounterView("))
         #expect(!modeSource.contains("private var projectList"))
+        #expect(modeSource.contains("#else\n        return .invalid"))
+        #expect(modeSource.contains("guard arguments.contains(\"-storeScreenshotMode\") else"))
+        #expect(modeSource.contains("guard value(after: \"-storeScreenshotMode\", in: arguments) == \"YES\" else"))
     }
 
     @Test func screenshotRootCoversEveryApprovedScene() throws {
@@ -67,6 +73,11 @@ import Testing
         #expect(root.contains("patternScene(presentation: .notes)"))
         #expect(reader.contains("_markupMode = State(initialValue: storePresentation == .markup)"))
         #expect(reader.contains("_showingPageNote = State(initialValue: storePresentation == .notes)"))
+        #expect(root.contains(".task(id: contentReady)"))
+        #expect(reader.contains("onReady: onStoreScreenshotReady"))
+        let pdfReader = try sourceText("KnitNote/Patterns/PDFReaderView.swift")
+        #expect(pdfReader.contains("self.restoreGate.didRestore()"))
+        #expect(pdfReader.contains("self.onReady()"))
     }
 
     @Test func captureScriptRefusesPersonalDevicesAndStaleScenes() throws {
@@ -79,6 +90,13 @@ import Testing
         #expect(script.contains("verify_dimensions"))
         #expect(script.contains("AppleLanguages"))
         #expect(!script.contains("--wifiBars 3 --cellularBars 4 >/dev/null"))
+        #expect(script.contains("screencapture -x -o -l"))
+        #expect(script.contains("mac_window_id.swift"))
+        #expect(!script.contains("screencapture -x -R"))
+        #expect(!script.contains("pkill -x KnitNote"))
+        #expect(script.contains("trap \"kill '$app_pid'"))
+        #expect(script.contains("trap - EXIT"))
+        #expect(!script.contains("trap 'kill \"$app_pid\""))
     }
 }
 

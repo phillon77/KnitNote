@@ -11,11 +11,14 @@ struct StoreScreenshotMode: Equatable {
     }
 
     static func resolve(processInfo: ProcessInfo = .processInfo) -> StoreScreenshotResolution {
-#if DEBUG
         let arguments = processInfo.arguments
-        guard argumentValue(after: "-storeScreenshotMode", in: arguments) == "YES" else {
+        guard arguments.contains("-storeScreenshotMode") else {
             return .notRequested
         }
+        guard argumentValue(after: "-storeScreenshotMode", in: arguments) == "YES" else {
+            return .invalid
+        }
+#if DEBUG
         guard let sceneValue = argumentValue(after: "-storeScreenshotScene", in: arguments),
               let scene = StoreScreenshotScene(rawValue: sceneValue),
               let languageValue = argumentValue(after: "-storeScreenshotLanguage", in: arguments),
@@ -43,7 +46,7 @@ struct StoreScreenshotMode: Equatable {
             return .invalid
         }
 #else
-        return .notRequested
+        return .invalid
 #endif
     }
 

@@ -21,17 +21,30 @@ enum WatchWatercolorTheme {
 struct WatchCounterView: View {
     @ObservedObject var coordinator: WatchSyncCoordinator
     @State private var path: [UUID]
+    private let onStoreScreenshotReady: @MainActor @Sendable () -> Void
 
-    init(coordinator: WatchSyncCoordinator, initialProjectID: UUID? = nil) {
+    init(
+        coordinator: WatchSyncCoordinator,
+        initialProjectID: UUID? = nil,
+        onStoreScreenshotReady: @escaping @MainActor @Sendable () -> Void = {}
+    ) {
         self.coordinator = coordinator
         _path = State(initialValue: initialProjectID.map { [$0] } ?? [])
+        self.onStoreScreenshotReady = onStoreScreenshotReady
     }
 
     var body: some View {
         NavigationStack(path: $path) {
-            ProjectListView(coordinator: coordinator)
+            ProjectListView(
+                coordinator: coordinator,
+                onStoreScreenshotReady: onStoreScreenshotReady
+            )
                 .navigationDestination(for: UUID.self) { projectID in
-                    ProjectCountersView(projectID: projectID, coordinator: coordinator)
+                    ProjectCountersView(
+                        projectID: projectID,
+                        coordinator: coordinator,
+                        onStoreScreenshotReady: onStoreScreenshotReady
+                    )
                 }
         }
         .safeAreaInset(edge: .top, spacing: 3) {

@@ -30,14 +30,12 @@ This directory produces the 28 approved screenshots (14 Traditional Chinese and 
 
 ## Capture and compose
 
-Export the three dedicated simulator identifiers and the Mac 16:10 capture rectangle. At Retina scale the rectangle must produce exactly `2880x1800` pixels. Every raw device capture is checked against the manifest before composition; wrong models, dimensions, status-bar setup, languages, or readiness tokens stop the run.
+Export the three dedicated simulator identifiers. Mac capture launches a separate screenshot process, sizes only its KnitNote window to 16:10, identifies that window by PID, and captures it without the desktop. Every raw device capture is checked against the manifest before composition; wrong models, dimensions, status-bar setup, languages, or readiness tokens stop the run.
 
 ```bash
 export IPHONE_UDID='<dedicated iPhone 17 Pro Max UDID>'
 export IPAD_UDID='<dedicated iPad Pro 13-inch UDID>'
 export WATCH_UDID='<dedicated Apple Watch 46mm UDID>'
-export MAC_CAPTURE_RECT='x,y,width,height'
-
 AppStore/Screenshots/capture.sh zh-Hant
 AppStore/Screenshots/capture.sh en
 /tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/compose.py AppStore/Screenshots/manifest.json

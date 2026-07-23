@@ -1,8 +1,9 @@
 # App Store Connect 送審準備驗證
 
-驗證日期：2026-07-23（Asia/Taipei）
+驗證日期：2026-07-24（Asia/Taipei）
 
 App：KnitNote  
+英文商店名稱：`KnitNote: Knitting Companion`
 Apple ID：`6793023054`  
 版本：`1.0.0`  
 Build：`2`
@@ -11,8 +12,8 @@ Build：`2`
 
 - iOS／iPadOS／Apple Watch Build 2 已選入 iOS 1.0。
 - macOS Build 2 已選入 macOS 1.0。
-- iOS／macOS 繁體中文行銷宣傳文字、描述、關鍵字、支援 URL、行銷 URL、版本與版權。
-- iPhone 5 張、iPad 4 張、Apple Watch 2 張與 Mac 3 張繁中截圖，順序與核准清單一致。
+- iOS／macOS 繁體中文與英文（美國）行銷宣傳文字、描述、關鍵字、支援 URL、行銷 URL、版本與版權。
+- 繁中與英文各有 iPhone 5 張、iPad 4 張、Apple Watch 2 張與 Mac 3 張截圖，順序與核准清單一致。
 - iOS／macOS 均設定為審核通過後手動發佈。
 - iOS／macOS 均設定 App 不需登入，並保存以下審核聯絡資料：
   - 名字：`Chung Lung`
@@ -25,27 +26,27 @@ Build：`2`
 - 主要類別為「生活風格」，次要類別為「工具程式」。
 - 內容版權已保存為：「是，此 App 具有第三方內容的必要權利。」
 - App 隱私權問卷已發佈為「不收集資料」。
+- 繁體中文與英文（美國）隱私權政策 URL 均已保存：
+  - `https://phillon77.github.io/KnitNote/privacy.html`
 
-## 尚未完成
+## 英文名稱處理
 
-### 英文名稱衝突
+原英文名稱 `KnitNote` 已被其他 App 使用。使用者於 2026-07-24 核准替代名稱：
 
-App Store Connect 拒絕英文（美國）名稱 `KnitNote`，顯示：
+`KnitNote: Knitting Companion`
 
-> 輸入的名稱已由其他 App 使用，系統無法儲存英文（美國）的「名稱」欄位。
+移除無效的英文在地化後重新建立，App Store Connect 已成功保存新名稱與副標題，沒有名稱衝突或頁面錯誤。
 
-因此英文 App 資訊、英文版本 metadata 與 14 張英文截圖尚未能建立。原定 v1 要同時提供繁體中文與英文，需由使用者批准一個可用的替代英文商店名稱。
+## 送審結果
 
-### 隱私權政策 URL
+- iOS 1.0／Build 2 已於 2026-07-24 上午 7:07（Asia/Taipei）提交。
+- App Store Connect 提交識別碼：`152dba51-c4e1-4de2-8652-fa988558bf1b`。
+- iOS 提交頁顯示「已提交 1 個項目」，列表狀態為「等待審查」。
+- iOS 審核通過後仍採手動發佈，不會自動上架。
 
-公開頁面已完成並驗證：
+## macOS 狀態
 
-`https://phillon77.github.io/KnitNote/privacy.html`
-
-App Store Connect 的政策 URL 編輯視窗目前接受該網址且欄位驗證有效，但「儲存」仍停用，主頁仍顯示 `–`。需在英文名稱阻擋排除後重新載入並再次保存確認。
-
-## 送審狀態
-
-- 使用者已於 2026-07-23 明確授權繼續送審。
-- 尚未點擊 Add for Review 或 Submit for Review。
-- 為避免在原定雙語 v1 未完成時鎖定版本，正式送審停在英文名稱批准之前。
+- macOS 1.0／Build 2 的繁中與英文 metadata、截圖、審核資訊與手動發佈設定均已完成。
+- macOS 版本頁沒有驗證錯誤，仍顯示「準備提交」與「新增以供審查」。
+- iOS 提交進入「等待審查」後，macOS 的「新增以供審查」暫時不會建立第二份草稿；App Store Connect 只列出作用中的 iOS 提交。
+- 為避免丟失已成功送出的 iOS 審查順位，本次沒有撤回 iOS。macOS 將在作用中的 iOS 提交結束後建立下一份提交。

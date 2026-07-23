@@ -1,6 +1,6 @@
 # KnitNote App Store Metadata — English (U.S.)
 
-- Name: KnitNote
+- Name: KnitNote: Knitting Companion
 - Subtitle: Knitting counters & patterns
 - Promotional text: Six named counters, focused pattern reading, project journals, yarn inventory, and practical calculators—from first stitch to finished project.
 - Keywords: knitting,crochet,row counter,pattern,gauge,yarn,stitch counter,project journal

@@ -1,4 +1,4 @@
-# App Store Connect 送審準備驗證
+# App Store Connect 送審與上架驗證
 
 驗證日期：2026-07-24（Asia/Taipei）
 
@@ -41,12 +41,23 @@ Build：`2`
 
 - iOS 1.0／Build 2 已於 2026-07-24 上午 7:07（Asia/Taipei）提交。
 - App Store Connect 提交識別碼：`152dba51-c4e1-4de2-8652-fa988558bf1b`。
-- iOS 提交頁顯示「已提交 1 個項目」，列表狀態為「等待審查」。
-- iOS 審核通過後仍採手動發佈，不會自動上架。
+- iOS 提交頁曾顯示「已提交 1 個項目」，列表狀態為「等待審查」。
+- Apple 公開查詢資料已確認 iOS 1.0 於 2026-07-24 18:24:59（Asia/Taipei）上架：
+  - `https://apps.apple.com/tw/app/knitnote/id6793023054`
+
+## 價格排程
+
+- 首發價格：美國 US$2.99、台灣 NT$90。
+- 首發優惠第 30 天：2026-08-22。
+- App Store Connect 已確認並保存全球價格調整：
+  - 生效日：2026-08-23
+  - 美國：US$2.99 → US$4.99
+  - 台灣：NT$90 → NT$150
+  - 範圍：175 個國家或地區
+  - 結束日期：無
 
 ## macOS 狀態
 
 - macOS 1.0／Build 2 的繁中與英文 metadata、截圖、審核資訊與手動發佈設定均已完成。
 - macOS 版本頁沒有驗證錯誤，仍顯示「準備提交」與「新增以供審查」。
-- iOS 提交進入「等待審查」後，macOS 的「新增以供審查」暫時不會建立第二份草稿；App Store Connect 只列出作用中的 iOS 提交。
-- 為避免丟失已成功送出的 iOS 審查順位，本次沒有撤回 iOS。macOS 將在作用中的 iOS 提交結束後建立下一份提交。
+- iOS 已公開上架；下一步是重新核對 macOS 版本頁並建立 macOS 審查提交。

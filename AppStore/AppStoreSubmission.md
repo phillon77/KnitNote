@@ -34,7 +34,7 @@
 - [x] 完成 App Store Connect metadata、隱私、截圖與 build 對照
 - [x] 使用者已於 2026-07-23 明確授權繼續送審
 
-Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 metadata、28 張截圖、審核資訊、年齡分級、內容版權、出口法規、雙語隱私網址與隱私問卷均已完成。iOS 1.0 已於 2026-07-24 18:24:59（Asia/Taipei）公開上架；macOS 1.0 保持「準備提交」，待後續建立 macOS 審查提交。App Store Connect 實際狀態見 `Verification/AppStoreConnectSubmissionVerification.md`。
+Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 metadata、28 張截圖、審核資訊、年齡分級、內容版權、出口法規、雙語隱私網址與隱私問卷均已完成。iOS 1.0 已於 2026-07-24 18:24:59（Asia/Taipei）公開上架；macOS 1.0 已於 2026-07-24 21:44（Asia/Taipei）正式提交，目前「正在等待審查」。App Store Connect 實際狀態見 `Verification/AppStoreConnectSubmissionVerification.md`。
 
 ## Commercial configuration／商業設定
 
@@ -84,10 +84,11 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 ## Manual release／手動發佈
 
 - `RELEASED`：iOS 1.0 已由帳號持有人手動發佈，並於 2026-07-24 公開上架。
+- `WAITING FOR REVIEW`：macOS 1.0 已提交審查，核准後仍採手動發佈。
 
 ## Final approval boundary／最終批准界線
 
 - `AUTHORIZED`：使用者已明確要求繼續送審。
 - `RELEASED`：iOS 1.0／Build 2 已通過審查並公開上架。
-- `READY`：macOS 1.0／Build 2 的雙語資料與截圖均完成，仍顯示「準備提交」。
-- `NEXT`：重新核對 macOS 版本頁並建立 macOS 審查提交。
+- `SUBMITTED`：macOS 1.0／Build 2 已完成雙語資料、截圖與審核資訊核對，並正式提交。
+- `WAITING FOR REVIEW`：App Store Connect 的 macOS 版本頁顯示「正在等待審查」。

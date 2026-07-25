@@ -69,12 +69,14 @@ enum ProjectJournalPhotoReferencePolicy {
     @Published public private(set) var loadError: ProjectStoreError?
     @Published public private(set) var isDataOperationInProgress = false
     @Published public private(set) var dataGeneration: UInt64 = 0
+    @Published public private(set) var projectCoverGeneration: UInt64 = 0
     private let url: URL
     private let photoService: ProjectPhotoFileService
     private let yarnPhotoService: YarnPhotoFileService
     private let journalPhotoService: ProjectJournalPhotoFileService
     private let patternFileService: PatternFileService
     private let patternMarkupFileService: PatternMarkupFileService
+    private let patternThumbnailService: PatternThumbnailFileService
     private let backupService: KnitNoteBackupService
     private var activeJournalPhotoTransactions = 0
     private var activePatternTransactions = 0
@@ -85,7 +87,8 @@ enum ProjectJournalPhotoReferencePolicy {
         yarnPhotoService: YarnPhotoFileService? = nil,
         journalPhotoService: ProjectJournalPhotoFileService? = nil,
         patternFileService: PatternFileService? = nil,
-        patternMarkupFileService: PatternMarkupFileService? = nil
+        patternMarkupFileService: PatternMarkupFileService? = nil,
+        patternThumbnailService: PatternThumbnailFileService? = nil
     ) {
         let liveRoot = url.deletingLastPathComponent()
         let workRoot = liveRoot.deletingLastPathComponent().appendingPathComponent(
@@ -99,6 +102,7 @@ enum ProjectJournalPhotoReferencePolicy {
             journalPhotoService: journalPhotoService,
             patternFileService: patternFileService,
             patternMarkupFileService: patternMarkupFileService,
+            patternThumbnailService: patternThumbnailService,
             backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
         )
     }
@@ -110,6 +114,7 @@ enum ProjectJournalPhotoReferencePolicy {
         journalPhotoService: ProjectJournalPhotoFileService? = nil,
         patternFileService: PatternFileService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
+        patternThumbnailService: PatternThumbnailFileService? = nil,
         backupService: KnitNoteBackupService,
         initialLoadError: ProjectStoreError? = nil
     ) {
@@ -128,6 +133,13 @@ enum ProjectJournalPhotoReferencePolicy {
         )
         self.patternMarkupFileService = patternMarkupFileService ?? PatternMarkupFileService(
             root: self.patternFileService.root
+        )
+        let liveRoot = url.deletingLastPathComponent()
+        self.patternThumbnailService = patternThumbnailService ?? PatternThumbnailFileService(
+            directory: liveRoot.deletingLastPathComponent().appendingPathComponent(
+                ".KnitNote-PatternThumbnailCache",
+                isDirectory: true
+            )
         )
         self.backupService = backupService
         if let initialLoadError {
@@ -227,6 +239,8 @@ enum ProjectJournalPhotoReferencePolicy {
         await Task.detached(priority: .utility) {
             service.commit(installation)
         }.value
+        try? patternThumbnailService.deleteAll()
+        projectCoverGeneration &+= 1
     }
     public func add(name: String) throws { try add(name: name, photoData: nil) }
     public func add(name: String, photoData: Data?) throws {
@@ -261,6 +275,7 @@ enum ProjectJournalPhotoReferencePolicy {
         try persist(projects: projects.filter { $0.id != id }, yarns: stagedYarns)
         if let filename { try? photoService.delete(filename: filename) }
         deleteJournalPhotosIfUnreferenced(journalFilenames)
+        try? patternThumbnailService.deleteProject(projectID: id)
     }
     public func rename(id: UUID, to name: String) throws { try mutate(id: id) { try $0.rename(to: name) } }
     public func markCompleted(projectID: UUID) throws {
@@ -390,6 +405,15 @@ enum ProjectJournalPhotoReferencePolicy {
             try Task.checkCancellation()
             guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
             try addPattern(projectID: projectID, pattern: pattern)
+            let thumbnailService = patternThumbnailService
+            let patternSourceURL = service.url(projectID: projectID, pattern: pattern)
+            _ = await Task.detached(priority: .utility) {
+                _ = try? thumbnailService.thumbnailURL(
+                    projectID: projectID,
+                    pattern: pattern,
+                    sourceURL: patternSourceURL
+                )
+            }.value
             return pattern
         } catch {
             try? service.delete(projectID: projectID, pattern: pattern)
@@ -405,6 +429,7 @@ enum ProjectJournalPhotoReferencePolicy {
         defer { activePatternTransactions -= 1 }
         try mutate(id: projectID) { $0.deletePattern(id: id) }
         try? patternFileService.delete(projectID: projectID, pattern: pattern)
+        try? patternThumbnailService.delete(projectID: projectID, patternID: pattern.id)
     }
     public func savePatternPageNote(
         projectID: UUID,
@@ -601,6 +626,21 @@ enum ProjectJournalPhotoReferencePolicy {
         try persist(projects: projects, yarns: staged)
     }
     public func photoURL(for project: StoredProject) -> URL? { project.photoFilename.map(photoService.url(filename:)) }
+    public func projectCoverURL(for project: StoredProject) async -> URL? {
+        if let photoURL = photoURL(for: project) {
+            return photoURL
+        }
+        guard let pattern = project.patterns.first else { return nil }
+        let sourceURL = patternFileService.url(projectID: project.id, pattern: pattern)
+        let service = patternThumbnailService
+        return await Task.detached(priority: .utility) {
+            try? service.thumbnailURL(
+                projectID: project.id,
+                pattern: pattern,
+                sourceURL: sourceURL
+            )
+        }.value
+    }
     public func photoURL(for yarn: StoredYarn) -> URL? { yarn.photoFilename.map(yarnPhotoService.url(filename:)) }
     public func journalPhotoURL(for entry: ProjectJournalEntry) -> URL? {
         journalPhotoService.url(filename: entry.photoFilename)

@@ -458,6 +458,109 @@ import UniformTypeIdentifiers
     #expect(archive.version == 9)
 }
 
+@MainActor @Test func projectCoverPrefersCustomPhotoThenFallsBackThroughPatterns() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let archiveURL = base.appendingPathComponent("KnitNote/projects-v1.json")
+    let thumbnailService = PatternThumbnailFileService(
+        directory: base.appendingPathComponent(".KnitNote-PatternThumbnailCache")
+    )
+    let store = JSONProjectStore(
+        url: archiveURL,
+        patternThumbnailService: thumbnailService
+    )
+    try store.add(name: "Sweater", photoData: makeStoreJPEG(red: 0.5))
+    let projectID = try #require(store.projects.first?.id)
+    let firstSource = base.appendingPathComponent("first.png")
+    let secondSource = base.appendingPathComponent("second.png")
+    try makeStorePNG(at: firstSource, red: 0.2)
+    try makeStorePNG(at: secondSource, red: 0.8)
+    let first = try await store.importPattern(from: firstSource, projectID: projectID)
+    let second = try await store.importPattern(from: secondSource, projectID: projectID)
+
+    let withPhoto = try #require(store.project(id: projectID))
+    let customCoverURL = await store.projectCoverURL(for: withPhoto)
+    #expect(customCoverURL == store.photoURL(for: withPhoto))
+
+    try store.updateProject(
+        id: projectID,
+        name: withPhoto.name,
+        toolType: withPhoto.toolType,
+        toolSize: withPhoto.toolSize,
+        toolNotes: withPhoto.toolNotes,
+        photoChange: .remove
+    )
+    let withoutPhoto = try #require(store.project(id: projectID))
+    let firstPatternCoverURL = await store.projectCoverURL(for: withoutPhoto)
+    #expect(
+        firstPatternCoverURL
+            == thumbnailService.cachedURL(projectID: projectID, patternID: first.id)
+    )
+
+    try store.deletePattern(projectID: projectID, id: first.id)
+    let afterFirstDeletion = try #require(store.project(id: projectID))
+    let secondPatternCoverURL = await store.projectCoverURL(for: afterFirstDeletion)
+    #expect(
+        secondPatternCoverURL
+            == thumbnailService.cachedURL(projectID: projectID, patternID: second.id)
+    )
+
+    try store.deletePattern(projectID: projectID, id: second.id)
+    let withoutPatterns = try #require(store.project(id: projectID))
+    let defaultCoverURL = await store.projectCoverURL(for: withoutPatterns)
+    #expect(defaultCoverURL == nil)
+}
+
+@MainActor @Test func coverCacheRegeneratesWithoutChangingArchiveOrImportSuccess() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let liveRoot = base.appendingPathComponent("KnitNote")
+    let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
+    let thumbnailRoot = base.appendingPathComponent(".KnitNote-PatternThumbnailCache")
+    let service = PatternThumbnailFileService(directory: thumbnailRoot)
+    let store = JSONProjectStore(url: archiveURL, patternThumbnailService: service)
+    try store.add(name: "Hat")
+    let projectID = try #require(store.projects.first?.id)
+    let source = base.appendingPathComponent("chart.png")
+    try makeStorePNG(at: source, red: 0.4)
+    let pattern = try await store.importPattern(from: source, projectID: projectID)
+    let project = try #require(store.project(id: projectID))
+    let firstCandidate = await store.projectCoverURL(for: project)
+    let firstURL = try #require(firstCandidate)
+    try FileManager.default.removeItem(at: firstURL)
+
+    let restarted = JSONProjectStore(url: archiveURL, patternThumbnailService: service)
+    let restartedProject = try #require(restarted.project(id: projectID))
+    let regeneratedCandidate = await restarted.projectCoverURL(for: restartedProject)
+    let regenerated = try #require(regeneratedCandidate)
+
+    #expect(regenerated == service.cachedURL(projectID: projectID, patternID: pattern.id))
+    #expect(FileManager.default.fileExists(atPath: regenerated.path))
+    #expect(!thumbnailRoot.path.hasPrefix(liveRoot.path + "/"))
+    let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
+    #expect(archive.projects.first?.photoFilename == nil)
+}
+
+@MainActor @Test func thumbnailFailureDoesNotRollbackSuccessfulPatternImport() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+    let blockedCacheRoot = base.appendingPathComponent("blocked-cache")
+    try Data("not a directory".utf8).write(to: blockedCacheRoot)
+    let store = JSONProjectStore(
+        url: base.appendingPathComponent("KnitNote/projects-v1.json"),
+        patternThumbnailService: PatternThumbnailFileService(directory: blockedCacheRoot)
+    )
+    try store.add(name: "Scarf")
+    let projectID = try #require(store.projects.first?.id)
+    let source = base.appendingPathComponent("chart.png")
+    try makeStorePNG(at: source, red: 0.6)
+
+    let imported = try await store.importPattern(from: source, projectID: projectID)
+    let savedProject = try #require(store.project(id: projectID))
+    let fallbackURL = await store.projectCoverURL(for: savedProject)
+
+    #expect(savedProject.patterns.map(\.id) == [imported.id])
+    #expect(fallbackURL == nil)
+}
+
 @MainActor @Test func invalidReplacementPreservesCommittedPhotoAndDeleteCleansIt() throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let archiveURL = base.appendingPathComponent("projects.json")
@@ -1633,6 +1736,32 @@ private func makeStoreJPEG(red: CGFloat) throws -> Data {
     CGImageDestinationAddImage(destination, image, nil)
     #expect(CGImageDestinationFinalize(destination))
     return data as Data
+}
+
+private func makeStorePNG(at url: URL, red: CGFloat) throws {
+    try FileManager.default.createDirectory(
+        at: url.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    let context = try #require(CGContext(
+        data: nil,
+        width: 32,
+        height: 16,
+        bitsPerComponent: 8,
+        bytesPerRow: 128,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ))
+    context.setFillColor(CGColor(red: red, green: 0.2, blue: 0.6, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: 32, height: 16))
+    let destination = try #require(CGImageDestinationCreateWithURL(
+        url as CFURL,
+        UTType.png.identifier as CFString,
+        1,
+        nil
+    ))
+    CGImageDestinationAddImage(destination, try #require(context.makeImage()), nil)
+    #expect(CGImageDestinationFinalize(destination))
 }
 
 private func makeStorePatternPDF(at url: URL) throws {

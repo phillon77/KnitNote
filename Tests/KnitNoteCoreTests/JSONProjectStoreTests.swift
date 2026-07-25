@@ -539,6 +539,82 @@ import UniformTypeIdentifiers
     #expect(archive.projects.first?.photoFilename == nil)
 }
 
+@MainActor @Test func exportBackupExcludesDisposablePatternThumbnailCache() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let store = JSONProjectStore(
+        url: base.appendingPathComponent("KnitNote/projects-v1.json")
+    )
+    try store.add(name: "Exported pattern")
+    let projectID = try #require(store.projects.first?.id)
+    let sourceURL = base.appendingPathComponent("source.png")
+    try makeStorePNG(at: sourceURL, red: 0.2)
+    let pattern = try await store.importPattern(from: sourceURL, projectID: projectID)
+    let cacheURL = base
+        .appendingPathComponent(".KnitNote-PatternThumbnailCache")
+        .appendingPathComponent(projectID.uuidString)
+        .appendingPathComponent("\(pattern.id.uuidString).jpg")
+    #expect(FileManager.default.fileExists(atPath: cacheURL.path))
+
+    let packageURL = try await store.exportBackup(appVersion: "1.0")
+    let packagedPaths = try backupPackageRelativePaths(at: packageURL)
+
+    #expect(!packagedPaths.contains { $0.contains(".KnitNote-PatternThumbnailCache") })
+    #expect(!packagedPaths.contains { $0.hasSuffix("\(pattern.id.uuidString).jpg") })
+}
+
+@MainActor @Test func restoreBackupClearsCoverCacheAndRegeneratesSamePatternIDsFromRestoredSource() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let store = JSONProjectStore(
+        url: base.appendingPathComponent("KnitNote/projects-v1.json")
+    )
+    try store.add(name: "Restored pattern")
+    let projectID = try #require(store.projects.first?.id)
+    let sourceURL = base.appendingPathComponent("source.png")
+    try makeStorePNG(at: sourceURL, red: 0.2)
+    let pattern = try await store.importPattern(from: sourceURL, projectID: projectID)
+    let livePatternURL = store.patternURL(projectID: projectID, pattern: pattern)
+    let restoredSourceData = try Data(contentsOf: livePatternURL)
+    let cacheURL = base
+        .appendingPathComponent(".KnitNote-PatternThumbnailCache")
+        .appendingPathComponent(projectID.uuidString)
+        .appendingPathComponent("\(pattern.id.uuidString).jpg")
+    let restoredThumbnailData = try Data(contentsOf: cacheURL)
+    let packageURL = try await store.exportBackup(appVersion: "1.0")
+    let staged = try await store.prepareBackupRestore(from: packageURL)
+
+    try FileManager.default.removeItem(at: livePatternURL)
+    try makeStorePNG(at: livePatternURL, red: 0.8)
+    try FileManager.default.removeItem(at: cacheURL)
+    let currentProject = try #require(store.project(id: projectID))
+    let staleCacheURL = try #require(await store.projectCoverURL(for: currentProject))
+    let staleThumbnailData = try Data(contentsOf: staleCacheURL)
+    #expect(staleThumbnailData != restoredThumbnailData)
+    let generationBeforeRestore = store.projectCoverGeneration
+
+    try await store.restoreBackup(staged)
+
+    #expect(store.projectCoverGeneration == generationBeforeRestore + 1)
+    #expect(!FileManager.default.fileExists(atPath: cacheURL.path))
+    let restoredProject = try #require(store.project(id: projectID))
+    let restoredPattern = try #require(restoredProject.patterns.first)
+    #expect(restoredProject.id == projectID)
+    #expect(restoredPattern.id == pattern.id)
+    #expect(
+        try Data(contentsOf: store.patternURL(projectID: projectID, pattern: restoredPattern))
+            == restoredSourceData
+    )
+
+    let regeneratedCacheURL = try #require(
+        await store.projectCoverURL(for: restoredProject)
+    )
+
+    #expect(regeneratedCacheURL == cacheURL)
+    #expect(FileManager.default.fileExists(atPath: regeneratedCacheURL.path))
+    #expect(try Data(contentsOf: regeneratedCacheURL) == restoredThumbnailData)
+}
+
 @MainActor @Test func thumbnailFailureDoesNotRollbackSuccessfulPatternImport() async throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -1762,6 +1838,22 @@ private func makeStorePNG(at url: URL, red: CGFloat) throws {
     ))
     CGImageDestinationAddImage(destination, try #require(context.makeImage()), nil)
     #expect(CGImageDestinationFinalize(destination))
+}
+
+private func backupPackageRelativePaths(at packageURL: URL) throws -> [String] {
+    let root = packageURL.standardizedFileURL.path + "/"
+    let enumerator = try #require(FileManager.default.enumerator(
+        at: packageURL,
+        includingPropertiesForKeys: nil
+    ))
+    var paths: [String] = []
+    for case let url as URL in enumerator {
+        let path = url.standardizedFileURL.path
+        if path.hasPrefix(root) {
+            paths.append(String(path.dropFirst(root.count)))
+        }
+    }
+    return paths
 }
 
 private func makeStorePatternPDF(at url: URL) throws {

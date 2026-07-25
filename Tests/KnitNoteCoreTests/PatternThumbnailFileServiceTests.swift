@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import PDFKit
 import Testing
 import UniformTypeIdentifiers
 @testable import KnitNoteCore
@@ -37,6 +38,36 @@ import UniformTypeIdentifiers
         #expect(try pixelSize(imageThumbnail) == CGSize(width: 400, height: 800))
         #expect(pdfThumbnail.pathExtension == "jpg")
         #expect(imageThumbnail.pathExtension == "jpg")
+    }
+
+    @Test func rendersRotatedPDFUsingDisplayedPageGeometry() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let sourceURL = root.appendingPathComponent("rotated.pdf")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try makeRotatedPDF(
+            at: sourceURL,
+            size: CGSize(width: 1_200, height: 600),
+            rotation: 90
+        )
+        let document = try #require(CGPDFDocument(sourceURL as CFURL))
+        #expect(document.page(at: 1)?.rotationAngle == 90)
+        let service = PatternThumbnailFileService(
+            directory: root.appendingPathComponent("cache"),
+            maxPixelSize: 800
+        )
+        let pattern = PatternDocument(
+            displayName: "Rotated PDF",
+            kind: .pdf,
+            storedFilename: "rotated.pdf"
+        )
+
+        let thumbnailURL = try service.thumbnailURL(
+            projectID: UUID(),
+            pattern: pattern,
+            sourceURL: sourceURL
+        )
+
+        #expect(try pixelSize(thumbnailURL) == CGSize(width: 400, height: 800))
     }
 
     @Test func reusesCacheAndDeletesOnePatternOrWholeProject() throws {
@@ -110,6 +141,21 @@ import UniformTypeIdentifiers
         context.fill(box)
         context.endPDFPage()
         context.closePDF()
+    }
+
+    private func makeRotatedPDF(
+        at url: URL,
+        size: CGSize,
+        rotation: Int
+    ) throws {
+        let unrotatedURL = url.deletingLastPathComponent()
+            .appendingPathComponent("\(UUID().uuidString).pdf")
+        defer { try? FileManager.default.removeItem(at: unrotatedURL) }
+        try makePDF(at: unrotatedURL, size: size)
+        let document = try #require(PDFDocument(url: unrotatedURL))
+        let page = try #require(document.page(at: 0))
+        page.rotation = rotation
+        #expect(document.write(to: url))
     }
 
     private func makePNG(at url: URL, width: Int, height: Int) throws {

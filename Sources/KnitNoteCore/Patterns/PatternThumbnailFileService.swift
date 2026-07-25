@@ -100,10 +100,17 @@ public struct PatternThumbnailFileService: Sendable {
         guard mediaBox.width > 0, mediaBox.height > 0 else {
             throw PatternThumbnailFileError.renderingFailed
         }
-        let scale = min(CGFloat(maxPixelSize) / max(mediaBox.width, mediaBox.height), 1)
+        let swapsDimensions = page.rotationAngle % 180 != 0
+        let displayedSize = swapsDimensions
+            ? CGSize(width: mediaBox.height, height: mediaBox.width)
+            : mediaBox.size
+        let scale = min(
+            CGFloat(maxPixelSize) / max(displayedSize.width, displayedSize.height),
+            1
+        )
         let size = CGSize(
-            width: max(1, (mediaBox.width * scale).rounded()),
-            height: max(1, (mediaBox.height * scale).rounded())
+            width: max(1, (displayedSize.width * scale).rounded()),
+            height: max(1, (displayedSize.height * scale).rounded())
         )
         guard let context = CGContext(
             data: nil,

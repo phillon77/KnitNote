@@ -20,7 +20,7 @@ struct ProjectsView: View {
                         } else {
                             ForEach(store.projects) { project in
                                 NavigationLink(value: project.id) {
-                                    ProjectCard(project: project, photoURL: store.photoURL(for: project))
+                                    ProjectCard(project: project)
                                 }
                                 .buttonStyle(.plain)
                                 .swipeActions {

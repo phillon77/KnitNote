@@ -2,12 +2,11 @@ import SwiftUI
 
 struct ProjectCard: View {
     let project: StoredProject
-    let photoURL: URL?
 
     var body: some View {
         WatercolorCard {
             HStack(spacing: 16) {
-                ProjectPhotoView(url: photoURL)
+                ProjectCoverView(project: project)
                     .frame(width: 58, height: 58)
                     .clipShape(.rect(cornerRadius: 14))
 

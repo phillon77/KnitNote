@@ -28,7 +28,7 @@ struct ProjectDetailView: View {
                 WatercolorBackground()
                 ScrollView {
                     VStack(spacing: 22) {
-                        ProjectPhotoView(url: store.photoURL(for: project))
+                        ProjectCoverView(project: project)
                             .frame(width: 96, height: 96)
                             .clipShape(.rect(cornerRadius: 22))
 

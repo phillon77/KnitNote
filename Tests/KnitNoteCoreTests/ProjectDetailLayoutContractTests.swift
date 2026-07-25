@@ -4,7 +4,7 @@ import Testing
 @Suite struct ProjectDetailLayoutContractTests {
     @Test func projectFeaturesFollowTheApprovedKnittingOrder() throws {
         let source = try projectSource()
-        let photo = try #require(source.range(of: "ProjectPhotoView("))
+        let photo = try #require(source.range(of: "ProjectCoverView("))
         let completion = try #require(source.range(of: "if project.isCompleted"))
         let pattern = try #require(source.range(of: "projectActionCard(\"patterns.open\""))
         let note = try #require(source.range(of: "projectActionCard(\"notes.edit\""))

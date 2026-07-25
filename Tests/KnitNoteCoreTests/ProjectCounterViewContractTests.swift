@@ -22,7 +22,7 @@ import Testing
 
     @Test func projectDetailShowsPhotoOrDefaultIconBeforeCounters() throws {
         let source = try projectSource(named: "ProjectDetailView")
-        let photo = try #require(source.range(of: "ProjectPhotoView(url: store.photoURL(for: project))"))
+        let photo = try #require(source.range(of: "ProjectCoverView(project: project)"))
         let counters = try #require(source.range(of: "CounterSelectorGrid("))
 
         #expect(photo.lowerBound < counters.lowerBound)

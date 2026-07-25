@@ -72,7 +72,7 @@ struct StoreScreenshotRootView: View {
                     WatercolorBackground()
                     ScrollView {
                         VStack(spacing: 20) {
-                            ProjectPhotoView(url: store.photoURL(for: project))
+                            ProjectCoverView(project: project)
                                 .frame(width: 104, height: 104)
                                 .clipShape(.rect(cornerRadius: 24))
                             switch kind {

@@ -34,6 +34,7 @@ struct ProjectPhotoView: View {
             let bytes = await Task.detached(priority: .utility) {
                 try? Data(contentsOf: url)
             }.value
+            guard !Task.isCancelled else { return }
             loadedImage = bytes.flatMap(decodedImage)
         }
     }

@@ -7,6 +7,7 @@ struct ProjectCoverView: View {
 
     var body: some View {
         ProjectPhotoView(url: resolvedURL)
+            .id(revision)
             .task(id: revision) {
                 resolvedURL = store.photoURL(for: project)
                 guard !Task.isCancelled else { return }

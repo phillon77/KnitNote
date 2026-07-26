@@ -10,14 +10,16 @@ private struct PendingPatternSelection: Identifiable {
 struct PatternLibraryView: View {
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
+    @State private var navigationPath: [UUID] = []
     @State private var query = ""
     @State private var sort = PatternLibrarySort.recentlyAdded
     @State private var importing = false
     @State private var pendingSelection: PendingPatternSelection?
+    @State private var existingPatternID: UUID?
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             Group {
                 if store.patterns.isEmpty {
                     ZStack {
@@ -83,6 +85,25 @@ struct PatternLibraryView: View {
             }
             .sheet(item: $pendingSelection) { selection in
                 chooseDuplicate(for: selection)
+            }
+            .alert(
+                "patterns.library.alreadySaved.title",
+                isPresented: Binding(
+                    get: { existingPatternID != nil },
+                    set: { if !$0 { existingPatternID = nil } }
+                )
+            ) {
+                Button("patterns.library.alreadySaved.view") {
+                    if let patternID = existingPatternID {
+                        navigationPath.append(patternID)
+                    }
+                    existingPatternID = nil
+                }
+                Button("common.ok", role: .cancel) {
+                    existingPatternID = nil
+                }
+            } message: {
+                Text("patterns.library.alreadySaved.message")
             }
             .alert(
                 "patterns.error",
@@ -153,10 +174,15 @@ struct PatternLibraryView: View {
     }
 
     private func acceptImportOutcome(_ outcome: PatternImportOutcome) {
-        switch outcome {
-        case .created, .existing:
+        switch PatternLibraryImportPresentation(outcome: outcome) {
+        case .none:
             pendingSelection = nil
-        case let .needsSelection(itemID, candidatePatternIDs):
+            existingPatternID = nil
+        case let .alreadySaved(patternID):
+            pendingSelection = nil
+            existingPatternID = patternID
+        case let .chooseDuplicate(itemID, candidatePatternIDs):
+            existingPatternID = nil
             pendingSelection = PendingPatternSelection(
                 itemID: itemID,
                 candidatePatternIDs: candidatePatternIDs

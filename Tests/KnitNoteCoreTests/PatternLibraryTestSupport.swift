@@ -41,6 +41,7 @@ final class PatternImportHarness {
     init(
         archiveWrite: (@Sendable (Data, URL) throws -> Void)? = nil,
         assetMove: (@Sendable (URL, URL) throws -> Void)? = nil,
+        inboxMove: (@Sendable (URL, URL) throws -> Void)? = nil,
         inboxRemove: (@Sendable (URL) throws -> Void)? = nil,
         inboxWrite: (@Sendable (Data, URL) throws -> Void)? = nil,
         thumbnailService: PatternThumbnailFileService? = nil
@@ -60,7 +61,7 @@ final class PatternImportHarness {
         )
         inbox = PatternInboxFileService(
             root: locations.inboxRoot,
-            moveItem: { try FileManager.default.moveItem(at: $0, to: $1) },
+            moveItem: inboxMove ?? { try FileManager.default.moveItem(at: $0, to: $1) },
             removeItem: inboxRemove ?? { try FileManager.default.removeItem(at: $0) },
             writeData: inboxWrite ?? { try $0.write(to: $1, options: .atomic) }
         )

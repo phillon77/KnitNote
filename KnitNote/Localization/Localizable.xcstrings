@@ -1816,6 +1816,24 @@
         }
       }
     },
+    "patterns.library.alreadySaved.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This pattern is already in your library." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這份織圖已收藏在樣式庫中。" } }
+      }
+    },
+    "patterns.library.alreadySaved.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Already Saved" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已收藏" } }
+      }
+    },
+    "patterns.library.alreadySaved.view" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View Saved Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "查看已收藏織圖" } }
+      }
+    },
     "patterns.library.empty.message" : {
       "localizations" : {
         "en" : {

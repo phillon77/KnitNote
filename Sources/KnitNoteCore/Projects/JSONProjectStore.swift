@@ -929,12 +929,16 @@ final class PatternLibraryDeletionTransaction {
     ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
         let inbox = try requiredPatternInboxFileService()
-        let item = try inbox.enqueue(
-            source: source,
-            origin: .library,
-            targetProjectID: nil,
-            now: now
-        )
+        let item = try await Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            return try inbox.enqueue(
+                source: source,
+                origin: .library,
+                targetProjectID: nil,
+                now: now
+            )
+        }.value
+        try Task.checkCancellation()
         return try await processPatternInboxItem(id: item.id)
     }
     public func deletePattern(projectID: UUID, id: UUID) throws {

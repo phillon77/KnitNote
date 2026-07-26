@@ -22,6 +22,15 @@ import Testing
         #expect(!source.contains(".disabled(store.projects.isEmpty)"))
     }
 
+    @Test func existingImportShowsFeedbackAndCanNavigateToTheSavedDetail() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+
+        #expect(source.contains("PatternLibraryImportPresentation(outcome: outcome)"))
+        #expect(source.contains("patterns.library.alreadySaved.title"))
+        #expect(source.contains("patterns.library.alreadySaved.view"))
+        #expect(source.contains("navigationPath.append(patternID)"))
+    }
+
     @Test func rowHasThumbnailMetadataUsageSummaryAndOneVoiceOverElement() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryRow.swift")
 
@@ -73,5 +82,12 @@ import Testing
         #expect(library.contains("patterns.library.empty.title"))
         #expect(detail.contains("ViewThatFits"))
         #expect(detail.contains("ScrollView"))
+    }
+
+    @Test func detailUsesAPlatformSafeNavigationTitleStyle() throws {
+        let detail = try readRepositoryFile("KnitNote/Patterns/PatternDetailView.swift")
+
+        #expect(detail.contains(".patternDetailNavigationTitleStyle()"))
+        #expect(detail.contains("#if os(iOS)"))
     }
 }

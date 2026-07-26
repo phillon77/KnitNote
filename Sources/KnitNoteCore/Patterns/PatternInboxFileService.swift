@@ -65,6 +65,7 @@ public struct PatternInboxFileService: Sendable {
         let id = UUID()
         try createDirectories()
         let candidate = candidateURL(for: id)
+        var staged: URL?
         do {
             try FileManager.default.copyItem(at: source, to: candidate)
             let metadata = try PatternFileService(root: root).inspect(
@@ -79,14 +80,16 @@ public struct PatternInboxFileService: Sendable {
                 targetProjectID: targetProjectID,
                 stagedFilename: "\(id.uuidString).\(metadata.fileExtension)"
             )
-            let staged = try stagedURL(for: item)
-            try moveItem(candidate, staged)
+            let ownedStaged = try stagedURL(for: item)
+            staged = ownedStaged
+            try moveItem(candidate, ownedStaged)
             try writeManifest(.init(version: 1, item: item, state: .staged))
             return item
         } catch {
-            // A candidate is never published. A staged file without a manifest is
-            // deliberately recovered/quarantined on the next launch.
             try? removeOwnedFile(candidate)
+            if let staged {
+                try? removeOwnedStagedFile(staged)
+            }
             throw error
         }
     }
@@ -309,6 +312,14 @@ public struct PatternInboxFileService: Sendable {
         try validateOwnedInboxTree()
         guard url.deletingLastPathComponent().standardizedFileURL.path == candidatesRoot.standardizedFileURL.path,
               UUID(uuidString: url.lastPathComponent) != nil else { return }
+        try removeItem(url)
+    }
+
+    private func removeOwnedStagedFile(_ url: URL) throws {
+        try validateOwnedInboxTree()
+        guard url.deletingLastPathComponent().standardizedFileURL.path == itemsRoot.standardizedFileURL.path,
+              stagedID(from: url.lastPathComponent) != nil,
+              FileManager.default.fileExists(atPath: url.path) else { return }
         try removeItem(url)
     }
 

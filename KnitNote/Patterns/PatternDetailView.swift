@@ -34,7 +34,7 @@ struct PatternDetailView: View {
                     }
                 }
                 .navigationTitle(pattern.displayName)
-                .navigationBarTitleDisplayMode(.inline)
+                .patternDetailNavigationTitleStyle()
                 .toolbar {
                     Menu {
                         Button("patterns.detail.rename", systemImage: "pencil") {
@@ -365,6 +365,17 @@ struct PatternDetailView: View {
             content()
                 .multilineTextAlignment(.trailing)
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func patternDetailNavigationTitleStyle() -> some View {
+        #if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
     }
 }
 

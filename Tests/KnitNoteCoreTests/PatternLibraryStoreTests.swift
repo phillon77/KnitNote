@@ -2,6 +2,25 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
+private struct PatternLibraryInboxWriteFailure: Error {}
+
+private final class PatternLibraryIOThreadRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var mainThreadValues: [Bool] = []
+
+    func recordCurrentThread() {
+        lock.lock()
+        mainThreadValues.append(Thread.isMainThread)
+        lock.unlock()
+    }
+
+    var recordedMainThreadValues: [Bool] {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadValues
+    }
+}
+
 @MainActor @Test func libraryImportPublishesThroughTheDurableInboxWithoutAProjectLink() async throws {
     let harness = try PatternImportHarness()
     let source = try harness.makePDF(named: "Library Pattern.pdf")
@@ -24,6 +43,44 @@ import Testing
 
     #expect(thumbnail != nil)
     #expect(thumbnail.map { FileManager.default.fileExists(atPath: $0.path) } == true)
+}
+
+@MainActor @Test func libraryImportEnqueuesItsOwnedCopyAwayFromTheMainThread() async throws {
+    let recorder = PatternLibraryIOThreadRecorder()
+    let harness = try PatternImportHarness(inboxMove: { source, destination in
+        recorder.recordCurrentThread()
+        try FileManager.default.moveItem(at: source, to: destination)
+    })
+    let source = try harness.makePDF(named: "Large Pattern.pdf")
+
+    let outcome = try await harness.store.importPatternFromLibrary(source)
+
+    #expect(recorder.recordedMainThreadValues == [false])
+    #expect(harness.store.patterns.count == 1)
+    #expect(outcome == .created(patternID: harness.store.patterns[0].id))
+}
+
+@MainActor @Test func failedLibraryEnqueueLeavesNoInboxOrArchivePublication() async throws {
+    let harness = try PatternImportHarness(inboxWrite: { _, _ in
+        throw PatternLibraryInboxWriteFailure()
+    })
+    let source = try harness.makePDF(named: "Fail Before Publication.pdf")
+
+    await #expect(throws: PatternLibraryInboxWriteFailure.self) {
+        try await harness.store.importPatternFromLibrary(source)
+    }
+
+    #expect(harness.store.patterns.isEmpty)
+    #expect(harness.store.patternAssets.isEmpty)
+    #expect(harness.archivePatternCount() == 0)
+    for directory in [".Candidates", "Items", "Manifests", ".Quarantine"] {
+        let url = harness.inbox.root.appendingPathComponent(directory, isDirectory: true)
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: nil
+        )
+        #expect(contents.isEmpty)
+    }
 }
 
 @MainActor @Test func unlinkAndRelinkRestoreTheSameUsage() throws {

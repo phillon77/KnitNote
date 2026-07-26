@@ -52,10 +52,15 @@ struct StoreScreenshotRootView: View {
 
     @ViewBuilder
     private func patternScene(presentation: PatternReaderStorePresentation) -> some View {
-        if let project = store.projects.first, let pattern = project.patterns.first {
+        if let usage = store.patternUsages.first(where: { $0.isActive }),
+           let project = store.project(id: usage.projectID) {
             PatternReaderView(
-                projectID: project.id,
-                pattern: pattern,
+                context: .project(
+                    patternID: usage.patternID,
+                    usageID: usage.id,
+                    projectID: project.id,
+                    projectIsCompleted: project.isCompleted
+                ),
                 storePresentation: presentation,
                 onStoreScreenshotReady: { contentReady = true }
             )

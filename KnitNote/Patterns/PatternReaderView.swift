@@ -74,6 +74,7 @@ struct PatternReaderView: View {
     @State private var confirmingMarkupClear = false
     @State private var expectedDataGeneration: UInt64?
     @State private var revisionCoordinator = PatternReaderRevisionCoordinator(expectedDataGeneration: 0)
+    @State private var showingMarkupConflict = false
     @State private var managingCounter: ProjectCounter?
     @StateObject private var pdfNavigator = PDFPageNavigator()
     private let counterRailSafeAreaWidth: CGFloat = 64
@@ -83,12 +84,15 @@ struct PatternReaderView: View {
     /// from its usage; a standalone context begins with fresh, ephemeral state.
     init(
         context: PatternReaderContext,
+        storePresentation: PatternReaderStorePresentation = .standard,
         onStoreScreenshotReady: @escaping @MainActor () -> Void = {}
     ) {
         source = .library(context)
         _state = State(initialValue: .init())
         _readerSession = State(initialValue: PatternReaderSession(context: context))
-        storePresentation = .standard
+        self.storePresentation = storePresentation
+        _markupMode = State(initialValue: storePresentation == .markup)
+        _showingPageNote = State(initialValue: storePresentation == .notes)
         self.onStoreScreenshotReady = onStoreScreenshotReady
     }
 
@@ -330,6 +334,14 @@ struct PatternReaderView: View {
             } message: {
                 Text(saveError ?? "")
             }
+            .alert("patterns.reader.conflict", isPresented: $showingMarkupConflict) {
+                Button("patterns.reader.discardAndReload", role: .destructive) {
+                    discardMarkupAndReload()
+                }
+                Button("common.cancel", role: .cancel) {}
+            } message: {
+                Text("patterns.reader.conflict.message")
+            }
             .sheet(isPresented: $showingPageNote, onDismiss: reloadSavedPageNote) {
                 if context.canWrite {
                     EditPatternPageNoteView(pageNumber: state.pageIndex + 1, text: $state.pageNote) {
@@ -378,6 +390,7 @@ struct PatternReaderView: View {
             guard revisionCoordinator.canChangePage else {
                 state.pageIndex = oldPage
                 handledPageIndex = oldPage
+                pdfNavigator.go(to: oldPage)
                 saveError = String(localized: "error.saveFailed")
                 return
             }
@@ -385,6 +398,7 @@ struct PatternReaderView: View {
             if context.canWrite, !saveMarkup(page: oldPage) {
                 state.pageIndex = oldPage
                 handledPageIndex = oldPage
+                pdfNavigator.go(to: oldPage)
                 return
             }
             loadMarkup(page: newPage, readerGeneration: readerSession.generation)
@@ -448,7 +462,7 @@ struct PatternReaderView: View {
                     showsOverlayPageControls: layout.pageControlPlacement == .overlay,
                     onPreviousPage: { navigatePDF(by: -1) },
                     onNextPage: { navigatePDF(by: 1) },
-                    onIncrement: incrementCounter,
+                    onIncrement: { _ = incrementCounter($0) },
                     onManage: { counterID in
                         managingCounter = project.counters.first { $0.id == counterID }
                     }
@@ -471,7 +485,7 @@ struct PatternReaderView: View {
         loadError = false
         saveError = nil
         managingCounter = nil
-        showingPageNote = false
+        showingPageNote = storePresentation == .notes
         markupMode = storePresentation == .markup
         let currentContext = resolvedContext
         let hydrationContext: PatternReaderContext
@@ -533,8 +547,17 @@ struct PatternReaderView: View {
         case .reload, .reloadReadOnly:
             reloadReader(for: readerContextIdentity)
         case .conflict:
+            showingMarkupConflict = true
             saveError = String(localized: "error.saveFailed")
         }
+    }
+
+    private func discardMarkupAndReload() {
+        guard revisionCoordinator.phase == .conflict else { return }
+        showingMarkupConflict = false
+        markup = .init()
+        revisionCoordinator.reset(expectedDataGeneration: store.dataGeneration)
+        reloadReader(for: readerContextIdentity)
     }
 
     @discardableResult private func save() -> Bool {
@@ -569,13 +592,14 @@ struct PatternReaderView: View {
         }
     }
 
-    private func incrementCounter(_ counterID: UUID) {
+    @discardableResult
+    private func incrementCounter(_ counterID: UUID) -> Bool {
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
-              context.canWrite else { return }
+              context.canWrite else { return false }
         do {
             guard let usageID = context.usageID,
-                  let expectedDataGeneration else { return }
+                  let expectedDataGeneration else { return false }
             self.expectedDataGeneration = try store.mutatePatternReaderCounter(
                 usageID: usageID,
                 counterID: counterID,
@@ -583,18 +607,21 @@ struct PatternReaderView: View {
                 expectedDataGeneration: expectedDataGeneration
             )
             revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)
+            return true
         } catch {
             saveError = error.localizedDescription
+            return false
         }
     }
 
-    private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) {
+    @discardableResult
+    private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool {
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
-              context.canWrite else { return }
+              context.canWrite else { return false }
         do {
             guard let usageID = context.usageID,
-                  let expectedDataGeneration else { return }
+                  let expectedDataGeneration else { return false }
             self.expectedDataGeneration = try store.mutatePatternReaderCounter(
                 usageID: usageID,
                 counterID: counter.id,
@@ -602,8 +629,10 @@ struct PatternReaderView: View {
                 expectedDataGeneration: expectedDataGeneration
             )
             revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)
+            return true
         } catch {
             saveError = error.localizedDescription
+            return false
         }
     }
 
@@ -614,16 +643,17 @@ struct PatternReaderView: View {
         pdfNavigator.go(to: target)
     }
 
-    private func savePageNoteDirectly() {
+    @discardableResult
+    private func savePageNoteDirectly() -> Bool {
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
-              context.canWrite else { return }
+              context.canWrite else { return false }
         let text = state.pageNote
         do {
             let nextGeneration: UInt64
             switch source {
             case .library:
-                guard let usageID = context.usageID else { return }
+                guard let usageID = context.usageID else { return false }
                 nextGeneration = try store.savePatternPageNote(
                     usageID: usageID,
                     pageIndex: editingPageNoteIndex,
@@ -642,8 +672,10 @@ struct PatternReaderView: View {
             expectedDataGeneration = nextGeneration
             revisionCoordinator.confirmMutation(generation: nextGeneration)
             if editingPageNoteIndex == state.pageIndex { state.setPageNote(text) }
+            return true
         } catch {
             saveError = error.localizedDescription
+            return false
         }
     }
 

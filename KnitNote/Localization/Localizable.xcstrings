@@ -1842,6 +1842,24 @@
         }
       }
     },
+    "patterns.reader.conflict" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pattern changed elsewhere" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織圖已在其他位置變更" } }
+      }
+    },
+    "patterns.reader.conflict.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard your unsaved markup and reload the latest version?" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要捨棄尚未儲存的標註，並重新載入最新版本嗎？" } }
+      }
+    },
+    "patterns.reader.discardAndReload" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard and Reload" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "捨棄並重新載入" } }
+      }
+    },
     "patterns.markup" : {
       "localizations" : {
         "en" : {

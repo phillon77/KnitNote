@@ -1,17 +1,23 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private struct ProjectPatternReaderSelection: Identifiable {
+    let usage: PatternProjectUsage
+    let pattern: StoredPattern
+    var id: UUID { usage.id }
+}
+
 struct ProjectPatternsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
     @State private var importing = false
-    @State private var selectedPattern: PatternDocument?
-    @State private var pendingDeletion: PatternDocument?
+    @State private var selectedPattern: ProjectPatternReaderSelection?
+    @State private var pendingDeletion: ProjectPatternReaderSelection?
     @State private var errorMessage: String?
-    var body: some View { NavigationStack { List(store.project(id: projectID)?.patterns ?? []) { pattern in
-        Button { selectedPattern = pattern } label: { Label(pattern.displayName, systemImage: pattern.kind == .pdf ? "doc.richtext" : "photo") }
-            .swipeActions { Button("common.delete", role: .destructive) { pendingDeletion = pattern } }
+    var body: some View { NavigationStack { List(projectPatterns) { selection in
+        Button { selectedPattern = selection } label: { Label(selection.pattern.displayName, systemImage: selection.pattern.kind == .pdf ? "doc.richtext" : "photo") }
+            .swipeActions { Button("common.delete", role: .destructive) { pendingDeletion = selection } }
     }.scrollContentBackground(.hidden).background(WatercolorBackground()).navigationTitle("patterns.title").toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("common.ok") { dismiss() } }
         ToolbarItem(placement: .primaryAction) { Button("patterns.add", systemImage: "plus") { importing = true } }
@@ -23,7 +29,14 @@ struct ProjectPatternsView: View {
             do { _ = try await store.importPattern(from: url, projectID: projectID) }
             catch { errorMessage = error.localizedDescription }
         }
-    }.patternReaderPresentation(item: $selectedPattern) { PatternReaderView(projectID: projectID, pattern: $0) }
+    }.patternReaderPresentation(item: $selectedPattern) { selection in
+        PatternReaderView(context: .project(
+            patternID: selection.pattern.id,
+            usageID: selection.usage.id,
+            projectID: projectID,
+            projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+        ))
+    }
       .confirmationDialog("patterns.delete.title", isPresented: Binding(get:{pendingDeletion != nil},set:{if !$0{pendingDeletion=nil}})) {
         Button("common.delete", role:.destructive) { deletePending() }; Button("common.cancel",role:.cancel){pendingDeletion=nil}
       }
@@ -31,9 +44,18 @@ struct ProjectPatternsView: View {
     }.tint(WatercolorTheme.actionBerry) }
 
     private func deletePending() {
-        guard let pattern=pendingDeletion else{return}
-        do { try store.deletePattern(projectID:projectID,id:pattern.id) }
+        guard let selection = pendingDeletion else{return}
+        do { try store.unlinkPattern(patternID: selection.pattern.id, from: projectID) }
         catch { errorMessage=error.localizedDescription }
         pendingDeletion=nil
+    }
+
+    private var projectPatterns: [ProjectPatternReaderSelection] {
+        store.patternUsages.compactMap { usage in
+            guard usage.projectID == projectID,
+                  usage.isActive,
+                  let pattern = store.patterns.first(where: { $0.id == usage.patternID }) else { return nil }
+            return .init(usage: usage, pattern: pattern)
+        }
     }
 }

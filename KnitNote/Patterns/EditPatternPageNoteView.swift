@@ -4,7 +4,7 @@ struct EditPatternPageNoteView: View {
     @Environment(\.dismiss) private var dismiss
     let pageNumber: Int
     @Binding var text: String
-    let onSave: () -> Void
+    let onSave: () -> Bool
     let onCancel: () -> Void
 
     var body: some View {
@@ -22,8 +22,7 @@ struct EditPatternPageNoteView: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("common.save") {
-                            onSave()
-                            dismiss()
+                            if onSave() { dismiss() }
                         }
                     }
                 }

@@ -4,7 +4,7 @@ struct EditCounterNameView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     let counter: ProjectCounter
-    let onDone: (String, Int) -> Void
+    let onDone: (String, Int) -> Bool
     @State private var name = ""
     @State private var value = 0
     @State private var defaultName = ""
@@ -65,7 +65,6 @@ struct EditCounterNameView: View {
     private func finish() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let savedName = counter.customName == nil && !hasEditedName && trimmedName == defaultName ? "" : trimmedName
-        onDone(savedName, value)
-        dismiss()
+        if onDone(savedName, value) { dismiss() }
     }
 }

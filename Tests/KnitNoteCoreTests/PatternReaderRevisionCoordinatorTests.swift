@@ -33,4 +33,16 @@ import Testing
         #expect(coordinator.observeStoreGeneration(5, canWrite: false) == .reloadReadOnly)
         #expect(coordinator.phase == .needsReload)
     }
+
+    @Test func discardingAConflictResetsTheCoordinatorForTheReloadedRevision() {
+        var coordinator = PatternReaderRevisionCoordinator(expectedDataGeneration: 4)
+        coordinator.setMarkupDirty(true)
+        #expect(coordinator.observeStoreGeneration(5, canWrite: true) == .conflict)
+
+        coordinator.reset(expectedDataGeneration: 5)
+
+        #expect(coordinator.phase == .ready)
+        #expect(coordinator.canChangePage)
+        #expect(coordinator.observeStoreGeneration(5, canWrite: true) == .none)
+    }
 }

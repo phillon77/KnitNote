@@ -95,6 +95,61 @@ import Testing
         #expect(reader.contains("guard saveMarkup(page: state.pageIndex) else { return }"))
     }
 
+    @Test func readerRestoresThePDFAndStateWhenAPageChangeCannotBeSaved() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(reader.contains("state.pageIndex = oldPage"))
+        #expect(reader.contains("handledPageIndex = oldPage"))
+        #expect(reader.contains("pdfNavigator.go(to: oldPage)"))
+    }
+
+    @Test func readerOffersDiscardAndReloadForAnExternalMarkupConflict() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let strings = try sourceFile("KnitNote/Localization/Localizable.xcstrings")
+
+        #expect(reader.contains("@State private var showingMarkupConflict = false"))
+        #expect(reader.contains(".alert(\"patterns.reader.conflict\""))
+        #expect(reader.contains("discardMarkupAndReload()"))
+        #expect(reader.contains("revisionCoordinator.reset(expectedDataGeneration: store.dataGeneration)"))
+        #expect(strings.contains("\"patterns.reader.discardAndReload\""))
+        #expect(strings.contains("\"patterns.reader.conflict.message\""))
+    }
+
+    @Test func contextBasedScreenshotReaderPreservesItsRequestedPresentation() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(reader.contains("_markupMode = State(initialValue: storePresentation == .markup)"))
+        #expect(reader.contains("showingPageNote = storePresentation == .notes"))
+    }
+
+    @Test func productionReaderCallsitesUseOnlyContextInitializers() throws {
+        let projectPatterns = try sourceFile("KnitNote/Patterns/ProjectPatternsView.swift")
+        let library = try sourceFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let screenshotRoot = try sourceFile("KnitNote/App/StoreScreenshotRootView.swift")
+
+        #expect(projectPatterns.contains("PatternReaderView(context: .project("))
+        #expect(projectPatterns.contains("usageID: selection.usage.id"))
+        #expect(library.contains("PatternReaderView(context: .readOnly(patternID: selection.id))"))
+        #expect(screenshotRoot.contains("PatternReaderView(\n                context: .project("))
+        #expect(screenshotRoot.contains("usageID: usage.id"))
+        #expect(!projectPatterns.contains("PatternReaderView(projectID:"))
+        #expect(!library.contains("PatternReaderView(projectID:"))
+        #expect(!screenshotRoot.contains("PatternReaderView(projectID:"))
+    }
+
+    @Test func readerEditorsDismissOnlyAfterTheirMutationSucceeds() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let noteEditor = try sourceFile("KnitNote/Patterns/EditPatternPageNoteView.swift")
+        let counterEditor = try sourceFile("KnitNote/Projects/EditCounterNameView.swift")
+
+        #expect(noteEditor.contains("let onSave: () -> Bool"))
+        #expect(noteEditor.contains("if onSave() { dismiss() }"))
+        #expect(counterEditor.contains("let onDone: (String, Int) -> Bool"))
+        #expect(counterEditor.contains("if onDone(savedName, value) { dismiss() }"))
+        #expect(reader.contains("private func savePageNoteDirectly() -> Bool"))
+        #expect(reader.contains("private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool"))
+    }
+
     @Test func readerDisablesEveryWriteControlWhenItsContextIsReadOnly() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
@@ -144,7 +199,7 @@ import Testing
 
         #expect(projectPatterns.contains("store.importPattern(from:"))
         #expect(library.contains("store.importPattern(from:"))
-        #expect(projectPatterns.contains("store.deletePattern(projectID:"))
+        #expect(projectPatterns.contains("store.unlinkPattern(patternID:"))
         #expect(reader.contains("store.savePatternMarkup("))
         #expect(reader.contains("expectedDataGeneration:"))
         #expect(reader.contains("store.loadPatternMarkup("))

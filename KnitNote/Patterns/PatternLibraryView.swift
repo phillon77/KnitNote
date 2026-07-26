@@ -1,15 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-private struct PatternLibrarySelection: Identifiable {
-    let projectID: UUID
-    let pattern: PatternDocument
-    var id: UUID { pattern.id }
-}
-
 struct PatternLibraryView: View {
     @EnvironmentObject private var store: JSONProjectStore
-    @State private var selectedPattern: PatternLibrarySelection?
+    @State private var selectedPattern: StoredPattern?
     @State private var showingProjectChooser = false
     @State private var importProjectID: UUID?
     @State private var importing = false
@@ -18,7 +12,7 @@ struct PatternLibraryView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if patternGroups(from: store.projects).isEmpty {
+                if store.patterns.isEmpty {
                     ZStack {
                         WatercolorBackground()
                         LemonEmptyState(title: "patterns.library.empty.title", message: "patterns.library.empty.message")
@@ -26,15 +20,11 @@ struct PatternLibraryView: View {
                     }
                 } else {
                     List {
-                        ForEach(patternGroups(from: store.projects)) { group in
-                            Section(group.projectName) {
-                                ForEach(group.patterns) { pattern in
-                                    Button {
-                                        selectedPattern = PatternLibrarySelection(projectID: group.id, pattern: pattern)
-                                    } label: {
-                                        Label(pattern.displayName, systemImage: pattern.kind == .pdf ? "doc.richtext" : "photo")
-                                    }
-                                }
+                        ForEach(store.patterns) { pattern in
+                            Button {
+                                selectedPattern = pattern
+                            } label: {
+                                Label(pattern.displayName, systemImage: pattern.kind == .pdf ? "doc.richtext" : "photo")
                             }
                         }
                     }
@@ -48,7 +38,7 @@ struct PatternLibraryView: View {
                     .disabled(store.projects.isEmpty)
             }
             .patternReaderPresentation(item: $selectedPattern) { selection in
-                PatternReaderView(projectID: selection.projectID, pattern: selection.pattern)
+                PatternReaderView(context: .readOnly(patternID: selection.id))
             }
             .sheet(isPresented: $showingProjectChooser) {
                 ChoosePatternProjectView { projectID in

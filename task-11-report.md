@@ -138,3 +138,90 @@ Static verification:
 - `Tests/KnitNoteCoreTests/JSONProjectStoreTests.swift`
 - `Tests/KnitNoteCoreTests/PatternShareInboxEnqueuerTests.swift`
 - `task-11-report.md`
+
+## Review Fix Round 1
+
+### P1: crash-safe restore replacement
+
+Root cause: replacement recovery previously treated a structurally valid live
+archive as committed. A format-1/schema-9 backup therefore looked valid before
+its required 9-to-10 migration ran. Termination after staged data became live
+but before reload/migration allowed launch recovery to delete the only rollback;
+a later migration failure then lost the original data.
+
+The replacement now owns an integrity-bound durable journal in the backup work
+root. It records the transaction UUID, exact rollback basename, whether an
+original live root existed, and one of these phases:
+
+- `prepared`
+- `installedAwaitingReload`
+- `committed`
+- `rolledBack`
+
+Install writes `prepared` before moving the original and
+`installedAwaitingReload` only after the replacement is live. Launch recovery
+returns an awaiting installation without deleting its rollback. The live store
+then reloads the installed archive, including migration and persisted schema-10
+validation. Only a successful reload commits and cleans the rollback. Failure
+atomically restores the original and reloads it. A committed cleanup tombstone
+and journal survive cleanup failure and are idempotently completed on restart.
+
+Regression coverage proves:
+
+- invalid legacy PDF bytes pass backup structural validation but fail migration,
+  after which restart restores the schema-10 original byte-for-byte;
+- a valid legacy PDF migrates, persists schema 10, and only then cleans rollback;
+- a crash after staged data becomes live remains recoverable on restart;
+- partial commit cleanup is retried on restart and a second recovery is a no-op.
+
+### P1: bounded descriptor-anchored export
+
+Root cause: export loaded the entire archive with `Data(contentsOf:)`, copied
+referenced files with `FileManager.copyItem`, and calculated size/hash only
+afterwards. Limits therefore could not prevent memory/disk exhaustion, hashes
+were not tied to the exact copy stream, and source changes could race export.
+
+Export now:
+
+- opens the live root and every path component with descriptor-relative
+  `openat`, `O_NOFOLLOW`, and regular-file/directory checks;
+- rejects an oversized archive from descriptor metadata before allocating and
+  reads it with a strict bounded loop;
+- preflights every referenced file and the aggregate logical size before
+  copying any media;
+- copies in 64 KiB chunks while enforcing file and aggregate limits;
+- computes SHA-256 and byte count from the same bytes written;
+- compares descriptor identity, size, copied byte count, mtime, and ctime before
+  accepting the source;
+- writes each destination to a private temporary file, `fsync`s, renames
+  atomically, and removes the whole package plus temporary output on failure.
+
+Real sparse-file and mutation-hook regressions cover archive, pattern asset,
+markup, aggregate, and mid-stream growth limits. They also prove no partial
+package/temp survives and existing format-1/format-2 round trips and manifest
+hashes retain their semantics.
+
+### Share-extension full-suite timing stabilization
+
+The first two normal parallel full-suite runs exposed a pre-existing timing
+failure in `cancelDuringProcessingSuppressesLatePublication`: under heavy
+machine load the global callback did not begin within its two-second bounded
+semaphore wait, causing the start assertion and subsequent cancellation-state
+assertion to fail together. The suite is now serialized, retains all three
+explicit happens-before assertions, and uses a ten-second bounded wait. The
+whole Share suite then passed three consecutive runs and the normal parallel
+full suite passed on the final tree.
+
+### Fresh verification
+
+- `KnitNoteBackupServiceTests`: 62 tests passed.
+- `JSONProjectStoreTests`: 71 tests passed.
+- `ShareExtensionFlowContractTests`: 6 tests passed in each of 3 consecutive
+  runs.
+- `swift test --no-parallel`: 793 tests in 67 suites passed.
+- final normal parallel `swift test`: 793 tests in 67 suites passed.
+- fresh iOS App, macOS App, iOS Share Extension, and watchOS App builds, each
+  with independent DerivedData and `CODE_SIGNING_ALLOWED=NO`: exit 0.
+- localization JSON, Xcode project, all configured Info plists and entitlements,
+  Swift parsing for every touched source, bounded-export source scan, and
+  `git diff --check`: passed.

@@ -706,6 +706,31 @@ import Testing
         #expect(try BackupFixture.childNames(in: package.service.workRoot) == before)
     }
 
+    @Test func exportStopsWhenSourceGrowsAndCleansPartialPackage() throws {
+        let package = try BackupFixture.completePackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let target = package.service.liveRoot.appendingPathComponent(package.firstRelativePath)
+        let growth = StageSourceGrowthInjector(
+            target: target,
+            grownSize: UInt64(KnitNoteBackupLimits.maximumFileBytes + 1)
+        )
+        let before = try BackupFixture.childNames(in: package.service.workRoot)
+        let service = KnitNoteBackupService(
+            liveRoot: package.service.liveRoot,
+            workRoot: package.service.workRoot,
+            copyChunkHook: { source, copiedBytes in
+                try growth.growOnce(source: source, afterCopiedBytes: copiedBytes)
+            }
+        )
+
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            _ = try service.createPackage(appVersion: "1.0")
+        }
+
+        #expect(growth.didGrow)
+        #expect(try BackupFixture.childNames(in: package.service.workRoot) == before)
+    }
+
     @Test func stagingRejectsRealDirectorySwapBetweenStatAndDescriptorOpen() throws {
         let package = try BackupFixture.completePackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
@@ -771,6 +796,159 @@ import Testing
         #expect(!source.contains(
             "copyItem(\n                at: packageRoot.appendingPathComponent(\"Data\""
         ))
+    }
+
+    @Test func exportSourceContractUsesBoundedDescriptorCopy() throws {
+        let sourceURL = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/KnitNoteCore/Backup/KnitNoteBackupService.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(source.contains("readLiveRegularFileBounded("))
+        #expect(source.contains("copyLiveRegularFileBounded("))
+        #expect(!source.contains("archiveData = try Data(contentsOf: archiveURL)"))
+        #expect(!source.contains("try FileManager.default.copyItem(at: source, to: destination)"))
+    }
+
+    @Test func exportRejectsSparseOversizedArchiveWithoutLeavingPackage() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try BackupFixture.writeCompleteArchive(to: live)
+        let archiveURL = live.appendingPathComponent("projects-v1.json")
+        let handle = try FileHandle(forWritingTo: archiveURL)
+        try handle.truncate(atOffset: UInt64(KnitNoteBackupLimits.maximumArchiveBytes + 1))
+        try handle.close()
+        try FileManager.default.createDirectory(
+            at: service.workRoot,
+            withIntermediateDirectories: true
+        )
+        let before = try BackupFixture.childNames(in: service.workRoot)
+
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            _ = try service.createPackage(appVersion: "1.0")
+        }
+
+        #expect(try BackupFixture.childNames(in: service.workRoot) == before)
+    }
+
+    @Test func exportRejectsSparseAggregateBeforeCopyingAnyFile() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var projects: [StoredProject] = []
+        for _ in 0..<21 {
+            var project = try StoredProject(name: "Aggregate")
+            let patternID = UUID()
+            let pattern = PatternDocument(
+                id: patternID,
+                displayName: "Aggregate",
+                kind: .pdf,
+                storedFilename: "\(patternID.uuidString).pdf"
+            )
+            project.addPattern(pattern)
+            projects.append(project)
+            let file = live
+                .appendingPathComponent("Patterns/\(project.id.uuidString)")
+                .appendingPathComponent(pattern.storedFilename)
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            #expect(FileManager.default.createFile(atPath: file.path, contents: nil))
+            let handle = try FileHandle(forWritingTo: file)
+            try handle.truncate(atOffset: 199_000_000)
+            try handle.close()
+        }
+        try JSONEncoder().encode(ProjectArchive(version: 9, projects: projects)).write(
+            to: live.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+        try FileManager.default.createDirectory(
+            at: service.workRoot,
+            withIntermediateDirectories: true
+        )
+        let before = try BackupFixture.childNames(in: service.workRoot)
+
+        #expect(throws: KnitNoteBackupError.packageTooLarge) {
+            _ = try service.createPackage(appVersion: "1.0")
+        }
+
+        #expect(try BackupFixture.childNames(in: service.workRoot) == before)
+    }
+
+    @Test func exportRejectsSparseOversizedPatternAsset() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var project = try StoredProject(name: "Oversized asset")
+        let patternID = UUID()
+        let pattern = PatternDocument(
+            id: patternID,
+            displayName: "Oversized asset",
+            kind: .pdf,
+            storedFilename: "\(patternID.uuidString).pdf"
+        )
+        project.addPattern(pattern)
+        let file = live
+            .appendingPathComponent("Patterns/\(project.id.uuidString)")
+            .appendingPathComponent(pattern.storedFilename)
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        #expect(FileManager.default.createFile(atPath: file.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.truncate(atOffset: UInt64(KnitNoteBackupLimits.maximumFileBytes + 1))
+        try handle.close()
+        try JSONEncoder().encode(ProjectArchive(version: 9, projects: [project])).write(
+            to: live.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            _ = try service.createPackage(appVersion: "1.0")
+        }
+    }
+
+    @Test func exportRejectsSparseOversizedMarkup() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var project = try StoredProject(name: "Oversized markup")
+        let patternID = UUID()
+        let pattern = PatternDocument(
+            id: patternID,
+            displayName: "Oversized markup",
+            kind: .pdf,
+            storedFilename: "\(patternID.uuidString).pdf"
+        )
+        project.addPattern(pattern)
+        let patternRoot = live.appendingPathComponent("Patterns/\(project.id.uuidString)")
+        try FileManager.default.createDirectory(
+            at: patternRoot,
+            withIntermediateDirectories: true
+        )
+        try Data("bounded source".utf8).write(
+            to: patternRoot.appendingPathComponent(pattern.storedFilename)
+        )
+        let markup = patternRoot
+            .appendingPathComponent("Markup/\(pattern.id.uuidString)")
+            .appendingPathComponent("0.json")
+        try FileManager.default.createDirectory(
+            at: markup.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        #expect(FileManager.default.createFile(atPath: markup.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: markup)
+        try handle.truncate(atOffset: UInt64(KnitNoteBackupLimits.maximumMarkupBytes + 1))
+        try handle.close()
+        try JSONEncoder().encode(ProjectArchive(version: 9, projects: [project])).write(
+            to: live.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            _ = try service.createPackage(appVersion: "1.0")
+        }
     }
 
     @Test func createPackageRejectsDuplicateIdentifiersAndDanglingLinks() throws {
@@ -986,6 +1164,15 @@ import Testing
         #expect(!FileManager.default.fileExists(
             atPath: cleanupRoot.appendingPathComponent("projects-v1.json").path
         ))
+
+        let restarted = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot
+        )
+        #expect(try restarted.recoverInterruptedReplacement().map { _ in true } == nil)
+        #expect(try fixture.liveArchiveName() == "replacement")
+        #expect(try fixture.cleanupRoots().isEmpty)
+        #expect(try restarted.recoverInterruptedReplacement().map { _ in true } == nil)
     }
 
     @Test func installRollbackFailureReportsTypedFailureWithoutDeletingEitherCopy() throws {
@@ -1192,22 +1379,25 @@ import Testing
         )
         try FileManager.default.removeItem(at: installation.liveRoot)
 
-        try fixture.service.recoverInterruptedReplacement()
+        _ = try fixture.service.recoverInterruptedReplacement()
 
         #expect(try fixture.liveArchiveName() == "original")
         #expect(!FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
     }
 
-    @Test func installRecoveryPrefersValidLiveRootAndCleansRollback() throws {
+    @Test func installRecoveryPreservesRollbackUntilReloadIsCommitted() throws {
         let fixture = try BackupInstallFixture.make()
         defer { fixture.cleanup() }
         let installation = try fixture.service.install(
             try fixture.service.stagePackage(at: fixture.replacementPackage)
         )
 
-        try fixture.service.recoverInterruptedReplacement()
+        let pending = try fixture.service.recoverInterruptedReplacement()
+        let recovered = try #require(pending)
 
         #expect(try fixture.liveArchiveName() == "replacement")
+        #expect(FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
+        fixture.service.commit(recovered)
         #expect(!FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
     }
 
@@ -1221,7 +1411,7 @@ import Testing
         try FileManager.default.createDirectory(at: cleanupRoot, withIntermediateDirectories: true)
         try Data("partial".utf8).write(to: cleanupRoot.appendingPathComponent("partial.tmp"))
 
-        try fixture.service.recoverInterruptedReplacement()
+        _ = try fixture.service.recoverInterruptedReplacement()
 
         #expect(try fixture.liveArchiveName() == "original")
         #expect(!FileManager.default.fileExists(atPath: cleanupRoot.path))
@@ -1255,7 +1445,7 @@ import Testing
             cleanupItem: { _ in throw BackupInstallFixture.InjectedFailure() }
         )
 
-        try service.recoverInterruptedReplacement()
+        _ = try service.recoverInterruptedReplacement()
 
         #expect(try fixture.liveArchiveName() == "replacement")
         for artifact in [installation.rollbackRoot, cleanupRoot, exportRoot, stagedRoot] {

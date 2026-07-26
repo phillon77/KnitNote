@@ -1222,6 +1222,128 @@ import UniformTypeIdentifiers
     #expect(!FileManager.default.fileExists(atPath: fixture.rollbackRoot.path))
 }
 
+@MainActor @Test func launchRollsBackInstalledLegacyBackupWhenMigrationFails() throws {
+    let fixture = try StoreLaunchRecoveryFixture.validLiveOnly()
+    defer { fixture.cleanup() }
+    let originalArchiveURL = fixture.liveRoot.appendingPathComponent("projects-v1.json")
+    let originalArchive = ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [try StoredProject(name: "Current project")]
+    )
+    try JSONEncoder().encode(originalArchive).write(
+        to: originalArchiveURL,
+        options: .atomic
+    )
+    let originalArchiveData = try Data(contentsOf: originalArchiveURL)
+
+    var replacementProject = try StoredProject(name: "Replacement project")
+    let legacyPatternID = UUID()
+    let legacyPattern = PatternDocument(
+        id: legacyPatternID,
+        displayName: "Broken legacy pattern",
+        kind: .pdf,
+        storedFilename: "\(legacyPatternID.uuidString).pdf"
+    )
+    replacementProject.addPattern(legacyPattern)
+    let replacementArchive = ProjectArchive(
+        version: 9,
+        projects: [replacementProject]
+    )
+    try JSONEncoder().encode(replacementArchive).write(
+        to: originalArchiveURL,
+        options: .atomic
+    )
+    let brokenPatternURL = fixture.liveRoot
+        .appendingPathComponent("Patterns/\(replacementProject.id.uuidString)")
+        .appendingPathComponent(legacyPattern.storedFilename)
+    try FileManager.default.createDirectory(
+        at: brokenPatternURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try Data("not a PDF".utf8).write(to: brokenPatternURL)
+
+    let service = KnitNoteBackupService(
+        liveRoot: fixture.liveRoot,
+        workRoot: fixture.workRoot
+    )
+    let package = try service.createPackage(appVersion: "1.0")
+    let staged = try service.stagePackage(at: package)
+
+    try FileManager.default.removeItem(at: fixture.liveRoot)
+    try FileManager.default.createDirectory(
+        at: fixture.liveRoot,
+        withIntermediateDirectories: true
+    )
+    try originalArchiveData.write(to: originalArchiveURL, options: .atomic)
+    let installation = try service.install(staged)
+    // Simulate termination after staged -> live and before reload/migration.
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.map(\.name) == ["Current project"])
+    #expect(store.loadError == nil)
+    #expect(try Data(contentsOf: originalArchiveURL) == originalArchiveData)
+    #expect(!FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
+}
+
+@MainActor @Test func launchCommitsInstalledLegacyBackupAfterMigrationPersists() throws {
+    let fixture = try StoreLaunchRecoveryFixture.validLiveOnly()
+    defer { fixture.cleanup() }
+    let archiveURL = fixture.liveRoot.appendingPathComponent("projects-v1.json")
+
+    var replacementProject = try StoredProject(name: "Migrated replacement")
+    let patternID = UUID()
+    let legacyPattern = PatternDocument(
+        id: patternID,
+        displayName: "Valid legacy pattern",
+        kind: .pdf,
+        storedFilename: "\(patternID.uuidString).pdf"
+    )
+    replacementProject.addPattern(legacyPattern)
+    try JSONEncoder().encode(ProjectArchive(
+        version: 9,
+        projects: [replacementProject]
+    )).write(to: archiveURL, options: .atomic)
+    let patternURL = fixture.liveRoot
+        .appendingPathComponent("Patterns/\(replacementProject.id.uuidString)")
+        .appendingPathComponent(legacyPattern.storedFilename)
+    try FileManager.default.createDirectory(
+        at: patternURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try makeStorePatternPDF(at: patternURL)
+    let service = KnitNoteBackupService(
+        liveRoot: fixture.liveRoot,
+        workRoot: fixture.workRoot
+    )
+    let staged = try service.stagePackage(
+        at: service.createPackage(appVersion: "1.0")
+    )
+
+    try FileManager.default.removeItem(at: fixture.liveRoot)
+    try FileManager.default.createDirectory(
+        at: fixture.liveRoot,
+        withIntermediateDirectories: true
+    )
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [try StoredProject(name: "Original")]
+    )).write(to: archiveURL, options: .atomic)
+    let installation = try service.install(staged)
+
+    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
+
+    #expect(store.projects.map(\.name) == ["Migrated replacement"])
+    #expect(store.patternAssets.count == 1)
+    #expect(store.loadError == nil)
+    let persisted = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: archiveURL)
+    )
+    #expect(persisted.version == ProjectArchive.currentVersion)
+    #expect(!FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
+}
+
 @MainActor @Test func liveStoreRemovesAbandonedExportAndStagedArtifacts() throws {
     let fixture = try StoreLaunchRecoveryFixture.validLiveWithAbandonedArtifacts()
     defer { fixture.cleanup() }

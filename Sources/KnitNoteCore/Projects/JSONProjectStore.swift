@@ -591,7 +591,19 @@ final class PatternLibraryDeletionTransaction {
         )
         let backupService = KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
         do {
-            try backupService.recoverInterruptedReplacement()
+            let interruptedInstallation = try backupService.recoverInterruptedReplacement()
+            let store = JSONProjectStore(
+                url: archiveURL,
+                patternFileService: PatternFileService(root: locations.assetRoot),
+                patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
+                backupService: backupService
+            )
+            guard let interruptedInstallation else { return store }
+            if store.loadError == nil {
+                backupService.commit(interruptedInstallation)
+                return store
+            }
+            try backupService.rollback(interruptedInstallation)
             return JSONProjectStore(
                 url: archiveURL,
                 patternFileService: PatternFileService(root: locations.assetRoot),

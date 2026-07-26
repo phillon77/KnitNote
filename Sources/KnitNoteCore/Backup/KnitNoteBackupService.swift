@@ -30,11 +30,85 @@ public struct KnitNoteBackupInstallation: Sendable {
     public let liveRoot: URL
     public let rollbackRoot: URL
     let hadLiveRoot: Bool
+    let transactionID: UUID
 
-    init(liveRoot: URL, rollbackRoot: URL, hadLiveRoot: Bool) {
+    init(
+        liveRoot: URL,
+        rollbackRoot: URL,
+        hadLiveRoot: Bool,
+        transactionID: UUID
+    ) {
         self.liveRoot = liveRoot
         self.rollbackRoot = rollbackRoot
         self.hadLiveRoot = hadLiveRoot
+        self.transactionID = transactionID
+    }
+}
+
+private enum KnitNoteBackupReplacementPhase: String, Codable, Sendable {
+    case prepared
+    case installedAwaitingReload
+    case committed
+    case rolledBack
+}
+
+private struct KnitNoteBackupReplacementJournal: Codable, Sendable {
+    private struct Payload: Codable {
+        let version: Int
+        let transactionID: UUID
+        let rollbackName: String
+        let hadLiveRoot: Bool
+        let phase: KnitNoteBackupReplacementPhase
+    }
+
+    let version: Int
+    let transactionID: UUID
+    let rollbackName: String
+    let hadLiveRoot: Bool
+    let phase: KnitNoteBackupReplacementPhase
+    let integrity: String
+
+    init(
+        transactionID: UUID,
+        hadLiveRoot: Bool,
+        phase: KnitNoteBackupReplacementPhase
+    ) throws {
+        let payload = Payload(
+            version: 1,
+            transactionID: transactionID,
+            rollbackName: "Rollback-\(transactionID.uuidString)",
+            hadLiveRoot: hadLiveRoot,
+            phase: phase
+        )
+        version = payload.version
+        self.transactionID = transactionID
+        rollbackName = payload.rollbackName
+        self.hadLiveRoot = hadLiveRoot
+        self.phase = phase
+        integrity = try Self.integrity(for: payload)
+    }
+
+    var isValid: Bool {
+        guard version == 1,
+              rollbackName == "Rollback-\(transactionID.uuidString)" else {
+            return false
+        }
+        let payload = Payload(
+            version: version,
+            transactionID: transactionID,
+            rollbackName: rollbackName,
+            hadLiveRoot: hadLiveRoot,
+            phase: phase
+        )
+        return (try? Self.integrity(for: payload)) == integrity
+    }
+
+    private static func integrity(for payload: Payload) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return SHA256.hash(data: try encoder.encode(payload))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }
 
@@ -183,12 +257,16 @@ public struct KnitNoteBackupService: Sendable {
 
     public func createPackage(appVersion: String, now: Date = .now) throws -> URL {
         try validateLiveSource(relativePath: "projects-v1.json", expectsDirectory: false)
-        let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
         let archiveData: Data
         let archive: ProjectArchive
         do {
-            archiveData = try Data(contentsOf: archiveURL)
+            archiveData = try readLiveRegularFileBounded(
+                relativePath: "projects-v1.json",
+                limit: KnitNoteBackupLimits.maximumArchiveBytes
+            )
             archive = try JSONDecoder().decode(ProjectArchive.self, from: archiveData)
+        } catch let error as KnitNoteBackupError {
+            throw error
         } catch {
             throw KnitNoteBackupError.invalidArchive
         }
@@ -197,28 +275,48 @@ public struct KnitNoteBackupService: Sendable {
         for relativePath in mediaPaths {
             try validateLiveSource(relativePath: relativePath, expectsDirectory: false)
         }
+        let referencedPaths = try referencedRelativePaths(in: archive, sourceRoot: liveRoot)
+            .sorted()
+        try preflightLiveExport(
+            relativePaths: referencedPaths,
+            archiveBytes: Int64(archiveData.count)
+        )
 
         let packageRoot = workRoot
             .appendingPathComponent("\(UUID().uuidString).knitnote-backup", isDirectory: true)
         let dataRoot = packageRoot.appendingPathComponent("Data", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: dataRoot, withIntermediateDirectories: true)
-            try archiveData.write(
-                to: dataRoot.appendingPathComponent("projects-v1.json"),
-                options: .atomic
-            )
-            for relativePath in try referencedRelativePaths(in: archive, sourceRoot: liveRoot) {
-                try validateLiveSource(relativePath: relativePath, expectsDirectory: false)
-                let source = liveRoot.appendingPathComponent(relativePath)
+            let archiveDestination = dataRoot.appendingPathComponent("projects-v1.json")
+            try archiveData.write(to: archiveDestination, options: .atomic)
+            try normalizeOwnedFile(archiveDestination)
+            var totalBytes = Int64(archiveData.count)
+            var manifestFiles = [
+                KnitNoteBackupManifestFile(
+                    relativePath: "projects-v1.json",
+                    byteCount: totalBytes,
+                    sha256: SHA256.hash(data: archiveData)
+                        .map { String(format: "%02x", $0) }
+                        .joined()
+                ),
+            ]
+            for relativePath in referencedPaths {
                 let destination = dataRoot.appendingPathComponent(relativePath)
                 try FileManager.default.createDirectory(
                     at: destination.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try FileManager.default.copyItem(at: source, to: destination)
+                manifestFiles.append(
+                    try copyLiveRegularFileBounded(
+                        relativePath: relativePath,
+                        to: destination,
+                        totalBytes: &totalBytes
+                    )
+                )
             }
-
-            let manifestFiles = try manifestFiles(in: dataRoot)
+            manifestFiles.sort {
+                $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending
+            }
             let manifest = KnitNoteBackupManifest(
                 createdAt: now,
                 appVersion: appVersion,
@@ -336,8 +434,9 @@ public struct KnitNoteBackupService: Sendable {
         }
 
         let fileManager = FileManager.default
+        let transactionID = UUID()
         let rollbackRoot = workRoot.appendingPathComponent(
-            "Rollback-\(UUID().uuidString)",
+            "Rollback-\(transactionID.uuidString)",
             isDirectory: true
         )
         let stagedData = staged.root.appendingPathComponent("Data", isDirectory: true)
@@ -352,6 +451,11 @@ public struct KnitNoteBackupService: Sendable {
 
         do {
             try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+            try persistReplacementJournal(
+                transactionID: transactionID,
+                hadLiveRoot: hadLiveRoot,
+                phase: .prepared
+            )
             try replacementStepHook(.beforeLiveMove)
             if hadLiveRoot {
                 try fileManager.moveItem(at: liveRoot, to: rollbackRoot)
@@ -361,11 +465,17 @@ public struct KnitNoteBackupService: Sendable {
             try fileManager.moveItem(at: stagedData, to: liveRoot)
             movedStaged = true
             try replacementStepHook(.afterStagedMove)
+            try persistReplacementJournal(
+                transactionID: transactionID,
+                hadLiveRoot: hadLiveRoot,
+                phase: .installedAwaitingReload
+            )
             try? fileManager.removeItem(at: staged.root)
             return KnitNoteBackupInstallation(
                 liveRoot: liveRoot,
                 rollbackRoot: rollbackRoot,
-                hadLiveRoot: hadLiveRoot
+                hadLiveRoot: hadLiveRoot,
+                transactionID: transactionID
             )
         } catch {
             do {
@@ -376,6 +486,7 @@ public struct KnitNoteBackupService: Sendable {
                     try replacementStepHook(.beforeRollback)
                     try fileManager.moveItem(at: rollbackRoot, to: liveRoot)
                 }
+                try? removeReplacementJournal()
             } catch {
                 throw KnitNoteBackupError.rollbackFailed
             }
@@ -385,18 +496,24 @@ public struct KnitNoteBackupService: Sendable {
 
     public func commit(_ installation: KnitNoteBackupInstallation) {
         do {
+            try persistReplacementJournal(
+                transactionID: installation.transactionID,
+                hadLiveRoot: installation.hadLiveRoot,
+                phase: .committed
+            )
             try replacementStepHook(.beforeCommitCleanup)
             if FileManager.default.fileExists(atPath: installation.rollbackRoot.path) {
                 let cleanupRoot = workRoot.appendingPathComponent(
-                    "Cleanup-\(UUID().uuidString)",
+                    "Cleanup-\(installation.transactionID.uuidString)",
                     isDirectory: true
                 )
                 try FileManager.default.moveItem(
                     at: installation.rollbackRoot,
                     to: cleanupRoot
                 )
-                try? cleanupItem(cleanupRoot)
+                try cleanupItem(cleanupRoot)
             }
+            try removeReplacementJournal()
         } catch {
             // The installed tree has already reloaded successfully. Leave the
             // rollback artifact for launch housekeeping rather than risking it.
@@ -420,22 +537,71 @@ public struct KnitNoteBackupService: Sendable {
                     to: installation.liveRoot
                 )
             }
+            try persistReplacementJournal(
+                transactionID: installation.transactionID,
+                hadLiveRoot: installation.hadLiveRoot,
+                phase: .rolledBack
+            )
+            try removeReplacementJournal()
         } catch {
             throw KnitNoteBackupError.rollbackFailed
         }
     }
 
-    public func recoverInterruptedReplacement() throws {
+    public func recoverInterruptedReplacement() throws -> KnitNoteBackupInstallation? {
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: workRoot.path) {
             try validateWorkRootAncestry()
+        }
+
+        if let journal = try loadReplacementJournal() {
+            let rollbackRoot = workRoot.appendingPathComponent(
+                journal.rollbackName,
+                isDirectory: true
+            )
+            let liveExists = fileManager.fileExists(atPath: liveRoot.path)
+            let rollbackExists = fileManager.fileExists(atPath: rollbackRoot.path)
+            switch journal.phase {
+            case .committed:
+                try finishCommittedReplacement(
+                    journal: journal,
+                    rollbackRoot: rollbackRoot
+                )
+            case .rolledBack:
+                try removeReplacementJournal()
+            case .prepared:
+                if journal.hadLiveRoot, rollbackExists, !liveExists {
+                    try fileManager.moveItem(at: rollbackRoot, to: liveRoot)
+                    try removeReplacementJournal()
+                } else if journal.hadLiveRoot, rollbackExists, liveExists {
+                    return replacementInstallation(journal, rollbackRoot: rollbackRoot)
+                } else if journal.hadLiveRoot, !rollbackExists, liveExists {
+                    try removeReplacementJournal()
+                } else if !journal.hadLiveRoot, liveExists {
+                    return replacementInstallation(journal, rollbackRoot: rollbackRoot)
+                } else if !journal.hadLiveRoot, !liveExists {
+                    try removeReplacementJournal()
+                } else {
+                    throw KnitNoteBackupError.rollbackFailed
+                }
+            case .installedAwaitingReload:
+                if liveExists, (!journal.hadLiveRoot || rollbackExists) {
+                    return replacementInstallation(journal, rollbackRoot: rollbackRoot)
+                }
+                if journal.hadLiveRoot, rollbackExists, !liveExists {
+                    try fileManager.moveItem(at: rollbackRoot, to: liveRoot)
+                    try removeReplacementJournal()
+                } else {
+                    throw KnitNoteBackupError.rollbackFailed
+                }
+            }
         }
 
         if fileManager.fileExists(atPath: liveRoot.path) {
             do {
                 try validateLiveRoot(liveRoot)
                 cleanupGeneratedArtifactsAfterValidChoice()
-                return
+                return nil
             } catch {
                 throw KnitNoteBackupError.rollbackFailed
             }
@@ -447,7 +613,7 @@ public struct KnitNoteBackupService: Sendable {
         }
         guard !rollbackRoots.isEmpty else {
             cleanupGeneratedArtifactsAfterValidChoice()
-            return
+            return nil
         }
         guard validRollbackRoots.count == 1 else {
             throw KnitNoteBackupError.rollbackFailed
@@ -455,9 +621,83 @@ public struct KnitNoteBackupService: Sendable {
         do {
             try fileManager.moveItem(at: validRollbackRoots[0], to: liveRoot)
             cleanupGeneratedArtifactsAfterValidChoice()
+            return nil
         } catch {
             throw KnitNoteBackupError.rollbackFailed
         }
+    }
+
+    private var replacementJournalURL: URL {
+        workRoot.appendingPathComponent(".ReplacementJournal.json")
+    }
+
+    private func persistReplacementJournal(
+        transactionID: UUID,
+        hadLiveRoot: Bool,
+        phase: KnitNoteBackupReplacementPhase
+    ) throws {
+        try ensureOwnedWorkRoot()
+        let journal = try KnitNoteBackupReplacementJournal(
+            transactionID: transactionID,
+            hadLiveRoot: hadLiveRoot,
+            phase: phase
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(journal).write(to: replacementJournalURL, options: .atomic)
+    }
+
+    private func loadReplacementJournal() throws -> KnitNoteBackupReplacementJournal? {
+        guard FileManager.default.fileExists(atPath: replacementJournalURL.path) else {
+            return nil
+        }
+        let values = try entryValues(replacementJournalURL)
+        guard values.isRegularFile == true, values.isSymbolicLink != true else {
+            throw KnitNoteBackupError.rollbackFailed
+        }
+        guard let journal = try? JSONDecoder().decode(
+            KnitNoteBackupReplacementJournal.self,
+            from: Data(contentsOf: replacementJournalURL)
+        ), journal.isValid else {
+            throw KnitNoteBackupError.rollbackFailed
+        }
+        return journal
+    }
+
+    private func removeReplacementJournal() throws {
+        guard FileManager.default.fileExists(atPath: replacementJournalURL.path) else {
+            return
+        }
+        try FileManager.default.removeItem(at: replacementJournalURL)
+    }
+
+    private func replacementInstallation(
+        _ journal: KnitNoteBackupReplacementJournal,
+        rollbackRoot: URL
+    ) -> KnitNoteBackupInstallation {
+        KnitNoteBackupInstallation(
+            liveRoot: liveRoot,
+            rollbackRoot: rollbackRoot,
+            hadLiveRoot: journal.hadLiveRoot,
+            transactionID: journal.transactionID
+        )
+    }
+
+    private func finishCommittedReplacement(
+        journal: KnitNoteBackupReplacementJournal,
+        rollbackRoot: URL
+    ) throws {
+        let cleanupRoot = workRoot.appendingPathComponent(
+            "Cleanup-\(journal.transactionID.uuidString)",
+            isDirectory: true
+        )
+        if FileManager.default.fileExists(atPath: rollbackRoot.path) {
+            try FileManager.default.moveItem(at: rollbackRoot, to: cleanupRoot)
+        }
+        if FileManager.default.fileExists(atPath: cleanupRoot.path) {
+            try cleanupItem(cleanupRoot)
+        }
+        try removeReplacementJournal()
     }
 
     private func validateStagedBackup(_ staged: StagedKnitNoteBackup) throws {
@@ -507,6 +747,238 @@ public struct KnitNoteBackupService: Sendable {
         try validateDataTree(dataRoot, archive: archive)
         try validateManifestFiles(manifest, in: dataRoot)
         try verifyStagedTreeIsWritable(dataRoot)
+    }
+
+    private func readLiveRegularFileBounded(
+        relativePath: String,
+        limit: Int64
+    ) throws -> Data {
+        try withLiveRegularFile(relativePath: relativePath) { descriptor, initialInfo, source in
+            guard initialInfo.st_size >= 0 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            guard initialInfo.st_size <= limit else {
+                throw KnitNoteBackupError.fileTooLarge
+            }
+            var result = Data()
+            result.reserveCapacity(Int(initialInfo.st_size))
+            var copiedBytes: Int64 = 0
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while true {
+                let remaining = limit - copiedBytes
+                let requested = min(buffer.count, Int(remaining + 1))
+                let readCount = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, requested)
+                }
+                guard readCount >= 0 else { throw KnitNoteBackupError.unsafePackageEntry }
+                guard readCount > 0 else { break }
+                guard Int64(readCount) <= remaining else {
+                    throw KnitNoteBackupError.fileTooLarge
+                }
+                result.append(contentsOf: buffer.prefix(readCount))
+                copiedBytes += Int64(readCount)
+                try copyChunkHook(source, copiedBytes)
+            }
+            try validateUnchangedSource(
+                descriptor: descriptor,
+                initialInfo: initialInfo,
+                copiedBytes: copiedBytes
+            )
+            return result
+        }
+    }
+
+    private func preflightLiveExport(
+        relativePaths: [String],
+        archiveBytes: Int64
+    ) throws {
+        guard archiveBytes <= KnitNoteBackupLimits.maximumPackageBytes else {
+            throw KnitNoteBackupError.packageTooLarge
+        }
+        var totalBytes = archiveBytes
+        for relativePath in relativePaths {
+            try withLiveRegularFile(relativePath: relativePath) {
+                _,
+                info,
+                _ in
+                guard info.st_size >= 0 else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+                guard info.st_size <= copyFileLimit(for: relativePath) else {
+                    throw KnitNoteBackupError.fileTooLarge
+                }
+                guard info.st_size <= KnitNoteBackupLimits.maximumPackageBytes - totalBytes else {
+                    throw KnitNoteBackupError.packageTooLarge
+                }
+                totalBytes += info.st_size
+            }
+        }
+    }
+
+    private func copyLiveRegularFileBounded(
+        relativePath: String,
+        to destination: URL,
+        totalBytes: inout Int64
+    ) throws -> KnitNoteBackupManifestFile {
+        try withLiveRegularFile(relativePath: relativePath) {
+            descriptor,
+            initialInfo,
+            source in
+            let fileLimit = copyFileLimit(for: relativePath)
+            guard initialInfo.st_size >= 0 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            guard initialInfo.st_size <= fileLimit else {
+                throw KnitNoteBackupError.fileTooLarge
+            }
+            guard initialInfo.st_size <= KnitNoteBackupLimits.maximumPackageBytes - totalBytes else {
+                throw KnitNoteBackupError.packageTooLarge
+            }
+
+            let temporary = destination.deletingLastPathComponent().appendingPathComponent(
+                ".\(destination.lastPathComponent).\(UUID().uuidString).tmp"
+            )
+            let destinationDescriptor = temporary.path.withCString {
+                Darwin.open($0, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode_t(0o600))
+            }
+            guard destinationDescriptor >= 0 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            var installed = false
+            defer {
+                Darwin.close(destinationDescriptor)
+                if !installed { try? FileManager.default.removeItem(at: temporary) }
+            }
+
+            var copiedBytes: Int64 = 0
+            var hasher = SHA256()
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while true {
+                let fileRemaining = fileLimit - copiedBytes
+                let packageRemaining = KnitNoteBackupLimits.maximumPackageBytes - totalBytes
+                let allowed = max(0, min(fileRemaining, packageRemaining))
+                let requested = min(buffer.count, Int(allowed + 1))
+                let readCount = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, requested)
+                }
+                guard readCount >= 0 else { throw KnitNoteBackupError.unsafePackageEntry }
+                guard readCount > 0 else { break }
+                let chunkBytes = Int64(readCount)
+                guard chunkBytes <= fileRemaining else {
+                    throw KnitNoteBackupError.fileTooLarge
+                }
+                guard chunkBytes <= packageRemaining else {
+                    throw KnitNoteBackupError.packageTooLarge
+                }
+                var written = 0
+                try buffer.withUnsafeBytes { bytes in
+                    while written < readCount {
+                        let count = Darwin.write(
+                            destinationDescriptor,
+                            bytes.baseAddress?.advanced(by: written),
+                            readCount - written
+                        )
+                        guard count > 0 else {
+                            throw KnitNoteBackupError.unsafePackageEntry
+                        }
+                        written += count
+                    }
+                    hasher.update(data: Data(bytes: bytes.baseAddress!, count: readCount))
+                }
+                copiedBytes += chunkBytes
+                totalBytes += chunkBytes
+                try copyChunkHook(source, copiedBytes)
+            }
+            try validateUnchangedSource(
+                descriptor: descriptor,
+                initialInfo: initialInfo,
+                copiedBytes: copiedBytes
+            )
+            guard Darwin.fsync(destinationDescriptor) == 0 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            try FileManager.default.moveItem(at: temporary, to: destination)
+            installed = true
+            try normalizeOwnedFile(destination)
+            return KnitNoteBackupManifestFile(
+                relativePath: relativePath,
+                byteCount: copiedBytes,
+                sha256: hasher.finalize().map { String(format: "%02x", $0) }.joined()
+            )
+        }
+    }
+
+    private func withLiveRegularFile<T>(
+        relativePath: String,
+        body: (Int32, stat, URL) throws -> T
+    ) throws -> T {
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy(isSafeFileComponent) else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let rootDescriptor = liveRoot.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard rootDescriptor >= 0 else { throw KnitNoteBackupError.unsafePackageEntry }
+        defer { Darwin.close(rootDescriptor) }
+
+        var parentDescriptor = rootDescriptor
+        var ownedDescriptors: [Int32] = []
+        defer { ownedDescriptors.reversed().forEach { Darwin.close($0) } }
+        for component in components.dropLast() {
+            var info = stat()
+            let status = component.withCString {
+                Darwin.fstatat(parentDescriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+            }
+            guard status == 0 else { throw KnitNoteBackupError.unsafePackageEntry }
+            let child = try openChildDirectory(
+                named: component,
+                relativeTo: parentDescriptor,
+                expectedInfo: info
+            )
+            ownedDescriptors.append(child)
+            parentDescriptor = child
+        }
+
+        let filename = components[components.count - 1]
+        var initialInfo = stat()
+        let status = filename.withCString {
+            Darwin.fstatat(parentDescriptor, $0, &initialInfo, AT_SYMLINK_NOFOLLOW)
+        }
+        guard status == 0 else { throw KnitNoteBackupError.unsafePackageEntry }
+        try beforeSourceEntryOpen(relativePath)
+        let descriptor = try openChildRegularFile(
+            named: filename,
+            relativeTo: parentDescriptor,
+            expectedInfo: initialInfo
+        )
+        defer { Darwin.close(descriptor) }
+        return try body(
+            descriptor,
+            initialInfo,
+            liveRoot.appendingPathComponent(relativePath)
+        )
+    }
+
+    private func validateUnchangedSource(
+        descriptor: Int32,
+        initialInfo: stat,
+        copiedBytes: Int64
+    ) throws {
+        var finalInfo = stat()
+        guard Darwin.fstat(descriptor, &finalInfo) == 0,
+              finalInfo.st_dev == initialInfo.st_dev,
+              finalInfo.st_ino == initialInfo.st_ino,
+              finalInfo.st_size == initialInfo.st_size,
+              copiedBytes == initialInfo.st_size,
+              finalInfo.st_mtimespec.tv_sec == initialInfo.st_mtimespec.tv_sec,
+              finalInfo.st_mtimespec.tv_nsec == initialInfo.st_mtimespec.tv_nsec,
+              finalInfo.st_ctimespec.tv_sec == initialInfo.st_ctimespec.tv_sec,
+              finalInfo.st_ctimespec.tv_nsec == initialInfo.st_ctimespec.tv_nsec else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
     }
 
     private func copyDataContentsBounded(

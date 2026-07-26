@@ -3,7 +3,7 @@ import Testing
 import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
-@Suite struct ShareExtensionFlowContractTests {
+@Suite(.serialized) struct ShareExtensionFlowContractTests {
     @Test func providerSessionForwardsTemporaryURLSuggestedNameAndSelectedType() throws {
         let provider = FakeShareFileProvider(
             suggestedName: "Friendly Chart",
@@ -103,7 +103,7 @@ import UniformTypeIdentifiers
             typeIdentifier: UTType.pdf.identifier,
             process: { _, token in
                 processingStarted.signal()
-                _ = allowProcessingToReturn.wait(timeout: .now() + 2)
+                _ = allowProcessingToReturn.wait(timeout: .now() + 10)
                 try token.checkCancellation()
             },
             publish: { published.append($0) }
@@ -114,11 +114,11 @@ import UniformTypeIdentifiers
             provider.complete(with: URL(fileURLWithPath: "/tmp/processing"))
             callbackFinished.signal()
         }
-        #expect(processingStarted.wait(timeout: .now() + 2) == .success)
+        #expect(processingStarted.wait(timeout: .now() + 10) == .success)
         #expect(session.cancel() == .cancelRequest)
         allowProcessingToReturn.signal()
 
-        #expect(callbackFinished.wait(timeout: .now() + 2) == .success)
+        #expect(callbackFinished.wait(timeout: .now() + 10) == .success)
         #expect(published.values.isEmpty)
         #expect(session.cancel() == .none)
     }

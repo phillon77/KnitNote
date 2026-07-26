@@ -709,9 +709,13 @@ enum ProjectJournalPhotoReferencePolicy {
             patternUsages: [PatternProjectUsage]
         )
         do {
+            let migrator = PatternLibraryMigrator()
+            try migrator.recoverInterruptedMigration(archiveURL: url)
             let initialArchive = try archiveFromDisk()
             if initialArchive.version < ProjectArchive.currentVersion {
-                try PatternLibraryMigrator().migrateOnDisk(archiveURL: url)
+                try migrator.migrateOnDisk(archiveURL: url)
+            } else {
+                try migrator.validateCurrentArchive(at: url)
             }
             decoded = try decode(archive: archiveFromDisk())
         } catch {

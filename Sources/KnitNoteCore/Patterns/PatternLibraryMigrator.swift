@@ -68,6 +68,10 @@ public struct PatternLibraryMigrator: Sendable {
         )
         do {
             try FileManager.default.createDirectory(at: stagedRoot, withIntermediateDirectories: true)
+            try JSONEncoder().encode(MigrationTransaction()).write(
+                to: stagedRoot.appendingPathComponent("transaction.json"),
+                options: .atomic
+            )
             let stagedPatternsRoot = stagedRoot.appendingPathComponent("Patterns", isDirectory: true)
             let livePatternsRoot = liveRoot.appendingPathComponent("Patterns", isDirectory: true)
             if FileManager.default.fileExists(atPath: livePatternsRoot.path) {
@@ -93,6 +97,7 @@ public struct PatternLibraryMigrator: Sendable {
     }
 
     public func migrateOnDisk(archiveURL: URL) throws {
+        try recoverInterruptedMigration(archiveURL: archiveURL)
         let liveRoot = archiveURL.deletingLastPathComponent()
         let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
         let migrated = try migrate(archive: archive, liveRoot: liveRoot)
@@ -151,6 +156,54 @@ public struct PatternLibraryMigrator: Sendable {
         }
     }
 
+    func recoverInterruptedMigration(archiveURL: URL) throws {
+        let liveRoot = archiveURL.deletingLastPathComponent()
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: liveRoot.path) else { return }
+        let transactions = try fileManager.contentsOfDirectory(
+            at: liveRoot,
+            includingPropertiesForKeys: nil
+        ).filter {
+            $0.lastPathComponent.hasPrefix(".KnitNote-PatternMigration-")
+                && fileManager.fileExists(atPath: $0.appendingPathComponent("transaction.json").path)
+        }
+
+        for transactionRoot in transactions {
+            let rollbackRoot = transactionRoot.appendingPathComponent("Rollback", isDirectory: true)
+            let rollbackArchiveURL = rollbackRoot.appendingPathComponent("archive.json")
+            let rollbackPatternsRoot = rollbackRoot.appendingPathComponent("Patterns", isDirectory: true)
+            guard fileManager.fileExists(atPath: rollbackArchiveURL.path) else {
+                continue
+            }
+
+            if (try? validateCurrentArchive(at: archiveURL, liveRoot: liveRoot)) != nil {
+                try? fileManager.removeItem(at: transactionRoot)
+                continue
+            }
+
+            do {
+                if fileManager.fileExists(atPath: archiveURL.path) {
+                    try fileManager.removeItem(at: archiveURL)
+                }
+                try fileManager.moveItem(at: rollbackArchiveURL, to: archiveURL)
+                if fileManager.fileExists(atPath: rollbackPatternsRoot.path) {
+                    let livePatternsRoot = liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+                    if fileManager.fileExists(atPath: livePatternsRoot.path) {
+                        try fileManager.removeItem(at: livePatternsRoot)
+                    }
+                    try fileManager.moveItem(at: rollbackPatternsRoot, to: livePatternsRoot)
+                }
+                try? fileManager.removeItem(at: transactionRoot)
+            } catch {
+                throw PatternLibraryMigrationError.rollbackFailed
+            }
+        }
+    }
+
+    func validateCurrentArchive(at archiveURL: URL) throws {
+        try validateCurrentArchive(at: archiveURL, liveRoot: archiveURL.deletingLastPathComponent())
+    }
+
     private func makeArchive(
         from archive: ProjectArchive,
         documents: [ValidatedLegacyDocument],
@@ -165,6 +218,10 @@ public struct PatternLibraryMigrator: Sendable {
             assetIDsByHash[asset.sha256] = asset.id
         }
         var patternIDsByKey: [PatternKey: UUID] = [:]
+        var usagePairs = Set(usages.map { PatternProjectUsagePair(
+            patternID: $0.patternID,
+            projectID: $0.projectID
+        ) })
         let markupSource = PatternMarkupFileService(
             root: liveRoot.appendingPathComponent("Patterns", isDirectory: true)
         )
@@ -202,7 +259,8 @@ public struct PatternLibraryMigrator: Sendable {
 
             let patternKey = PatternKey(sha256: document.sha256, normalizedName: document.normalizedName)
             let patternID: UUID
-            if let existingPatternID = patternIDsByKey[patternKey] {
+            if let existingPatternID = patternIDsByKey[patternKey],
+               !usagePairs.contains(.init(patternID: existingPatternID, projectID: document.project.id)) {
                 patternID = existingPatternID
             } else {
                 patternID = document.document.id
@@ -228,6 +286,7 @@ public struct PatternLibraryMigrator: Sendable {
                     readingState: document.document.readingState
                 )
             )
+            usagePairs.insert(.init(patternID: patternID, projectID: document.project.id))
             try markupDestination.copyLegacyMarkup(
                 from: markupSource,
                 projectID: document.project.id,
@@ -276,6 +335,10 @@ public struct PatternLibraryMigrator: Sendable {
     }
 
     private func validateInstalledArchive(at archiveURL: URL, liveRoot: URL) throws {
+        try validateCurrentArchive(at: archiveURL, liveRoot: liveRoot)
+    }
+
+    private func validateCurrentArchive(at archiveURL: URL, liveRoot: URL) throws {
         let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
         guard archive.version == ProjectArchive.currentVersion else {
             throw PatternLibraryMigrationError.invalidLegacyFile
@@ -314,6 +377,13 @@ public struct PatternLibraryMigrator: Sendable {
         }
         return identifier
     }
+}
+
+private struct MigrationTransaction: Codable {}
+
+private struct PatternProjectUsagePair: Hashable {
+    let patternID: UUID
+    let projectID: UUID
 }
 
 private struct LegacyDocument: Sendable {

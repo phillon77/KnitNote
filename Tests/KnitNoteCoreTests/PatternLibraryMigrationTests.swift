@@ -55,6 +55,22 @@ import Testing
     #expect(result.usages.map(\.id) == fixture.legacyPatternIDs)
 }
 
+@MainActor @Test func sameProjectDuplicateLegacyDocumentsUseSeparatePatternsAndUsages() throws {
+    let fixture = try LegacyPatternFixture.oneProject(
+        names: ["Ida Tee", "ida tee"],
+        identicalBytes: true
+    )
+
+    let store = JSONProjectStore(url: fixture.archiveURL)
+
+    #expect(store.loadError == nil)
+    #expect(store.patternAssets.count == 1)
+    #expect(store.patterns.count == 2)
+    #expect(store.patternUsages.map(\.id) == fixture.legacyPatternIDs)
+    #expect(Set(store.patternUsages.map(\.patternID)).count == 2)
+    #expect(store.patternUsages.map(\.readingState) == fixture.legacyReadingStates)
+}
+
 @Test func migrationPreservesUsageReadingStateAndMovesMarkup() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let result = try PatternLibraryMigrator().migrate(
@@ -76,6 +92,22 @@ import Testing
     #expect(result.archive.projects.allSatisfy { $0.patterns.isEmpty })
 }
 
+@Test func migrationPreservesCompleteReadingStateAndMarkupBytes() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let result = try PatternLibraryMigrator().migrate(
+        archive: fixture.archive,
+        liveRoot: fixture.liveRoot
+    )
+
+    #expect(result.usages.map(\.readingState) == fixture.legacyReadingStates)
+    #expect(result.patterns.map(\.createdAt) == fixture.legacyCreatedAt)
+    #expect(result.patterns.map(\.lastOpenedAt) == fixture.legacyLastOpenedAt)
+    let markupURL = result.stagedRoot.appendingPathComponent(
+        "Patterns/UsageMarkup/\(fixture.legacyPatternIDs[0].uuidString)/0.json"
+    )
+    #expect(try Data(contentsOf: markupURL) == fixture.legacyMarkupData)
+}
+
 @Test func failedMigrationLeavesLegacyArchiveAndFilesUntouched() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let originalArchive = try Data(contentsOf: fixture.archiveURL)
@@ -91,6 +123,86 @@ import Testing
     #expect(try Data(contentsOf: fixture.archiveURL) == originalArchive)
     #expect(FileManager.default.fileExists(atPath: fixture.legacyPatternURL.path))
     #expect(FileManager.default.fileExists(atPath: fixture.legacyMarkupURL.path))
+}
+
+@Test func failedAfterInstallRestoresArchiveAndPatternTreeByteForByte() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let originalArchive = try Data(contentsOf: fixture.archiveURL)
+    let originalPattern = try Data(contentsOf: fixture.legacyPatternURL)
+    let originalMarkup = try Data(contentsOf: fixture.legacyMarkupURL)
+    enum PatternMigrationTestError: Error { case injected }
+    let migrator = PatternLibraryMigrator(stepHook: { step in
+        if step == .afterInstall { throw PatternMigrationTestError.injected }
+    })
+
+    #expect(throws: PatternMigrationTestError.injected) {
+        try migrator.migrateOnDisk(archiveURL: fixture.archiveURL)
+    }
+
+    #expect(try Data(contentsOf: fixture.archiveURL) == originalArchive)
+    #expect(try Data(contentsOf: fixture.legacyPatternURL) == originalPattern)
+    #expect(try Data(contentsOf: fixture.legacyMarkupURL) == originalMarkup)
+}
+
+@Test func interruptedArchiveInstallRecoversOriginalArchiveAndPatternTree() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let originalArchive = try Data(contentsOf: fixture.archiveURL)
+    let originalPattern = try Data(contentsOf: fixture.legacyPatternURL)
+    let result = try PatternLibraryMigrator().migrate(
+        archive: fixture.archive,
+        liveRoot: fixture.liveRoot
+    )
+    let rollback = result.stagedRoot.appendingPathComponent("Rollback", isDirectory: true)
+    let originalPatterns = fixture.liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+    try FileManager.default.moveItem(
+        at: fixture.archiveURL,
+        to: rollback.appendingPathComponent("archive.json")
+    )
+    try FileManager.default.moveItem(
+        at: originalPatterns,
+        to: rollback.appendingPathComponent("Patterns", isDirectory: true)
+    )
+    try FileManager.default.moveItem(
+        at: result.stagedRoot.appendingPathComponent("archive.json"),
+        to: fixture.archiveURL
+    )
+
+    try PatternLibraryMigrator().recoverInterruptedMigration(archiveURL: fixture.archiveURL)
+
+    #expect(try Data(contentsOf: fixture.archiveURL) == originalArchive)
+    #expect(try Data(contentsOf: fixture.legacyPatternURL) == originalPattern)
+}
+
+@MainActor @Test func storeRecoversInterruptedArchiveInstallBeforePublishingData() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let result = try PatternLibraryMigrator().migrate(
+        archive: fixture.archive,
+        liveRoot: fixture.liveRoot
+    )
+    let rollback = result.stagedRoot.appendingPathComponent("Rollback", isDirectory: true)
+    let originalPatterns = fixture.liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+    try FileManager.default.moveItem(
+        at: fixture.archiveURL,
+        to: rollback.appendingPathComponent("archive.json")
+    )
+    try FileManager.default.moveItem(
+        at: originalPatterns,
+        to: rollback.appendingPathComponent("Patterns", isDirectory: true)
+    )
+    try FileManager.default.moveItem(
+        at: result.stagedRoot.appendingPathComponent("archive.json"),
+        to: fixture.archiveURL
+    )
+
+    let store = JSONProjectStore(url: fixture.archiveURL)
+
+    #expect(store.loadError == nil)
+    #expect(store.patternAssets.count == 1)
+    #expect(store.patternUsages.map(\.id) == fixture.legacyPatternIDs)
 }
 
 @MainActor @Test func storeUpgradesLegacyArchiveAndPublishesMigratedLibrary() throws {
@@ -110,19 +222,74 @@ import Testing
     #expect(installed.projects.allSatisfy { $0.patterns.isEmpty })
 }
 
+@MainActor @Test func storeMigrationIsIdempotentAcrossTwoReopens() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let first = JSONProjectStore(url: fixture.archiveURL)
+    let onceMigrated = try Data(contentsOf: fixture.archiveURL)
+
+    let second = JSONProjectStore(url: fixture.archiveURL)
+    let third = JSONProjectStore(url: fixture.archiveURL)
+
+    #expect(first.patternAssets == second.patternAssets)
+    #expect(second.patterns == third.patterns)
+    #expect(second.patternUsages == third.patternUsages)
+    #expect(try Data(contentsOf: fixture.archiveURL) == onceMigrated)
+}
+
+@MainActor @Test func storeRejectsCurrentArchiveWhenReferencedAssetIsMissing() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let migrated = JSONProjectStore(url: fixture.archiveURL)
+    let asset = try #require(migrated.patternAssets.first)
+    let assetURL = fixture.liveRoot
+        .appendingPathComponent("Patterns/Assets")
+        .appendingPathComponent(asset.storedFilename)
+    try FileManager.default.removeItem(at: assetURL)
+
+    let reloaded = JSONProjectStore(url: fixture.archiveURL)
+
+    #expect(reloaded.loadError == .unreadableArchive)
+    #expect(reloaded.projects.isEmpty)
+    #expect(reloaded.patternAssets.isEmpty)
+}
+
+@MainActor @Test(arguments: Array(1...9))
+func everySupportedLegacySchemaMigratesThroughTheStore(version: Int) throws {
+    let fixture = try LegacyPatternFixture.onePattern(version: version)
+
+    let store = JSONProjectStore(url: fixture.archiveURL)
+    let installed = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: fixture.archiveURL)
+    )
+
+    #expect(store.loadError == nil)
+    #expect(installed.version == ProjectArchive.currentVersion)
+    #expect(store.patternUsages.map(\.id) == fixture.legacyPatternIDs)
+}
+
 private struct LegacyPatternFixture {
     let liveRoot: URL
     let archiveURL: URL
     let archive: ProjectArchive
     let legacyPatternIDs: [UUID]
+    let legacyReadingStates: [PatternReadingState]
+    let legacyCreatedAt: [Date]
+    let legacyLastOpenedAt: [Date?]
     let legacyPatternURL: URL
     let legacyMarkupURL: URL
+    let legacyMarkupData: Data
 
-    static func onePattern() throws -> LegacyPatternFixture {
+    static func onePattern(version: Int = 9) throws -> LegacyPatternFixture {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PatternLibraryMigration-\(UUID().uuidString)", isDirectory: true)
         let project = try StoredProject(name: "Cardigan")
-        return try make(root: root, projects: [project], names: ["Ida Tee"], identicalBytes: true)
+        return try make(
+            root: root,
+            projects: [project],
+            names: ["Ida Tee"],
+            identicalBytes: true,
+            version: version
+        )
     }
 
     static func twoProjects(
@@ -157,7 +324,8 @@ private struct LegacyPatternFixture {
         projects: [StoredProject],
         names: [String],
         identicalBytes: Bool,
-        sharedProject: Bool = false
+        sharedProject: Bool = false,
+        version: Int = 9
     ) throws -> LegacyPatternFixture {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let source = root.appendingPathComponent("source.pdf")
@@ -166,6 +334,9 @@ private struct LegacyPatternFixture {
 
         var legacyProjects = sharedProject ? [projects[0]] : projects
         var patternIDs: [UUID] = []
+        var readingStates: [PatternReadingState] = []
+        var createdAt: [Date] = []
+        var lastOpenedAt: [Date?] = []
         var firstPatternURL: URL?
         var firstMarkupURL: URL?
         for index in names.indices {
@@ -181,9 +352,23 @@ private struct LegacyPatternFixture {
                 pageIndex: 2,
                 zoomScale: 1.4,
                 offsetX: 0.2,
-                offsetY: 0.8
+                offsetY: 0.8,
+                highlightEnabled: true,
+                highlightPosition: 0.31,
+                highlightMode: .cross,
+                verticalHighlightPosition: 0.72
             )
             readingState.setPageNote("Sleeve repeat")
+            readingState.pageStates[0] = PatternPageState(
+                horizontalPosition: 0.15,
+                verticalPosition: 0.25,
+                note: "Cast on"
+            )
+            readingState.pageStates[1] = PatternPageState(
+                horizontalPosition: 0.65,
+                verticalPosition: 0.45,
+                note: "Increase"
+            )
             legacyProjects[projectIndex].updatePatternState(
                 id: pattern.id,
                 state: readingState,
@@ -207,13 +392,23 @@ private struct LegacyPatternFixture {
                 at: markupURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            try JSONEncoder().encode(PatternMarkupDocument()).write(to: markupURL)
+            let markup = PatternMarkupDocument(strokes: [
+                .init(
+                    points: [.init(x: 0.1, y: 0.2), .init(x: 0.3, y: 0.4)],
+                    color: .red,
+                    width: 0.006
+                )
+            ])
+            try JSONEncoder().encode(markup).write(to: markupURL)
             patternIDs.append(pattern.id)
+            readingStates.append(legacyProjects[projectIndex].patterns.last!.readingState)
+            createdAt.append(legacyProjects[projectIndex].patterns.last!.createdAt)
+            lastOpenedAt.append(legacyProjects[projectIndex].patterns.last!.lastOpenedAt)
             firstPatternURL = firstPatternURL ?? patternURL
             firstMarkupURL = firstMarkupURL ?? markupURL
         }
 
-        let archive = ProjectArchive(version: 9, projects: legacyProjects)
+        let archive = ProjectArchive(version: version, projects: legacyProjects)
         let archiveURL = root.appendingPathComponent("projects-v1.json")
         try JSONEncoder().encode(archive).write(to: archiveURL, options: .atomic)
         return LegacyPatternFixture(
@@ -221,8 +416,12 @@ private struct LegacyPatternFixture {
             archiveURL: archiveURL,
             archive: archive,
             legacyPatternIDs: patternIDs,
+            legacyReadingStates: readingStates,
+            legacyCreatedAt: createdAt,
+            legacyLastOpenedAt: lastOpenedAt,
             legacyPatternURL: try #require(firstPatternURL),
-            legacyMarkupURL: try #require(firstMarkupURL)
+            legacyMarkupURL: try #require(firstMarkupURL),
+            legacyMarkupData: try Data(contentsOf: try #require(firstMarkupURL))
         )
     }
 }

@@ -91,6 +91,7 @@ struct PatternReaderControls: View {
             .accessibilityLabel(Text(name))
             .accessibilityValue(Text(counter.value, format: .number))
             .accessibilityHint(Text("counter.accessibility.tapHoldHint"))
+            .accessibilityAddTraits(isEnabled ? [] : .isDisabled)
             .accessibilityAction(named: Text("counter.increment")) {
                 guard isEnabled else { return }
                 onIncrement(counter.id)

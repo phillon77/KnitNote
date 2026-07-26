@@ -48,7 +48,7 @@ import Testing
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 
         #expect(!reader.contains(".navigationTitle(pattern?.displayName"))
-        #expect(reader.contains(".accessibilityLabel(Text(pattern.displayName))"))
+        #expect(reader.contains(".accessibilityLabel(Text(content.displayName))"))
     }
 
     @Test func completedProjectLocksPatternReaderCounters() throws {
@@ -57,7 +57,36 @@ import Testing
 
         #expect(controls.contains("let isEnabled: Bool"))
         #expect(controls.contains("guard isEnabled else { return }"))
-        #expect(reader.contains("isEnabled: !project.isCompleted"))
+        #expect(reader.contains("projectIsCompleted: store.project"))
+        #expect(reader.contains("isEnabled: context.canWrite"))
+    }
+
+    @Test func libraryReaderRoutesEveryWritableReaderActionThroughItsUsageContext() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(reader.contains("context: PatternReaderContext"))
+        #expect(reader.contains("try store.updatePatternState("))
+        #expect(reader.contains("try store.savePatternPageNote("))
+        #expect(reader.contains("try store.loadPatternMarkup(usageID:"))
+        #expect(reader.contains("try store.savePatternMarkup("))
+        #expect(reader.contains("usageID: usageID"))
+    }
+
+    @Test func readerDisablesEveryWriteControlWhenItsContextIsReadOnly() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
+
+        #expect(reader.contains(".disabled(!context.canWrite)"))
+        #expect(reader.contains("isEnabled: context.canWrite"))
+        #expect(reader.contains("guard context.canWrite else { return }"))
+        #expect(controls.contains(".accessibilityAddTraits(isEnabled ? [] : .isDisabled)"))
+    }
+
+    @Test func legacyReaderStillOffersItsMissingFileRecoveryAction() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(reader.contains("patterns.removeRecord"))
+        #expect(reader.contains("store.deletePattern(projectID: projectID, id: patternID)"))
     }
 
     @Test func everyPatternManagedFileWriteRoutesThroughTheStoreCoordinator() throws {

@@ -1022,6 +1022,15 @@ final class PatternLibraryDeletionTransaction {
         try persist(projects: projects, yarns: yarns, patterns: staged)
     }
 
+    public func patternAssetURL(patternID: UUID) throws -> URL {
+        try ensureArchiveAvailable()
+        guard let pattern = patterns.first(where: { $0.id == patternID }),
+              let asset = patternAssets.first(where: { $0.id == pattern.assetID }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        return try requiredPatternFileService().assetURL(asset)
+    }
+
     public func updatePatternState(
         usageID: UUID,
         state: PatternReadingState,

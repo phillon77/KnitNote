@@ -37,13 +37,24 @@ extension View {
     }
 }
 
+private enum PatternReaderSource {
+    case library(PatternReaderContext)
+    case legacy(projectID: UUID, patternID: UUID)
+}
+
+private struct PatternReaderContent {
+    let displayName: String
+    let kind: PatternKind
+    let url: URL
+}
+
 struct PatternReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: JSONProjectStore
-    let projectID: UUID
-    let patternID: UUID
+    private let source: PatternReaderSource
     @State private var state: PatternReadingState
+    @State private var didLoadContextState = false
     @State private var loadError = false
     @State private var pageCount = 0
     @State private var saveError: String?
@@ -62,14 +73,27 @@ struct PatternReaderView: View {
     private let counterRailSafeAreaWidth: CGFloat = 64
     private let onStoreScreenshotReady: @MainActor () -> Void
 
+    /// Archive-level reader entry point. A library context loads state only
+    /// from its usage; a standalone context begins with fresh, ephemeral state.
+    init(
+        context: PatternReaderContext,
+        onStoreScreenshotReady: @escaping @MainActor () -> Void = {}
+    ) {
+        source = .library(context)
+        _state = State(initialValue: .init())
+        self.onStoreScreenshotReady = onStoreScreenshotReady
+    }
+
+    /// Compatibility entry point for un-migrated project-owned pattern screens.
+    /// New library callers must use `init(context:)` so their writes are keyed
+    /// by `PatternProjectUsage.id`.
     init(
         projectID: UUID,
         pattern: PatternDocument,
         storePresentation: PatternReaderStorePresentation = .standard,
         onStoreScreenshotReady: @escaping @MainActor () -> Void = {}
     ) {
-        self.projectID = projectID
-        patternID = pattern.id
+        source = .legacy(projectID: projectID, patternID: pattern.id)
         var initialState = pattern.readingState
         switch storePresentation {
         case .standard:
@@ -89,7 +113,49 @@ struct PatternReaderView: View {
         self.onStoreScreenshotReady = onStoreScreenshotReady
     }
 
-    private var pattern: PatternDocument? { store.project(id: projectID)?.patterns.first { $0.id == patternID } }
+    private var context: PatternReaderContext {
+        switch source {
+        case let .library(context):
+            guard let usageID = context.usageID,
+                  let projectID = context.projectID else {
+                return context
+            }
+            return .project(
+                patternID: context.patternID,
+                usageID: usageID,
+                projectID: projectID,
+                projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+            )
+        case let .legacy(projectID, patternID):
+            return .project(
+                patternID: patternID,
+                usageID: patternID,
+                projectID: projectID,
+                projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+            )
+        }
+    }
+
+    private var content: PatternReaderContent? {
+        switch source {
+        case let .library(context):
+            guard let pattern = store.patterns.first(where: { $0.id == context.patternID }),
+                  let asset = store.patternAssets.first(where: { $0.id == pattern.assetID }),
+                  let url = try? store.patternAssetURL(patternID: pattern.id) else {
+                return nil
+            }
+            return .init(displayName: pattern.displayName, kind: asset.kind, url: url)
+        case let .legacy(projectID, patternID):
+            guard let pattern = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID }) else {
+                return nil
+            }
+            return .init(
+                displayName: pattern.displayName,
+                kind: pattern.kind,
+                url: store.patternURL(projectID: projectID, pattern: pattern)
+            )
+        }
+    }
 
     private var readerIsPad: Bool {
 #if os(iOS)
@@ -102,13 +168,20 @@ struct PatternReaderView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let pattern, FileManager.default.fileExists(atPath: store.patternURL(projectID: projectID, pattern: pattern).path) {
+                if let content, FileManager.default.fileExists(atPath: content.url.path) {
                     VStack(spacing: 0) {
-                        PatternMarkupToolbar(document: $markup, tool: $markupTool, color: $markupColor, width: $markupWidth, onClear: { confirmingMarkupClear = true }, onDone: finishMarkup)
-                            .opacity(markupMode ? 1 : 0)
-                            .allowsHitTesting(markupMode)
-                            .accessibilityHidden(!markupMode)
-                            .frame(height: PatternMarkupToolbar.stableHeight)
+                        PatternMarkupToolbar(
+                            document: $markup,
+                            tool: $markupTool,
+                            color: $markupColor,
+                            width: $markupWidth,
+                            onClear: { confirmingMarkupClear = true },
+                            onDone: finishMarkup
+                        )
+                        .opacity(markupMode ? 1 : 0)
+                        .allowsHitTesting(markupMode && context.canWrite)
+                        .accessibilityHidden(!markupMode)
+                        .frame(height: PatternMarkupToolbar.stableHeight)
 
                         GeometryReader { proxy in
                             let layout = PatternReaderLayoutPolicy.resolve(
@@ -117,8 +190,8 @@ struct PatternReaderView: View {
                                 height: proxy.size.height
                             )
                             VStack(spacing: 0) {
-                                readerCanvas(pattern: pattern, layout: layout)
-                                if pattern.kind == .pdf,
+                                readerCanvas(content: content, layout: layout)
+                                if content.kind == .pdf,
                                    pageCount > 0,
                                    layout.pageControlPlacement == .reservedBelow,
                                    !markupMode {
@@ -134,14 +207,33 @@ struct PatternReaderView: View {
                         }
                     }
                 } else {
-                    ContentUnavailableView { Label("patterns.missing", systemImage: "exclamationmark.triangle") } actions: {
-                        Button("patterns.removeRecord", role: .destructive) { try? store.deletePattern(projectID: projectID, id: patternID); dismiss() }
+                    switch source {
+                    case let .legacy(projectID, patternID):
+                        ContentUnavailableView {
+                            Label("patterns.missing", systemImage: "exclamationmark.triangle")
+                        } actions: {
+                            Button("patterns.removeRecord", role: .destructive) {
+                                try? store.deletePattern(projectID: projectID, id: patternID)
+                                dismiss()
+                            }
+                        }
+                    case .library:
+                        ContentUnavailableView {
+                            Label("patterns.missing", systemImage: "exclamationmark.triangle")
+                        }
                     }
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("common.ok") { if save() { dismiss() } } }
-                ToolbarItem(placement: .primaryAction) { Toggle("patterns.highlight", isOn: $state.highlightEnabled) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common.ok") {
+                        if save() { dismiss() }
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Toggle("patterns.highlight", isOn: $state.highlightEnabled)
+                        .disabled(!context.canWrite)
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Picker("patterns.highlightMode", selection: $state.highlightMode) {
@@ -149,10 +241,17 @@ struct PatternReaderView: View {
                             Text("patterns.highlight.vertical").tag(HighlightMode.vertical)
                             Text("patterns.highlight.cross").tag(HighlightMode.cross)
                         }
-                    } label: { Label("patterns.highlightMode", systemImage: "scope") }
+                    } label: {
+                        Label("patterns.highlightMode", systemImage: "scope")
+                    }
+                    .disabled(!context.canWrite)
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("patterns.markup", systemImage: "pencil.and.outline") { markupMode.toggle() }
+                    Button("patterns.markup", systemImage: "pencil.and.outline") {
+                        guard context.canWrite else { return }
+                        markupMode.toggle()
+                    }
+                    .disabled(!context.canWrite)
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -160,17 +259,30 @@ struct PatternReaderView: View {
                         originalPageNote = state.pageNote
                         showingPageNote = true
                     } label: {
-                        Label("patterns.pageNote", systemImage: state.pageNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "doc.text" : "doc.text.fill")
+                        Label(
+                            "patterns.pageNote",
+                            systemImage: state.pageNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? "doc.text"
+                                : "doc.text.fill"
+                        )
                     }
                 }
             }
             .alert("patterns.invalid", isPresented: $loadError) { Button("common.ok") { dismiss() } }
-            .alert("error.saveFailed", isPresented: Binding(get:{saveError != nil},set:{if !$0{saveError=nil}})) { Button("common.ok"){} } message:{Text(saveError ?? "")}
+            .alert("error.saveFailed", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("common.ok") {}
+            } message: {
+                Text(saveError ?? "")
+            }
             .sheet(isPresented: $showingPageNote, onDismiss: reloadSavedPageNote) {
-                EditPatternPageNoteView(pageNumber: state.pageIndex + 1, text: $state.pageNote) {
-                    savePageNoteDirectly()
-                } onCancel: {
-                    state.setPageNote(originalPageNote)
+                if context.canWrite {
+                    EditPatternPageNoteView(pageNumber: state.pageIndex + 1, text: $state.pageNote) {
+                        savePageNoteDirectly()
+                    } onCancel: {
+                        state.setPageNote(originalPageNote)
+                    }
+                } else {
+                    PatternPageNoteReadOnlyView(pageNumber: state.pageIndex + 1, text: state.pageNote)
                 }
             }
             .sheet(item: $managingCounter) { counter in
@@ -179,31 +291,43 @@ struct PatternReaderView: View {
                 }
             }
             .confirmationDialog("patterns.markup.clear.confirm", isPresented: $confirmingMarkupClear) {
-                Button("patterns.markup.clear", role: .destructive) { markup.clear() }
+                Button("patterns.markup.clear", role: .destructive) {
+                    guard context.canWrite else { return }
+                    markup.clear()
+                }
                 Button("common.cancel", role: .cancel) {}
             }
         }
         .tint(WatercolorTheme.actionBerry)
         .interactiveDismissDisabled()
         .onAppear {
+            loadContextStateIfNeeded()
             if expectedDataGeneration == nil { expectedDataGeneration = store.dataGeneration }
             loadMarkup(page: state.pageIndex)
         }
-        .onDisappear { saveMarkup(page: state.pageIndex); _ = save() }
-        .onChange(of: state.pageIndex) { oldPage, newPage in saveMarkup(page: oldPage); loadMarkup(page: newPage) }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { saveMarkup(page: state.pageIndex); _ = save() } }
+        .onDisappear {
+            guard context.canWrite else { return }
+            saveMarkup(page: state.pageIndex)
+            _ = save()
+        }
+        .onChange(of: state.pageIndex) { oldPage, newPage in
+            if context.canWrite { saveMarkup(page: oldPage) }
+            loadMarkup(page: newPage)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active, context.canWrite else { return }
+            saveMarkup(page: state.pageIndex)
+            _ = save()
+        }
     }
 
     @ViewBuilder
-    private func readerCanvas(
-        pattern: PatternDocument,
-        layout: PatternReaderLayoutPolicy
-    ) -> some View {
+    private func readerCanvas(content: PatternReaderContent, layout: PatternReaderLayoutPolicy) -> some View {
         ZStack(alignment: .top) {
             ZStack(alignment: .top) {
-                if pattern.kind == .pdf {
+                if content.kind == .pdf {
                     PDFReaderView(
-                        url: store.patternURL(projectID: projectID, pattern: pattern),
+                        url: content.url,
                         navigator: pdfNavigator,
                         scaleMode: layout.pdfScaleMode,
                         state: $state,
@@ -213,12 +337,8 @@ struct PatternReaderView: View {
                     )
                     .allowsHitTesting(!markupMode)
                 } else {
-                    ImageReaderView(
-                        url: store.patternURL(projectID: projectID, pattern: pattern),
-                        state: $state,
-                        loadError: $loadError
-                    )
-                    .allowsHitTesting(!markupMode)
+                    ImageReaderView(url: content.url, state: $state, loadError: $loadError)
+                        .allowsHitTesting(!markupMode)
                 }
                 if state.highlightEnabled {
                     HighlightOverlay(
@@ -226,9 +346,9 @@ struct PatternReaderView: View {
                         horizontalPosition: $state.highlightPosition,
                         verticalPosition: $state.verticalHighlightPosition
                     )
-                    .allowsHitTesting(!markupMode)
+                    .allowsHitTesting(context.canWrite && !markupMode)
                 }
-                if markupMode {
+                if markupMode, context.canWrite {
                     PatternMarkupOverlay(
                         document: $markup,
                         tool: markupTool,
@@ -238,14 +358,16 @@ struct PatternReaderView: View {
                 }
             }
             .padding(.trailing, counterRailSafeAreaWidth)
-            .accessibilityLabel(Text(pattern.displayName))
+            .accessibilityLabel(Text(content.displayName))
 
-            if let project = store.project(id: projectID), !markupMode {
+            if let projectID = context.projectID,
+               let project = store.project(id: projectID),
+               !markupMode {
                 PatternReaderControls(
                     counters: project.counters,
-                    isEnabled: !project.isCompleted,
+                    isEnabled: context.canWrite,
                     pageIndex: state.pageIndex,
-                    pageCount: pattern.kind == .pdf ? pageCount : 0,
+                    pageCount: content.kind == .pdf ? pageCount : 0,
                     showsOverlayPageControls: layout.pageControlPlacement == .overlay,
                     onPreviousPage: { navigatePDF(by: -1) },
                     onNextPage: { navigatePDF(by: 1) },
@@ -260,31 +382,64 @@ struct PatternReaderView: View {
         .clipped()
     }
 
+    private func loadContextStateIfNeeded() {
+        guard !didLoadContextState else { return }
+        defer { didLoadContextState = true }
+        guard case .library = source,
+              let usageID = context.usageID,
+              let projectID = context.projectID,
+              let usage = store.patternUsages.first(where: {
+                  $0.id == usageID && $0.patternID == context.patternID && $0.projectID == projectID
+              }) else {
+            return
+        }
+        state = usage.readingState
+    }
+
     @discardableResult private func save() -> Bool {
+        guard context.canWrite else { return true }
         state.saveCurrentPage()
         do {
-            try store.updatePatternState(
-                projectID: projectID,
-                id: patternID,
-                state: state,
-                expectedDataGeneration: expectedDataGeneration
-            )
+            switch source {
+            case .library:
+                guard let usageID = context.usageID else { return true }
+                try store.updatePatternState(
+                    usageID: usageID,
+                    state: state,
+                    expectedDataGeneration: expectedDataGeneration
+                )
+            case let .legacy(projectID, patternID):
+                try store.updatePatternState(
+                    projectID: projectID,
+                    id: patternID,
+                    state: state,
+                    expectedDataGeneration: expectedDataGeneration
+                )
+            }
             return true
+        } catch {
+            saveError = error.localizedDescription
+            return false
         }
-        catch { saveError=error.localizedDescription; return false }
     }
 
     private func incrementCounter(_ counterID: UUID) {
+        guard context.canWrite, let projectID = context.projectID else { return }
         do {
             try store.selectCounter(projectID: projectID, counterID: counterID)
             try store.incrementCounter(projectID: projectID, counterID: counterID)
+        } catch {
+            saveError = error.localizedDescription
         }
-        catch { saveError = error.localizedDescription }
     }
 
     private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) {
-        do { try store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value) }
-        catch { saveError = error.localizedDescription }
+        guard context.canWrite, let projectID = context.projectID else { return }
+        do {
+            try store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value)
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 
     private func navigatePDF(by delta: Int) {
@@ -295,15 +450,27 @@ struct PatternReaderView: View {
     }
 
     private func savePageNoteDirectly() {
+        guard context.canWrite else { return }
         let text = state.pageNote
         do {
-            try store.savePatternPageNote(
-                projectID: projectID,
-                patternID: patternID,
-                pageIndex: editingPageNoteIndex,
-                text: text,
-                expectedDataGeneration: expectedDataGeneration
-            )
+            switch source {
+            case .library:
+                guard let usageID = context.usageID else { return }
+                try store.savePatternPageNote(
+                    usageID: usageID,
+                    pageIndex: editingPageNoteIndex,
+                    text: text,
+                    expectedDataGeneration: expectedDataGeneration
+                )
+            case let .legacy(projectID, patternID):
+                try store.savePatternPageNote(
+                    projectID: projectID,
+                    patternID: patternID,
+                    pageIndex: editingPageNoteIndex,
+                    text: text,
+                    expectedDataGeneration: expectedDataGeneration
+                )
+            }
             if editingPageNoteIndex == state.pageIndex { state.setPageNote(text) }
         } catch {
             saveError = error.localizedDescription
@@ -311,37 +478,95 @@ struct PatternReaderView: View {
     }
 
     private func reloadSavedPageNote() {
-        guard editingPageNoteIndex == state.pageIndex,
-              let saved = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID })?.pageStates[editingPageNoteIndex]?.note else { return }
-        state.setPageNote(saved)
+        guard editingPageNoteIndex == state.pageIndex else { return }
+        switch source {
+        case .library:
+            guard let usageID = context.usageID,
+                  let saved = store.patternUsages.first(where: { $0.id == usageID })?.readingState.pageStates[editingPageNoteIndex]?.note else {
+                return
+            }
+            state.setPageNote(saved)
+        case let .legacy(projectID, patternID):
+            guard let saved = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID })?.pageStates[editingPageNoteIndex]?.note else {
+                return
+            }
+            state.setPageNote(saved)
+        }
     }
 
     private func loadMarkup(page: Int) {
         do {
-            markup = try store.loadPatternMarkup(
-                projectID: projectID,
-                patternID: patternID,
-                pageIndex: page
-            )
+            switch source {
+            case .library:
+                guard let usageID = context.usageID else {
+                    markup = PatternMarkupDocument()
+                    return
+                }
+                markup = try store.loadPatternMarkup(usageID: usageID, pageIndex: page)
+            case let .legacy(projectID, patternID):
+                markup = try store.loadPatternMarkup(projectID: projectID, patternID: patternID, pageIndex: page)
+            }
+        } catch {
+            markup = PatternMarkupDocument()
+            if context.usageID != nil { saveError = error.localizedDescription }
         }
-        catch { markup = PatternMarkupDocument(); saveError = error.localizedDescription }
     }
 
     private func saveMarkup(page: Int) {
-        guard let expectedDataGeneration else { return }
+        guard context.canWrite, let expectedDataGeneration else { return }
         do {
-            try store.savePatternMarkup(
-                markup,
-                projectID: projectID,
-                patternID: patternID,
-                pageIndex: page,
-                expectedDataGeneration: expectedDataGeneration
-            )
+            switch source {
+            case .library:
+                guard let usageID = context.usageID else { return }
+                try store.savePatternMarkup(
+                    markup,
+                    usageID: usageID,
+                    pageIndex: page,
+                    expectedDataGeneration: expectedDataGeneration
+                )
+            case let .legacy(projectID, patternID):
+                try store.savePatternMarkup(
+                    markup,
+                    projectID: projectID,
+                    patternID: patternID,
+                    pageIndex: page,
+                    expectedDataGeneration: expectedDataGeneration
+                )
+            }
+        } catch {
+            saveError = error.localizedDescription
         }
-        catch { saveError = error.localizedDescription }
     }
 
-    private func finishMarkup() { saveMarkup(page: state.pageIndex); markupMode = false }
+    private func finishMarkup() {
+        guard context.canWrite else { return }
+        saveMarkup(page: state.pageIndex)
+        markupMode = false
+    }
+}
+
+private struct PatternPageNoteReadOnlyView: View {
+    @Environment(\.dismiss) private var dismiss
+    let pageNumber: Int
+    let text: String
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .textSelection(.enabled)
+            }
+            .navigationTitle(String(format: String(localized: "patterns.pageNote.page"), pageNumber))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("common.ok") { dismiss() }
+                }
+            }
+        }
+        .tint(WatercolorTheme.actionBerry)
+    }
 }
 
 enum PatternReaderStorePresentation: Equatable {

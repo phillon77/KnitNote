@@ -30,6 +30,13 @@
 - Added `PatternReaderMarkupSession` with explicit `loading`, `loaded`, and `failed` phases plus a dirty flag. Lifecycle/page/done saves require a current-generation, successfully loaded, dirty document. Missing markup is a successful empty load and can save after an edit; decode/read/safety failures remain non-persistable, so the reader cannot overwrite unreadable bytes with an empty document.
 - Strengthened the VoiceOver source contract to verify that both custom actions occur inside the enabled branch and before the inactive `button` branch.
 
+## Review Fix Round 3 — Generation Chaining and Inactive Usages
+
+- Added generation-returning usage-scoped store mutations. Reader state, page-note, markup, and counter changes now return the confirmed transaction generation; `PatternReaderView` advances `expectedDataGeneration` only after a successful call, so a reader's own counter/manage interaction cannot stale its following state, note, or lifecycle save. Failed mutations leave the expected generation unchanged, preserving external optimistic-concurrency rejection.
+- Added `mutatePatternReaderCounter(usageID:...)`. It validates the expected generation, active usage, and incomplete project before selecting and mutating the project counter in one archive write. This replaces reader-side project-level counter calls and rejects an unlinked usage even while its reader remains presented.
+- Added `usageIsActive` to the reader context and stable identity. The reader reload task observes unlink/relink through identity, gates loading on active usage, and moves an inactive usage to a read-only session. Relinking restores the same usage ID, reading state, page note, markup, and sort order before writes are enabled again.
+- Strengthened Core fixtures: the state loader now reads a real `JSONProjectStore` usage snapshot; sequence tests cover increment, rename/update, reset, state, note, markup, lifecycle markup, fresh reopen, and an externally stale generation. Markup tests also cover unsafe-path failure and a valid unedited document.
+
 ## Files
 
 - `Sources/KnitNoteCore/Patterns/PatternReaderContext.swift`
@@ -42,6 +49,7 @@
 - `Tests/KnitNoteCoreTests/PatternReaderAccessibilityPolicyTests.swift`
 - `Tests/KnitNoteCoreTests/PatternReaderReloadSafetyTests.swift`
 - `Tests/KnitNoteCoreTests/PatternReaderMarkupSessionTests.swift`
+- `Tests/KnitNoteCoreTests/PatternLibraryStoreTests.swift`
 - `task-6-report.md`
 
 ## Verification
@@ -58,6 +66,9 @@
 - GREEN round 2 focused: `swift test --filter 'PatternReaderReloadSafetyTests|PatternReaderMarkupSessionTests|PatternReaderSessionTests|PatternReaderCounterContractTests|PatternReaderAccessibilityPolicyTests'` passed (24 tests in 5 suites).
 - SwiftUI syntax: `xcrun swiftc -parse KnitNote/Patterns/PatternReaderView.swift KnitNote/Patterns/PatternReaderControls.swift` passed.
 - Full round 2 regression: `swift test` passed (659 tests in 49 suites).
+- RED round 3: real store sequence tests initially failed because reader mutations did not return generations and no usage-scoped counter mutation existed.
+- GREEN round 3 focused: `swift test --filter 'readerUsageMutation|inactiveUsageRejectsReaderCounter|PatternReaderContextTests|PatternReaderReloadSafetyTests|PatternReaderMarkupSessionTests|PatternReaderCounterContractTests|PatternReaderAccessibilityPolicyTests'` passed (30 tests in 5 suites).
+- Full round 3 regression: `swift test` passed (666 tests in 49 suites).
 - `git diff --check` passed.
 - `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNotePatternReaderTask6 CODE_SIGNING_ALLOWED=NO build` could not reach the reader compilation because the existing Xcode project omits Task 1–3 archive-level Core sources (`PatternAsset`, `StoredPattern`, `PatternProjectUsage`, inbox types) from the Watch target. Task 6 was explicitly scoped not to modify the Watch target or xcodeproj.
 

@@ -77,6 +77,14 @@ public enum PatternLibraryMutationError: Error, Equatable, Sendable {
     case activeLinksExist([UUID])
 }
 
+/// Counter changes issued from a pattern reader are tied to one active usage,
+/// rather than merely to the containing project.
+public enum PatternReaderCounterMutation: Sendable {
+    case increment
+    case reset
+    case update(name: String?, value: Int)
+}
+
 enum ProjectJournalPhotoReferencePolicy {
     static func unreferencedFilenames(
         requestedFilenames: Set<String>,
@@ -781,6 +789,35 @@ final class PatternLibraryDeletionTransaction {
     public func updateCounter(projectID: UUID, counterID: UUID, name: String?, value: Int) throws {
         try mutate(id: projectID) { $0.updateCounter(id: counterID, name: name, value: value) }
     }
+
+    /// Performs one reader-originated counter mutation and returns the exact
+    /// generation published by its successful archive write.
+    @discardableResult
+    public func mutatePatternReaderCounter(
+        usageID: UUID,
+        counterID: UUID,
+        mutation: PatternReaderCounterMutation,
+        expectedDataGeneration: UInt64
+    ) throws -> UInt64 {
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        let usageIndex = try mutableUsageIndex(usageID: usageID)
+        let projectID = patternUsages[usageIndex].projectID
+        guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        var stagedProjects = projects
+        stagedProjects[projectIndex].selectCounter(id: counterID)
+        switch mutation {
+        case .increment:
+            stagedProjects[projectIndex].incrementCounter(id: counterID)
+        case .reset:
+            stagedProjects[projectIndex].resetCounter(id: counterID)
+        case let .update(name, value):
+            stagedProjects[projectIndex].updateCounter(id: counterID, name: name, value: value)
+        }
+        try persist(projects: stagedProjects, yarns: yarns)
+        return dataGeneration
+    }
     public func renameCounter(projectID: UUID, counterID: UUID, name: String?) throws {
         try mutate(id: projectID) { $0.renameCounter(id: counterID, to: name) }
     }
@@ -1031,24 +1068,27 @@ final class PatternLibraryDeletionTransaction {
         return try requiredPatternFileService().assetURL(asset)
     }
 
+    @discardableResult
     public func updatePatternState(
         usageID: UUID,
         state: PatternReadingState,
         expectedDataGeneration: UInt64? = nil
-    ) throws {
+    ) throws -> UInt64 {
         try validateExpectedDataGeneration(expectedDataGeneration)
         let index = try mutableUsageIndex(usageID: usageID)
         var staged = patternUsages
         staged[index].updateReadingState(state)
         try persist(projects: projects, yarns: yarns, patternUsages: staged)
+        return dataGeneration
     }
 
+    @discardableResult
     public func savePatternPageNote(
         usageID: UUID,
         pageIndex: Int,
         text: String,
         expectedDataGeneration: UInt64? = nil
-    ) throws {
+    ) throws -> UInt64 {
         try validateExpectedDataGeneration(expectedDataGeneration)
         let index = try mutableUsageIndex(usageID: usageID)
         var staged = patternUsages
@@ -1066,6 +1106,7 @@ final class PatternLibraryDeletionTransaction {
         }
         staged[index].updateReadingState(state)
         try persist(projects: projects, yarns: yarns, patternUsages: staged)
+        return dataGeneration
     }
 
     public func loadPatternMarkup(
@@ -1078,44 +1119,50 @@ final class PatternLibraryDeletionTransaction {
         return try patternMarkupFileService.load(usageID: usageID, pageIndex: pageIndex)
     }
 
+    @discardableResult
     public func savePatternMarkup(
         _ document: PatternMarkupDocument,
         usageID: UUID,
         pageIndex: Int,
         expectedDataGeneration: UInt64
-    ) throws {
+    ) throws -> UInt64 {
         try validateExpectedDataGeneration(expectedDataGeneration)
         _ = try mutableUsageIndex(usageID: usageID)
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
         try patternMarkupFileService.save(document, usageID: usageID, pageIndex: pageIndex)
+        return dataGeneration
     }
+    @discardableResult
     public func savePatternPageNote(
         projectID: UUID,
         patternID: UUID,
         pageIndex: Int,
         text: String,
         expectedDataGeneration: UInt64? = nil
-    ) throws {
+    ) throws -> UInt64 {
         try validateExpectedDataGeneration(expectedDataGeneration)
         try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) {
             $0.savePatternPageNote(patternID: patternID, pageIndex: pageIndex, text: text)
         }
+        return dataGeneration
     }
     public func updatePatternState(projectID: UUID, id: UUID, pageIndex: Int, highlightPosition: Double) throws {
         try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) { $0.updatePatternState(id: id, pageIndex: pageIndex, highlightPosition: highlightPosition) }
     }
+    @discardableResult
     public func updatePatternState(
         projectID: UUID,
         id: UUID,
         state: PatternReadingState,
         expectedDataGeneration: UInt64? = nil
-    ) throws {
+    ) throws -> UInt64 {
         try validateExpectedDataGeneration(expectedDataGeneration)
         try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) }
+        return dataGeneration
     }
     public func patternURL(projectID: UUID, pattern: PatternDocument) -> URL {
         patternFileService?.url(projectID: projectID, pattern: pattern)
@@ -1134,13 +1181,14 @@ final class PatternLibraryDeletionTransaction {
             pageIndex: pageIndex
         )
     }
+    @discardableResult
     public func savePatternMarkup(
         _ document: PatternMarkupDocument,
         projectID: UUID,
         patternID: UUID,
         pageIndex: Int,
         expectedDataGeneration: UInt64
-    ) throws {
+    ) throws -> UInt64 {
         try ensureArchiveAvailable()
         try validateExpectedDataGeneration(expectedDataGeneration)
         guard let project = project(id: projectID),
@@ -1158,6 +1206,7 @@ final class PatternLibraryDeletionTransaction {
             patternID: patternID,
             pageIndex: pageIndex
         )
+        return dataGeneration
     }
     public func project(id: UUID) -> StoredProject? { projects.first { $0.id == id } }
     public func addJournalEntry(

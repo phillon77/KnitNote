@@ -67,6 +67,124 @@ import Testing
     }
 }
 
+@MainActor @Test func readerUsageMutationSequenceAdvancesGenerationWithoutSelfStaling() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let counterID = try #require(harness.store.project(id: harness.projectID)?.counters.first?.id)
+    var expected = harness.store.dataGeneration
+
+    expected = try harness.store.mutatePatternReaderCounter(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .increment,
+        expectedDataGeneration: expected
+    )
+    expected = try harness.store.mutatePatternReaderCounter(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .update(name: "Reader counter", value: 4),
+        expectedDataGeneration: expected
+    )
+    expected = try harness.store.mutatePatternReaderCounter(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .reset,
+        expectedDataGeneration: expected
+    )
+    expected = try harness.store.updatePatternState(
+        usageID: usage.id,
+        state: PatternReadingState(pageIndex: 5, zoomScale: 2.2, offsetX: 0.25, offsetY: 0.75),
+        expectedDataGeneration: expected
+    )
+    expected = try harness.store.savePatternPageNote(
+        usageID: usage.id,
+        pageIndex: 5,
+        text: "reader sequence",
+        expectedDataGeneration: expected
+    )
+    let markup = harness.drawing(x: 0.42)
+    expected = try harness.store.savePatternMarkup(
+        markup,
+        usageID: usage.id,
+        pageIndex: 5,
+        expectedDataGeneration: expected
+    )
+    _ = try harness.store.savePatternMarkup(
+        markup,
+        usageID: usage.id,
+        pageIndex: 5,
+        expectedDataGeneration: expected
+    )
+
+    let reopened = try harness.reopenedStore()
+    #expect(reopened.project(id: harness.projectID)?.counters.first?.value == 0)
+    #expect(reopened.project(id: harness.projectID)?.counters.first?.customName == "Reader counter")
+    #expect(reopened.patternUsages.first(where: { $0.id == usage.id })?.readingState.pageIndex == 5)
+    #expect(reopened.patternUsages.first(where: { $0.id == usage.id })?.readingState.pageStates[5]?.note == "reader sequence")
+    #expect(try reopened.loadPatternMarkup(usageID: usage.id, pageIndex: 5) == markup)
+}
+
+@MainActor @Test func readerUsageMutationKeepsExternalOptimisticConcurrencyRejection() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let staleGeneration = harness.store.dataGeneration
+    let counterID = try #require(harness.store.project(id: harness.projectID)?.counters.first?.id)
+    _ = try harness.store.mutatePatternReaderCounter(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .increment,
+        expectedDataGeneration: staleGeneration
+    )
+    let confirmedGeneration = harness.store.dataGeneration
+
+    #expect(throws: ProjectStoreError.staleDataGeneration) {
+        try harness.store.updatePatternState(
+            usageID: usage.id,
+            state: PatternReadingState(pageIndex: 2),
+            expectedDataGeneration: staleGeneration
+        )
+    }
+    #expect(harness.store.dataGeneration == confirmedGeneration)
+}
+
+@MainActor @Test func inactiveUsageRejectsReaderCounterMutationAndRelinkRestoresReaderWrites() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let counterID = try #require(harness.store.project(id: harness.projectID)?.counters.first?.id)
+    let state = PatternReadingState(pageIndex: 3)
+    let markup = harness.drawing(x: 0.61)
+    var expected = try harness.store.updatePatternState(
+        usageID: usage.id,
+        state: state,
+        expectedDataGeneration: harness.store.dataGeneration
+    )
+    expected = try harness.store.savePatternMarkup(markup, usageID: usage.id, pageIndex: 3, expectedDataGeneration: expected)
+    try harness.store.unlinkPattern(patternID: harness.patternID, from: harness.projectID)
+
+    #expect(throws: PatternLibraryMutationError.usageInactive) {
+        try harness.store.mutatePatternReaderCounter(
+            usageID: usage.id,
+            counterID: counterID,
+            mutation: .increment,
+            expectedDataGeneration: harness.store.dataGeneration
+        )
+    }
+    #expect(harness.store.patternUsages.first(where: { $0.id == usage.id })?.readingState == state)
+    #expect(try harness.store.loadPatternMarkup(usageID: usage.id, pageIndex: 3) == markup)
+
+    let relinked = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    expected = try harness.store.mutatePatternReaderCounter(
+        usageID: relinked.id,
+        counterID: counterID,
+        mutation: .increment,
+        expectedDataGeneration: harness.store.dataGeneration
+    )
+    #expect(expected == harness.store.dataGeneration)
+    #expect(relinked.id == usage.id)
+    #expect(harness.store.patternUsages.first(where: { $0.id == usage.id })?.readingState == state)
+    #expect(try harness.store.loadPatternMarkup(usageID: usage.id, pageIndex: 3) == markup)
+}
+
 @MainActor @Test func usageBoundReaderServiceRejectsUnknownUsageInsteadOfProvidingStandaloneWrites() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
 

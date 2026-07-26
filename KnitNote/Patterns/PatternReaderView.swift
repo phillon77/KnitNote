@@ -134,10 +134,20 @@ struct PatternReaderView: View {
               let projectID = base.projectID else {
             return base
         }
+        let usageIsActive: Bool
+        switch source {
+        case .library:
+            usageIsActive = store.patternUsages.contains {
+                $0.id == usageID && $0.patternID == base.patternID && $0.projectID == projectID && $0.isActive
+            }
+        case .legacy:
+            usageIsActive = base.usageIsActive
+        }
         return .project(
             patternID: base.patternID,
             usageID: usageID,
             projectID: projectID,
+            usageIsActive: usageIsActive,
             projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
         )
     }
@@ -152,6 +162,7 @@ struct PatternReaderView: View {
             patternID: base.patternID,
             usageID: usageID,
             projectID: projectID,
+            usageIsActive: base.usageIsActive,
             projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
         )
     }
@@ -456,7 +467,7 @@ struct PatternReaderView: View {
             if let usageID = currentContext.usageID,
                let projectID = currentContext.projectID,
                store.patternUsages.contains(where: {
-                   $0.id == usageID && $0.patternID == currentContext.patternID && $0.projectID == projectID
+                   $0.id == usageID && $0.patternID == currentContext.patternID && $0.projectID == projectID && $0.isActive
                }) {
                 hydrationContext = currentContext
                 hydrationState = PatternReaderStateLoader.readingState(
@@ -505,22 +516,24 @@ struct PatternReaderView: View {
         state.saveCurrentPage()
         _ = readerSession.acceptCanvasState(state)
         do {
+            let nextGeneration: UInt64
             switch source {
             case .library:
                 guard let usageID = context.usageID else { return true }
-                try store.updatePatternState(
+                nextGeneration = try store.updatePatternState(
                     usageID: usageID,
                     state: state,
                     expectedDataGeneration: expectedDataGeneration
                 )
             case let .legacy(projectID, patternID):
-                try store.updatePatternState(
+                nextGeneration = try store.updatePatternState(
                     projectID: projectID,
                     id: patternID,
                     state: state,
                     expectedDataGeneration: expectedDataGeneration
                 )
             }
+            expectedDataGeneration = nextGeneration
             return true
         } catch {
             saveError = error.localizedDescription
@@ -531,11 +544,16 @@ struct PatternReaderView: View {
     private func incrementCounter(_ counterID: UUID) {
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
-              context.canWrite,
-              let projectID = context.projectID else { return }
+              context.canWrite else { return }
         do {
-            try store.selectCounter(projectID: projectID, counterID: counterID)
-            try store.incrementCounter(projectID: projectID, counterID: counterID)
+            guard let usageID = context.usageID,
+                  let expectedDataGeneration else { return }
+            self.expectedDataGeneration = try store.mutatePatternReaderCounter(
+                usageID: usageID,
+                counterID: counterID,
+                mutation: .increment,
+                expectedDataGeneration: expectedDataGeneration
+            )
         } catch {
             saveError = error.localizedDescription
         }
@@ -544,10 +562,16 @@ struct PatternReaderView: View {
     private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) {
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
-              context.canWrite,
-              let projectID = context.projectID else { return }
+              context.canWrite else { return }
         do {
-            try store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value)
+            guard let usageID = context.usageID,
+                  let expectedDataGeneration else { return }
+            self.expectedDataGeneration = try store.mutatePatternReaderCounter(
+                usageID: usageID,
+                counterID: counter.id,
+                mutation: .update(name: name, value: value),
+                expectedDataGeneration: expectedDataGeneration
+            )
         } catch {
             saveError = error.localizedDescription
         }
@@ -566,17 +590,18 @@ struct PatternReaderView: View {
               context.canWrite else { return }
         let text = state.pageNote
         do {
+            let nextGeneration: UInt64
             switch source {
             case .library:
                 guard let usageID = context.usageID else { return }
-                try store.savePatternPageNote(
+                nextGeneration = try store.savePatternPageNote(
                     usageID: usageID,
                     pageIndex: editingPageNoteIndex,
                     text: text,
                     expectedDataGeneration: expectedDataGeneration
                 )
             case let .legacy(projectID, patternID):
-                try store.savePatternPageNote(
+                nextGeneration = try store.savePatternPageNote(
                     projectID: projectID,
                     patternID: patternID,
                     pageIndex: editingPageNoteIndex,
@@ -584,6 +609,7 @@ struct PatternReaderView: View {
                     expectedDataGeneration: expectedDataGeneration
                 )
             }
+            expectedDataGeneration = nextGeneration
             if editingPageNoteIndex == state.pageIndex { state.setPageNote(text) }
         } catch {
             saveError = error.localizedDescription
@@ -645,17 +671,18 @@ struct PatternReaderView: View {
               markupSession.canPersistMarkup(readerGeneration: readerSession.generation, pageIndex: page) else { return }
         guard context.canWrite, let expectedDataGeneration else { return }
         do {
+            let nextGeneration: UInt64
             switch source {
             case .library:
                 guard let usageID = context.usageID else { return }
-                try store.savePatternMarkup(
+                nextGeneration = try store.savePatternMarkup(
                     markup,
                     usageID: usageID,
                     pageIndex: page,
                     expectedDataGeneration: expectedDataGeneration
                 )
             case let .legacy(projectID, patternID):
-                try store.savePatternMarkup(
+                nextGeneration = try store.savePatternMarkup(
                     markup,
                     projectID: projectID,
                     patternID: patternID,
@@ -663,6 +690,7 @@ struct PatternReaderView: View {
                     expectedDataGeneration: expectedDataGeneration
                 )
             }
+            expectedDataGeneration = nextGeneration
             markupSession.markPersisted(readerGeneration: readerSession.generation, pageIndex: page)
         } catch {
             saveError = error.localizedDescription

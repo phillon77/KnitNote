@@ -7,17 +7,20 @@ public struct PatternReaderContext: Equatable, Hashable, Sendable {
     public let patternID: UUID
     public let usageID: UUID?
     public let projectID: UUID?
+    public let usageIsActive: Bool
     public let projectIsCompleted: Bool
 
     private init(
         patternID: UUID,
         usageID: UUID?,
         projectID: UUID?,
+        usageIsActive: Bool,
         projectIsCompleted: Bool
     ) {
         self.patternID = patternID
         self.usageID = usageID
         self.projectID = projectID
+        self.usageIsActive = usageIsActive
         self.projectIsCompleted = projectIsCompleted
     }
 
@@ -26,6 +29,7 @@ public struct PatternReaderContext: Equatable, Hashable, Sendable {
             patternID: patternID,
             usageID: nil,
             projectID: nil,
+            usageIsActive: false,
             projectIsCompleted: false
         )
     }
@@ -34,18 +38,20 @@ public struct PatternReaderContext: Equatable, Hashable, Sendable {
         patternID: UUID,
         usageID: UUID,
         projectID: UUID,
+        usageIsActive: Bool = true,
         projectIsCompleted: Bool
     ) -> Self {
         .init(
             patternID: patternID,
             usageID: usageID,
             projectID: projectID,
+            usageIsActive: usageIsActive,
             projectIsCompleted: projectIsCompleted
         )
     }
 
     public var canWrite: Bool {
-        usageID != nil && projectID != nil && !projectIsCompleted
+        usageID != nil && projectID != nil && usageIsActive && !projectIsCompleted
     }
 }
 
@@ -57,6 +63,7 @@ public struct PatternReaderContextIdentity: Hashable, Sendable {
     public let usageID: UUID?
     public let projectID: UUID?
     public let assetID: UUID?
+    public let usageIsActive: Bool
     public let projectIsCompleted: Bool
 
     public init(context: PatternReaderContext, assetID: UUID?) {
@@ -64,6 +71,7 @@ public struct PatternReaderContextIdentity: Hashable, Sendable {
         usageID = context.usageID
         projectID = context.projectID
         self.assetID = assetID
+        usageIsActive = context.usageIsActive
         projectIsCompleted = context.projectIsCompleted
     }
 }
@@ -77,8 +85,8 @@ public enum PatternReaderStateLoader: Sendable {
     ) -> PatternReadingState {
         guard let usageID = context.usageID,
               let projectID = context.projectID,
-              let usage = usages.first(where: {
-                  $0.id == usageID && $0.patternID == context.patternID && $0.projectID == projectID
+                  let usage = usages.first(where: {
+                  $0.id == usageID && $0.patternID == context.patternID && $0.projectID == projectID && $0.isActive
               }) else {
             return .init()
         }

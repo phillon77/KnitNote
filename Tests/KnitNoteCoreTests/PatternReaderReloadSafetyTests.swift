@@ -3,34 +3,25 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct PatternReaderReloadSafetyTests {
-    @Test func loaderSelectsOnlyTheExactUsageStateFromTheStoreSnapshot() {
-        let patternID = UUID()
-        let projectID = UUID()
-        let requestedUsageID = UUID()
+    @MainActor @Test func loaderSelectsOnlyTheExactUsageStateFromTheStoreSnapshot() throws {
+        let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+        let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
         let wanted = PatternReadingState(pageIndex: 6, zoomScale: 2.4, offsetX: 0.3, offsetY: 0.7)
         let context = PatternReaderContext.project(
-            patternID: patternID,
-            usageID: requestedUsageID,
-            projectID: projectID,
+            patternID: harness.patternID,
+            usageID: usage.id,
+            projectID: harness.projectID,
             projectIsCompleted: false
         )
-        let otherUsage = PatternProjectUsage(
-            patternID: patternID,
-            projectID: projectID,
-            sortOrder: 0,
-            readingState: PatternReadingState(pageIndex: 1)
-        )
-        let requestedUsage = PatternProjectUsage(
-            id: requestedUsageID,
-            patternID: patternID,
-            projectID: projectID,
-            sortOrder: 1,
-            readingState: wanted
+        _ = try harness.store.updatePatternState(
+            usageID: usage.id,
+            state: wanted,
+            expectedDataGeneration: harness.store.dataGeneration
         )
 
         #expect(PatternReaderStateLoader.readingState(
             for: context,
-            usages: [otherUsage, requestedUsage]
+            usages: harness.store.patternUsages
         ) == wanted)
     }
 
@@ -66,9 +57,20 @@ import Testing
             assetID: assetID
         )
         let replacementAsset = PatternReaderContextIdentity(context: context, assetID: UUID())
+        let inactive = PatternReaderContextIdentity(
+            context: .project(
+                patternID: context.patternID,
+                usageID: context.usageID!,
+                projectID: context.projectID!,
+                usageIsActive: false,
+                projectIsCompleted: false
+            ),
+            assetID: assetID
+        )
 
         #expect(baseline != completed)
         #expect(baseline != replacementAsset)
+        #expect(baseline != inactive)
     }
 
     private func writableContext() -> PatternReaderContext {

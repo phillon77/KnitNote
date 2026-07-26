@@ -17,7 +17,8 @@ import Testing
         let readerSource = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 
         #expect(readerSource.contains("counters: project.counters"))
-        #expect(readerSource.contains("store.incrementCounter(projectID: projectID, counterID: counterID)"))
+        #expect(readerSource.contains("store.mutatePatternReaderCounter("))
+        #expect(readerSource.contains("mutation: .increment"))
         #expect(readerSource.contains("managingCounter = project.counters.first"))
     }
 
@@ -70,6 +71,18 @@ import Testing
         #expect(reader.contains("try store.loadPatternMarkup(usageID:"))
         #expect(reader.contains("try store.savePatternMarkup("))
         #expect(reader.contains("usageID: usageID"))
+        #expect(reader.contains("store.mutatePatternReaderCounter("))
+        #expect(reader.contains("expectedDataGeneration = nextGeneration"))
+        #expect(!reader.contains("store.incrementCounter(projectID:"))
+        #expect(!reader.contains("store.updateCounter(projectID:"))
+    }
+
+    @Test func readerIdentityReloadsWhenItsUsageBecomesInactive() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(reader.contains("usageIsActive = store.patternUsages.contains"))
+        #expect(reader.contains("&& $0.isActive"))
+        #expect(reader.contains("usageIsActive: usageIsActive"))
     }
 
     @Test func readerDisablesEveryWriteControlWhenItsContextIsReadOnly() throws {

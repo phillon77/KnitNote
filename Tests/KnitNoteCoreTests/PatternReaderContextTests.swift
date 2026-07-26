@@ -42,4 +42,17 @@ import Testing
 
         #expect(!context.canWrite)
     }
+
+    @Test func inactiveUsageContextCannotWrite() {
+        let context = PatternReaderContext.project(
+            patternID: UUID(),
+            usageID: UUID(),
+            projectID: UUID(),
+            usageIsActive: false,
+            projectIsCompleted: false
+        )
+
+        #expect(!context.usageIsActive)
+        #expect(!context.canWrite)
+    }
 }

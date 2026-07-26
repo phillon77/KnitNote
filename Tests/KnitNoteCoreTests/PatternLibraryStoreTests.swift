@@ -137,7 +137,7 @@ import Testing
     try FileManager.default.removeItem(at: usageMarkupRoot)
     try FileManager.default.createSymbolicLink(at: usageMarkupRoot, withDestinationURL: outside)
 
-    #expect(throws: PatternLibraryDeletionError.unsafeTransactionRoot) {
+    #expect(throws: PatternMarkupFileError.unsafePath) {
         try harness.store.delete(id: harness.projectID)
     }
     #expect(harness.store.projects.map(\.id) == [harness.projectID])

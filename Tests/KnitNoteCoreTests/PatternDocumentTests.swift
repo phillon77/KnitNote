@@ -209,6 +209,101 @@ import Testing
     #expect(reloaded.pageStates[0]?.note == nil)
 }
 
+@MainActor @Test func completedProjectRejectsLegacyReaderWritesWithoutChangingArchiveOrMarkup() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let archiveURL = root.appendingPathComponent("projects-v1.json")
+    let store = JSONProjectStore(url: archiveURL)
+    try store.add(name: "Completed")
+    let projectID = try #require(store.projects.first?.id)
+    let pattern = PatternDocument(displayName: "Chart", kind: .pdf, storedFilename: "chart.pdf")
+    try store.addPattern(projectID: projectID, pattern: pattern)
+    let originalMarkup = PatternMarkupDocument(strokes: [
+        .init(points: [.init(x: 0.2, y: 0.8)], color: .red, width: 0.01),
+    ])
+    try store.savePatternMarkup(
+        originalMarkup,
+        projectID: projectID,
+        patternID: pattern.id,
+        pageIndex: 0,
+        expectedDataGeneration: store.dataGeneration
+    )
+    try store.markCompleted(projectID: projectID)
+    let archiveBefore = try Data(contentsOf: archiveURL)
+    let markupURL = root.appendingPathComponent(
+        "Patterns/\(projectID.uuidString)/Markup/\(pattern.id.uuidString)/0.json"
+    )
+    let markupBefore = try Data(contentsOf: markupURL)
+
+    #expect(throws: PatternLibraryMutationError.projectCompleted) {
+        try store.updatePatternState(
+            projectID: projectID,
+            id: pattern.id,
+            state: PatternReadingState(pageIndex: 2, highlightPosition: 0.2),
+            expectedDataGeneration: store.dataGeneration
+        )
+    }
+    #expect(throws: PatternLibraryMutationError.projectCompleted) {
+        try store.updatePatternState(projectID: projectID, id: pattern.id, pageIndex: 3, highlightPosition: 0.7)
+    }
+    #expect(throws: PatternLibraryMutationError.projectCompleted) {
+        try store.savePatternPageNote(projectID: projectID, patternID: pattern.id, pageIndex: 2, text: "blocked")
+    }
+    #expect(throws: PatternLibraryMutationError.projectCompleted) {
+        try store.savePatternMarkup(
+            PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.4, y: 0.4)], color: .blue, width: 0.01)]),
+            projectID: projectID,
+            patternID: pattern.id,
+            pageIndex: 0,
+            expectedDataGeneration: store.dataGeneration
+        )
+    }
+
+    #expect(try Data(contentsOf: archiveURL) == archiveBefore)
+    #expect(try Data(contentsOf: markupURL) == markupBefore)
+    let reopened = JSONProjectStore(url: archiveURL)
+    #expect(reopened.projects.first?.patterns.first?.readingState == PatternReadingState())
+    #expect(try reopened.loadPatternMarkup(projectID: projectID, patternID: pattern.id, pageIndex: 0) == originalMarkup)
+}
+
+@MainActor @Test func activeProjectContinuesToPersistLegacyReaderWrites() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = JSONProjectStore(url: root.appendingPathComponent("projects-v1.json"))
+    try store.add(name: "Active")
+    let projectID = try #require(store.projects.first?.id)
+    let pattern = PatternDocument(displayName: "Chart", kind: .pdf, storedFilename: "chart.pdf")
+    try store.addPattern(projectID: projectID, pattern: pattern)
+    try store.updatePatternState(projectID: projectID, id: pattern.id, pageIndex: 3, highlightPosition: 0.7)
+    try store.savePatternPageNote(projectID: projectID, patternID: pattern.id, pageIndex: 3, text: "active")
+    let markup = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.5, y: 0.5)], color: .black, width: 0.01)])
+    try store.savePatternMarkup(
+        markup,
+        projectID: projectID,
+        patternID: pattern.id,
+        pageIndex: 3,
+        expectedDataGeneration: store.dataGeneration
+    )
+
+    let reopened = JSONProjectStore(url: root.appendingPathComponent("projects-v1.json"))
+    #expect(reopened.projects.first?.patterns.first?.readingState.pageIndex == 3)
+    #expect(reopened.projects.first?.patterns.first?.pageStates[3]?.note == "active")
+    #expect(try reopened.loadPatternMarkup(projectID: projectID, patternID: pattern.id, pageIndex: 3) == markup)
+}
+
+@Test func completedStoredProjectIgnoresLegacyReaderWrites() throws {
+    var project = try StoredProject(name: "Completed")
+    let pattern = PatternDocument(displayName: "Chart", kind: .pdf, storedFilename: "chart.pdf")
+    project.addPattern(pattern)
+    project.markCompleted(at: Date(timeIntervalSince1970: 100))
+    let before = project
+
+    project.updatePatternState(id: pattern.id, pageIndex: 3, highlightPosition: 0.7)
+    project.savePatternPageNote(patternID: pattern.id, pageIndex: 3, text: "blocked")
+
+    #expect(project == before)
+}
+
 @Test func legacyPatternMigratesHighlightsToItsSavedPage() throws {
     let original = PatternDocument(displayName: "Legacy", kind: .pdf, storedFilename: "legacy.pdf")
     var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])

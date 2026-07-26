@@ -144,8 +144,28 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public mutating func addPattern(_ pattern: PatternDocument) { legacyPatternDocuments.append(pattern); updatedAt = .now }
     public mutating func deletePattern(id: UUID) { legacyPatternDocuments.removeAll { $0.id == id }; updatedAt = .now }
     public mutating func renamePattern(id: UUID, name: String) { if let i = legacyPatternDocuments.firstIndex(where: {$0.id == id}) { legacyPatternDocuments[i].displayName = name; updatedAt = .now } }
-    public mutating func savePatternPageNote(patternID: UUID, pageIndex: Int, text: String, now: Date = .now) { if let i = legacyPatternDocuments.firstIndex(where: {$0.id == patternID}) { legacyPatternDocuments[i].setPageNote(text, pageIndex: pageIndex); updatedAt = now } }
-    public mutating func updatePatternState(id: UUID, state: PatternReadingState, now: Date = .now) { if let i = legacyPatternDocuments.firstIndex(where: {$0.id == id}) { legacyPatternDocuments[i].pageIndex=state.pageIndex; legacyPatternDocuments[i].zoomScale=state.zoomScale; legacyPatternDocuments[i].contentOffsetX=state.offsetX; legacyPatternDocuments[i].contentOffsetY=state.offsetY; legacyPatternDocuments[i].highlightEnabled=state.highlightEnabled; legacyPatternDocuments[i].highlightPosition=state.highlightPosition; legacyPatternDocuments[i].highlightMode=state.highlightMode; legacyPatternDocuments[i].verticalHighlightPosition=state.verticalHighlightPosition; legacyPatternDocuments[i].pageStates=state.pageStates; legacyPatternDocuments[i].lastOpenedAt = now; updatedAt = now } }
+    public mutating func savePatternPageNote(patternID: UUID, pageIndex: Int, text: String, now: Date = .now) {
+        guard !isCompleted,
+              let index = legacyPatternDocuments.firstIndex(where: { $0.id == patternID }) else { return }
+        legacyPatternDocuments[index].setPageNote(text, pageIndex: pageIndex)
+        updatedAt = now
+    }
+
+    public mutating func updatePatternState(id: UUID, state: PatternReadingState, now: Date = .now) {
+        guard !isCompleted,
+              let index = legacyPatternDocuments.firstIndex(where: { $0.id == id }) else { return }
+        legacyPatternDocuments[index].pageIndex = state.pageIndex
+        legacyPatternDocuments[index].zoomScale = state.zoomScale
+        legacyPatternDocuments[index].contentOffsetX = state.offsetX
+        legacyPatternDocuments[index].contentOffsetY = state.offsetY
+        legacyPatternDocuments[index].highlightEnabled = state.highlightEnabled
+        legacyPatternDocuments[index].highlightPosition = state.highlightPosition
+        legacyPatternDocuments[index].highlightMode = state.highlightMode
+        legacyPatternDocuments[index].verticalHighlightPosition = state.verticalHighlightPosition
+        legacyPatternDocuments[index].pageStates = state.pageStates
+        legacyPatternDocuments[index].lastOpenedAt = now
+        updatedAt = now
+    }
     public mutating func updatePatternState(id: UUID, pageIndex: Int, highlightPosition: Double) { updatePatternState(id: id, state: .init(pageIndex: pageIndex, highlightPosition: highlightPosition)) }
 
     public mutating func addJournalEntry(_ entry: ProjectJournalEntry, now: Date = .now) throws {

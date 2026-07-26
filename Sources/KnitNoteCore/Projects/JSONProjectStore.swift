@@ -378,7 +378,7 @@ final class PatternLibraryDeletionTransaction {
         switch item.kind {
         case .usageMarkup:
             guard let usageID = item.usageID else { throw PatternLibraryDeletionError.invalidJournal }
-            return try validatedUsageMarkupURL(usageID: usageID)
+            return try markupService.usageMarkupDirectory(usageID: usageID)
         case .asset:
             guard let asset = item.asset else { throw PatternLibraryDeletionError.invalidJournal }
             return try fileService.assetURL(asset)
@@ -423,29 +423,6 @@ final class PatternLibraryDeletionTransaction {
         return transactionsRoot
     }
 
-    private func validatedUsageMarkupURL(usageID: UUID) throws -> URL {
-        let root = markupService.root.standardizedFileURL
-        let physicalRoot = root.resolvingSymlinksInPath()
-        guard physicalRoot.path == root.path else {
-            throw PatternLibraryDeletionError.unsafeTransactionRoot
-        }
-        let markupRoot = root.appendingPathComponent("UsageMarkup", isDirectory: true).standardizedFileURL
-        guard markupRoot.deletingLastPathComponent().path == root.path,
-              markupRoot.resolvingSymlinksInPath().path == markupRoot.path else {
-            throw PatternLibraryDeletionError.unsafeTransactionRoot
-        }
-        let candidate = markupRoot.appendingPathComponent(usageID.uuidString, isDirectory: true).standardizedFileURL
-        guard candidate.deletingLastPathComponent().path == markupRoot.path else {
-            throw PatternLibraryDeletionError.unsafeTransactionRoot
-        }
-        if FileManager.default.fileExists(atPath: candidate.path) {
-            let values = try candidate.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-            guard values.isDirectory == true, values.isSymbolicLink != true else {
-                throw PatternLibraryDeletionError.unsafeTransactionRoot
-            }
-        }
-        return candidate
-    }
 }
 
 @MainActor public final class JSONProjectStore: ObservableObject {
@@ -1120,11 +1097,15 @@ final class PatternLibraryDeletionTransaction {
         expectedDataGeneration: UInt64? = nil
     ) throws {
         try validateExpectedDataGeneration(expectedDataGeneration)
+        try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) {
             $0.savePatternPageNote(patternID: patternID, pageIndex: pageIndex, text: text)
         }
     }
-    public func updatePatternState(projectID: UUID, id: UUID, pageIndex: Int, highlightPosition: Double) throws { try mutate(id: projectID) { $0.updatePatternState(id: id, pageIndex: pageIndex, highlightPosition: highlightPosition) } }
+    public func updatePatternState(projectID: UUID, id: UUID, pageIndex: Int, highlightPosition: Double) throws {
+        try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
+        try mutate(id: projectID) { $0.updatePatternState(id: id, pageIndex: pageIndex, highlightPosition: highlightPosition) }
+    }
     public func updatePatternState(
         projectID: UUID,
         id: UUID,
@@ -1132,6 +1113,7 @@ final class PatternLibraryDeletionTransaction {
         expectedDataGeneration: UInt64? = nil
     ) throws {
         try validateExpectedDataGeneration(expectedDataGeneration)
+        try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) }
     }
     public func patternURL(projectID: UUID, pattern: PatternDocument) -> URL {
@@ -1160,8 +1142,12 @@ final class PatternLibraryDeletionTransaction {
     ) throws {
         try ensureArchiveAvailable()
         try validateExpectedDataGeneration(expectedDataGeneration)
-        guard project(id: projectID)?.patterns.contains(where: { $0.id == patternID }) == true else {
+        guard let project = project(id: projectID),
+              project.patterns.contains(where: { $0.id == patternID }) else {
             throw ProjectStoreError.patternNotFound
+        }
+        guard !project.isCompleted else {
+            throw PatternLibraryMutationError.projectCompleted
         }
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
@@ -1369,6 +1355,13 @@ final class PatternLibraryDeletionTransaction {
             throw PatternLibraryMutationError.projectCompleted
         }
         return index
+    }
+
+    private func ensureLegacyPatternReaderWriteAllowed(projectID: UUID) throws {
+        guard let project = project(id: projectID) else { return }
+        guard !project.isCompleted else {
+            throw PatternLibraryMutationError.projectCompleted
+        }
     }
     private func load() {
         do {

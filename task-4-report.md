@@ -20,10 +20,20 @@ Added `PatternLibraryStoreTests` and converted markup file tests to the usage-ID
 - Journal and markup roots are physically validated, symlinked roots are rejected, and no-op deletions write no journal.
 - Added fresh-store tests for pre-publication rollback and post-publication cleanup of both project and permanent-pattern deletion, plus two-project state/markup isolation, persistence rollback, relink persistence, inactive-write rejection, malformed journals, no-op staging, and symlink safety.
 
+## Second review fix
+
+- Closed the completed-project bypass in the project-scoped legacy reader APIs. Store writes now throw `PatternLibraryMutationError.projectCompleted`; direct `StoredProject` legacy state and note mutations remain no-ops, matching their existing non-throwing contract.
+- Centralized physical path validation in `PatternMarkupFileService`. Usage and legacy read/save/delete paths, legacy-copy routing, and deletion transactions all reject symlinked or non-canonical roots, subdirectories, and existing page files.
+- Added regression coverage for all completed legacy reader writes (state, highlight, note, markup), exact archive/markup byte preservation after a fresh reopen, active-project writes, direct model no-op behavior, and usage/legacy symlink targets remaining untouched.
+
 ## Files
 
 - `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`
+- `Sources/KnitNoteCore/Projects/StoredProject.swift`
+- `Sources/KnitNoteCore/Patterns/PatternMarkupFileService.swift`
+- `Tests/KnitNoteCoreTests/PatternDocumentTests.swift`
 - `Tests/KnitNoteCoreTests/PatternLibraryStoreTests.swift`
+- `Tests/KnitNoteCoreTests/PatternMarkupFileServiceTests.swift`
 - `task-4-report.md`
 
 ## Tests
@@ -34,6 +44,10 @@ Added `PatternLibraryStoreTests` and converted markup file tests to the usage-ID
 - Review-fix focused: same command — 23 tests passed.
 - Full regression: `swift test` — 627 tests in 44 suites passed.
 - `git diff --check` — passed.
+- Second review RED: the focused legacy reader and markup tests failed as expected: completed project-scoped writes changed archive/markup data and symlinked roots were followed.
+- Second review focused: `swift test --filter 'PatternDocumentTests|PatternMarkupFileServiceTests|PatternLibraryStoreTests'` — 46 tests passed.
+- Second review full regression: `swift test` — 632 tests in 44 suites passed.
+- Second review final diff check: `git diff --check` — passed.
 
 ## Concerns
 

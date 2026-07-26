@@ -42,3 +42,57 @@ import Testing
     #expect(try service.load(usageID: firstUsageID, pageIndex: 0).strokes.isEmpty)
     #expect(try service.load(usageID: secondUsageID, pageIndex: 0) == drawing)
 }
+
+@Test func usageMarkupSymlinkRejectsEveryOperationWithoutTouchingItsTarget() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let outside = root.appendingPathComponent("outside", isDirectory: true)
+    let marker = outside.appendingPathComponent("marker.txt")
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    try Data("outside bytes".utf8).write(to: marker)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(
+        at: root.appendingPathComponent("UsageMarkup", isDirectory: true),
+        withDestinationURL: outside
+    )
+    let service = PatternMarkupFileService(root: root)
+    let drawing = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.5, y: 0.5)], color: .red, width: 0.01)])
+    let usageID = UUID()
+
+    #expect(throws: PatternMarkupFileError.unsafePath) { try service.save(drawing, usageID: usageID, pageIndex: 0) }
+    #expect(throws: PatternMarkupFileError.unsafePath) { _ = try service.load(usageID: usageID, pageIndex: 0) }
+    #expect(throws: PatternMarkupFileError.unsafePath) { try service.deleteUsageMarkup(usageID: usageID) }
+
+    #expect(try Data(contentsOf: marker) == Data("outside bytes".utf8))
+    #expect((try FileManager.default.contentsOfDirectory(atPath: outside.path)).sorted() == ["marker.txt"])
+}
+
+@Test func legacyMarkupSymlinkRejectsEveryOperationWithoutTouchingItsTarget() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let outside = root.appendingPathComponent("outside", isDirectory: true)
+    let marker = outside.appendingPathComponent("marker.txt")
+    let projectID = UUID(), patternID = UUID()
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    try Data("outside bytes".utf8).write(to: marker)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(
+        at: root.appendingPathComponent(projectID.uuidString, isDirectory: true),
+        withDestinationURL: outside
+    )
+    let service = PatternMarkupFileService(root: root)
+    let drawing = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.5, y: 0.5)], color: .blue, width: 0.01)])
+
+    #expect(throws: PatternMarkupFileError.unsafePath) {
+        try service.save(drawing, projectID: projectID, patternID: patternID, pageIndex: 0)
+    }
+    #expect(throws: PatternMarkupFileError.unsafePath) {
+        _ = try service.load(projectID: projectID, patternID: patternID, pageIndex: 0)
+    }
+    #expect(throws: PatternMarkupFileError.unsafePath) {
+        try service.deleteLegacyMarkup(projectID: projectID, patternID: patternID)
+    }
+
+    #expect(try Data(contentsOf: marker) == Data("outside bytes".utf8))
+    #expect((try FileManager.default.contentsOfDirectory(atPath: outside.path)).sorted() == ["marker.txt"])
+}

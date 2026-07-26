@@ -61,6 +61,23 @@ import Testing
         #expect(!generatedProject.contains("CURRENT_PROJECT_VERSION = 1;"))
     }
 
+    @Test func releaseCandidateUsesVersionOnePointTwoAcrossEveryBundle() throws {
+        let specification = try source("project.yml")
+        let generatedProject = try source("KnitNote.xcodeproj/project.pbxproj")
+
+        #expect(
+            specification.components(
+                separatedBy: "MARKETING_VERSION: 1.2.0"
+            ).count == 4
+        )
+        #expect(
+            generatedProject.components(
+                separatedBy: "MARKETING_VERSION = 1.2.0;"
+            ).count == 7
+        )
+        #expect(!generatedProject.contains("MARKETING_VERSION = 1.0.0;"))
+    }
+
     @Test func watchInfoMarksTheEmbeddedProductAsAWatchApplication() throws {
         let watchInfo = try plist("KnitNoteWatch/Info.plist")
         let project = try source("project.yml")

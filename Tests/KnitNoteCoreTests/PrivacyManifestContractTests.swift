@@ -2,7 +2,7 @@ import Foundation
 import Testing
 
 @Suite struct PrivacyManifestContractTests {
-    @Test func projectPackagesBothPrivacyManifestsAsResources() throws {
+    @Test func projectPackagesEveryPrivacyManifestAsAResource() throws {
         let project = try String(
             contentsOf: privacyManifestRepositoryRoot.appending(path: "project.yml"),
             encoding: .utf8
@@ -10,6 +10,7 @@ import Testing
 
         #expect(project.contains("- path: KnitNote/PrivacyInfo.xcprivacy\n        buildPhase: resources"))
         #expect(project.contains("- path: KnitNoteWatch/PrivacyInfo.xcprivacy\n        buildPhase: resources"))
+        #expect(project.contains("- path: KnitNoteShare/PrivacyInfo.xcprivacy\n        buildPhase: resources"))
     }
 
     @Test func mainAppDeclaresOnlyItsAuditedLocalPrivacyBehavior() throws {
@@ -33,6 +34,13 @@ import Testing
                 "NSPrivacyAccessedAPICategoryFileTimestamp": ["C617.1"],
             ]
         )
+    }
+
+    @Test func shareExtensionDeclaresNoCollectionTrackingOrRequiredReasonAPIs() throws {
+        let manifest = try privacyManifest(at: "KnitNoteShare/PrivacyInfo.xcprivacy")
+
+        try requireNoCollectionOrTracking(manifest)
+        #expect(try reasonsByCategory(in: manifest).isEmpty)
     }
 
     private func privacyManifest(at relativePath: String) throws -> [String: Any] {

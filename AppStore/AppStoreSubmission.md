@@ -1,6 +1,6 @@
 # KnitNote App Store 提交狀態
 
-最後更新：2026-07-24
+最後更新：2026-07-27
 
 ## 版本
 
@@ -8,12 +8,23 @@
 - Apple ID：`6793023054`
 - iOS／macOS bundle ID：`com.phillon.KnitNote`
 - Watch bundle ID：`com.phillon.KnitNote.watch`
-- 版本：`1.0.0`
+- Share extension bundle ID：`com.phillon.KnitNote.share`
+- 下一版 release candidate：`1.2.0`
 - Build：`2`
 - Team：`9CFPAUL5N5`
 - 價格：首發 US$2.99，一次買斷；詳細紀錄見 `KnitNotePricing.md`
 
-## Watch companion 狀態
+## 1.2 織圖庫 release candidate
+
+- `IMPLEMENTED`：織圖可獨立收藏，並可連結多個作品。
+- `IMPLEMENTED`：iOS Share Extension `KnitNoteShare` 可將一份 PDF 或支援的圖片送入待處理匣。
+- `IMPLEMENTED`：既有作品資料升級至 project archive schema 10。
+- `IMPLEMENTED`：完整備份使用 backup manifest 2，且保留舊格式還原相容性。
+- `VERIFIED LOCALLY`：完整 Swift 測試 830 項、靜態 release audit、iOS／macOS／Watch／Share clean builds 與 Share／Watch 嵌入稽核均通過；詳細證據見 `Verification/PatternLibraryVerification.md`。
+- `MANUAL ACCEPTANCE NOT RUN`：本次 unsigned Simulator build 無法取得正式 App Group，因此 iPhone／iPad 織圖庫與 Share Sheet 的簽章版本人工驗收仍待執行。
+- `NOT SUBMITTED`：1.2.0 尚未 archive、Validate、上傳或送審；完成本機 release verification 不代表已取得送審授權。
+
+## Watch companion 狀態（1.0 歷史紀錄）
 
 - [x] iOS-only Embed Watch Content
 - [x] `WKCompanionAppBundleIdentifier = com.phillon.KnitNote`
@@ -24,7 +35,7 @@
 - [x] Apple Watch Developer Mode、裝置登錄、實機安裝與啟動
 - [x] 實體 Apple Watch 功能與 VoiceOver 驗收
 
-## 發布門檻
+## 1.0 發布門檻（歷史紀錄）
 
 - [x] SwiftPM 537 項測試與 iOS、macOS、watchOS、Release build 目的地通過
 - [x] iOS／Watch 與 macOS Build 2 signed archives 建立成功
@@ -44,6 +55,9 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 ## Builds／建置版本
 
+- `CANDIDATE`：iOS／iPadOS／watchOS、Share Extension 與 macOS 的設定版本均為 `1.2.0`、Build `2`。
+- `VERIFIED LOCALLY`：1.2.0 generic iOS／macOS clean build、Share embed、Watch embed 與 fresh Watch／Share target build 均通過，證據記錄於 `Verification/PatternLibraryVerification.md`。
+- `NOT UPLOADED`：1.2.0／Build 2 尚未上傳 App Store Connect。
 - `VERIFIED`：iOS／iPadOS／watchOS 與 macOS 版本 `1.0.0`、Build `2`。
 - `VERIFIED`：iOS／Watch Build 2 已通過 Xcode Organizer Validate App。
 - `UPLOADED`：iOS／iPadOS／Watch 與 macOS Build 2 均已由 Xcode Organizer 上傳至 Apple；等待 App Store Connect 完成後續處理。
@@ -59,6 +73,7 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 ## Privacy／隱私
 
+- `VERIFIED LOCALLY`：1.2.0 主 App、Watch 與 `KnitNoteShare` 的 `PrivacyInfo.xcprivacy` 已通過靜態 release audit、實際 build-product 存在性與 `plutil -lint` 稽核。
 - `VERIFIED`：不追蹤、不含廣告／分析 SDK、不傳送使用資料到開發者伺服器。
 - `VERIFIED`：主 App、Watch 與 macOS archive 均含經稽核的隱私權清單。
 - `READY`：雙語公開隱私權政策來源已完成。
@@ -83,12 +98,14 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 ## Manual release／手動發佈
 
+- `NOT SUBMITTED`：1.2.0 尚未送審或發佈。
 - `RELEASED`：iOS 1.0 已由帳號持有人手動發佈，並於 2026-07-24 公開上架。
 - `WAITING FOR REVIEW`：macOS 1.0 已提交審查，核准後仍採手動發佈。
 
 ## Final approval boundary／最終批准界線
 
-- `AUTHORIZED`：使用者已明確要求繼續送審。
+- `NOT AUTHORIZED`：目前工作只涵蓋 1.2.0 release candidate 的本機驗證與文件；任何 archive 上傳、App Store Connect 編輯、送審或發佈仍需使用者另行明確授權。
+- `AUTHORIZED FOR 1.0`：使用者曾明確要求繼續 1.0 送審；此授權不延伸到 1.2.0。
 - `RELEASED`：iOS 1.0／Build 2 已通過審查並公開上架。
 - `SUBMITTED`：macOS 1.0／Build 2 已完成雙語資料、截圖與審核資訊核對，並正式提交。
 - `WAITING FOR REVIEW`：App Store Connect 的 macOS 版本頁顯示「正在等待審查」。

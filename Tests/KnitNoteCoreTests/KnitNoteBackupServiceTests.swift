@@ -1,9 +1,130 @@
 import CoreGraphics
+import CryptoKit
 import Foundation
 import Testing
 @testable import KnitNoteCore
 
 @Suite struct KnitNoteBackupServiceTests {
+    @Test func formatTwoExportListsExactSchemaTenPatternFilesAndIntegrity() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fixture = try BackupFixture.writePatternLibraryArchive(to: live)
+        try BackupFixture.writeExcludedPatternArtifacts(to: live)
+
+        let package = try service.createPackage(
+            appVersion: "1.2.0",
+            now: .init(timeIntervalSince1970: 20)
+        )
+        let manifest = try JSONDecoder().decode(
+            KnitNoteBackupManifest.self,
+            from: Data(contentsOf: package.appendingPathComponent("manifest.json"))
+        )
+
+        #expect(manifest.formatVersion == 2)
+        #expect(manifest.patternCount == 1)
+        #expect(Set(manifest.files.map(\.relativePath)) == Set(fixture.referencedRelativePaths))
+        #expect(manifest.criticalFeatures == [KnitNoteBackupManifest.fileIntegrityFeature])
+        for entry in manifest.files {
+            let data = try Data(
+                contentsOf: package.appendingPathComponent("Data/\(entry.relativePath)")
+            )
+            #expect(entry.byteCount == Int64(data.count))
+            #expect(entry.sha256 == BackupFixture.sha256(data))
+        }
+        let packagedPaths = Set(try BackupFixture.relativeFilePaths(
+            below: package.appendingPathComponent("Data", isDirectory: true)
+        ))
+        #expect(packagedPaths == Set(fixture.referencedRelativePaths))
+        #expect(!packagedPaths.contains { path in
+            path.contains("Thumbnail")
+                || path.contains("Inbox")
+                || path.contains("PublicationReceipts")
+                || path.contains("Quarantine")
+                || path.contains("Candidates")
+                || path.contains("Transactions")
+        })
+    }
+
+    @Test func formatTwoInspectionRejectsSameSizeContentTampering() throws {
+        let package = try BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let assetPath = try #require(
+            package.manifest.files.first { $0.relativePath.hasPrefix("Patterns/Assets/") }
+        ).relativePath
+        let assetURL = package.url.appendingPathComponent("Data/\(assetPath)")
+        let original = try Data(contentsOf: assetURL)
+        try Data(repeating: 0x5A, count: original.count).write(to: assetURL, options: .atomic)
+
+        #expect(throws: KnitNoteBackupError.integrityMismatch(assetPath)) {
+            _ = try package.service.inspectPackage(at: package.url)
+        }
+    }
+
+    @Test(arguments: [
+        "/tmp/absolute.pdf",
+        "../traversal.pdf",
+        "Patterns/../escape.pdf",
+        #"Patterns\Assets\escape.pdf"#,
+    ])
+    func formatTwoInspectionRejectsUnsafeManifestPaths(_ unsafePath: String) throws {
+        let package = try BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.rewriteManifest { manifest in
+            var files = manifest.files
+            let first = files.removeFirst()
+            files.insert(
+                .init(
+                    relativePath: unsafePath,
+                    byteCount: first.byteCount,
+                    sha256: first.sha256
+                ),
+                at: 0
+            )
+            return manifest.replacing(files: files)
+        }
+
+        #expect(throws: KnitNoteBackupError.unsafePackageEntry) {
+            _ = try package.service.inspectPackage(at: package.url)
+        }
+    }
+
+    @Test func formatTwoInspectionRejectsDuplicateAndCaseCollidingPaths() throws {
+        for useUppercase in [false, true] {
+            let package = try BackupFixture.patternLibraryPackage()
+            defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+            let first = try #require(package.manifest.files.first)
+            let duplicatePath = useUppercase
+                ? first.relativePath.uppercased()
+                : first.relativePath
+            try package.rewriteManifest { manifest in
+                manifest.replacing(files: manifest.files + [
+                    .init(
+                        relativePath: duplicatePath,
+                        byteCount: first.byteCount,
+                        sha256: first.sha256
+                    ),
+                ])
+            }
+            #expect(throws: KnitNoteBackupError.unsafePackageEntry) {
+                _ = try package.service.inspectPackage(at: package.url)
+            }
+        }
+    }
+
+    @Test func formatTwoInspectionRejectsUnknownCriticalFeature() throws {
+        let package = try BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.rewriteManifest { manifest in
+            manifest.replacing(
+                criticalFeatures: manifest.criticalFeatures + ["future-required-semantics"]
+            )
+        }
+
+        #expect(throws: KnitNoteBackupError.invalidManifest) {
+            _ = try package.service.inspectPackage(at: package.url)
+        }
+    }
+
     @Test func exportCopiesArchiveAndEveryReferencedMediaKindButNotOrphans() throws {
         let (service, live, root) = try makeServiceFixture()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -123,6 +244,7 @@ import Testing
     @Test func markupEntryCapAcceptsExactAndRejectsLimitPlusOne() throws {
         let package = try BackupFixture.completePackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.downgradeManifestToVersionOne()
         let directory = package.url
             .appendingPathComponent("Data/\(package.markupRelativePath)")
             .deletingLastPathComponent()
@@ -144,6 +266,7 @@ import Testing
     @Test func markupStrokeCapAcceptsExactAndRejectsLimitPlusOne() throws {
         let package = try BackupFixture.completePackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.downgradeManifestToVersionOne()
         let stroke = PatternMarkupStroke(
             points: [.init(x: 0.25, y: 0.75)],
             color: .red,
@@ -168,6 +291,7 @@ import Testing
     @Test func markupPointCapAcceptsExactAndRejectsLimitPlusOne() throws {
         let package = try BackupFixture.completePackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.downgradeManifestToVersionOne()
         let point = PatternMarkupPoint(x: 0.5, y: 0.5)
         func document(pointCount: Int) -> PatternMarkupDocument {
             PatternMarkupDocument(strokes: [PatternMarkupStroke(
@@ -193,6 +317,7 @@ import Testing
     @Test func markupDocumentTotalPointCapAcceptsExactAndRejectsLimitPlusOne() throws {
         let package = try BackupFixture.completePackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.downgradeManifestToVersionOne()
         let point = PatternMarkupPoint(x: 0.5, y: 0.5)
         let fullStroke = PatternMarkupStroke(
             points: Array(
@@ -237,7 +362,7 @@ import Testing
             )
         }
 
-        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(2)) {
+        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(3)) {
             _ = try package.service.inspectPackage(at: package.url)
         }
     }
@@ -255,6 +380,7 @@ import Testing
     @Test func supportedLegacyProjectArchiveIsAcceptedDuringInspection() throws {
         let package = try BackupFixture.completePackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.downgradeManifestToVersionOne()
         try package.rewriteArchive { archive in
             ProjectArchive(version: 8, projects: archive.projects, yarns: archive.yarns)
         }
@@ -359,10 +485,14 @@ import Testing
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
         try package.rewriteManifest { manifest in
             KnitNoteBackupManifest(
+                formatVersion: manifest.formatVersion,
                 createdAt: manifest.createdAt,
                 appVersion: manifest.appVersion,
                 projectCount: manifest.projectCount + 1,
-                yarnCount: manifest.yarnCount
+                yarnCount: manifest.yarnCount,
+                patternCount: manifest.patternCount,
+                files: manifest.files,
+                criticalFeatures: manifest.criticalFeatures
             )
         }
 
@@ -1261,6 +1391,15 @@ private enum BackupFixture {
             url.appendingPathComponent("Data/\(firstRelativePath)")
         }
 
+        var manifest: KnitNoteBackupManifest {
+            get throws {
+                try JSONDecoder().decode(
+                    KnitNoteBackupManifest.self,
+                    from: Data(contentsOf: url.appendingPathComponent("manifest.json"))
+                )
+            }
+        }
+
         func rewriteManifest(
             _ transform: (KnitNoteBackupManifest) throws -> KnitNoteBackupManifest
         ) throws {
@@ -1295,6 +1434,20 @@ private enum BackupFixture {
                 options: .atomic
             )
         }
+
+        func downgradeManifestToVersionOne() throws {
+            let current = try manifest
+            try JSONEncoder().encode(KnitNoteBackupManifest(
+                formatVersion: 1,
+                createdAt: current.createdAt,
+                appVersion: current.appVersion,
+                projectCount: current.projectCount,
+                yarnCount: current.yarnCount
+            )).write(
+                to: url.appendingPathComponent("manifest.json"),
+                options: .atomic
+            )
+        }
     }
 
     static func completePackage() throws -> Package {
@@ -1313,6 +1466,28 @@ private enum BackupFixture {
             cleanupRoot: root,
             firstRelativePath: firstRelativePath,
             markupRelativePath: markupRelativePath
+        )
+    }
+
+    static func patternLibraryPackage() throws -> Package {
+        let (service, live, root) = try makeServiceFixture()
+        let complete = try writePatternLibraryArchive(to: live)
+        let packageURL = try service.createPackage(
+            appVersion: "1.2.0",
+            now: .init(timeIntervalSince1970: 20)
+        )
+        let assetPath = try #require(
+            complete.referencedRelativePaths.first { $0.hasPrefix("Patterns/Assets/") }
+        )
+        let markupPath = try #require(
+            complete.referencedRelativePaths.first { $0.hasPrefix("Patterns/UsageMarkup/") }
+        )
+        return Package(
+            service: service,
+            url: packageURL,
+            cleanupRoot: root,
+            firstRelativePath: assetPath,
+            markupRelativePath: markupPath
         )
     }
 
@@ -1429,6 +1604,127 @@ private enum BackupFixture {
         context.endPDFPage()
         context.closePDF()
         return CompleteArchive(referencedRelativePaths: files.map(\.0) + [patternPath])
+    }
+
+    static func writePatternLibraryArchive(to live: URL) throws -> CompleteArchive {
+        let project = try StoredProject(name: "Pattern project")
+        let assetID = UUID()
+        let patternID = UUID()
+        let usageID = UUID()
+        let assetBytes = Data("shared-original-pattern".utf8)
+        let storedFilename = "\(assetID.uuidString).pdf"
+        let asset = PatternAsset(
+            id: assetID,
+            sha256: sha256(assetBytes),
+            kind: .pdf,
+            storedFilename: storedFilename,
+            byteCount: Int64(assetBytes.count),
+            pageCount: 5
+        )
+        let pattern = StoredPattern(
+            id: patternID,
+            assetID: assetID,
+            displayName: "Shared chart",
+            note: "Designer and shop",
+            createdAt: .init(timeIntervalSince1970: 11),
+            lastOpenedAt: .init(timeIntervalSince1970: 12)
+        )
+        let readingState = PatternReadingState(
+            pageIndex: 2,
+            zoomScale: 2.25,
+            offsetX: 0.35,
+            offsetY: 0.65,
+            highlightEnabled: true,
+            highlightPosition: 0.4,
+            highlightMode: .vertical,
+            verticalHighlightPosition: 0.7,
+            pageNote: "Cable repeat",
+            pageStates: [
+                2: .init(
+                    horizontalPosition: 0.4,
+                    verticalPosition: 0.7,
+                    note: "Cable repeat"
+                ),
+            ]
+        )
+        let usage = PatternProjectUsage(
+            id: usageID,
+            patternID: patternID,
+            projectID: project.id,
+            isActive: false,
+            linkedAt: .init(timeIntervalSince1970: 13),
+            unlinkedAt: .init(timeIntervalSince1970: 14),
+            sortOrder: 3,
+            readingState: readingState
+        )
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [project],
+            patternAssets: [asset],
+            patterns: [pattern],
+            patternUsages: [usage]
+        )
+        let archivePath = "projects-v1.json"
+        let assetPath = "Patterns/Assets/\(storedFilename)"
+        let markupPath = "Patterns/UsageMarkup/\(usageID.uuidString)/2.json"
+        let markup = PatternMarkupDocument(strokes: [
+            .init(
+                points: [.init(x: 0.2, y: 0.3), .init(x: 0.4, y: 0.5)],
+                color: .red,
+                width: 0.006
+            ),
+        ])
+        let files: [(String, Data)] = [
+            (archivePath, try JSONEncoder().encode(archive)),
+            (assetPath, assetBytes),
+            (markupPath, try JSONEncoder().encode(markup)),
+        ]
+        for (relativePath, data) in files {
+            let destination = live.appendingPathComponent(relativePath)
+            try FileManager.default.createDirectory(
+                at: destination.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: destination, options: .atomic)
+        }
+        return CompleteArchive(referencedRelativePaths: files.map(\.0))
+    }
+
+    static func writeExcludedPatternArtifacts(to live: URL) throws {
+        let paths = [
+            "Patterns/Assets/.Candidates/candidate.pdf",
+            "Patterns/Assets/.Transactions/transaction.json",
+            "Patterns/Assets/.PublicationReceipts/receipt.json",
+            "Patterns/Assets/.Quarantine/quarantined.json",
+            "PatternInbox/inbox.pdf",
+        ]
+        for path in paths {
+            let destination = live.appendingPathComponent(path)
+            try FileManager.default.createDirectory(
+                at: destination.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try Data("excluded".utf8).write(to: destination)
+        }
+    }
+
+    static func relativeFilePaths(below root: URL) throws -> [String] {
+        let prefix = root.standardizedFileURL.path + "/"
+        let enumerator = try #require(FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey]
+        ))
+        return try enumerator.compactMap { item -> String? in
+            let url = try #require(item as? URL)
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+            guard values.isRegularFile == true else { return nil }
+            let path = url.standardizedFileURL.path
+            return String(path.dropFirst(prefix.count))
+        }
+    }
+
+    static func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     static func replaceLiveSourceWithExternalSymlink(
@@ -1580,6 +1876,24 @@ private final class ReplacementStepRecorder: @unchecked Sendable {
 
     func record(_ step: KnitNoteBackupReplacementStep) {
         lock.withLock { recordedSteps.append(step) }
+    }
+}
+
+private extension KnitNoteBackupManifest {
+    func replacing(
+        files: [KnitNoteBackupManifestFile]? = nil,
+        criticalFeatures: [String]? = nil
+    ) -> KnitNoteBackupManifest {
+        KnitNoteBackupManifest(
+            formatVersion: formatVersion,
+            createdAt: createdAt,
+            appVersion: appVersion,
+            projectCount: projectCount,
+            yarnCount: yarnCount,
+            patternCount: patternCount,
+            files: files ?? self.files,
+            criticalFeatures: criticalFeatures ?? self.criticalFeatures
+        )
     }
 }
 

@@ -5,7 +5,7 @@ import Testing
 import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
-@Suite struct PatternShareInboxEnqueuerTests {
+@Suite(.serialized) struct PatternShareInboxEnqueuerTests {
     @Test func enqueuerOwnsSecurityScopeAndCreatesOnlyAShareInboxItem() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PatternShareInboxEnqueuer-\(UUID().uuidString)")

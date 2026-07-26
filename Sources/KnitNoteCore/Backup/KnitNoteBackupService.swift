@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Darwin
 
@@ -12,10 +13,16 @@ typealias KnitNoteBackupResourceMetadata = (
 public struct StagedKnitNoteBackup: Sendable {
     public let root: URL
     public let preview: KnitNoteBackupPreview
+    let manifest: KnitNoteBackupManifest?
 
-    init(root: URL, preview: KnitNoteBackupPreview) {
+    init(
+        root: URL,
+        preview: KnitNoteBackupPreview,
+        manifest: KnitNoteBackupManifest? = nil
+    ) {
         self.root = root
         self.preview = preview
+        self.manifest = manifest
     }
 }
 
@@ -211,11 +218,15 @@ public struct KnitNoteBackupService: Sendable {
                 try FileManager.default.copyItem(at: source, to: destination)
             }
 
+            let manifestFiles = try manifestFiles(in: dataRoot)
             let manifest = KnitNoteBackupManifest(
                 createdAt: now,
                 appVersion: appVersion,
                 projectCount: archive.projects.count,
-                yarnCount: archive.yarns.count
+                yarnCount: archive.yarns.count,
+                patternCount: patternCount(in: archive),
+                files: manifestFiles,
+                criticalFeatures: [KnitNoteBackupManifest.fileIntegrityFeature]
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
@@ -256,15 +267,19 @@ public struct KnitNoteBackupService: Sendable {
         }
         try validateArchive(archive)
         guard manifest.projectCount == archive.projects.count,
-              manifest.yarnCount == archive.yarns.count else {
+              manifest.yarnCount == archive.yarns.count,
+              manifest.formatVersion == 1
+                || manifest.patternCount == patternCount(in: archive) else {
             throw KnitNoteBackupError.countMismatch
         }
         try validateDataTree(dataRoot, archive: archive)
+        try validateManifestFiles(manifest, in: dataRoot)
         return preview
     }
 
     public func stagePackage(at packageRoot: URL) throws -> StagedKnitNoteBackup {
         let preview = try inspectPackage(at: packageRoot)
+        let manifest = try decodeManifest(at: packageRoot)
         let stagedRoot = workRoot.appendingPathComponent(
             "Staged-\(UUID().uuidString)",
             isDirectory: true
@@ -292,12 +307,19 @@ public struct KnitNoteBackupService: Sendable {
             }
             try validateArchive(archive)
             guard preview.projectCount == archive.projects.count,
-                  preview.yarnCount == archive.yarns.count else {
+                  preview.yarnCount == archive.yarns.count,
+                  manifest.formatVersion == 1
+                    || preview.patternCount == patternCount(in: archive) else {
                 throw KnitNoteBackupError.countMismatch
             }
             try validateDataTree(stagedData, archive: archive)
+            try validateManifestFiles(manifest, in: stagedData)
             try verifyStagedTreeIsWritable(stagedData)
-            return StagedKnitNoteBackup(root: stagedRoot, preview: preview)
+            return StagedKnitNoteBackup(
+                root: stagedRoot,
+                preview: preview,
+                manifest: manifest
+            )
         } catch {
             try? FileManager.default.removeItem(at: stagedRoot)
             throw error
@@ -439,6 +461,10 @@ public struct KnitNoteBackupService: Sendable {
     }
 
     private func validateStagedBackup(_ staged: StagedKnitNoteBackup) throws {
+        guard let manifest = staged.manifest,
+              try manifest.preview() == staged.preview else {
+            throw KnitNoteBackupError.invalidManifest
+        }
         try validateWorkRootAncestry()
         let standardizedWorkRoot = workRoot.standardizedFileURL.path
         let standardizedStagedRoot = staged.root.standardizedFileURL
@@ -473,10 +499,13 @@ public struct KnitNoteBackupService: Sendable {
         }
         try validateArchive(archive)
         guard staged.preview.projectCount == archive.projects.count,
-              staged.preview.yarnCount == archive.yarns.count else {
+              staged.preview.yarnCount == archive.yarns.count,
+              manifest.formatVersion == 1
+                || staged.preview.patternCount == patternCount(in: archive) else {
             throw KnitNoteBackupError.countMismatch
         }
         try validateDataTree(dataRoot, archive: archive)
+        try validateManifestFiles(manifest, in: dataRoot)
         try verifyStagedTreeIsWritable(dataRoot)
     }
 
@@ -996,7 +1025,201 @@ public struct KnitNoteBackupService: Sendable {
                 }
             }
         }
+        let usageMarkupRootPath = "Patterns/UsageMarkup"
+        let usageMarkupRoot = sourceRoot.appendingPathComponent(
+            usageMarkupRootPath,
+            isDirectory: true
+        )
+        if FileManager.default.fileExists(atPath: usageMarkupRoot.path) {
+            try validateLiveSource(
+                relativePath: usageMarkupRootPath,
+                expectsDirectory: true
+            )
+        }
+        for usage in archive.patternUsages {
+            let ownerPath = "\(usageMarkupRootPath)/\(usage.id.uuidString)"
+            let markupDirectory = sourceRoot.appendingPathComponent(
+                ownerPath,
+                isDirectory: true
+            )
+            guard FileManager.default.fileExists(atPath: markupDirectory.path) else {
+                continue
+            }
+            try validateLiveSource(relativePath: ownerPath, expectsDirectory: true)
+            for file in try FileManager.default.contentsOfDirectory(
+                at: markupDirectory,
+                includingPropertiesForKeys: nil
+            ) {
+                let values = try entryValues(file)
+                guard values.isRegularFile == true,
+                      isMarkupFilename(file.lastPathComponent) else {
+                    throw KnitNoteBackupError.unknownPackageEntry
+                }
+                paths.insert("\(ownerPath)/\(file.lastPathComponent)")
+            }
+        }
         return paths.sorted()
+    }
+
+    private func decodeManifest(at packageRoot: URL) throws -> KnitNoteBackupManifest {
+        do {
+            return try JSONDecoder().decode(
+                KnitNoteBackupManifest.self,
+                from: Data(contentsOf: packageRoot.appendingPathComponent("manifest.json"))
+            )
+        } catch let error as KnitNoteBackupError {
+            throw error
+        } catch {
+            throw KnitNoteBackupError.invalidManifest
+        }
+    }
+
+    private func patternCount(in archive: ProjectArchive) -> Int {
+        archive.version == ProjectArchive.currentVersion
+            ? archive.patterns.count
+            : archive.projects.reduce(0) { $0 + $1.patterns.count }
+    }
+
+    private func manifestFiles(in dataRoot: URL) throws -> [KnitNoteBackupManifestFile] {
+        var entries: [KnitNoteBackupManifestFile] = []
+        try collectManifestFiles(
+            in: dataRoot,
+            relativeDirectory: "",
+            entries: &entries
+        )
+        return entries.sorted { $0.relativePath < $1.relativePath }
+    }
+
+    private func collectManifestFiles(
+        in directory: URL,
+        relativeDirectory: String,
+        entries: inout [KnitNoteBackupManifestFile]
+    ) throws {
+        for item in try contents(of: directory) {
+            try rejectHiddenOrSymbolic(item)
+            let values = try entryValues(item)
+            let relativePath = relativeDirectory.isEmpty
+                ? item.lastPathComponent
+                : "\(relativeDirectory)/\(item.lastPathComponent)"
+            if values.isDirectory == true {
+                try collectManifestFiles(
+                    in: item,
+                    relativeDirectory: relativePath,
+                    entries: &entries
+                )
+            } else if values.isRegularFile == true {
+                let integrity = try fileIntegrity(at: item)
+                entries.append(.init(
+                    relativePath: relativePath,
+                    byteCount: integrity.byteCount,
+                    sha256: integrity.sha256
+                ))
+            } else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+        }
+    }
+
+    private func validateManifestFiles(
+        _ manifest: KnitNoteBackupManifest,
+        in dataRoot: URL
+    ) throws {
+        guard manifest.formatVersion == 2 else { return }
+        guard !manifest.files.isEmpty,
+              manifest.criticalFeatures == [KnitNoteBackupManifest.fileIntegrityFeature] else {
+            throw KnitNoteBackupError.invalidManifest
+        }
+        var exactPaths: Set<String> = []
+        var foldedPaths: Set<String> = []
+        for entry in manifest.files {
+            guard isSafeManifestRelativePath(entry.relativePath),
+                  entry.byteCount >= 0,
+                  entry.byteCount <= copyFileLimit(for: entry.relativePath),
+                  isSHA256(entry.sha256),
+                  exactPaths.insert(entry.relativePath).inserted,
+                  foldedPaths.insert(foldedPath(entry.relativePath)).inserted else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+        }
+        guard exactPaths.contains("projects-v1.json") else {
+            throw KnitNoteBackupError.invalidManifest
+        }
+
+        let physicalFiles = try manifestFiles(in: dataRoot)
+        guard Set(physicalFiles.map(\.relativePath)) == exactPaths else {
+            throw KnitNoteBackupError.unknownPackageEntry
+        }
+        let expectedByPath = Dictionary(
+            uniqueKeysWithValues: manifest.files.map { ($0.relativePath, $0) }
+        )
+        for actual in physicalFiles {
+            guard let expected = expectedByPath[actual.relativePath] else {
+                throw KnitNoteBackupError.unknownPackageEntry
+            }
+            guard actual.byteCount == expected.byteCount,
+                  actual.sha256 == expected.sha256 else {
+                throw KnitNoteBackupError.integrityMismatch(actual.relativePath)
+            }
+        }
+    }
+
+    private func isSafeManifestRelativePath(_ relativePath: String) -> Bool {
+        guard !relativePath.isEmpty,
+              !relativePath.hasPrefix("/"),
+              !relativePath.contains("\\") else {
+            return false
+        }
+        let components = relativePath.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        ).map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy({
+                  !$0.isEmpty && $0 != "." && $0 != ".." && !$0.hasPrefix(".")
+              }) else {
+            return false
+        }
+        return components.joined(separator: "/") == relativePath
+    }
+
+    private func foldedPath(_ path: String) -> String {
+        path.precomposedStringWithCanonicalMapping.lowercased(
+            with: Locale(identifier: "en_US_POSIX")
+        )
+    }
+
+    private func isSHA256(_ value: String) -> Bool {
+        value.count == 64
+            && value.allSatisfy { $0.isNumber || ("a"..."f").contains(String($0)) }
+    }
+
+    private func fileIntegrity(at file: URL) throws -> (byteCount: Int64, sha256: String) {
+        let handle: FileHandle
+        do {
+            handle = try FileHandle(forReadingFrom: file)
+        } catch {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        var byteCount: Int64 = 0
+        do {
+            while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                guard byteCount <= KnitNoteBackupLimits.maximumPackageBytes - Int64(chunk.count) else {
+                    throw KnitNoteBackupError.packageTooLarge
+                }
+                byteCount += Int64(chunk.count)
+                hasher.update(data: chunk)
+            }
+        } catch let error as KnitNoteBackupError {
+            throw error
+        } catch {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        return (
+            byteCount,
+            hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        )
     }
 
     private func validatePackageRoot(_ packageRoot: URL) throws {
@@ -1116,12 +1339,47 @@ public struct KnitNoteBackupService: Sendable {
             throw KnitNoteBackupError.invalidArchive
         }
         guard Set(archive.projects.map(\.id)).count == archive.projects.count,
-              Set(archive.yarns.map(\.id)).count == archive.yarns.count else {
+              Set(archive.yarns.map(\.id)).count == archive.yarns.count,
+              Set(archive.patternAssets.map(\.id)).count == archive.patternAssets.count,
+              Set(archive.patterns.map(\.id)).count == archive.patterns.count,
+              Set(archive.patternUsages.map(\.id)).count == archive.patternUsages.count else {
             throw KnitNoteBackupError.duplicateIdentifier
         }
         let projectIDs = Set(archive.projects.map(\.id))
         guard archive.yarns.allSatisfy({ $0.linkedProjectIDs.isSubset(of: projectIDs) }) else {
             throw KnitNoteBackupError.invalidYarnProjectLinks
+        }
+        if archive.version == ProjectArchive.currentVersion {
+            do {
+                _ = try PatternLibrarySnapshot(
+                    assets: archive.patternAssets,
+                    patterns: archive.patterns,
+                    usages: archive.patternUsages,
+                    validProjectIDs: archive.projects.map(\.id)
+                ).validated()
+            } catch let error as PatternLibraryValidationError {
+                switch error {
+                case .duplicateAssetID, .duplicatePatternID, .duplicateUsageID,
+                     .duplicateProjectID, .duplicateUsage:
+                    throw KnitNoteBackupError.duplicateIdentifier
+                case .missingAsset, .missingPattern, .missingProject:
+                    throw KnitNoteBackupError.invalidArchive
+                }
+            } catch {
+                throw KnitNoteBackupError.invalidArchive
+            }
+            for asset in archive.patternAssets {
+                guard isOwnedAssetFilename(asset.storedFilename, asset: asset),
+                      asset.byteCount >= 0,
+                      asset.byteCount <= 100_000_000,
+                      isSHA256(asset.sha256) else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+            }
+        } else if !archive.patternAssets.isEmpty
+                    || !archive.patterns.isEmpty
+                    || !archive.patternUsages.isEmpty {
+            throw KnitNoteBackupError.invalidArchive
         }
 
         for project in archive.projects {
@@ -1172,6 +1430,15 @@ public struct KnitNoteBackupService: Sendable {
                 knownMarkupOwners.insert(owner)
             }
         }
+        if archive.version == ProjectArchive.currentVersion {
+            allowedDirectories.insert("Patterns/Assets")
+            allowedDirectories.insert("Patterns/UsageMarkup")
+            for usage in archive.patternUsages {
+                let owner = "Patterns/UsageMarkup/\(usage.id.uuidString)"
+                allowedDirectories.insert(owner)
+                knownMarkupOwners.insert(owner)
+            }
+        }
 
         var foundFiles: Set<String> = []
         var markupEntryCounts: [String: Int] = [:]
@@ -1187,6 +1454,17 @@ public struct KnitNoteBackupService: Sendable {
         for relativePath in allowedFiles where relativePath != "projects-v1.json" {
             guard foundFiles.contains(relativePath) else {
                 throw KnitNoteBackupError.missingReferencedFile(relativePath)
+            }
+        }
+        if archive.version == ProjectArchive.currentVersion {
+            for asset in archive.patternAssets {
+                let relativePath = "Patterns/Assets/\(asset.storedFilename)"
+                let file = dataRoot.appendingPathComponent(relativePath)
+                let integrity = try fileIntegrity(at: file)
+                guard integrity.byteCount == asset.byteCount,
+                      integrity.sha256 == asset.sha256 else {
+                    throw KnitNoteBackupError.integrityMismatch(relativePath)
+                }
             }
         }
     }
@@ -1279,6 +1557,9 @@ public struct KnitNoteBackupService: Sendable {
                 paths.insert("YarnPhotos/\(filename)")
             }
         }
+        for asset in archive.patternAssets {
+            paths.insert("Patterns/Assets/\(asset.storedFilename)")
+        }
         return paths
     }
 
@@ -1309,6 +1590,23 @@ public struct KnitNoteBackupService: Sendable {
         }
     }
 
+    private func isOwnedAssetFilename(
+        _ filename: String,
+        asset: PatternAsset
+    ) -> Bool {
+        guard isSafeFileComponent(filename) else { return false }
+        let url = URL(fileURLWithPath: filename)
+        guard url.deletingPathExtension().lastPathComponent == asset.id.uuidString else {
+            return false
+        }
+        switch asset.kind {
+        case .pdf:
+            return url.pathExtension == "pdf"
+        case .image:
+            return ["png", "jpg", "jpeg", "heic"].contains(url.pathExtension)
+        }
+    }
+
     private func isSafeFileComponent(_ value: String) -> Bool {
         !value.isEmpty
             && !value.hasPrefix(".")
@@ -1320,12 +1618,17 @@ public struct KnitNoteBackupService: Sendable {
 
     private func markupOwner(of relativePath: String) -> String? {
         let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
-        guard components.count == 5,
-              components[0] == "Patterns",
-              components[2] == "Markup" else {
-            return nil
+        if components.count == 5,
+           components[0] == "Patterns",
+           components[2] == "Markup" {
+            return components.prefix(4).joined(separator: "/")
         }
-        return components.prefix(4).joined(separator: "/")
+        if components.count == 4,
+           components[0] == "Patterns",
+           components[1] == "UsageMarkup" {
+            return components.prefix(3).joined(separator: "/")
+        }
+        return nil
     }
 
     private func isMarkupFilename(_ filename: String) -> Bool {
@@ -1337,12 +1640,17 @@ public struct KnitNoteBackupService: Sendable {
     private func isStructuredMarkupPath(_ relativePath: String) -> Bool {
         var components = relativePath.split(separator: "/").map(String.init)
         if components.first == "Data" { components.removeFirst() }
-        guard components.count == 5,
-              components[0] == "Patterns",
-              components[2] == "Markup" else {
-            return false
+        if components.count == 5,
+           components[0] == "Patterns",
+           components[2] == "Markup" {
+            return isMarkupFilename(components[4])
         }
-        return isMarkupFilename(components[4])
+        if components.count == 4,
+           components[0] == "Patterns",
+           components[1] == "UsageMarkup" {
+            return isMarkupFilename(components[3])
+        }
+        return false
     }
 
     private func validateMarkupDocument(_ document: PatternMarkupDocument) throws {

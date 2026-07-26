@@ -16,17 +16,54 @@ import Testing
         let decoded = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: data)
         #expect(decoded == manifest)
         #expect(try decoded.preview() == .init(createdAt: date, projectCount: 2, yarnCount: 3))
+        #expect(try decoded.preview().patternCount == nil)
+    }
+
+    @Test func versionTwoRoundTripsFileIntegrityAndBuildsPatternPreview() throws {
+        let date = Date(timeIntervalSince1970: 1_750_000_000)
+        let files = [
+            KnitNoteBackupManifestFile(
+                relativePath: "projects-v1.json",
+                byteCount: 123,
+                sha256: String(repeating: "a", count: 64)
+            ),
+            KnitNoteBackupManifestFile(
+                relativePath: "Patterns/Assets/pattern.pdf",
+                byteCount: 456,
+                sha256: String(repeating: "b", count: 64)
+            ),
+        ]
+        let manifest = KnitNoteBackupManifest(
+            formatVersion: 2,
+            createdAt: date,
+            appVersion: "1.2.0",
+            projectCount: 2,
+            yarnCount: 3,
+            patternCount: 4,
+            files: files,
+            criticalFeatures: [KnitNoteBackupManifest.fileIntegrityFeature]
+        )
+
+        let data = try JSONEncoder().encode(manifest)
+        let decoded = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: data)
+
+        #expect(decoded == manifest)
+        #expect(
+            try decoded.preview()
+                == .init(createdAt: date, projectCount: 2, yarnCount: 3, patternCount: 4)
+        )
+        #expect(decoded.files == files)
     }
 
     @Test func newerFormatIsRejected() {
         let manifest = KnitNoteBackupManifest(
-            formatVersion: 2,
+            formatVersion: 3,
             createdAt: .now,
             appVersion: "2.0",
             projectCount: 0,
             yarnCount: 0
         )
-        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(2)) {
+        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(3)) {
             try manifest.preview()
         }
     }

@@ -623,6 +623,226 @@ import UniformTypeIdentifiers
     #expect(!FileManager.default.fileExists(atPath: cacheURL.path))
 }
 
+@MainActor @Test func formatTwoBackupRoundTripRestoresSharedPatternStateAndMarkupPrecisely() async throws {
+    let harness = try BackupPatternHarness()
+    defer { harness.cleanup() }
+    let store = harness.store
+    try store.add(name: "Inactive cardigan")
+    try store.add(name: "Active cardigan")
+    let inactiveProject = try #require(store.projects.first { $0.name == "Inactive cardigan" })
+    let activeProject = try #require(store.projects.first { $0.name == "Active cardigan" })
+    let counterID = activeProject.counters[2].id
+    try store.selectCounter(projectID: activeProject.id, counterID: counterID)
+    try store.renameCounter(projectID: activeProject.id, counterID: counterID, name: "Sleeve")
+    try store.updateCounter(
+        projectID: activeProject.id,
+        counterID: counterID,
+        name: "Sleeve",
+        value: 37
+    )
+    try store.saveNote(
+        projectID: activeProject.id,
+        counterID: counterID,
+        row: 37,
+        text: "Begin shaping"
+    )
+
+    let source = harness.sourceRoot.appendingPathComponent("Shared chart.pdf")
+    try makeStorePatternPDF(at: source)
+    let outcome = try await store.importPatternFromLibrary(
+        source,
+        now: .init(timeIntervalSince1970: 100)
+    )
+    guard case let .created(patternID) = outcome else {
+        Issue.record("Expected a new pattern")
+        return
+    }
+    try store.setPatternNote(id: patternID, note: "Designer and shop")
+    try store.markPatternOpened(id: patternID, at: .init(timeIntervalSince1970: 101))
+    let inactiveUsage = try store.linkPattern(
+        patternID: patternID,
+        to: inactiveProject.id
+    )
+    let activeUsage = try store.linkPattern(
+        patternID: patternID,
+        to: activeProject.id
+    )
+    let inactiveState = PatternReadingState(
+        pageIndex: 0,
+        zoomScale: 1.75,
+        offsetX: 0.2,
+        offsetY: 0.3,
+        highlightEnabled: true,
+        highlightPosition: 0.35,
+        highlightMode: .horizontal,
+        verticalHighlightPosition: 0.55,
+        pageNote: "Inactive note",
+        pageStates: [0: .init(
+            horizontalPosition: 0.35,
+            verticalPosition: 0.55,
+            note: "Inactive note"
+        )]
+    )
+    let activeState = PatternReadingState(
+        pageIndex: 0,
+        zoomScale: 2.5,
+        offsetX: 0.6,
+        offsetY: 0.7,
+        highlightEnabled: true,
+        highlightPosition: 0.45,
+        highlightMode: .vertical,
+        verticalHighlightPosition: 0.8,
+        pageNote: "Active note",
+        pageStates: [0: .init(
+            horizontalPosition: 0.45,
+            verticalPosition: 0.8,
+            note: "Active note"
+        )]
+    )
+    _ = try store.updatePatternState(usageID: inactiveUsage.id, state: inactiveState)
+    _ = try store.updatePatternState(usageID: activeUsage.id, state: activeState)
+    let inactiveMarkup = PatternMarkupDocument(strokes: [
+        .init(points: [.init(x: 0.1, y: 0.2)], color: .red, width: 0.006),
+    ])
+    let activeMarkup = PatternMarkupDocument(strokes: [
+        .init(
+            points: [.init(x: 0.7, y: 0.8), .init(x: 0.8, y: 0.9)],
+            color: .blue,
+            width: 0.008
+        ),
+    ])
+    _ = try store.savePatternMarkup(
+        inactiveMarkup,
+        usageID: inactiveUsage.id,
+        pageIndex: 0,
+        expectedDataGeneration: store.dataGeneration
+    )
+    _ = try store.savePatternMarkup(
+        activeMarkup,
+        usageID: activeUsage.id,
+        pageIndex: 0,
+        expectedDataGeneration: store.dataGeneration
+    )
+    try store.unlinkPattern(patternID: patternID, from: inactiveProject.id)
+    let originalBytes = try Data(contentsOf: store.patternAssetURL(patternID: patternID))
+
+    let package = try await store.exportBackup(appVersion: "1.2.0")
+    let preview = try harness.service.inspectPackage(at: package)
+    #expect(preview.patternCount == 1)
+    try store.unlinkPattern(patternID: patternID, from: activeProject.id)
+    try store.deletePatternPermanently(id: patternID)
+    try store.delete(id: inactiveProject.id)
+    try store.delete(id: activeProject.id)
+    #expect(store.patterns.isEmpty)
+    #expect(store.projects.isEmpty)
+
+    let staged = try await store.prepareBackupRestore(from: package)
+    try await store.restoreBackup(staged)
+
+    #expect(store.patternAssets.count == 1)
+    #expect(store.patterns.count == 1)
+    #expect(store.patterns.first?.note == "Designer and shop")
+    #expect(store.patterns.first?.lastOpenedAt == .init(timeIntervalSince1970: 101))
+    #expect(store.patternUsages.count == 2)
+    let restoredInactive = try #require(
+        store.patternUsages.first { $0.id == inactiveUsage.id }
+    )
+    let restoredActive = try #require(
+        store.patternUsages.first { $0.id == activeUsage.id }
+    )
+    #expect(restoredInactive.isActive == false)
+    #expect(restoredInactive.readingState == inactiveState)
+    #expect(restoredActive.isActive == true)
+    #expect(restoredActive.readingState == activeState)
+    #expect(try store.loadPatternMarkup(usageID: inactiveUsage.id, pageIndex: 0) == inactiveMarkup)
+    #expect(try store.loadPatternMarkup(usageID: activeUsage.id, pageIndex: 0) == activeMarkup)
+    let restoredProject = try #require(store.project(id: activeProject.id))
+    #expect(restoredProject.selectedCounterID == counterID)
+    #expect(restoredProject.selectedCounter.customName == "Sleeve")
+    #expect(restoredProject.selectedCounter.value == 37)
+    #expect(restoredProject.note(counterID: counterID, row: 37)?.text == "Begin shaping")
+    #expect(
+        store.patternUsages
+            .filter { $0.projectID == activeProject.id && $0.isActive }
+            .map(\.id)
+            == [activeUsage.id]
+    )
+    #expect(try Data(contentsOf: store.patternAssetURL(patternID: patternID)) == originalBytes)
+}
+
+@MainActor @Test func formatOneLegacyPatternBackupRestoresAndMigratesToSchemaTen() async throws {
+    let harness = try BackupPatternHarness()
+    defer { harness.cleanup() }
+    try harness.store.add(name: "Current data")
+    let legacy = try harness.makeFormatOneLegacyPatternPackage()
+
+    let staged = try await harness.store.prepareBackupRestore(from: legacy.package)
+    #expect(staged.preview.patternCount == nil)
+    try await harness.store.restoreBackup(staged)
+
+    #expect(harness.store.projects.map(\.name) == ["Legacy pattern project"])
+    #expect(harness.store.patternAssets.count == 1)
+    #expect(harness.store.patterns.count == 1)
+    #expect(harness.store.patternUsages.count == 1)
+    let usage = try #require(harness.store.patternUsages.first)
+    #expect(usage.id == legacy.patternID)
+    #expect(usage.isActive)
+    #expect(usage.readingState == legacy.readingState)
+    #expect(
+        try harness.store.loadPatternMarkup(
+            usageID: usage.id,
+            pageIndex: legacy.readingState.pageIndex
+        ) == legacy.markup
+    )
+    #expect(
+        try Data(contentsOf: harness.store.patternAssetURL(
+            patternID: try #require(harness.store.patterns.first?.id)
+        )) == legacy.originalBytes
+    )
+    let archive = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: harness.archiveURL)
+    )
+    #expect(archive.version == ProjectArchive.currentVersion)
+}
+
+@MainActor @Test func corruptFormatTwoPreflightLeavesLivePatternDataUnchanged() async throws {
+    let harness = try BackupPatternHarness()
+    defer { harness.cleanup() }
+    try harness.store.add(name: "Preserved project")
+    let projectID = try #require(harness.store.projects.first?.id)
+    let source = harness.sourceRoot.appendingPathComponent("Preserved.pdf")
+    try makeStorePatternPDF(at: source)
+    guard case let .created(patternID) = try await harness.store.importPatternFromLibrary(source)
+    else {
+        Issue.record("Expected a new pattern")
+        return
+    }
+    _ = try harness.store.linkPattern(patternID: patternID, to: projectID)
+    let originalBytes = try Data(contentsOf: harness.store.patternAssetURL(patternID: patternID))
+    let package = try await harness.store.exportBackup(appVersion: "1.2.0")
+    let manifest = try JSONDecoder().decode(
+        KnitNoteBackupManifest.self,
+        from: Data(contentsOf: package.appendingPathComponent("manifest.json"))
+    )
+    let assetPath = try #require(
+        manifest.files.first { $0.relativePath.hasPrefix("Patterns/Assets/") }
+    ).relativePath
+    try Data(repeating: 0xA5, count: originalBytes.count).write(
+        to: package.appendingPathComponent("Data/\(assetPath)"),
+        options: .atomic
+    )
+
+    await #expect(throws: KnitNoteBackupError.integrityMismatch(assetPath)) {
+        _ = try await harness.store.prepareBackupRestore(from: package)
+    }
+
+    #expect(harness.store.projects.map(\.name) == ["Preserved project"])
+    #expect(harness.store.patterns.map(\.id) == [patternID])
+    #expect(try Data(contentsOf: harness.store.patternAssetURL(patternID: patternID)) == originalBytes)
+    #expect(!harness.store.isDataOperationInProgress)
+}
+
 @MainActor @Test func thumbnailFailureDoesNotRollbackStandaloneLibraryImportOrProjectCoverFallback() async throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: base) }
@@ -1153,6 +1373,7 @@ import UniformTypeIdentifiers
     #expect(workValues.isSymbolicLink == true)
 }
 
+@Suite(.serialized) @MainActor struct StoreBackupTransactionGateTests {
 @MainActor @Test func exportSerializesProjectYarnAndJournalMutations() async throws {
     let blocker = StoreOperationBlocker()
     let fixture = try StoreBackupFixture.make(metadataBlocker: blocker)
@@ -1486,6 +1707,7 @@ func restoreRejectsPatternWritesAtEveryReplacementStep(
     try await restore.value
     #expect(fixture.store.projects.map(\.name) == ["replacement"])
     #expect(!FileManager.default.fileExists(atPath: rollbackRoot.path))
+}
 }
 
 @MainActor @Test func restoreReloadFailureRollsBackAndReloadsOriginal() async throws {
@@ -1893,6 +2115,139 @@ private struct StoreLaunchRecoveryFixture {
         yarn.setLinkedProjectIDs([project.id])
         let archive = ProjectArchive(version: 9, projects: [project], yarns: [yarn])
         try JSONEncoder().encode(archive).write(to: archiveURL, options: .atomic)
+    }
+}
+
+@MainActor private final class BackupPatternHarness {
+    struct LegacyPatternPackage {
+        let package: URL
+        let patternID: UUID
+        let readingState: PatternReadingState
+        let markup: PatternMarkupDocument
+        let originalBytes: Data
+    }
+
+    let root: URL
+    let liveRoot: URL
+    let sourceRoot: URL
+    let archiveURL: URL
+    let service: KnitNoteBackupService
+    let store: JSONProjectStore
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "BackupPatternHarness-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        liveRoot = root.appendingPathComponent("KnitNote", isDirectory: true)
+        sourceRoot = root.appendingPathComponent("Sources", isDirectory: true)
+        archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
+        try FileManager.default.createDirectory(
+            at: sourceRoot,
+            withIntermediateDirectories: true
+        )
+        service = KnitNoteBackupService(
+            liveRoot: liveRoot,
+            workRoot: root.appendingPathComponent("BackupWork", isDirectory: true)
+        )
+        let inbox = PatternInboxFileService(
+            root: root.appendingPathComponent("PatternInbox", isDirectory: true)
+        )
+        store = JSONProjectStore(
+            url: archiveURL,
+            patternFileService: PatternFileService(
+                root: liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+            ),
+            patternInboxFileService: inbox,
+            patternMarkupFileService: PatternMarkupFileService(
+                root: liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+            ),
+            patternThumbnailService: PatternThumbnailFileService(
+                directory: root.appendingPathComponent("ThumbnailCache", isDirectory: true)
+            ),
+            backupService: service
+        )
+    }
+
+    func cleanup() {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func makeFormatOneLegacyPatternPackage() throws -> LegacyPatternPackage {
+        let package = root.appendingPathComponent(
+            "Legacy.knitnote-backup",
+            isDirectory: true
+        )
+        let dataRoot = package.appendingPathComponent("Data", isDirectory: true)
+        let projectID = UUID()
+        let patternID = UUID()
+        let storedFilename = "\(patternID.uuidString).pdf"
+        let patternPath = "Patterns/\(projectID.uuidString)/\(storedFilename)"
+        let markupPath = "Patterns/\(projectID.uuidString)/Markup/\(patternID.uuidString)/1.json"
+        try FileManager.default.createDirectory(
+            at: dataRoot.appendingPathComponent(patternPath).deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try makeStorePatternPDF(at: dataRoot.appendingPathComponent(patternPath))
+        let originalBytes = try Data(contentsOf: dataRoot.appendingPathComponent(patternPath))
+
+        var pattern = PatternDocument(
+            id: patternID,
+            displayName: "Legacy chart",
+            kind: .pdf,
+            storedFilename: storedFilename,
+            createdAt: .init(timeIntervalSince1970: 40)
+        )
+        pattern.lastOpenedAt = .init(timeIntervalSince1970: 41)
+        pattern.pageIndex = 1
+        pattern.zoomScale = 2
+        pattern.contentOffsetX = 0.25
+        pattern.contentOffsetY = 0.75
+        pattern.highlightEnabled = true
+        pattern.highlightPosition = 0.3
+        pattern.highlightMode = .cross
+        pattern.verticalHighlightPosition = 0.8
+        pattern.pageStates = [
+            1: .init(
+                horizontalPosition: 0.3,
+                verticalPosition: 0.8,
+                note: "Legacy page note"
+            ),
+        ]
+        var project = try StoredProject(id: projectID, name: "Legacy pattern project")
+        project.addPattern(pattern)
+        let archive = ProjectArchive(version: 9, projects: [project])
+        try JSONEncoder().encode(archive).write(
+            to: dataRoot.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+        let markup = PatternMarkupDocument(strokes: [
+            .init(points: [.init(x: 0.3, y: 0.6)], color: .green, width: 0.007),
+        ])
+        let markupURL = dataRoot.appendingPathComponent(markupPath)
+        try FileManager.default.createDirectory(
+            at: markupURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try JSONEncoder().encode(markup).write(to: markupURL, options: .atomic)
+        let manifest = KnitNoteBackupManifest(
+            formatVersion: 1,
+            createdAt: .init(timeIntervalSince1970: 42),
+            appVersion: "1.1.0",
+            projectCount: 1,
+            yarnCount: 0
+        )
+        try JSONEncoder().encode(manifest).write(
+            to: package.appendingPathComponent("manifest.json"),
+            options: .atomic
+        )
+        return LegacyPatternPackage(
+            package: package,
+            patternID: patternID,
+            readingState: pattern.readingState,
+            markup: markup,
+            originalBytes: originalBytes
+        )
     }
 }
 

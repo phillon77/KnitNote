@@ -103,16 +103,17 @@ private final class PatternImportSecondRemoveGate: @unchecked Sendable {
 }
 
 @MainActor
-@Test func committedManifestWriteFailureStillReturnsSuccessAndStartupReconcilesIt() async throws {
+@Test func committedManifestWriteFailureReturnsErrorAndStartupReconcilesIt() async throws {
     let gate = PatternImportWriteGate()
     let harness = try PatternImportHarness(inboxWrite: { try gate.write($0, to: $1) })
     let source = try harness.makePDF(named: "mark.pdf")
     let item = try harness.inbox.enqueue(source: source, origin: .library, targetProjectID: nil, now: .now)
 
-    let outcome = try await harness.store.processPatternInboxItem(id: item.id)
+    await #expect(throws: PatternImportInjectedFailure.self) {
+        try await harness.store.processPatternInboxItem(id: item.id)
+    }
     let restarted = try harness.reopenedStore()
 
-    #expect(outcome == .created(patternID: harness.store.patterns[0].id))
     #expect(restarted.patterns.count == 1)
     #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: item.id) == nil)
 }
@@ -137,12 +138,14 @@ private final class PatternImportSecondRemoveGate: @unchecked Sendable {
 }
 
 @MainActor
-@Test func tamperedJournalCannotCommitAnUnrelatedPendingInboxItem() async throws {
+@Test func tamperedAssetJournalCannotCommitAnUnrelatedPendingInboxItem() async throws {
     let gate = PatternImportWriteGate()
     let harness = try PatternImportHarness(inboxWrite: { try gate.write($0, to: $1) })
     let firstSource = try harness.makePDF(named: "first.pdf")
     let first = try harness.inbox.enqueue(source: firstSource, origin: .library, targetProjectID: nil, now: .now)
-    _ = try await harness.store.processPatternInboxItem(id: first.id)
+    await #expect(throws: PatternImportInjectedFailure.self) {
+        try await harness.store.processPatternInboxItem(id: first.id)
+    }
     let secondSource = try harness.makePDF(named: "second.pdf")
     let second = try harness.inbox.enqueue(source: secondSource, origin: .library, targetProjectID: nil, now: .now)
     let journal = harness.assetsRoot
@@ -156,7 +159,7 @@ private final class PatternImportSecondRemoveGate: @unchecked Sendable {
     let restarted = try harness.reopenedStore()
 
     #expect(restarted.patterns.count == 1)
-    #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: first.id) != nil)
+    #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: first.id) == nil)
     #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: second.id) != nil)
     #expect(!FileManager.default.fileExists(atPath: journal.path))
 }
@@ -251,7 +254,9 @@ private final class PatternImportSecondRemoveGate: @unchecked Sendable {
     let harness = try PatternImportHarness(inboxWrite: { try gate.write($0, to: $1) })
     let source = try harness.makePDF(named: "corrupt-manifest.pdf")
     let item = try harness.inbox.enqueue(source: source, origin: .library, targetProjectID: nil, now: .now)
-    _ = try await harness.store.processPatternInboxItem(id: item.id)
+    await #expect(throws: PatternImportInjectedFailure.self) {
+        try await harness.store.processPatternInboxItem(id: item.id)
+    }
     let manifest = harness.inbox.root.appendingPathComponent("Manifests/\(item.id.uuidString).json")
     let staged = harness.inbox.root.appendingPathComponent("Items/\(item.stagedFilename)")
     let journal = harness.assetsRoot.appendingPathComponent("Assets/.Transactions/\(item.id.uuidString).json")
@@ -275,7 +280,9 @@ private final class PatternImportSecondRemoveGate: @unchecked Sendable {
     let harness = try PatternImportHarness(inboxWrite: { try gate.write($0, to: $1) })
     let source = try harness.makePDF(named: "unknown-manifest.pdf")
     let item = try harness.inbox.enqueue(source: source, origin: .library, targetProjectID: nil, now: .now)
-    _ = try await harness.store.processPatternInboxItem(id: item.id)
+    await #expect(throws: PatternImportInjectedFailure.self) {
+        try await harness.store.processPatternInboxItem(id: item.id)
+    }
     let manifest = harness.inbox.root.appendingPathComponent("Manifests/\(item.id.uuidString).json")
     let staged = harness.inbox.root.appendingPathComponent("Items/\(item.stagedFilename)")
     let journal = harness.assetsRoot.appendingPathComponent("Assets/.Transactions/\(item.id.uuidString).json")

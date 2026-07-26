@@ -15,6 +15,7 @@ import Testing
             "PatternImportResultView.swift",
             "PatternInboxFileService.swift",
             "PatternInboxProcessing.swift",
+            "PatternInboxPublicationReceiptService.swift",
             "PatternInboxItem.swift",
             "PatternInboxProcessor.swift",
             "PatternLibraryImportPresentation.swift",
@@ -35,12 +36,14 @@ import Testing
 
         let appSourceList = try project.sourceFilenames(targetName: "KnitNote")
         let watchSourceList = try project.sourceFilenames(targetName: "KnitNoteWatch")
+        let shareSources = Set(try project.sourceFilenames(targetName: "KnitNoteShare"))
         let appSources = Set(appSourceList)
         let watchSources = Set(watchSourceList)
         let watchSharedCore = Set([
             "PatternAsset.swift",
             "PatternImportCoordinator.swift",
             "PatternInboxFileService.swift",
+            "PatternInboxPublicationReceiptService.swift",
             "PatternInboxItem.swift",
             "PatternLibraryMigrator.swift",
             "PatternProjectUsage.swift",
@@ -54,6 +57,9 @@ import Testing
         #expect(appOnly.isDisjoint(with: watchSources))
         #expect(appSourceList.count == appSources.count)
         #expect(watchSourceList.count == watchSources.count)
+        #expect(!shareSources.contains("JSONProjectStore.swift"))
+        #expect(!shareSources.contains("PatternInboxPublicationReceiptService.swift"))
+        #expect(!shareSources.contains("PatternInboxProcessing.swift"))
     }
 }
 

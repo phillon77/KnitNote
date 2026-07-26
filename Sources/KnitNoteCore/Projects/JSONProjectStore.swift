@@ -449,6 +449,7 @@ final class PatternLibraryDeletionTransaction {
     private let journalPhotoService: ProjectJournalPhotoFileService
     private var patternFileService: PatternFileService?
     private var patternInboxFileService: PatternInboxFileService?
+    private var patternPublicationReceiptService: PatternInboxPublicationReceiptService?
     private let patternMarkupFileService: PatternMarkupFileService
     private let patternThumbnailService: PatternThumbnailFileService
     private let backupService: KnitNoteBackupService
@@ -464,6 +465,7 @@ final class PatternLibraryDeletionTransaction {
         journalPhotoService: ProjectJournalPhotoFileService? = nil,
         patternFileService: PatternFileService? = nil,
         patternInboxFileService: PatternInboxFileService? = nil,
+        patternPublicationReceiptService: PatternInboxPublicationReceiptService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil
     ) {
@@ -479,6 +481,7 @@ final class PatternLibraryDeletionTransaction {
             journalPhotoService: journalPhotoService,
             patternFileService: patternFileService,
             patternInboxFileService: patternInboxFileService,
+            patternPublicationReceiptService: patternPublicationReceiptService,
             patternMarkupFileService: patternMarkupFileService,
             patternThumbnailService: patternThumbnailService,
             backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
@@ -492,6 +495,7 @@ final class PatternLibraryDeletionTransaction {
         journalPhotoService: ProjectJournalPhotoFileService? = nil,
         patternFileService: PatternFileService? = nil,
         patternInboxFileService: PatternInboxFileService? = nil,
+        patternPublicationReceiptService: PatternInboxPublicationReceiptService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil,
         backupService: KnitNoteBackupService,
@@ -516,6 +520,10 @@ final class PatternLibraryDeletionTransaction {
         self.patternFileService = patternFileService ?? (patternStorageLocationsProvider == nil
             ? PatternFileService(root: fallbackPatternRoot)
             : nil)
+        self.patternPublicationReceiptService = patternPublicationReceiptService
+            ?? (patternStorageLocationsProvider == nil
+                ? PatternInboxPublicationReceiptService(root: fallbackPatternRoot)
+                : nil)
         self.patternInboxFileService = patternInboxFileService ?? (patternStorageLocationsProvider == nil
             ? PatternInboxFileService(root: url.deletingLastPathComponent().appendingPathComponent("PatternInbox", isDirectory: true))
             : nil)
@@ -922,6 +930,7 @@ final class PatternLibraryDeletionTransaction {
         duplicateResolution: PatternImportDuplicateResolution
     ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
+        try await reconcilePublishedPatternInboxItems()
         let inbox = try requiredPatternInboxFileService()
         let files = try requiredPatternFileService()
         guard let item = try inbox.item(id: id) else {
@@ -947,6 +956,7 @@ final class PatternLibraryDeletionTransaction {
     public func pendingPatternInboxItems() async throws -> [PatternInboxItem] {
         try await withActivePatternTransaction {
             try ensureArchiveAvailable()
+            try await reconcilePublishedPatternInboxItems()
             let inbox = try requiredPatternInboxFileService()
             return try await Task.detached(priority: .utility) {
                 try inbox.items()
@@ -1553,7 +1563,9 @@ final class PatternLibraryDeletionTransaction {
                 try recoverPatternDeletionArtifacts(
                     archive: ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
                 )
-                try recoverPatternImportArtifacts(referencedAssets: [])
+                try recoverPatternImportArtifacts(
+                    archive: ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
+                )
                 loadError = nil
                 return
             }
@@ -1584,7 +1596,7 @@ final class PatternLibraryDeletionTransaction {
             try migrator.recoverInterruptedMigration(archiveURL: url)
             let initialArchive = try archiveFromDisk()
             try recoverPatternDeletionArtifacts(archive: initialArchive)
-            try recoverPatternImportArtifacts(referencedAssets: initialArchive.patternAssets)
+            try recoverPatternImportArtifacts(archive: initialArchive)
             if initialArchive.version < ProjectArchive.currentVersion {
                 try migrator.migrateOnDisk(archiveURL: url)
             } else {
@@ -1606,17 +1618,60 @@ final class PatternLibraryDeletionTransaction {
         reconcileJournalPhotos()
     }
 
-    private func recoverPatternImportArtifacts(referencedAssets: [PatternAsset]) throws {
+    private func recoverPatternImportArtifacts(archive: ProjectArchive) throws {
         let files = try requiredPatternFileService()
         let inbox = try requiredPatternInboxFileService()
-        let publishedInboxItems = try files.recoverImportTransactions(
-            referencedAssets: referencedAssets,
+        let receipts = try requiredPatternPublicationReceiptService()
+        let assetJournalItems = try files.recoverImportTransactions(
+            referencedAssets: archive.patternAssets,
             inbox: inbox
         )
+        let receiptItems = try receipts.recover(
+            patterns: archive.patterns,
+            usages: archive.patternUsages,
+            inbox: inbox
+        )
+        let publishedInboxItems = assetJournalItems.union(receiptItems)
         let report = try inbox.recover(publishedItemIDs: publishedInboxItems)
         for itemID in report.cleanedCommittedIDs.intersection(publishedInboxItems) {
             try? files.completeImportTransaction(itemID: itemID)
+            try? receipts.complete(itemID: itemID)
         }
+    }
+
+    private func reconcilePublishedPatternInboxItems() async throws {
+        let files = try requiredPatternFileService()
+        let inbox = try requiredPatternInboxFileService()
+        let receipts = try requiredPatternPublicationReceiptService()
+        let capturedAssets = patternAssets
+        let capturedPatterns = patterns
+        let capturedUsages = patternUsages
+
+        try await Task.detached(priority: .utility) {
+            let assetJournalItems = try files.recoverImportTransactions(
+                referencedAssets: capturedAssets,
+                inbox: inbox
+            )
+            let receiptItems = try receipts.recover(
+                patterns: capturedPatterns,
+                usages: capturedUsages,
+                inbox: inbox
+            )
+            let publishedItems = assetJournalItems.union(receiptItems)
+            guard !publishedItems.isEmpty else { return }
+
+            let report = try inbox.recover(publishedItemIDs: publishedItems)
+            for itemID in report.cleanedCommittedIDs.intersection(publishedItems) {
+                try? files.completeImportTransaction(itemID: itemID)
+                try? receipts.complete(itemID: itemID)
+            }
+            let unresolvedPublication = try publishedItems.contains { itemID in
+                try inbox.journalVerificationItem(id: itemID) != nil
+            }
+            guard !unresolvedPublication else {
+                throw PatternInboxError.invalidItem
+            }
+        }.value
     }
 
     private func recoverPatternDeletionArtifacts(archive: ProjectArchive) throws {
@@ -1677,6 +1732,7 @@ final class PatternLibraryDeletionTransaction {
     ) throws -> PatternImportOutcome {
         let files = try requiredPatternFileService()
         let inbox = try requiredPatternInboxFileService()
+        let receipts = try requiredPatternPublicationReceiptService()
         let coordinator = PatternImportCoordinator()
         let matchingAssets = patternAssets.filter { $0.sha256 == prepared.metadata.sha256 }
         let candidatePatterns = patterns.filter { pattern in
@@ -1712,6 +1768,7 @@ final class PatternLibraryDeletionTransaction {
                 createdAt: prepared.item.receivedAt
             )
             do {
+                try receipts.begin(item: prepared.item, pattern: pattern)
                 let usages = try addingUsage(
                     for: pattern.id,
                     targetProjectID: prepared.item.targetProjectID,
@@ -1725,6 +1782,7 @@ final class PatternLibraryDeletionTransaction {
                     patternUsages: usages
                 )
             } catch {
+                try? receipts.complete(itemID: prepared.item.id)
                 try? files.rollbackImportTransaction(itemID: prepared.item.id)
                 throw error
             }
@@ -1744,18 +1802,26 @@ final class PatternLibraryDeletionTransaction {
                     targetProjectID: prepared.item.targetProjectID,
                     to: patternUsages
                 )
-                try persist(
-                    projects: projects,
-                    yarns: yarns,
-                    patternAssets: patternAssets,
-                    patterns: patterns + [pattern],
-                    patternUsages: usages
-                )
-                outcome = .created(patternID: pattern.id)
-                if (try? inbox.markCommitted(prepared.item)) != nil,
-                   (try? inbox.cleanupCommitted(prepared.item)) != nil {
-                    try? files.completeImportTransaction(itemID: prepared.item.id)
+                do {
+                    try receipts.begin(item: prepared.item, pattern: pattern)
+                    try persist(
+                        projects: projects,
+                        yarns: yarns,
+                        patternAssets: patternAssets,
+                        patterns: patterns + [pattern],
+                        patternUsages: usages
+                    )
+                } catch {
+                    try? receipts.complete(itemID: prepared.item.id)
+                    throw error
                 }
+                outcome = .created(patternID: pattern.id)
+                try commitPublishedPatternInboxItem(
+                    prepared.item,
+                    inbox: inbox,
+                    files: files,
+                    receipts: receipts
+                )
                 return outcome
             }
             let selected: StoredPattern?
@@ -1787,22 +1853,50 @@ final class PatternLibraryDeletionTransaction {
                 targetProjectID: prepared.item.targetProjectID,
                 to: patternUsages
             )
-            if usages != patternUsages {
-                try persist(
-                    projects: projects,
-                    yarns: yarns,
-                    patternAssets: patternAssets,
-                    patterns: patterns,
-                    patternUsages: usages
-                )
+            do {
+                try receipts.begin(item: prepared.item, pattern: pattern)
+                if usages != patternUsages {
+                    try persist(
+                        projects: projects,
+                        yarns: yarns,
+                        patternAssets: patternAssets,
+                        patterns: patterns,
+                        patternUsages: usages
+                    )
+                }
+            } catch {
+                try? receipts.complete(itemID: prepared.item.id)
+                throw error
             }
             outcome = .existing(patternID: pattern.id)
         }
-        if (try? inbox.markCommitted(prepared.item)) != nil,
-           (try? inbox.cleanupCommitted(prepared.item)) != nil {
-            try? files.completeImportTransaction(itemID: prepared.item.id)
-        }
+        try commitPublishedPatternInboxItem(
+            prepared.item,
+            inbox: inbox,
+            files: files,
+            receipts: receipts
+        )
         return outcome
+    }
+
+    private func commitPublishedPatternInboxItem(
+        _ item: PatternInboxItem,
+        inbox: PatternInboxFileService,
+        files: PatternFileService,
+        receipts: PatternInboxPublicationReceiptService
+    ) throws {
+        // A failed staged -> committed transition remains a visible retryable
+        // error. The durable item receipt lets startup finish it by exact itemID
+        // without replaying the archive mutation.
+        try inbox.markCommitted(item)
+        do {
+            try inbox.cleanupCommitted(item)
+            try receipts.complete(itemID: item.id)
+            try files.completeImportTransaction(itemID: item.id)
+        } catch {
+            // Once the sidecar is committed, cleanup is idempotent post-publication
+            // work. Startup recovery keeps both journals until cleanup succeeds.
+        }
     }
 
     private func displayName(for item: PatternInboxItem) -> String {
@@ -1928,7 +2022,9 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func refreshPatternStorageDependencies() throws {
-        guard patternFileService == nil || patternInboxFileService == nil else { return }
+        guard patternFileService == nil
+                || patternInboxFileService == nil
+                || patternPublicationReceiptService == nil else { return }
         guard let patternStorageLocationsProvider else {
             throw ProjectStoreError.archiveUnavailable
         }
@@ -1936,6 +2032,9 @@ final class PatternLibraryDeletionTransaction {
         url = locations.assetRoot.deletingLastPathComponent().appendingPathComponent("projects-v1.json")
         patternFileService = PatternFileService(root: locations.assetRoot)
         patternInboxFileService = PatternInboxFileService(root: locations.inboxRoot)
+        patternPublicationReceiptService = PatternInboxPublicationReceiptService(
+            root: locations.assetRoot
+        )
     }
 
     private func requiredPatternFileService() throws -> PatternFileService {
@@ -1948,6 +2047,15 @@ final class PatternLibraryDeletionTransaction {
         try refreshPatternStorageDependencies()
         guard let patternInboxFileService else { throw ProjectStoreError.archiveUnavailable }
         return patternInboxFileService
+    }
+
+    private func requiredPatternPublicationReceiptService() throws
+        -> PatternInboxPublicationReceiptService {
+        try refreshPatternStorageDependencies()
+        guard let patternPublicationReceiptService else {
+            throw ProjectStoreError.archiveUnavailable
+        }
+        return patternPublicationReceiptService
     }
 
     private func validateExpectedDataGeneration(_ expected: UInt64?) throws {

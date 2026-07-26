@@ -57,6 +57,7 @@ Implemented only foreground processing of the durable pattern inbox in the iOS/m
 - `KnitNote/Patterns/PatternInboxProcessor.swift`
 - `KnitNote/Patterns/PendingPatternSelectionView.swift`
 - `Sources/KnitNoteCore/Patterns/PatternInboxItem.swift`
+- `Sources/KnitNoteCore/Patterns/PatternInboxPublicationReceiptService.swift`
 - `Sources/KnitNoteCore/Patterns/PatternInboxProcessing.swift`
 - `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`
 - `Tests/KnitNoteCoreTests/PatternInboxAppContractTests.swift`
@@ -65,3 +66,24 @@ Implemented only foreground processing of the durable pattern inbox in the iOS/m
 - `Tests/KnitNoteCoreTests/Task8XcodeProjectMembershipTests.swift`
 - `docs/superpowers/plans/2026-07-26-task10-main-app-inbox-processing.md`
 - `project.yml`
+
+## Review Fix Round 1
+
+- Reproduced the archive-publication gap with a real sidecar-write failpoint. Before the fix, create-new published a third collection, fresh restart still exposed the staged item, and an explicit retry published a fourth collection.
+- Added a durable, integrity-checked receipt keyed by the exact inbox item ID. The receipt is written before archive persistence and records the full inbox item, normalized filename, exact pattern ID, exact asset ID, and optional target project ID.
+- Startup and foreground preflight recovery grant cleanup authority only when the receipt's exact pattern/asset exists in the archive and any required active project usage also exists. A pre-publication receipt without exact archive evidence is removed; malformed or cross-item evidence is quarantined. File hash is never used as publication identity.
+- `markCommitted` failures are no longer swallowed. The error reaches the foreground processor's existing localized failure state, while the retained receipt makes retry and relaunch safe.
+- Foreground pending scans and explicit processing reconcile receipts off the main actor before exposing or replaying an item. A one-shot sidecar failure followed by an immediate same-session create-new retry cleans the original item and returns `itemNotFound` without a fourth collection.
+- Covered new-asset, existing-with-project-usage, and create-new publication branches. Each sidecar failure preserves one exact archive mutation, fresh recovery empties the inbox, and retry cannot republish.
+- Added a receipt-removal failpoint. If inbox cleanup succeeds but receipt removal fails, two fresh restarts preserve one collection, remove the stale receipt, and remain idempotent.
+- Kept publication authority out of the Share Extension source graph by moving receipts out of `PatternFileService` into a separate Core service. Watch compiles that shared recovery primitive because its target also compiles `JSONProjectStore`; Watch contains none of the inbox driver or UI and never invokes the service.
+
+## Review Fix Round 1 Verification
+
+- The first create-new failpoint run failed with a pending inbox item, a successful second create-new outcome, and four collections. The final regression passes with one asset, three collections, one exact `Matching` collection, an empty inbox, and `itemNotFound` on retry.
+- Pattern inbox focused regression: 26 tests passed.
+- Existing import fault regression: 16 tests passed after changing sidecar transition failure from silent success to visible error plus recovery.
+- Pattern import security regression: 3 tests passed.
+- Final full regression after all review fixes: 776 tests in 66 suites passed.
+- Fresh Debug builds with code signing disabled passed for the iOS App, macOS App, Share Extension, and Watch.
+- Generated-project membership, localization JSON, plist/PBX lint, Swift parse, Share archive-boundary search, and `git diff --check` passed.

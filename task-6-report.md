@@ -53,9 +53,17 @@
 - Page-note and counter editor completion closures return `Bool`. They dismiss only after their corresponding usage-scoped mutation confirms, keeping the editor open when a stale generation, unlink, completion lock, or I/O error is reported.
 - Added reducer and UI source contracts for conflict reset, context-only production callsites, failure-page restoration, localized conflict action, and successful-mutation-only editor dismissal.
 
+## Review Fix Round 6 — Atomic Page Rollback and Non-Dismissible Conflict Recovery
+
+- Root cause: `PDFReaderView` calls `PatternReadingState.transitionToPDFPage` before the reader's page-change observer runs. That transition loads the destination page's highlight coordinates and note, so restoring only `pageIndex` after a failed markup save left an old page paired with new-page display data.
+- Added `PatternReaderPageTransition`, a pure Core snapshot of the full pre-transition `PatternReadingState`. The canvas binding records it before accepting a platform callback. When page-save or conflict gating fails, the reader restores the snapshot in one state assignment, then resets the callback de-duplication index and asks `PDFPageNavigator` to return to the old page. No destination-page state can be persisted under the old page afterward.
+- Replaced the separately dismissible conflict boolean with the revision coordinator's conflict phase as the alert binding. The alert exposes only the localized **Discard and Reload** action (no cancel action or destructive-role implicit cancel); presentation dismissal is refused while the reducer says resolution is required. Discard is the only transition that clears the conflict and reloads the authoritative generation.
+- Added executable Core tests rather than source-string-only coverage: a rich multi-page state is transitioned then rolled back and compared exactly (page, zoom, offsets, highlight mode/positions, note, and every page-state entry); the conflict reducer proves that a conflict cannot dismiss, and only discard prepares the reload.
+
 ## Files
 
 - `Sources/KnitNoteCore/Patterns/PatternReaderContext.swift`
+- `Sources/KnitNoteCore/Patterns/PatternDocument.swift`
 - `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`
 - `KnitNote/Patterns/PatternReaderView.swift`
 - `KnitNote/Patterns/PatternReaderControls.swift`
@@ -67,6 +75,7 @@
 - `Tests/KnitNoteCoreTests/PatternReaderMarkupSessionTests.swift`
 - `Tests/KnitNoteCoreTests/PatternLibraryStoreTests.swift`
 - `Tests/KnitNoteCoreTests/PatternReaderRevisionCoordinatorTests.swift`
+- `Tests/KnitNoteCoreTests/PatternReaderPageTransitionTests.swift`
 - `KnitNote/Patterns/ProjectPatternsView.swift`
 - `KnitNote/Patterns/PatternLibraryView.swift`
 - `KnitNote/App/StoreScreenshotRootView.swift`
@@ -100,6 +109,10 @@
 - SwiftUI syntax round 5: `xcrun swiftc -parse KnitNote/Patterns/PatternReaderView.swift KnitNote/Patterns/ProjectPatternsView.swift KnitNote/Patterns/PatternLibraryView.swift KnitNote/App/StoreScreenshotRootView.swift KnitNote/Patterns/EditPatternPageNoteView.swift KnitNote/Projects/EditCounterNameView.swift` passed.
 - Full round 5 regression: `swift test` passed (680 tests in 50 suites).
 - Localization catalog JSON validation: `jq empty KnitNote/Localization/Localizable.xcstrings` passed.
+- RED round 6: `swift test --filter 'PatternReaderPageTransitionTests|PatternReaderRevisionCoordinatorTests'` failed because no page-transition snapshot type or conflict-resolution presentation API existed.
+- GREEN round 6 focused: `swift test --filter 'PatternReaderPageTransitionTests|PatternReaderRevisionCoordinatorTests|PatternReaderCounterContractTests'` passed (27 tests in 3 suites).
+- Swift syntax round 6: `xcrun swiftc -parse KnitNote/Patterns/PatternReaderView.swift Sources/KnitNoteCore/Patterns/PatternDocument.swift Sources/KnitNoteCore/Patterns/PatternReaderContext.swift` passed.
+- Full round 6 regression: `swift test` passed (682 tests in 51 suites).
 - `git diff --check` passed.
 - `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNotePatternReaderTask6 CODE_SIGNING_ALLOWED=NO build` could not reach the reader compilation because the existing Xcode project omits Task 1–3 archive-level Core sources (`PatternAsset`, `StoredPattern`, `PatternProjectUsage`, inbox types) from the Watch target. Task 6 was explicitly scoped not to modify the Watch target or xcodeproj.
 

@@ -74,7 +74,7 @@ struct PatternReaderView: View {
     @State private var confirmingMarkupClear = false
     @State private var expectedDataGeneration: UInt64?
     @State private var revisionCoordinator = PatternReaderRevisionCoordinator(expectedDataGeneration: 0)
-    @State private var showingMarkupConflict = false
+    @State private var pendingPageTransition: PatternReaderPageTransition?
     @State private var managingCounter: ProjectCounter?
     @StateObject private var pdfNavigator = PDFPageNavigator()
     private let counterRailSafeAreaWidth: CGFloat = 64
@@ -179,6 +179,12 @@ struct PatternReaderView: View {
                 guard canvasIsActive,
                       readerSession.canAcceptCanvasCallbacks,
                       readerSession.identity == readerContextIdentity else { return }
+                if let transition = PatternReaderPageTransition(
+                    previousState: state,
+                    proposedState: newState
+                ) {
+                    pendingPageTransition = transition
+                }
                 state = newState
                 _ = readerSession.acceptCanvasState(newState)
             }
@@ -334,11 +340,15 @@ struct PatternReaderView: View {
             } message: {
                 Text(saveError ?? "")
             }
-            .alert("patterns.reader.conflict", isPresented: $showingMarkupConflict) {
-                Button("patterns.reader.discardAndReload", role: .destructive) {
+            .alert("patterns.reader.conflict", isPresented: Binding(
+                get: { revisionCoordinator.requiresConflictResolution },
+                set: { isPresented in
+                    guard !isPresented, revisionCoordinator.canDismissConflictPresentation else { return }
+                }
+            )) {
+                Button("patterns.reader.discardAndReload") {
                     discardMarkupAndReload()
                 }
-                Button("common.cancel", role: .cancel) {}
             } message: {
                 Text("patterns.reader.conflict.message")
             }
@@ -388,19 +398,16 @@ struct PatternReaderView: View {
             guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
             guard handledPageIndex != newPage else { return }
             guard revisionCoordinator.canChangePage else {
-                state.pageIndex = oldPage
-                handledPageIndex = oldPage
-                pdfNavigator.go(to: oldPage)
+                restorePageTransition(to: oldPage)
                 saveError = String(localized: "error.saveFailed")
                 return
             }
             handledPageIndex = newPage
             if context.canWrite, !saveMarkup(page: oldPage) {
-                state.pageIndex = oldPage
-                handledPageIndex = oldPage
-                pdfNavigator.go(to: oldPage)
+                restorePageTransition(to: oldPage)
                 return
             }
+            pendingPageTransition = nil
             loadMarkup(page: newPage, readerGeneration: readerSession.generation)
         }
         .onChange(of: scenePhase) { _, phase in
@@ -481,6 +488,7 @@ struct PatternReaderView: View {
         guard !Task.isCancelled, identity == readerContextIdentity else { return }
         canvasIsActive = false
         handledPageIndex = nil
+        pendingPageTransition = nil
         pageCount = 0
         loadError = false
         saveError = nil
@@ -547,17 +555,25 @@ struct PatternReaderView: View {
         case .reload, .reloadReadOnly:
             reloadReader(for: readerContextIdentity)
         case .conflict:
-            showingMarkupConflict = true
             saveError = String(localized: "error.saveFailed")
         }
     }
 
     private func discardMarkupAndReload() {
-        guard revisionCoordinator.phase == .conflict else { return }
-        showingMarkupConflict = false
+        guard revisionCoordinator.discardConflictAndPrepareReload(
+            expectedDataGeneration: store.dataGeneration
+        ) else { return }
         markup = .init()
-        revisionCoordinator.reset(expectedDataGeneration: store.dataGeneration)
         reloadReader(for: readerContextIdentity)
+    }
+
+    private func restorePageTransition(to oldPage: Int) {
+        guard let transition = pendingPageTransition,
+              transition.targetPageIndex == state.pageIndex else { return }
+        state = transition.rollbackState
+        handledPageIndex = transition.rollbackState.pageIndex
+        pendingPageTransition = nil
+        pdfNavigator.go(to: oldPage)
     }
 
     @discardableResult private func save() -> Bool {

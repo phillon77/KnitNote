@@ -116,6 +116,21 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+/// Preserves the exact reader state before a platform PDF callback changes
+/// pages. A failed markup save must roll back the whole state, not only the
+/// page number, because the callback has already loaded the target page's
+/// highlight positions and note.
+public struct PatternReaderPageTransition: Equatable, Sendable {
+    public let rollbackState: PatternReadingState
+    public let targetPageIndex: Int
+
+    public init?(previousState: PatternReadingState, proposedState: PatternReadingState) {
+        guard previousState.pageIndex != proposedState.pageIndex else { return nil }
+        rollbackState = previousState
+        targetPageIndex = proposedState.pageIndex
+    }
+}
+
 public struct PatternReadingRestoreGate: Sendable {
     public private(set) var canSample = false
     private var isRestoring = false

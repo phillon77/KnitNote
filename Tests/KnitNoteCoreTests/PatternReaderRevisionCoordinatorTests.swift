@@ -39,10 +39,15 @@ import Testing
         coordinator.setMarkupDirty(true)
         #expect(coordinator.observeStoreGeneration(5, canWrite: true) == .conflict)
 
-        coordinator.reset(expectedDataGeneration: 5)
+        #expect(coordinator.requiresConflictResolution)
+        #expect(!coordinator.canDismissConflictPresentation)
+        let didPrepareReload = coordinator.discardConflictAndPrepareReload(expectedDataGeneration: 5)
+        #expect(didPrepareReload)
 
         #expect(coordinator.phase == .ready)
         #expect(coordinator.canChangePage)
+        #expect(!coordinator.requiresConflictResolution)
+        #expect(coordinator.canDismissConflictPresentation)
         #expect(coordinator.observeStoreGeneration(5, canWrite: true) == .none)
     }
 }

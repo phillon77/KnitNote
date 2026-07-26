@@ -259,10 +259,27 @@ public struct PatternReaderRevisionCoordinator: Equatable, Sendable {
         phase == .ready
     }
 
+    /// A conflict can only leave the reader through discard-and-reload, so a
+    /// presented conflict alert cannot be dismissed into a blocked reader.
+    public var requiresConflictResolution: Bool {
+        phase == .conflict
+    }
+
+    public var canDismissConflictPresentation: Bool {
+        !requiresConflictResolution
+    }
+
     public mutating func reset(expectedDataGeneration: UInt64) {
         self.expectedDataGeneration = expectedDataGeneration
         phase = .ready
         hasDirtyMarkup = false
+    }
+
+    @discardableResult
+    public mutating func discardConflictAndPrepareReload(expectedDataGeneration: UInt64) -> Bool {
+        guard requiresConflictResolution else { return false }
+        reset(expectedDataGeneration: expectedDataGeneration)
+        return true
     }
 
     public mutating func setMarkupDirty(_ isDirty: Bool) {

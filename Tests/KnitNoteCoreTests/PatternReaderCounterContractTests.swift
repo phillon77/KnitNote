@@ -95,11 +95,12 @@ import Testing
         #expect(reader.contains("guard saveMarkup(page: state.pageIndex) else { return }"))
     }
 
-    @Test func readerRestoresThePDFAndStateWhenAPageChangeCannotBeSaved() throws {
+    @Test func readerUsesTheCoreTransitionSnapshotWhenAPageChangeCannotBeSaved() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 
-        #expect(reader.contains("state.pageIndex = oldPage"))
-        #expect(reader.contains("handledPageIndex = oldPage"))
+        #expect(reader.contains("@State private var pendingPageTransition: PatternReaderPageTransition?"))
+        #expect(reader.contains("PatternReaderPageTransition("))
+        #expect(reader.contains("state = transition.rollbackState"))
         #expect(reader.contains("pdfNavigator.go(to: oldPage)"))
     }
 
@@ -107,10 +108,10 @@ import Testing
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
         let strings = try sourceFile("KnitNote/Localization/Localizable.xcstrings")
 
-        #expect(reader.contains("@State private var showingMarkupConflict = false"))
         #expect(reader.contains(".alert(\"patterns.reader.conflict\""))
         #expect(reader.contains("discardMarkupAndReload()"))
-        #expect(reader.contains("revisionCoordinator.reset(expectedDataGeneration: store.dataGeneration)"))
+        #expect(reader.contains("revisionCoordinator.requiresConflictResolution"))
+        #expect(reader.contains("discardConflictAndPrepareReload"))
         #expect(strings.contains("\"patterns.reader.discardAndReload\""))
         #expect(strings.contains("\"patterns.reader.conflict.message\""))
     }

@@ -13,19 +13,26 @@ Added `PatternLibraryStoreTests` and converted markup file tests to the usage-ID
 - Added permanent-delete protection for active links, removal of inactive usages/markup, shared-asset retention, and staged file deletion with archive-persistence rollback.
 - Kept the pre-library markup calls only as compatibility paths for the existing Task 2/3 callers; all new Task 4 paths are keyed by usage ID.
 
+## Deletion-recovery review fix
+
+- Replaced the in-memory deletion staging with a durable, checksummed transaction journal. Each journal records its UUID, phase, exact canonical relative paths, staging names, and usage/asset metadata.
+- Startup recovery runs before archive validation. If the archive still references a journal item it restores staged files; otherwise it finalizes the deletion. Invalid or unsafe artifacts make the archive unreadable and keep mutations blocked.
+- Journal and markup roots are physically validated, symlinked roots are rejected, and no-op deletions write no journal.
+- Added fresh-store tests for pre-publication rollback and post-publication cleanup of both project and permanent-pattern deletion, plus two-project state/markup isolation, persistence rollback, relink persistence, inactive-write rejection, malformed journals, no-op staging, and symlink safety.
+
 ## Files
 
 - `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`
-- `Sources/KnitNoteCore/Patterns/PatternMarkupFileService.swift`
-- `Sources/KnitNoteCore/Patterns/PatternFileService.swift`
 - `Tests/KnitNoteCoreTests/PatternLibraryStoreTests.swift`
-- `Tests/KnitNoteCoreTests/PatternMarkupFileServiceTests.swift`
+- `task-4-report.md`
 
 ## Tests
 
 - RED: `swift test --filter 'PatternLibraryStoreTests|PatternMarkupFileServiceTests'` — failed as expected for missing Task 4 APIs.
-- GREEN focused: same command — 11 tests passed.
-- Full regression: `swift test` — 615 tests in 44 suites passed.
+- Original GREEN focused: same command — 11 tests passed.
+- Review-fix RED: the new empty staged-transaction test failed with `.unreadableArchive`, proving a no-op journal would block startup.
+- Review-fix focused: same command — 23 tests passed.
+- Full regression: `swift test` — 627 tests in 44 suites passed.
 - `git diff --check` — passed.
 
 ## Concerns

@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 import Foundation
 
 public struct ProjectArchive: Codable, Sendable {
@@ -91,74 +92,359 @@ enum ProjectJournalPhotoReferencePolicy {
     }
 }
 
-private final class PatternLibraryDeletionStaging {
-    private let markupService: PatternMarkupFileService
-    private let usageIDs: [UUID]
-    private let asset: PatternAsset?
-    private let fileService: PatternFileService
-    private let transactionRoot: URL
-    private var movedItems: [(source: URL, staged: URL)] = []
+enum PatternLibraryDeletionError: Error, Equatable, Sendable {
+    case invalidJournal
+    case unsafeTransactionRoot
+    case conflictingFiles
+}
+
+enum PatternLibraryDeletionPhase: String, Codable, Sendable {
+    case staged
+    case published
+    case committed
+}
+
+struct PatternLibraryDeletionItem: Codable, Hashable, Sendable {
+    enum Kind: String, Codable, Sendable {
+        case usageMarkup
+        case asset
+    }
+
+    let kind: Kind
+    let usageID: UUID?
+    let asset: PatternAsset?
+    let canonicalRelativePath: String
+    let stagedFilename: String
+
+    static func usageMarkup(_ usageID: UUID) -> PatternLibraryDeletionItem {
+        .init(
+            kind: .usageMarkup,
+            usageID: usageID,
+            asset: nil,
+            canonicalRelativePath: "UsageMarkup/\(usageID.uuidString)",
+            stagedFilename: "usage-\(usageID.uuidString)"
+        )
+    }
+
+    static func asset(_ asset: PatternAsset) -> PatternLibraryDeletionItem {
+        .init(
+            kind: .asset,
+            usageID: nil,
+            asset: asset,
+            canonicalRelativePath: "Assets/\(asset.storedFilename)",
+            stagedFilename: "asset-\(asset.id.uuidString)"
+        )
+    }
+
+    var isValid: Bool {
+        switch kind {
+        case .usageMarkup:
+            guard let usageID, asset == nil else { return false }
+            return canonicalRelativePath == "UsageMarkup/\(usageID.uuidString)"
+                && stagedFilename == "usage-\(usageID.uuidString)"
+        case .asset:
+            guard let asset, usageID == nil else { return false }
+            return canonicalRelativePath == "Assets/\(asset.storedFilename)"
+                && stagedFilename == "asset-\(asset.id.uuidString)"
+        }
+    }
+}
+
+struct PatternLibraryDeletionJournal: Codable, Sendable {
+    private struct Payload: Codable {
+        let version: Int
+        let transactionID: UUID
+        let phase: PatternLibraryDeletionPhase
+        let items: [PatternLibraryDeletionItem]
+    }
+
+    let version: Int
+    let transactionID: UUID
+    let phase: PatternLibraryDeletionPhase
+    let items: [PatternLibraryDeletionItem]
+    let integrity: String
 
     init(
+        transactionID: UUID,
+        phase: PatternLibraryDeletionPhase,
+        items: [PatternLibraryDeletionItem]
+    ) throws {
+        version = 1
+        self.transactionID = transactionID
+        self.phase = phase
+        self.items = items
+        integrity = try Self.integrity(
+            for: .init(version: version, transactionID: transactionID, phase: phase, items: items)
+        )
+    }
+
+    func isValid() throws -> Bool {
+        guard version == 1, hasValidStructure else { return false }
+        let expectedIntegrity = try Self.integrity(
+            for: .init(version: version, transactionID: transactionID, phase: phase, items: items)
+        )
+        return integrity == expectedIntegrity
+    }
+
+    var hasValidStructure: Bool {
+        !items.isEmpty
+            && Set(items.map(\.stagedFilename)).count == items.count
+            && items.allSatisfy(\.isValid)
+    }
+
+    func withPhase(_ phase: PatternLibraryDeletionPhase) throws -> PatternLibraryDeletionJournal {
+        try .init(transactionID: transactionID, phase: phase, items: items)
+    }
+
+    private static func integrity(for payload: Payload) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(payload)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+final class PatternLibraryDeletionTransaction {
+    private let markupService: PatternMarkupFileService
+    private let fileService: PatternFileService
+    private let transactionsRoot: URL
+    private let isNoOp: Bool
+    private var journal: PatternLibraryDeletionJournal
+    private let transactionRoot: URL
+
+    private init(
+        root: URL,
+        markupService: PatternMarkupFileService,
+        fileService: PatternFileService,
+        journal: PatternLibraryDeletionJournal,
+        isNoOp: Bool = false
+    ) throws {
+        self.markupService = markupService
+        self.fileService = fileService
+        self.isNoOp = isNoOp
+        transactionsRoot = try Self.validatedTransactionsRoot(root)
+        self.journal = journal
+        transactionRoot = transactionsRoot
+            .appendingPathComponent(journal.transactionID.uuidString, isDirectory: true)
+    }
+
+    static func begin(
         root: URL,
         markupService: PatternMarkupFileService,
         usageIDs: [UUID],
         asset: PatternAsset?,
         fileService: PatternFileService
-    ) {
-        self.markupService = markupService
-        self.usageIDs = usageIDs
-        self.asset = asset
-        self.fileService = fileService
-        transactionRoot = root
-            .appendingPathComponent(".DeletionTransactions", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    ) throws -> PatternLibraryDeletionTransaction {
+        let items = usageIDs.map(PatternLibraryDeletionItem.usageMarkup)
+            + (asset.map { [PatternLibraryDeletionItem.asset($0)] } ?? [])
+        return try .init(
+            root: root,
+            markupService: markupService,
+            fileService: fileService,
+            journal: try .init(transactionID: UUID(), phase: .staged, items: items),
+            isNoOp: items.isEmpty
+        )
     }
 
     func stage() throws {
+        guard !isNoOp else { return }
         let manager = FileManager.default
-        try manager.createDirectory(at: transactionRoot, withIntermediateDirectories: true)
+        try manager.createDirectory(at: transactionsRoot, withIntermediateDirectories: true)
+        try writeJournal()
         do {
-            for usageID in usageIDs {
-                try moveIfPresent(
-                    markupService.usageMarkupDirectory(usageID: usageID),
-                    named: "usage-\(usageID.uuidString)"
-                )
-            }
-            if let asset {
-                try moveIfPresent(try fileService.assetURL(asset), named: "asset-\(asset.id.uuidString)")
+            try manager.createDirectory(at: transactionRoot, withIntermediateDirectories: true)
+            for item in journal.items {
+                try moveIfPresent(item)
             }
         } catch {
-            try? rollback()
+            try rollback()
             throw error
         }
     }
 
+    func publish() throws {
+        guard !isNoOp else { return }
+        journal = try journal.withPhase(.published)
+        try writeJournal()
+    }
+
     func rollback() throws {
+        guard !isNoOp else { return }
         let manager = FileManager.default
-        for item in movedItems.reversed() {
-            guard manager.fileExists(atPath: item.staged.path) else { continue }
-            try manager.createDirectory(at: item.source.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try manager.moveItem(at: item.staged, to: item.source)
+        for item in journal.items.reversed() {
+            let source = try canonicalURL(for: item)
+            let staged = stagedURL(for: item)
+            guard manager.fileExists(atPath: staged.path) else { continue }
+            guard !manager.fileExists(atPath: source.path) else {
+                throw PatternLibraryDeletionError.conflictingFiles
+            }
+            try manager.createDirectory(at: source.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try manager.moveItem(at: staged, to: source)
         }
-        movedItems.removeAll()
         if manager.fileExists(atPath: transactionRoot.path) {
             try manager.removeItem(at: transactionRoot)
         }
+        try removeJournalAndEmptyRoot()
     }
 
     func commit() throws {
+        guard !isNoOp else { return }
         let manager = FileManager.default
-        guard manager.fileExists(atPath: transactionRoot.path) else { return }
-        try manager.removeItem(at: transactionRoot)
+        if manager.fileExists(atPath: transactionRoot.path) {
+            try manager.removeItem(at: transactionRoot)
+        }
+        journal = try journal.withPhase(.committed)
+        try writeJournal()
+        try removeJournalAndEmptyRoot()
     }
 
-    private func moveIfPresent(_ source: URL, named name: String) throws {
+    static func recover(
+        root: URL,
+        markupService: PatternMarkupFileService,
+        fileService: PatternFileService,
+        archive: ProjectArchive
+    ) throws {
+        let transactionsRoot = try validatedTransactionsRoot(root)
         let manager = FileManager.default
+        guard manager.fileExists(atPath: transactionsRoot.path) else { return }
+        let entries = try manager.contentsOfDirectory(
+            at: transactionsRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+        )
+        let journalURLs = try entries.compactMap { url -> URL? in
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isSymbolicLink != true else {
+                throw PatternLibraryDeletionError.invalidJournal
+            }
+            if values.isDirectory == true {
+                guard UUID(uuidString: url.lastPathComponent) != nil else {
+                    throw PatternLibraryDeletionError.invalidJournal
+                }
+                return nil
+            }
+            guard url.pathExtension == "json",
+                  UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil,
+                  values.isRegularFile == true else {
+                throw PatternLibraryDeletionError.invalidJournal
+            }
+            return url
+        }
+        for url in journalURLs {
+            let journal: PatternLibraryDeletionJournal
+            do {
+                journal = try JSONDecoder().decode(PatternLibraryDeletionJournal.self, from: Data(contentsOf: url))
+            } catch {
+                throw PatternLibraryDeletionError.invalidJournal
+            }
+            guard try journal.isValid(),
+                  journal.transactionID.uuidString == url.deletingPathExtension().lastPathComponent else {
+                throw PatternLibraryDeletionError.invalidJournal
+            }
+            let transaction = try PatternLibraryDeletionTransaction(
+                root: root,
+                markupService: markupService,
+                fileService: fileService,
+                journal: journal
+            )
+            let archiveStillReferencesAnItem = journal.items.contains { item in
+                switch item.kind {
+                case .usageMarkup:
+                    return item.usageID.map { usageID in archive.patternUsages.contains { $0.id == usageID } } ?? false
+                case .asset:
+                    return item.asset.map { asset in archive.patternAssets.contains { $0.id == asset.id } } ?? false
+                }
+            }
+            if archiveStillReferencesAnItem {
+                try transaction.rollback()
+            } else {
+                try transaction.commit()
+            }
+        }
+        if manager.fileExists(atPath: transactionsRoot.path) {
+            let remaining = try manager.contentsOfDirectory(atPath: transactionsRoot.path)
+            guard remaining.isEmpty else { throw PatternLibraryDeletionError.invalidJournal }
+            try manager.removeItem(at: transactionsRoot)
+        }
+    }
+
+    private func moveIfPresent(_ item: PatternLibraryDeletionItem) throws {
+        let manager = FileManager.default
+        let source = try canonicalURL(for: item)
         guard manager.fileExists(atPath: source.path) else { return }
-        let destination = transactionRoot.appendingPathComponent(name, isDirectory: true)
-        try manager.moveItem(at: source, to: destination)
-        movedItems.append((source, destination))
+        try manager.moveItem(at: source, to: stagedURL(for: item))
+    }
+
+    private func canonicalURL(for item: PatternLibraryDeletionItem) throws -> URL {
+        switch item.kind {
+        case .usageMarkup:
+            guard let usageID = item.usageID else { throw PatternLibraryDeletionError.invalidJournal }
+            return try validatedUsageMarkupURL(usageID: usageID)
+        case .asset:
+            guard let asset = item.asset else { throw PatternLibraryDeletionError.invalidJournal }
+            return try fileService.assetURL(asset)
+        }
+    }
+
+    private func stagedURL(for item: PatternLibraryDeletionItem) -> URL {
+        transactionRoot.appendingPathComponent(item.stagedFilename, isDirectory: item.kind == .usageMarkup)
+    }
+
+    private func writeJournal() throws {
+        try JSONEncoder().encode(journal).write(to: journalURL, options: .atomic)
+    }
+
+    private var journalURL: URL {
+        transactionsRoot.appendingPathComponent("\(journal.transactionID.uuidString).json")
+    }
+
+    private func removeJournalAndEmptyRoot() throws {
+        let manager = FileManager.default
+        if manager.fileExists(atPath: journalURL.path) {
+            try manager.removeItem(at: journalURL)
+        }
+        if manager.fileExists(atPath: transactionsRoot.path),
+           try manager.contentsOfDirectory(atPath: transactionsRoot.path).isEmpty {
+            try manager.removeItem(at: transactionsRoot)
+        }
+    }
+
+    private static func validatedTransactionsRoot(_ root: URL) throws -> URL {
+        let canonicalRoot = root.standardizedFileURL
+        guard canonicalRoot.resolvingSymlinksInPath().path == canonicalRoot.path else {
+            throw PatternLibraryDeletionError.unsafeTransactionRoot
+        }
+        let transactionsRoot = canonicalRoot
+            .appendingPathComponent(".DeletionTransactions", isDirectory: true)
+            .standardizedFileURL
+        guard transactionsRoot.deletingLastPathComponent().path == canonicalRoot.path,
+              transactionsRoot.resolvingSymlinksInPath().path == transactionsRoot.path else {
+            throw PatternLibraryDeletionError.unsafeTransactionRoot
+        }
+        return transactionsRoot
+    }
+
+    private func validatedUsageMarkupURL(usageID: UUID) throws -> URL {
+        let root = markupService.root.standardizedFileURL
+        let physicalRoot = root.resolvingSymlinksInPath()
+        guard physicalRoot.path == root.path else {
+            throw PatternLibraryDeletionError.unsafeTransactionRoot
+        }
+        let markupRoot = root.appendingPathComponent("UsageMarkup", isDirectory: true).standardizedFileURL
+        guard markupRoot.deletingLastPathComponent().path == root.path,
+              markupRoot.resolvingSymlinksInPath().path == markupRoot.path else {
+            throw PatternLibraryDeletionError.unsafeTransactionRoot
+        }
+        let candidate = markupRoot.appendingPathComponent(usageID.uuidString, isDirectory: true).standardizedFileURL
+        guard candidate.deletingLastPathComponent().path == markupRoot.path else {
+            throw PatternLibraryDeletionError.unsafeTransactionRoot
+        }
+        if FileManager.default.fileExists(atPath: candidate.path) {
+            let values = try candidate.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard values.isDirectory == true, values.isSymbolicLink != true else {
+                throw PatternLibraryDeletionError.unsafeTransactionRoot
+            }
+        }
+        return candidate
     }
 }
 
@@ -437,7 +723,7 @@ private final class PatternLibraryDeletionStaging {
         let removedUsages = patternUsages.filter { $0.projectID == id }
         let remainingUsages = patternUsages.filter { $0.projectID != id }
         let files = try requiredPatternFileService()
-        let deletion = PatternLibraryDeletionStaging(
+        let deletion = try PatternLibraryDeletionTransaction.begin(
             root: files.root,
             markupService: patternMarkupFileService,
             usageIDs: removedUsages.map(\.id),
@@ -452,10 +738,11 @@ private final class PatternLibraryDeletionStaging {
                 patternUsages: remainingUsages
             )
         } catch {
-            try? deletion.rollback()
+            try deletion.rollback()
             throw error
         }
-        try? deletion.commit()
+        try deletion.publish()
+        try deletion.commit()
         if let filename { try? photoService.delete(filename: filename) }
         deleteJournalPhotosIfUnreferenced(journalFilenames)
         try? patternThumbnailService.deleteProject(projectID: id)
@@ -707,7 +994,7 @@ private final class PatternLibraryDeletionStaging {
             ? patternAssets.first(where: { $0.id == pattern.assetID })
             : nil
         let files = try requiredPatternFileService()
-        let deletion = PatternLibraryDeletionStaging(
+        let deletion = try PatternLibraryDeletionTransaction.begin(
             root: files.root,
             markupService: patternMarkupFileService,
             usageIDs: usagesToDelete.map(\.id),
@@ -726,10 +1013,11 @@ private final class PatternLibraryDeletionStaging {
                 patternUsages: patternUsages.filter { $0.patternID != id }
             )
         } catch {
-            try? deletion.rollback()
+            try deletion.rollback()
             throw error
         }
-        try? deletion.commit()
+        try deletion.publish()
+        try deletion.commit()
     }
 
     public func renamePattern(id: UUID, to name: String) throws {
@@ -1092,6 +1380,9 @@ private final class PatternLibraryDeletionStaging {
         do {
             try PatternLibraryMigrator().recoverInterruptedMigration(archiveURL: url)
             guard FileManager.default.fileExists(atPath: url.path) else {
+                try recoverPatternDeletionArtifacts(
+                    archive: ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
+                )
                 try recoverPatternImportArtifacts(referencedAssets: [])
                 loadError = nil
                 return
@@ -1122,6 +1413,7 @@ private final class PatternLibraryDeletionStaging {
             let migrator = PatternLibraryMigrator()
             try migrator.recoverInterruptedMigration(archiveURL: url)
             let initialArchive = try archiveFromDisk()
+            try recoverPatternDeletionArtifacts(archive: initialArchive)
             try recoverPatternImportArtifacts(referencedAssets: initialArchive.patternAssets)
             if initialArchive.version < ProjectArchive.currentVersion {
                 try migrator.migrateOnDisk(archiveURL: url)
@@ -1155,6 +1447,16 @@ private final class PatternLibraryDeletionStaging {
         for itemID in report.cleanedCommittedIDs.intersection(publishedInboxItems) {
             try? files.completeImportTransaction(itemID: itemID)
         }
+    }
+
+    private func recoverPatternDeletionArtifacts(archive: ProjectArchive) throws {
+        let files = try requiredPatternFileService()
+        try PatternLibraryDeletionTransaction.recover(
+            root: files.root,
+            markupService: patternMarkupFileService,
+            fileService: files,
+            archive: archive
+        )
     }
 
     private func archiveFromDisk() throws -> ProjectArchive {

@@ -68,7 +68,7 @@ public struct PatternLibraryMigrator: Sendable {
         )
         do {
             try FileManager.default.createDirectory(at: stagedRoot, withIntermediateDirectories: true)
-            try JSONEncoder().encode(MigrationTransaction()).write(
+            try JSONEncoder().encode(PatternMigrationTransaction()).write(
                 to: stagedRoot.appendingPathComponent("transaction.json"),
                 options: .atomic
             )
@@ -108,47 +108,46 @@ public struct PatternLibraryMigrator: Sendable {
         let rollbackRoot = migrated.stagedRoot.appendingPathComponent("Rollback", isDirectory: true)
         let rollbackArchiveURL = rollbackRoot.appendingPathComponent("archive.json")
         let rollbackPatternsRoot = rollbackRoot.appendingPathComponent("Patterns", isDirectory: true)
-        var movedArchive = false
-        var movedPatterns = false
-        var installedArchive = false
-        var installedPatterns = false
+        var transaction = try loadTransaction(at: migrated.stagedRoot)
 
         do {
             try stepHook(.beforeInstall)
+            transaction.phase = .preparingRollback
+            try persist(transaction, at: migrated.stagedRoot)
             try fileManager.createDirectory(at: rollbackRoot, withIntermediateDirectories: true)
             if fileManager.fileExists(atPath: archiveURL.path) {
                 try fileManager.moveItem(at: archiveURL, to: rollbackArchiveURL)
-                movedArchive = true
+                transaction.phase = .archiveBackedUp
+                try persist(transaction, at: migrated.stagedRoot)
             }
             if fileManager.fileExists(atPath: livePatternsRoot.path) {
                 try fileManager.moveItem(at: livePatternsRoot, to: rollbackPatternsRoot)
-                movedPatterns = true
+                transaction.phase = .patternsBackedUp
+                try persist(transaction, at: migrated.stagedRoot)
             }
             try fileManager.moveItem(at: stagedArchiveURL, to: archiveURL)
-            installedArchive = true
+            transaction.phase = .archiveInstalled
+            try persist(transaction, at: migrated.stagedRoot)
             if fileManager.fileExists(atPath: stagedPatternsRoot.path) {
                 try fileManager.moveItem(at: stagedPatternsRoot, to: livePatternsRoot)
-                installedPatterns = true
+                transaction.phase = .installed
+                try persist(transaction, at: migrated.stagedRoot)
             }
 
             try validateInstalledArchive(at: archiveURL, liveRoot: liveRoot)
+            transaction.phase = .validated
+            try persist(transaction, at: migrated.stagedRoot)
             try stepHook(.afterInstall)
-            try? fileManager.removeItem(at: migrated.stagedRoot)
+            transaction.phase = .committed
+            try persist(transaction, at: migrated.stagedRoot)
+            cleanupTerminalTransaction(at: migrated.stagedRoot)
         } catch {
             do {
-                if installedArchive, fileManager.fileExists(atPath: archiveURL.path) {
-                    try fileManager.removeItem(at: archiveURL)
-                }
-                if installedPatterns, fileManager.fileExists(atPath: livePatternsRoot.path) {
-                    try fileManager.removeItem(at: livePatternsRoot)
-                }
-                if movedArchive, fileManager.fileExists(atPath: rollbackArchiveURL.path) {
-                    try fileManager.moveItem(at: rollbackArchiveURL, to: archiveURL)
-                }
-                if movedPatterns, fileManager.fileExists(atPath: rollbackPatternsRoot.path) {
-                    try fileManager.moveItem(at: rollbackPatternsRoot, to: livePatternsRoot)
-                }
-                try? fileManager.removeItem(at: migrated.stagedRoot)
+                try restoreRollback(
+                    at: migrated.stagedRoot,
+                    archiveURL: archiveURL,
+                    liveRoot: liveRoot
+                )
             } catch {
                 throw PatternLibraryMigrationError.rollbackFailed
             }
@@ -169,33 +168,34 @@ public struct PatternLibraryMigrator: Sendable {
         }
 
         for transactionRoot in transactions {
-            let rollbackRoot = transactionRoot.appendingPathComponent("Rollback", isDirectory: true)
-            let rollbackArchiveURL = rollbackRoot.appendingPathComponent("archive.json")
-            let rollbackPatternsRoot = rollbackRoot.appendingPathComponent("Patterns", isDirectory: true)
-            guard fileManager.fileExists(atPath: rollbackArchiveURL.path) else {
-                continue
-            }
-
-            if (try? validateCurrentArchive(at: archiveURL, liveRoot: liveRoot)) != nil {
-                try? fileManager.removeItem(at: transactionRoot)
-                continue
-            }
-
+            let transaction: PatternMigrationTransaction
             do {
-                if fileManager.fileExists(atPath: archiveURL.path) {
-                    try fileManager.removeItem(at: archiveURL)
-                }
-                try fileManager.moveItem(at: rollbackArchiveURL, to: archiveURL)
-                if fileManager.fileExists(atPath: rollbackPatternsRoot.path) {
-                    let livePatternsRoot = liveRoot.appendingPathComponent("Patterns", isDirectory: true)
-                    if fileManager.fileExists(atPath: livePatternsRoot.path) {
-                        try fileManager.removeItem(at: livePatternsRoot)
-                    }
-                    try fileManager.moveItem(at: rollbackPatternsRoot, to: livePatternsRoot)
-                }
-                try? fileManager.removeItem(at: transactionRoot)
+                transaction = try loadTransaction(at: transactionRoot)
             } catch {
-                throw PatternLibraryMigrationError.rollbackFailed
+                continue
+            }
+            switch transaction.phase {
+            case .committed, .rolledBack:
+                cleanupTerminalTransaction(at: transactionRoot)
+                continue
+            case .staged, .preparingRollback:
+                let rollbackArchiveURL = transactionRoot
+                    .appendingPathComponent("Rollback/archive.json")
+                guard fileManager.fileExists(atPath: rollbackArchiveURL.path) else {
+                    try? fileManager.removeItem(at: transactionRoot)
+                    continue
+                }
+                fallthrough
+            case .archiveBackedUp, .patternsBackedUp, .archiveInstalled, .installed, .validated, .rollingBack:
+                do {
+                    try restoreRollback(
+                        at: transactionRoot,
+                        archiveURL: archiveURL,
+                        liveRoot: liveRoot
+                    )
+                } catch {
+                    throw PatternLibraryMigrationError.rollbackFailed
+                }
             }
         }
     }
@@ -353,9 +353,88 @@ public struct PatternLibraryMigrator: Sendable {
             let url = liveRoot
                 .appendingPathComponent("Patterns/Assets")
                 .appendingPathComponent(asset.storedFilename)
-            guard FileManager.default.fileExists(atPath: url.path) else {
-                throw PatternLibraryMigrationError.missingLegacyFile
+            try validate(asset: asset, at: url)
+        }
+    }
+
+    private func validate(asset: PatternAsset, at url: URL) throws {
+        guard asset.storedFilename == url.lastPathComponent,
+              FileManager.default.fileExists(atPath: url.path) else {
+            throw PatternLibraryMigrationError.missingLegacyFile
+        }
+        let data = try Data(contentsOf: url)
+        guard Int64(data.count) == asset.byteCount else {
+            throw PatternLibraryMigrationError.invalidLegacyFile
+        }
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard hash == asset.sha256 else {
+            throw PatternLibraryMigrationError.invalidLegacyFile
+        }
+        switch asset.kind {
+        case .pdf:
+            guard let document = CGPDFDocument(url as CFURL), document.numberOfPages > 0,
+                  asset.pageCount == document.numberOfPages else {
+                throw PatternLibraryMigrationError.invalidLegacyFile
             }
+        case .image:
+            guard let image = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  CGImageSourceGetCount(image) > 0 else {
+                throw PatternLibraryMigrationError.invalidLegacyFile
+            }
+        }
+    }
+
+    private func loadTransaction(at root: URL) throws -> PatternMigrationTransaction {
+        try JSONDecoder().decode(
+            PatternMigrationTransaction.self,
+            from: Data(contentsOf: root.appendingPathComponent("transaction.json"))
+        )
+    }
+
+    private func persist(_ transaction: PatternMigrationTransaction, at root: URL) throws {
+        try JSONEncoder().encode(transaction).write(
+            to: root.appendingPathComponent("transaction.json"),
+            options: .atomic
+        )
+    }
+
+    private func restoreRollback(at transactionRoot: URL, archiveURL: URL, liveRoot: URL) throws {
+        let fileManager = FileManager.default
+        let rollbackRoot = transactionRoot.appendingPathComponent("Rollback", isDirectory: true)
+        let rollbackArchiveURL = rollbackRoot.appendingPathComponent("archive.json")
+        let rollbackPatternsRoot = rollbackRoot.appendingPathComponent("Patterns", isDirectory: true)
+        var transaction = try loadTransaction(at: transactionRoot)
+        guard fileManager.fileExists(atPath: rollbackArchiveURL.path) else {
+            if transaction.phase == .staged || transaction.phase == .preparingRollback {
+                try? fileManager.removeItem(at: transactionRoot)
+                return
+            }
+            throw PatternLibraryMigrationError.rollbackFailed
+        }
+        transaction.phase = .rollingBack
+        try persist(transaction, at: transactionRoot)
+        if fileManager.fileExists(atPath: archiveURL.path) {
+            try fileManager.removeItem(at: archiveURL)
+        }
+        try fileManager.moveItem(at: rollbackArchiveURL, to: archiveURL)
+        if fileManager.fileExists(atPath: rollbackPatternsRoot.path) {
+            let livePatternsRoot = liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+            if fileManager.fileExists(atPath: livePatternsRoot.path) {
+                try fileManager.removeItem(at: livePatternsRoot)
+            }
+            try fileManager.moveItem(at: rollbackPatternsRoot, to: livePatternsRoot)
+        }
+        transaction.phase = .rolledBack
+        try persist(transaction, at: transactionRoot)
+        cleanupTerminalTransaction(at: transactionRoot)
+    }
+
+    private func cleanupTerminalTransaction(at root: URL) {
+        do {
+            try FileManager.default.removeItem(at: root)
+        } catch {
+            // A durable terminal phase makes a retained artifact unambiguous:
+            // startup will only retry this cleanup and never roll back live data.
         }
     }
 
@@ -379,7 +458,28 @@ public struct PatternLibraryMigrator: Sendable {
     }
 }
 
-private struct MigrationTransaction: Codable {}
+struct PatternMigrationTransaction: Codable, Sendable {
+    enum Phase: String, Codable, Sendable {
+        case staged
+        case preparingRollback
+        case archiveBackedUp
+        case patternsBackedUp
+        case archiveInstalled
+        case installed
+        case validated
+        case committed
+        case rollingBack
+        case rolledBack
+    }
+
+    let id: UUID
+    var phase: Phase
+
+    init(id: UUID = UUID(), phase: Phase = .staged) {
+        self.id = id
+        self.phase = phase
+    }
+}
 
 private struct PatternProjectUsagePair: Hashable {
     let patternID: UUID

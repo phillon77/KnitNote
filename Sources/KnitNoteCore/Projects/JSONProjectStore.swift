@@ -692,8 +692,9 @@ enum ProjectJournalPhotoReferencePolicy {
         try persist(projects: staged, yarns: yarns)
     }
     private func load() {
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
         do {
+            try PatternLibraryMigrator().recoverInterruptedMigration(archiveURL: url)
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
             try reloadFromDiskDuringDataOperation()
         } catch {
             loadError = .unreadableArchive

@@ -29,6 +29,7 @@ public enum PatternLibraryMigrationError: Error, Equatable, Sendable {
     case incompatibleSharedAsset
     case emptyDisplayName
     case rollbackFailed
+    case transactionRecoveryRequired
 }
 
 public struct PatternLibraryMigrator: Sendable {
@@ -172,7 +173,7 @@ public struct PatternLibraryMigrator: Sendable {
             do {
                 transaction = try loadTransaction(at: transactionRoot)
             } catch {
-                continue
+                throw PatternLibraryMigrationError.transactionRecoveryRequired
             }
             switch transaction.phase {
             case .committed, .rolledBack:

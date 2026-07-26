@@ -1,6 +1,9 @@
 import CryptoKit
+import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Test func migrationSharesBytesButPreservesDifferentNames() throws {
@@ -242,6 +245,46 @@ import Testing
     #expect(!store.projects.isEmpty)
 }
 
+@MainActor @Test func corruptOrUnknownTransactionBlocksStartupAndCannotOverwriteRollback() throws {
+    let journals = [
+        Data("{not JSON".utf8),
+        Data("{\"id\":\"00000000-0000-0000-0000-000000000000\",\"phase\":\"futurePhase\"}".utf8),
+    ]
+
+    for journal in journals {
+        let fixture = try LegacyPatternFixture.onePattern()
+        let originalArchive = try Data(contentsOf: fixture.archiveURL)
+        let originalPattern = try Data(contentsOf: fixture.legacyPatternURL)
+        let originalMarkup = try Data(contentsOf: fixture.legacyMarkupURL)
+        let result = try stageInterruptedInstall(fixture)
+        let rollbackArchive = result.stagedRoot.appendingPathComponent("Rollback/archive.json")
+        let rollbackPattern = try rollbackURL(
+            for: fixture.legacyPatternURL,
+            liveRoot: fixture.liveRoot,
+            stagedRoot: result.stagedRoot
+        )
+        let rollbackMarkup = try rollbackURL(
+            for: fixture.legacyMarkupURL,
+            liveRoot: fixture.liveRoot,
+            stagedRoot: result.stagedRoot
+        )
+        try FileManager.default.removeItem(at: fixture.archiveURL)
+        try journal.write(to: result.stagedRoot.appendingPathComponent("transaction.json"), options: .atomic)
+
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(store.loadError == .unreadableArchive)
+        #expect(store.projects.isEmpty)
+        #expect(throws: ProjectStoreError.archiveUnavailable) {
+            try store.add(name: "Must not persist")
+        }
+        #expect(!FileManager.default.fileExists(atPath: fixture.archiveURL.path))
+        #expect(try Data(contentsOf: rollbackArchive) == originalArchive)
+        #expect(try Data(contentsOf: rollbackPattern) == originalPattern)
+        #expect(try Data(contentsOf: rollbackMarkup) == originalMarkup)
+    }
+}
+
 @Test func committedJournalNeverRollsBackInvalidCurrentLibrary() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let originalArchive = try Data(contentsOf: fixture.archiveURL)
@@ -313,6 +356,41 @@ import Testing
         storedFilename: asset.storedFilename,
         byteCount: Int64(invalidPDF.count),
         pageCount: asset.pageCount
+    )
+    let corruptArchive = ProjectArchive(
+        version: archive.version,
+        projects: archive.projects,
+        yarns: archive.yarns,
+        patternAssets: archive.patternAssets.map { $0.id == asset.id ? replacement : $0 },
+        patterns: archive.patterns,
+        patternUsages: archive.patternUsages
+    )
+    try JSONEncoder().encode(corruptArchive).write(to: fixture.archiveURL, options: .atomic)
+
+    let reloaded = JSONProjectStore(url: fixture.archiveURL)
+
+    #expect(reloaded.loadError == .unreadableArchive)
+    #expect(reloaded.patternAssets.isEmpty)
+}
+
+@MainActor @Test func storeRejectsCurrentArchiveWhenImageAssetContentIsInvalid() throws {
+    let fixture = try LegacyPatternFixture.oneImagePattern()
+    let migrated = JSONProjectStore(url: fixture.archiveURL)
+    let asset = try #require(migrated.patternAssets.first)
+    #expect(asset.kind == .image)
+    let assetURL = fixture.liveRoot
+        .appendingPathComponent("Patterns/Assets")
+        .appendingPathComponent(asset.storedFilename)
+    let invalidImage = Data("this is not an image".utf8)
+    try invalidImage.write(to: assetURL)
+    let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: fixture.archiveURL))
+    let replacement = PatternAsset(
+        id: asset.id,
+        sha256: SHA256.hash(data: invalidImage).map { String(format: "%02x", $0) }.joined(),
+        kind: .image,
+        storedFilename: asset.storedFilename,
+        byteCount: Int64(invalidImage.count),
+        pageCount: nil
     )
     let corruptArchive = ProjectArchive(
         version: archive.version,
@@ -417,6 +495,20 @@ private struct LegacyPatternFixture {
         )
     }
 
+    static func oneImagePattern(version: Int = 9) throws -> LegacyPatternFixture {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PatternLibraryMigration-\(UUID().uuidString)", isDirectory: true)
+        let project = try StoredProject(name: "Chart")
+        return try make(
+            root: root,
+            projects: [project],
+            names: ["Colour chart"],
+            identicalBytes: true,
+            version: version,
+            kind: .image
+        )
+    }
+
     static func twoProjects(
         firstName: String,
         secondName: String,
@@ -450,11 +542,18 @@ private struct LegacyPatternFixture {
         names: [String],
         identicalBytes: Bool,
         sharedProject: Bool = false,
-        version: Int = 9
+        version: Int = 9,
+        kind: PatternKind = .pdf
     ) throws -> LegacyPatternFixture {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let source = root.appendingPathComponent("source.pdf")
-        try makeTestPatternPDF(at: source, pageCount: 3)
+        let fileExtension = kind == .pdf ? "pdf" : "png"
+        let source = root.appendingPathComponent("source.\(fileExtension)")
+        switch kind {
+        case .pdf:
+            try makeTestPatternPDF(at: source, pageCount: 3)
+        case .image:
+            try makeTestPatternImage(at: source)
+        }
         let sharedBytes = try Data(contentsOf: source)
 
         var legacyProjects = sharedProject ? [projects[0]] : projects
@@ -468,8 +567,8 @@ private struct LegacyPatternFixture {
             let projectIndex = sharedProject ? 0 : index
             let pattern = PatternDocument(
                 displayName: names[index],
-                kind: .pdf,
-                storedFilename: "legacy-\(index).pdf",
+                kind: kind,
+                storedFilename: "legacy-\(index).\(fileExtension)",
                 createdAt: Date(timeIntervalSince1970: 1_000 + Double(index))
             )
             legacyProjects[projectIndex].addPattern(pattern)
@@ -551,6 +650,27 @@ private struct LegacyPatternFixture {
     }
 }
 
+private func makeTestPatternImage(at url: URL) throws {
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let context = try #require(CGContext(
+        data: nil,
+        width: 1,
+        height: 1,
+        bitsPerComponent: 8,
+        bytesPerRow: 4,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ))
+    let destination = try #require(CGImageDestinationCreateWithURL(
+        url as CFURL,
+        UTType.png.identifier as CFString,
+        1,
+        nil
+    ))
+    CGImageDestinationAddImage(destination, try #require(context.makeImage()), nil)
+    #expect(CGImageDestinationFinalize(destination))
+}
+
 private func stageInterruptedInstall(_ fixture: LegacyPatternFixture) throws -> MigratedPatternLibrary {
     let result = try PatternLibraryMigrator().migrate(
         archive: fixture.archive,
@@ -586,4 +706,15 @@ private func writeTransactionPhase(
     var transaction = try JSONDecoder().decode(PatternMigrationTransaction.self, from: Data(contentsOf: transactionURL))
     transaction.phase = phase
     try JSONEncoder().encode(transaction).write(to: transactionURL, options: .atomic)
+}
+
+private func rollbackURL(for liveURL: URL, liveRoot: URL, stagedRoot: URL) throws -> URL {
+    let relativePath = liveURL.path.replacingOccurrences(
+        of: liveRoot.path + "/",
+        with: ""
+    )
+    guard relativePath != liveURL.path else {
+        throw PatternLibraryMigrationError.invalidLegacyFile
+    }
+    return stagedRoot.appendingPathComponent("Rollback").appendingPathComponent(relativePath)
 }

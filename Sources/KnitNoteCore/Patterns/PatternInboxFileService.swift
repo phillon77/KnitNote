@@ -109,6 +109,7 @@ public struct PatternInboxFileService: Sendable {
     }
 
     public func stagedURL(for item: PatternInboxItem) throws -> URL {
+        try validateOwnedInboxTree()
         guard isSafe(item) else { throw PatternInboxError.invalidItem }
         return itemsRoot.appendingPathComponent(item.stagedFilename)
     }
@@ -138,18 +139,26 @@ public struct PatternInboxFileService: Sendable {
     /// recovery. A committed sidecar may already have removed its staged bytes;
     /// in that one case the committed manifest itself is the cleanup proof.
     func journalVerificationItem(id: UUID) throws -> PatternInboxJournalVerification? {
-        guard let manifest = try manifest(id: id), isSafe(manifest.item) else { return nil }
-        let staged = try stagedURL(for: manifest.item)
-        if FileManager.default.fileExists(atPath: staged.path) {
-            guard try isRegularNonSymlink(staged) else { return nil }
-            return PatternInboxJournalVerification(
-                item: manifest.item,
-                metadata: try PatternFileService(root: root).inspect(staged),
-                isCommitted: manifest.state == .committed
-            )
+        do {
+            guard let manifest = try manifest(id: id),
+                  manifest.version == 1,
+                  isSafe(manifest.item) else { return nil }
+            let staged = try stagedURL(for: manifest.item)
+            if FileManager.default.fileExists(atPath: staged.path) {
+                guard try isRegularNonSymlink(staged) else { return nil }
+                return PatternInboxJournalVerification(
+                    item: manifest.item,
+                    metadata: try PatternFileService(root: root).inspect(staged),
+                    isCommitted: manifest.state == .committed
+                )
+            }
+            guard manifest.state == .committed else { return nil }
+            return PatternInboxJournalVerification(item: manifest.item, metadata: nil, isCommitted: true)
+        } catch {
+            // A transaction journal must never obtain publication authority from
+            // a corrupt or unsupported inbox sidecar.
+            return nil
         }
-        guard manifest.state == .committed else { return nil }
-        return PatternInboxJournalVerification(item: manifest.item, metadata: nil, isCommitted: true)
     }
 
     public func recover(publishedItemIDs: Set<UUID> = []) throws -> PatternInboxRecoveryReport {
@@ -174,7 +183,23 @@ public struct PatternInboxFileService: Sendable {
             }
             let staged = try stagedURL(for: manifest.item)
             referencedStaged.insert(manifest.item.stagedFilename)
-            guard FileManager.default.fileExists(atPath: staged.path), try isRegularNonSymlink(staged) else {
+            guard FileManager.default.fileExists(atPath: staged.path) else {
+                if manifest.state == .committed {
+                    do {
+                        // A previous cleanup may already have removed staged
+                        // bytes before it failed to remove the manifest.
+                        try cleanupCommitted(manifest.item)
+                        report.cleanedCommittedIDs.insert(id)
+                    } catch {
+                        // Keep the committed sidecar for the next retry.
+                    }
+                    continue
+                }
+                try quarantine(id: id, manifestURL: url, stagedURL: staged)
+                report.quarantinedItemIDs.insert(id)
+                continue
+            }
+            guard try isRegularNonSymlink(staged) else {
                 try quarantine(id: id, manifestURL: url, stagedURL: staged)
                 report.quarantinedItemIDs.insert(id)
                 continue
@@ -217,6 +242,7 @@ public struct PatternInboxFileService: Sendable {
     private var quarantineRoot: URL { root.appendingPathComponent(".Quarantine", isDirectory: true) }
 
     private func createDirectories() throws {
+        try validateOwnedInboxTree()
         for url in [candidatesRoot, itemsRoot, manifestsRoot, quarantineRoot] {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         }
@@ -226,6 +252,7 @@ public struct PatternInboxFileService: Sendable {
     private func manifestURL(for id: UUID) -> URL { manifestsRoot.appendingPathComponent("\(id.uuidString).json") }
 
     private func manifest(id: UUID) throws -> PatternInboxManifest? {
+        try validateOwnedInboxTree()
         let url = manifestURL(for: id)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         guard try isRegularNonSymlink(url) else { throw PatternInboxError.invalidItem }
@@ -237,6 +264,7 @@ public struct PatternInboxFileService: Sendable {
     }
 
     private func writeManifest(_ manifest: PatternInboxManifest) throws {
+        try validateOwnedInboxTree()
         try writeData(JSONEncoder().encode(manifest), manifestURL(for: manifest.item.id))
     }
 
@@ -244,7 +272,8 @@ public struct PatternInboxFileService: Sendable {
     private func stagedURLs() throws -> [URL] { try contents(of: itemsRoot) }
     private func manifestURLs() throws -> [URL] { try contents(of: manifestsRoot) }
     private func contents(of root: URL) throws -> [URL] {
-        try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+        try validateOwnedInboxTree()
+        return try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
     }
 
     private func manifestID(from name: String) -> UUID? {
@@ -277,12 +306,14 @@ public struct PatternInboxFileService: Sendable {
     }
 
     private func removeOwnedFile(_ url: URL) throws {
+        try validateOwnedInboxTree()
         guard url.deletingLastPathComponent().standardizedFileURL.path == candidatesRoot.standardizedFileURL.path,
               UUID(uuidString: url.lastPathComponent) != nil else { return }
         try removeItem(url)
     }
 
     private func quarantine(id: UUID, manifestURL: URL?, stagedURL: URL?) throws {
+        try validateOwnedInboxTree()
         let token = "\(id.uuidString)-\(UUID().uuidString)"
         if let manifestURL, FileManager.default.fileExists(atPath: manifestURL.path) {
             try moveItem(manifestURL, quarantineRoot.appendingPathComponent("\(token).manifest"))
@@ -294,6 +325,15 @@ public struct PatternInboxFileService: Sendable {
                 try removeItem(stagedURL)
             } else if values.isRegularFile == true {
                 try moveItem(stagedURL, quarantineRoot.appendingPathComponent("\(token).staged"))
+            }
+        }
+    }
+
+    private func validateOwnedInboxTree() throws {
+        for directory in [root, candidatesRoot, itemsRoot, manifestsRoot, quarantineRoot] {
+            let lexical = directory.standardizedFileURL
+            guard lexical.resolvingSymlinksInPath().path == lexical.path else {
+                throw PatternInboxError.invalidItem
             }
         }
     }

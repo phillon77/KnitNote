@@ -104,6 +104,56 @@ New tests first exposed the missing retry-load transition: a store remained disa
 - `swift test` — PASS (599 tests, 44 suites).
 - `git diff --check` — PASS.
 
+## Review Remediation 4: Inbox Canonical Roots and Partial Commit Cleanup
+
+### RED
+
+The accepted review findings showed three remaining inbox-side recovery gaps:
+
+- a symlinked inbox `.Candidates` directory could surface a raw filesystem error
+  instead of a typed blocked path;
+- a committed manifest whose staged file had already been deleted was treated as
+  corrupt rather than as a partial cleanup that only needed its manifest removed;
+- journal evidence lookup could throw for corrupt or unsupported inbox manifests,
+  turning a recoverable quarantine into an unreadable archive.
+
+Added regressions for an external UUID candidate behind a symlinked inbox root,
+an injected failure on only the second cleanup removal, and both corrupt and
+unknown-version manifests while the archive asset remains valid.
+
+### GREEN
+
+- Inbox recovery and all owned create/list/manifest/remove/quarantine operations
+  now validate the physical inbox root and `.Candidates`, `Items`, `Manifests`,
+  and `.Quarantine` descendants before touching them. A symlinked path raises
+  `PatternInboxError.invalidItem`; external UUID files are not enumerated or
+  removed.
+- Recovery recognizes a committed manifest with missing staged bytes as partial
+  cleanup. It retries only the manifest removal, reports committed cleanup, and
+  then permits the associated asset journal to complete without republishing.
+- `journalVerificationItem` treats corrupt, unknown-version, or otherwise
+  unsupported sidecars as non-evidence. Asset recovery quarantines the journal,
+  then normal inbox recovery quarantines the malformed manifest and staged bytes;
+  the already-referenced archive asset remains available and startup stays usable.
+
+### Rejected Review Suggestions
+
+Descriptor-anchored `openat`/`unlinkat` operations and a secret-keyed MAC were
+not implemented. The approved product scope has no adversarial concurrent
+filesystem-writer or authenticated anti-tamper threat model, and the local
+sandbox/App Group design has no trusted secret-key source. Adding Darwin-only
+descriptor plumbing and a key-management scheme would materially expand
+complexity without a specified product requirement. Canonical path checks and
+SHA-256 journal integrity continue to cover accidental corruption within the
+approved scope.
+
+### Additional Verification
+
+- Task 3 focused suite — PASS (32 tests), including inbox symlink isolation,
+  partial committed cleanup, and corrupt/unknown manifest quarantine.
+- `swift test` — PASS (606 tests, 44 suites).
+- `git diff --check` — PASS.
+
 ## Review Remediation 3: Canonical Recovery Roots and Journal Binding
 
 ### RED

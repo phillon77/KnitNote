@@ -21,6 +21,16 @@ private final class PatternStorageAvailabilityGate: @unchecked Sendable {
     }
 }
 
+private final class PatternImportSecondRemoveGate: @unchecked Sendable {
+    private var removes = 0
+
+    func remove(_ url: URL) throws {
+        removes += 1
+        if removes == 2 { throw PatternImportInjectedFailure() }
+        try FileManager.default.removeItem(at: url)
+    }
+}
+
 @MainActor
 @Test func freshStartupRemovesUnreferencedFinalAssetAndCandidateCrashArtifacts() throws {
     let harness = try PatternImportHarness()
@@ -176,6 +186,113 @@ private final class PatternStorageAvailabilityGate: @unchecked Sendable {
     #expect(try Data(contentsOf: candidate) == candidateBytes)
     #expect(try Data(contentsOf: final) == finalBytes)
     #expect(throws: ProjectStoreError.archiveUnavailable) { try store.add(name: "Blocked") }
+}
+
+@MainActor
+@Test func startupRecoveryRejectsSymlinkedInboxCandidateDirectoryWithoutTouchingExternalFiles() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let inboxRoot = root.appendingPathComponent("PatternInbox", isDirectory: true)
+    let outside = root.appendingPathComponent("Outside", isDirectory: true)
+    let externalCandidate = outside.appendingPathComponent(UUID().uuidString)
+    let externalBytes = Data("external-inbox-candidate".utf8)
+    try FileManager.default.createDirectory(at: inboxRoot, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    try externalBytes.write(to: externalCandidate, options: .atomic)
+    try FileManager.default.createSymbolicLink(
+        at: inboxRoot.appendingPathComponent(".Candidates", isDirectory: true),
+        withDestinationURL: outside
+    )
+
+    #expect(throws: PatternInboxError.invalidItem) {
+        _ = try PatternInboxFileService(root: inboxRoot).recover()
+    }
+
+    let store = JSONProjectStore(
+        url: root.appendingPathComponent("projects-v1.json"),
+        patternFileService: PatternFileService(root: root.appendingPathComponent("Patterns", isDirectory: true)),
+        patternInboxFileService: PatternInboxFileService(root: inboxRoot)
+    )
+
+    #expect(store.loadError == .unreadableArchive)
+    #expect(try Data(contentsOf: externalCandidate) == externalBytes)
+    #expect(throws: ProjectStoreError.archiveUnavailable) { try store.add(name: "Blocked") }
+}
+
+@MainActor
+@Test func partialCommittedCleanupRetriesManifestRemovalAndThenCompletesJournal() async throws {
+    let gate = PatternImportSecondRemoveGate()
+    let harness = try PatternImportHarness(inboxRemove: { try gate.remove($0) })
+    let source = try harness.makePDF(named: "partial-committed.pdf")
+    let item = try harness.inbox.enqueue(source: source, origin: .library, targetProjectID: nil, now: .now)
+    let journal = harness.assetsRoot
+        .appendingPathComponent("Assets/.Transactions", isDirectory: true)
+        .appendingPathComponent("\(item.id.uuidString).json")
+    let staged = harness.inbox.root
+        .appendingPathComponent("Items/\(item.stagedFilename)")
+    let manifest = harness.inbox.root
+        .appendingPathComponent("Manifests/\(item.id.uuidString).json")
+
+    _ = try await harness.store.processPatternInboxItem(id: item.id)
+    #expect(!FileManager.default.fileExists(atPath: staged.path))
+    #expect(FileManager.default.fileExists(atPath: manifest.path))
+    #expect(FileManager.default.fileExists(atPath: journal.path))
+
+    let restarted = try harness.reopenedStore()
+
+    #expect(restarted.patterns.count == 1)
+    #expect(!FileManager.default.fileExists(atPath: manifest.path))
+    #expect(!FileManager.default.fileExists(atPath: journal.path))
+}
+
+@MainActor
+@Test func corruptInboxManifestQuarantinesJournalAndStagedBytesWithoutInvalidatingArchive() async throws {
+    let gate = PatternImportWriteGate()
+    let harness = try PatternImportHarness(inboxWrite: { try gate.write($0, to: $1) })
+    let source = try harness.makePDF(named: "corrupt-manifest.pdf")
+    let item = try harness.inbox.enqueue(source: source, origin: .library, targetProjectID: nil, now: .now)
+    _ = try await harness.store.processPatternInboxItem(id: item.id)
+    let manifest = harness.inbox.root.appendingPathComponent("Manifests/\(item.id.uuidString).json")
+    let staged = harness.inbox.root.appendingPathComponent("Items/\(item.stagedFilename)")
+    let journal = harness.assetsRoot.appendingPathComponent("Assets/.Transactions/\(item.id.uuidString).json")
+    try Data("corrupt".utf8).write(to: manifest, options: .atomic)
+
+    let restarted = try harness.reopenedStore()
+
+    #expect(restarted.loadError == nil)
+    #expect(restarted.patternAssets.count == 1)
+    #expect(!FileManager.default.fileExists(atPath: staged.path))
+    #expect(try FileManager.default.contentsOfDirectory(
+        at: harness.inbox.root.appendingPathComponent(".Quarantine", isDirectory: true),
+        includingPropertiesForKeys: nil
+    ).contains { $0.pathExtension == "staged" })
+    #expect(!FileManager.default.fileExists(atPath: journal.path))
+}
+
+@MainActor
+@Test func unknownInboxManifestVersionQuarantinesJournalAndStagedBytesWithoutInvalidatingArchive() async throws {
+    let gate = PatternImportWriteGate()
+    let harness = try PatternImportHarness(inboxWrite: { try gate.write($0, to: $1) })
+    let source = try harness.makePDF(named: "unknown-manifest.pdf")
+    let item = try harness.inbox.enqueue(source: source, origin: .library, targetProjectID: nil, now: .now)
+    _ = try await harness.store.processPatternInboxItem(id: item.id)
+    let manifest = harness.inbox.root.appendingPathComponent("Manifests/\(item.id.uuidString).json")
+    let staged = harness.inbox.root.appendingPathComponent("Items/\(item.stagedFilename)")
+    let journal = harness.assetsRoot.appendingPathComponent("Assets/.Transactions/\(item.id.uuidString).json")
+    var payload = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: manifest)) as? [String: Any])
+    payload["version"] = 99
+    try JSONSerialization.data(withJSONObject: payload).write(to: manifest, options: .atomic)
+
+    let restarted = try harness.reopenedStore()
+
+    #expect(restarted.loadError == nil)
+    #expect(restarted.patternAssets.count == 1)
+    #expect(!FileManager.default.fileExists(atPath: staged.path))
+    #expect(try FileManager.default.contentsOfDirectory(
+        at: harness.inbox.root.appendingPathComponent(".Quarantine", isDirectory: true),
+        includingPropertiesForKeys: nil
+    ).contains { $0.pathExtension == "staged" })
+    #expect(!FileManager.default.fileExists(atPath: journal.path))
 }
 
 @MainActor

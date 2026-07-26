@@ -54,6 +54,9 @@ targets:
       - target: KnitNoteWatch
         embed: true
         platformFilter: iOS
+      - target: KnitNoteShare
+        embed: true
+        platformFilter: iOS
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
@@ -62,6 +65,8 @@ targets:
         PRODUCT_NAME: KnitNote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": KnitNote/KnitNote-macOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": KnitNote/KnitNote-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": KnitNote/KnitNote-iOS.entitlements
   KnitNoteWatch:
     type: application
     platform: watchOS
@@ -82,6 +87,13 @@ targets:
       - path: Sources/KnitNoteCore
         excludes:
           - Launch/LaunchExperienceCoordinator.swift
+          - Patterns/PatternLibraryImportPresentation.swift
+          - Patterns/PatternLibraryIndex.swift
+          - Patterns/PatternReaderContext.swift
+          - Patterns/PatternShareInboxEnqueuer.swift
+          - Patterns/PatternShareImportPresentation.swift
+          - Patterns/ProjectPatternImportPresentation.swift
+          - Patterns/ProjectPatternLinkIndex.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
@@ -89,6 +101,46 @@ targets:
         CURRENT_PROJECT_VERSION: 2
         PRODUCT_NAME: KnitNoteWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  KnitNoteShare:
+    type: app-extension
+    platform: iOS
+    info:
+      path: KnitNoteShare/Info.plist
+      properties:
+        CFBundleDisplayName: KnitNote
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionAttributes:
+            NSExtensionActivationRule: 'extensionItems.@count == 1 AND extensionItems[0].attachments.@count == 1 AND SUBQUERY(extensionItems[0].attachments, $attachment, ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.png" OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.jpeg" OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.heic").@count == 1'
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+    sources:
+      - path: KnitNoteShare
+        excludes:
+          - Info.plist
+          - PrivacyInfo.xcprivacy
+      - path: KnitNoteShare/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Sources/KnitNoteCore/Patterns/PatternAsset.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternDocument.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternFileService.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternInboxFileService.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternInboxItem.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternMarkup.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternMarkupFileService.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternShareInboxEnqueuer.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternShareImportPresentation.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternStorageLocations.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share
+        CODE_SIGN_ENTITLEMENTS: KnitNoteShare/KnitNoteShare.entitlements
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 2
+        PRODUCT_NAME: KnitNoteShare
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
 schemes:
   KnitNote:
     build:
@@ -102,3 +154,7 @@ schemes:
         KnitNoteWatch: all
     run:
       config: Debug
+  KnitNoteShare:
+    build:
+      targets:
+        KnitNoteShare: all

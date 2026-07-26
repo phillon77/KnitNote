@@ -22,6 +22,8 @@ import Testing
             "PatternLibrarySort.swift",
             "PatternProjectUsage.swift",
             "PatternReaderContext.swift",
+            "PatternShareImportPresentation.swift",
+            "PatternShareInboxEnqueuer.swift",
             "PatternStorageLocations.swift",
             "ProjectPatternLinkIndex.swift",
             "ProjectPatternImportPresentation.swift",

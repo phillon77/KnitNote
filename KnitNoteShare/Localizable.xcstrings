@@ -1,0 +1,102 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "share.cancel" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "share.close" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉" } }
+      }
+    },
+    "share.error.access" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote could not access this file." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote 無法存取這個檔案。" } }
+      }
+    },
+    "share.error.cancelled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sharing was cancelled." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "分享已取消。" } }
+      }
+    },
+    "share.error.empty" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file is empty." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個檔案是空的。" } }
+      }
+    },
+    "share.error.invalidFile" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This is not a valid PDF or supported image." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這不是有效的 PDF 或支援的圖片。" } }
+      }
+    },
+    "share.error.load" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shared file could not be loaded." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法載入分享的檔案。" } }
+      }
+    },
+    "share.error.multiple" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share one pattern file at a time." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一次只能分享一個織圖檔案。" } }
+      }
+    },
+    "share.error.storage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern could not be saved. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存織圖，請再試一次。" } }
+      }
+    },
+    "share.error.timeout" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The file took too long to load. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案載入時間過長，請再試一次。" } }
+      }
+    },
+    "share.error.tooLarge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file is too large to add." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個檔案太大，無法加入。" } }
+      }
+    },
+    "share.error.unexpected" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern could not be added. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法加入織圖，請再試一次。" } }
+      }
+    },
+    "share.error.unsupported" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share one PDF or supported image file." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請分享一個 PDF 或支援的圖片檔案。" } }
+      }
+    },
+    "share.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Saving your pattern…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在儲存織圖…" } }
+      }
+    },
+    "share.success" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Added to KnitNote" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已加入 KnitNote" } }
+      }
+    },
+    "share.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add to KnitNote" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加入 KnitNote" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

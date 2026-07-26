@@ -13,11 +13,12 @@ import Testing
         """))
     }
 
-    @Test func appAndWatchPlistsUseSharedDynamicReleaseMetadata() throws {
+    @Test func appWatchAndSharePlistsUseSharedDynamicReleaseMetadata() throws {
         let appInfo = try plist("KnitNote/Info.plist")
         let watchInfo = try plist("KnitNoteWatch/Info.plist")
+        let shareInfo = try plist("KnitNoteShare/Info.plist")
 
-        for info in [appInfo, watchInfo] {
+        for info in [appInfo, watchInfo, shareInfo] {
             #expect(info["CFBundleShortVersionString"] as? String == "$(MARKETING_VERSION)")
             #expect(info["CFBundleVersion"] as? String == "$(CURRENT_PROJECT_VERSION)")
         }
@@ -27,35 +28,35 @@ import Testing
         )
     }
 
-    @Test func projectGeneratesDynamicReleaseMetadataForBothApps() throws {
+    @Test func projectGeneratesDynamicReleaseMetadataForEveryBundle() throws {
         let project = try source("project.yml")
 
         #expect(
             project.components(
                 separatedBy: "CFBundleShortVersionString: $(MARKETING_VERSION)"
-            ).count == 3
+            ).count == 4
         )
         #expect(
             project.components(
                 separatedBy: "CFBundleVersion: $(CURRENT_PROJECT_VERSION)"
-            ).count == 3
+            ).count == 4
         )
         #expect(project.contains("WKCompanionAppBundleIdentifier: com.phillon.KnitNote"))
     }
 
-    @Test func releaseCandidateUsesBuildTwoAcrossAppAndWatch() throws {
+    @Test func releaseCandidateUsesBuildTwoAcrossEveryBundle() throws {
         let specification = try source("project.yml")
         let generatedProject = try source("KnitNote.xcodeproj/project.pbxproj")
 
         #expect(
             specification.components(
                 separatedBy: "CURRENT_PROJECT_VERSION: 2"
-            ).count == 3
+            ).count == 4
         )
         #expect(
             generatedProject.components(
                 separatedBy: "CURRENT_PROJECT_VERSION = 2;"
-            ).count == 5
+            ).count == 7
         )
         #expect(!generatedProject.contains("CURRENT_PROJECT_VERSION = 1;"))
     }

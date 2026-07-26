@@ -26,6 +26,12 @@ Added `PatternLibraryStoreTests` and converted markup file tests to the usage-ID
 - Centralized physical path validation in `PatternMarkupFileService`. Usage and legacy read/save/delete paths, legacy-copy routing, and deletion transactions all reject symlinked or non-canonical roots, subdirectories, and existing page files.
 - Added regression coverage for all completed legacy reader writes (state, highlight, note, markup), exact archive/markup byte preservation after a fresh reopen, active-project writes, direct model no-op behavior, and usage/legacy symlink targets remaining untouched.
 
+## Final markup-copy review fix
+
+- Replaced recursive legacy markup directory copying with a whitelist copier. Only canonical, non-symlink, regular `0.json`, `1.json`, and later numeric page files are accepted; unexpected files, directories, and symlinks reject migration with `PatternMarkupFileError.unsafePath`.
+- Each approved source page is revalidated and written atomically to a validated usage-owned destination page. This leaves no path that follows a legacy page or nested-directory symlink.
+- Added multi-page copy coverage, unexpected-file rejection, and on-disk migration regressions for page-file and nested symlinks. Both prove the legacy archive/tree and external target stay unchanged and no `UsageMarkup` installation occurs.
+
 ## Files
 
 - `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`
@@ -48,6 +54,10 @@ Added `PatternLibraryStoreTests` and converted markup file tests to the usage-ID
 - Second review focused: `swift test --filter 'PatternDocumentTests|PatternMarkupFileServiceTests|PatternLibraryStoreTests'` — 46 tests passed.
 - Second review full regression: `swift test` — 632 tests in 44 suites passed.
 - Second review final diff check: `git diff --check` — passed.
+- Final markup-copy RED: page-file and nested legacy markup symlink migrations completed and modified the archive, proving recursive copying was unsafe.
+- Final markup-copy focused: `swift test --filter 'PatternMarkupFileServiceTests|PatternLibraryMigrationTests'` — 31 tests passed.
+- Final markup-copy full regression: `swift test` — 636 tests in 44 suites passed.
+- Final markup-copy final diff check: `git diff --check` — passed.
 
 ## Concerns
 

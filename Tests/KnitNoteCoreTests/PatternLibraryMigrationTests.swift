@@ -148,6 +148,51 @@ import UniformTypeIdentifiers
     #expect(FileManager.default.fileExists(atPath: fixture.legacyMarkupURL.path))
 }
 
+@Test func legacyMarkupPageSymlinkStopsMigrationWithoutInstallingUsageMarkup() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let originalArchive = try Data(contentsOf: fixture.archiveURL)
+    let target = fixture.liveRoot.appendingPathComponent("outside-page.json")
+    let targetBytes = Data("outside page bytes".utf8)
+    try targetBytes.write(to: target)
+    try FileManager.default.removeItem(at: fixture.legacyMarkupURL)
+    try FileManager.default.createSymbolicLink(at: fixture.legacyMarkupURL, withDestinationURL: target)
+
+    #expect(throws: PatternMarkupFileError.unsafePath) {
+        try PatternLibraryMigrator().migrateOnDisk(archiveURL: fixture.archiveURL)
+    }
+
+    #expect(try Data(contentsOf: fixture.archiveURL) == originalArchive)
+    #expect(try FileManager.default.destinationOfSymbolicLink(atPath: fixture.legacyMarkupURL.path) == target.path)
+    #expect(try Data(contentsOf: target) == targetBytes)
+    #expect(!FileManager.default.fileExists(
+        atPath: fixture.liveRoot.appendingPathComponent("Patterns/UsageMarkup").path
+    ))
+}
+
+@Test func nestedLegacyMarkupSymlinkStopsMigrationWithoutInstallingUsageMarkup() throws {
+    let fixture = try LegacyPatternFixture.onePattern()
+    let originalArchive = try Data(contentsOf: fixture.archiveURL)
+    let originalMarkup = try Data(contentsOf: fixture.legacyMarkupURL)
+    let target = fixture.liveRoot.appendingPathComponent("outside-nested")
+    let targetBytes = Data("outside nested bytes".utf8)
+    try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+    try targetBytes.write(to: target.appendingPathComponent("marker.txt"))
+    let nestedLink = fixture.legacyMarkupURL.deletingLastPathComponent().appendingPathComponent("nested")
+    try FileManager.default.createSymbolicLink(at: nestedLink, withDestinationURL: target)
+
+    #expect(throws: PatternMarkupFileError.unsafePath) {
+        try PatternLibraryMigrator().migrateOnDisk(archiveURL: fixture.archiveURL)
+    }
+
+    #expect(try Data(contentsOf: fixture.archiveURL) == originalArchive)
+    #expect(try Data(contentsOf: fixture.legacyMarkupURL) == originalMarkup)
+    #expect(try FileManager.default.destinationOfSymbolicLink(atPath: nestedLink.path) == target.path)
+    #expect(try Data(contentsOf: target.appendingPathComponent("marker.txt")) == targetBytes)
+    #expect(!FileManager.default.fileExists(
+        atPath: fixture.liveRoot.appendingPathComponent("Patterns/UsageMarkup").path
+    ))
+}
+
 @Test func failedAfterInstallRestoresArchiveAndPatternTreeByteForByte() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let originalArchive = try Data(contentsOf: fixture.archiveURL)

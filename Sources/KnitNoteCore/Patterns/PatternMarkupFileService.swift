@@ -61,12 +61,22 @@ public struct PatternMarkupFileService: Sendable {
     ) throws {
         let sourceDirectory = try source.legacyPatternDirectory(projectID: projectID, patternID: patternID)
         guard FileManager.default.fileExists(atPath: sourceDirectory.path) else { return }
+        let sourcePages = try source.validatedLegacyMarkupPages(in: sourceDirectory)
+        guard !sourcePages.isEmpty else { return }
         let destinationDirectory = try usageMarkupDirectory(usageID: usageID)
         try FileManager.default.createDirectory(
-            at: destinationDirectory.deletingLastPathComponent(),
+            at: destinationDirectory,
             withIntermediateDirectories: true
         )
-        try FileManager.default.copyItem(at: sourceDirectory, to: destinationDirectory)
+        for (pageIndex, sourceURL) in sourcePages {
+            let validatedSource = try source.safePageURL(pageIndex: pageIndex, under: sourceDirectory)
+            guard validatedSource.path == sourceURL.path else {
+                throw PatternMarkupFileError.unsafePath
+            }
+            let destinationURL = try safePageURL(pageIndex: pageIndex, under: destinationDirectory)
+            let data = try Data(contentsOf: validatedSource)
+            try data.write(to: destinationURL, options: .atomic)
+        }
     }
 
     func usageMarkupDirectory(usageID: UUID) throws -> URL {
@@ -133,5 +143,38 @@ public struct PatternMarkupFileService: Sendable {
             }
         }
         return file
+    }
+
+    private func validatedLegacyMarkupPages(in directory: URL) throws -> [(pageIndex: Int, url: URL)] {
+        let entries = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+        )
+        return try entries.map { url in
+            let filename = url.lastPathComponent
+            guard let pageIndex = legacyPageIndex(from: filename) else {
+                throw PatternMarkupFileError.unsafePath
+            }
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isDirectory != true,
+                  values.isRegularFile == true,
+                  values.isSymbolicLink != true else {
+                throw PatternMarkupFileError.unsafePath
+            }
+            let validatedURL = try safePageURL(pageIndex: pageIndex, under: directory)
+            guard validatedURL.path == url.standardizedFileURL.path else {
+                throw PatternMarkupFileError.unsafePath
+            }
+            return (pageIndex, validatedURL)
+        }.sorted { $0.pageIndex < $1.pageIndex }
+    }
+
+    private func legacyPageIndex(from filename: String) -> Int? {
+        guard filename.hasSuffix(".json") else { return nil }
+        let number = String(filename.dropLast(5))
+        guard let pageIndex = Int(number), pageIndex >= 0, filename == "\(pageIndex).json" else {
+            return nil
+        }
+        return pageIndex
     }
 }

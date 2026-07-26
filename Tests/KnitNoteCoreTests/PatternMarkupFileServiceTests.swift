@@ -43,6 +43,58 @@ import Testing
     #expect(try service.load(usageID: secondUsageID, pageIndex: 0) == drawing)
 }
 
+@Test func copyingLegacyMarkupCopiesEveryAllowedPageIndependently() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let source = PatternMarkupFileService(root: root.appendingPathComponent("legacy", isDirectory: true))
+    let destination = PatternMarkupFileService(root: root.appendingPathComponent("destination", isDirectory: true))
+    let projectID = UUID(), patternID = UUID(), usageID = UUID()
+    let first = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.1, y: 0.2)], color: .red, width: 0.006)])
+    let second = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.8, y: 0.9)], color: .blue, width: 0.012)])
+    try source.save(first, projectID: projectID, patternID: patternID, pageIndex: 0)
+    try source.save(second, projectID: projectID, patternID: patternID, pageIndex: 2)
+
+    try destination.copyLegacyMarkup(
+        from: source,
+        projectID: projectID,
+        patternID: patternID,
+        usageID: usageID
+    )
+
+    #expect(try destination.load(usageID: usageID, pageIndex: 0) == first)
+    #expect(try destination.load(usageID: usageID, pageIndex: 2) == second)
+    #expect(try destination.load(usageID: usageID, pageIndex: 1).strokes.isEmpty)
+}
+
+@Test func copyingLegacyMarkupRejectsUnexpectedFilesAndLeavesNoUsageMarkup() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let sourceRoot = root.appendingPathComponent("legacy", isDirectory: true)
+    let source = PatternMarkupFileService(root: sourceRoot)
+    let destination = PatternMarkupFileService(root: root.appendingPathComponent("destination", isDirectory: true))
+    let projectID = UUID(), patternID = UUID(), usageID = UUID()
+    try source.save(
+        PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.1, y: 0.2)], color: .red, width: 0.006)]),
+        projectID: projectID,
+        patternID: patternID,
+        pageIndex: 0
+    )
+    let unexpected = sourceRoot.appendingPathComponent(
+        "\(projectID.uuidString)/Markup/\(patternID.uuidString)/notes.txt"
+    )
+    try Data("unexpected".utf8).write(to: unexpected)
+
+    #expect(throws: PatternMarkupFileError.unsafePath) {
+        try destination.copyLegacyMarkup(
+            from: source,
+            projectID: projectID,
+            patternID: patternID,
+            usageID: usageID
+        )
+    }
+    #expect(try destination.load(usageID: usageID, pageIndex: 0).strokes.isEmpty)
+}
+
 @Test func usageMarkupSymlinkRejectsEveryOperationWithoutTouchingItsTarget() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }

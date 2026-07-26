@@ -47,6 +47,30 @@ Implemented only the iOS Share Extension intake path. The extension accepts exac
 - Swift parse passed for every touched Swift file.
 - `git diff --check` passed.
 
+## Review Fix Round 1
+
+- Stopped trusting the temporary `loadFileRepresentation` URL name and extension. The controller now forwards the selected provider UTI and `NSItemProvider.suggestedName` through an executable provider session into the durable enqueuer.
+- Added bounded, canonical filename normalization. Path separators and control characters are removed, empty names fall back to `Pattern`, mismatched or missing extensions are replaced from the selected UTI, and JPEG uses the single `.jpg` policy. The friendly sanitized name is retained in the inbox manifest.
+- Source and copied-candidate inspection now use the selected UTI's canonical extension, while `PatternFileService` still verifies the actual PDF/image structure and ImageIO type. A file declared as PNG but containing JPEG bytes is rejected before publication.
+- Added an inbox-owned cancellation token with one locked commit boundary. Cancellation is checked before and after source inspection, candidate copy, candidate inspection, and staged move. The manifest's atomic write runs inside the commit lock.
+- If cancellation wins before manifest commit, candidate, staged file, and owned manifest are removed and no inbox item is visible. If manifest commit wins, cancellation resolves to completion rather than reporting cancellation for a durable item.
+- Replaced the critical controller source-text flow checks with an executable provider-session abstraction and controllable fake provider. Tests cover delayed and repeated callbacks, progress cancellation, processing cancellation, metadata forwarding, and extension disappearance before the MainActor receives success or failure.
+- Kept the provider callback alive during synchronous worker processing so the temporary URL remains valid. The controller now consumes the provider session's one-shot terminal action to call either `completeRequest` or `cancelRequest`.
+
+## Review Fix Round 1 Verification
+
+- Filename/UTI RED failed on missing metadata-aware enqueue and filename APIs. The GREEN table passed real PDF, PNG, JPEG, and HEIC bytes from extensionless random temporary URLs.
+- Cancellation RED failed on missing token, operation coordinator, injectable copy boundary, and commit boundary APIs.
+- Real-inbox latch tests proved cancellation during candidate copy returns `CancellationError` with zero items, candidates, staged files, manifests, or quarantine artifacts.
+- A manifest-write latch proved cancellation blocks at the atomic commit boundary; after commit it returns `.completeRequest`, preserves exactly one item/manifest pair, and cannot finish twice.
+- Fake-provider flow RED failed on missing session/provider contracts. Six final flow tests pass URL/name/UTI forwarding, cancel-before-callback, cancel-during-processing, repeated callbacks, and success/failure receipt races.
+- Focused Share, inbox, target, localization, PBX, and Watch compatibility: 46 tests across seven suites passed.
+- Final full regression after the target-boundary fix: `swift test --quiet` passed 757 tests in 63 suites.
+- The first combined iOS/Watch build exposed the shared inbox service depending on a token located in the Watch-excluded Share presentation file. Moving that primitive to the shared inbox layer kept Share presentation excluded from Watch.
+- Fresh canonical Debug builds then passed for Share Extension, iOS App, macOS App, and Watch with code signing disabled.
+- The fresh iOS App embeds `KnitNoteShare.appex`; fresh macOS and Watch build products contain none.
+- Final `plutil -lint`, entitlement inspection, localization `jq empty`, Swift parse, and `git diff --check` all passed.
+
 ## Files
 
 - `KnitNote.xcodeproj/project.pbxproj`
@@ -61,6 +85,7 @@ Implemented only the iOS Share Extension intake path. The extension accepts exac
 - `KnitNoteShare/ShareViewController.swift`
 - `Sources/KnitNoteCore/Patterns/PatternShareImportPresentation.swift`
 - `Sources/KnitNoteCore/Patterns/PatternShareInboxEnqueuer.swift`
+- `Sources/KnitNoteCore/Patterns/PatternInboxFileService.swift`
 - `Tests/KnitNoteCoreTests/PatternShareImportPresentationTests.swift`
 - `Tests/KnitNoteCoreTests/PatternShareInboxEnqueuerTests.swift`
 - `Tests/KnitNoteCoreTests/ShareExtensionFlowContractTests.swift`

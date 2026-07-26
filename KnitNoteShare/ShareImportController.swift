@@ -17,9 +17,30 @@ enum ShareImportViewState: Equatable {
     }
 }
 
-private enum ShareImportWorkerResult: Sendable {
-    case success
-    case failure(PatternShareImportErrorMessage)
+private final class ShareItemProviderAdapter: PatternShareImportFileProvider, @unchecked Sendable {
+    private let provider: NSItemProvider
+
+    var suggestedName: String? {
+        provider.suggestedName
+    }
+
+    var registeredTypeIdentifiers: [String] {
+        provider.registeredTypeIdentifiers
+    }
+
+    init(provider: NSItemProvider) {
+        self.provider = provider
+    }
+
+    func loadFileRepresentation(
+        forTypeIdentifier typeIdentifier: String,
+        completion: @escaping @Sendable (URL?, (any Error)?) -> Void
+    ) -> Progress {
+        provider.loadFileRepresentation(
+            forTypeIdentifier: typeIdentifier,
+            completionHandler: completion
+        )
+    }
 }
 
 @MainActor
@@ -31,8 +52,7 @@ final class ShareImportController: ObservableObject {
         qos: .userInitiated
     )
     private let extensionContext: NSExtensionContext?
-    private var operationGate: PatternShareImportCompletionGate?
-    private var providerProgress: Progress?
+    private var providerSession: PatternShareImportProviderSession?
     private var timeoutTask: Task<Void, Never>?
     private var successCompletionTask: Task<Void, Never>?
     private var contextFinished = false
@@ -73,10 +93,23 @@ final class ShareImportController: ObservableObject {
 
     func cancel() {
         timeoutTask?.cancel()
-        successCompletionTask?.cancel()
-        providerProgress?.cancel()
-        _ = operationGate?.cancel()
-        cancelRequest(with: PatternShareImportFailure.cancelled)
+        switch state {
+        case .success:
+            completeRequest()
+        case .failure:
+            cancelRequest(with: PatternShareImportFailure.cancelled)
+        case .loading:
+            switch providerSession?.cancel() ?? .cancelRequest {
+            case .cancelRequest:
+                successCompletionTask?.cancel()
+                cancelRequest(with: PatternShareImportFailure.cancelled)
+            case .completeRequest:
+                state = .success
+                completeRequest()
+            case .none:
+                break
+            }
+        }
     }
 
     func close() {
@@ -109,62 +142,44 @@ final class ShareImportController: ObservableObject {
         provider: NSItemProvider,
         typeIdentifier: String
     ) {
-        let gate = PatternShareImportCompletionGate()
-        operationGate = gate
         let workerQueue = Self.workerQueue
+        let session = PatternShareImportProviderSession(
+            provider: ShareItemProviderAdapter(provider: provider),
+            typeIdentifier: typeIdentifier,
+            process: { file, cancellationToken in
+                try workerQueue.sync {
+                    let locations = try PatternStorageLocations.live()
+                    _ = try PatternShareInboxEnqueuer(
+                        inboxRoot: locations.inboxRoot
+                    ).enqueue(
+                        source: file.source,
+                        suggestedName: file.suggestedName,
+                        typeIdentifier: file.typeIdentifier,
+                        now: .now,
+                        cancellationToken: cancellationToken
+                    )
+                }
+            },
+            publish: { [weak self] result in
+                Task { @MainActor [weak self] in
+                    self?.receive(result)
+                }
+            }
+        )
+        providerSession = session
         timeoutTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(20))
             guard !Task.isCancelled,
-                  gate.timeout() else { return }
-            self?.providerProgress?.cancel()
-            self?.providerProgress = nil
+                  session.timeout() else { return }
             self?.state = .failure(.timedOut)
         }
-
-        providerProgress = provider.loadFileRepresentation(
-            forTypeIdentifier: typeIdentifier
-        ) { [weak self] url, providerError in
-            guard gate.beginProcessing() else { return }
-            let result: ShareImportWorkerResult
-            if let providerError {
-                result = .failure(
-                    PatternShareImportErrorMapper.messageForProviderLoad(
-                        providerError
-                    )
-                )
-            } else if let url {
-                result = workerQueue.sync {
-                    do {
-                        let locations = try PatternStorageLocations.live()
-                        _ = try PatternShareInboxEnqueuer(
-                            inboxRoot: locations.inboxRoot
-                        ).enqueue(
-                            source: url,
-                            now: .now
-                        )
-                        return .success
-                    } catch {
-                        return .failure(
-                            PatternShareImportErrorMapper.message(
-                                for: error
-                            )
-                        )
-                    }
-                }
-            } else {
-                result = .failure(.loadFailed)
-            }
-            guard gate.finish() else { return }
-            Task { @MainActor [weak self] in
-                self?.receive(result)
-            }
-        }
+        session.start()
     }
 
-    private func receive(_ result: ShareImportWorkerResult) {
+    private func receive(_ result: PatternShareImportProviderResult) {
         timeoutTask?.cancel()
         timeoutTask = nil
-        providerProgress = nil
+        providerSession = nil
         switch result {
         case .success:
             state = .success

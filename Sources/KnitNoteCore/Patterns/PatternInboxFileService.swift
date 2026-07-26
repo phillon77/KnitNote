@@ -1,5 +1,59 @@
 import Foundation
 
+public enum PatternInboxEnqueueCancellationResult: Equatable, Sendable {
+    case cancelled
+    case alreadyCancelled
+    case committed
+}
+
+public final class PatternInboxEnqueueCancellationToken: @unchecked Sendable {
+    private enum State {
+        case active
+        case cancelled
+        case committed
+    }
+
+    private let lock = NSLock()
+    private var state = State.active
+
+    public init() {}
+
+    public func requestCancellation() -> PatternInboxEnqueueCancellationResult {
+        lock.withLock {
+            switch state {
+            case .active:
+                state = .cancelled
+                return .cancelled
+            case .cancelled:
+                return .alreadyCancelled
+            case .committed:
+                return .committed
+            }
+        }
+    }
+
+    public func checkCancellation() throws {
+        try lock.withLock {
+            if state == .cancelled {
+                throw CancellationError()
+            }
+        }
+    }
+
+    public func performCommit<T>(
+        _ operation: () throws -> T
+    ) throws -> T {
+        try lock.withLock {
+            guard state == .active else {
+                throw CancellationError()
+            }
+            let value = try operation()
+            state = .committed
+            return value
+        }
+    }
+}
+
 public struct PatternInboxRecoveryReport: Sendable, Equatable {
     public var removedCandidateIDs: Set<UUID> = []
     public var quarantinedItemIDs: Set<UUID> = []
@@ -27,6 +81,7 @@ struct PatternInboxJournalVerification: Sendable {
 
 public struct PatternInboxFileService: Sendable {
     public let root: URL
+    private let copyItem: @Sendable (URL, URL) throws -> Void
     private let moveItem: @Sendable (URL, URL) throws -> Void
     private let removeItem: @Sendable (URL) throws -> Void
     private let writeData: @Sendable (Data, URL) throws -> Void
@@ -34,6 +89,7 @@ public struct PatternInboxFileService: Sendable {
     public init(root: URL) {
         self.init(
             root: root,
+            copyItem: { try FileManager.default.copyItem(at: $0, to: $1) },
             moveItem: { try FileManager.default.moveItem(at: $0, to: $1) },
             removeItem: { try FileManager.default.removeItem(at: $0) },
             writeData: { try $0.write(to: $1, options: .atomic) }
@@ -42,11 +98,21 @@ public struct PatternInboxFileService: Sendable {
 
     init(
         root: URL,
-        moveItem: @escaping @Sendable (URL, URL) throws -> Void,
-        removeItem: @escaping @Sendable (URL) throws -> Void,
-        writeData: @escaping @Sendable (Data, URL) throws -> Void
+        copyItem: @escaping @Sendable (URL, URL) throws -> Void = {
+            try FileManager.default.copyItem(at: $0, to: $1)
+        },
+        moveItem: @escaping @Sendable (URL, URL) throws -> Void = {
+            try FileManager.default.moveItem(at: $0, to: $1)
+        },
+        removeItem: @escaping @Sendable (URL) throws -> Void = {
+            try FileManager.default.removeItem(at: $0)
+        },
+        writeData: @escaping @Sendable (Data, URL) throws -> Void = {
+            try $0.write(to: $1, options: .atomic)
+        }
     ) {
         self.root = root
+        self.copyItem = copyItem
         self.moveItem = moveItem
         self.removeItem = removeItem
         self.writeData = writeData
@@ -58,24 +124,53 @@ public struct PatternInboxFileService: Sendable {
         targetProjectID: UUID?,
         now: Date
     ) throws -> PatternInboxItem {
+        try enqueue(
+            source: source,
+            originalFilename: source.lastPathComponent,
+            declaredFileExtension: source.pathExtension,
+            origin: origin,
+            targetProjectID: targetProjectID,
+            now: now,
+            cancellationToken: PatternInboxEnqueueCancellationToken()
+        )
+    }
+
+    public func enqueue(
+        source: URL,
+        originalFilename: String,
+        declaredFileExtension: String,
+        origin: PatternImportOrigin,
+        targetProjectID: UUID?,
+        now: Date,
+        cancellationToken: PatternInboxEnqueueCancellationToken
+    ) throws -> PatternInboxItem {
+        try cancellationToken.checkCancellation()
         _ = try recover()
+        try cancellationToken.checkCancellation()
         // Validate the source before copying and again after copying: both the source
         // and the owned candidate must be regular, non-symlink files.
-        _ = try PatternFileService(root: root).inspect(source)
+        _ = try PatternFileService(root: root).inspect(
+            source,
+            fileExtension: declaredFileExtension
+        )
+        try cancellationToken.checkCancellation()
         let id = UUID()
         try createDirectories()
+        try cancellationToken.checkCancellation()
         let candidate = candidateURL(for: id)
         var staged: URL?
         var ownedManifest: URL?
         do {
-            try FileManager.default.copyItem(at: source, to: candidate)
+            try copyItem(source, candidate)
+            try cancellationToken.checkCancellation()
             let metadata = try PatternFileService(root: root).inspect(
                 candidate,
-                fileExtension: source.pathExtension
+                fileExtension: declaredFileExtension
             )
+            try cancellationToken.checkCancellation()
             let item = PatternInboxItem(
                 id: id,
-                originalFilename: source.lastPathComponent,
+                originalFilename: originalFilename,
                 receivedAt: now,
                 origin: origin,
                 targetProjectID: targetProjectID,
@@ -83,13 +178,17 @@ public struct PatternInboxFileService: Sendable {
             )
             let ownedStaged = try stagedURL(for: item)
             staged = ownedStaged
+            try cancellationToken.checkCancellation()
             try moveItem(candidate, ownedStaged)
+            try cancellationToken.checkCancellation()
             let manifest = manifestURL(for: id)
             guard !FileManager.default.fileExists(atPath: manifest.path) else {
                 throw PatternInboxError.invalidItem
             }
             ownedManifest = manifest
-            try writeManifest(.init(version: 1, item: item, state: .staged))
+            try cancellationToken.performCommit {
+                try writeManifest(.init(version: 1, item: item, state: .staged))
+            }
             return item
         } catch {
             try? removeOwnedFile(candidate)

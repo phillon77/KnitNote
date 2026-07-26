@@ -140,6 +140,35 @@ import Testing
             ) == .loadFailed
         )
     }
+
+    @Test func operationCancellationBeforeProviderCallbackIsOneShot() {
+        let operation = PatternShareImportOperationCoordinator()
+
+        #expect(operation.cancel() == .cancelRequest)
+        #expect(operation.cancel() == .none)
+        #expect(!operation.beginProviderCallback())
+        #expect(!operation.finishProcessing())
+    }
+
+    @Test func operationCancellationDuringProcessingRejectsLatePublication() {
+        let operation = PatternShareImportOperationCoordinator()
+
+        #expect(operation.beginProviderCallback())
+        #expect(operation.cancel() == .cancelRequest)
+        #expect(!operation.finishProcessing())
+        #expect(operation.cancel() == .none)
+    }
+
+    @Test func cancellationAfterInboxCommitCompletesInsteadOfCancelling() throws {
+        let operation = PatternShareImportOperationCoordinator()
+
+        #expect(operation.beginProviderCallback())
+        try operation.cancellationToken.performCommit {}
+
+        #expect(operation.cancel() == .completeRequest)
+        #expect(operation.cancel() == .none)
+        #expect(!operation.finishProcessing())
+    }
 }
 
 private final class LockedCounter: @unchecked Sendable {

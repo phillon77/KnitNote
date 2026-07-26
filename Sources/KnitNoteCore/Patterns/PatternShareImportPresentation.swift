@@ -36,6 +36,61 @@ public enum PatternShareImportAttachmentSelector {
     }
 }
 
+public enum PatternShareImportFilename {
+    public static func safeFilename(
+        suggestedName: String?,
+        typeIdentifier: String
+    ) throws -> String {
+        let fileExtension = try canonicalExtension(
+            for: typeIdentifier
+        )
+        let candidate = (suggestedName ?? "")
+            .precomposedStringWithCanonicalMapping
+            .split(whereSeparator: { character in
+                character == "/" || character == "\\" || character == ":"
+            })
+            .last
+            .map(String.init) ?? ""
+        let withoutControls = String(candidate.unicodeScalars.filter {
+            !CharacterSet.controlCharacters.contains($0)
+        })
+        let stem = withoutControls.isEmpty
+            ? ""
+            : URL(fileURLWithPath: withoutControls)
+                .deletingPathExtension()
+                .lastPathComponent
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(
+                    CharacterSet(charactersIn: ".")
+                ))
+        let fallback = stem.isEmpty ? "Pattern" : stem
+        let suffix = ".\(fileExtension)"
+        let byteLimit = 128 - suffix.utf8.count
+        var bounded = ""
+        for character in fallback {
+            let next = bounded + String(character)
+            guard next.utf8.count <= byteLimit else { break }
+            bounded = next
+        }
+        if bounded.isEmpty {
+            bounded = "Pattern"
+        }
+        return bounded + suffix
+    }
+
+    public static func canonicalExtension(
+        for typeIdentifier: String
+    ) throws -> String {
+        guard let type = UTType(typeIdentifier) else {
+            throw PatternShareImportSelectionError.unsupported
+        }
+        if type.conforms(to: .pdf) { return "pdf" }
+        if type.conforms(to: .png) { return "png" }
+        if type.conforms(to: .jpeg) { return "jpg" }
+        if type.conforms(to: .heic) { return "heic" }
+        throw PatternShareImportSelectionError.unsupported
+    }
+}
+
 public struct PatternShareImportProviderSelection: Equatable, Sendable {
     public let itemIndex: Int
     public let attachmentIndex: Int
@@ -107,6 +162,184 @@ public final class PatternShareImportCompletionGate: @unchecked Sendable {
             state = .terminal
             return true
         }
+    }
+}
+
+public enum PatternShareImportTerminalAction: Equatable, Sendable {
+    case cancelRequest
+    case completeRequest
+    case none
+}
+
+public final class PatternShareImportOperationCoordinator: @unchecked Sendable {
+    private let gate = PatternShareImportCompletionGate()
+    public let cancellationToken = PatternInboxEnqueueCancellationToken()
+
+    public init() {}
+
+    public func beginProviderCallback() -> Bool {
+        gate.beginProcessing()
+    }
+
+    public func finishProcessing() -> Bool {
+        gate.finish()
+    }
+
+    public func timeout() -> Bool {
+        guard gate.timeout() else { return false }
+        _ = cancellationToken.requestCancellation()
+        return true
+    }
+
+    public func cancel() -> PatternShareImportTerminalAction {
+        switch cancellationToken.requestCancellation() {
+        case .cancelled:
+            return gate.cancel() ? .cancelRequest : .none
+        case .alreadyCancelled:
+            return .none
+        case .committed:
+            return gate.finish() ? .completeRequest : .none
+        }
+    }
+}
+
+public protocol PatternShareImportFileProvider: Sendable {
+    var suggestedName: String? { get }
+    var registeredTypeIdentifiers: [String] { get }
+
+    func loadFileRepresentation(
+        forTypeIdentifier typeIdentifier: String,
+        completion: @escaping @Sendable (URL?, (any Error)?) -> Void
+    ) -> Progress
+}
+
+public struct PatternShareImportLoadedFile: Equatable, Sendable {
+    public let source: URL
+    public let suggestedName: String?
+    public let typeIdentifier: String
+
+    public init(
+        source: URL,
+        suggestedName: String?,
+        typeIdentifier: String
+    ) {
+        self.source = source
+        self.suggestedName = suggestedName
+        self.typeIdentifier = typeIdentifier
+    }
+}
+
+public enum PatternShareImportProviderResult: Equatable, Sendable {
+    case success
+    case failure(PatternShareImportErrorMessage)
+}
+
+public final class PatternShareImportProviderSession: @unchecked Sendable {
+    public typealias Processor = @Sendable (
+        PatternShareImportLoadedFile,
+        PatternInboxEnqueueCancellationToken
+    ) throws -> Void
+    public typealias Publisher = @Sendable (
+        PatternShareImportProviderResult
+    ) -> Void
+
+    private let provider: any PatternShareImportFileProvider
+    private let typeIdentifier: String
+    private let operation: PatternShareImportOperationCoordinator
+    private let process: Processor
+    private let publish: Publisher
+    private let lock = NSLock()
+    private var progress: Progress?
+    private var started = false
+    private var completedResult: PatternShareImportProviderResult?
+    private var terminalClaimed = false
+
+    public init(
+        provider: any PatternShareImportFileProvider,
+        typeIdentifier: String,
+        operation: PatternShareImportOperationCoordinator = .init(),
+        process: @escaping Processor,
+        publish: @escaping Publisher
+    ) {
+        self.provider = provider
+        self.typeIdentifier = typeIdentifier
+        self.operation = operation
+        self.process = process
+        self.publish = publish
+    }
+
+    public func start() {
+        let shouldStart = lock.withLock {
+            guard !started else { return false }
+            started = true
+            return true
+        }
+        guard shouldStart else { return }
+        let progress = provider.loadFileRepresentation(
+            forTypeIdentifier: typeIdentifier
+        ) { [weak self, provider, typeIdentifier, operation, process, publish] url, error in
+            guard operation.beginProviderCallback() else { return }
+            let result: PatternShareImportProviderResult
+            if let error {
+                result = .failure(
+                    PatternShareImportErrorMapper.messageForProviderLoad(error)
+                )
+            } else if let url {
+                do {
+                    try process(
+                        PatternShareImportLoadedFile(
+                            source: url,
+                            suggestedName: provider.suggestedName,
+                            typeIdentifier: typeIdentifier
+                        ),
+                        operation.cancellationToken
+                    )
+                    result = .success
+                } catch {
+                    result = .failure(
+                        PatternShareImportErrorMapper.message(for: error)
+                    )
+                }
+            } else {
+                result = .failure(.loadFailed)
+            }
+            guard operation.finishProcessing() else { return }
+            self?.lock.withLock {
+                self?.completedResult = result
+            }
+            publish(result)
+        }
+        lock.withLock {
+            self.progress = progress
+        }
+    }
+
+    public func cancel() -> PatternShareImportTerminalAction {
+        var action = operation.cancel()
+        if action == .none {
+            action = lock.withLock {
+                guard !terminalClaimed, let completedResult else {
+                    return .none
+                }
+                terminalClaimed = true
+                switch completedResult {
+                case .success:
+                    return .completeRequest
+                case .failure:
+                    return .cancelRequest
+                }
+            }
+        }
+        if action == .cancelRequest {
+            lock.withLock { progress }?.cancel()
+        }
+        return action
+    }
+
+    public func timeout() -> Bool {
+        guard operation.timeout() else { return false }
+        lock.withLock { progress }?.cancel()
+        return true
     }
 }
 

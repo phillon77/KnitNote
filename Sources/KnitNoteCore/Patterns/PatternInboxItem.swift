@@ -36,3 +36,9 @@ public enum PatternImportOutcome: Equatable, Sendable {
     case existing(patternID: UUID)
     case needsSelection(itemID: UUID, candidatePatternIDs: [UUID])
 }
+
+public enum PatternImportDuplicateResolution: Equatable, Sendable {
+    case automatic
+    case existing(UUID)
+    case createNew
+}

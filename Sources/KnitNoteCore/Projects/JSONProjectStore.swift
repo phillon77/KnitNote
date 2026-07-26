@@ -898,17 +898,28 @@ final class PatternLibraryDeletionTransaction {
         id: UUID,
         selectingPatternID: UUID? = nil
     ) async throws -> PatternImportOutcome {
+        try await processPatternInboxItem(
+            id: id,
+            duplicateResolution: selectingPatternID.map(PatternImportDuplicateResolution.existing)
+                ?? .automatic
+        )
+    }
+
+    public func processPatternInboxItem(
+        id: UUID,
+        duplicateResolution: PatternImportDuplicateResolution
+    ) async throws -> PatternImportOutcome {
         try await withActivePatternTransaction {
             try await processPatternInboxItemWithoutTransaction(
                 id: id,
-                selectingPatternID: selectingPatternID
+                duplicateResolution: duplicateResolution
             )
         }
     }
 
     private func processPatternInboxItemWithoutTransaction(
         id: UUID,
-        selectingPatternID: UUID?
+        duplicateResolution: PatternImportDuplicateResolution
     ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
         let inbox = try requiredPatternInboxFileService()
@@ -930,7 +941,29 @@ final class PatternLibraryDeletionTransaction {
         if dataGeneration != capturedGeneration {
             try ensureArchiveAvailable()
         }
-        return try publishPatternImport(prepared, selectingPatternID: selectingPatternID)
+        return try publishPatternImport(prepared, duplicateResolution: duplicateResolution)
+    }
+
+    public func pendingPatternInboxItems() async throws -> [PatternInboxItem] {
+        try await withActivePatternTransaction {
+            try ensureArchiveAvailable()
+            let inbox = try requiredPatternInboxFileService()
+            return try await Task.detached(priority: .utility) {
+                try inbox.items()
+            }.value
+        }
+    }
+
+    public func discardPatternInboxItem(id: UUID) async throws {
+        try await withActivePatternTransaction {
+            try ensureArchiveAvailable()
+            let inbox = try requiredPatternInboxFileService()
+            try await Task.detached(priority: .utility) {
+                guard let item = try inbox.item(id: id) else { return }
+                try inbox.markCommitted(item)
+                try inbox.cleanupCommitted(item)
+            }.value
+        }
     }
 
     public func importPatternFromLibrary(
@@ -982,7 +1015,7 @@ final class PatternLibraryDeletionTransaction {
             try Task.checkCancellation()
             return try await processPatternInboxItemWithoutTransaction(
                 id: item.id,
-                selectingPatternID: nil
+                duplicateResolution: .automatic
             )
         }
     }
@@ -1640,7 +1673,7 @@ final class PatternLibraryDeletionTransaction {
     }
     private func publishPatternImport(
         _ prepared: PreparedPatternImport,
-        selectingPatternID: UUID?
+        duplicateResolution: PatternImportDuplicateResolution
     ) throws -> PatternImportOutcome {
         let files = try requiredPatternFileService()
         let inbox = try requiredPatternInboxFileService()
@@ -1697,8 +1730,36 @@ final class PatternLibraryDeletionTransaction {
             }
             outcome = .created(patternID: pattern.id)
         } else {
+            if duplicateResolution == .createNew {
+                guard let asset = matchingAssets.first else {
+                    throw PatternInboxError.invalidItem
+                }
+                pattern = StoredPattern(
+                    assetID: asset.id,
+                    displayName: displayName(for: prepared.item),
+                    createdAt: prepared.item.receivedAt
+                )
+                let usages = try addingUsage(
+                    for: pattern.id,
+                    targetProjectID: prepared.item.targetProjectID,
+                    to: patternUsages
+                )
+                try persist(
+                    projects: projects,
+                    yarns: yarns,
+                    patternAssets: patternAssets,
+                    patterns: patterns + [pattern],
+                    patternUsages: usages
+                )
+                outcome = .created(patternID: pattern.id)
+                if (try? inbox.markCommitted(prepared.item)) != nil,
+                   (try? inbox.cleanupCommitted(prepared.item)) != nil {
+                    try? files.completeImportTransaction(itemID: prepared.item.id)
+                }
+                return outcome
+            }
             let selected: StoredPattern?
-            if let selectingPatternID {
+            if case let .existing(selectingPatternID) = duplicateResolution {
                 selected = candidatePatterns.first { $0.id == selectingPatternID }
                 guard selected != nil else { throw PatternInboxError.invalidSelection }
             } else if candidatePatterns.count == 1 {

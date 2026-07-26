@@ -1624,6 +1624,54 @@
         }
       }
     },
+    "patterns.inbox.choose.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file matches more than one saved pattern. Choose one, or create a new collection." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個檔案符合多個已收藏的織圖。請選擇一個，或建立新的收藏。" } }
+      }
+    },
+    "patterns.inbox.choose.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇織圖" } }
+      }
+    },
+    "patterns.inbox.createNew" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create New Collection" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建立新收藏" } }
+      }
+    },
+    "patterns.inbox.discard" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard File" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "捨棄檔案" } }
+      }
+    },
+    "patterns.inbox.error.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote couldn't save the shared pattern. Try again, or discard this file." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote 無法收藏分享的織圖。請再試一次，或捨棄這個檔案。" } }
+      }
+    },
+    "patterns.inbox.error.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shared Pattern Not Saved" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "分享的織圖尚未收藏" } }
+      }
+    },
+    "patterns.inbox.imported" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shared pattern saved" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已收藏分享的織圖" } }
+      }
+    },
+    "patterns.inbox.retry" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Try Again" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "再試一次" } }
+      }
+    },
     "patterns.import.camera" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera" } },

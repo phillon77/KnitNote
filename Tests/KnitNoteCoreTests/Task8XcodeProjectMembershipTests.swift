@@ -14,7 +14,9 @@ import Testing
             "PatternImportCoordinator.swift",
             "PatternImportResultView.swift",
             "PatternInboxFileService.swift",
+            "PatternInboxProcessing.swift",
             "PatternInboxItem.swift",
+            "PatternInboxProcessor.swift",
             "PatternLibraryImportPresentation.swift",
             "PatternLibraryIndex.swift",
             "PatternLibraryMigrator.swift",
@@ -27,6 +29,7 @@ import Testing
             "PatternStorageLocations.swift",
             "ProjectPatternLinkIndex.swift",
             "ProjectPatternImportPresentation.swift",
+            "PendingPatternSelectionView.swift",
             "StoredPattern.swift",
         ])
 

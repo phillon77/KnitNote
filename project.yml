@@ -88,6 +88,7 @@ targets:
         excludes:
           - Launch/LaunchExperienceCoordinator.swift
           - Patterns/PatternLibraryImportPresentation.swift
+          - Patterns/PatternInboxProcessing.swift
           - Patterns/PatternLibraryIndex.swift
           - Patterns/PatternReaderContext.swift
           - Patterns/PatternShareInboxEnqueuer.swift

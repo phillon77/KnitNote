@@ -191,15 +191,17 @@ import Testing
 
     @Test func everyPatternManagedFileWriteRoutesThroughTheStoreCoordinator() throws {
         let projectPatterns = try sourceFile("KnitNote/Patterns/ProjectPatternsView.swift")
+        let projectImporter = try sourceFile("KnitNote/Patterns/PatternImportResultView.swift")
         let library = try sourceFile("KnitNote/Patterns/PatternLibraryView.swift")
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 
-        #expect(projectPatterns.contains("store.importPattern(from:"))
+        #expect(projectImporter.contains("store.importPatternFromProject("))
         #expect(library.contains("store.importPatternFromLibrary("))
         #expect(projectPatterns.contains("store.unlinkPattern(patternID:"))
         #expect(reader.contains("store.savePatternMarkup("))
         #expect(reader.contains("expectedDataGeneration:"))
         #expect(reader.contains("store.loadPatternMarkup("))
+        #expect(!projectImporter.contains("PatternFileService.live()"))
         #expect(!projectPatterns.contains("PatternFileService.live()"))
         #expect(!library.contains("PatternFileService.live()"))
         #expect(!reader.contains("PatternMarkupFileService.live()"))

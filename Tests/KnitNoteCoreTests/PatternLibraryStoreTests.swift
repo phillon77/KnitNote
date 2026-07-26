@@ -493,6 +493,25 @@ private final class PatternLibraryIOThreadRecorder: @unchecked Sendable {
     }
 }
 
+@MainActor @Test func completedProjectCanLinkUnlinkAndRelinkWithoutDeletingThePattern() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject(completed: true)
+
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    try harness.store.unlinkPattern(patternID: harness.patternID, from: harness.projectID)
+
+    #expect(harness.store.patternUsages.count == 1)
+    #expect(harness.store.patternUsages[0].id == usage.id)
+    #expect(!harness.store.patternUsages[0].isActive)
+    #expect(harness.store.patterns.map(\.id) == [harness.patternID])
+    #expect(harness.store.patternAssets.map(\.id) == [harness.assetID])
+    #expect(FileManager.default.fileExists(atPath: harness.assetURL.path))
+
+    let relinked = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+
+    #expect(relinked.id == usage.id)
+    #expect(relinked.isActive)
+}
+
 @MainActor @Test func deletingProjectDeletesAllItsUsageMarkupWithoutDeletingPatternOrAsset() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndTwoProjects()
     let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)

@@ -20,16 +20,17 @@ import Testing
         #expect(pattern.lowerBound < note.lowerBound)
         #expect(note.lowerBound < recentNotes.lowerBound)
         #expect(recentNotes.lowerBound < counters.lowerBound)
-        #expect(counters.lowerBound < tools.lowerBound)
+        #expect(counters.lowerBound < journal.lowerBound)
+        #expect(journal.lowerBound < tools.lowerBound)
         #expect(tools.lowerBound < calculator.lowerBound)
-        #expect(calculator.lowerBound < journal.lowerBound)
     }
 
     @Test func populatedProjectContentUsesBerryLabels() throws {
         let detail = try projectSource()
         let journal = try source(at: "KnitNote/Projects/ProjectJournalSection.swift")
 
-        #expect(detail.contains("isPopulated: !project.patterns.isEmpty"))
+        #expect(detail.contains("isPopulated: hasActivePatterns"))
+        #expect(detail.contains("$0.projectID == projectID && $0.isActive"))
         #expect(detail.contains("project.counters.contains { !$0.rowNotes.isEmpty }"))
         #expect(detail.contains("isPopulated: Bool"))
         #expect(detail.contains("isPopulated ? WatercolorTheme.actionBerry : Color.primary"))

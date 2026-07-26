@@ -199,7 +199,7 @@ struct EvenStitchAdjustmentViewContractTests {
         let counters = try #require(project.range(of: "CounterSelectorGrid("))
         let tools = try #require(project.range(of: "KnittingCalculatorsView()"))
         let journal = try #require(project.range(of: "ProjectJournalSection("))
-        #expect(counters.lowerBound < tools.lowerBound && tools.lowerBound < journal.lowerBound)
+        #expect(counters.lowerBound < journal.lowerBound && journal.lowerBound < tools.lowerBound)
     }
 
     @Test func projectNoteAndPatternActionsMatchTheFullWidthCalculatorCardStyle() throws {
@@ -217,11 +217,11 @@ struct EvenStitchAdjustmentViewContractTests {
 
         let patterns = try #require(project.range(of: "\"patterns.open\""))
         let notes = try #require(project.range(of: "\"notes.edit\"", range: patterns.upperBound..<project.endIndex))
-        let tools = try #require(project.range(of: "KnittingCalculatorsView()", range: notes.upperBound..<project.endIndex))
-        let journal = try #require(project.range(of: "ProjectJournalSection(", range: tools.upperBound..<project.endIndex))
+        let journal = try #require(project.range(of: "ProjectJournalSection(", range: notes.upperBound..<project.endIndex))
+        let tools = try #require(project.range(of: "KnittingCalculatorsView()", range: journal.upperBound..<project.endIndex))
         #expect(patterns.lowerBound < notes.lowerBound)
-        #expect(notes.lowerBound < tools.lowerBound)
-        #expect(tools.lowerBound < journal.lowerBound)
+        #expect(notes.lowerBound < journal.lowerBound)
+        #expect(journal.lowerBound < tools.lowerBound)
     }
 }
 

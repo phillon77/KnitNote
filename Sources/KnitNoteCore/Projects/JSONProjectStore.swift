@@ -927,14 +927,44 @@ final class PatternLibraryDeletionTransaction {
         _ source: URL,
         now: Date = .now
     ) async throws -> PatternImportOutcome {
+        try await enqueuePatternImport(
+            source,
+            origin: .library,
+            targetProjectID: nil,
+            now: now
+        )
+    }
+
+    public func importPatternFromProject(
+        _ source: URL,
+        projectID: UUID,
+        now: Date = .now
+    ) async throws -> PatternImportOutcome {
+        guard project(id: projectID) != nil else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        return try await enqueuePatternImport(
+            source,
+            origin: .project,
+            targetProjectID: projectID,
+            now: now
+        )
+    }
+
+    private func enqueuePatternImport(
+        _ source: URL,
+        origin: PatternImportOrigin,
+        targetProjectID: UUID?,
+        now: Date
+    ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
         let inbox = try requiredPatternInboxFileService()
         let item = try await Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
             return try inbox.enqueue(
                 source: source,
-                origin: .library,
-                targetProjectID: nil,
+                origin: origin,
+                targetProjectID: targetProjectID,
                 now: now
             )
         }.value

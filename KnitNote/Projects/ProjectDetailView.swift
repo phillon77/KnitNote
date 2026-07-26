@@ -39,7 +39,7 @@ struct ProjectDetailView: View {
                                 .foregroundStyle(WatercolorTheme.actionBerry)
                         }
 
-                        projectActionCard("patterns.open", icon: "doc.text.image", isPopulated: !project.patterns.isEmpty) {
+                        projectActionCard("patterns.open", icon: "doc.text.image", isPopulated: hasActivePatterns) {
                             showingPatterns = true
                         }
 
@@ -97,6 +97,17 @@ struct ProjectDetailView: View {
                             )
                         }
 
+                        WatercolorCard {
+                            ProjectJournalSection(
+                                project: project,
+                                thumbnailURL: store.journalThumbnailURL(for:),
+                                onAdd: { showingJournalEditor = true },
+                                onOpen: { entry in
+                                    selectedJournalEntry = JournalEntryRoute(id: entry.id)
+                                }
+                            )
+                        }
+
                         if hasToolDetails(project) {
                             WatercolorCard {
                                 VStack(alignment: .leading, spacing: 12) {
@@ -133,16 +144,6 @@ struct ProjectDetailView: View {
                             }
                         }
 
-                        WatercolorCard {
-                            ProjectJournalSection(
-                                project: project,
-                                thumbnailURL: store.journalThumbnailURL(for:),
-                                onAdd: { showingJournalEditor = true },
-                                onOpen: { entry in
-                                    selectedJournalEntry = JournalEntryRoute(id: entry.id)
-                                }
-                            )
-                        }
                     }
                     .padding()
                     .frame(maxWidth: 620)
@@ -198,6 +199,12 @@ struct ProjectDetailView: View {
         } catch {
             counterSaveError = error.localizedDescription
             return false
+        }
+    }
+
+    private var hasActivePatterns: Bool {
+        store.patternUsages.contains {
+            $0.projectID == projectID && $0.isActive
         }
     }
 

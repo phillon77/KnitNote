@@ -1624,6 +1624,102 @@
         }
       }
     },
+    "patterns.import.camera" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "相機" } }
+      }
+    },
+    "patterns.import.cameraName" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "相機織圖" } }
+      }
+    },
+    "patterns.import.chooseDuplicate" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose the Saved Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇已收藏的織圖" } }
+      }
+    },
+    "patterns.import.files" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose File" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從檔案選擇" } }
+      }
+    },
+    "patterns.import.processing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Importing Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在匯入織圖" } }
+      }
+    },
+    "patterns.import.success.created" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern was saved and linked to this project." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖已收藏並連結到這件作品。" } }
+      }
+    },
+    "patterns.import.success.existing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The saved pattern was linked to this project." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已收藏的織圖已連結到這件作品。" } }
+      }
+    },
+    "patterns.import.success.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pattern Linked" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖已連結" } }
+      }
+    },
+    "patterns.importNew" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import New Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入新織圖" } }
+      }
+    },
+    "patterns.link.choose" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇織圖" } }
+      }
+    },
+    "patterns.link.empty" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "All library patterns are already linked." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖匣中的織圖都已連結。" } }
+      }
+    },
+    "patterns.linkExisting" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Link from Pattern Library" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從織圖匣連結" } }
+      }
+    },
+    "patterns.relink" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Relink" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新連結" } }
+      }
+    },
+    "patterns.unlink" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlink" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "解除連結" } }
+      }
+    },
+    "patterns.unlink.confirm.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern stays in your library, and this project's saved reading data is kept." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖會保留在織圖匣中，這件作品已儲存的閱讀資料也會保留。" } }
+      }
+    },
+    "patterns.unlink.confirm.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlink this pattern?" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "解除這份織圖的作品連結？" } }
+      }
+    },
     "patterns.add" : {
       "localizations" : {
         "en" : {

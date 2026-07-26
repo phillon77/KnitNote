@@ -12,17 +12,33 @@ public struct ProjectArchive: Codable, Sendable {
     public let version: Int
     public var projects: [StoredProject]
     public var yarns: [StoredYarn]
+    public var patternAssets: [PatternAsset]
+    public var patterns: [StoredPattern]
+    public var patternUsages: [PatternProjectUsage]
 
-    public init(version: Int, projects: [StoredProject], yarns: [StoredYarn] = []) {
+    public init(
+        version: Int,
+        projects: [StoredProject],
+        yarns: [StoredYarn] = [],
+        patternAssets: [PatternAsset] = [],
+        patterns: [StoredPattern] = [],
+        patternUsages: [PatternProjectUsage] = []
+    ) {
         self.version = version
         self.projects = projects
         self.yarns = yarns
+        self.patternAssets = patternAssets
+        self.patterns = patterns
+        self.patternUsages = patternUsages
     }
 
     private enum CodingKeys: String, CodingKey {
         case version
         case projects
         case yarns
+        case patternAssets
+        case patterns
+        case patternUsages
     }
 
     public init(from decoder: Decoder) throws {
@@ -30,6 +46,9 @@ public struct ProjectArchive: Codable, Sendable {
         version = try values.decode(Int.self, forKey: .version)
         projects = try values.decode([StoredProject].self, forKey: .projects)
         yarns = try values.decodeIfPresent([StoredYarn].self, forKey: .yarns) ?? []
+        patternAssets = try values.decodeIfPresent([PatternAsset].self, forKey: .patternAssets) ?? []
+        patterns = try values.decodeIfPresent([StoredPattern].self, forKey: .patterns) ?? []
+        patternUsages = try values.decodeIfPresent([PatternProjectUsage].self, forKey: .patternUsages) ?? []
     }
 }
 

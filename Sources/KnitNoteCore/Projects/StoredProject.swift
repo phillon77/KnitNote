@@ -32,7 +32,8 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public private(set) var updatedAt: Date
     public private(set) var counters: [ProjectCounter]
     public private(set) var selectedCounterID: UUID
-    public private(set) var patterns: [PatternDocument]
+    internal private(set) var legacyPatternDocuments: [PatternDocument]
+    public var patterns: [PatternDocument] { legacyPatternDocuments }
     public private(set) var photoFilename: String?
     public private(set) var completedAt: Date?
     public private(set) var toolType: ProjectToolType?
@@ -57,7 +58,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         self.selectedCounterID = Self.selectedID(selectedCounterID, in: self.counters)
         self.createdAt = now
         self.updatedAt = now
-        self.patterns = []
+        self.legacyPatternDocuments = []
         self.photoFilename = nil
         self.completedAt = completedAt
         self.toolType = nil
@@ -140,11 +141,11 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         mutateCounter(id: counterID, now: now) { $0.deleteNote(row: row) }
     }
 
-    public mutating func addPattern(_ pattern: PatternDocument) { patterns.append(pattern); updatedAt = .now }
-    public mutating func deletePattern(id: UUID) { patterns.removeAll { $0.id == id }; updatedAt = .now }
-    public mutating func renamePattern(id: UUID, name: String) { if let i = patterns.firstIndex(where: {$0.id == id}) { patterns[i].displayName = name; updatedAt = .now } }
-    public mutating func savePatternPageNote(patternID: UUID, pageIndex: Int, text: String, now: Date = .now) { if let i = patterns.firstIndex(where: {$0.id == patternID}) { patterns[i].setPageNote(text, pageIndex: pageIndex); updatedAt = now } }
-    public mutating func updatePatternState(id: UUID, state: PatternReadingState, now: Date = .now) { if let i = patterns.firstIndex(where: {$0.id == id}) { patterns[i].pageIndex=state.pageIndex; patterns[i].zoomScale=state.zoomScale; patterns[i].contentOffsetX=state.offsetX; patterns[i].contentOffsetY=state.offsetY; patterns[i].highlightEnabled=state.highlightEnabled; patterns[i].highlightPosition=state.highlightPosition; patterns[i].highlightMode=state.highlightMode; patterns[i].verticalHighlightPosition=state.verticalHighlightPosition; patterns[i].pageStates=state.pageStates; patterns[i].lastOpenedAt = now; updatedAt = now } }
+    public mutating func addPattern(_ pattern: PatternDocument) { legacyPatternDocuments.append(pattern); updatedAt = .now }
+    public mutating func deletePattern(id: UUID) { legacyPatternDocuments.removeAll { $0.id == id }; updatedAt = .now }
+    public mutating func renamePattern(id: UUID, name: String) { if let i = legacyPatternDocuments.firstIndex(where: {$0.id == id}) { legacyPatternDocuments[i].displayName = name; updatedAt = .now } }
+    public mutating func savePatternPageNote(patternID: UUID, pageIndex: Int, text: String, now: Date = .now) { if let i = legacyPatternDocuments.firstIndex(where: {$0.id == patternID}) { legacyPatternDocuments[i].setPageNote(text, pageIndex: pageIndex); updatedAt = now } }
+    public mutating func updatePatternState(id: UUID, state: PatternReadingState, now: Date = .now) { if let i = legacyPatternDocuments.firstIndex(where: {$0.id == id}) { legacyPatternDocuments[i].pageIndex=state.pageIndex; legacyPatternDocuments[i].zoomScale=state.zoomScale; legacyPatternDocuments[i].contentOffsetX=state.offsetX; legacyPatternDocuments[i].contentOffsetY=state.offsetY; legacyPatternDocuments[i].highlightEnabled=state.highlightEnabled; legacyPatternDocuments[i].highlightPosition=state.highlightPosition; legacyPatternDocuments[i].highlightMode=state.highlightMode; legacyPatternDocuments[i].verticalHighlightPosition=state.verticalHighlightPosition; legacyPatternDocuments[i].pageStates=state.pageStates; legacyPatternDocuments[i].lastOpenedAt = now; updatedAt = now } }
     public mutating func updatePatternState(id: UUID, pageIndex: Int, highlightPosition: Double) { updatePatternState(id: id, state: .init(pageIndex: pageIndex, highlightPosition: highlightPosition)) }
 
     public mutating func addJournalEntry(_ entry: ProjectJournalEntry, now: Date = .now) throws {
@@ -184,7 +185,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         name = try c.decode(String.self, forKey: .name)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         updatedAt = try c.decode(Date.self, forKey: .updatedAt)
-        patterns = try c.decodeIfPresent([PatternDocument].self, forKey: .patterns) ?? []
+        legacyPatternDocuments = try c.decodeIfPresent([PatternDocument].self, forKey: .patterns) ?? []
         photoFilename = try c.decodeIfPresent(String.self, forKey: .photoFilename)
         completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
         toolType = try c.decodeIfPresent(ProjectToolType.self, forKey: .toolType)
@@ -236,7 +237,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         try c.encode(selectedCounterID, forKey: .selectedCounterID)
         try c.encode(createdAt, forKey: .createdAt)
         try c.encode(updatedAt, forKey: .updatedAt)
-        try c.encode(patterns, forKey: .patterns)
+        try c.encode(legacyPatternDocuments, forKey: .patterns)
         try c.encodeIfPresent(photoFilename, forKey: .photoFilename)
         try c.encodeIfPresent(completedAt, forKey: .completedAt)
         try c.encodeIfPresent(toolType, forKey: .toolType)

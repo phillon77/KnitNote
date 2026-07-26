@@ -53,7 +53,7 @@ public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-public struct PatternReadingState: Equatable, Sendable {
+public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     public var pageIndex: Int
     public var zoomScale: Double
     public var offsetX: Double

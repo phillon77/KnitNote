@@ -20,6 +20,11 @@ public struct PatternFileMetadata: Equatable, Sendable {
     public let sha256: String
 }
 
+private struct PatternAssetImportJournal: Codable, Sendable {
+    let itemID: UUID
+    let asset: PatternAsset
+}
+
 public struct PatternFileService: Sendable {
     public let root: URL
     private let copyFile: @Sendable (URL, URL) throws -> Void
@@ -56,6 +61,9 @@ public struct PatternFileService: Sendable {
     public var assetsRoot: URL {
         root.appendingPathComponent("Assets", isDirectory: true)
     }
+
+    private var assetCandidatesRoot: URL { assetsRoot.appendingPathComponent(".Candidates", isDirectory: true) }
+    private var assetTransactionsRoot: URL { assetsRoot.appendingPathComponent(".Transactions", isDirectory: true) }
 
     public func inspect(_ source: URL, fileExtension declaredExtension: String? = nil) throws -> PatternFileMetadata {
         let values = try source.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
@@ -109,7 +117,8 @@ public struct PatternFileService: Sendable {
     public func installAsset(
         data: Data,
         metadata: PatternFileMetadata,
-        id: UUID
+        id: UUID,
+        transactionID: UUID? = nil
     ) throws -> PatternAsset {
         guard Int64(data.count) == metadata.byteCount,
               SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == metadata.sha256 else {
@@ -123,9 +132,8 @@ public struct PatternFileService: Sendable {
             let existing = try inspect(destination)
             guard existing == metadata else { throw PatternFileError.invalidContent }
         } else {
-            let candidates = assetsRoot.appendingPathComponent(".Candidates", isDirectory: true)
-            try manager.createDirectory(at: candidates, withIntermediateDirectories: true)
-            let candidate = candidates.appendingPathComponent(UUID().uuidString)
+            try manager.createDirectory(at: assetCandidatesRoot, withIntermediateDirectories: true)
+            let candidate = assetCandidatesRoot.appendingPathComponent((transactionID ?? UUID()).uuidString)
             do {
                 try data.write(to: candidate, options: .atomic)
                 try moveFile(candidate, destination)
@@ -144,6 +152,64 @@ public struct PatternFileService: Sendable {
         )
     }
 
+    func beginImportTransaction(itemID: UUID, asset: PatternAsset) throws {
+        try FileManager.default.createDirectory(at: assetTransactionsRoot, withIntermediateDirectories: true)
+        try JSONEncoder().encode(PatternAssetImportJournal(itemID: itemID, asset: asset)).write(
+            to: transactionURL(itemID),
+            options: .atomic
+        )
+    }
+
+    func completeImportTransaction(itemID: UUID) throws {
+        let url = transactionURL(itemID)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+
+    func rollbackImportTransaction(itemID: UUID) throws {
+        guard let journal = try journal(itemID: itemID) else { return }
+        try? removeIfOwned(candidateURL(itemID))
+        try? deleteAsset(journal.asset)
+        try? completeImportTransaction(itemID: itemID)
+    }
+
+    /// Returns inbox item identifiers whose journal proves that archive publication
+    /// completed before its inbox manifest could be committed.
+    func recoverImportTransactions(referencedAssetIDs: Set<UUID>) throws -> Set<UUID> {
+        let manager = FileManager.default
+        try manager.createDirectory(at: assetCandidatesRoot, withIntermediateDirectories: true)
+        try manager.createDirectory(at: assetTransactionsRoot, withIntermediateDirectories: true)
+        var publishedItems = Set<UUID>()
+        for url in try manager.contentsOfDirectory(at: assetTransactionsRoot, includingPropertiesForKeys: nil) {
+            guard let itemID = UUID(uuidString: url.deletingPathExtension().lastPathComponent),
+                  url.pathExtension == "json",
+                  let journal = try? JSONDecoder().decode(PatternAssetImportJournal.self, from: Data(contentsOf: url)),
+                  journal.itemID == itemID else { continue }
+            if referencedAssetIDs.contains(journal.asset.id) {
+                publishedItems.insert(itemID)
+                try? removeIfOwned(candidateURL(itemID))
+            } else {
+                try? removeIfOwned(candidateURL(itemID))
+                try? deleteAsset(journal.asset)
+                try? manager.removeItem(at: url)
+            }
+        }
+        // UUID-named asset candidates that have no durable journal are pre-publication
+        // artifacts and are safe to remove without following links.
+        for candidate in try manager.contentsOfDirectory(at: assetCandidatesRoot, includingPropertiesForKeys: nil) {
+            if UUID(uuidString: candidate.lastPathComponent) != nil { try? removeIfOwned(candidate) }
+        }
+        // A final UUID-named file with no archive reference is owned but unpublished.
+        for url in try manager.contentsOfDirectory(at: assetsRoot, includingPropertiesForKeys: nil) {
+            guard let assetID = UUID(uuidString: url.deletingPathExtension().lastPathComponent),
+                  allowedExtensions.contains(url.pathExtension.lowercased()),
+                  !referencedAssetIDs.contains(assetID) else { continue }
+            try? removeIfOwned(url)
+        }
+        return publishedItems
+    }
+
     public func assetURL(_ asset: PatternAsset) throws -> URL {
         let filename = asset.storedFilename
         let pieces = filename.split(separator: ".", maxSplits: 1)
@@ -155,8 +221,13 @@ public struct PatternFileService: Sendable {
             throw PatternFileError.unsafeStoredFilename
         }
         let root = assetsRoot.standardizedFileURL
+        let physicalRoot = root.resolvingSymlinksInPath()
+        guard physicalRoot.path == root.path else { throw PatternFileError.unsafeStoredFilename }
         let candidate = root.appendingPathComponent(filename).standardizedFileURL
         guard candidate.deletingLastPathComponent().path == root.path else {
+            throw PatternFileError.unsafeStoredFilename
+        }
+        guard candidate.deletingLastPathComponent().resolvingSymlinksInPath().path == physicalRoot.path else {
             throw PatternFileError.unsafeStoredFilename
         }
         if FileManager.default.fileExists(atPath: candidate.path) {
@@ -183,6 +254,20 @@ public struct PatternFileService: Sendable {
         case .pdf: return ["pdf"]
         case .image: return ["png", "jpg", "jpeg", "heic"]
         }
+    }
+
+    private var allowedExtensions: Set<String> { ["pdf", "png", "jpg", "jpeg", "heic"] }
+    private func transactionURL(_ id: UUID) -> URL { assetTransactionsRoot.appendingPathComponent("\(id.uuidString).json") }
+    private func candidateURL(_ id: UUID) -> URL { assetCandidatesRoot.appendingPathComponent(id.uuidString) }
+    private func journal(itemID: UUID) throws -> PatternAssetImportJournal? {
+        let url = transactionURL(itemID)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try JSONDecoder().decode(PatternAssetImportJournal.self, from: Data(contentsOf: url))
+    }
+    private func removeIfOwned(_ url: URL) throws {
+        let parent = url.deletingLastPathComponent().standardizedFileURL.path
+        guard [assetsRoot.standardizedFileURL.path, assetCandidatesRoot.standardizedFileURL.path].contains(parent) else { return }
+        try FileManager.default.removeItem(at: url)
     }
 
     // These compatibility APIs keep existing pre-library callers functional until Task 4 moves them.

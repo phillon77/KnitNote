@@ -92,16 +92,17 @@ enum ProjectJournalPhotoReferencePolicy {
     @Published public private(set) var isDataOperationInProgress = false
     @Published public private(set) var dataGeneration: UInt64 = 0
     @Published public private(set) var projectCoverGeneration: UInt64 = 0
-    private let url: URL
+    private var url: URL
     private let photoService: ProjectPhotoFileService
     private let yarnPhotoService: YarnPhotoFileService
     private let journalPhotoService: ProjectJournalPhotoFileService
-    private let patternFileService: PatternFileService
-    private let patternInboxFileService: PatternInboxFileService
+    private var patternFileService: PatternFileService?
+    private var patternInboxFileService: PatternInboxFileService?
     private let patternMarkupFileService: PatternMarkupFileService
     private let patternThumbnailService: PatternThumbnailFileService
     private let backupService: KnitNoteBackupService
     private let archiveWrite: @Sendable (Data, URL) throws -> Void
+    private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
     private var activeJournalPhotoTransactions = 0
     private var activePatternTransactions = 0
 
@@ -144,6 +145,7 @@ enum ProjectJournalPhotoReferencePolicy {
         patternThumbnailService: PatternThumbnailFileService? = nil,
         backupService: KnitNoteBackupService,
         initialLoadError: ProjectStoreError? = nil,
+        patternStorageLocationsProvider: (() throws -> PatternStorageLocations)? = nil,
         archiveWrite: @escaping @Sendable (Data, URL) throws -> Void = {
             try $0.write(to: $1, options: .atomic)
         }
@@ -158,14 +160,16 @@ enum ProjectJournalPhotoReferencePolicy {
         self.journalPhotoService = journalPhotoService ?? ProjectJournalPhotoFileService(
             directory: url.deletingLastPathComponent().appendingPathComponent("ProjectJournalPhotos", isDirectory: true)
         )
-        self.patternFileService = patternFileService ?? PatternFileService(
-            root: url.deletingLastPathComponent().appendingPathComponent("Patterns", isDirectory: true)
-        )
-        self.patternInboxFileService = patternInboxFileService ?? PatternInboxFileService(
-            root: url.deletingLastPathComponent().appendingPathComponent("PatternInbox", isDirectory: true)
-        )
+        self.patternStorageLocationsProvider = patternStorageLocationsProvider
+        let fallbackPatternRoot = url.deletingLastPathComponent().appendingPathComponent("Patterns", isDirectory: true)
+        self.patternFileService = patternFileService ?? (patternStorageLocationsProvider == nil
+            ? PatternFileService(root: fallbackPatternRoot)
+            : nil)
+        self.patternInboxFileService = patternInboxFileService ?? (patternStorageLocationsProvider == nil
+            ? PatternInboxFileService(root: url.deletingLastPathComponent().appendingPathComponent("PatternInbox", isDirectory: true))
+            : nil)
         self.patternMarkupFileService = patternMarkupFileService ?? PatternMarkupFileService(
-            root: self.patternFileService.root
+            root: self.patternFileService?.root ?? fallbackPatternRoot
         )
         let liveRoot = url.deletingLastPathComponent()
         self.patternThumbnailService = patternThumbnailService ?? PatternThumbnailFileService(
@@ -198,14 +202,9 @@ enum ProjectJournalPhotoReferencePolicy {
             let workRoot = base.appendingPathComponent(".KnitNote-BackupWork", isDirectory: true)
             return JSONProjectStore(
                 url: archiveURL,
-                patternFileService: PatternFileService(
-                    root: liveRoot.appendingPathComponent("Patterns", isDirectory: true)
-                ),
-                patternInboxFileService: PatternInboxFileService(
-                    root: base.appendingPathComponent(".UnavailablePatternInbox", isDirectory: true)
-                ),
                 backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot),
-                initialLoadError: .archiveUnavailable
+                initialLoadError: .archiveUnavailable,
+                patternStorageLocationsProvider: { try PatternStorageLocations.live() }
             )
         }
     }
@@ -252,7 +251,12 @@ enum ProjectJournalPhotoReferencePolicy {
     }
     public func retryLoad() {
         guard loadError != nil else { return }
-        try? reloadFromDisk()
+        do {
+            try refreshPatternStorageDependencies()
+            load()
+        } catch {
+            loadError = .archiveUnavailable
+        }
     }
 
     public func reloadFromDisk() throws {
@@ -474,7 +478,7 @@ enum ProjectJournalPhotoReferencePolicy {
         guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
-        let service = patternFileService
+        let service = try requiredPatternFileService()
         let pattern = try await Task.detached(priority: .userInitiated) {
             try service.importFile(from: source, projectID: projectID)
         }.value
@@ -502,7 +506,9 @@ enum ProjectJournalPhotoReferencePolicy {
         selectingPatternID: UUID? = nil
     ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
-        guard let item = try patternInboxFileService.item(id: id) else {
+        let inbox = try requiredPatternInboxFileService()
+        let files = try requiredPatternFileService()
+        guard let item = try inbox.item(id: id) else {
             throw PatternInboxError.itemNotFound
         }
         let capturedGeneration = dataGeneration
@@ -510,8 +516,6 @@ enum ProjectJournalPhotoReferencePolicy {
         defer { activePatternTransactions -= 1 }
 
         let coordinator = PatternImportCoordinator()
-        let inbox = patternInboxFileService
-        let files = patternFileService
         let prepared = try await Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
             return try coordinator.prepare(item: item, inbox: inbox, fileService: files)
@@ -533,7 +537,7 @@ enum ProjectJournalPhotoReferencePolicy {
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
         try mutate(id: projectID) { $0.deletePattern(id: id) }
-        try? patternFileService.delete(projectID: projectID, pattern: pattern)
+        try? requiredPatternFileService().delete(projectID: projectID, pattern: pattern)
         try? patternThumbnailService.delete(projectID: projectID, patternID: pattern.id)
     }
     public func savePatternPageNote(
@@ -559,7 +563,10 @@ enum ProjectJournalPhotoReferencePolicy {
         try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) }
     }
     public func patternURL(projectID: UUID, pattern: PatternDocument) -> URL {
-        patternFileService.url(projectID: projectID, pattern: pattern)
+        patternFileService?.url(projectID: projectID, pattern: pattern)
+            ?? url.deletingLastPathComponent().appendingPathComponent("Patterns", isDirectory: true)
+                .appendingPathComponent(projectID.uuidString, isDirectory: true)
+                .appendingPathComponent(pattern.storedFilename)
     }
     public func loadPatternMarkup(
         projectID: UUID,
@@ -736,7 +743,8 @@ enum ProjectJournalPhotoReferencePolicy {
             return photoURL
         }
         guard let pattern = project.patterns.first else { return nil }
-        let sourceURL = patternFileService.url(projectID: project.id, pattern: pattern)
+        guard let files = patternFileService else { return nil }
+        let sourceURL = files.url(projectID: project.id, pattern: pattern)
         let service = patternThumbnailService
         return await Task.detached(priority: .utility) {
             try? service.thumbnailURL(
@@ -776,15 +784,33 @@ enum ProjectJournalPhotoReferencePolicy {
     }
     private func load() {
         do {
+            try refreshPatternStorageDependencies()
+        } catch {
+            loadError = .archiveUnavailable
+            return
+        }
+        do {
             try PatternLibraryMigrator().recoverInterruptedMigration(archiveURL: url)
-            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                try recoverPatternImportArtifacts(referencedAssetIDs: [])
+                loadError = nil
+                return
+            }
             try reloadFromDiskDuringDataOperation()
+        } catch let error as ProjectStoreError {
+            loadError = error == .archiveUnavailable ? .archiveUnavailable : .unreadableArchive
         } catch {
             loadError = .unreadableArchive
         }
     }
 
     private func reloadFromDiskDuringDataOperation() throws {
+        do {
+            try refreshPatternStorageDependencies()
+        } catch {
+            loadError = .archiveUnavailable
+            throw ProjectStoreError.archiveUnavailable
+        }
         let decoded: (
             projects: [StoredProject],
             yarns: [StoredYarn],
@@ -796,6 +822,9 @@ enum ProjectJournalPhotoReferencePolicy {
             let migrator = PatternLibraryMigrator()
             try migrator.recoverInterruptedMigration(archiveURL: url)
             let initialArchive = try archiveFromDisk()
+            try recoverPatternImportArtifacts(
+                referencedAssetIDs: Set(initialArchive.patternAssets.map(\.id))
+            )
             if initialArchive.version < ProjectArchive.currentVersion {
                 try migrator.migrateOnDisk(archiveURL: url)
             } else {
@@ -815,6 +844,18 @@ enum ProjectJournalPhotoReferencePolicy {
         loadError = nil
         reconcileYarnPhotos()
         reconcileJournalPhotos()
+    }
+
+    private func recoverPatternImportArtifacts(referencedAssetIDs: Set<UUID>) throws {
+        let files = try requiredPatternFileService()
+        let inbox = try requiredPatternInboxFileService()
+        let publishedInboxItems = try files.recoverImportTransactions(
+            referencedAssetIDs: referencedAssetIDs
+        )
+        let report = try inbox.recover(publishedItemIDs: publishedInboxItems)
+        for itemID in report.cleanedCommittedIDs.intersection(publishedInboxItems) {
+            try? files.completeImportTransaction(itemID: itemID)
+        }
     }
 
     private func archiveFromDisk() throws -> ProjectArchive {
@@ -863,6 +904,8 @@ enum ProjectJournalPhotoReferencePolicy {
         _ prepared: PreparedPatternImport,
         selectingPatternID: UUID?
     ) throws -> PatternImportOutcome {
+        let files = try requiredPatternFileService()
+        let inbox = try requiredPatternInboxFileService()
         let coordinator = PatternImportCoordinator()
         let matchingAssets = patternAssets.filter { $0.sha256 == prepared.metadata.sha256 }
         let candidatePatterns = patterns.filter { pattern in
@@ -872,10 +915,21 @@ enum ProjectJournalPhotoReferencePolicy {
         let outcome: PatternImportOutcome
 
         if candidatePatterns.isEmpty {
-            let asset = try patternFileService.installAsset(
+            let assetID = coordinator.deterministicAssetID(for: prepared.metadata.sha256)
+            let proposedAsset = PatternAsset(
+                id: assetID,
+                sha256: prepared.metadata.sha256,
+                kind: prepared.metadata.kind,
+                storedFilename: "\(assetID.uuidString).\(prepared.metadata.fileExtension)",
+                byteCount: prepared.metadata.byteCount,
+                pageCount: prepared.metadata.pageCount
+            )
+            try files.beginImportTransaction(itemID: prepared.item.id, asset: proposedAsset)
+            let asset = try files.installAsset(
                 data: prepared.data,
                 metadata: prepared.metadata,
-                id: coordinator.deterministicAssetID(for: prepared.metadata.sha256)
+                id: assetID,
+                transactionID: prepared.item.id
             )
             pattern = StoredPattern(
                 assetID: asset.id,
@@ -896,7 +950,7 @@ enum ProjectJournalPhotoReferencePolicy {
                     patternUsages: usages
                 )
             } catch {
-                try? patternFileService.deleteAsset(asset)
+                try? files.rollbackImportTransaction(itemID: prepared.item.id)
                 throw error
             }
             outcome = .created(patternID: pattern.id)
@@ -941,8 +995,10 @@ enum ProjectJournalPhotoReferencePolicy {
             }
             outcome = .existing(patternID: pattern.id)
         }
-        try patternInboxFileService.markCommitted(prepared.item)
-        try? patternInboxFileService.cleanupCommitted(prepared.item)
+        if (try? inbox.markCommitted(prepared.item)) != nil {
+            try? files.completeImportTransaction(itemID: prepared.item.id)
+        }
+        try? inbox.cleanupCommitted(prepared.item)
         return outcome
     }
 
@@ -1053,9 +1109,38 @@ enum ProjectJournalPhotoReferencePolicy {
         guard !isDataOperationInProgress else {
             throw KnitNoteBackupError.operationInProgress
         }
+        do {
+            try refreshPatternStorageDependencies()
+        } catch {
+            loadError = .archiveUnavailable
+            throw ProjectStoreError.archiveUnavailable
+        }
         guard loadError == nil else {
             throw ProjectStoreError.archiveUnavailable
         }
+    }
+
+    private func refreshPatternStorageDependencies() throws {
+        guard patternFileService == nil || patternInboxFileService == nil else { return }
+        guard let patternStorageLocationsProvider else {
+            throw ProjectStoreError.archiveUnavailable
+        }
+        let locations = try patternStorageLocationsProvider()
+        url = locations.assetRoot.deletingLastPathComponent().appendingPathComponent("projects-v1.json")
+        patternFileService = PatternFileService(root: locations.assetRoot)
+        patternInboxFileService = PatternInboxFileService(root: locations.inboxRoot)
+    }
+
+    private func requiredPatternFileService() throws -> PatternFileService {
+        try refreshPatternStorageDependencies()
+        guard let patternFileService else { throw ProjectStoreError.archiveUnavailable }
+        return patternFileService
+    }
+
+    private func requiredPatternInboxFileService() throws -> PatternInboxFileService {
+        try refreshPatternStorageDependencies()
+        guard let patternInboxFileService else { throw ProjectStoreError.archiveUnavailable }
+        return patternInboxFileService
     }
 
     private func validateExpectedDataGeneration(_ expected: UInt64?) throws {

@@ -27,6 +27,29 @@ import Testing
     #expect(throws: PatternFileError.unsafeStoredFilename) { _ = try service.assetURL(mismatched) }
 }
 
+@Test func assetURLsRejectAssetsDirectoryWhosePhysicalParentIsASymlink() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let service = PatternFileService(root: root)
+    let realAssets = root.appendingPathComponent("RealAssets", isDirectory: true)
+    try FileManager.default.createDirectory(at: realAssets, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(
+        at: service.assetsRoot,
+        withDestinationURL: realAssets
+    )
+    let id = UUID()
+    let asset = PatternAsset(
+        id: id,
+        sha256: "0",
+        kind: .pdf,
+        storedFilename: "\(id.uuidString).pdf",
+        byteCount: 1,
+        pageCount: 1
+    )
+
+    #expect(throws: PatternFileError.unsafeStoredFilename) { _ = try service.assetURL(asset) }
+}
+
 @MainActor
 @Test func reopeningStoreRejectsArchiveWhoseAssetEscapesAssetsDirectory() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

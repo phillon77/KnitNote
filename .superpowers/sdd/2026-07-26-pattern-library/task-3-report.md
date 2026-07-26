@@ -76,3 +76,30 @@ New focused tests first failed for missing durable recovery/canonical asset APIs
 - Focused Task 3 suite — PASS (17 tests): durable recovery, corrupt/orphan behavior, candidates/staged symlinks, traversal, exact image type, duplicate/selection, archive-write/asset-move/cleanup failure retry, cancellation, restart, and export bytes.
 - Final `swift test` — PASS (594 tests, 44 suites).
 - Final `git diff --check` — PASS.
+
+## Review Remediation 2: Publication Journals and Live Dependency Recovery
+
+### RED
+
+The second review identified four remaining correctness gaps:
+
+- an asset move had no durable transaction record spanning candidate to final asset;
+- a failed post-archive `markCommitted` could be surfaced as an import failure or lose its recovery proof;
+- the live-store failure path still created a private `.UnavailablePatternInbox` fallback;
+- startup did not proactively reconcile the inbox, and asset-root validation did not reject a symlinked parent directory.
+
+New tests first exposed the missing retry-load transition: a store remained disabled after its injected live locations became available because successful empty-store recovery did not clear the previous availability error.
+
+### GREEN
+
+- Added a durable asset transaction journal under `Patterns/Assets/.Transactions`. It is written before the candidate/final move, is retained while a published inbox sidecar still needs reconciliation, and removes only unreferenced crash artifacts or a fully cleaned committed transaction.
+- Archive persistence is the success boundary. A post-publish inbox `markCommitted` failure now returns the created/existing outcome; a fresh startup uses the journal's archive reference to promote and clean the inbox without a second archive mutation.
+- Startup recovery now runs both asset-transaction and inbox reconciliation for an absent archive and for a decoded archive before normal migration/validation continues.
+- Removed `.UnavailablePatternInbox`. The unavailable live store has no pattern/inbox services; `retryLoad` and mutations remain blocked until the real `PatternStorageLocations.live()` provider resolves, then load from the real locations.
+- Asset URL validation now compares the physical `Patterns/Assets` directory and its direct parent path, rejecting an `Assets` symlink before returning an archive-controlled file URL.
+
+### Additional Verification
+
+- `swift test --filter PatternImportFaultTests --filter PatternImportSecurityTests --filter PatternInboxFileServiceTests` — PASS (19 tests), including fresh-start candidate/final crash artifacts, failed committed-sidecar writes, proactive inbox recovery, unavailable-then-available live dependencies, and symlinked asset-parent rejection.
+- `swift test` — PASS (599 tests, 44 suites).
+- `git diff --check` — PASS.

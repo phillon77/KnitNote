@@ -128,7 +128,7 @@ public struct PatternInboxFileService: Sendable {
         }
     }
 
-    public func recover() throws -> PatternInboxRecoveryReport {
+    public func recover(publishedItemIDs: Set<UUID> = []) throws -> PatternInboxRecoveryReport {
         try createDirectories()
         var report = PatternInboxRecoveryReport()
         for candidate in try candidateURLs() {
@@ -155,7 +155,20 @@ public struct PatternInboxFileService: Sendable {
                 report.quarantinedItemIDs.insert(id)
                 continue
             }
-            if manifest.state == .committed {
+            if manifest.state == .staged, publishedItemIDs.contains(id) {
+                do {
+                    // The asset journal proves that the archive was already
+                    // published.  Do not discard that proof unless this sidecar
+                    // transition and its cleanup both finish.
+                    try writeManifest(.init(version: 1, item: manifest.item, state: .committed))
+                    try cleanupCommitted(manifest.item)
+                    report.cleanedCommittedIDs.insert(id)
+                } catch {
+                    // Leave the staged manifest and the asset journal in place so
+                    // the next launch can retry this transition without a second
+                    // archive mutation.
+                }
+            } else if manifest.state == .committed {
                 do {
                     try cleanupCommitted(manifest.item)
                     report.cleanedCommittedIDs.insert(id)

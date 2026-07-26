@@ -61,6 +61,18 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備份已匯出。" } }
       }
     },
+    "backup.lastSuccessful.label" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Last Successful Backup" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上次成功備份" } }
+      }
+    },
+    "backup.lastSuccessful.never" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Never" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "尚未備份" } }
+      }
+    },
     "backup.preparing" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing backup…" } },
@@ -169,6 +181,30 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Data Backup" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "資料備份" } }
+      }
+    },
+    "patterns.backup.reminder.dismiss" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not Now" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "稍後再說" } }
+      }
+    },
+    "patterns.backup.reminder.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Patterns are stored only on this device. Export a manual backup from Settings to keep a separate copy." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖只保存在這部裝置上。請前往設定手動匯出備份，另外保存一份副本。" } }
+      }
+    },
+    "patterns.backup.reminder.settings" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Backup Settings" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "前往備份設定" } }
+      }
+    },
+    "patterns.backup.reminder.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Your Patterns Safe" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "妥善保存織圖" } }
       }
     },
     "art.familyHero.accessibility" : {

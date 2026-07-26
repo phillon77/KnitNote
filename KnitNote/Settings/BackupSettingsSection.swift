@@ -15,6 +15,7 @@ struct BackupSettingsSection: View {
     @State private var isShowingRestoreConfirmation = false
     @State private var pendingRestore: StagedKnitNoteBackup?
     @State private var restoreImportSessionToken: UUID?
+    @State private var backupHistory = BackupHistory()
 
     private var isBusy: Bool {
         store.isDataOperationInProgress || activeOperation != nil || exportArtifactURL != nil
@@ -114,6 +115,19 @@ struct BackupSettingsSection: View {
             }
             .accessibilityLabel("backup.restore.accessibility")
             .disabled(isBusy)
+
+            HStack {
+                Text("backup.lastSuccessful.label")
+                Spacer()
+                if let date = backupHistory.lastSuccessfulExportAt {
+                    Text(date, format: .dateTime.year().month().day().hour().minute())
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("backup.lastSuccessful.never")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -193,14 +207,20 @@ struct BackupSettingsSection: View {
         }
         switch result {
         case .success:
+            backupHistory.recordExportResult(.success)
             alertMessage = "backup.export.success"
         case let .failure(error):
-            guard !error.isUserCancellation else { return }
+            guard !error.isUserCancellation else {
+                backupHistory.recordExportResult(.cancelled)
+                return
+            }
+            backupHistory.recordExportResult(.failure)
             showError(.storageOrAccess)
         }
     }
 
     private func finishExportCancellation() {
+        backupHistory.recordExportResult(.cancelled)
         exportDocument = nil
         cleanupExportArtifact()
     }

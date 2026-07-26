@@ -71,6 +71,56 @@ import Testing
         #expect(backup.contains("exportArtifactURL = artifact"))
     }
 
+    @Test func successfulExporterCompletionRecordsTheBackupDateAndOtherOutcomesDoNot() throws {
+        let backup = try source("KnitNote/Settings/BackupSettingsSection.swift")
+        let completion = try textBetween(
+            backup,
+            start: "private func finishExport(",
+            end: "private func finishExportCancellation("
+        )
+        let cancellation = try textBetween(
+            backup,
+            start: "private func finishExportCancellation(",
+            end: "private func handleImport("
+        )
+        let packageCreation = try textBetween(
+            backup,
+            start: "private func exportBackup()",
+            end: "private func finishExport("
+        )
+
+        #expect(completion.contains("backupHistory.recordExportResult(.success"))
+        #expect(completion.contains("backupHistory.recordExportResult(.failure"))
+        #expect(cancellation.contains("backupHistory.recordExportResult(.cancelled"))
+        #expect(!packageCreation.contains("recordExportResult"))
+    }
+
+    @Test func settingsDisplaysThePersistedLastSuccessfulBackupDate() throws {
+        let backup = try source("KnitNote/Settings/BackupSettingsSection.swift")
+
+        #expect(backup.contains("backupHistory.lastSuccessfulExportAt"))
+        #expect(backup.contains("backup.lastSuccessful.label"))
+        #expect(backup.contains("backup.lastSuccessful.never"))
+        #expect(backup.contains(".accessibilityElement(children: .combine)"))
+    }
+
+    @Test func createdLibraryImportShowsOneLocalOnlyReminderAndDismissalPersistsIt() throws {
+        let library = try source("KnitNote/Patterns/PatternLibraryView.swift")
+        let outcomeHandling = try textBetween(
+            library,
+            start: "private func acceptImportOutcome(",
+            end: "private func chooseDuplicate("
+        )
+
+        #expect(outcomeHandling.contains("case .created"))
+        #expect(outcomeHandling.contains("backupHistory.hasShownPatternReminder"))
+        #expect(library.contains("backupHistory.markPatternReminderShown()"))
+        #expect(library.contains("patterns.backup.reminder.title"))
+        #expect(library.contains("patterns.backup.reminder.message"))
+        #expect(library.contains("patterns.backup.reminder.settings"))
+        #expect(!library.contains("UNUserNotificationCenter"))
+    }
+
     @Test func backupExtensionIsExportedAsASelectablePackageDocument() throws {
         let document = try source("KnitNote/Settings/KnitNoteBackupDocument.swift")
         let project = try source("project.yml")
@@ -200,7 +250,13 @@ private enum BackupLocalizationContract {
         "backup.error.operationInProgress",
         "backup.export.accessibility",
         "backup.restore.accessibility",
-        "backup.progress.accessibility"
+        "backup.progress.accessibility",
+        "backup.lastSuccessful.label",
+        "backup.lastSuccessful.never",
+        "patterns.backup.reminder.title",
+        "patterns.backup.reminder.message",
+        "patterns.backup.reminder.settings",
+        "patterns.backup.reminder.dismiss"
     ]
 }
 

@@ -55,9 +55,8 @@ struct PatternLibraryRow: View {
         guard model.activeLinkCount > 0 else {
             return String(localized: "patterns.library.unused", locale: locale)
         }
-        return String(
-            format: String(localized: "patterns.library.links.format", locale: locale),
-            locale: locale,
+        return String.localizedStringWithFormat(
+            String(localized: "patterns.library.links.format", locale: locale),
             model.activeLinkCount
         )
     }

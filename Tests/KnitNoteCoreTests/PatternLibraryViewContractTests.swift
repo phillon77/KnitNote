@@ -49,6 +49,7 @@ import Testing
         let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryRow.swift")
 
         #expect(source.contains("Text(usageDescription)"))
+        #expect(source.contains("String.localizedStringWithFormat"))
         #expect(source.contains(".lineLimit(1)"))
         #expect(source.contains(".minimumScaleFactor(0.8)"))
         #expect(!source.contains("foregroundStyle(model.activeLinkCount == 0 ? .clear"))

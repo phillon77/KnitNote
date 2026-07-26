@@ -138,7 +138,7 @@ import Testing
         "patterns.library.image": ["en": "Image", "zh-Hant": "圖片"],
         "patterns.library.thumbnail": ["en": "Pattern preview", "zh-Hant": "織圖預覽"],
         "patterns.library.alreadySaved.title": ["en": "Already Saved", "zh-Hant": "已收藏"],
-        "patterns.library.alreadySaved.message": ["en": "This pattern is already in your library.", "zh-Hant": "這份織圖已收藏在樣式庫中。"],
+        "patterns.library.alreadySaved.message": ["en": "This pattern is already in your library.", "zh-Hant": "這份織圖已收藏在織圖匣中。"],
         "patterns.library.alreadySaved.view": ["en": "View Saved Pattern", "zh-Hant": "查看已收藏織圖"],
         "patterns.linkExisting": ["en": "Link from Pattern Library", "zh-Hant": "從織圖匣連結"],
         "patterns.importNew": ["en": "Import New Pattern", "zh-Hant": "匯入新織圖"],
@@ -368,6 +368,33 @@ import Testing
             for (language, expectedValue) in expectedTranslations {
                 #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }
+        }
+    }
+
+    @Test func linkedProjectCountUsesNaturalCopyForOneAndMany() throws {
+        let strings = try catalogStrings()
+        let cases = [
+            (count: 1, english: "1 linked project", traditionalChinese: "已連結 1 件作品"),
+            (count: 2, english: "2 linked projects", traditionalChinese: "已連結 2 件作品"),
+        ]
+
+        for testCase in cases {
+            #expect(
+                try pluralizedValue(
+                    "patterns.library.links.format",
+                    language: "en",
+                    count: testCase.count,
+                    strings: strings
+                ) == testCase.english
+            )
+            #expect(
+                try pluralizedValue(
+                    "patterns.library.links.format",
+                    language: "zh-Hant",
+                    count: testCase.count,
+                    strings: strings
+                ) == testCase.traditionalChinese
+            )
         }
     }
 
@@ -820,6 +847,7 @@ import Testing
         }
         let forbidden = values.filter { $0.contains("圖解") }
         #expect(forbidden.isEmpty)
+        #expect(values.filter { $0.contains("樣式庫") }.isEmpty)
         #expect(try localizedValue("patterns.title", language: "zh-Hant", strings: strings) == "織圖")
         #expect(try localizedValue("patterns.open", language: "zh-Hant", strings: strings) == "織圖")
         #expect(try localizedValue("patterns.add", language: "zh-Hant", strings: strings) == "加入織圖")
@@ -855,8 +883,34 @@ import Testing
         let entry = try #require(strings[key] as? [String: Any])
         let localizations = try #require(entry["localizations"] as? [String: Any])
         let translation = try #require(localizations[language] as? [String: Any])
-        let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
+        let stringUnit: [String: Any]
+        if let directStringUnit = translation["stringUnit"] as? [String: Any] {
+            stringUnit = directStringUnit
+        } else {
+            let variations = try #require(translation["variations"] as? [String: Any])
+            let plural = try #require(variations["plural"] as? [String: Any])
+            let other = try #require(plural["other"] as? [String: Any])
+            stringUnit = try #require(other["stringUnit"] as? [String: Any])
+        }
         return try #require(stringUnit["value"] as? String)
+    }
+
+    private func pluralizedValue(
+        _ key: String,
+        language: String,
+        count: Int,
+        strings: [String: Any]
+    ) throws -> String {
+        let entry = try #require(strings[key] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        let translation = try #require(localizations[language] as? [String: Any])
+        let variations = try #require(translation["variations"] as? [String: Any])
+        let plural = try #require(variations["plural"] as? [String: Any])
+        let category = language == "en" && count == 1 ? "one" : "other"
+        let variation = try #require(plural[category] as? [String: Any])
+        let stringUnit = try #require(variation["stringUnit"] as? [String: Any])
+        let format = try #require(stringUnit["value"] as? String)
+        return String.localizedStringWithFormat(format, count)
     }
 
     private func infoPlistLocalizedValue(

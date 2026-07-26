@@ -2047,7 +2047,7 @@
     "patterns.library.alreadySaved.message" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This pattern is already in your library." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這份織圖已收藏在樣式庫中。" } }
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這份織圖已收藏在織圖匣中。" } }
       }
     },
     "patterns.library.alreadySaved.title" : {
@@ -2126,8 +2126,21 @@
     },
     "patterns.library.links.format" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld linked projects" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已連結 %lld 件作品" } }
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld linked project" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld linked projects" } }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "已連結 %lld 件作品" } }
+            }
+          }
+        }
       }
     },
     "patterns.library.row.accessibility.format" : {

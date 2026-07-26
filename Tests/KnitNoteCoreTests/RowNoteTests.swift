@@ -120,7 +120,7 @@ import Testing
     let archiveObject = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     let projects = try #require(archiveObject["projects"] as? [[String: Any]])
     let storedProject = try #require(projects.first)
-    #expect(archiveObject["version"] as? Int == 9)
+    #expect(archiveObject["version"] as? Int == ProjectArchive.currentVersion)
     #expect(storedProject["currentRow"] == nil)
     #expect(storedProject["rowNotes"] == nil)
     #expect(JSONProjectStore(url: url).projects[0].selectedCounter.rowNotes[0].text == "K2tog")

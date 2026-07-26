@@ -2,7 +2,7 @@ import Combine
 import Foundation
 
 public struct ProjectArchive: Codable, Sendable {
-    public static let currentVersion = 9
+    public static let currentVersion = 10
     public static let minimumSupportedVersion = 1
 
     public static func isSupported(version: Int) -> Bool {
@@ -85,6 +85,9 @@ enum ProjectJournalPhotoReferencePolicy {
 @MainActor public final class JSONProjectStore: ObservableObject {
     @Published public private(set) var projects: [StoredProject] = []
     @Published public private(set) var yarns: [StoredYarn] = []
+    @Published public private(set) var patternAssets: [PatternAsset] = []
+    @Published public private(set) var patterns: [StoredPattern] = []
+    @Published public private(set) var patternUsages: [PatternProjectUsage] = []
     @Published public private(set) var loadError: ProjectStoreError?
     @Published public private(set) var isDataOperationInProgress = false
     @Published public private(set) var dataGeneration: UInt64 = 0
@@ -698,28 +701,50 @@ enum ProjectJournalPhotoReferencePolicy {
     }
 
     private func reloadFromDiskDuringDataOperation() throws {
-        let decoded: (projects: [StoredProject], yarns: [StoredYarn])
+        let decoded: (
+            projects: [StoredProject],
+            yarns: [StoredYarn],
+            patternAssets: [PatternAsset],
+            patterns: [StoredPattern],
+            patternUsages: [PatternProjectUsage]
+        )
         do {
-            decoded = try decodeArchiveFromDisk()
+            let initialArchive = try archiveFromDisk()
+            if initialArchive.version < ProjectArchive.currentVersion {
+                try PatternLibraryMigrator().migrateOnDisk(archiveURL: url)
+            }
+            decoded = try decode(archive: archiveFromDisk())
         } catch {
             loadError = .unreadableArchive
             throw ProjectStoreError.unreadableArchive
         }
         projects = decoded.projects
         yarns = decoded.yarns
+        patternAssets = decoded.patternAssets
+        patterns = decoded.patterns
+        patternUsages = decoded.patternUsages
         dataGeneration &+= 1
         loadError = nil
         reconcileYarnPhotos()
         reconcileJournalPhotos()
     }
 
-    private func decodeArchiveFromDisk() throws -> (
-        projects: [StoredProject],
-        yarns: [StoredYarn]
-    ) {
-        let data = try Data(contentsOf: url)
-        let archive = try JSONDecoder().decode(ProjectArchive.self, from: data)
+    private func archiveFromDisk() throws -> ProjectArchive {
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: url))
         guard ProjectArchive.isSupported(version: archive.version) else {
+            throw ProjectStoreError.unreadableArchive
+        }
+        return archive
+    }
+
+    private func decode(archive: ProjectArchive) throws -> (
+        projects: [StoredProject],
+        yarns: [StoredYarn],
+        patternAssets: [PatternAsset],
+        patterns: [StoredPattern],
+        patternUsages: [PatternProjectUsage]
+    ) {
+        guard archive.version == ProjectArchive.currentVersion else {
             throw ProjectStoreError.unreadableArchive
         }
         let loadedProjects = archive.projects.sorted { $0.updatedAt > $1.updatedAt }
@@ -732,7 +757,19 @@ enum ProjectJournalPhotoReferencePolicy {
             )
             return yarn
         }.sorted { $0.updatedAt > $1.updatedAt }
-        return (loadedProjects, loadedYarns)
+        _ = try PatternLibrarySnapshot(
+            assets: archive.patternAssets,
+            patterns: archive.patterns,
+            usages: archive.patternUsages,
+            validProjectIDs: loadedProjects.map(\.id)
+        ).validated()
+        return (
+            loadedProjects,
+            loadedYarns,
+            archive.patternAssets,
+            archive.patterns,
+            archive.patternUsages
+        )
     }
     private func persist(projects stagedProjects: [StoredProject], yarns stagedYarns: [StoredYarn]) throws {
         try ensureArchiveAvailable()
@@ -747,7 +784,10 @@ enum ProjectJournalPhotoReferencePolicy {
             let data = try JSONEncoder().encode(ProjectArchive(
                 version: ProjectArchive.currentVersion,
                 projects: sortedProjects,
-                yarns: sortedYarns
+                yarns: sortedYarns,
+                patternAssets: patternAssets,
+                patterns: patterns,
+                patternUsages: patternUsages
             ))
             try data.write(to: url, options: .atomic)
             projects = sortedProjects

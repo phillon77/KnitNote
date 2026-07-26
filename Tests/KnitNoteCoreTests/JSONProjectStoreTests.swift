@@ -197,7 +197,7 @@ import UniformTypeIdentifiers
     #expect(reloaded.yarn(id: yarn.id)?.name == "Fine Merino")
     #expect(reloaded.yarn(id: yarn.id)?.linkedProjectIDs == [projectID])
     let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: storeURL))
-    #expect(archive.version == 9)
+    #expect(archive.version == ProjectArchive.currentVersion)
 
     try reloaded.deleteYarn(id: yarn.id)
     let afterDelete = JSONProjectStore(url: storeURL)
@@ -455,7 +455,7 @@ import UniformTypeIdentifiers
     #expect(!FileManager.default.fileExists(atPath: photoService.url(filename: secondFilename).path))
 
     let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
-    #expect(archive.version == 9)
+    #expect(archive.version == ProjectArchive.currentVersion)
 }
 
 @MainActor @Test func projectCoverPrefersCustomPhotoThenFallsBackThroughPatterns() async throws {

@@ -243,7 +243,7 @@ import Testing
     }
 
     @Test func projectArchiveDeclaresSharedCurrentAndSupportedLegacyVersions() {
-        #expect(ProjectArchive.currentVersion == 9)
+        #expect(ProjectArchive.currentVersion == 10)
         #expect(ProjectArchive.minimumSupportedVersion == 1)
         #expect(ProjectArchive.isSupported(version: 1))
         #expect(ProjectArchive.isSupported(version: 8))
@@ -273,7 +273,7 @@ import Testing
                 yarns: archive.yarns
             )
         }
-        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(10)) {
+        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(ProjectArchive.currentVersion + 1)) {
             _ = try service.createPackage(appVersion: "1.0")
         }
 
@@ -286,7 +286,7 @@ import Testing
                 yarns: archive.yarns
             )
         }
-        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(10)) {
+        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(ProjectArchive.currentVersion + 1)) {
             _ = try package.service.inspectPackage(at: package.url)
         }
     }
@@ -311,7 +311,7 @@ import Testing
             }
         )
 
-        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(10)) {
+        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(ProjectArchive.currentVersion + 1)) {
             _ = try service.stagePackage(at: package.url)
         }
     }
@@ -331,7 +331,7 @@ import Testing
             yarns: archive.yarns
         )).write(to: archiveURL, options: .atomic)
 
-        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(10)) {
+        #expect(throws: KnitNoteBackupError.unsupportedNewerVersion(ProjectArchive.currentVersion + 1)) {
             _ = try fixture.service.install(staged)
         }
         #expect(try fixture.liveArchiveName() == "original")

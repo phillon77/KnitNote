@@ -30,7 +30,7 @@ import Testing
     #expect(project.patterns[0].contentOffsetX == 0.2)
 }
 
-@MainActor @Test func storeWritesArchiveVersionNine() throws {
+@MainActor @Test func storeWritesCurrentArchiveVersion() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store = JSONProjectStore(url: url)
     try store.add(name: "Sweater")
@@ -38,7 +38,7 @@ import Testing
     let object = try #require(
         JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
     )
-    #expect(object["version"] as? Int == 9)
+    #expect(object["version"] as? Int == ProjectArchive.currentVersion)
 }
 
 @Test func highlightModeDefaultsAndPositionsClamp() {

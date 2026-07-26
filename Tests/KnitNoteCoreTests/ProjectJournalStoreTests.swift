@@ -509,7 +509,7 @@ import UniformTypeIdentifiers
         #expect(FileManager.default.fileExists(atPath: try #require(journalService.url(filename: unreadableCandidate.photoFilename)).path))
     }
 
-    @Test func version8ArchiveMigratesToVersion9WithoutLosingExistingProjectOrYarnData() throws {
+    @Test func version8ArchiveMigratesToVersion10WithoutLosingExistingProjectOrYarnData() throws {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let archiveURL = base.appendingPathComponent("projects.json")
         let start = Date(timeIntervalSince1970: 100)
@@ -557,6 +557,14 @@ import UniformTypeIdentifiers
             "yarns": [yarnObject],
         ])
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let legacyPatternURL = base
+            .appendingPathComponent("Patterns/\(legacyProject.id.uuidString)")
+            .appendingPathComponent(pattern.storedFilename)
+        try FileManager.default.createDirectory(
+            at: legacyPatternURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try makeTestPatternPDF(at: legacyPatternURL)
         try legacy.write(to: archiveURL, options: .atomic)
 
         let store = JSONProjectStore(url: archiveURL)
@@ -567,7 +575,9 @@ import UniformTypeIdentifiers
         #expect(loaded.counters == legacyProject.counters)
         #expect(loaded.selectedCounterID == selectedCounterID)
         #expect(loaded.note(counterID: selectedCounterID, row: 42)?.text == "Decrease")
-        #expect(loaded.patterns == [pattern])
+        #expect(loaded.patterns.isEmpty)
+        #expect(store.patterns.map(\.displayName) == ["Cable chart"])
+        #expect(store.patternUsages.map(\.id) == [pattern.id])
         #expect(loaded.photoFilename == "legacy-cover.jpg")
         #expect(loaded.completedAt == completedAt)
         #expect(loaded.toolType == .knittingNeedles)
@@ -577,11 +587,11 @@ import UniformTypeIdentifiers
 
         try store.rename(id: legacyProject.id, to: "Migrated")
         let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
-        #expect(archive.version == 9)
+        #expect(archive.version == ProjectArchive.currentVersion)
         let migrated = try #require(JSONProjectStore(url: archiveURL).project(id: legacyProject.id))
         #expect(migrated.counters == legacyProject.counters)
         #expect(migrated.selectedCounterID == selectedCounterID)
-        #expect(migrated.patterns == [pattern])
+        #expect(migrated.patterns.isEmpty)
         #expect(migrated.photoFilename == "legacy-cover.jpg")
         #expect(migrated.completedAt == completedAt)
         #expect(migrated.toolType == .knittingNeedles)

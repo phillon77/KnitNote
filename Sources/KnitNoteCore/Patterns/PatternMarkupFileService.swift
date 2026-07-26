@@ -26,10 +26,29 @@ public struct PatternMarkupFileService: Sendable {
         if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
     }
 
+    func copyLegacyMarkup(
+        from source: PatternMarkupFileService,
+        projectID: UUID,
+        patternID: UUID,
+        usageID: UUID
+    ) throws {
+        let sourceDirectory = source.patternDirectory(projectID: projectID, patternID: patternID)
+        guard FileManager.default.fileExists(atPath: sourceDirectory.path) else { return }
+        let destinationDirectory = usageMarkupDirectory(usageID: usageID)
+        try FileManager.default.createDirectory(
+            at: destinationDirectory.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(at: sourceDirectory, to: destinationDirectory)
+    }
+
     private func patternDirectory(projectID: UUID, patternID: UUID) -> URL {
         root.appendingPathComponent(projectID.uuidString).appendingPathComponent("Markup").appendingPathComponent(patternID.uuidString)
     }
     private func pageURL(projectID: UUID, patternID: UUID, pageIndex: Int) -> URL {
         patternDirectory(projectID: projectID, patternID: patternID).appendingPathComponent("\(max(0, pageIndex)).json")
+    }
+    private func usageMarkupDirectory(usageID: UUID) -> URL {
+        root.appendingPathComponent("UsageMarkup").appendingPathComponent(usageID.uuidString)
     }
 }

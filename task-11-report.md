@@ -225,3 +225,74 @@ full suite passed on the final tree.
 - localization JSON, Xcode project, all configured Info plists and entitlements,
   Swift parsing for every touched source, bounded-export source scan, and
   `git diff --check`: passed.
+
+## Review Fix Round 2
+
+### P1: rollback crash-window closure
+
+Root cause: rollback still advertised `installedAwaitingReload` while it
+deleted the installed live tree and moved the rollback tree back. A process
+termination after live deletion or after rollback-to-live movement therefore
+left launch recovery without a durable way to distinguish an interrupted
+rollback from a pending installation.
+
+Rollback now persists and synchronizes a `rollingBack` journal before its
+first destructive operation. Journal writes use atomic replacement followed
+by `fsync` of both the journal descriptor and work-root directory; journal
+removal also synchronizes the directory. Recovery completes the phase
+idempotently for both transactions that had an original live root and those
+that did not:
+
+- rollback present plus live present removes the installed live tree and moves
+  the original back;
+- rollback present plus live absent moves the original back;
+- rollback absent plus live present validates the restored live tree as the
+  completed move recorded by the integrity-bound `rollingBack` journal;
+- transactions without an original remove any remaining installed live tree.
+
+Only after the rollback filesystem outcome is complete does the service write
+`rolledBack` and remove the journal. Injection regressions terminate after the
+`rollingBack` journal, live deletion, rollback move, and final journal for both
+`hadLiveRoot` values. Restart recovery restores the original archive bytes
+exactly (or restores the prior absence), removes rollback/journal artifacts,
+and is a no-op on the second recovery. A corrupt journal fails closed without
+changing either live or rollback bytes.
+
+### P1: bounded descriptor markup discovery
+
+Root cause: markup discovery validated directory paths and then returned to
+`FileManager.contentsOfDirectory`. That reopened the path after validation,
+allowed directory rename/swap races, and allocated an unbounded entry array
+before enforcing the per-owner markup cap.
+
+Legacy pattern markup and usage markup now share one root-anchored descriptor
+walker. It:
+
+- opens the live root and each directory component with
+  `openat`, `O_DIRECTORY`, `O_NOFOLLOW`, and `O_CLOEXEC`;
+- obtains every component and entry with
+  `fstatat(..., AT_SYMLINK_NOFOLLOW)`;
+- enumerates through `fdopendir`/`readdir` and checks the 512-entry limit
+  before appending a name;
+- accepts only regular canonical page-number `.json` files;
+- sorts only the bounded set for deterministic manifests;
+- compares owner directory device, inode, mtime, and ctime before/after
+  enumeration, then rechecks that its parent name still binds to the same
+  directory.
+
+Real filesystem regressions cover limit-plus-one for both owner layouts with
+no partial package, rename/swap during enumeration, symlink and unsupported
+entries, and deterministic valid manifests.
+
+### Fresh verification
+
+- `KnitNoteBackupServiceTests`: 69 tests passed.
+- final normal parallel `swift test`: 800 tests in 67 suites passed
+  (63.835 seconds).
+- `swift test --no-parallel`: 800 tests in 67 suites passed
+  (78.272 seconds).
+- fresh iOS App, macOS App, iOS Share Extension, and watchOS App builds, each
+  with independent DerivedData and `CODE_SIGNING_ALLOWED=NO`: exit 0.
+- localization JSON, Xcode project, all configured Info plists and
+  entitlements, touched production/test Swift parsing, descriptor-discovery
+  source scan, and `git diff --check`: passed.

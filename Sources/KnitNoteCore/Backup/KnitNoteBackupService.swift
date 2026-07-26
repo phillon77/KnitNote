@@ -48,6 +48,7 @@ public struct KnitNoteBackupInstallation: Sendable {
 private enum KnitNoteBackupReplacementPhase: String, Codable, Sendable {
     case prepared
     case installedAwaitingReload
+    case rollingBack
     case committed
     case rolledBack
 }
@@ -117,6 +118,10 @@ enum KnitNoteBackupReplacementStep: Sendable {
     case afterLiveMove
     case afterStagedMove
     case beforeRollback
+    case afterRollbackJournal
+    case afterRollbackLiveRemoval
+    case afterRollbackRestore
+    case afterRollbackFinalized
     case beforeCommitCleanup
 }
 
@@ -527,21 +532,30 @@ public struct KnitNoteBackupService: Sendable {
                !fileManager.fileExists(atPath: installation.rollbackRoot.path) {
                 throw KnitNoteBackupError.rollbackFailed
             }
+            try persistReplacementJournal(
+                transactionID: installation.transactionID,
+                hadLiveRoot: installation.hadLiveRoot,
+                phase: .rollingBack
+            )
+            try replacementStepHook(.afterRollbackJournal)
             try replacementStepHook(.beforeRollback)
             if fileManager.fileExists(atPath: installation.liveRoot.path) {
                 try fileManager.removeItem(at: installation.liveRoot)
             }
+            try replacementStepHook(.afterRollbackLiveRemoval)
             if installation.hadLiveRoot {
                 try fileManager.moveItem(
                     at: installation.rollbackRoot,
                     to: installation.liveRoot
                 )
             }
+            try replacementStepHook(.afterRollbackRestore)
             try persistReplacementJournal(
                 transactionID: installation.transactionID,
                 hadLiveRoot: installation.hadLiveRoot,
                 phase: .rolledBack
             )
+            try replacementStepHook(.afterRollbackFinalized)
             try removeReplacementJournal()
         } catch {
             throw KnitNoteBackupError.rollbackFailed
@@ -569,6 +583,13 @@ public struct KnitNoteBackupService: Sendable {
                 )
             case .rolledBack:
                 try removeReplacementJournal()
+            case .rollingBack:
+                try finishInterruptedRollback(
+                    journal: journal,
+                    rollbackRoot: rollbackRoot,
+                    liveExists: liveExists,
+                    rollbackExists: rollbackExists
+                )
             case .prepared:
                 if journal.hadLiveRoot, rollbackExists, !liveExists {
                     try fileManager.moveItem(at: rollbackRoot, to: liveRoot)
@@ -645,6 +666,17 @@ public struct KnitNoteBackupService: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try encoder.encode(journal).write(to: replacementJournalURL, options: .atomic)
+        let journalDescriptor = replacementJournalURL.path.withCString {
+            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard journalDescriptor >= 0 else {
+            throw KnitNoteBackupError.rollbackFailed
+        }
+        defer { Darwin.close(journalDescriptor) }
+        guard Darwin.fsync(journalDescriptor) == 0 else {
+            throw KnitNoteBackupError.rollbackFailed
+        }
+        try synchronizeWorkDirectory()
     }
 
     private func loadReplacementJournal() throws -> KnitNoteBackupReplacementJournal? {
@@ -669,6 +701,20 @@ public struct KnitNoteBackupService: Sendable {
             return
         }
         try FileManager.default.removeItem(at: replacementJournalURL)
+        try synchronizeWorkDirectory()
+    }
+
+    private func synchronizeWorkDirectory() throws {
+        let descriptor = workRoot.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            throw KnitNoteBackupError.rollbackFailed
+        }
+        defer { Darwin.close(descriptor) }
+        guard Darwin.fsync(descriptor) == 0 else {
+            throw KnitNoteBackupError.rollbackFailed
+        }
     }
 
     private func replacementInstallation(
@@ -697,6 +743,36 @@ public struct KnitNoteBackupService: Sendable {
         if FileManager.default.fileExists(atPath: cleanupRoot.path) {
             try cleanupItem(cleanupRoot)
         }
+        try removeReplacementJournal()
+    }
+
+    private func finishInterruptedRollback(
+        journal: KnitNoteBackupReplacementJournal,
+        rollbackRoot: URL,
+        liveExists: Bool,
+        rollbackExists: Bool
+    ) throws {
+        let fileManager = FileManager.default
+        if journal.hadLiveRoot {
+            if rollbackExists {
+                if liveExists {
+                    try fileManager.removeItem(at: liveRoot)
+                }
+                try fileManager.moveItem(at: rollbackRoot, to: liveRoot)
+            } else {
+                guard liveExists else {
+                    throw KnitNoteBackupError.rollbackFailed
+                }
+                try validateLiveRoot(liveRoot)
+            }
+        } else if liveExists {
+            try fileManager.removeItem(at: liveRoot)
+        }
+        try persistReplacementJournal(
+            transactionID: journal.transactionID,
+            hadLiveRoot: journal.hadLiveRoot,
+            phase: .rolledBack
+        )
         try removeReplacementJournal()
     }
 
@@ -1461,76 +1537,171 @@ public struct KnitNoteBackupService: Sendable {
         in archive: ProjectArchive,
         sourceRoot: URL
     ) throws -> [String] {
+        guard sourceRoot.standardizedFileURL == liveRoot.standardizedFileURL else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
         var paths = referencedMediaPaths(in: archive)
         for project in archive.projects {
             for pattern in project.patterns {
-                let markupRootPath = "Patterns/\(project.id.uuidString)/Markup"
-                let markupOwnerPath = "\(markupRootPath)/\(pattern.id.uuidString)"
-                let markupRoot = sourceRoot.appendingPathComponent(markupRootPath)
-                if FileManager.default.fileExists(atPath: markupRoot.path) {
-                    try validateLiveSource(
-                        relativePath: markupRootPath,
-                        expectsDirectory: true
-                    )
-                }
-                let markupDirectory = sourceRoot
-                    .appendingPathComponent(markupOwnerPath)
-                if FileManager.default.fileExists(atPath: markupDirectory.path) {
-                    try validateLiveSource(
-                        relativePath: markupOwnerPath,
-                        expectsDirectory: true
-                    )
-                    let markupFiles = try FileManager.default.contentsOfDirectory(
-                        at: markupDirectory,
-                        includingPropertiesForKeys: nil
-                    )
-                    for file in markupFiles {
-                        let values = try entryValues(file)
-                        guard values.isRegularFile == true,
-                              isMarkupFilename(file.lastPathComponent) else {
-                            throw KnitNoteBackupError.unknownPackageEntry
-                        }
-                        paths.insert(
-                            "Patterns/\(project.id.uuidString)/Markup/\(pattern.id.uuidString)/\(file.lastPathComponent)"
-                        )
-                    }
+                let ownerPath = "Patterns/\(project.id.uuidString)/Markup/\(pattern.id.uuidString)"
+                for relativePath in try descriptorMarkupPaths(ownerPath: ownerPath) {
+                    paths.insert(relativePath)
                 }
             }
-        }
-        let usageMarkupRootPath = "Patterns/UsageMarkup"
-        let usageMarkupRoot = sourceRoot.appendingPathComponent(
-            usageMarkupRootPath,
-            isDirectory: true
-        )
-        if FileManager.default.fileExists(atPath: usageMarkupRoot.path) {
-            try validateLiveSource(
-                relativePath: usageMarkupRootPath,
-                expectsDirectory: true
-            )
         }
         for usage in archive.patternUsages {
-            let ownerPath = "\(usageMarkupRootPath)/\(usage.id.uuidString)"
-            let markupDirectory = sourceRoot.appendingPathComponent(
-                ownerPath,
-                isDirectory: true
-            )
-            guard FileManager.default.fileExists(atPath: markupDirectory.path) else {
-                continue
-            }
-            try validateLiveSource(relativePath: ownerPath, expectsDirectory: true)
-            for file in try FileManager.default.contentsOfDirectory(
-                at: markupDirectory,
-                includingPropertiesForKeys: nil
-            ) {
-                let values = try entryValues(file)
-                guard values.isRegularFile == true,
-                      isMarkupFilename(file.lastPathComponent) else {
-                    throw KnitNoteBackupError.unknownPackageEntry
-                }
-                paths.insert("\(ownerPath)/\(file.lastPathComponent)")
+            let ownerPath = "Patterns/UsageMarkup/\(usage.id.uuidString)"
+            for relativePath in try descriptorMarkupPaths(ownerPath: ownerPath) {
+                paths.insert(relativePath)
             }
         }
         return paths.sorted()
+    }
+
+    private func descriptorMarkupPaths(ownerPath: String) throws -> [String] {
+        let components = ownerPath.split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy(isSafeFileComponent) else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let rootDescriptor = liveRoot.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard rootDescriptor >= 0 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        var openedDescriptors = [rootDescriptor]
+        defer { openedDescriptors.reversed().forEach { Darwin.close($0) } }
+
+        var currentDescriptor = rootDescriptor
+        var ownerParentDescriptor = rootDescriptor
+        var ownerInfo = stat()
+        var relativePath = ""
+        for (index, component) in components.enumerated() {
+            var entryInfo = stat()
+            errno = 0
+            let status = component.withCString {
+                Darwin.fstatat(currentDescriptor, $0, &entryInfo, AT_SYMLINK_NOFOLLOW)
+            }
+            if status != 0, errno == ENOENT {
+                return []
+            }
+            guard status == 0,
+                  (entryInfo.st_mode & S_IFMT) == S_IFDIR else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            relativePath = relativePath.isEmpty
+                ? component
+                : "\(relativePath)/\(component)"
+            try beforeSourceEntryOpen(relativePath)
+            let childDescriptor = try openChildDirectory(
+                named: component,
+                relativeTo: currentDescriptor,
+                expectedInfo: entryInfo
+            )
+            openedDescriptors.append(childDescriptor)
+            if index == components.count - 1 {
+                ownerParentDescriptor = currentDescriptor
+                ownerInfo = entryInfo
+            }
+            currentDescriptor = childDescriptor
+        }
+
+        let filenames = try boundedMarkupEntryNames(
+            currentDescriptor,
+            ownerPath: ownerPath,
+            initialInfo: ownerInfo
+        )
+        var finalBinding = stat()
+        let bindingStatus = components[components.count - 1].withCString {
+            Darwin.fstatat(
+                ownerParentDescriptor,
+                $0,
+                &finalBinding,
+                AT_SYMLINK_NOFOLLOW
+            )
+        }
+        guard bindingStatus == 0,
+              (finalBinding.st_mode & S_IFMT) == S_IFDIR,
+              finalBinding.st_dev == ownerInfo.st_dev,
+              finalBinding.st_ino == ownerInfo.st_ino else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        return filenames.map { "\(ownerPath)/\($0)" }
+    }
+
+    private func boundedMarkupEntryNames(
+        _ descriptor: Int32,
+        ownerPath: String,
+        initialInfo: stat
+    ) throws -> [String] {
+        let duplicateDescriptor = Darwin.dup(descriptor)
+        guard duplicateDescriptor >= 0 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        guard let stream = Darwin.fdopendir(duplicateDescriptor) else {
+            Darwin.close(duplicateDescriptor)
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        defer { Darwin.closedir(stream) }
+
+        var names: [String] = []
+        var didReachFirstEntry = false
+        while true {
+            errno = 0
+            guard let entry = Darwin.readdir(stream) else {
+                guard errno == 0 else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+                break
+            }
+            let name = withUnsafePointer(to: entry.pointee.d_name) { namePointer in
+                namePointer.withMemoryRebound(
+                    to: CChar.self,
+                    capacity: Int(entry.pointee.d_namlen) + 1
+                ) {
+                    String(validatingCString: $0)
+                }
+            }
+            guard let name else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            guard name != ".", name != ".." else { continue }
+            guard !name.hasPrefix("."), isSafeFileComponent(name) else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            guard names.count < KnitNoteBackupLimits.maximumMarkupEntriesPerPattern else {
+                throw KnitNoteBackupError.invalidMarkup
+            }
+            if !didReachFirstEntry {
+                didReachFirstEntry = true
+                try beforeSourceEntryOpen("\(ownerPath)/.enumerating")
+            }
+            var entryInfo = stat()
+            let status = name.withCString {
+                Darwin.fstatat(descriptor, $0, &entryInfo, AT_SYMLINK_NOFOLLOW)
+            }
+            guard status == 0 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            guard (entryInfo.st_mode & S_IFMT) == S_IFREG,
+                  isMarkupFilename(name) else {
+                throw KnitNoteBackupError.unknownPackageEntry
+            }
+            names.append(name)
+        }
+        var finalInfo = stat()
+        guard Darwin.fstat(descriptor, &finalInfo) == 0,
+              finalInfo.st_dev == initialInfo.st_dev,
+              finalInfo.st_ino == initialInfo.st_ino,
+              finalInfo.st_mtimespec.tv_sec == initialInfo.st_mtimespec.tv_sec,
+              finalInfo.st_mtimespec.tv_nsec == initialInfo.st_mtimespec.tv_nsec,
+              finalInfo.st_ctimespec.tv_sec == initialInfo.st_ctimespec.tv_sec,
+              finalInfo.st_ctimespec.tv_nsec == initialInfo.st_ctimespec.tv_nsec else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        return names.sorted()
     }
 
     private func decodeManifest(at packageRoot: URL) throws -> KnitNoteBackupManifest {

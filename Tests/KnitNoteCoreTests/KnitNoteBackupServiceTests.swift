@@ -263,6 +263,139 @@ import Testing
         }
     }
 
+    @Test(arguments: ["legacy", "usage"])
+    func exportRejectsMarkupOwnerAboveEntryLimitWithoutLeavingPackage(
+        _ ownerKind: String
+    ) throws {
+        let package = try ownerKind == "legacy"
+            ? BackupFixture.completePackage()
+            : BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let owner = package.service.liveRoot
+            .appendingPathComponent(package.markupRelativePath)
+            .deletingLastPathComponent()
+        let documentData = try JSONEncoder().encode(PatternMarkupDocument())
+        for page in 1...KnitNoteBackupLimits.maximumMarkupEntriesPerPattern {
+            try documentData.write(to: owner.appendingPathComponent("\(page + 1_000).json"))
+        }
+        let before = try BackupFixture.childNames(in: package.service.workRoot)
+
+        #expect(throws: KnitNoteBackupError.invalidMarkup) {
+            _ = try package.service.createPackage(appVersion: "1.2.0")
+        }
+
+        #expect(try BackupFixture.childNames(in: package.service.workRoot) == before)
+    }
+
+    @Test(arguments: ["legacy", "usage"])
+    func exportRejectsMarkupOwnerSwapDuringDescriptorDiscovery(
+        _ ownerKind: String
+    ) throws {
+        let package = try ownerKind == "legacy"
+            ? BackupFixture.completePackage()
+            : BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let ownerPath = package.markupRelativePath
+            .split(separator: "/")
+            .dropLast()
+            .joined(separator: "/")
+        let sourceDirectory = package.service.liveRoot.appendingPathComponent(
+            ownerPath,
+            isDirectory: true
+        )
+        let movedDirectory = package.cleanupRoot.appendingPathComponent(
+            "MovedMarkup-\(ownerKind)",
+            isDirectory: true
+        )
+        let replacementDirectory = package.cleanupRoot.appendingPathComponent(
+            "ReplacementMarkup-\(ownerKind)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: replacementDirectory,
+            withIntermediateDirectories: false
+        )
+        try JSONEncoder().encode(PatternMarkupDocument()).write(
+            to: replacementDirectory.appendingPathComponent("0.json")
+        )
+        let swap = StageSourceDirectorySwapInjector(
+            sourceDirectory: sourceDirectory,
+            movedDirectory: movedDirectory,
+            replacementDirectory: replacementDirectory,
+            targetRelativePath: "\(ownerPath)/.enumerating"
+        )
+        let before = try BackupFixture.childNames(in: package.service.workRoot)
+        let service = KnitNoteBackupService(
+            liveRoot: package.service.liveRoot,
+            workRoot: package.service.workRoot,
+            beforeSourceEntryOpen: { try swap.swapOnce(relativePath: $0) }
+        )
+
+        #expect(throws: KnitNoteBackupError.unsafePackageEntry) {
+            _ = try service.createPackage(appVersion: "1.2.0")
+        }
+
+        #expect(swap.didSwap)
+        #expect(try BackupFixture.childNames(in: package.service.workRoot) == before)
+    }
+
+    @Test(arguments: ["legacy", "usage"])
+    func exportRejectsUnsupportedAndSymlinkMarkupEntries(_ ownerKind: String) throws {
+        let package = try ownerKind == "legacy"
+            ? BackupFixture.completePackage()
+            : BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let owner = package.service.liveRoot
+            .appendingPathComponent(package.markupRelativePath)
+            .deletingLastPathComponent()
+        let unsupported = owner.appendingPathComponent("notes.txt")
+        try Data("not markup".utf8).write(to: unsupported)
+
+        #expect(throws: KnitNoteBackupError.unknownPackageEntry) {
+            _ = try package.service.createPackage(appVersion: "1.2.0")
+        }
+
+        try FileManager.default.removeItem(at: unsupported)
+        let symlink = owner.appendingPathComponent("99.json")
+        try FileManager.default.createSymbolicLink(
+            at: symlink,
+            withDestinationURL: package.service.liveRoot
+                .appendingPathComponent(package.markupRelativePath)
+        )
+        #expect(throws: KnitNoteBackupError.unknownPackageEntry) {
+            _ = try package.service.createPackage(appVersion: "1.2.0")
+        }
+    }
+
+    @Test func descriptorMarkupDiscoveryProducesDeterministicManifestOrder() throws {
+        let package = try BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let owner = package.service.liveRoot
+            .appendingPathComponent(package.markupRelativePath)
+            .deletingLastPathComponent()
+        let documentData = try JSONEncoder().encode(PatternMarkupDocument())
+        for page in [9, 1, 7, 3] {
+            try documentData.write(to: owner.appendingPathComponent("\(page).json"))
+        }
+
+        let first = try package.service.createPackage(appVersion: "1.2.0")
+        let second = try package.service.createPackage(appVersion: "1.2.0")
+        let firstManifest = try JSONDecoder().decode(
+            KnitNoteBackupManifest.self,
+            from: Data(contentsOf: first.appendingPathComponent("manifest.json"))
+        )
+        let secondManifest = try JSONDecoder().decode(
+            KnitNoteBackupManifest.self,
+            from: Data(contentsOf: second.appendingPathComponent("manifest.json"))
+        )
+        let firstPaths = firstManifest.files.map(\.relativePath)
+        let secondPaths = secondManifest.files.map(\.relativePath)
+        #expect(firstPaths == firstPaths.sorted {
+            $0.localizedStandardCompare($1) == .orderedAscending
+        })
+        #expect(secondPaths == firstPaths)
+    }
+
     @Test func markupStrokeCapAcceptsExactAndRejectsLimitPlusOne() throws {
         let package = try BackupFixture.completePackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
@@ -1100,6 +1233,89 @@ import Testing
     }
 
     @Test(arguments: [
+        KnitNoteBackupReplacementStep.afterRollbackJournal,
+        .afterRollbackLiveRemoval,
+        .afterRollbackRestore,
+        .afterRollbackFinalized,
+    ])
+    func interruptedRollbackWithOriginalLiveTreeFinishesIdempotently(
+        _ failedStep: KnitNoteBackupReplacementStep
+    ) throws {
+        let fixture = try BackupInstallFixture.make()
+        defer { fixture.cleanup() }
+        let originalBytes = try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        )
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { step in
+                if step == failedStep { throw BackupInstallFixture.InjectedFailure() }
+            }
+        )
+        let installation = try service.install(
+            try service.stagePackage(at: fixture.replacementPackage)
+        )
+
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            try service.rollback(installation)
+        }
+
+        let restarted = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot
+        )
+        #expect(try restarted.recoverInterruptedReplacement() == nil)
+        #expect(try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        ) == originalBytes)
+        #expect(try fixture.rollbackRoots().isEmpty)
+        #expect(!FileManager.default.fileExists(
+            atPath: fixture.workRoot.appendingPathComponent(".ReplacementJournal.json").path
+        ))
+        #expect(try restarted.recoverInterruptedReplacement() == nil)
+    }
+
+    @Test(arguments: [
+        KnitNoteBackupReplacementStep.afterRollbackJournal,
+        .afterRollbackLiveRemoval,
+        .afterRollbackRestore,
+        .afterRollbackFinalized,
+    ])
+    func interruptedRollbackWithoutOriginalLiveTreeFinishesIdempotently(
+        _ failedStep: KnitNoteBackupReplacementStep
+    ) throws {
+        let fixture = try BackupInstallFixture.make(hadLiveRoot: false)
+        defer { fixture.cleanup() }
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { step in
+                if step == failedStep { throw BackupInstallFixture.InjectedFailure() }
+            }
+        )
+        let installation = try service.install(
+            try service.stagePackage(at: fixture.replacementPackage)
+        )
+
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            try service.rollback(installation)
+        }
+
+        let restarted = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot
+        )
+        #expect(try restarted.recoverInterruptedReplacement() == nil)
+        #expect(!FileManager.default.fileExists(atPath: fixture.liveRoot.path))
+        #expect(try fixture.rollbackRoots().isEmpty)
+        #expect(!FileManager.default.fileExists(
+            atPath: fixture.workRoot.appendingPathComponent(".ReplacementJournal.json").path
+        ))
+        #expect(try restarted.recoverInterruptedReplacement() == nil)
+    }
+
+    @Test(arguments: [
         KnitNoteBackupReplacementStep.beforeLiveMove,
         .afterLiveMove,
         .afterStagedMove,
@@ -1203,6 +1419,35 @@ import Testing
         }
 
         #expect(try fixture.liveArchiveName() == "original")
+    }
+
+    @Test func replacementRecoveryFailsClosedForCorruptJournal() throws {
+        let fixture = try BackupInstallFixture.make()
+        defer { fixture.cleanup() }
+        let installation = try fixture.service.install(
+            try fixture.service.stagePackage(at: fixture.replacementPackage)
+        )
+        let liveBytes = try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        )
+        let rollbackBytes = try Data(
+            contentsOf: installation.rollbackRoot.appendingPathComponent("projects-v1.json")
+        )
+        try Data("{\"phase\":\"rollingBack\"}".utf8).write(
+            to: fixture.workRoot.appendingPathComponent(".ReplacementJournal.json"),
+            options: .atomic
+        )
+
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            _ = try fixture.service.recoverInterruptedReplacement()
+        }
+
+        #expect(try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        ) == liveBytes)
+        #expect(try Data(
+            contentsOf: installation.rollbackRoot.appendingPathComponent("projects-v1.json")
+        ) == rollbackBytes)
     }
 
     @Test func installRejectsStagedRootSymlinkBeforeTouchingLive() throws {
@@ -1464,7 +1709,8 @@ private struct BackupInstallFixture {
     let service: KnitNoteBackupService
 
     static func make(
-        failingAt failedStep: KnitNoteBackupReplacementStep? = nil
+        failingAt failedStep: KnitNoteBackupReplacementStep? = nil,
+        hadLiveRoot: Bool = true
     ) throws -> Self {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1475,7 +1721,9 @@ private struct BackupInstallFixture {
         try writeArchive(named: "replacement", to: liveRoot)
         let replacementPackage = try packageBuilder.createPackage(appVersion: "1.0")
         try FileManager.default.removeItem(at: liveRoot)
-        try writeArchive(named: "original", to: liveRoot)
+        if hadLiveRoot {
+            try writeArchive(named: "original", to: liveRoot)
+        }
         let service = KnitNoteBackupService(
             liveRoot: liveRoot,
             workRoot: workRoot,

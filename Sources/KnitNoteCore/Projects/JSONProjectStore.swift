@@ -898,6 +898,18 @@ final class PatternLibraryDeletionTransaction {
         id: UUID,
         selectingPatternID: UUID? = nil
     ) async throws -> PatternImportOutcome {
+        try await withActivePatternTransaction {
+            try await processPatternInboxItemWithoutTransaction(
+                id: id,
+                selectingPatternID: selectingPatternID
+            )
+        }
+    }
+
+    private func processPatternInboxItemWithoutTransaction(
+        id: UUID,
+        selectingPatternID: UUID?
+    ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
         let inbox = try requiredPatternInboxFileService()
         let files = try requiredPatternFileService()
@@ -905,8 +917,6 @@ final class PatternLibraryDeletionTransaction {
             throw PatternInboxError.itemNotFound
         }
         let capturedGeneration = dataGeneration
-        activePatternTransactions += 1
-        defer { activePatternTransactions -= 1 }
 
         let coordinator = PatternImportCoordinator()
         let prepared = try await Task.detached(priority: .userInitiated) {
@@ -957,19 +967,24 @@ final class PatternLibraryDeletionTransaction {
         targetProjectID: UUID?,
         now: Date
     ) async throws -> PatternImportOutcome {
-        try ensureArchiveAvailable()
-        let inbox = try requiredPatternInboxFileService()
-        let item = try await Task.detached(priority: .userInitiated) {
+        try await withActivePatternTransaction {
+            try ensureArchiveAvailable()
+            let inbox = try requiredPatternInboxFileService()
+            let item = try await Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                return try inbox.enqueue(
+                    source: source,
+                    origin: origin,
+                    targetProjectID: targetProjectID,
+                    now: now
+                )
+            }.value
             try Task.checkCancellation()
-            return try inbox.enqueue(
-                source: source,
-                origin: origin,
-                targetProjectID: targetProjectID,
-                now: now
+            return try await processPatternInboxItemWithoutTransaction(
+                id: item.id,
+                selectingPatternID: nil
             )
-        }.value
-        try Task.checkCancellation()
-        return try await processPatternInboxItem(id: item.id)
+        }
     }
     public func deletePattern(projectID: UUID, id: UUID) throws {
         try ensureArchiveAvailable()
@@ -1888,6 +1903,14 @@ final class PatternLibraryDeletionTransaction {
             throw KnitNoteBackupError.operationInProgress
         }
         isDataOperationInProgress = true
+    }
+
+    private func withActivePatternTransaction<Result>(
+        _ operation: () async throws -> Result
+    ) async rethrows -> Result {
+        activePatternTransactions += 1
+        defer { activePatternTransactions -= 1 }
+        return try await operation()
     }
 
     private enum OwnedBackupArtifactKind {

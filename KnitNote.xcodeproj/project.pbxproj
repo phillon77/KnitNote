@@ -7,6 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A11111111111111111111111 /* ChooseLibraryPatternView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11111111111111111111111 /* ChooseLibraryPatternView.swift */; };
+		A22222222222222222222222 /* PatternImportResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22222222222222222222222 /* PatternImportResultView.swift */; };
+		A33333333333333333333333 /* ProjectPatternLinkIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = B33333333333333333333333 /* ProjectPatternLinkIndex.swift */; };
+		A44444444444444444444444 /* ProjectPatternImportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44444444444444444444444 /* ProjectPatternImportPresentation.swift */; };
+		D00000000000000000000001 /* PatternProjectUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000001 /* PatternProjectUsage.swift */; };
+		D00000000000000000000002 /* PatternInboxFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000002 /* PatternInboxFileService.swift */; };
+		D00000000000000000000003 /* PatternReaderContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000003 /* PatternReaderContext.swift */; };
+		D00000000000000000000004 /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000004 /* PatternAsset.swift */; };
+		D00000000000000000000005 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000005 /* StoredPattern.swift */; };
+		D00000000000000000000006 /* PatternLibraryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000006 /* PatternLibraryIndex.swift */; };
+		D00000000000000000000007 /* PatternLibraryImportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000007 /* PatternLibraryImportPresentation.swift */; };
+		D00000000000000000000008 /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000008 /* PatternInboxItem.swift */; };
+		D00000000000000000000009 /* PatternImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000009 /* PatternImportCoordinator.swift */; };
+		D00000000000000000000010 /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000010 /* PatternLibraryMigrator.swift */; };
+		D00000000000000000000011 /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000011 /* PatternStorageLocations.swift */; };
+		D00000000000000000000012 /* ChoosePatternReadingContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000012 /* ChoosePatternReadingContextView.swift */; };
+		D00000000000000000000013 /* PatternLibrarySort.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000013 /* PatternLibrarySort.swift */; };
+		D00000000000000000000014 /* PatternLibraryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000014 /* PatternLibraryRow.swift */; };
+		D00000000000000000000015 /* PatternDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000015 /* PatternDetailView.swift */; };
+		E00000000000000000000001 /* PatternProjectUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000001 /* PatternProjectUsage.swift */; };
+		E00000000000000000000002 /* PatternInboxFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000002 /* PatternInboxFileService.swift */; };
+		E00000000000000000000004 /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000004 /* PatternAsset.swift */; };
+		E00000000000000000000005 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000005 /* StoredPattern.swift */; };
+		E00000000000000000000008 /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000008 /* PatternInboxItem.swift */; };
+		E00000000000000000000009 /* PatternImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000009 /* PatternImportCoordinator.swift */; };
+		E00000000000000000000010 /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000010 /* PatternLibraryMigrator.swift */; };
+		E00000000000000000000011 /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000011 /* PatternStorageLocations.swift */; };
 		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
 		01969CEC3E446A5A02192151 /* YarnEditorFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */; };
@@ -193,6 +220,25 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B11111111111111111111111 /* ChooseLibraryPatternView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseLibraryPatternView.swift; sourceTree = "<group>"; };
+		B22222222222222222222222 /* PatternImportResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternImportResultView.swift; sourceTree = "<group>"; };
+		B33333333333333333333333 /* ProjectPatternLinkIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternLinkIndex.swift; sourceTree = "<group>"; };
+		B44444444444444444444444 /* ProjectPatternImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternImportPresentation.swift; sourceTree = "<group>"; };
+		C00000000000000000000001 /* PatternProjectUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternProjectUsage.swift; sourceTree = "<group>"; };
+		C00000000000000000000002 /* PatternInboxFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxFileService.swift; sourceTree = "<group>"; };
+		C00000000000000000000003 /* PatternReaderContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderContext.swift; sourceTree = "<group>"; };
+		C00000000000000000000004 /* PatternAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternAsset.swift; sourceTree = "<group>"; };
+		C00000000000000000000005 /* StoredPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredPattern.swift; sourceTree = "<group>"; };
+		C00000000000000000000006 /* PatternLibraryIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryIndex.swift; sourceTree = "<group>"; };
+		C00000000000000000000007 /* PatternLibraryImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryImportPresentation.swift; sourceTree = "<group>"; };
+		C00000000000000000000008 /* PatternInboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxItem.swift; sourceTree = "<group>"; };
+		C00000000000000000000009 /* PatternImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternImportCoordinator.swift; sourceTree = "<group>"; };
+		C00000000000000000000010 /* PatternLibraryMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryMigrator.swift; sourceTree = "<group>"; };
+		C00000000000000000000011 /* PatternStorageLocations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternStorageLocations.swift; sourceTree = "<group>"; };
+		C00000000000000000000012 /* ChoosePatternReadingContextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternReadingContextView.swift; sourceTree = "<group>"; };
+		C00000000000000000000013 /* PatternLibrarySort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibrarySort.swift; sourceTree = "<group>"; };
+		C00000000000000000000014 /* PatternLibraryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryRow.swift; sourceTree = "<group>"; };
+		C00000000000000000000015 /* PatternDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternDetailView.swift; sourceTree = "<group>"; };
 		02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoFileService.swift; sourceTree = "<group>"; };
 		07AC936135E44C341839B236 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchTimeline.swift; sourceTree = "<group>"; };
@@ -321,16 +367,22 @@
 		00FA7869BBC2022A1F3126E0 /* Patterns */ = {
 			isa = PBXGroup;
 			children = (
+				B11111111111111111111111 /* ChooseLibraryPatternView.swift */,
+				C00000000000000000000012 /* ChoosePatternReadingContextView.swift */,
 				1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */,
 				84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */,
 				9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */,
 				45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */,
 				27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */,
+				C00000000000000000000015 /* PatternDetailView.swift */,
+				C00000000000000000000014 /* PatternLibraryRow.swift */,
+				C00000000000000000000013 /* PatternLibrarySort.swift */,
 				70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */,
 				2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */,
 				90CE1C0101996F572112D739 /* PatternReaderControls.swift */,
 				3C207C026A98D9C668822C9A /* PatternReaderView.swift */,
 				F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */,
+				B22222222222222222222222 /* PatternImportResultView.swift */,
 				459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */,
 			);
 			path = Patterns;
@@ -507,12 +559,25 @@
 		8D4DBBB5F086B5F2BE0A2692 /* Patterns */ = {
 			isa = PBXGroup;
 			children = (
+				C00000000000000000000004 /* PatternAsset.swift */,
 				99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */,
 				68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */,
+				C00000000000000000000009 /* PatternImportCoordinator.swift */,
+				C00000000000000000000002 /* PatternInboxFileService.swift */,
+				C00000000000000000000008 /* PatternInboxItem.swift */,
+				C00000000000000000000007 /* PatternLibraryImportPresentation.swift */,
+				C00000000000000000000006 /* PatternLibraryIndex.swift */,
+				C00000000000000000000010 /* PatternLibraryMigrator.swift */,
 				4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */,
 				6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */,
+				C00000000000000000000001 /* PatternProjectUsage.swift */,
+				C00000000000000000000003 /* PatternReaderContext.swift */,
+				C00000000000000000000011 /* PatternStorageLocations.swift */,
+				B44444444444444444444444 /* ProjectPatternImportPresentation.swift */,
+				B33333333333333333333333 /* ProjectPatternLinkIndex.swift */,
 				6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */,
 				FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */,
+				C00000000000000000000005 /* StoredPattern.swift */,
 			);
 			path = Patterns;
 			sourceTree = "<group>";
@@ -770,6 +835,8 @@
 				997DEDA5DBCE086E364F52E3 /* BackupSettingsSection.swift in Sources */,
 				4738B2850ED925926970AEE2 /* CameraCapturePhotoEncoder.swift in Sources */,
 				EA6EC18E3BA8C13E7F88D518 /* CameraCaptureView.swift in Sources */,
+				A11111111111111111111111 /* ChooseLibraryPatternView.swift in Sources */,
+				D00000000000000000000012 /* ChoosePatternReadingContextView.swift in Sources */,
 				57027A881A62D015E3538D3C /* ChoosePatternProjectView.swift in Sources */,
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
 				C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */,
@@ -808,16 +875,33 @@
 				6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */,
 				D9D96422EAA83DBC4E03A060 /* PaintingOverlayRegion.swift in Sources */,
 				E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */,
+				D00000000000000000000004 /* PatternAsset.swift in Sources */,
 				99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */,
+				D00000000000000000000009 /* PatternImportCoordinator.swift in Sources */,
+				A22222222222222222222222 /* PatternImportResultView.swift in Sources */,
+				D00000000000000000000002 /* PatternInboxFileService.swift in Sources */,
+				D00000000000000000000008 /* PatternInboxItem.swift in Sources */,
+				D00000000000000000000007 /* PatternLibraryImportPresentation.swift in Sources */,
+				D00000000000000000000006 /* PatternLibraryIndex.swift in Sources */,
 				0C5577C16097062613E39E51 /* PatternLibraryView.swift in Sources */,
+				D00000000000000000000010 /* PatternLibraryMigrator.swift in Sources */,
+				D00000000000000000000014 /* PatternLibraryRow.swift in Sources */,
+				D00000000000000000000013 /* PatternLibrarySort.swift in Sources */,
 				FDD10510A53A1E0DE226355B /* PatternMarkup.swift in Sources */,
 				F7BFE7FD7E58B7487B0D7018 /* PatternMarkupFileService.swift in Sources */,
+				D00000000000000000000015 /* PatternDetailView.swift in Sources */,
+				D00000000000000000000001 /* PatternProjectUsage.swift in Sources */,
+				D00000000000000000000003 /* PatternReaderContext.swift in Sources */,
+				D00000000000000000000011 /* PatternStorageLocations.swift in Sources */,
+				A44444444444444444444444 /* ProjectPatternImportPresentation.swift in Sources */,
+				A33333333333333333333333 /* ProjectPatternLinkIndex.swift in Sources */,
 				1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */,
 				2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */,
 				F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */,
 				E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */,
 				68362824FB4BC12615282608 /* PatternReaderView.swift in Sources */,
 				E6CEF9520B8FF5240924A1BE /* PatternThumbnailFileService.swift in Sources */,
+				D00000000000000000000005 /* StoredPattern.swift in Sources */,
 				2DD65ED0D2A50114ED195600 /* PhoneWatchSession.swift in Sources */,
 				065C3AC0BD242A4650F3550E /* PhoneWatchSyncCoordinator.swift in Sources */,
 				461C5C4F403AA6DA585E97F0 /* PreparedWatchCommand.swift in Sources */,
@@ -889,11 +973,19 @@
 				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
 				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,
 				20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */,
+				E00000000000000000000004 /* PatternAsset.swift in Sources */,
 				DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */,
+				E00000000000000000000009 /* PatternImportCoordinator.swift in Sources */,
+				E00000000000000000000002 /* PatternInboxFileService.swift in Sources */,
+				E00000000000000000000008 /* PatternInboxItem.swift in Sources */,
+				E00000000000000000000010 /* PatternLibraryMigrator.swift in Sources */,
 				5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */,
 				CE0C9AB59E4E7FB73A73A1C1 /* PatternMarkupFileService.swift in Sources */,
+				E00000000000000000000001 /* PatternProjectUsage.swift in Sources */,
 				D70477783D80381ABCF01AFF /* PatternReaderLayoutPolicy.swift in Sources */,
+				E00000000000000000000011 /* PatternStorageLocations.swift in Sources */,
 				5DE73E33FECB15961D48E385 /* PatternThumbnailFileService.swift in Sources */,
+				E00000000000000000000005 /* StoredPattern.swift in Sources */,
 				BF2BD6977779AC88E600D271 /* PreparedWatchCommand.swift in Sources */,
 				1AFA6889382728256AB9F0A1 /* ProcessedWatchCommandLedger.swift in Sources */,
 				829313A3B81FEE7B46C7EEA5 /* ProjectCounter.swift in Sources */,

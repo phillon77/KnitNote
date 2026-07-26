@@ -33,6 +33,24 @@ Implemented only project-side pattern linking, relinking, unlinking, and durable
 - Real iOS Simulator and macOS SwiftUI type-checks of every `KnitNote` and `Sources/KnitNoteCore` Swift file passed with zero errors. Existing Sendable warnings remain in backup and journal-photo services.
 - `jq empty` passed for `Localizable.xcstrings`; Swift parse passed for every touched Swift file; `git diff --check` passed.
 
+## Review Fix Round 1
+
+- Added an executable PBX membership test that resolves native targets, Sources phases, build files, and file references instead of grepping comments. It proved the new Task 8 files were absent from the App target.
+- The first genuine Xcode builds exposed 15 cumulative Task 5–7 pattern sources that were already consumed by production but still absent from the canonical project. Added those sources to the App target and only the eight shared Core dependencies required by the existing Watch `JSONProjectStore`; App UI, library presentation, reader context, and Task 8 sources remain excluded from Watch. The membership test also rejects duplicate source membership.
+- Reproduced the import transaction gap with a blocked inbox move: backup export and restore both entered while the candidate copy was in flight, and export could remove the candidate. One outer async pattern transaction now owns enqueue → prepare → publish, while public processing owns its own non-nested transaction scope. Success, injected failure, and cancellation all release the gate.
+- Added a pure operation coordinator with executable tests for replacement, cancellation, and stale-result rejection. `PatternImportResultView` stores one task, cancels before replacement, cancels from the toolbar and on disappearance, and publishes UI state only for the current operation identity.
+- Files picker failures are no longer ignored. Every pattern-file, inbox, library/store, picker, cancellation, and fallback failure maps to concise localized presentation instead of `localizedDescription`. The error alert exposes the localized message to VoiceOver.
+- Added exact English and Traditional Chinese copy for empty, oversized, invalid, storage, missing-project, cancelled, picker, and fallback failures.
+
+## Review Fix Round 1 Verification
+
+- Membership RED failed for the missing App and shared Watch Core sources; the final executable membership test passed with no duplicate source entries.
+- Transaction RED allowed both export and restore during blocked enqueue. Three success/failure/cancellation transaction tests passed after the fix, and 52 import/library/fault compatibility tests passed.
+- Operation coordinator RED failed to compile because the type did not exist. Two coordinator tests and the identity-checked UI wiring contract passed after the fix.
+- Error mapping RED failed to compile on the missing mapper/context/message types, and localization/UI contracts failed on missing catalog entries and ignored picker failures. The final presentation, UI, localization, and membership focused run passed 14 tests.
+- Full regression after the review fixes: `swift test --quiet` passed 727 tests in 58 suites.
+- Canonical `xcodebuild` Debug builds passed for both the generic iOS Simulator `KnitNote` scheme (including its Watch dependency) and the generic macOS `KnitNote` scheme with code signing disabled.
+
 ## Files
 
 - `Sources/KnitNoteCore/Patterns/ProjectPatternLinkIndex.swift`

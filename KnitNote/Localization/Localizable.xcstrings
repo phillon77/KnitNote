@@ -1642,6 +1642,54 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇已收藏的織圖" } }
       }
     },
+    "patterns.import.error.cancelled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The import was cancelled." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入已取消。" } }
+      }
+    },
+    "patterns.import.error.empty" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file is empty." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個檔案是空的。" } }
+      }
+    },
+    "patterns.import.error.fileSelection" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected file could not be opened." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法開啟所選檔案。" } }
+      }
+    },
+    "patterns.import.error.invalidFile" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a valid PDF or image file." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請選擇有效的 PDF 或圖片檔案。" } }
+      }
+    },
+    "patterns.import.error.projectUnavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This project is no longer available." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這件作品已不存在。" } }
+      }
+    },
+    "patterns.import.error.storage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern could not be saved. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存織圖，請再試一次。" } }
+      }
+    },
+    "patterns.import.error.tooLarge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file is too large to import." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個檔案太大，無法匯入。" } }
+      }
+    },
+    "patterns.import.error.unexpected" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern could not be imported. Please try again." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法匯入織圖，請再試一次。" } }
+      }
+    },
     "patterns.import.files" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose File" } },

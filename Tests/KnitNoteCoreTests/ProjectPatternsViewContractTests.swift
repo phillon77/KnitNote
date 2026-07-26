@@ -47,6 +47,27 @@ import Testing
         #expect(source.contains("data.write(to:"))
     }
 
+    @Test func projectImportOwnsOneCancellableIdentityCheckedTask() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternImportResultView.swift")
+
+        #expect(source.contains("@State private var importTask: Task<Void, Never>?"))
+        #expect(source.contains("ProjectPatternImportOperationCoordinator"))
+        #expect(source.contains("operationCoordinator.finishIfCurrent(operationID)"))
+        #expect(source.contains("importTask?.cancel()"))
+        #expect(source.contains(".onDisappear"))
+        #expect(source.contains("cancelCurrentOperation()"))
+    }
+
+    @Test func projectImportSurfacesPickerAndOperationFailuresWithoutRawDescriptions() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternImportResultView.swift")
+
+        #expect(source.contains("case let .failure(error)"))
+        #expect(source.contains("ProjectPatternImportErrorMapper.message("))
+        #expect(source.contains("context: .filePicker"))
+        #expect(source.contains("@State private var errorMessage: LocalizedStringKey?"))
+        #expect(!source.contains("error.localizedDescription"))
+    }
+
     @Test func completedProjectReaderUsesItsReadOnlyProjectContext() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
 

@@ -17,10 +17,11 @@ struct PatternImportResultView: View {
 
     @State private var showingFileImporter = false
     @State private var showingCamera = false
-    @State private var isImporting = false
+    @State private var operationCoordinator = ProjectPatternImportOperationCoordinator()
+    @State private var importTask: Task<Void, Never>?
     @State private var successMessage: LocalizedStringKey?
     @State private var pendingSelection: ProjectPatternDuplicateSelection?
-    @State private var errorMessage: String?
+    @State private var errorMessage: LocalizedStringKey?
 
     var body: some View {
         NavigationStack {
@@ -46,6 +47,7 @@ struct PatternImportResultView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(successMessage == nil ? "common.cancel" : "common.done") {
+                        cancelCurrentOperation()
                         dismiss()
                     }
                 }
@@ -73,10 +75,20 @@ struct PatternImportResultView: View {
             ) {
                 Button("common.ok") {}
             } message: {
-                Text(errorMessage ?? "")
+                Text(errorMessage ?? "patterns.import.error.unexpected")
+                    .accessibilityLabel(
+                        Text(errorMessage ?? "patterns.import.error.unexpected")
+                    )
             }
         }
         .tint(WatercolorTheme.actionBerry)
+        .onDisappear {
+            cancelCurrentOperation()
+        }
+    }
+
+    private var isImporting: Bool {
+        operationCoordinator.isRunning
     }
 
     private var sourceChooser: some View {
@@ -132,67 +144,102 @@ struct PatternImportResultView: View {
     }
 
     private func importFileResult(_ result: Result<URL, Error>) {
-        guard case let .success(url) = result else { return }
-        Task { @MainActor in
-            let access = url.startAccessingSecurityScopedResource()
-            defer { if access { url.stopAccessingSecurityScopedResource() } }
-            await importSource(url)
+        switch result {
+        case let .success(url):
+            startOperation {
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                return try await store.importPatternFromProject(
+                    url,
+                    projectID: projectID
+                )
+            }
+        case let .failure(error):
+            presentError(error, context: .filePicker)
         }
     }
 
     private func importCameraData(_ data: Data) {
-        Task { @MainActor in
+        startOperation {
+            let name = String(
+                localized: "patterns.import.cameraName",
+                locale: locale
+            )
+            let url = try await ProjectPatternCameraTemporaryFile.write(
+                data: data,
+                displayName: name
+            )
             do {
-                let name = String(
-                    localized: "patterns.import.cameraName",
-                    locale: locale
+                let outcome = try await store.importPatternFromProject(
+                    url,
+                    projectID: projectID
                 )
-                let url = try await ProjectPatternCameraTemporaryFile.write(
-                    data: data,
-                    displayName: name
-                )
-                await importSource(url)
                 await ProjectPatternCameraTemporaryFile.remove(url)
+                return outcome
             } catch {
-                isImporting = false
-                errorMessage = error.localizedDescription
+                await ProjectPatternCameraTemporaryFile.remove(url)
+                throw error
             }
         }
     }
 
-    private func importSource(_ url: URL) async {
-        isImporting = true
+    private func startOperation(
+        _ operation: @escaping @MainActor () async throws -> PatternImportOutcome
+    ) {
+        cancelCurrentOperation()
+        let operationID = operationCoordinator.begin()
         errorMessage = nil
-        do {
-            let outcome = try await store.importPatternFromProject(
-                url,
-                projectID: projectID
-            )
-            accept(outcome)
-        } catch {
-            isImporting = false
-            errorMessage = error.localizedDescription
+        importTask = Task { @MainActor in
+            do {
+                let outcome = try await operation()
+                try Task.checkCancellation()
+                guard operationCoordinator.finishIfCurrent(operationID) else {
+                    return
+                }
+                importTask = nil
+                accept(outcome)
+            } catch is CancellationError {
+                guard operationCoordinator.finishIfCurrent(operationID) else {
+                    return
+                }
+                importTask = nil
+            } catch {
+                guard operationCoordinator.finishIfCurrent(operationID) else {
+                    return
+                }
+                importTask = nil
+                presentError(error)
+            }
         }
     }
 
     private func resolveDuplicate(itemID: UUID, patternID: UUID) {
-        Task { @MainActor in
-            isImporting = true
-            do {
-                let outcome = try await store.processPatternInboxItem(
-                    id: itemID,
-                    selectingPatternID: patternID
-                )
-                accept(outcome)
-            } catch {
-                isImporting = false
-                errorMessage = error.localizedDescription
-            }
+        startOperation {
+            try await store.processPatternInboxItem(
+                id: itemID,
+                selectingPatternID: patternID
+            )
         }
     }
 
+    private func cancelCurrentOperation() {
+        operationCoordinator.cancel()
+        importTask?.cancel()
+        importTask = nil
+    }
+
+    private func presentError(
+        _ error: any Error,
+        context: ProjectPatternImportFailureContext = .operation
+    ) {
+        let message = ProjectPatternImportErrorMapper.message(
+            for: error,
+            context: context
+        )
+        errorMessage = LocalizedStringKey(message.rawValue)
+    }
+
     private func accept(_ outcome: PatternImportOutcome) {
-        isImporting = false
         switch outcome {
         case .created:
             pendingSelection = nil

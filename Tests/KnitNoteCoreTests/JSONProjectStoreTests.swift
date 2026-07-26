@@ -1236,6 +1236,95 @@ import UniformTypeIdentifiers
     fixture.store.cancelBackupRestore(staged)
 }
 
+@MainActor @Test func projectPatternEnqueueRejectsExportAndRestoreUntilPublicationCompletes() async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(patternInboxBlocker: blocker)
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+    let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+    let projectID = try #require(fixture.store.projects.first?.id)
+    let source = fixture.root.appendingPathComponent("project-pattern.pdf")
+    try makeStorePatternPDF(at: source)
+    let patternImport = Task { @MainActor in
+        try await fixture.store.importPatternFromProject(source, projectID: projectID)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        _ = try await fixture.store.exportBackup(appVersion: "1.0")
+    }
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        try await fixture.store.restoreBackup(staged)
+    }
+    #expect(!fixture.store.isDataOperationInProgress)
+
+    blocker.resume()
+    _ = try await patternImport.value
+
+    let artifact = try await fixture.store.exportBackup(appVersion: "1.0")
+    fixture.store.cleanupBackupArtifact(at: artifact)
+    fixture.store.cancelBackupRestore(staged)
+}
+
+@MainActor @Test func failedProjectPatternEnqueueReleasesTheBackupGate() async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(
+        patternInboxBlocker: blocker,
+        failPatternInboxMove: true
+    )
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+    let projectID = try #require(fixture.store.projects.first?.id)
+    let source = fixture.root.appendingPathComponent("failed-project-pattern.pdf")
+    try makeStorePatternPDF(at: source)
+    let patternImport = Task { @MainActor in
+        try await fixture.store.importPatternFromProject(source, projectID: projectID)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    await #expect(throws: KnitNoteBackupError.operationInProgress) {
+        _ = try await fixture.store.exportBackup(appVersion: "1.0")
+    }
+    blocker.resume()
+    await #expect(throws: (any Error).self) {
+        try await patternImport.value
+    }
+
+    let artifact = try await fixture.store.exportBackup(appVersion: "1.0")
+    fixture.store.cleanupBackupArtifact(at: artifact)
+}
+
+@MainActor @Test func cancelledProjectPatternEnqueueReleasesTheBackupGateWithoutPublishing() async throws {
+    let blocker = StoreOperationBlocker()
+    let fixture = try StoreBackupFixture.make(patternInboxBlocker: blocker)
+    defer {
+        blocker.resume()
+        fixture.cleanup()
+    }
+    let projectID = try #require(fixture.store.projects.first?.id)
+    let source = fixture.root.appendingPathComponent("cancelled-project-pattern.pdf")
+    try makeStorePatternPDF(at: source)
+    let patternImport = Task { @MainActor in
+        try await fixture.store.importPatternFromProject(source, projectID: projectID)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    patternImport.cancel()
+    blocker.resume()
+    await #expect(throws: CancellationError.self) {
+        try await patternImport.value
+    }
+    #expect(fixture.store.patterns.isEmpty)
+    #expect(fixture.store.patternUsages.isEmpty)
+
+    let artifact = try await fixture.store.exportBackup(appVersion: "1.0")
+    fixture.store.cleanupBackupArtifact(at: artifact)
+}
+
 @MainActor @Test(arguments: [
     KnitNoteBackupReplacementStep.beforeLiveMove,
     .afterLiveMove,
@@ -1618,6 +1707,8 @@ private struct StoreLaunchRecoveryFixture {
         stageBlocker: StoreOperationBlocker? = nil,
         journalBlocker: StoreOperationBlocker? = nil,
         patternBlocker: StoreOperationBlocker? = nil,
+        patternInboxBlocker: StoreOperationBlocker? = nil,
+        failPatternInboxMove: Bool = false,
         replacementBlocker: StoreOperationBlocker? = nil,
         blockedReplacementStep: KnitNoteBackupReplacementStep = .afterStagedMove,
         corruptInstalledArchive: Bool = false,
@@ -1717,10 +1808,28 @@ private struct StoreLaunchRecoveryFixture {
         } else {
             patternService = nil
         }
+        let patternInboxService: PatternInboxFileService?
+        if let patternInboxBlocker {
+            patternInboxService = PatternInboxFileService(
+                root: liveRoot.appendingPathComponent("PatternInbox"),
+                moveItem: { source, destination in
+                    patternInboxBlocker.blockOnce()
+                    if failPatternInboxMove {
+                        throw InjectedFailure()
+                    }
+                    try FileManager.default.moveItem(at: source, to: destination)
+                },
+                removeItem: { try FileManager.default.removeItem(at: $0) },
+                writeData: { try $0.write(to: $1, options: .atomic) }
+            )
+        } else {
+            patternInboxService = nil
+        }
         let store = JSONProjectStore(
             url: archiveURL,
             journalPhotoService: journalService,
             patternFileService: patternService,
+            patternInboxFileService: patternInboxService,
             backupService: service
         )
         return Self(

@@ -7,7 +7,8 @@ design:
 
 - persist the last successful manual export date;
 - update it only after `.fileExporter` reports success;
-- show one local-storage reminder after the first `.created` library import;
+- show one local-storage reminder after the first `.created` pattern from any
+  supported import entry point;
 - persist reminder dismissal and never repeat it;
 - provide a direct route from the reminder to the existing manual backup
   settings surface;
@@ -27,9 +28,12 @@ defined by the canonical Task 12 documents.
   branch. Cancellation and failure explicitly preserve the previous date.
 - Added a localized, VoiceOver-combined Settings row showing either the saved
   date or “Never” / “尚未備份”.
-- Added the one-time local-only reminder to `PatternLibraryView`. `.existing`
-  and `.needsSelection` outcomes never trigger it. Dismissing either action
-  records the reminder as shown; the settings action presents the existing
+- Added one shared `PatternBackupReminderCoordinator` and one app-owned
+  presenter. The library importer, project importer, and Share Extension inbox
+  processor all feed their durable import outcomes through that presenter.
+  `.existing`, `.needsSelection`, cancellation, and failure never trigger the
+  reminder. Dismissing either action records the reminder as shown before the
+  settings route can open; the settings action presents the existing
   `BackupSettingsSection`.
 - Regenerated `KnitNote.xcodeproj` so the new core source belongs to the
   generated app targets.
@@ -64,18 +68,18 @@ absent.
 
 ### UI GREEN
 
-`swift test --filter 'BackupHistoryTests|BackupSettingsViewContractTests'`
+`swift test --scratch-path /tmp/KnitNoteTask12Green --filter 'BackupHistoryTests|BackupSettingsViewContractTests'`
 
-Passed 14 tests in 2 suites.
+Passed 17 tests in 2 suites, including:
+
+- all three `.created` import entry points schedule the same one-shot reminder;
+- `.existing`, `.needsSelection`, cancellation, and failure do not schedule it;
+- dismissal persists `patterns.backupReminderShown` before opening Settings.
 
 ## Final Verification
 
-- `swift test`
-  - final rerun: 812 tests in 68 suites passed in 44.415 seconds;
-  - an earlier run had one existing high-load timing failure in
-    `exportSerializesProjectYarnAndJournalMutations`;
-  - the failed test passed in isolation in 0.199 seconds and passed again in the
-    final full parallel rerun; no unrelated gate code or test was changed.
+- `swift test --scratch-path /tmp/KnitNoteTask12Green`
+  - final rerun: 815 tests in 68 suites passed in 39.246 seconds.
 - Fresh independent builds with `CODE_SIGNING_ALLOWED=NO`:
   - iOS app: exit 0;
   - macOS app: exit 0;

@@ -106,19 +106,25 @@ import Testing
 
     @Test func createdLibraryImportShowsOneLocalOnlyReminderAndDismissalPersistsIt() throws {
         let library = try source("KnitNote/Patterns/PatternLibraryView.swift")
-        let outcomeHandling = try textBetween(
-            library,
-            start: "private func acceptImportOutcome(",
-            end: "private func chooseDuplicate("
-        )
+        let projectImporter = try source("KnitNote/Patterns/PatternImportResultView.swift")
+        let inboxProcessor = try source("KnitNote/Patterns/PatternInboxProcessor.swift")
+        let app = try source("KnitNote/App/KnitNoteApp.swift")
+        let root = try source("KnitNote/App/RootView.swift")
 
-        #expect(outcomeHandling.contains("case .created"))
-        #expect(outcomeHandling.contains("backupHistory.hasShownPatternReminder"))
-        #expect(library.contains("backupHistory.markPatternReminderShown()"))
-        #expect(library.contains("patterns.backup.reminder.title"))
-        #expect(library.contains("patterns.backup.reminder.message"))
-        #expect(library.contains("patterns.backup.reminder.settings"))
-        #expect(!library.contains("UNUserNotificationCenter"))
+        #expect(library.contains("backupReminderPresenter.accept(outcome)"))
+        #expect(projectImporter.contains("backupReminderPresenter.accept(outcome)"))
+        #expect(inboxProcessor.contains("backupReminderPresenter.accept(update.imported)"))
+        #expect(app.contains("PatternBackupReminderPresenter()"))
+        #expect(app.contains(".environmentObject(patternBackupReminderPresenter)"))
+        #expect(root.contains("patterns.backup.reminder.title"))
+        #expect(root.contains("patterns.backup.reminder.message"))
+        #expect(root.contains("patterns.backup.reminder.settings"))
+        #expect(root.contains("backupReminderPresenter.dismiss("))
+        #expect(root.contains("BackupSettingsSection()"))
+        #expect(!library.contains("BackupHistory()"))
+        #expect(!projectImporter.contains("BackupHistory()"))
+        #expect(!inboxProcessor.contains("BackupHistory()"))
+        #expect(!root.contains("UNUserNotificationCenter"))
     }
 
     @Test func backupExtensionIsExportedAsASelectablePackageDocument() throws {

@@ -10,6 +10,7 @@ private struct PendingPatternSelection: Identifiable {
 struct PatternLibraryView: View {
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
     @State private var navigationPath: [UUID] = []
     @State private var query = ""
     @State private var sort = PatternLibrarySort.recentlyAdded
@@ -17,9 +18,6 @@ struct PatternLibraryView: View {
     @State private var pendingSelection: PendingPatternSelection?
     @State private var existingPatternID: UUID?
     @State private var errorMessage: String?
-    @State private var backupHistory = BackupHistory()
-    @State private var isShowingBackupReminder = false
-    @State private var isShowingBackupSettings = false
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -88,41 +86,6 @@ struct PatternLibraryView: View {
             }
             .sheet(item: $pendingSelection) { selection in
                 chooseDuplicate(for: selection)
-            }
-            .sheet(isPresented: $isShowingBackupSettings) {
-                NavigationStack {
-                    Form {
-                        BackupSettingsSection()
-                    }
-                    .navigationTitle("nav.settings")
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("common.done") {
-                                isShowingBackupSettings = false
-                            }
-                        }
-                    }
-                }
-            }
-            .alert(
-                "patterns.backup.reminder.title",
-                isPresented: Binding(
-                    get: { isShowingBackupReminder },
-                    set: { isPresented in
-                        if !isPresented {
-                            dismissPatternBackupReminder(showSettings: false)
-                        }
-                    }
-                )
-            ) {
-                Button("patterns.backup.reminder.settings") {
-                    dismissPatternBackupReminder(showSettings: true)
-                }
-                Button("patterns.backup.reminder.dismiss", role: .cancel) {
-                    dismissPatternBackupReminder(showSettings: false)
-                }
-            } message: {
-                Text("patterns.backup.reminder.message")
             }
             .alert(
                 "patterns.library.alreadySaved.title",
@@ -212,14 +175,7 @@ struct PatternLibraryView: View {
     }
 
     private func acceptImportOutcome(_ outcome: PatternImportOutcome) {
-        switch outcome {
-        case .created:
-            if !backupHistory.hasShownPatternReminder {
-                isShowingBackupReminder = true
-            }
-        case .existing, .needsSelection:
-            break
-        }
+        backupReminderPresenter.accept(outcome)
 
         switch PatternLibraryImportPresentation(outcome: outcome) {
         case .none:
@@ -234,14 +190,6 @@ struct PatternLibraryView: View {
                 itemID: itemID,
                 candidatePatternIDs: candidatePatternIDs
             )
-        }
-    }
-
-    private func dismissPatternBackupReminder(showSettings: Bool) {
-        backupHistory.markPatternReminderShown()
-        isShowingBackupReminder = false
-        if showSettings {
-            isShowingBackupSettings = true
         }
     }
 

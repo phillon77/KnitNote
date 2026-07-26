@@ -13,6 +13,7 @@ struct PatternImportResultView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
     let projectID: UUID
 
     @State private var showingFileImporter = false
@@ -240,6 +241,7 @@ struct PatternImportResultView: View {
     }
 
     private func accept(_ outcome: PatternImportOutcome) {
+        backupReminderPresenter.accept(outcome)
         switch outcome {
         case .created:
             pendingSelection = nil

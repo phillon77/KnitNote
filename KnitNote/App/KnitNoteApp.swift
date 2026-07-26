@@ -4,6 +4,7 @@ import SwiftUI
 struct KnitNoteApp: App {
     @StateObject private var projectStore: JSONProjectStore
     @StateObject private var patternInboxProcessor: PatternInboxProcessor
+    @StateObject private var patternBackupReminderPresenter: PatternBackupReminderPresenter
     private let screenshotMode: StoreScreenshotMode?
 #if os(iOS)
     @StateObject private var phoneWatchSyncCoordinator: PhoneWatchSyncCoordinator
@@ -25,8 +26,15 @@ struct KnitNoteApp: App {
             JSONProjectStore.live(baseDirectory: $0.baseDirectory)
         } ?? JSONProjectStore.live()
         _projectStore = StateObject(wrappedValue: projectStore)
+        let patternBackupReminderPresenter = PatternBackupReminderPresenter()
+        _patternBackupReminderPresenter = StateObject(
+            wrappedValue: patternBackupReminderPresenter
+        )
         _patternInboxProcessor = StateObject(
-            wrappedValue: PatternInboxProcessor(store: projectStore)
+            wrappedValue: PatternInboxProcessor(
+                store: projectStore,
+                backupReminderPresenter: patternBackupReminderPresenter
+            )
         )
 #if os(iOS)
         let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(projectStore: projectStore)
@@ -65,6 +73,7 @@ struct KnitNoteApp: App {
                 .environment(\.locale, appLocale)
                 .environmentObject(projectStore)
                 .environmentObject(patternInboxProcessor)
+                .environmentObject(patternBackupReminderPresenter)
                 .preferredColorScheme(.light)
         }
     }

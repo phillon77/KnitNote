@@ -1,9 +1,49 @@
 import SwiftUI
 
+@MainActor
+final class PatternBackupReminderPresenter: ObservableObject {
+    @Published private(set) var isPresented: Bool
+    @Published private(set) var isShowingBackupSettings: Bool
+    private var coordinator: PatternBackupReminderCoordinator
+
+    init(history: BackupHistory = .init()) {
+        let coordinator = PatternBackupReminderCoordinator(history: history)
+        self.coordinator = coordinator
+        isPresented = coordinator.isPresented
+        isShowingBackupSettings = coordinator.isShowingBackupSettings
+    }
+
+    func accept(_ outcome: PatternImportOutcome) {
+        coordinator.accept(outcome)
+        publish()
+    }
+
+    func accept(_ outcomes: [PatternImportOutcome]) {
+        coordinator.accept(outcomes)
+        publish()
+    }
+
+    func dismiss(openBackupSettings: Bool) {
+        coordinator.dismiss(openBackupSettings: openBackupSettings)
+        publish()
+    }
+
+    func closeBackupSettings() {
+        coordinator.closeBackupSettings()
+        publish()
+    }
+
+    private func publish() {
+        isPresented = coordinator.isPresented
+        isShowingBackupSettings = coordinator.isShowingBackupSettings
+    }
+}
+
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var patternInboxProcessor: PatternInboxProcessor
+    @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
     @Binding var storedLanguage: String
 
     @ViewBuilder
@@ -22,6 +62,50 @@ struct RootView: View {
                 )
             ) { selection in
                 PendingPatternSelectionView(selection: selection)
+            }
+            .sheet(
+                isPresented: Binding(
+                    get: { backupReminderPresenter.isShowingBackupSettings },
+                    set: { isPresented in
+                        if !isPresented {
+                            backupReminderPresenter.closeBackupSettings()
+                        }
+                    }
+                )
+            ) {
+                NavigationStack {
+                    Form {
+                        BackupSettingsSection()
+                    }
+                    .navigationTitle("nav.settings")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("common.done") {
+                                backupReminderPresenter.closeBackupSettings()
+                            }
+                        }
+                    }
+                }
+            }
+            .alert(
+                "patterns.backup.reminder.title",
+                isPresented: Binding(
+                    get: { backupReminderPresenter.isPresented },
+                    set: { isPresented in
+                        if !isPresented {
+                            backupReminderPresenter.dismiss(openBackupSettings: false)
+                        }
+                    }
+                )
+            ) {
+                Button("patterns.backup.reminder.settings") {
+                    backupReminderPresenter.dismiss(openBackupSettings: true)
+                }
+                Button("patterns.backup.reminder.dismiss", role: .cancel) {
+                    backupReminderPresenter.dismiss(openBackupSettings: false)
+                }
+            } message: {
+                Text("patterns.backup.reminder.message")
             }
             .alert(
                 "patterns.inbox.error.title",

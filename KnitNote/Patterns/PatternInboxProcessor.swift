@@ -23,11 +23,16 @@ final class PatternInboxProcessor: ObservableObject {
     @Published private(set) var notice: PatternInboxNotice?
 
     private let driver: PatternInboxDriver
+    private let backupReminderPresenter: PatternBackupReminderPresenter
     private var operationTask: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
 
-    init(store: JSONProjectStore) {
+    init(
+        store: JSONProjectStore,
+        backupReminderPresenter: PatternBackupReminderPresenter
+    ) {
         driver = PatternInboxDriver(processing: PatternInboxStoreAdapter(store: store))
+        self.backupReminderPresenter = backupReminderPresenter
     }
 
     func processPending() {
@@ -77,6 +82,7 @@ final class PatternInboxProcessor: ObservableObject {
 
     private func apply(_ update: PatternInboxDriverUpdate) {
         guard !update.isBusy else { return }
+        backupReminderPresenter.accept(update.imported)
         if !update.imported.isEmpty {
             showNotice(importCount: update.imported.count)
         }

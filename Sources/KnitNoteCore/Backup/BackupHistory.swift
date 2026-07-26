@@ -40,3 +40,38 @@ public struct BackupHistory {
         defaults.set(true, forKey: Key.patternReminderShown)
     }
 }
+
+public struct PatternBackupReminderCoordinator {
+    private var history: BackupHistory
+    public private(set) var isPresented = false
+    public private(set) var isShowingBackupSettings = false
+
+    public init(history: BackupHistory = .init()) {
+        self.history = history
+    }
+
+    public mutating func accept(_ outcome: PatternImportOutcome) {
+        accept([outcome])
+    }
+
+    public mutating func accept(_ outcomes: [PatternImportOutcome]) {
+        guard !history.hasShownPatternReminder,
+              outcomes.contains(where: { outcome in
+                  if case .created = outcome { return true }
+                  return false
+              })
+        else { return }
+        isPresented = true
+    }
+
+    public mutating func dismiss(openBackupSettings: Bool) {
+        guard isPresented else { return }
+        history.markPatternReminderShown()
+        isPresented = false
+        isShowingBackupSettings = openBackupSettings
+    }
+
+    public mutating func closeBackupSettings() {
+        isShowingBackupSettings = false
+    }
+}

@@ -94,16 +94,24 @@ import Testing
 
         #expect(reader.contains("@State private var readerSession: PatternReaderSession"))
         #expect(reader.contains("readerSession.phase == .hydrated"))
-        #expect(reader.contains("hydrateReaderSessionIfNeeded()"))
-        #expect(reader.contains("guard readerSession.canPersist else"))
+        #expect(reader.contains(".task(id: readerContextIdentity)"))
+        #expect(reader.contains("readerSession.beginLoading"))
+        #expect(reader.contains(".id(readerSession.generation)"))
+        #expect(reader.contains("readerSession.canPersist, readerSession.identity == readerContextIdentity"))
     }
 
     @Test func disabledCountersDoNotRegisterCustomVoiceOverActions() throws {
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
 
+        let activeBranch = try #require(controls.range(of: "if isEnabled,"))
+        let inactiveBranch = try #require(controls.range(of: "} else {\n            button\n        }"))
+        let incrementAction = try #require(controls.range(of: ".accessibilityAction(named: Text(\"counter.increment\")"))
+        let manageAction = try #require(controls.range(of: ".accessibilityAction(named: Text(\"counter.manage\")"))
+
         #expect(controls.contains("PatternReaderCounterAccessibilityPolicy.canExposeIncrementAction"))
         #expect(controls.contains("PatternReaderCounterAccessibilityPolicy.canExposeManageAction"))
-        #expect(controls.contains("if isEnabled"))
+        #expect(activeBranch.lowerBound < incrementAction.lowerBound)
+        #expect(manageAction.lowerBound < inactiveBranch.lowerBound)
     }
 
     @Test func everyPatternManagedFileWriteRoutesThroughTheStoreCoordinator() throws {

@@ -45,6 +45,7 @@ private enum PatternReaderSource {
 private struct PatternReaderContent {
     let displayName: String
     let kind: PatternKind
+    let assetID: UUID
     let url: URL
 }
 
@@ -66,6 +67,7 @@ struct PatternReaderView: View {
     @State private var editingPageNoteIndex = 0
     @State private var markupMode = false
     @State private var markup = PatternMarkupDocument()
+    @State private var markupSession = PatternReaderMarkupSession()
     @State private var markupTool = PatternMarkupTool.pen
     @State private var markupColor = MarkupColor.red
     @State private var markupWidth = 0.008
@@ -126,8 +128,22 @@ struct PatternReaderView: View {
         }
     }
 
+    private var resolvedContext: PatternReaderContext {
+        let base = sourceContext
+        guard let usageID = base.usageID,
+              let projectID = base.projectID else {
+            return base
+        }
+        return .project(
+            patternID: base.patternID,
+            usageID: usageID,
+            projectID: projectID,
+            projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+        )
+    }
+
     private var context: PatternReaderContext {
-        let base = readerSession.phase == .hydrated ? readerSession.context : sourceContext
+        let base = readerSession.phase == .hydrated ? readerSession.context : resolvedContext
         guard let usageID = base.usageID,
               let projectID = base.projectID else {
             return base
@@ -144,7 +160,9 @@ struct PatternReaderView: View {
         Binding(
             get: { state },
             set: { newState in
-                guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
+                guard canvasIsActive,
+                      readerSession.canAcceptCanvasCallbacks,
+                      readerSession.identity == readerContextIdentity else { return }
                 state = newState
                 _ = readerSession.acceptCanvasState(newState)
             }
@@ -159,7 +177,7 @@ struct PatternReaderView: View {
                   let url = try? store.patternAssetURL(patternID: pattern.id) else {
                 return nil
             }
-            return .init(displayName: pattern.displayName, kind: asset.kind, url: url)
+            return .init(displayName: pattern.displayName, kind: asset.kind, assetID: asset.id, url: url)
         case let .legacy(projectID, patternID):
             guard let pattern = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID }) else {
                 return nil
@@ -167,9 +185,14 @@ struct PatternReaderView: View {
             return .init(
                 displayName: pattern.displayName,
                 kind: pattern.kind,
+                assetID: pattern.id,
                 url: store.patternURL(projectID: projectID, pattern: pattern)
             )
         }
+    }
+
+    private var readerContextIdentity: PatternReaderContextIdentity {
+        .init(context: resolvedContext, assetID: content?.assetID)
     }
 
     private var readerIsPad: Bool {
@@ -184,6 +207,7 @@ struct PatternReaderView: View {
         NavigationStack {
             Group {
                 if readerSession.phase == .hydrated,
+                   readerSession.identity == readerContextIdentity,
                    let content,
                    FileManager.default.fileExists(atPath: content.url.path) {
                     VStack(spacing: 0) {
@@ -223,7 +247,8 @@ struct PatternReaderView: View {
                             }
                         }
                     }
-                } else if readerSession.phase == .hydrated {
+                } else if readerSession.phase == .hydrated,
+                          readerSession.identity == readerContextIdentity {
                     switch source {
                     case let .legacy(projectID, patternID):
                         ContentUnavailableView {
@@ -267,7 +292,7 @@ struct PatternReaderView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("patterns.markup", systemImage: "pencil.and.outline") {
-                        guard context.canWrite else { return }
+                        guard context.canWrite, readerSession.identity == readerContextIdentity else { return }
                         markupMode.toggle()
                     }
                     .disabled(!context.canWrite)
@@ -311,7 +336,7 @@ struct PatternReaderView: View {
             }
             .confirmationDialog("patterns.markup.clear.confirm", isPresented: $confirmingMarkupClear) {
                 Button("patterns.markup.clear", role: .destructive) {
-                    guard context.canWrite else { return }
+                    guard context.canWrite, readerSession.identity == readerContextIdentity else { return }
                     markup.clear()
                 }
                 Button("common.cancel", role: .cancel) {}
@@ -319,9 +344,11 @@ struct PatternReaderView: View {
         }
         .tint(WatercolorTheme.actionBerry)
         .interactiveDismissDisabled()
-        .onAppear {
-            hydrateReaderSessionIfNeeded()
-            if expectedDataGeneration == nil { expectedDataGeneration = store.dataGeneration }
+        .task(id: readerContextIdentity) {
+            reloadReader(for: readerContextIdentity)
+        }
+        .onChange(of: markup) { _, updatedMarkup in
+            markupSession.recordEdit(updatedMarkup)
         }
         .onDisappear {
             guard canvasIsActive, readerSession.canPersist else { return }
@@ -334,7 +361,7 @@ struct PatternReaderView: View {
             guard handledPageIndex != newPage else { return }
             handledPageIndex = newPage
             if context.canWrite { saveMarkup(page: oldPage) }
-            loadMarkup(page: newPage)
+            loadMarkup(page: newPage, readerGeneration: readerSession.generation)
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, canvasIsActive, readerSession.canPersist else { return }
@@ -380,6 +407,7 @@ struct PatternReaderView: View {
                     )
                 }
             }
+            .id(readerSession.generation)
             .padding(.trailing, counterRailSafeAreaWidth)
             .accessibilityLabel(Text(content.displayName))
 
@@ -409,48 +437,70 @@ struct PatternReaderView: View {
         }
     }
 
-    private func hydrateReaderSessionIfNeeded() {
-        guard readerSession.phase == .loading else { return }
+    private func reloadReader(for identity: PatternReaderContextIdentity) {
+        guard !Task.isCancelled, identity == readerContextIdentity else { return }
         canvasIsActive = false
         handledPageIndex = nil
-        let currentContext = sourceContext
-        readerSession.beginLoading(context: currentContext)
+        pageCount = 0
+        loadError = false
+        saveError = nil
+        managingCounter = nil
+        showingPageNote = false
+        markupMode = storePresentation == .markup
+        let currentContext = resolvedContext
+        let hydrationContext: PatternReaderContext
+        let hydrationState: PatternReadingState
 
         switch source {
         case .library:
-            guard let usageID = currentContext.usageID,
-                  let projectID = currentContext.projectID,
-                  let usage = store.patternUsages.first(where: {
-                      $0.id == usageID && $0.patternID == currentContext.patternID && $0.projectID == projectID
-                  }) else {
-                state = .init()
-                markup = PatternMarkupDocument()
-                readerSession.beginLoading(context: .readOnly(patternID: currentContext.patternID))
-                readerSession.hydrate(readingState: state)
-                return
+            if let usageID = currentContext.usageID,
+               let projectID = currentContext.projectID,
+               store.patternUsages.contains(where: {
+                   $0.id == usageID && $0.patternID == currentContext.patternID && $0.projectID == projectID
+               }) {
+                hydrationContext = currentContext
+                hydrationState = PatternReaderStateLoader.readingState(
+                    for: currentContext,
+                    usages: store.patternUsages
+                )
+            } else {
+                hydrationContext = .readOnly(patternID: currentContext.patternID)
+                hydrationState = .init()
             }
-            state = usage.readingState
         case let .legacy(projectID, patternID):
-            state = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID })?.readingState ?? .init()
+            hydrationContext = currentContext
+            var legacyState = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID })?.readingState ?? .init()
             switch storePresentation {
             case .standard:
                 break
             case .highlight:
-                state.highlightEnabled = true
-                state.highlightMode = .horizontal
+                legacyState.highlightEnabled = true
+                legacyState.highlightMode = .horizontal
             case .crossHighlight:
-                state.highlightEnabled = true
-                state.highlightMode = .cross
+                legacyState.highlightEnabled = true
+                legacyState.highlightMode = .cross
             case .markup, .notes:
                 break
             }
+            hydrationState = legacyState
         }
-        loadMarkup(page: state.pageIndex)
-        readerSession.hydrate(readingState: state)
+        let generation = readerSession.beginLoading(context: hydrationContext, identity: identity)
+        expectedDataGeneration = store.dataGeneration
+        state = hydrationState
+        markup = .init()
+        markupSession.beginLoading(readerGeneration: generation, pageIndex: state.pageIndex)
+        guard !Task.isCancelled,
+              identity == readerContextIdentity,
+              readerSession.generation == generation else { return }
+        loadMarkup(page: state.pageIndex, readerGeneration: generation)
+        let hydrated = readerSession.hydrate(state, for: generation)
+        guard !Task.isCancelled,
+              identity == readerContextIdentity,
+              hydrated else { return }
     }
 
     @discardableResult private func save() -> Bool {
-        guard readerSession.canPersist else { return true }
+        guard readerSession.canPersist, readerSession.identity == readerContextIdentity else { return true }
         guard context.canWrite else { return true }
         state.saveCurrentPage()
         _ = readerSession.acceptCanvasState(state)
@@ -479,7 +529,10 @@ struct PatternReaderView: View {
     }
 
     private func incrementCounter(_ counterID: UUID) {
-        guard context.canWrite, let projectID = context.projectID else { return }
+        guard readerSession.canPersist,
+              readerSession.identity == readerContextIdentity,
+              context.canWrite,
+              let projectID = context.projectID else { return }
         do {
             try store.selectCounter(projectID: projectID, counterID: counterID)
             try store.incrementCounter(projectID: projectID, counterID: counterID)
@@ -489,7 +542,10 @@ struct PatternReaderView: View {
     }
 
     private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) {
-        guard context.canWrite, let projectID = context.projectID else { return }
+        guard readerSession.canPersist,
+              readerSession.identity == readerContextIdentity,
+              context.canWrite,
+              let projectID = context.projectID else { return }
         do {
             try store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value)
         } catch {
@@ -505,7 +561,9 @@ struct PatternReaderView: View {
     }
 
     private func savePageNoteDirectly() {
-        guard context.canWrite else { return }
+        guard readerSession.canPersist,
+              readerSession.identity == readerContextIdentity,
+              context.canWrite else { return }
         let text = state.pageNote
         do {
             switch source {
@@ -549,26 +607,42 @@ struct PatternReaderView: View {
         }
     }
 
-    private func loadMarkup(page: Int) {
+    private func loadMarkup(page: Int, readerGeneration: UInt64) {
+        markupSession.beginLoading(readerGeneration: readerGeneration, pageIndex: page)
         do {
+            let loadedMarkup: PatternMarkupDocument
             switch source {
             case .library:
                 guard let usageID = context.usageID else {
-                    markup = PatternMarkupDocument()
+                    loadedMarkup = .init()
+                    guard readerSession.generation == readerGeneration,
+                          readerSession.identity == readerContextIdentity else { return }
+                    markup = loadedMarkup
+                    _ = markupSession.finishLoading(loadedMarkup, for: readerGeneration, pageIndex: page)
                     return
                 }
-                markup = try store.loadPatternMarkup(usageID: usageID, pageIndex: page)
+                loadedMarkup = try store.loadPatternMarkup(usageID: usageID, pageIndex: page)
             case let .legacy(projectID, patternID):
-                markup = try store.loadPatternMarkup(projectID: projectID, patternID: patternID, pageIndex: page)
+                loadedMarkup = try store.loadPatternMarkup(projectID: projectID, patternID: patternID, pageIndex: page)
             }
+            guard readerSession.generation == readerGeneration,
+                  readerSession.identity == readerContextIdentity else { return }
+            markup = loadedMarkup
+            _ = markupSession.finishLoading(loadedMarkup, for: readerGeneration, pageIndex: page)
         } catch {
-            markup = PatternMarkupDocument()
+            guard readerSession.generation == readerGeneration,
+                  readerSession.identity == readerContextIdentity else { return }
+            markup = .init()
+            _ = markupSession.failLoading(for: readerGeneration, pageIndex: page)
             if context.usageID != nil { saveError = error.localizedDescription }
         }
     }
 
     private func saveMarkup(page: Int) {
-        guard canvasIsActive, readerSession.canPersist else { return }
+        guard canvasIsActive,
+              readerSession.canPersist,
+              readerSession.identity == readerContextIdentity,
+              markupSession.canPersistMarkup(readerGeneration: readerSession.generation, pageIndex: page) else { return }
         guard context.canWrite, let expectedDataGeneration else { return }
         do {
             switch source {
@@ -589,13 +663,16 @@ struct PatternReaderView: View {
                     expectedDataGeneration: expectedDataGeneration
                 )
             }
+            markupSession.markPersisted(readerGeneration: readerSession.generation, pageIndex: page)
         } catch {
             saveError = error.localizedDescription
         }
     }
 
     private func finishMarkup() {
-        guard context.canWrite else { return }
+        guard readerSession.canPersist,
+              readerSession.identity == readerContextIdentity,
+              context.canWrite else { return }
         saveMarkup(page: state.pageIndex)
         markupMode = false
     }

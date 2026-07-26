@@ -1130,7 +1130,16 @@ final class PatternLibraryDeletionTransaction {
         _ = try mutableUsageIndex(usageID: usageID)
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
+        let snapshot = try patternMarkupFileService.snapshot(usageID: usageID, pageIndex: pageIndex)
         try patternMarkupFileService.save(document, usageID: usageID, pageIndex: pageIndex)
+        do {
+            // The archive write advances a durable shared revision for markup,
+            // allowing concurrent readers to use the same optimistic lock.
+            try persist(projects: projects, yarns: yarns, patternUsages: patternUsages)
+        } catch {
+            try patternMarkupFileService.restore(snapshot, usageID: usageID, pageIndex: pageIndex)
+            throw error
+        }
         return dataGeneration
     }
     @discardableResult

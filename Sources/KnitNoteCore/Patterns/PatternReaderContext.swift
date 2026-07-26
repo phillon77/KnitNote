@@ -230,6 +230,65 @@ public struct PatternReaderMarkupSession: Equatable, Sendable {
     }
 }
 
+/// Decides whether a changed store revision can reload a reader immediately.
+/// Dirty markup is retained and blocks page changes until the conflict is
+/// explicitly resolved; unlink/completion always wins and enters read-only.
+public struct PatternReaderRevisionCoordinator: Equatable, Sendable {
+    public enum Phase: Equatable, Sendable {
+        case ready
+        case conflict
+        case needsReload
+    }
+
+    public enum Decision: Equatable, Sendable {
+        case none
+        case reload
+        case conflict
+        case reloadReadOnly
+    }
+
+    public private(set) var expectedDataGeneration: UInt64
+    public private(set) var phase: Phase = .ready
+    public private(set) var hasDirtyMarkup = false
+
+    public init(expectedDataGeneration: UInt64) {
+        self.expectedDataGeneration = expectedDataGeneration
+    }
+
+    public var canChangePage: Bool {
+        phase == .ready
+    }
+
+    public mutating func reset(expectedDataGeneration: UInt64) {
+        self.expectedDataGeneration = expectedDataGeneration
+        phase = .ready
+        hasDirtyMarkup = false
+    }
+
+    public mutating func setMarkupDirty(_ isDirty: Bool) {
+        hasDirtyMarkup = isDirty
+    }
+
+    public mutating func confirmMutation(generation: UInt64) {
+        expectedDataGeneration = generation
+        phase = .ready
+    }
+
+    public mutating func observeStoreGeneration(_ generation: UInt64, canWrite: Bool) -> Decision {
+        guard canWrite else {
+            phase = .needsReload
+            return .reloadReadOnly
+        }
+        guard generation != expectedDataGeneration else { return .none }
+        if hasDirtyMarkup {
+            phase = .conflict
+            return .conflict
+        }
+        phase = .needsReload
+        return .reload
+    }
+}
+
 public enum PatternReaderCounterAccessibilityPolicy: Sendable {
     public static func canExposeIncrementAction(isEnabled: Bool) -> Bool {
         isEnabled

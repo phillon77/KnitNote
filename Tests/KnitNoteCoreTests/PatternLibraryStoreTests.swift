@@ -185,6 +185,87 @@ import Testing
     #expect(try harness.store.loadPatternMarkup(usageID: usage.id, pageIndex: 3) == markup)
 }
 
+@MainActor @Test func markupSavePublishesGenerationAndRejectsASecondStaleWriter() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let expected = harness.store.dataGeneration
+    let first = harness.drawing(x: 0.2)
+    let second = harness.drawing(x: 0.8)
+
+    let committed = try harness.store.savePatternMarkup(
+        first,
+        usageID: usage.id,
+        pageIndex: 0,
+        expectedDataGeneration: expected
+    )
+    #expect(committed > expected)
+    #expect(throws: ProjectStoreError.staleDataGeneration) {
+        try harness.store.savePatternMarkup(
+            second,
+            usageID: usage.id,
+            pageIndex: 0,
+            expectedDataGeneration: expected
+        )
+    }
+    #expect(try harness.reopenedStore().loadPatternMarkup(usageID: usage.id, pageIndex: 0) == first)
+}
+
+@MainActor @Test func failedArchiveCommitRollsMarkupBackWithoutAdvancingGeneration() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject(failingArchiveWrites: true)
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let original = harness.drawing(x: 0.1)
+    _ = try harness.store.savePatternMarkup(
+        original,
+        usageID: usage.id,
+        pageIndex: 0,
+        expectedDataGeneration: harness.store.dataGeneration
+    )
+    let before = harness.store.dataGeneration
+    harness.archiveWriteGate?.shouldFail = true
+
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        try harness.store.savePatternMarkup(
+            harness.drawing(x: 0.9),
+            usageID: usage.id,
+            pageIndex: 0,
+            expectedDataGeneration: before
+        )
+    }
+    #expect(harness.store.dataGeneration == before)
+    #expect(try harness.reopenedStore().loadPatternMarkup(usageID: usage.id, pageIndex: 0) == original)
+}
+
+@MainActor @Test func externalRevisionWithDirtyMarkupBlocksPageLoadAndRetainsLocalStrokesUntilReload() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let original = harness.drawing(x: 0.2)
+    let expected = try harness.store.savePatternMarkup(
+        original,
+        usageID: usage.id,
+        pageIndex: 0,
+        expectedDataGeneration: harness.store.dataGeneration
+    )
+    let counterID = try #require(harness.store.project(id: harness.projectID)?.counters.first?.id)
+    let external = try harness.store.mutatePatternReaderCounter(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .increment,
+        expectedDataGeneration: expected
+    )
+    let localDirty = harness.drawing(x: 0.9)
+    var coordinator = PatternReaderRevisionCoordinator(expectedDataGeneration: expected)
+    coordinator.setMarkupDirty(true)
+
+    #expect(coordinator.observeStoreGeneration(external, canWrite: true) == .conflict)
+    #expect(!coordinator.canChangePage)
+    #expect(localDirty != original)
+    #expect(try harness.store.loadPatternMarkup(usageID: usage.id, pageIndex: 0) == original)
+
+    coordinator.reset(expectedDataGeneration: external)
+    #expect(coordinator.canChangePage)
+    #expect(try harness.reopenedStore().loadPatternMarkup(usageID: usage.id, pageIndex: 0) == original)
+}
+
 @MainActor @Test func usageBoundReaderServiceRejectsUnknownUsageInsteadOfProvidingStandaloneWrites() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
 

@@ -37,6 +37,13 @@
 - Added `usageIsActive` to the reader context and stable identity. The reader reload task observes unlink/relink through identity, gates loading on active usage, and moves an inactive usage to a read-only session. Relinking restores the same usage ID, reading state, page note, markup, and sort order before writes are enabled again.
 - Strengthened Core fixtures: the state loader now reads a real `JSONProjectStore` usage snapshot; sequence tests cover increment, rename/update, reset, state, note, markup, lifecycle markup, fresh reopen, and an externally stale generation. Markup tests also cover unsafe-path failure and a valid unedited document.
 
+## Review Fix Round 4 — Markup Transaction and External Revision Conflict
+
+- Usage markup saves now form an optimistic transaction: validate active usage and expected generation, snapshot the exact existing bytes, write markup, then persist the archive to advance the durable `dataGeneration`. If archive persistence fails, the snapshot restores the original bytes or absence and the generation remains unchanged. A second reader using the old generation is rejected before it can alter the first writer's markup.
+- Added `PatternReaderRevisionCoordinator`, a compile-tested reducer for external store revisions. Self-confirmed mutations update its expected generation without a destructive reload. A clean external revision reloads; an external revision with dirty markup enters conflict, retains the document, and blocks page changes. Unlink or completion always triggers an immediate read-only reload.
+- `PatternReaderView` observes `store.dataGeneration`, routes decisions through the reducer, and makes page change, OK, backgrounding, disappearance, and markup completion conditional on a successful dirty-markup save. A failed/stale save restores the current page instead of loading another page or discarding dirty strokes.
+- Expanded loader and markup coverage with a same-pattern second-project distractor, two-writer markup race, archive-write failure rollback/fresh reopen, and dirty-markup external-revision resolution.
+
 ## Files
 
 - `Sources/KnitNoteCore/Patterns/PatternReaderContext.swift`
@@ -50,6 +57,7 @@
 - `Tests/KnitNoteCoreTests/PatternReaderReloadSafetyTests.swift`
 - `Tests/KnitNoteCoreTests/PatternReaderMarkupSessionTests.swift`
 - `Tests/KnitNoteCoreTests/PatternLibraryStoreTests.swift`
+- `Tests/KnitNoteCoreTests/PatternReaderRevisionCoordinatorTests.swift`
 - `task-6-report.md`
 
 ## Verification
@@ -69,6 +77,9 @@
 - RED round 3: real store sequence tests initially failed because reader mutations did not return generations and no usage-scoped counter mutation existed.
 - GREEN round 3 focused: `swift test --filter 'readerUsageMutation|inactiveUsageRejectsReaderCounter|PatternReaderContextTests|PatternReaderReloadSafetyTests|PatternReaderMarkupSessionTests|PatternReaderCounterContractTests|PatternReaderAccessibilityPolicyTests'` passed (30 tests in 5 suites).
 - Full round 3 regression: `swift test` passed (666 tests in 49 suites).
+- RED round 4: transaction/revision tests initially failed because markup saves did not advance a durable generation and no external-revision coordinator existed.
+- GREEN round 4 focused: `swift test --filter 'markupSavePublishes|failedArchiveCommit|externalRevisionWithDirtyMarkup|PatternReaderRevisionCoordinatorTests|PatternReaderCounterContractTests|PatternReaderReloadSafetyTests|PatternReaderMarkupSessionTests'` passed (29 tests in 4 suites).
+- Full round 4 regression: `swift test` passed (674 tests in 50 suites).
 - `git diff --check` passed.
 - `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNotePatternReaderTask6 CODE_SIGNING_ALLOWED=NO build` could not reach the reader compilation because the existing Xcode project omits Task 1–3 archive-level Core sources (`PatternAsset`, `StoredPattern`, `PatternProjectUsage`, inbox types) from the Watch target. Task 6 was explicitly scoped not to modify the Watch target or xcodeproj.
 

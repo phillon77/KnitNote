@@ -4,6 +4,11 @@ public enum PatternMarkupFileError: Error, Equatable, Sendable {
     case unsafePath
 }
 
+public enum PatternMarkupPageSnapshot: Sendable {
+    case missing
+    case bytes(Data)
+}
+
 public struct PatternMarkupFileService: Sendable {
     public let root: URL
     public init(root: URL) { self.root = root }
@@ -23,6 +28,29 @@ public struct PatternMarkupFileService: Sendable {
         }
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(document).write(to: file, options: .atomic)
+    }
+
+    /// Captures the raw bytes so an archive-write failure can restore exactly
+    /// the previous markup file (or its absence).
+    public func snapshot(usageID: UUID, pageIndex: Int) throws -> PatternMarkupPageSnapshot {
+        let file = try usagePageURL(usageID: usageID, pageIndex: pageIndex)
+        guard FileManager.default.fileExists(atPath: file.path) else { return .missing }
+        return .bytes(try Data(contentsOf: file))
+    }
+
+    public func restore(
+        _ snapshot: PatternMarkupPageSnapshot,
+        usageID: UUID,
+        pageIndex: Int
+    ) throws {
+        let file = try usagePageURL(usageID: usageID, pageIndex: pageIndex)
+        switch snapshot {
+        case .missing:
+            if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+        case let .bytes(data):
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: file, options: .atomic)
+        }
     }
 
     public func deleteUsageMarkup(usageID: UUID) throws {

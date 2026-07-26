@@ -85,6 +85,16 @@ import Testing
         #expect(reader.contains("usageIsActive: usageIsActive"))
     }
 
+    @Test func readerObservesExternalStoreGenerationsAndProtectsDirtyMarkupOnPageChange() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(reader.contains("@State private var revisionCoordinator"))
+        #expect(reader.contains(".onChange(of: store.dataGeneration)"))
+        #expect(reader.contains("revisionCoordinator.canChangePage"))
+        #expect(reader.contains("!saveMarkup(page: oldPage)"))
+        #expect(reader.contains("guard saveMarkup(page: state.pageIndex) else { return }"))
+    }
+
     @Test func readerDisablesEveryWriteControlWhenItsContextIsReadOnly() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")

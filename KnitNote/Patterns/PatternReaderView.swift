@@ -73,6 +73,7 @@ struct PatternReaderView: View {
     @State private var markupWidth = 0.008
     @State private var confirmingMarkupClear = false
     @State private var expectedDataGeneration: UInt64?
+    @State private var revisionCoordinator = PatternReaderRevisionCoordinator(expectedDataGeneration: 0)
     @State private var managingCounter: ProjectCounter?
     @StateObject private var pdfNavigator = PDFPageNavigator()
     private let counterRailSafeAreaWidth: CGFloat = 64
@@ -282,7 +283,7 @@ struct PatternReaderView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common.ok") {
-                        if save() { dismiss() }
+                        if saveMarkup(page: state.pageIndex), save() { dismiss() }
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -360,24 +361,38 @@ struct PatternReaderView: View {
         }
         .onChange(of: markup) { _, updatedMarkup in
             markupSession.recordEdit(updatedMarkup)
+            revisionCoordinator.setMarkupDirty(markupSession.isDirty)
+        }
+        .onChange(of: store.dataGeneration) { _, generation in
+            handleStoreGenerationChange(generation)
         }
         .onDisappear {
             guard canvasIsActive, readerSession.canPersist else { return }
             guard context.canWrite else { return }
-            saveMarkup(page: state.pageIndex)
+            guard saveMarkup(page: state.pageIndex) else { return }
             _ = save()
         }
         .onChange(of: state.pageIndex) { oldPage, newPage in
             guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
             guard handledPageIndex != newPage else { return }
+            guard revisionCoordinator.canChangePage else {
+                state.pageIndex = oldPage
+                handledPageIndex = oldPage
+                saveError = String(localized: "error.saveFailed")
+                return
+            }
             handledPageIndex = newPage
-            if context.canWrite { saveMarkup(page: oldPage) }
+            if context.canWrite, !saveMarkup(page: oldPage) {
+                state.pageIndex = oldPage
+                handledPageIndex = oldPage
+                return
+            }
             loadMarkup(page: newPage, readerGeneration: readerSession.generation)
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, canvasIsActive, readerSession.canPersist else { return }
             guard context.canWrite else { return }
-            saveMarkup(page: state.pageIndex)
+            guard saveMarkup(page: state.pageIndex) else { return }
             _ = save()
         }
     }
@@ -497,6 +512,7 @@ struct PatternReaderView: View {
         }
         let generation = readerSession.beginLoading(context: hydrationContext, identity: identity)
         expectedDataGeneration = store.dataGeneration
+        revisionCoordinator.reset(expectedDataGeneration: store.dataGeneration)
         state = hydrationState
         markup = .init()
         markupSession.beginLoading(readerGeneration: generation, pageIndex: state.pageIndex)
@@ -508,6 +524,17 @@ struct PatternReaderView: View {
         guard !Task.isCancelled,
               identity == readerContextIdentity,
               hydrated else { return }
+    }
+
+    private func handleStoreGenerationChange(_ generation: UInt64) {
+        switch revisionCoordinator.observeStoreGeneration(generation, canWrite: resolvedContext.canWrite) {
+        case .none:
+            break
+        case .reload, .reloadReadOnly:
+            reloadReader(for: readerContextIdentity)
+        case .conflict:
+            saveError = String(localized: "error.saveFailed")
+        }
     }
 
     @discardableResult private func save() -> Bool {
@@ -534,6 +561,7 @@ struct PatternReaderView: View {
                 )
             }
             expectedDataGeneration = nextGeneration
+            revisionCoordinator.confirmMutation(generation: nextGeneration)
             return true
         } catch {
             saveError = error.localizedDescription
@@ -554,6 +582,7 @@ struct PatternReaderView: View {
                 mutation: .increment,
                 expectedDataGeneration: expectedDataGeneration
             )
+            revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)
         } catch {
             saveError = error.localizedDescription
         }
@@ -572,6 +601,7 @@ struct PatternReaderView: View {
                 mutation: .update(name: name, value: value),
                 expectedDataGeneration: expectedDataGeneration
             )
+            revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)
         } catch {
             saveError = error.localizedDescription
         }
@@ -610,6 +640,7 @@ struct PatternReaderView: View {
                 )
             }
             expectedDataGeneration = nextGeneration
+            revisionCoordinator.confirmMutation(generation: nextGeneration)
             if editingPageNoteIndex == state.pageIndex { state.setPageNote(text) }
         } catch {
             saveError = error.localizedDescription
@@ -664,17 +695,20 @@ struct PatternReaderView: View {
         }
     }
 
-    private func saveMarkup(page: Int) {
+    @discardableResult
+    private func saveMarkup(page: Int) -> Bool {
         guard canvasIsActive,
               readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
-              markupSession.canPersistMarkup(readerGeneration: readerSession.generation, pageIndex: page) else { return }
-        guard context.canWrite, let expectedDataGeneration else { return }
+              markupSession.canPersistMarkup(readerGeneration: readerSession.generation, pageIndex: page) else { return true }
+        guard revisionCoordinator.phase == .ready,
+              context.canWrite,
+              let expectedDataGeneration else { return false }
         do {
             let nextGeneration: UInt64
             switch source {
             case .library:
-                guard let usageID = context.usageID else { return }
+                guard let usageID = context.usageID else { return false }
                 nextGeneration = try store.savePatternMarkup(
                     markup,
                     usageID: usageID,
@@ -691,9 +725,13 @@ struct PatternReaderView: View {
                 )
             }
             expectedDataGeneration = nextGeneration
+            revisionCoordinator.confirmMutation(generation: nextGeneration)
             markupSession.markPersisted(readerGeneration: readerSession.generation, pageIndex: page)
+            revisionCoordinator.setMarkupDirty(false)
+            return true
         } catch {
             saveError = error.localizedDescription
+            return false
         }
     }
 
@@ -701,7 +739,7 @@ struct PatternReaderView: View {
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
               context.canWrite else { return }
-        saveMarkup(page: state.pageIndex)
+        guard saveMarkup(page: state.pageIndex) else { return }
         markupMode = false
     }
 }

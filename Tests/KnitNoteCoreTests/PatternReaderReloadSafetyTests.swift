@@ -4,8 +4,9 @@ import Testing
 
 @Suite struct PatternReaderReloadSafetyTests {
     @MainActor @Test func loaderSelectsOnlyTheExactUsageStateFromTheStoreSnapshot() throws {
-        let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+        let harness = try PatternLibraryStoreHarness.onePatternAndTwoProjects()
         let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+        let distractor = try harness.store.linkPattern(patternID: harness.patternID, to: harness.secondProjectID!)
         let wanted = PatternReadingState(pageIndex: 6, zoomScale: 2.4, offsetX: 0.3, offsetY: 0.7)
         let context = PatternReaderContext.project(
             patternID: harness.patternID,
@@ -16,6 +17,11 @@ import Testing
         _ = try harness.store.updatePatternState(
             usageID: usage.id,
             state: wanted,
+            expectedDataGeneration: harness.store.dataGeneration
+        )
+        _ = try harness.store.updatePatternState(
+            usageID: distractor.id,
+            state: PatternReadingState(pageIndex: 1, zoomScale: 1.2),
             expectedDataGeneration: harness.store.dataGeneration
         )
 

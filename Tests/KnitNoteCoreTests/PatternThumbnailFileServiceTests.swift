@@ -62,6 +62,64 @@ import UniformTypeIdentifiers
         #expect(try pixelSize(thumbnailURL) == CGSize(width: 400, height: 800))
     }
 
+    @Test func rotatedPDFThumbnailsPreserveColoredCornerOrientationAt180And270Degrees() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let baseURL = root.appendingPathComponent("base.pdf")
+        let rotated180URL = root.appendingPathComponent("rotated-180.pdf")
+        let rotated270URL = root.appendingPathComponent("rotated-270.pdf")
+        try makeMarkedPDF(at: baseURL, size: CGSize(width: 300, height: 200))
+        try makeRotatedPDF(from: baseURL, to: rotated180URL, rotation: 180)
+        try makeRotatedPDF(from: baseURL, to: rotated270URL, rotation: 270)
+        let service = PatternThumbnailFileService(
+            directory: root.appendingPathComponent("cache"),
+            maxPixelSize: 300
+        )
+
+        let base = try service.thumbnailURL(asset: asset(kind: .pdf, filename: "base.pdf"), sourceURL: baseURL)
+        let rotated180 = try service.thumbnailURL(asset: asset(kind: .pdf, filename: "rotated-180.pdf"), sourceURL: rotated180URL)
+        let rotated270 = try service.thumbnailURL(asset: asset(kind: .pdf, filename: "rotated-270.pdf"), sourceURL: rotated270URL)
+        let sourceCorners = try cornerColors(base)
+        let rotated180Corners = try cornerColors(rotated180)
+        let rotated270Corners = try cornerColors(rotated270)
+
+        #expect(try pixelSize(rotated180) == CGSize(width: 300, height: 200))
+        #expect(try pixelSize(rotated270) == CGSize(width: 200, height: 300))
+        #expect(colorsMatch(rotated180Corners[0], sourceCorners[3]))
+        #expect(colorsMatch(rotated180Corners[1], sourceCorners[2]))
+        #expect(colorsMatch(rotated180Corners[2], sourceCorners[1]))
+        #expect(colorsMatch(rotated180Corners[3], sourceCorners[0]))
+        #expect(colorsMatch(rotated270Corners[0], sourceCorners[2]))
+        #expect(colorsMatch(rotated270Corners[1], sourceCorners[0]))
+        #expect(colorsMatch(rotated270Corners[2], sourceCorners[3]))
+        #expect(colorsMatch(rotated270Corners[3], sourceCorners[1]))
+    }
+
+    @Test func jpegEXIFOrientationTransformsColoredCornerContent() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let pngURL = root.appendingPathComponent("baseline.png")
+        let jpegURL = root.appendingPathComponent("oriented.jpg")
+        try makeMarkedImage(at: pngURL, type: .png, orientation: nil)
+        try makeMarkedImage(at: jpegURL, type: .jpeg, orientation: .right)
+        let service = PatternThumbnailFileService(
+            directory: root.appendingPathComponent("cache"),
+            maxPixelSize: 120
+        )
+
+        let baseline = try service.thumbnailURL(asset: asset(kind: .image, filename: "baseline.png"), sourceURL: pngURL)
+        let oriented = try service.thumbnailURL(asset: asset(kind: .image, filename: "oriented.jpg"), sourceURL: jpegURL)
+        let sourceCorners = try cornerColors(baseline)
+        let orientedCorners = try cornerColors(oriented)
+
+        #expect(try pixelSize(baseline) == CGSize(width: 120, height: 60))
+        #expect(try pixelSize(oriented) == CGSize(width: 60, height: 120))
+        #expect(colorsMatch(orientedCorners[0], sourceCorners[1]))
+        #expect(colorsMatch(orientedCorners[1], sourceCorners[3]))
+        #expect(colorsMatch(orientedCorners[2], sourceCorners[0]))
+        #expect(colorsMatch(orientedCorners[3], sourceCorners[2]))
+    }
+
     @Test func reusesSharedCacheAndDeletesOneAsset() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let source = root.appendingPathComponent("source.png")
@@ -151,6 +209,66 @@ import UniformTypeIdentifiers
         #expect(document.write(to: url))
     }
 
+    private func makeRotatedPDF(from sourceURL: URL, to destinationURL: URL, rotation: Int) throws {
+        let document = try #require(PDFDocument(url: sourceURL))
+        let page = try #require(document.page(at: 0))
+        page.rotation = rotation
+        #expect(document.write(to: destinationURL))
+    }
+
+    private func makeMarkedPDF(at url: URL, size: CGSize) throws {
+        var box = CGRect(origin: .zero, size: size)
+        let consumer = try #require(CGDataConsumer(url: url as CFURL))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &box, nil))
+        context.beginPDFPage(nil)
+        drawCornerMarkers(in: context, size: size)
+        context.endPDFPage()
+        context.closePDF()
+    }
+
+    private func makeMarkedImage(
+        at url: URL,
+        type: UTType,
+        orientation: CGImagePropertyOrientation?
+    ) throws {
+        let size = CGSize(width: 120, height: 60)
+        let context = try #require(CGContext(
+            data: nil,
+            width: Int(size.width),
+            height: Int(size.height),
+            bitsPerComponent: 8,
+            bytesPerRow: Int(size.width) * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        drawCornerMarkers(in: context, size: size)
+        let destination = try #require(CGImageDestinationCreateWithURL(
+            url as CFURL,
+            type.identifier as CFString,
+            1,
+            nil
+        ))
+        var properties: [CFString: Any] = [:]
+        if let orientation {
+            properties[kCGImagePropertyOrientation] = orientation.rawValue
+        }
+        CGImageDestinationAddImage(destination, try #require(context.makeImage()), properties as CFDictionary)
+        #expect(CGImageDestinationFinalize(destination))
+    }
+
+    private func drawCornerMarkers(in context: CGContext, size: CGSize) {
+        let halfWidth = size.width / 2
+        let halfHeight = size.height / 2
+        context.setFillColor(CGColor(red: 0.95, green: 0.05, blue: 0.05, alpha: 1))
+        context.fill(CGRect(x: 0, y: halfHeight, width: halfWidth, height: halfHeight))
+        context.setFillColor(CGColor(red: 0.05, green: 0.85, blue: 0.05, alpha: 1))
+        context.fill(CGRect(x: halfWidth, y: halfHeight, width: halfWidth, height: halfHeight))
+        context.setFillColor(CGColor(red: 0.05, green: 0.15, blue: 0.95, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: halfWidth, height: halfHeight))
+        context.setFillColor(CGColor(red: 0.95, green: 0.85, blue: 0.05, alpha: 1))
+        context.fill(CGRect(x: halfWidth, y: 0, width: halfWidth, height: halfHeight))
+    }
+
     private func makePNG(at url: URL, width: Int, height: Int) throws {
         let context = try #require(CGContext(
             data: nil,
@@ -178,6 +296,40 @@ import UniformTypeIdentifiers
             width: try #require(properties[kCGImagePropertyPixelWidth] as? Int),
             height: try #require(properties[kCGImagePropertyPixelHeight] as? Int)
         )
+    }
+
+    private func cornerColors(_ url: URL) throws -> [[UInt8]] {
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let width = image.width
+        let height = image.height
+        let context = try #require(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let bytes = try #require(context.data?.assumingMemoryBound(to: UInt8.self))
+        func color(x: Int, y: Int) -> [UInt8] {
+            let offset = (y * width + x) * 4
+            return [bytes[offset], bytes[offset + 1], bytes[offset + 2]]
+        }
+        let insetX = max(1, width / 4)
+        let insetY = max(1, height / 4)
+        return [
+            color(x: insetX, y: height - insetY),
+            color(x: width - insetX - 1, y: height - insetY),
+            color(x: insetX, y: insetY),
+            color(x: width - insetX - 1, y: insetY)
+        ]
+    }
+
+    private func colorsMatch(_ lhs: [UInt8], _ rhs: [UInt8], tolerance: Int = 40) -> Bool {
+        zip(lhs, rhs).allSatisfy { abs(Int($0) - Int($1)) <= tolerance }
     }
 
     private func asset(kind: PatternKind, filename: String) -> PatternAsset {

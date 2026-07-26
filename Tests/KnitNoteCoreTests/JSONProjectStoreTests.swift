@@ -502,6 +502,47 @@ import UniformTypeIdentifiers
     #expect(defaultCoverURL == nil)
 }
 
+@MainActor @Test func deletingOneSharedPatternRetainsItsAssetThumbnailUntilTheLastPatternIsDeleted() async throws {
+    let harness = try PatternImportHarness()
+    let store = harness.store
+    try store.add(name: "Shared cover")
+    let projectID = try #require(store.projects.first?.id)
+    _ = try await harness.importURL(harness.makePDF(named: "shared.pdf"))
+    let firstPattern = try #require(store.patterns.first)
+    let asset = try #require(store.patternAssets.first)
+    let secondPattern = StoredPattern(assetID: asset.id, displayName: "Shared copy")
+    var archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: harness.archiveURL))
+    archive.patterns.append(secondPattern)
+    try JSONEncoder().encode(archive).write(to: harness.archiveURL, options: .atomic)
+    try store.reloadFromDisk()
+    try store.linkPattern(patternID: firstPattern.id, to: projectID)
+    try store.linkPattern(patternID: secondPattern.id, to: projectID)
+
+    let project = try #require(store.project(id: projectID))
+    let cacheURL = try #require(await store.projectCoverURL(for: project))
+    #expect(cacheURL == harness.thumbnailService.cachedURL(assetID: asset.id))
+
+    try store.unlinkPattern(patternID: firstPattern.id, from: projectID)
+    try store.deletePatternPermanently(id: firstPattern.id)
+    #expect(FileManager.default.fileExists(atPath: cacheURL.path))
+    let secondCover = try #require(await store.projectCoverURL(for: project))
+    #expect(secondCover == cacheURL)
+
+    let afterFirstDeletion = try harness.reopenedStore()
+    #expect(afterFirstDeletion.patterns.map(\.id) == [secondPattern.id])
+    #expect(afterFirstDeletion.patternAssets.map(\.id) == [asset.id])
+
+    try store.unlinkPattern(patternID: secondPattern.id, from: projectID)
+    try store.deletePatternPermanently(id: secondPattern.id)
+    #expect(!FileManager.default.fileExists(atPath: cacheURL.path))
+    let assetURL = try harness.assetURLFor(source: try harness.makePDF(named: "shared.pdf"))
+    #expect(!FileManager.default.fileExists(atPath: assetURL.path))
+
+    let afterLastDeletion = try harness.reopenedStore()
+    #expect(afterLastDeletion.patterns.isEmpty)
+    #expect(afterLastDeletion.patternAssets.isEmpty)
+}
+
 @MainActor @Test func coverCacheRegeneratesWithoutChangingArchiveOrImportSuccess() async throws {
     let harness = try PatternImportHarness()
     let store = harness.store
@@ -550,7 +591,7 @@ import UniformTypeIdentifiers
     #expect(!packagedPaths.contains { $0.hasSuffix("\(asset.id.uuidString).jpg") })
 }
 
-@MainActor @Test func restoreBackupClearsCoverCacheAndRegeneratesSamePatternIDsFromRestoredSource() async throws {
+@MainActor @Test func restoreBackupInvalidatesTheDisposableThumbnailCache() async throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: base) }
     let thumbnailService = PatternThumbnailFileService(
@@ -571,7 +612,6 @@ import UniformTypeIdentifiers
         pageCount: nil
     )
     let cacheURL = try thumbnailService.thumbnailURL(asset: asset, sourceURL: sourceURL)
-    let restoredThumbnailData = try Data(contentsOf: cacheURL)
     let packageURL = try await store.exportBackup(appVersion: "1.0")
     let staged = try await store.prepareBackupRestore(from: packageURL)
 
@@ -581,33 +621,57 @@ import UniformTypeIdentifiers
 
     #expect(store.projectCoverGeneration == generationBeforeRestore + 1)
     #expect(!FileManager.default.fileExists(atPath: cacheURL.path))
-    let regeneratedCacheURL = try thumbnailService.thumbnailURL(asset: asset, sourceURL: sourceURL)
-
-    #expect(regeneratedCacheURL == cacheURL)
-    #expect(FileManager.default.fileExists(atPath: regeneratedCacheURL.path))
-    #expect(try Data(contentsOf: regeneratedCacheURL) == restoredThumbnailData)
 }
 
-@MainActor @Test func thumbnailFailureDoesNotRollbackSuccessfulPatternImport() async throws {
+@MainActor @Test func thumbnailFailureDoesNotRollbackStandaloneLibraryImportOrProjectCoverFallback() async throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: base) }
     try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
     let blockedCacheRoot = base.appendingPathComponent("blocked-cache")
     try Data("not a directory".utf8).write(to: blockedCacheRoot)
+    let locations = PatternStorageLocations(
+        assetRoot: base.appendingPathComponent("KnitNote/Patterns", isDirectory: true),
+        inboxRoot: base.appendingPathComponent("PatternInbox", isDirectory: true)
+    )
+    let inbox = PatternInboxFileService(root: locations.inboxRoot)
     let store = JSONProjectStore(
         url: base.appendingPathComponent("KnitNote/projects-v1.json"),
+        patternFileService: PatternFileService(root: locations.assetRoot),
+        patternInboxFileService: inbox,
         patternThumbnailService: PatternThumbnailFileService(directory: blockedCacheRoot)
     )
     try store.add(name: "Scarf")
     let projectID = try #require(store.projects.first?.id)
     let source = base.appendingPathComponent("chart.png")
     try makeStorePNG(at: source, red: 0.6)
-
-    let imported = try await store.importPattern(from: source, projectID: projectID)
+    let item = try inbox.enqueue(
+        source: source,
+        origin: .project,
+        targetProjectID: projectID,
+        now: .now
+    )
+    let outcome = try await store.processPatternInboxItem(id: item.id)
+    guard case let .created(patternID) = outcome else {
+        Issue.record("Expected a new library pattern")
+        return
+    }
     let savedProject = try #require(store.project(id: projectID))
     let fallbackURL = await store.projectCoverURL(for: savedProject)
 
-    #expect(savedProject.patterns.map(\.id) == [imported.id])
+    #expect(store.patterns.map(\.id) == [patternID])
+    #expect(store.patternAssets.count == 1)
+    #expect(store.patternUsages.map(\.patternID) == [patternID])
     #expect(fallbackURL == nil)
+
+    let reopened = JSONProjectStore(
+        url: base.appendingPathComponent("KnitNote/projects-v1.json"),
+        patternFileService: PatternFileService(root: locations.assetRoot),
+        patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
+        patternThumbnailService: PatternThumbnailFileService(directory: blockedCacheRoot)
+    )
+    #expect(reopened.patterns.map(\.id) == [patternID])
+    #expect(reopened.patternAssets.count == 1)
+    #expect(reopened.patternUsages.map(\.patternID) == [patternID])
 }
 
 @MainActor @Test func invalidReplacementPreservesCommittedPhotoAndDeleteCleansIt() throws {

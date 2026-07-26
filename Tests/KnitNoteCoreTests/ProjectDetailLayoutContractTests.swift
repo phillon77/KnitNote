@@ -37,6 +37,27 @@ import Testing
         #expect(journal.contains("project.journalEntries.isEmpty ? Color.primary : WatercolorTheme.actionBerry"))
     }
 
+    @Test func patternDetailUsesReadablePadWidthAndKeepsActionsInScrollableContent() throws {
+        let source = try source(at: "KnitNote/Patterns/PatternDetailView.swift")
+        let scroll = try #require(source.range(of: "ScrollView"))
+        let linkCard = try #require(source.range(of: "actionsCard"))
+        let deleteCard = try #require(source.range(of: "deletionCard"))
+
+        #expect(source.contains(".frame(maxWidth: 760)"))
+        #expect(scroll.lowerBound < linkCard.lowerBound)
+        #expect(scroll.lowerBound < deleteCard.lowerBound)
+    }
+
+    @Test func dynamicTypeKeepsPatternLinkAndDeleteActionLabelsVisible() throws {
+        let source = try source(at: "KnitNote/Patterns/PatternDetailView.swift")
+
+        #expect(source.contains("Label(\"patterns.detail.linkProject\""))
+        #expect(source.contains("Label(\"patterns.detail.delete\""))
+        #expect(
+            source.components(separatedBy: ".patternActionLabelLayout()").count >= 3
+        )
+    }
+
     private func projectSource() throws -> String {
         try source(at: "KnitNote/Projects/ProjectDetailView.swift")
     }

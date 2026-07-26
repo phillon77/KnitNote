@@ -102,6 +102,28 @@ import Testing
         ],
     ]
 
+    private let task13PatternPrefixes = [
+        "patterns.library.",
+        "patterns.detail.",
+        "patterns.import.",
+        "patterns.link.",
+        "patterns.unlink.",
+        "patterns.share.",
+        "patterns.backup.",
+        "patterns.inbox.",
+        "patterns.reader.chooseContext.",
+        "backup.lastSuccessful.",
+    ]
+
+    private let task13StandalonePatternKeys: Set<String> = [
+        "patterns.importNew",
+        "patterns.linkExisting",
+        "patterns.relink",
+        "patterns.unlink",
+        "patterns.reader.readOnly",
+        "patterns.library.row.accessibility.format",
+    ]
+
     private let requiredPatternLibraryTranslations = [
         "patterns.library.empty.title": ["en": "No Patterns Yet", "zh-Hant": "還沒有織圖"],
         "patterns.library.empty.message": ["en": "Add your first PDF or image pattern.", "zh-Hant": "加入第一份 PDF 或圖片織圖吧。"],
@@ -345,6 +367,59 @@ import Testing
         for (key, expectedTranslations) in requiredPatternLibraryTranslations {
             for (language, expectedValue) in expectedTranslations {
                 #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
+    @Test func task7Through12VisiblePatternKeysAreBilingualAndNonempty() throws {
+        let strings = try catalogStrings()
+        let catalogKeys = Set(strings.keys.filter(isTask13PatternKey))
+        let sourceKeys = try task13PatternSourceKeys()
+        let requiredKeys = catalogKeys
+            .union(sourceKeys.filter(isTask13PatternKey))
+            .union(task13StandalonePatternKeys)
+
+        #expect(!requiredKeys.isEmpty)
+        for key in requiredKeys.sorted() {
+            for language in ["en", "zh-Hant"] {
+                let value = try localizedValue(key, language: language, strings: strings)
+                #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    @Test func patternRowAccessibilityFormatNamesAllThreeVisibleFacts() throws {
+        let strings = try catalogStrings()
+
+        for language in ["en", "zh-Hant"] {
+            let value = try localizedValue(
+                "patterns.library.row.accessibility.format",
+                language: language,
+                strings: strings
+            )
+            for placeholder in ["%1$@", "%2$@", "%3$@"] {
+                #expect(value.components(separatedBy: placeholder).count == 2)
+            }
+        }
+    }
+
+    @Test func shareExtensionVisibleKeysAreBilingualAndNonempty() throws {
+        let strings = try shareCatalogStrings()
+        let sourceKeys = try localizationKeys(
+            in: [
+                "KnitNoteShare/ShareImportView.swift",
+                "KnitNoteShare/ShareViewController.swift",
+            ],
+            matching: #"share\.[A-Za-z0-9._-]+"#
+        )
+        let requiredKeys = Set(strings.keys.filter { $0.hasPrefix("share.") })
+            .union(sourceKeys)
+
+        #expect(!requiredKeys.isEmpty)
+        for key in requiredKeys.sorted() {
+            for language in ["en", "zh-Hant"] {
+                let value = try localizedValue(key, language: language, strings: strings)
+                #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }
@@ -765,6 +840,13 @@ import Testing
         return try #require(catalog["strings"] as? [String: Any])
     }
 
+    private func shareCatalogStrings() throws -> [String: Any] {
+        let catalogURL = repositoryRoot.appending(path: "KnitNoteShare/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return try #require(catalog["strings"] as? [String: Any])
+    }
+
     private func localizedValue(
         _ key: String,
         language: String,
@@ -816,6 +898,47 @@ import Testing
         return try Set(sourceFiles.flatMap { path in
             let source = try String(
                 contentsOf: repositoryRoot.appending(path: path),
+                encoding: .utf8
+            )
+            let range = NSRange(source.startIndex..., in: source)
+            return expression.matches(in: source, range: range).compactMap { match in
+                Range(match.range, in: source).map { String(source[$0]) }
+            }
+        })
+    }
+
+    private func isTask13PatternKey(_ key: String) -> Bool {
+        task13PatternPrefixes.contains { key.hasPrefix($0) }
+            || task13StandalonePatternKeys.contains(key)
+    }
+
+    private func task13PatternSourceKeys() throws -> Set<String> {
+        try localizationKeys(
+            in: [
+                "KnitNote/App/RootView.swift",
+                "KnitNote/Patterns/ChooseLibraryPatternView.swift",
+                "KnitNote/Patterns/ChoosePatternReadingContextView.swift",
+                "KnitNote/Patterns/PatternDetailView.swift",
+                "KnitNote/Patterns/PatternImportResultView.swift",
+                "KnitNote/Patterns/PatternInboxProcessor.swift",
+                "KnitNote/Patterns/PatternLibraryRow.swift",
+                "KnitNote/Patterns/PatternLibraryView.swift",
+                "KnitNote/Patterns/PendingPatternSelectionView.swift",
+                "KnitNote/Patterns/ProjectPatternsView.swift",
+                "KnitNote/Settings/BackupSettingsSection.swift",
+            ],
+            matching: #"(?:patterns|backup)\.[A-Za-z0-9._-]+"#
+        )
+    }
+
+    private func localizationKeys(
+        in relativePaths: [String],
+        matching pattern: String
+    ) throws -> Set<String> {
+        let expression = try NSRegularExpression(pattern: pattern)
+        return try Set(relativePaths.flatMap { relativePath in
+            let source = try String(
+                contentsOf: repositoryRoot.appending(path: relativePath),
                 encoding: .utf8
             )
             let range = NSRange(source.startIndex..., in: source)

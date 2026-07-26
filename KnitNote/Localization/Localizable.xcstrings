@@ -2130,6 +2130,12 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已連結 %lld 件作品" } }
       }
     },
+    "patterns.library.row.accessibility.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$@, %2$@, %3$@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%1$@，%2$@，%3$@" } }
+      }
+    },
     "patterns.library.pdf.pages.format" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "PDF, %lld pages" } },

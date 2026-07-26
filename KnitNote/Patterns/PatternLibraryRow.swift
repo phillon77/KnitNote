@@ -25,10 +25,14 @@ struct PatternLibraryRow: View {
                 Text(patternAssetDescription(asset, locale: locale))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Text(usageDescription)
                     .font(.caption)
                     .foregroundStyle(model.activeLinkCount == 0 ? .secondary : WatercolorTheme.actionBerry)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -36,11 +40,14 @@ struct PatternLibraryRow: View {
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            Text(model.name)
-                + Text(", ")
-                + Text(patternAssetDescription(asset, locale: locale))
-                + Text(", ")
-                + Text(usageDescription)
+            Text(
+                patternRowAccessibilityLabel(
+                    name: model.name,
+                    fileDescription: patternAssetDescription(asset, locale: locale),
+                    usageDescription: usageDescription,
+                    locale: locale
+                )
+            )
         )
     }
 
@@ -54,6 +61,24 @@ struct PatternLibraryRow: View {
             model.activeLinkCount
         )
     }
+}
+
+func patternRowAccessibilityLabel(
+    name: String,
+    fileDescription: String,
+    usageDescription: String,
+    locale: Locale
+) -> String {
+    String(
+        format: String(
+            localized: "patterns.library.row.accessibility.format",
+            locale: locale
+        ),
+        locale: locale,
+        name,
+        fileDescription,
+        usageDescription
+    )
 }
 
 struct PatternThumbnailView: View {

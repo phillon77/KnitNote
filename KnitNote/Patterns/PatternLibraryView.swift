@@ -70,12 +70,17 @@ struct PatternLibraryView: View {
                         sortButton(PatternLibrarySort.name)
                     } label: {
                         Label("patterns.library.sort", systemImage: "arrow.up.arrow.down")
+                            .patternToolbarTextLabelStyle()
                     }
                     .accessibilityLabel(Text("patterns.library.sort"))
 
-                    Button("patterns.add", systemImage: "plus") {
+                    Button {
                         importing = true
+                    } label: {
+                        Label("patterns.add", systemImage: "plus")
+                            .patternToolbarTextLabelStyle()
                     }
+                    .accessibilityLabel(Text("patterns.add"))
                 }
             }
             .fileImporter(
@@ -229,5 +234,16 @@ struct PatternLibraryView: View {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func patternToolbarTextLabelStyle() -> some View {
+        #if os(macOS)
+        self.labelStyle(.titleAndIcon)
+        #else
+        self
+        #endif
     }
 }

@@ -45,6 +45,7 @@ struct PatternDetailView: View {
                         }
                     } label: {
                         Label("patterns.detail.rename", systemImage: "ellipsis.circle")
+                            .patternToolbarTextLabelStyle()
                     }
                     .accessibilityLabel(Text("patterns.detail.rename"))
                 }
@@ -235,15 +236,17 @@ struct PatternDetailView: View {
     private var actionsCard: some View {
         WatercolorCard {
             VStack(spacing: 12) {
-                Button("patterns.detail.linkProject", systemImage: "link.badge.plus") {
+                Button {
                     showingProjectChooser = true
+                } label: {
+                    Label("patterns.detail.linkProject", systemImage: "link.badge.plus")
+                        .patternActionLabelLayout()
                 }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
 
                 if let originalURL = try? store.patternAssetURL(patternID: patternID) {
                     ShareLink(item: originalURL) {
                         Label("patterns.detail.export", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .patternActionLabelLayout()
                     }
                 }
             }
@@ -261,10 +264,12 @@ struct PatternDetailView: View {
                         .font(.subheadline)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Button("patterns.detail.delete", systemImage: "trash", role: .destructive) {
+                Button(role: .destructive) {
                     showingDeleteConfirmation = true
+                } label: {
+                    Label("patterns.detail.delete", systemImage: "trash")
+                        .patternActionLabelLayout()
                 }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .disabled(!activeProjects.isEmpty)
             }
         }
@@ -376,6 +381,11 @@ private extension View {
         #else
         self
         #endif
+    }
+
+    func patternActionLabelLayout() -> some View {
+        fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     }
 }
 

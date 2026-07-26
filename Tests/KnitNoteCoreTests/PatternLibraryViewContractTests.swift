@@ -38,7 +38,20 @@ import Testing
         #expect(source.contains("asset.pageCount"))
         #expect(source.contains("patterns.library.unused"))
         #expect(source.contains(".accessibilityElement(children: .combine)"))
-        #expect(source.contains(".accessibilityLabel"))
+        #expect(source.contains("patternRowAccessibilityLabel("))
+        #expect(source.contains("patterns.library.row.accessibility.format"))
+        #expect(source.contains("name: model.name"))
+        #expect(source.contains("fileDescription: patternAssetDescription"))
+        #expect(source.contains("usageDescription: usageDescription"))
+    }
+
+    @Test func rowStatusIsVisibleTextAndStaysOnOneReadableLine() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryRow.swift")
+
+        #expect(source.contains("Text(usageDescription)"))
+        #expect(source.contains(".lineLimit(1)"))
+        #expect(source.contains(".minimumScaleFactor(0.8)"))
+        #expect(!source.contains("foregroundStyle(model.activeLinkCount == 0 ? .clear"))
     }
 
     @Test func thumbnailLoadsTheOwnedLocalFileInsteadOfUsingANetworkImageLoader() throws {
@@ -89,5 +102,19 @@ import Testing
 
         #expect(detail.contains(".patternDetailNavigationTitleStyle()"))
         #expect(detail.contains("#if os(iOS)"))
+    }
+
+    @Test func phoneImportRemainsReachableAndMacToolbarKeepsTextLabels() throws {
+        let library = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let detail = try readRepositoryFile("KnitNote/Patterns/PatternDetailView.swift")
+
+        #expect(library.contains("ToolbarItemGroup(placement: .primaryAction)"))
+        #expect(library.contains("Label(\"patterns.add\", systemImage: \"plus\")"))
+        #expect(library.contains(".accessibilityLabel(Text(\"patterns.add\"))"))
+        #expect(library.contains(".fileImporter("))
+        #expect(library.contains(".patternToolbarTextLabelStyle()"))
+        #expect(detail.contains(".patternToolbarTextLabelStyle()"))
+        #expect(library.contains("#if os(macOS)"))
+        #expect(library.contains(".labelStyle(.titleAndIcon)"))
     }
 }

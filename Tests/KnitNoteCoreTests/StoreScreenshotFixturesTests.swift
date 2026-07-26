@@ -13,11 +13,14 @@ import Testing
         #expect(first.archive.projects.count == 2)
         #expect(first.archive.projects.allSatisfy { $0.counters.count == 6 })
         #expect(first.archive.projects[0].counters.map(\.value) == [38, 6, 12, 4, 18, 16])
-        #expect(first.archive.projects[0].patterns.count == 1)
+        #expect(first.archive.projects[0].patterns.isEmpty)
+        #expect(first.archive.patternAssets.count == 1)
+        #expect(first.archive.patterns.count == 1)
+        #expect(first.archive.patternUsages.count == 1)
         #expect(first.archive.projects[0].journalEntries.count == 2)
         #expect(first.archive.yarns.count == 3)
         #expect(first.files.keys.contains { $0.hasSuffix(".pdf") })
-        #expect(first.files.keys.contains { $0.contains("/Markup/") && $0.hasSuffix(".json") })
+        #expect(first.files.keys.contains { $0.contains("/UsageMarkup/") && $0.hasSuffix(".json") })
     }
 
     @Test func fixturesContainNoPersonalOrProductionDeviceData() throws {
@@ -85,8 +88,30 @@ import Testing
         #expect(store.loadError == nil)
         #expect(store.projects.count == 2)
         #expect(store.projects.first?.counters.count == 6)
-        #expect(store.projects.first?.patterns.count == 1)
+        #expect(store.projects.first?.patterns.isEmpty == true)
+        #expect(store.patternAssets.count == 1)
+        #expect(store.patterns.count == 1)
+        #expect(store.patternUsages.count == 1)
         #expect(store.yarns.count == 3)
+    }
+
+    @Test @MainActor func installedFixtureProvidesArchiveLevelReaderContentAndUsageMarkup() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "knitnote-store-reader-fixture-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let baseDirectory = try StoreScreenshotFixtures.make(language: .en).install(in: root)
+        let store = JSONProjectStore.live(baseDirectory: baseDirectory)
+        let asset = try #require(store.patternAssets.first)
+        let pattern = try #require(store.patterns.first)
+        let usage = try #require(store.patternUsages.first { $0.isActive })
+
+        #expect(store.projects.first?.patterns.isEmpty == true)
+        #expect(pattern.assetID == asset.id)
+        #expect(usage.patternID == pattern.id)
+        #expect(usage.projectID == store.projects.first?.id)
+        #expect(FileManager.default.fileExists(atPath: try store.patternAssetURL(patternID: pattern.id).path))
+        #expect(!(try store.loadPatternMarkup(usageID: usage.id, pageIndex: 0)).strokes.isEmpty)
     }
 
     @Test func everyApprovedScreenshotSceneHasAStableLaunchValue() {

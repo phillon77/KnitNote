@@ -30,11 +30,34 @@ import Testing
         #expect(restoredState.verticalHighlightPosition == 0.77)
         #expect(restoredState.pageNote == "keep sleeve shaping")
         #expect(restoredState.pageStates[7]?.note == "new-page note")
+        #expect(transition?.rollbackPageIndex == 2)
     }
 
     @Test func unchangedReaderStateDoesNotCreateARollbackTransaction() {
         let state = PatternReadingState(pageIndex: 3, pageNote: "stable")
 
         #expect(PatternReaderPageTransition(previousState: state, proposedState: state) == nil)
+    }
+
+    @Test func aRapidSecondPageChangeKeepsTheOriginalRollbackPage() {
+        let initialState = PatternReadingState(pageIndex: 2, pageNote: "row 2")
+        var firstProposedState = initialState
+        firstProposedState.transitionToPDFPage(3)
+        let firstTransition = try! #require(
+            PatternReaderPageTransition(previousState: initialState, proposedState: firstProposedState)
+        )
+
+        var latestProposedState = firstProposedState
+        latestProposedState.transitionToPDFPage(4)
+        let latestTransition = try! #require(
+            PatternReaderPageTransition(
+                previousState: firstTransition.rollbackState,
+                proposedState: latestProposedState
+            )
+        )
+
+        #expect(latestTransition.rollbackPageIndex == 2)
+        #expect(latestTransition.targetPageIndex == 4)
+        #expect(latestTransition.rollbackState == initialState)
     }
 }

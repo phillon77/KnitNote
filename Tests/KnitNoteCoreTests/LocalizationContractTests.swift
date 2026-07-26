@@ -91,6 +91,17 @@ import Testing
         "counter.decrement",
     ]
 
+    private let requiredReaderTranslations = [
+        "counter.accessibility.readOnlyHint": [
+            "en": "Counter is read-only.",
+            "zh-Hant": "計數器僅供查看。",
+        ],
+        "patterns.reader.conflict": [
+            "en": "Pattern changed elsewhere",
+            "zh-Hant": "織圖已在其他位置變更",
+        ],
+    ]
+
     private let requiredJournalTranslations = [
         "journal.accessibility.add": ["en": "Add journal entry", "zh-Hant": "新增編織日記"],
         "journal.accessibility.fullPhoto": ["en": "Journal entry photo", "zh-Hant": "編織日記照片"],
@@ -250,6 +261,16 @@ import Testing
                 let translation = try #require(translations[language] as? [String: Any])
                 let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
                 #expect(!(try #require(stringUnit["value"] as? String)).isEmpty)
+            }
+        }
+    }
+
+    @Test func readerConflictAndReadOnlyHintsUseTheApprovedBilingualCopy() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredReaderTranslations {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }
         }
     }

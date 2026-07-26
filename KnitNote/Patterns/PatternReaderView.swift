@@ -180,7 +180,7 @@ struct PatternReaderView: View {
                       readerSession.canAcceptCanvasCallbacks,
                       readerSession.identity == readerContextIdentity else { return }
                 if let transition = PatternReaderPageTransition(
-                    previousState: state,
+                    previousState: pendingPageTransition?.rollbackState ?? state,
                     proposedState: newState
                 ) {
                     pendingPageTransition = transition
@@ -394,17 +394,19 @@ struct PatternReaderView: View {
             guard saveMarkup(page: state.pageIndex) else { return }
             _ = save()
         }
-        .onChange(of: state.pageIndex) { oldPage, newPage in
+        .onChange(of: state.pageIndex) { _, newPage in
             guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
             guard handledPageIndex != newPage else { return }
+            guard let transition = pendingPageTransition,
+                  transition.targetPageIndex == newPage else { return }
             guard revisionCoordinator.canChangePage else {
-                restorePageTransition(to: oldPage)
+                restorePageTransition()
                 saveError = String(localized: "error.saveFailed")
                 return
             }
             handledPageIndex = newPage
-            if context.canWrite, !saveMarkup(page: oldPage) {
-                restorePageTransition(to: oldPage)
+            if context.canWrite, !saveMarkup(page: transition.rollbackPageIndex) {
+                restorePageTransition()
                 return
             }
             pendingPageTransition = nil
@@ -567,13 +569,13 @@ struct PatternReaderView: View {
         reloadReader(for: readerContextIdentity)
     }
 
-    private func restorePageTransition(to oldPage: Int) {
+    private func restorePageTransition() {
         guard let transition = pendingPageTransition,
               transition.targetPageIndex == state.pageIndex else { return }
         state = transition.rollbackState
         handledPageIndex = transition.rollbackState.pageIndex
         pendingPageTransition = nil
-        pdfNavigator.go(to: oldPage)
+        pdfNavigator.go(to: transition.rollbackPageIndex)
     }
 
     @discardableResult private func save() -> Bool {
@@ -599,7 +601,7 @@ struct PatternReaderView: View {
                     expectedDataGeneration: expectedDataGeneration
                 )
             }
-            expectedDataGeneration = nextGeneration
+            self.expectedDataGeneration = nextGeneration
             revisionCoordinator.confirmMutation(generation: nextGeneration)
             return true
         } catch {
@@ -772,7 +774,7 @@ struct PatternReaderView: View {
                     expectedDataGeneration: expectedDataGeneration
                 )
             }
-            expectedDataGeneration = nextGeneration
+            self.expectedDataGeneration = nextGeneration
             revisionCoordinator.confirmMutation(generation: nextGeneration)
             markupSession.markPersisted(readerGeneration: readerSession.generation, pageIndex: page)
             revisionCoordinator.setMarkupDirty(false)

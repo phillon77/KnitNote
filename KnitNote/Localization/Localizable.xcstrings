@@ -1214,6 +1214,12 @@
         }
       }
     },
+    "counter.accessibility.readOnlyHint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Counter is read-only." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "計數器僅供查看。" } }
+      }
+    },
     "counter.collapse" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1845,7 +1851,7 @@
     "patterns.reader.conflict" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Pattern changed elsewhere" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織圖已在其他位置變更" } }
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖已在其他位置變更" } }
       }
     },
     "patterns.reader.conflict.message" : {

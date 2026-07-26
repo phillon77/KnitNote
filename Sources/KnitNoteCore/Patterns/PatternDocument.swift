@@ -124,6 +124,10 @@ public struct PatternReaderPageTransition: Equatable, Sendable {
     public let rollbackState: PatternReadingState
     public let targetPageIndex: Int
 
+    public var rollbackPageIndex: Int {
+        rollbackState.pageIndex
+    }
+
     public init?(previousState: PatternReadingState, proposedState: PatternReadingState) {
         guard previousState.pageIndex != proposedState.pageIndex else { return nil }
         rollbackState = previousState

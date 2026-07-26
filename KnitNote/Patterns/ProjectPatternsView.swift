@@ -16,7 +16,7 @@ struct ProjectPatternsView: View {
     @State private var pendingDeletion: ProjectPatternReaderSelection?
     @State private var errorMessage: String?
     var body: some View { NavigationStack { List(projectPatterns) { selection in
-        Button { selectedPattern = selection } label: { Label(selection.pattern.displayName, systemImage: selection.pattern.kind == .pdf ? "doc.richtext" : "photo") }
+        Button { selectedPattern = selection } label: { Label(selection.pattern.displayName, systemImage: iconName(for: selection.pattern)) }
             .swipeActions { Button("common.delete", role: .destructive) { pendingDeletion = selection } }
     }.scrollContentBackground(.hidden).background(WatercolorBackground()).navigationTitle("patterns.title").toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("common.ok") { dismiss() } }
@@ -57,5 +57,11 @@ struct ProjectPatternsView: View {
                   let pattern = store.patterns.first(where: { $0.id == usage.patternID }) else { return nil }
             return .init(usage: usage, pattern: pattern)
         }
+    }
+
+    private func iconName(for pattern: StoredPattern) -> String {
+        store.patternAssets.first(where: { $0.id == pattern.assetID })?.kind == .pdf
+            ? "doc.richtext"
+            : "photo"
     }
 }

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public enum StoreScreenshotLanguage: String, CaseIterable, Sendable {
@@ -48,6 +49,8 @@ public enum StoreScreenshotFixtures {
     private static let projectID = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!
     private static let secondProjectID = UUID(uuidString: "10000000-0000-4000-8000-000000000002")!
     private static let patternID = UUID(uuidString: "20000000-0000-4000-8000-000000000001")!
+    private static let assetID = UUID(uuidString: "20000000-0000-4000-8000-000000000002")!
+    private static let usageID = UUID(uuidString: "20000000-0000-4000-8000-000000000003")!
     private static let projectPhotoToken = UUID(uuidString: "21000000-0000-4000-8000-000000000001")!
     private static let fixedDate = Date(timeIntervalSince1970: 1_767_225_600)
 
@@ -71,26 +74,22 @@ public enum StoreScreenshotFixtures {
             )
         }
 
-        var pattern = PatternDocument(
-            id: patternID,
-            displayName: copy.patternName,
-            kind: .pdf,
-            storedFilename: "\(patternID.uuidString).pdf",
-            createdAt: fixedDate
-        )
-        pattern.pageIndex = 0
-        pattern.highlightEnabled = true
-        pattern.highlightPosition = 0.43
-        pattern.highlightMode = .cross
-        pattern.verticalHighlightPosition = 0.58
-        pattern.pageStates = [
-            0: PatternPageState(
+        let readingState = PatternReadingState(
+            pageIndex: 0,
+            highlightEnabled: true,
+            highlightPosition: 0.43,
+            highlightMode: .cross,
+            verticalHighlightPosition: 0.58,
+            pageNote: copy.pageNote,
+            pageStates: [
+                0: PatternPageState(
                 horizontalPosition: 0.43,
                 verticalPosition: 0.58,
                 note: copy.pageNote
             ),
-            1: PatternPageState(horizontalPosition: 0.64, verticalPosition: 0.36),
-        ]
+                1: PatternPageState(horizontalPosition: 0.64, verticalPosition: 0.36),
+            ]
+        )
 
         let journalEntries = try makeJournalEntries(copy: copy)
         let firstProjectPhoto = "\(projectID.uuidString)-\(projectPhotoToken.uuidString).jpg"
@@ -102,7 +101,7 @@ public enum StoreScreenshotFixtures {
                 selectedCounterID: counterIDs[0],
                 createdAt: fixedDate,
                 updatedAt: fixedDate,
-                patterns: [pattern],
+                patterns: [],
                 photoFilename: firstProjectPhoto,
                 completedAt: nil,
                 toolType: .knittingNeedles,
@@ -144,12 +143,43 @@ public enum StoreScreenshotFixtures {
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let archive = try JSONDecoder().decode(ProjectArchive.self, from: encoder.encode(payload))
+        let decoded = try JSONDecoder().decode(ProjectArchive.self, from: encoder.encode(payload))
+        let pdfData = makePatternPDF()
+        let asset = PatternAsset(
+            id: assetID,
+            sha256: SHA256.hash(data: pdfData).map { String(format: "%02x", $0) }.joined(),
+            kind: .pdf,
+            storedFilename: "\(assetID.uuidString).pdf",
+            byteCount: Int64(pdfData.count),
+            pageCount: 2
+        )
+        let storedPattern = StoredPattern(
+            id: patternID,
+            assetID: asset.id,
+            displayName: copy.patternName,
+            createdAt: fixedDate
+        )
+        let usage = PatternProjectUsage(
+            id: usageID,
+            patternID: storedPattern.id,
+            projectID: projectID,
+            linkedAt: fixedDate,
+            sortOrder: 0,
+            readingState: readingState
+        )
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: decoded.projects,
+            yarns: yarns,
+            patternAssets: [asset],
+            patterns: [storedPattern],
+            patternUsages: [usage]
+        )
 
         let swatch = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAABwElEQVR42u2ZMWrDQBBFdxUfw1XS5AjGTapcICcIOYiP4srkEi7cCR/BEGxcqDEYAmnUplBwlEg73zAsLvZNZayHikFC+3jxdGwDk56KFbAgFpRzJuvl9vltNnptvdxefhfLxNViM0T7t+hPgczvgjpuXzeHXWM8cqUx8XRseV4Mpkq9h//+vH+clslc9RXb102xTLycpLvPWfceju41hHDYNaUxcagaqb0+zKcFMjHlYn20f4vSmIisohosKKuLYV42w0laMH9cDPMaMti8YO5enl5HXs42fJ6/bIsphKkwL5uJq8UG8zKYWL9/YF4G86MamFeKwcVQDRaU18XoYjbDSVowdDHBYPN0MR9DFxNDFxMMXYwu5mNwMVSDBeV1Mcwr0MU8DF1MMNi8YOhidDEfQxeji/kYuhhdDNVgQTd1MbqYzXCSFgxdTDDYPF3Mx9DFxNDFBEMXo4v5GFwM1WBBeV0M8wp0MQ9DFxMMNi8YuhhdzMfQxehiPoYuRhdDNVjQTV2MLmYznKQFQxcTDDZPF/MxdDExdDHB0MXoYj4GF0M1WFBeF8O8Al3Mw9DFBIPNC4YuRhfzMXQxupiP+QZOcitNavVs2gAAAABJRU5ErkJggg==")!
         var files: [String: Data] = [
             "ProjectPhotos/\(firstProjectPhoto)": swatch,
-            "Patterns/\(projectID.uuidString)/\(pattern.storedFilename)": makePatternPDF(),
+            "Patterns/Assets/\(asset.storedFilename)": pdfData,
         ]
         var markup = PatternMarkupDocument()
         markup.append(
@@ -168,7 +198,7 @@ public enum StoreScreenshotFixtures {
         let markupEncoder = JSONEncoder()
         markupEncoder.outputFormatting = [.sortedKeys]
         files[
-            "Patterns/\(projectID.uuidString)/Markup/\(patternID.uuidString)/0.json"
+            "Patterns/UsageMarkup/\(usage.id.uuidString)/0.json"
         ] = try markupEncoder.encode(markup)
         for entry in journalEntries {
             files["ProjectJournalPhotos/\(entry.photoFilename)"] = swatch

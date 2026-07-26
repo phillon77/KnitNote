@@ -21,6 +21,7 @@ struct ProjectDetailView: View {
     @State private var showingPatterns = false
     @State private var showingJournalEditor = false
     @State private var selectedJournalEntry: JournalEntryRoute?
+    @State private var counterSaveError: String?
 
     var body: some View {
         if let project = store.project(id: projectID) {
@@ -157,7 +158,7 @@ struct ProjectDetailView: View {
             }
             .sheet(item: $managingCounter) { counter in
                 EditCounterNameView(counter: counter) { name, value in
-                    try? store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value)
+                    saveCounter(counter, name: name, value: value)
                 }
             }
             .sheet(item: $editingNote) { selection in
@@ -179,6 +180,24 @@ struct ProjectDetailView: View {
             .sheet(item: $selectedJournalEntry) { route in
                 ProjectJournalEntryDetailView(projectID: projectID, entryID: route.id)
             }
+            .alert("error.saveFailed", isPresented: Binding(
+                get: { counterSaveError != nil },
+                set: { if !$0 { counterSaveError = nil } }
+            )) {
+                Button("common.ok") {}
+            } message: {
+                Text(counterSaveError ?? "")
+            }
+        }
+    }
+
+    private func saveCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool {
+        do {
+            try store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value)
+            return true
+        } catch {
+            counterSaveError = error.localizedDescription
+            return false
         }
     }
 

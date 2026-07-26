@@ -119,3 +119,20 @@
 ## Scope
 
 No Task 7/8 library UI redesign, Watch, or xcodeproj changes were made. The library list's archive-level data source and the three minimal conflict strings are required for the context entrypoint and conflict-resolution fixes.
+
+## Review Fix Round 7 — Compile-Safe Library UI and Current Screenshot Reader Data
+
+- Corrected the archive-level library and project lists to derive their PDF/image symbol from the matched `PatternAsset.kind`; `StoredPattern` deliberately owns only its asset ID and display metadata.
+- Fixed the project-detail counter editor completion callback to report a real `Bool`: it now keeps the editor presented on a thrown store mutation, presents the localized save failure, and only dismisses after a successful update.
+- Hardened failed page transitions against rapid platform callbacks. A second transition preserves the original rollback snapshot; the page observer saves the snapshot page rather than SwiftUI's callback argument, and restoration derives the PDF navigation page from that same Core snapshot. The executable transition tests cover both full-state rollback and a rapid `2 -> 3 -> 4` update.
+- Updated screenshot fixture version 10 content to use an archive-level `PatternAsset`, `StoredPattern`, and active `PatternProjectUsage`, with the asset at `Patterns/Assets` and usage markup at `Patterns/UsageMarkup`. The integration test installs the fixture through `JSONProjectStore.live`, resolves the pattern asset, and reads non-empty usage markup.
+- Disabled reader counters now announce a read-only hint instead of the tap-and-hold mutation hint, and no longer use the nonexistent SwiftUI `.isDisabled` accessibility trait. The conflict translation uses the approved Taiwanese `織圖` terminology.
+- A direct iOS SDK SwiftUI type-check found two latent production compile errors that the normal Xcode build had not reached because its Watch dependency stops at the Watch AppIcon asset: the shadowed `expectedDataGeneration` assignment in `saveMarkup`, and the invalid `.isDisabled` accessibility trait. Both are fixed; the direct type-check now completes with only existing Sendable warnings in backup/photo service code.
+
+### Round 7 Verification
+
+- RED: `swift test --filter 'PatternReaderPageTransitionTests|PatternReaderAccessibilityPolicyTests|StoreScreenshotFixturesTests|LocalizationContractTests'` initially failed for the new rollback-page API, read-only hint policy, localization values, and archive-level screenshot data.
+- GREEN focused: `swift test --filter 'PatternReaderPageTransitionTests|PatternReaderAccessibilityPolicyTests|StoreScreenshotFixturesTests|LocalizationContractTests|PatternReaderCounterContractTests'` passed (55 tests in 5 suites).
+- iOS SwiftUI type-check: `xcrun swiftc -typecheck -swift-version 5 -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" -target arm64-apple-ios18.0-simulator -module-name KnitNote $(rg --files KnitNote Sources/KnitNoteCore -g '*.swift')` passed with zero errors (existing Sendable warnings only).
+- Full regression: `swift test` passed (685 tests in 51 suites).
+- `jq empty KnitNote/Localization/Localizable.xcstrings`, Swift parse of every touched Swift source/test file, and `git diff --check` passed.

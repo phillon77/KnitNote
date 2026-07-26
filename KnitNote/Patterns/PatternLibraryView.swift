@@ -24,7 +24,7 @@ struct PatternLibraryView: View {
                             Button {
                                 selectedPattern = pattern
                             } label: {
-                                Label(pattern.displayName, systemImage: pattern.kind == .pdf ? "doc.richtext" : "photo")
+                                Label(pattern.displayName, systemImage: iconName(for: pattern))
                             }
                         }
                     }
@@ -70,5 +70,11 @@ struct PatternLibraryView: View {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func iconName(for pattern: StoredPattern) -> String {
+        store.patternAssets.first(where: { $0.id == pattern.assetID })?.kind == .pdf
+            ? "doc.richtext"
+            : "photo"
     }
 }

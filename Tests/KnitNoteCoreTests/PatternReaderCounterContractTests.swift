@@ -91,17 +91,8 @@ import Testing
         #expect(reader.contains("@State private var revisionCoordinator"))
         #expect(reader.contains(".onChange(of: store.dataGeneration)"))
         #expect(reader.contains("revisionCoordinator.canChangePage"))
-        #expect(reader.contains("!saveMarkup(page: oldPage)"))
+        #expect(reader.contains("!saveMarkup(page: transition.rollbackPageIndex)"))
         #expect(reader.contains("guard saveMarkup(page: state.pageIndex) else { return }"))
-    }
-
-    @Test func readerUsesTheCoreTransitionSnapshotWhenAPageChangeCannotBeSaved() throws {
-        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
-
-        #expect(reader.contains("@State private var pendingPageTransition: PatternReaderPageTransition?"))
-        #expect(reader.contains("PatternReaderPageTransition("))
-        #expect(reader.contains("state = transition.rollbackState"))
-        #expect(reader.contains("pdfNavigator.go(to: oldPage)"))
     }
 
     @Test func readerOffersDiscardAndReloadForAnExternalMarkupConflict() throws {
@@ -158,7 +149,7 @@ import Testing
         #expect(reader.contains(".disabled(!context.canWrite)"))
         #expect(reader.contains("isEnabled: context.canWrite"))
         #expect(reader.contains("guard context.canWrite else { return }"))
-        #expect(controls.contains(".accessibilityAddTraits(isEnabled ? [] : .isDisabled)"))
+        #expect(controls.contains("PatternReaderCounterAccessibilityPolicy.accessibilityHintKey(isEnabled: isEnabled)"))
     }
 
     @Test func legacyReaderStillOffersItsMissingFileRecoveryAction() throws {

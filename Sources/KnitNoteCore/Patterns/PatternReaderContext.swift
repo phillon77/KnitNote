@@ -314,4 +314,8 @@ public enum PatternReaderCounterAccessibilityPolicy: Sendable {
     public static func canExposeManageAction(isEnabled: Bool) -> Bool {
         isEnabled
     }
+
+    public static func accessibilityHintKey(isEnabled: Bool) -> String {
+        isEnabled ? "counter.accessibility.tapHoldHint" : "counter.accessibility.readOnlyHint"
+    }
 }

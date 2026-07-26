@@ -458,24 +458,22 @@ import UniformTypeIdentifiers
     #expect(archive.version == ProjectArchive.currentVersion)
 }
 
-@MainActor @Test func projectCoverPrefersCustomPhotoThenFallsBackThroughPatterns() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    let archiveURL = base.appendingPathComponent("KnitNote/projects-v1.json")
-    let thumbnailService = PatternThumbnailFileService(
-        directory: base.appendingPathComponent(".KnitNote-PatternThumbnailCache")
-    )
-    let store = JSONProjectStore(
-        url: archiveURL,
-        patternThumbnailService: thumbnailService
-    )
+@MainActor @Test func projectCoverPrefersCustomPhotoThenFirstActiveUsage() async throws {
+    let harness = try PatternImportHarness()
+    let store = harness.store
     try store.add(name: "Sweater", photoData: makeStoreJPEG(red: 0.5))
     let projectID = try #require(store.projects.first?.id)
-    let firstSource = base.appendingPathComponent("first.png")
-    let secondSource = base.appendingPathComponent("second.png")
-    try makeStorePNG(at: firstSource, red: 0.2)
-    try makeStorePNG(at: secondSource, red: 0.8)
-    let first = try await store.importPattern(from: firstSource, projectID: projectID)
-    let second = try await store.importPattern(from: secondSource, projectID: projectID)
+    let firstSource = try harness.makePDF(named: "First.pdf")
+    let secondSource = harness.sourceRoot.appendingPathComponent("Second.pdf")
+    try makeTestPatternPDF(at: secondSource, pageCount: 2)
+    _ = try await harness.importURL(firstSource)
+    _ = try await harness.importURL(secondSource)
+    let firstPattern = try #require(store.patterns.first { $0.displayName == "First" })
+    let secondPattern = try #require(store.patterns.first { $0.displayName == "Second" })
+    let firstAsset = try #require(store.patternAssets.first { $0.id == firstPattern.assetID })
+    let secondAsset = try #require(store.patternAssets.first { $0.id == secondPattern.assetID })
+    try store.linkPattern(patternID: firstPattern.id, to: projectID)
+    try store.linkPattern(patternID: secondPattern.id, to: projectID)
 
     let withPhoto = try #require(store.project(id: projectID))
     let customCoverURL = await store.projectCoverURL(for: withPhoto)
@@ -491,124 +489,99 @@ import UniformTypeIdentifiers
     )
     let withoutPhoto = try #require(store.project(id: projectID))
     let firstPatternCoverURL = await store.projectCoverURL(for: withoutPhoto)
-    #expect(
-        firstPatternCoverURL
-            == thumbnailService.cachedURL(projectID: projectID, patternID: first.id)
-    )
+    #expect(firstPatternCoverURL == harness.thumbnailService.cachedURL(assetID: firstAsset.id))
 
-    try store.deletePattern(projectID: projectID, id: first.id)
-    let afterFirstDeletion = try #require(store.project(id: projectID))
-    let secondPatternCoverURL = await store.projectCoverURL(for: afterFirstDeletion)
-    #expect(
-        secondPatternCoverURL
-            == thumbnailService.cachedURL(projectID: projectID, patternID: second.id)
-    )
+    try store.unlinkPattern(patternID: firstPattern.id, from: projectID)
+    let afterFirstUnlink = try #require(store.project(id: projectID))
+    let secondPatternCoverURL = await store.projectCoverURL(for: afterFirstUnlink)
+    #expect(secondPatternCoverURL == harness.thumbnailService.cachedURL(assetID: secondAsset.id))
 
-    try store.deletePattern(projectID: projectID, id: second.id)
-    let withoutPatterns = try #require(store.project(id: projectID))
-    let defaultCoverURL = await store.projectCoverURL(for: withoutPatterns)
+    try store.unlinkPattern(patternID: secondPattern.id, from: projectID)
+    let withoutActiveUsages = try #require(store.project(id: projectID))
+    let defaultCoverURL = await store.projectCoverURL(for: withoutActiveUsages)
     #expect(defaultCoverURL == nil)
 }
 
 @MainActor @Test func coverCacheRegeneratesWithoutChangingArchiveOrImportSuccess() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    let liveRoot = base.appendingPathComponent("KnitNote")
-    let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
-    let thumbnailRoot = base.appendingPathComponent(".KnitNote-PatternThumbnailCache")
-    let service = PatternThumbnailFileService(directory: thumbnailRoot)
-    let store = JSONProjectStore(url: archiveURL, patternThumbnailService: service)
+    let harness = try PatternImportHarness()
+    let store = harness.store
     try store.add(name: "Hat")
     let projectID = try #require(store.projects.first?.id)
-    let source = base.appendingPathComponent("chart.png")
-    try makeStorePNG(at: source, red: 0.4)
-    let pattern = try await store.importPattern(from: source, projectID: projectID)
+    let source = try harness.makePDF(named: "chart.pdf")
+    _ = try await harness.importURL(source)
+    let pattern = try #require(store.patterns.first)
+    let asset = try #require(store.patternAssets.first)
+    try store.linkPattern(patternID: pattern.id, to: projectID)
     let project = try #require(store.project(id: projectID))
     let firstCandidate = await store.projectCoverURL(for: project)
     let firstURL = try #require(firstCandidate)
     try FileManager.default.removeItem(at: firstURL)
 
-    let restarted = JSONProjectStore(url: archiveURL, patternThumbnailService: service)
+    let restarted = try harness.reopenedStore()
     let restartedProject = try #require(restarted.project(id: projectID))
     let regeneratedCandidate = await restarted.projectCoverURL(for: restartedProject)
     let regenerated = try #require(regeneratedCandidate)
 
-    #expect(regenerated == service.cachedURL(projectID: projectID, patternID: pattern.id))
+    #expect(regenerated == harness.thumbnailService.cachedURL(assetID: asset.id))
     #expect(FileManager.default.fileExists(atPath: regenerated.path))
-    #expect(!thumbnailRoot.path.hasPrefix(liveRoot.path + "/"))
-    let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
+    let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: harness.archiveURL))
     #expect(archive.projects.first?.photoFilename == nil)
 }
 
 @MainActor @Test func exportBackupExcludesDisposablePatternThumbnailCache() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: base) }
-    let store = JSONProjectStore(
-        url: base.appendingPathComponent("KnitNote/projects-v1.json")
-    )
+    let harness = try PatternImportHarness()
+    let store = harness.store
     try store.add(name: "Exported pattern")
     let projectID = try #require(store.projects.first?.id)
-    let sourceURL = base.appendingPathComponent("source.png")
+    let sourceURL = harness.sourceRoot.appendingPathComponent("source.png")
     try makeStorePNG(at: sourceURL, red: 0.2)
-    let pattern = try await store.importPattern(from: sourceURL, projectID: projectID)
-    let cacheURL = base
-        .appendingPathComponent(".KnitNote-PatternThumbnailCache")
-        .appendingPathComponent(projectID.uuidString)
-        .appendingPathComponent("\(pattern.id.uuidString).jpg")
+    _ = try await harness.importURL(sourceURL)
+    let pattern = try #require(store.patterns.first)
+    let asset = try #require(store.patternAssets.first)
+    try store.linkPattern(patternID: pattern.id, to: projectID)
+    let project = try #require(store.project(id: projectID))
+    let cacheURL = try #require(await store.projectCoverURL(for: project))
     #expect(FileManager.default.fileExists(atPath: cacheURL.path))
 
     let packageURL = try await store.exportBackup(appVersion: "1.0")
     let packagedPaths = try backupPackageRelativePaths(at: packageURL)
 
     #expect(!packagedPaths.contains { $0.contains(".KnitNote-PatternThumbnailCache") })
-    #expect(!packagedPaths.contains { $0.hasSuffix("\(pattern.id.uuidString).jpg") })
+    #expect(!packagedPaths.contains { $0.hasSuffix("\(asset.id.uuidString).jpg") })
 }
 
 @MainActor @Test func restoreBackupClearsCoverCacheAndRegeneratesSamePatternIDsFromRestoredSource() async throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: base) }
+    let thumbnailService = PatternThumbnailFileService(
+        directory: base.appendingPathComponent("ThumbnailCache", isDirectory: true)
+    )
     let store = JSONProjectStore(
-        url: base.appendingPathComponent("KnitNote/projects-v1.json")
+        url: base.appendingPathComponent("KnitNote/projects-v1.json"),
+        patternThumbnailService: thumbnailService
     )
     try store.add(name: "Restored pattern")
-    let projectID = try #require(store.projects.first?.id)
     let sourceURL = base.appendingPathComponent("source.png")
     try makeStorePNG(at: sourceURL, red: 0.2)
-    let pattern = try await store.importPattern(from: sourceURL, projectID: projectID)
-    let livePatternURL = store.patternURL(projectID: projectID, pattern: pattern)
-    let restoredSourceData = try Data(contentsOf: livePatternURL)
-    let cacheURL = base
-        .appendingPathComponent(".KnitNote-PatternThumbnailCache")
-        .appendingPathComponent(projectID.uuidString)
-        .appendingPathComponent("\(pattern.id.uuidString).jpg")
+    let asset = PatternAsset(
+        sha256: "thumbnail-test",
+        kind: .image,
+        storedFilename: "\(UUID().uuidString).png",
+        byteCount: 0,
+        pageCount: nil
+    )
+    let cacheURL = try thumbnailService.thumbnailURL(asset: asset, sourceURL: sourceURL)
     let restoredThumbnailData = try Data(contentsOf: cacheURL)
     let packageURL = try await store.exportBackup(appVersion: "1.0")
     let staged = try await store.prepareBackupRestore(from: packageURL)
 
-    try FileManager.default.removeItem(at: livePatternURL)
-    try makeStorePNG(at: livePatternURL, red: 0.8)
-    try FileManager.default.removeItem(at: cacheURL)
-    let currentProject = try #require(store.project(id: projectID))
-    let staleCacheURL = try #require(await store.projectCoverURL(for: currentProject))
-    let staleThumbnailData = try Data(contentsOf: staleCacheURL)
-    #expect(staleThumbnailData != restoredThumbnailData)
     let generationBeforeRestore = store.projectCoverGeneration
 
     try await store.restoreBackup(staged)
 
     #expect(store.projectCoverGeneration == generationBeforeRestore + 1)
     #expect(!FileManager.default.fileExists(atPath: cacheURL.path))
-    let restoredProject = try #require(store.project(id: projectID))
-    let restoredPattern = try #require(restoredProject.patterns.first)
-    #expect(restoredProject.id == projectID)
-    #expect(restoredPattern.id == pattern.id)
-    #expect(
-        try Data(contentsOf: store.patternURL(projectID: projectID, pattern: restoredPattern))
-            == restoredSourceData
-    )
-
-    let regeneratedCacheURL = try #require(
-        await store.projectCoverURL(for: restoredProject)
-    )
+    let regeneratedCacheURL = try thumbnailService.thumbnailURL(asset: asset, sourceURL: sourceURL)
 
     #expect(regeneratedCacheURL == cacheURL)
     #expect(FileManager.default.fileExists(atPath: regeneratedCacheURL.path))

@@ -20,18 +20,17 @@ public struct PatternThumbnailFileService: Sendable {
     }
 
     public func thumbnailURL(
-        projectID: UUID,
-        pattern: PatternDocument,
+        asset: PatternAsset,
         sourceURL: URL
     ) throws -> URL {
         lock.value.lock()
         defer { lock.value.unlock() }
-        let destination = cachedURL(projectID: projectID, patternID: pattern.id)
+        let destination = cachedURL(assetID: asset.id)
         if FileManager.default.fileExists(atPath: destination.path) {
             return destination
         }
         let image: CGImage
-        switch pattern.kind {
+        switch asset.kind {
         case .pdf:
             image = try renderPDFPageOne(sourceURL)
         case .image:
@@ -46,24 +45,15 @@ public struct PatternThumbnailFileService: Sendable {
         return destination
     }
 
-    public func cachedURL(projectID: UUID, patternID: UUID) -> URL {
+    public func cachedURL(assetID: UUID) -> URL {
         directory
-            .appendingPathComponent(projectID.uuidString, isDirectory: true)
-            .appendingPathComponent("\(patternID.uuidString).jpg")
+            .appendingPathComponent("\(assetID.uuidString).jpg")
     }
 
-    public func delete(projectID: UUID, patternID: UUID) throws {
+    public func delete(assetID: UUID) throws {
         lock.value.lock()
         defer { lock.value.unlock() }
-        let url = cachedURL(projectID: projectID, patternID: patternID)
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
-        try FileManager.default.removeItem(at: url)
-    }
-
-    public func deleteProject(projectID: UUID) throws {
-        lock.value.lock()
-        defer { lock.value.unlock() }
-        let url = directory.appendingPathComponent(projectID.uuidString, isDirectory: true)
+        let url = cachedURL(assetID: assetID)
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
     }

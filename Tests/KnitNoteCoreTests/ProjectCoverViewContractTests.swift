@@ -12,7 +12,9 @@ import Testing
 
         #expect(cover.contains("await store.projectCoverURL(for: project)"))
         #expect(cover.contains(".task(id: revision)"))
-        #expect(cover.contains("generation: store.projectCoverGeneration"))
+        #expect(cover.contains("firstActiveUsageID:"))
+        #expect(cover.contains("assetID:"))
+        #expect(cover.contains("projectCoverGeneration: store.projectCoverGeneration"))
         #expect(cover.contains("guard !Task.isCancelled else { return }"))
         #expect(cover.contains("ProjectPhotoView(url: resolvedURL)"))
         #expect(cover.contains(".id(revision)"))

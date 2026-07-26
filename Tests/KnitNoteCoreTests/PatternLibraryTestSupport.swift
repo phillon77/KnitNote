@@ -36,12 +36,14 @@ final class PatternImportHarness {
     let archiveURL: URL
     let inbox: PatternInboxFileService
     let store: JSONProjectStore
+    let thumbnailService: PatternThumbnailFileService
 
     init(
         archiveWrite: (@Sendable (Data, URL) throws -> Void)? = nil,
         assetMove: (@Sendable (URL, URL) throws -> Void)? = nil,
         inboxRemove: (@Sendable (URL) throws -> Void)? = nil,
-        inboxWrite: (@Sendable (Data, URL) throws -> Void)? = nil
+        inboxWrite: (@Sendable (Data, URL) throws -> Void)? = nil,
+        thumbnailService: PatternThumbnailFileService? = nil
     ) throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PatternImportHarness-\(UUID().uuidString)", isDirectory: true)
@@ -53,6 +55,9 @@ final class PatternImportHarness {
         )
         assetsRoot = locations.assetRoot
         archiveURL = root.appendingPathComponent("projects-v1.json")
+        self.thumbnailService = thumbnailService ?? PatternThumbnailFileService(
+            directory: root.appendingPathComponent("ThumbnailCache", isDirectory: true)
+        )
         inbox = PatternInboxFileService(
             root: locations.inboxRoot,
             moveItem: { try FileManager.default.moveItem(at: $0, to: $1) },
@@ -66,6 +71,7 @@ final class PatternImportHarness {
                 moveFile: assetMove ?? { try FileManager.default.moveItem(at: $0, to: $1) }
             ),
             patternInboxFileService: inbox,
+            patternThumbnailService: self.thumbnailService,
             backupService: KnitNoteBackupService(
                 liveRoot: root,
                 workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true)
@@ -107,7 +113,8 @@ final class PatternImportHarness {
         JSONProjectStore(
             url: archiveURL,
             patternFileService: PatternFileService(root: assetsRoot),
-            patternInboxFileService: PatternInboxFileService(root: inbox.root)
+            patternInboxFileService: PatternInboxFileService(root: inbox.root),
+            patternThumbnailService: thumbnailService
         )
     }
 

@@ -19,18 +19,15 @@ import UniformTypeIdentifiers
             directory: root.appendingPathComponent("cache"),
             maxPixelSize: 800
         )
-        let projectID = UUID()
-        let pdf = PatternDocument(displayName: "PDF", kind: .pdf, storedFilename: "chart.pdf")
-        let image = PatternDocument(displayName: "Image", kind: .image, storedFilename: "chart.png")
+        let pdf = asset(kind: .pdf, filename: "chart.pdf")
+        let image = asset(kind: .image, filename: "chart.png")
 
         let pdfThumbnail = try service.thumbnailURL(
-            projectID: projectID,
-            pattern: pdf,
+            asset: pdf,
             sourceURL: pdfURL
         )
         let imageThumbnail = try service.thumbnailURL(
-            projectID: projectID,
-            pattern: image,
+            asset: image,
             sourceURL: imageURL
         )
 
@@ -55,51 +52,49 @@ import UniformTypeIdentifiers
             directory: root.appendingPathComponent("cache"),
             maxPixelSize: 800
         )
-        let pattern = PatternDocument(
-            displayName: "Rotated PDF",
-            kind: .pdf,
-            storedFilename: "rotated.pdf"
-        )
+        let pattern = asset(kind: .pdf, filename: "rotated.pdf")
 
         let thumbnailURL = try service.thumbnailURL(
-            projectID: UUID(),
-            pattern: pattern,
+            asset: pattern,
             sourceURL: sourceURL
         )
 
         #expect(try pixelSize(thumbnailURL) == CGSize(width: 400, height: 800))
     }
 
-    @Test func reusesCacheAndDeletesOnePatternOrWholeProject() throws {
+    @Test func reusesSharedCacheAndDeletesOneAsset() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let source = root.appendingPathComponent("source.png")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try makePNG(at: source, width: 40, height: 20)
         let service = PatternThumbnailFileService(directory: root.appendingPathComponent("cache"))
-        let projectID = UUID()
-        let first = PatternDocument(displayName: "First", kind: .image, storedFilename: "first.png")
-        let second = PatternDocument(displayName: "Second", kind: .image, storedFilename: "second.png")
-        let firstURL = try service.thumbnailURL(projectID: projectID, pattern: first, sourceURL: source)
+        let sharedAsset = asset(kind: .image, filename: "source.png")
+        let firstURL = try service.thumbnailURL(asset: sharedAsset, sourceURL: source)
         let originalDate = try #require(
             try firstURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
         )
-        let reusedURL = try service.thumbnailURL(projectID: projectID, pattern: first, sourceURL: source)
-        let secondURL = try service.thumbnailURL(projectID: projectID, pattern: second, sourceURL: source)
+        let reusedURL = try service.thumbnailURL(asset: sharedAsset, sourceURL: source)
 
         #expect(reusedURL == firstURL)
         #expect(try reusedURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate == originalDate)
-        try service.delete(projectID: projectID, patternID: first.id)
+        try service.delete(assetID: sharedAsset.id)
         #expect(!FileManager.default.fileExists(atPath: firstURL.path))
-        #expect(FileManager.default.fileExists(atPath: secondURL.path))
-        try service.deleteProject(projectID: projectID)
-        #expect(!FileManager.default.fileExists(atPath: secondURL.path))
-        let otherProjectURL = try service.thumbnailURL(
-            projectID: UUID(),
-            pattern: first,
+        let otherAssetURL = try service.thumbnailURL(
+            asset: asset(kind: .image, filename: "other.png"),
             sourceURL: source
         )
         try service.deleteAll()
-        #expect(!FileManager.default.fileExists(atPath: otherProjectURL.path))
+        #expect(!FileManager.default.fileExists(atPath: otherAssetURL.path))
+    }
+
+    @Test func twoPatternsForOneAssetUseOneThumbnailPath() {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        let assetID = UUID()
+        let service = PatternThumbnailFileService(directory: cacheRoot)
+
+        #expect(service.cachedURL(assetID: assetID) == service.cachedURL(assetID: assetID))
+        #expect(service.cachedURL(assetID: assetID).lastPathComponent == "\(assetID.uuidString).jpg")
     }
 
     @Test func concurrentRequestsShareOneValidCachedFile() async throws {
@@ -108,15 +103,13 @@ import UniformTypeIdentifiers
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try makePNG(at: source, width: 640, height: 320)
         let service = PatternThumbnailFileService(directory: root.appendingPathComponent("cache"))
-        let projectID = UUID()
-        let pattern = PatternDocument(displayName: "Chart", kind: .image, storedFilename: "chart.png")
+        let pattern = asset(kind: .image, filename: "chart.png")
 
         let urls = try await withThrowingTaskGroup(of: URL.self) { group in
             for _ in 0..<8 {
                 group.addTask {
                     try service.thumbnailURL(
-                        projectID: projectID,
-                        pattern: pattern,
+                        asset: pattern,
                         sourceURL: source
                     )
                 }
@@ -184,6 +177,17 @@ import UniformTypeIdentifiers
         return CGSize(
             width: try #require(properties[kCGImagePropertyPixelWidth] as? Int),
             height: try #require(properties[kCGImagePropertyPixelHeight] as? Int)
+        )
+    }
+
+    private func asset(kind: PatternKind, filename: String) -> PatternAsset {
+        PatternAsset(
+            id: UUID(),
+            sha256: "test-hash-\(UUID().uuidString)",
+            kind: kind,
+            storedFilename: filename,
+            byteCount: 0,
+            pageCount: kind == .pdf ? 1 : nil
         )
     }
 }

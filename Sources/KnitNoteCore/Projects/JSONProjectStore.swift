@@ -722,7 +722,6 @@ final class PatternLibraryDeletionTransaction {
         try deletion.commit()
         if let filename { try? photoService.delete(filename: filename) }
         deleteJournalPhotosIfUnreferenced(journalFilenames)
-        try? patternThumbnailService.deleteProject(projectID: id)
     }
     public func rename(id: UUID, to name: String) throws { try mutate(id: id) { try $0.rename(to: name) } }
     public func markCompleted(projectID: UUID) throws {
@@ -852,15 +851,6 @@ final class PatternLibraryDeletionTransaction {
             try Task.checkCancellation()
             guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
             try addPattern(projectID: projectID, pattern: pattern)
-            let thumbnailService = patternThumbnailService
-            let patternSourceURL = service.url(projectID: projectID, pattern: pattern)
-            _ = await Task.detached(priority: .utility) {
-                _ = try? thumbnailService.thumbnailURL(
-                    projectID: projectID,
-                    pattern: pattern,
-                    sourceURL: patternSourceURL
-                )
-            }.value
             return pattern
         } catch {
             try? service.delete(projectID: projectID, pattern: pattern)
@@ -904,7 +894,6 @@ final class PatternLibraryDeletionTransaction {
         defer { activePatternTransactions -= 1 }
         try mutate(id: projectID) { $0.deletePattern(id: id) }
         try? requiredPatternFileService().delete(projectID: projectID, pattern: pattern)
-        try? patternThumbnailService.delete(projectID: projectID, patternID: pattern.id)
     }
 
     @discardableResult
@@ -995,6 +984,9 @@ final class PatternLibraryDeletionTransaction {
         }
         try deletion.publish()
         try deletion.commit()
+        if assetIsUnreferenced, let asset {
+            try? patternThumbnailService.delete(assetID: asset.id)
+        }
     }
 
     public func renamePattern(id: UUID, to name: String) throws {
@@ -1300,14 +1292,23 @@ final class PatternLibraryDeletionTransaction {
         if let photoURL = photoURL(for: project) {
             return photoURL
         }
-        guard let pattern = project.patterns.first else { return nil }
-        guard let files = patternFileService else { return nil }
-        let sourceURL = files.url(projectID: project.id, pattern: pattern)
+        guard let usage = patternUsages
+            .filter({ $0.projectID == project.id && $0.isActive })
+            .sorted(by: { lhs, rhs in
+                lhs.sortOrder == rhs.sortOrder
+                    ? lhs.id.uuidString < rhs.id.uuidString
+                    : lhs.sortOrder < rhs.sortOrder
+            })
+            .first,
+            let pattern = patterns.first(where: { $0.id == usage.patternID }),
+            let asset = patternAssets.first(where: { $0.id == pattern.assetID }),
+            let files = patternFileService,
+            let sourceURL = try? files.assetURL(asset)
+        else { return nil }
         let service = patternThumbnailService
         return await Task.detached(priority: .utility) {
             try? service.thumbnailURL(
-                projectID: project.id,
-                pattern: pattern,
+                asset: asset,
                 sourceURL: sourceURL
             )
         }.value

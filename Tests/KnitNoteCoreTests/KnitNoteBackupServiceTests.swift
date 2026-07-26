@@ -1232,6 +1232,240 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
     }
 
+    @Test func rollbackSynchronizesEveryMutationParentBeforeRolledBackJournal() throws {
+        let fixture = try BackupInstallFixture.make()
+        defer { fixture.cleanup() }
+        let installation = try fixture.service.install(
+            try fixture.service.stagePackage(at: fixture.replacementPackage)
+        )
+        let recorder = RollbackDurabilityRecorder()
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { recorder.record(step: $0) },
+            synchronizeDirectory: { try recorder.synchronize($0) }
+        )
+
+        try service.rollback(installation)
+
+        let events = recorder.events
+        let removal = try #require(events.firstIndex(of: "step:afterRollbackLiveRemoval"))
+        let restore = try #require(events.firstIndex(of: "step:afterRollbackRestore"))
+        let finalized = try #require(events.firstIndex(of: "step:afterRollbackFinalized"))
+        let liveParent = "sync:\(fixture.liveRoot.deletingLastPathComponent().standardizedFileURL.path)"
+        let rollbackParent = "sync:\(fixture.workRoot.standardizedFileURL.path)"
+        #expect(events[(removal + 1)..<finalized].contains(liveParent))
+        #expect(events[(restore + 1)..<finalized].contains(liveParent))
+        #expect(events[(restore + 1)..<finalized].contains(rollbackParent))
+    }
+
+    @Test func rollbackSynchronizesSharedRenameParentOnceBeforeJournalSync() throws {
+        let fixture = try BackupInstallFixture.make()
+        defer { fixture.cleanup() }
+        let installed = try fixture.service.install(
+            try fixture.service.stagePackage(at: fixture.replacementPackage)
+        )
+        let sharedParent = fixture.liveRoot.deletingLastPathComponent()
+        let sharedRollback = sharedParent.appendingPathComponent(
+            "Rollback-\(installed.transactionID.uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.moveItem(
+            at: installed.rollbackRoot,
+            to: sharedRollback
+        )
+        let installation = KnitNoteBackupInstallation(
+            liveRoot: installed.liveRoot,
+            rollbackRoot: sharedRollback,
+            hadLiveRoot: true,
+            transactionID: installed.transactionID
+        )
+        let recorder = RollbackDurabilityRecorder()
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { recorder.record(step: $0) },
+            synchronizeDirectory: { try recorder.synchronize($0) }
+        )
+
+        try service.rollback(installation)
+
+        let events = recorder.events
+        let restore = try #require(events.firstIndex(of: "step:afterRollbackRestore"))
+        let finalized = try #require(events.firstIndex(of: "step:afterRollbackFinalized"))
+        let sharedSync = "sync:\(sharedParent.standardizedFileURL.path)"
+        #expect(events[(restore + 1)..<finalized].filter { $0 == sharedSync }.count == 1)
+    }
+
+    @Test func rollbackParentSyncFailureKeepsRollingBackEvidenceForRestart() throws {
+        let fixture = try BackupInstallFixture.make()
+        defer { fixture.cleanup() }
+        let originalBytes = try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        )
+        let installation = try fixture.service.install(
+            try fixture.service.stagePackage(at: fixture.replacementPackage)
+        )
+        let recorder = RollbackDurabilityRecorder(
+            failingDirectory: fixture.liveRoot.deletingLastPathComponent(),
+            failAfterStep: .afterRollbackLiveRemoval
+        )
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { recorder.record(step: $0) },
+            synchronizeDirectory: { try recorder.synchronize($0) }
+        )
+
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            try service.rollback(installation)
+        }
+
+        #expect(try fixture.journalPhase() == "rollingBack")
+        let restarted = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot
+        )
+        #expect(try restarted.recoverInterruptedReplacement().map { _ in true } == nil)
+        #expect(try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        ) == originalBytes)
+        #expect(!FileManager.default.fileExists(atPath: fixture.replacementJournal.path))
+    }
+
+    @Test func interruptedRollbackRecoverySyncFailureKeepsEvidenceForNextRestart() throws {
+        let fixture = try BackupInstallFixture.make()
+        defer { fixture.cleanup() }
+        let originalBytes = try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        )
+        let crashing = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { step in
+                if step == .afterRollbackRestore {
+                    throw BackupInstallFixture.InjectedFailure()
+                }
+            }
+        )
+        let installation = try crashing.install(
+            try crashing.stagePackage(at: fixture.replacementPackage)
+        )
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            try crashing.rollback(installation)
+        }
+        #expect(try fixture.journalPhase() == "rollingBack")
+        let recorder = RollbackDurabilityRecorder(
+            failingDirectory: fixture.liveRoot.deletingLastPathComponent()
+        )
+        let failingRecovery = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { _ in },
+            synchronizeDirectory: { try recorder.synchronize($0) }
+        )
+
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            _ = try failingRecovery.recoverInterruptedReplacement()
+        }
+
+        #expect(try fixture.journalPhase() == "rollingBack")
+        let restarted = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot
+        )
+        #expect(try restarted.recoverInterruptedReplacement().map { _ in true } == nil)
+        #expect(try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        ) == originalBytes)
+    }
+
+    @Test(arguments: ["rollback", "cleanup"])
+    func rolledBackRecoveryPrefersAvailableOriginalOverReplacementLive(
+        _ evidenceKind: String
+    ) throws {
+        let fixture = try BackupInstallFixture.make()
+        defer { fixture.cleanup() }
+        let originalBytes = try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        )
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { step in
+                if step == .afterRollbackFinalized {
+                    throw BackupInstallFixture.InjectedFailure()
+                }
+            }
+        )
+        let installation = try service.install(
+            try service.stagePackage(at: fixture.replacementPackage)
+        )
+        let replacementCopy = fixture.root.appendingPathComponent("ReplacementCopy")
+        let originalCopy = fixture.root.appendingPathComponent("OriginalCopy")
+        try FileManager.default.copyItem(at: fixture.liveRoot, to: replacementCopy)
+        try FileManager.default.copyItem(at: installation.rollbackRoot, to: originalCopy)
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            try service.rollback(installation)
+        }
+        #expect(try fixture.journalPhase() == "rolledBack")
+        try FileManager.default.removeItem(at: fixture.liveRoot)
+        try FileManager.default.copyItem(at: replacementCopy, to: fixture.liveRoot)
+        let evidenceRoot = evidenceKind == "rollback"
+            ? installation.rollbackRoot
+            : fixture.workRoot.appendingPathComponent(
+                "Cleanup-\(installation.transactionID.uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.copyItem(at: originalCopy, to: evidenceRoot)
+
+        let restarted = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot
+        )
+        #expect(try restarted.recoverInterruptedReplacement().map { _ in true } == nil)
+
+        #expect(try Data(
+            contentsOf: fixture.liveRoot.appendingPathComponent("projects-v1.json")
+        ) == originalBytes)
+        #expect(!FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
+        #expect(!FileManager.default.fileExists(atPath: evidenceRoot.path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.replacementJournal.path))
+    }
+
+    @Test func rolledBackRecoveryWithoutOriginalRemovesInconsistentLive() throws {
+        let fixture = try BackupInstallFixture.make(hadLiveRoot: false)
+        defer { fixture.cleanup() }
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot,
+            replacementStepHook: { step in
+                if step == .afterRollbackFinalized {
+                    throw BackupInstallFixture.InjectedFailure()
+                }
+            }
+        )
+        let installation = try service.install(
+            try service.stagePackage(at: fixture.replacementPackage)
+        )
+        let replacementCopy = fixture.root.appendingPathComponent("ReplacementCopy")
+        try FileManager.default.copyItem(at: fixture.liveRoot, to: replacementCopy)
+        #expect(throws: KnitNoteBackupError.rollbackFailed) {
+            try service.rollback(installation)
+        }
+        #expect(try fixture.journalPhase() == "rolledBack")
+        try FileManager.default.copyItem(at: replacementCopy, to: fixture.liveRoot)
+
+        let restarted = KnitNoteBackupService(
+            liveRoot: fixture.liveRoot,
+            workRoot: fixture.workRoot
+        )
+        #expect(try restarted.recoverInterruptedReplacement().map { _ in true } == nil)
+
+        #expect(!FileManager.default.fileExists(atPath: fixture.liveRoot.path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.replacementJournal.path))
+    }
+
     @Test(arguments: [
         KnitNoteBackupReplacementStep.afterRollbackJournal,
         .afterRollbackLiveRemoval,
@@ -1708,6 +1942,10 @@ private struct BackupInstallFixture {
     let replacementPackage: URL
     let service: KnitNoteBackupService
 
+    var replacementJournal: URL {
+        workRoot.appendingPathComponent(".ReplacementJournal.json")
+    }
+
     static func make(
         failingAt failedStep: KnitNoteBackupReplacementStep? = nil,
         hadLiveRoot: Bool = true
@@ -1770,6 +2008,14 @@ private struct BackupInstallFixture {
             at: workRoot,
             includingPropertiesForKeys: nil
         ).filter { $0.lastPathComponent.hasPrefix("Cleanup-") }
+    }
+
+    func journalPhase() throws -> String {
+        let object = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: replacementJournal)
+        )
+        let dictionary = try #require(object as? [String: Any])
+        return try #require(dictionary["phase"] as? String)
     }
 
     private static func writeArchive(named name: String, to root: URL) throws {
@@ -2314,6 +2560,64 @@ private final class ReplacementStepRecorder: @unchecked Sendable {
 
     func record(_ step: KnitNoteBackupReplacementStep) {
         lock.withLock { recordedSteps.append(step) }
+    }
+}
+
+private final class RollbackDurabilityRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedEvents: [String] = []
+    private let failingDirectory: String?
+    private let failAfterStep: KnitNoteBackupReplacementStep?
+    private var observedFailureStep = false
+    private var hasFailed = false
+
+    init(
+        failingDirectory: URL? = nil,
+        failAfterStep: KnitNoteBackupReplacementStep? = nil
+    ) {
+        self.failingDirectory = failingDirectory?.standardizedFileURL.path
+        self.failAfterStep = failAfterStep
+    }
+
+    var events: [String] {
+        lock.withLock { recordedEvents }
+    }
+
+    func record(step: KnitNoteBackupReplacementStep) {
+        lock.withLock {
+            recordedEvents.append("step:\(label(for: step))")
+            if step == failAfterStep {
+                observedFailureStep = true
+            }
+        }
+    }
+
+    func synchronize(_ directory: URL) throws {
+        let path = directory.standardizedFileURL.path
+        let shouldFail = lock.withLock {
+            recordedEvents.append("sync:\(path)")
+            guard !hasFailed, path == failingDirectory else { return false }
+            guard failAfterStep == nil || observedFailureStep else { return false }
+            hasFailed = true
+            return true
+        }
+        if shouldFail {
+            throw BackupInstallFixture.InjectedFailure()
+        }
+    }
+
+    private func label(for step: KnitNoteBackupReplacementStep) -> String {
+        switch step {
+        case .beforeLiveMove: "beforeLiveMove"
+        case .afterLiveMove: "afterLiveMove"
+        case .afterStagedMove: "afterStagedMove"
+        case .beforeRollback: "beforeRollback"
+        case .afterRollbackJournal: "afterRollbackJournal"
+        case .afterRollbackLiveRemoval: "afterRollbackLiveRemoval"
+        case .afterRollbackRestore: "afterRollbackRestore"
+        case .afterRollbackFinalized: "afterRollbackFinalized"
+        case .beforeCommitCleanup: "beforeCommitCleanup"
+        }
     }
 }
 

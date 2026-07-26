@@ -134,6 +134,8 @@ public struct KnitNoteBackupService: Sendable {
     private let cleanupItem: @Sendable (URL) throws -> Void
     private let copyChunkHook: @Sendable (URL, Int64) throws -> Void
     private var beforeSourceEntryOpen: @Sendable (String) throws -> Void = { _ in }
+    private var synchronizeDirectory: @Sendable (URL) throws -> Void =
+        Self.defaultSynchronizeDirectory
 
     public init(liveRoot: URL, workRoot: URL) {
         self.liveRoot = liveRoot
@@ -258,6 +260,22 @@ public struct KnitNoteBackupService: Sendable {
         cleanupItem = { try FileManager.default.removeItem(at: $0) }
         copyChunkHook = { _, _ in }
         self.beforeSourceEntryOpen = beforeSourceEntryOpen
+    }
+
+    init(
+        liveRoot: URL,
+        workRoot: URL,
+        replacementStepHook: @escaping @Sendable (KnitNoteBackupReplacementStep) throws -> Void,
+        synchronizeDirectory: @escaping @Sendable (URL) throws -> Void
+    ) {
+        self.liveRoot = liveRoot
+        self.workRoot = workRoot
+        loadResourceMetadata = Self.defaultResourceMetadata
+        afterStageCopy = { _ in }
+        self.replacementStepHook = replacementStepHook
+        cleanupItem = { try FileManager.default.removeItem(at: $0) }
+        copyChunkHook = { _, _ in }
+        self.synchronizeDirectory = synchronizeDirectory
     }
 
     public func createPackage(appVersion: String, now: Date = .now) throws -> URL {
@@ -543,6 +561,9 @@ public struct KnitNoteBackupService: Sendable {
                 try fileManager.removeItem(at: installation.liveRoot)
             }
             try replacementStepHook(.afterRollbackLiveRemoval)
+            try synchronizeMutationParents([
+                installation.liveRoot.deletingLastPathComponent(),
+            ])
             if installation.hadLiveRoot {
                 try fileManager.moveItem(
                     at: installation.rollbackRoot,
@@ -550,6 +571,12 @@ public struct KnitNoteBackupService: Sendable {
                 )
             }
             try replacementStepHook(.afterRollbackRestore)
+            if installation.hadLiveRoot {
+                try synchronizeMutationParents([
+                    installation.rollbackRoot.deletingLastPathComponent(),
+                    installation.liveRoot.deletingLastPathComponent(),
+                ])
+            }
             try persistReplacementJournal(
                 transactionID: installation.transactionID,
                 hadLiveRoot: installation.hadLiveRoot,
@@ -582,14 +609,27 @@ public struct KnitNoteBackupService: Sendable {
                     rollbackRoot: rollbackRoot
                 )
             case .rolledBack:
-                try removeReplacementJournal()
+                do {
+                    try finishRolledBackReplacement(
+                        journal: journal,
+                        rollbackRoot: rollbackRoot,
+                        liveExists: liveExists,
+                        rollbackExists: rollbackExists
+                    )
+                } catch {
+                    throw KnitNoteBackupError.rollbackFailed
+                }
             case .rollingBack:
-                try finishInterruptedRollback(
-                    journal: journal,
-                    rollbackRoot: rollbackRoot,
-                    liveExists: liveExists,
-                    rollbackExists: rollbackExists
-                )
+                do {
+                    try finishInterruptedRollback(
+                        journal: journal,
+                        rollbackRoot: rollbackRoot,
+                        liveExists: liveExists,
+                        rollbackExists: rollbackExists
+                    )
+                } catch {
+                    throw KnitNoteBackupError.rollbackFailed
+                }
             case .prepared:
                 if journal.hadLiveRoot, rollbackExists, !liveExists {
                     try fileManager.moveItem(at: rollbackRoot, to: liveRoot)
@@ -705,7 +745,11 @@ public struct KnitNoteBackupService: Sendable {
     }
 
     private func synchronizeWorkDirectory() throws {
-        let descriptor = workRoot.path.withCString {
+        try synchronizeDirectory(workRoot)
+    }
+
+    private static func defaultSynchronizeDirectory(_ directory: URL) throws {
+        let descriptor = directory.path.withCString {
             Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         }
         guard descriptor >= 0 else {
@@ -714,6 +758,17 @@ public struct KnitNoteBackupService: Sendable {
         defer { Darwin.close(descriptor) }
         guard Darwin.fsync(descriptor) == 0 else {
             throw KnitNoteBackupError.rollbackFailed
+        }
+    }
+
+    private func synchronizeMutationParents(_ parents: [URL]) throws {
+        var synchronizedPaths: Set<String> = []
+        for parent in parents {
+            let standardized = parent.standardizedFileURL
+            guard synchronizedPaths.insert(standardized.path).inserted else {
+                continue
+            }
+            try synchronizeDirectory(standardized)
         }
     }
 
@@ -752,28 +807,86 @@ public struct KnitNoteBackupService: Sendable {
         liveExists: Bool,
         rollbackExists: Bool
     ) throws {
-        let fileManager = FileManager.default
-        if journal.hadLiveRoot {
-            if rollbackExists {
-                if liveExists {
-                    try fileManager.removeItem(at: liveRoot)
-                }
-                try fileManager.moveItem(at: rollbackRoot, to: liveRoot)
-            } else {
-                guard liveExists else {
-                    throw KnitNoteBackupError.rollbackFailed
-                }
-                try validateLiveRoot(liveRoot)
-            }
-        } else if liveExists {
-            try fileManager.removeItem(at: liveRoot)
-        }
+        try finishRollbackFilesystem(
+            journal: journal,
+            rollbackRoot: rollbackRoot,
+            liveExists: liveExists,
+            rollbackExists: rollbackExists
+        )
         try persistReplacementJournal(
             transactionID: journal.transactionID,
             hadLiveRoot: journal.hadLiveRoot,
             phase: .rolledBack
         )
         try removeReplacementJournal()
+    }
+
+    private func finishRolledBackReplacement(
+        journal: KnitNoteBackupReplacementJournal,
+        rollbackRoot: URL,
+        liveExists: Bool,
+        rollbackExists: Bool
+    ) throws {
+        try finishRollbackFilesystem(
+            journal: journal,
+            rollbackRoot: rollbackRoot,
+            liveExists: liveExists,
+            rollbackExists: rollbackExists
+        )
+        try removeReplacementJournal()
+    }
+
+    private func finishRollbackFilesystem(
+        journal: KnitNoteBackupReplacementJournal,
+        rollbackRoot: URL,
+        liveExists: Bool,
+        rollbackExists: Bool
+    ) throws {
+        let fileManager = FileManager.default
+        let cleanupRoot = workRoot.appendingPathComponent(
+            "Cleanup-\(journal.transactionID.uuidString)",
+            isDirectory: true
+        )
+        let cleanupExists = fileManager.fileExists(atPath: cleanupRoot.path)
+        if journal.hadLiveRoot {
+            let recoverySource = rollbackExists
+                ? rollbackRoot
+                : (cleanupExists ? cleanupRoot : nil)
+            if let recoverySource {
+                try validateLiveRoot(recoverySource)
+                if liveExists {
+                    try fileManager.removeItem(at: liveRoot)
+                    try synchronizeMutationParents([
+                        liveRoot.deletingLastPathComponent(),
+                    ])
+                }
+                try fileManager.moveItem(at: recoverySource, to: liveRoot)
+                try synchronizeMutationParents([
+                    recoverySource.deletingLastPathComponent(),
+                    liveRoot.deletingLastPathComponent(),
+                ])
+                try validateLiveRoot(liveRoot)
+            } else {
+                guard liveExists else {
+                    throw KnitNoteBackupError.rollbackFailed
+                }
+                try validateLiveRoot(liveRoot)
+                try synchronizeMutationParents([
+                    rollbackRoot.deletingLastPathComponent(),
+                    liveRoot.deletingLastPathComponent(),
+                ])
+            }
+        } else {
+            guard !rollbackExists, !cleanupExists else {
+                throw KnitNoteBackupError.rollbackFailed
+            }
+            if liveExists {
+                try fileManager.removeItem(at: liveRoot)
+            }
+            try synchronizeMutationParents([
+                liveRoot.deletingLastPathComponent(),
+            ])
+        }
     }
 
     private func validateStagedBackup(_ staged: StagedKnitNoteBackup) throws {

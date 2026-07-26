@@ -296,3 +296,67 @@ entries, and deterministic valid manifests.
 - localization JSON, Xcode project, all configured Info plists and
   entitlements, touched production/test Swift parsing, descriptor-discovery
   source scan, and `git diff --check`: passed.
+
+## Review Fix Round 3
+
+### P1: durable rollback filesystem mutations
+
+Root cause: the `rollingBack` and `rolledBack` journals were durable, but the
+filesystem mutations they described were not. Removing the installed live tree
+did not synchronize the live-root parent, and moving rollback to live did not
+synchronize both the source and destination parents before advancing to
+`rolledBack`. A successful `FileManager` call therefore did not prove the
+directory entries would survive termination.
+
+Rollback now uses an injectable directory synchronizer backed by
+`open(O_DIRECTORY | O_NOFOLLOW)` and `fsync`. It synchronizes:
+
+- the live-root parent after removing installed live data;
+- the rollback source parent and live destination parent after
+  rollback-to-live rename;
+- a shared parent exactly once when both entries reside in the same directory.
+
+All mutation-parent synchronization completes before the service persists
+`rolledBack`. A failure leaves the integrity-valid `rollingBack` journal in
+place; restart recovery repeats the required synchronization and completes
+idempotently.
+
+### P1: evidence-preserving rolledBack recovery
+
+Root cause: launch recovery treated `rolledBack` as cleanup-only and deleted
+the journal without validating the filesystem outcome. An inconsistent valid
+replacement live tree could then win general recovery while the original
+rollback was discarded.
+
+`rolledBack` recovery now applies the same filesystem completion routine as
+`rollingBack` before removing the journal. For transactions with an original
+live root, it prefers and validates the transaction's exact rollback directory
+or deterministic cleanup tombstone, removes inconsistent live data, restores
+the original, synchronizes both mutation parents, and validates the result. If
+neither rollback evidence exists, it requires a valid live tree and
+synchronizes the inferred rename parents before clearing the journal. For
+transactions without an original live root, it removes inconsistent live data
+and synchronizes the live parent. Missing or contradictory evidence fails
+closed and retains the journal.
+
+Injection regressions prove:
+
+- live-parent synchronization follows live removal;
+- source and destination parent synchronization follows rename and precedes
+  the `rolledBack` journal;
+- direct rollback and interrupted-rollback synchronization failures retain
+  `rollingBack` evidence and complete on a fresh restart;
+- an integrity-valid `rolledBack` transaction with replacement live plus an
+  available original restores the original byte-for-byte;
+- an integrity-valid no-original transaction removes inconsistent live data.
+
+### Fresh verification
+
+- `KnitNoteBackupServiceTests`: 75 tests passed.
+- final normal parallel `swift test`: 806 tests in 67 suites passed
+  (41.327 seconds).
+- fresh iOS App, macOS App, iOS Share Extension, and watchOS App builds, each
+  with independent DerivedData and `CODE_SIGNING_ALLOWED=NO`: exit 0.
+- localization JSON, Xcode project, all configured Info plists and
+  entitlements, touched production/test Swift parsing, and
+  `git diff --check`: passed.

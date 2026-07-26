@@ -2,6 +2,30 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
+@MainActor @Test func libraryImportPublishesThroughTheDurableInboxWithoutAProjectLink() async throws {
+    let harness = try PatternImportHarness()
+    let source = try harness.makePDF(named: "Library Pattern.pdf")
+
+    let outcome = try await harness.store.importPatternFromLibrary(source)
+    let patternID = try #require(harness.store.patterns.first?.id)
+
+    #expect(outcome == .created(patternID: patternID))
+    #expect(harness.store.patternUsages.isEmpty)
+    #expect(try harness.inbox.items().isEmpty)
+}
+
+@MainActor @Test func libraryThumbnailResolvesTheOwnedAssetByPatternID() async throws {
+    let harness = try PatternImportHarness()
+    let source = try harness.makePDF(named: "Thumbnail Pattern.pdf")
+    _ = try await harness.store.importPatternFromLibrary(source)
+    let patternID = try #require(harness.store.patterns.first?.id)
+
+    let thumbnail = await harness.store.patternThumbnailURL(patternID: patternID)
+
+    #expect(thumbnail != nil)
+    #expect(thumbnail.map { FileManager.default.fileExists(atPath: $0.path) } == true)
+}
+
 @MainActor @Test func unlinkAndRelinkRestoreTheSameUsage() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
 

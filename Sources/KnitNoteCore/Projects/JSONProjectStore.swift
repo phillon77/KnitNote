@@ -922,6 +922,21 @@ final class PatternLibraryDeletionTransaction {
         }
         return try publishPatternImport(prepared, selectingPatternID: selectingPatternID)
     }
+
+    public func importPatternFromLibrary(
+        _ source: URL,
+        now: Date = .now
+    ) async throws -> PatternImportOutcome {
+        try ensureArchiveAvailable()
+        let inbox = try requiredPatternInboxFileService()
+        let item = try inbox.enqueue(
+            source: source,
+            origin: .library,
+            targetProjectID: nil,
+            now: now
+        )
+        return try await processPatternInboxItem(id: item.id)
+    }
     public func deletePattern(projectID: UUID, id: UUID) throws {
         try ensureArchiveAvailable()
         guard let pattern = project(id: projectID)?.patterns.first(where: { $0.id == id }) else {
@@ -1066,6 +1081,18 @@ final class PatternLibraryDeletionTransaction {
             throw PatternLibraryMutationError.patternNotFound
         }
         return try requiredPatternFileService().assetURL(asset)
+    }
+
+    public func patternThumbnailURL(patternID: UUID) async -> URL? {
+        guard loadError == nil,
+              let pattern = patterns.first(where: { $0.id == patternID }),
+              let asset = patternAssets.first(where: { $0.id == pattern.assetID }),
+              let sourceURL = try? requiredPatternFileService().assetURL(asset)
+        else { return nil }
+        let service = patternThumbnailService
+        return await Task.detached(priority: .utility) {
+            try? service.thumbnailURL(asset: asset, sourceURL: sourceURL)
+        }.value
     }
 
     @discardableResult

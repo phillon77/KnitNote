@@ -116,16 +116,21 @@ import Testing
 
     @Test func productionReaderCallsitesUseOnlyContextInitializers() throws {
         let projectPatterns = try sourceFile("KnitNote/Patterns/ProjectPatternsView.swift")
-        let library = try sourceFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let detail = try sourceFile("KnitNote/Patterns/PatternDetailView.swift")
+        let chooser = try sourceFile("KnitNote/Patterns/ChoosePatternReadingContextView.swift")
         let screenshotRoot = try sourceFile("KnitNote/App/StoreScreenshotRootView.swift")
 
         #expect(projectPatterns.contains("PatternReaderView(context: .project("))
         #expect(projectPatterns.contains("usageID: selection.usage.id"))
-        #expect(library.contains("PatternReaderView(context: .readOnly(patternID: selection.id))"))
+        #expect(detail.contains("context: .readOnly(patternID: patternID)"))
+        #expect(detail.contains("context: .project("))
+        #expect(chooser.contains("PatternReaderContext.readOnly"))
+        #expect(chooser.contains("PatternReaderContext.project"))
         #expect(screenshotRoot.contains("PatternReaderView(\n                context: .project("))
         #expect(screenshotRoot.contains("usageID: usage.id"))
         #expect(!projectPatterns.contains("PatternReaderView(projectID:"))
-        #expect(!library.contains("PatternReaderView(projectID:"))
+        #expect(!detail.contains("PatternReaderView(projectID:"))
+        #expect(!chooser.contains("PatternReaderView(projectID:"))
         #expect(!screenshotRoot.contains("PatternReaderView(projectID:"))
     }
 
@@ -190,7 +195,7 @@ import Testing
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 
         #expect(projectPatterns.contains("store.importPattern(from:"))
-        #expect(library.contains("store.importPattern(from:"))
+        #expect(library.contains("store.importPatternFromLibrary("))
         #expect(projectPatterns.contains("store.unlinkPattern(patternID:"))
         #expect(reader.contains("store.savePatternMarkup("))
         #expect(reader.contains("expectedDataGeneration:"))

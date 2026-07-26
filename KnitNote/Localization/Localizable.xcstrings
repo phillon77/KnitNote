@@ -1821,13 +1821,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add a pattern to a project to see it here."
+            "value" : "Add your first PDF or image pattern."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "將織圖加入作品後，就會顯示在這裡。"
+            "value" : "加入第一份 PDF 或圖片織圖吧。"
           }
         }
       }
@@ -1846,6 +1846,198 @@
             "value" : "還沒有織圖"
           }
         }
+      }
+    },
+    "patterns.library.search" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search patterns" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋織圖" } }
+      }
+    },
+    "patterns.library.sort" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort patterns" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖排序" } }
+      }
+    },
+    "patterns.library.sort.recent" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recently Added" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最近加入" } }
+      }
+    },
+    "patterns.library.sort.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Name" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "名稱" } }
+      }
+    },
+    "patterns.library.unused" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not used yet" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "尚未使用" } }
+      }
+    },
+    "patterns.library.links.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld linked projects" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已連結 %lld 件作品" } }
+      }
+    },
+    "patterns.library.pdf.pages.format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "PDF, %lld pages" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "PDF，共 %lld 頁" } }
+      }
+    },
+    "patterns.library.pdf" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "PDF" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "PDF" } }
+      }
+    },
+    "patterns.library.image" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Image" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "圖片" } }
+      }
+    },
+    "patterns.library.thumbnail" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pattern preview" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "織圖預覽" } }
+      }
+    },
+    "patterns.detail.information" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File Information" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案資訊" } }
+      }
+    },
+    "patterns.detail.fileType" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File type" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案類型" } }
+      }
+    },
+    "patterns.detail.fileSize" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File size" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案大小" } }
+      }
+    },
+    "patterns.detail.added" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Added" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加入日期" } }
+      }
+    },
+    "patterns.detail.note" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Note" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備註" } }
+      }
+    },
+    "patterns.detail.note.empty" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a designer, shop, or source note." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "可記下設計師、商店或來源。" } }
+      }
+    },
+    "patterns.detail.linkedProjects" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Linked Projects" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已連結作品" } }
+      }
+    },
+    "patterns.detail.linkProject" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Link Another Project" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連結其他作品" } }
+      }
+    },
+    "patterns.detail.export" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share Original File" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "分享原始檔" } }
+      }
+    },
+    "patterns.detail.open" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開啟織圖" } }
+      }
+    },
+    "patterns.detail.rename" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rename Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新命名織圖" } }
+      }
+    },
+    "patterns.detail.editNote" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Note" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯備註" } }
+      }
+    },
+    "patterns.detail.unlink" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlink" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "解除連結" } }
+      }
+    },
+    "patterns.detail.delete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently Delete Pattern" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "永久刪除織圖" } }
+      }
+    },
+    "patterns.detail.deleteBlocked" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlink this pattern from the projects below before deleting it." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請先解除下列作品連結，才能永久刪除織圖。" } }
+      }
+    },
+    "patterns.detail.delete.confirm.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently delete this pattern?" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "永久刪除這份織圖？" } }
+      }
+    },
+    "patterns.detail.delete.confirm.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The original file and saved reading data will be deleted. This cannot be undone." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "原始檔與保留的閱讀資料都會刪除，且無法復原。" } }
+      }
+    },
+    "patterns.detail.chooseProject" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a Project" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇作品" } }
+      }
+    },
+    "patterns.detail.noProjects" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No other projects are available." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有其他可連結的作品。" } }
+      }
+    },
+    "patterns.reader.chooseContext.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Reading Context" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇閱讀作品" } }
+      }
+    },
+    "patterns.reader.chooseContext.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose which project's reading progress to continue." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請選擇要繼續哪件作品的閱讀進度。" } }
+      }
+    },
+    "patterns.reader.readOnly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Read Only" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "只閱讀" } }
       }
     },
     "patterns.reader.conflict" : {

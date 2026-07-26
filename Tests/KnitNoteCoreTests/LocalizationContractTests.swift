@@ -102,6 +102,43 @@ import Testing
         ],
     ]
 
+    private let requiredPatternLibraryTranslations = [
+        "patterns.library.empty.title": ["en": "No Patterns Yet", "zh-Hant": "還沒有織圖"],
+        "patterns.library.empty.message": ["en": "Add your first PDF or image pattern.", "zh-Hant": "加入第一份 PDF 或圖片織圖吧。"],
+        "patterns.library.search": ["en": "Search patterns", "zh-Hant": "搜尋織圖"],
+        "patterns.library.sort": ["en": "Sort patterns", "zh-Hant": "織圖排序"],
+        "patterns.library.sort.recent": ["en": "Recently Added", "zh-Hant": "最近加入"],
+        "patterns.library.sort.name": ["en": "Name", "zh-Hant": "名稱"],
+        "patterns.library.unused": ["en": "Not used yet", "zh-Hant": "尚未使用"],
+        "patterns.library.links.format": ["en": "%lld linked projects", "zh-Hant": "已連結 %lld 件作品"],
+        "patterns.library.pdf.pages.format": ["en": "PDF, %lld pages", "zh-Hant": "PDF，共 %lld 頁"],
+        "patterns.library.pdf": ["en": "PDF", "zh-Hant": "PDF"],
+        "patterns.library.image": ["en": "Image", "zh-Hant": "圖片"],
+        "patterns.library.thumbnail": ["en": "Pattern preview", "zh-Hant": "織圖預覽"],
+        "patterns.detail.information": ["en": "File Information", "zh-Hant": "檔案資訊"],
+        "patterns.detail.fileType": ["en": "File type", "zh-Hant": "檔案類型"],
+        "patterns.detail.fileSize": ["en": "File size", "zh-Hant": "檔案大小"],
+        "patterns.detail.added": ["en": "Added", "zh-Hant": "加入日期"],
+        "patterns.detail.note": ["en": "Note", "zh-Hant": "備註"],
+        "patterns.detail.note.empty": ["en": "Add a designer, shop, or source note.", "zh-Hant": "可記下設計師、商店或來源。"],
+        "patterns.detail.linkedProjects": ["en": "Linked Projects", "zh-Hant": "已連結作品"],
+        "patterns.detail.linkProject": ["en": "Link Another Project", "zh-Hant": "連結其他作品"],
+        "patterns.detail.export": ["en": "Share Original File", "zh-Hant": "分享原始檔"],
+        "patterns.detail.open": ["en": "Open Pattern", "zh-Hant": "開啟織圖"],
+        "patterns.detail.rename": ["en": "Rename Pattern", "zh-Hant": "重新命名織圖"],
+        "patterns.detail.editNote": ["en": "Edit Note", "zh-Hant": "編輯備註"],
+        "patterns.detail.unlink": ["en": "Unlink", "zh-Hant": "解除連結"],
+        "patterns.detail.delete": ["en": "Permanently Delete Pattern", "zh-Hant": "永久刪除織圖"],
+        "patterns.detail.deleteBlocked": ["en": "Unlink this pattern from the projects below before deleting it.", "zh-Hant": "請先解除下列作品連結，才能永久刪除織圖。"],
+        "patterns.detail.delete.confirm.title": ["en": "Permanently delete this pattern?", "zh-Hant": "永久刪除這份織圖？"],
+        "patterns.detail.delete.confirm.message": ["en": "The original file and saved reading data will be deleted. This cannot be undone.", "zh-Hant": "原始檔與保留的閱讀資料都會刪除，且無法復原。"],
+        "patterns.detail.chooseProject": ["en": "Choose a Project", "zh-Hant": "選擇作品"],
+        "patterns.detail.noProjects": ["en": "No other projects are available.", "zh-Hant": "沒有其他可連結的作品。"],
+        "patterns.reader.chooseContext.title": ["en": "Choose Reading Context", "zh-Hant": "選擇閱讀作品"],
+        "patterns.reader.chooseContext.message": ["en": "Choose which project's reading progress to continue.", "zh-Hant": "請選擇要繼續哪件作品的閱讀進度。"],
+        "patterns.reader.readOnly": ["en": "Read Only", "zh-Hant": "只閱讀"],
+    ]
+
     private let requiredJournalTranslations = [
         "journal.accessibility.add": ["en": "Add journal entry", "zh-Hant": "新增編織日記"],
         "journal.accessibility.fullPhoto": ["en": "Journal entry photo", "zh-Hant": "編織日記照片"],
@@ -269,6 +306,16 @@ import Testing
         let strings = try catalogStrings()
 
         for (key, expectedTranslations) in requiredReaderTranslations {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
+    @Test func patternLibraryStringsHaveApprovedEnglishAndTraditionalChineseCopy() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredPatternLibraryTranslations {
             for (language, expectedValue) in expectedTranslations {
                 #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }

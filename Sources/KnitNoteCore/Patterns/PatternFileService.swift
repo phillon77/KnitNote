@@ -423,6 +423,6 @@ public struct PatternFileService: Sendable {
 
     public func delete(projectID: UUID, pattern: PatternDocument) throws {
         try FileManager.default.removeItem(at: url(projectID: projectID, pattern: pattern))
-        try? PatternMarkupFileService(root: root).deletePatternMarkup(projectID: projectID, patternID: pattern.id)
+        try? PatternMarkupFileService(root: root).deleteLegacyMarkup(projectID: projectID, patternID: pattern.id)
     }
 }

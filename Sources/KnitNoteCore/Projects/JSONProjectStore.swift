@@ -67,6 +67,15 @@ public enum ProjectStoreError: Error, Equatable, Sendable {
     case persistenceFailed
 }
 
+public enum PatternLibraryMutationError: Error, Equatable, Sendable {
+    case patternNotFound
+    case projectNotFound
+    case usageNotFound
+    case usageInactive
+    case projectCompleted
+    case activeLinksExist([UUID])
+}
+
 enum ProjectJournalPhotoReferencePolicy {
     static func unreferencedFilenames(
         requestedFilenames: Set<String>,
@@ -79,6 +88,77 @@ enum ProjectJournalPhotoReferencePolicy {
         )
         return Set(requestedFilenames.filter(ProjectJournalPhotoFilename.isManaged))
             .subtracting(referencedFilenames)
+    }
+}
+
+private final class PatternLibraryDeletionStaging {
+    private let markupService: PatternMarkupFileService
+    private let usageIDs: [UUID]
+    private let asset: PatternAsset?
+    private let fileService: PatternFileService
+    private let transactionRoot: URL
+    private var movedItems: [(source: URL, staged: URL)] = []
+
+    init(
+        root: URL,
+        markupService: PatternMarkupFileService,
+        usageIDs: [UUID],
+        asset: PatternAsset?,
+        fileService: PatternFileService
+    ) {
+        self.markupService = markupService
+        self.usageIDs = usageIDs
+        self.asset = asset
+        self.fileService = fileService
+        transactionRoot = root
+            .appendingPathComponent(".DeletionTransactions", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    }
+
+    func stage() throws {
+        let manager = FileManager.default
+        try manager.createDirectory(at: transactionRoot, withIntermediateDirectories: true)
+        do {
+            for usageID in usageIDs {
+                try moveIfPresent(
+                    markupService.usageMarkupDirectory(usageID: usageID),
+                    named: "usage-\(usageID.uuidString)"
+                )
+            }
+            if let asset {
+                try moveIfPresent(try fileService.assetURL(asset), named: "asset-\(asset.id.uuidString)")
+            }
+        } catch {
+            try? rollback()
+            throw error
+        }
+    }
+
+    func rollback() throws {
+        let manager = FileManager.default
+        for item in movedItems.reversed() {
+            guard manager.fileExists(atPath: item.staged.path) else { continue }
+            try manager.createDirectory(at: item.source.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try manager.moveItem(at: item.staged, to: item.source)
+        }
+        movedItems.removeAll()
+        if manager.fileExists(atPath: transactionRoot.path) {
+            try manager.removeItem(at: transactionRoot)
+        }
+    }
+
+    func commit() throws {
+        let manager = FileManager.default
+        guard manager.fileExists(atPath: transactionRoot.path) else { return }
+        try manager.removeItem(at: transactionRoot)
+    }
+
+    private func moveIfPresent(_ source: URL, named name: String) throws {
+        let manager = FileManager.default
+        guard manager.fileExists(atPath: source.path) else { return }
+        let destination = transactionRoot.appendingPathComponent(name, isDirectory: true)
+        try manager.moveItem(at: source, to: destination)
+        movedItems.append((source, destination))
     }
 }
 
@@ -341,10 +421,11 @@ enum ProjectJournalPhotoReferencePolicy {
     }
     public func delete(id: UUID) throws {
         let deletedProject = projects.first(where: { $0.id == id })
-        let filename = deletedProject?.photoFilename
-        let journalFilenames = Set(deletedProject?.journalEntries.flatMap {
+        guard let deletedProject else { return }
+        let filename = deletedProject.photoFilename
+        let journalFilenames = Set(deletedProject.journalEntries.flatMap {
             [$0.photoFilename, $0.thumbnailFilename]
-        } ?? [])
+        })
         var stagedYarns = yarns
         let now = Date.now
         for index in stagedYarns.indices where stagedYarns[index].linkedProjectIDs.contains(id) {
@@ -353,7 +434,28 @@ enum ProjectJournalPhotoReferencePolicy {
                 now: now
             )
         }
-        try persist(projects: projects.filter { $0.id != id }, yarns: stagedYarns)
+        let removedUsages = patternUsages.filter { $0.projectID == id }
+        let remainingUsages = patternUsages.filter { $0.projectID != id }
+        let files = try requiredPatternFileService()
+        let deletion = PatternLibraryDeletionStaging(
+            root: files.root,
+            markupService: patternMarkupFileService,
+            usageIDs: removedUsages.map(\.id),
+            asset: nil,
+            fileService: files
+        )
+        try deletion.stage()
+        do {
+            try persist(
+                projects: projects.filter { $0.id != id },
+                yarns: stagedYarns,
+                patternUsages: remainingUsages
+            )
+        } catch {
+            try? deletion.rollback()
+            throw error
+        }
+        try? deletion.commit()
         if let filename { try? photoService.delete(filename: filename) }
         deleteJournalPhotosIfUnreferenced(journalFilenames)
         try? patternThumbnailService.deleteProject(projectID: id)
@@ -539,6 +641,188 @@ enum ProjectJournalPhotoReferencePolicy {
         try mutate(id: projectID) { $0.deletePattern(id: id) }
         try? requiredPatternFileService().delete(projectID: projectID, pattern: pattern)
         try? patternThumbnailService.delete(projectID: projectID, patternID: pattern.id)
+    }
+
+    @discardableResult
+    public func linkPattern(patternID: UUID, to projectID: UUID) throws -> PatternProjectUsage {
+        try ensureArchiveAvailable()
+        guard patterns.contains(where: { $0.id == patternID }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        guard projects.contains(where: { $0.id == projectID }) else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        if let index = patternUsages.firstIndex(where: {
+            $0.patternID == patternID && $0.projectID == projectID
+        }) {
+            guard !patternUsages[index].isActive else { return patternUsages[index] }
+            var staged = patternUsages
+            staged[index].isActive = true
+            staged[index].unlinkedAt = nil
+            try persist(projects: projects, yarns: yarns, patternUsages: staged)
+            return staged[index]
+        }
+        let nextSortOrder = (patternUsages.filter { $0.projectID == projectID }
+            .map(\.sortOrder).max() ?? -1) + 1
+        let usage = PatternProjectUsage(
+            patternID: patternID,
+            projectID: projectID,
+            sortOrder: nextSortOrder
+        )
+        try persist(
+            projects: projects,
+            yarns: yarns,
+            patternUsages: patternUsages + [usage]
+        )
+        return usage
+    }
+
+    public func unlinkPattern(patternID: UUID, from projectID: UUID) throws {
+        try ensureArchiveAvailable()
+        guard let index = patternUsages.firstIndex(where: {
+            $0.patternID == patternID && $0.projectID == projectID
+        }) else {
+            return
+        }
+        guard patternUsages[index].isActive else { return }
+        var staged = patternUsages
+        staged[index].isActive = false
+        staged[index].unlinkedAt = .now
+        try persist(projects: projects, yarns: yarns, patternUsages: staged)
+    }
+
+    public func deletePatternPermanently(id: UUID) throws {
+        try ensureArchiveAvailable()
+        guard let pattern = patterns.first(where: { $0.id == id }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        let usagesToDelete = patternUsages.filter { $0.patternID == id }
+        let activeProjectIDs = usagesToDelete.filter(\.isActive).map(\.projectID)
+            .sorted { $0.uuidString < $1.uuidString }
+        guard activeProjectIDs.isEmpty else {
+            throw PatternLibraryMutationError.activeLinksExist(activeProjectIDs)
+        }
+        let assetIsUnreferenced = !patterns.contains { $0.id != id && $0.assetID == pattern.assetID }
+        let asset = assetIsUnreferenced
+            ? patternAssets.first(where: { $0.id == pattern.assetID })
+            : nil
+        let files = try requiredPatternFileService()
+        let deletion = PatternLibraryDeletionStaging(
+            root: files.root,
+            markupService: patternMarkupFileService,
+            usageIDs: usagesToDelete.map(\.id),
+            asset: asset,
+            fileService: files
+        )
+        try deletion.stage()
+        do {
+            try persist(
+                projects: projects,
+                yarns: yarns,
+                patternAssets: assetIsUnreferenced
+                    ? patternAssets.filter { $0.id != pattern.assetID }
+                    : patternAssets,
+                patterns: patterns.filter { $0.id != id },
+                patternUsages: patternUsages.filter { $0.patternID != id }
+            )
+        } catch {
+            try? deletion.rollback()
+            throw error
+        }
+        try? deletion.commit()
+    }
+
+    public func renamePattern(id: UUID, to name: String) throws {
+        try ensureArchiveAvailable()
+        guard let index = patterns.firstIndex(where: { $0.id == id }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var staged = patterns
+        staged[index].displayName = trimmed
+        try persist(projects: projects, yarns: yarns, patterns: staged)
+    }
+
+    public func setPatternNote(id: UUID, note: String?) throws {
+        try ensureArchiveAvailable()
+        guard let index = patterns.firstIndex(where: { $0.id == id }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        var staged = patterns
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        staged[index].note = trimmed.isEmpty ? nil : trimmed
+        try persist(projects: projects, yarns: yarns, patterns: staged)
+    }
+
+    public func markPatternOpened(id: UUID, at date: Date = .now) throws {
+        try ensureArchiveAvailable()
+        guard let index = patterns.firstIndex(where: { $0.id == id }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        var staged = patterns
+        staged[index].lastOpenedAt = date
+        try persist(projects: projects, yarns: yarns, patterns: staged)
+    }
+
+    public func updatePatternState(
+        usageID: UUID,
+        state: PatternReadingState,
+        expectedDataGeneration: UInt64? = nil
+    ) throws {
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        let index = try mutableUsageIndex(usageID: usageID)
+        var staged = patternUsages
+        staged[index].updateReadingState(state)
+        try persist(projects: projects, yarns: yarns, patternUsages: staged)
+    }
+
+    public func savePatternPageNote(
+        usageID: UUID,
+        pageIndex: Int,
+        text: String,
+        expectedDataGeneration: UInt64? = nil
+    ) throws {
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        let index = try mutableUsageIndex(usageID: usageID)
+        var staged = patternUsages
+        let page = max(0, pageIndex)
+        var state = staged[index].readingState
+        if state.pageIndex == page {
+            state.setPageNote(text)
+        } else {
+            let existing = state.pageStates[page]
+            state.pageStates[page] = PatternPageState(
+                horizontalPosition: existing?.horizontalPosition ?? 0.5,
+                verticalPosition: existing?.verticalPosition ?? 0.5,
+                note: text
+            )
+        }
+        staged[index].updateReadingState(state)
+        try persist(projects: projects, yarns: yarns, patternUsages: staged)
+    }
+
+    public func loadPatternMarkup(
+        usageID: UUID,
+        pageIndex: Int
+    ) throws -> PatternMarkupDocument {
+        guard patternUsages.contains(where: { $0.id == usageID }) else {
+            throw PatternLibraryMutationError.usageNotFound
+        }
+        return try patternMarkupFileService.load(usageID: usageID, pageIndex: pageIndex)
+    }
+
+    public func savePatternMarkup(
+        _ document: PatternMarkupDocument,
+        usageID: UUID,
+        pageIndex: Int,
+        expectedDataGeneration: UInt64
+    ) throws {
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        _ = try mutableUsageIndex(usageID: usageID)
+        activePatternTransactions += 1
+        defer { activePatternTransactions -= 1 }
+        try patternMarkupFileService.save(document, usageID: usageID, pageIndex: pageIndex)
     }
     public func savePatternPageNote(
         projectID: UUID,
@@ -782,6 +1066,22 @@ enum ProjectJournalPhotoReferencePolicy {
         try body(&staged[index])
         try persist(projects: staged, yarns: yarns)
     }
+
+    private func mutableUsageIndex(usageID: UUID) throws -> Int {
+        guard let index = patternUsages.firstIndex(where: { $0.id == usageID }) else {
+            throw PatternLibraryMutationError.usageNotFound
+        }
+        guard patternUsages[index].isActive else {
+            throw PatternLibraryMutationError.usageInactive
+        }
+        guard let project = project(id: patternUsages[index].projectID) else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        guard !project.isCompleted else {
+            throw PatternLibraryMutationError.projectCompleted
+        }
+        return index
+    }
     private func load() {
         do {
             try refreshPatternStorageDependencies()
@@ -1020,10 +1320,14 @@ enum ProjectJournalPhotoReferencePolicy {
     ) throws -> [PatternProjectUsage] {
         guard let targetProjectID else { return existingUsages }
         guard project(id: targetProjectID) != nil else { throw ProjectStoreError.patternNotFound }
-        guard !existingUsages.contains(where: {
+        if let index = existingUsages.firstIndex(where: {
             $0.patternID == patternID && $0.projectID == targetProjectID
-        }) else {
-            return existingUsages
+        }) {
+            guard !existingUsages[index].isActive else { return existingUsages }
+            var restored = existingUsages
+            restored[index].isActive = true
+            restored[index].unlinkedAt = nil
+            return restored
         }
         let nextSortOrder = (existingUsages.filter { $0.projectID == targetProjectID }
             .map(\.sortOrder).max() ?? -1) + 1

@@ -792,7 +792,7 @@ enum ProjectJournalPhotoReferencePolicy {
         do {
             try PatternLibraryMigrator().recoverInterruptedMigration(archiveURL: url)
             guard FileManager.default.fileExists(atPath: url.path) else {
-                try recoverPatternImportArtifacts(referencedAssetIDs: [])
+                try recoverPatternImportArtifacts(referencedAssets: [])
                 loadError = nil
                 return
             }
@@ -822,9 +822,7 @@ enum ProjectJournalPhotoReferencePolicy {
             let migrator = PatternLibraryMigrator()
             try migrator.recoverInterruptedMigration(archiveURL: url)
             let initialArchive = try archiveFromDisk()
-            try recoverPatternImportArtifacts(
-                referencedAssetIDs: Set(initialArchive.patternAssets.map(\.id))
-            )
+            try recoverPatternImportArtifacts(referencedAssets: initialArchive.patternAssets)
             if initialArchive.version < ProjectArchive.currentVersion {
                 try migrator.migrateOnDisk(archiveURL: url)
             } else {
@@ -846,11 +844,12 @@ enum ProjectJournalPhotoReferencePolicy {
         reconcileJournalPhotos()
     }
 
-    private func recoverPatternImportArtifacts(referencedAssetIDs: Set<UUID>) throws {
+    private func recoverPatternImportArtifacts(referencedAssets: [PatternAsset]) throws {
         let files = try requiredPatternFileService()
         let inbox = try requiredPatternInboxFileService()
         let publishedInboxItems = try files.recoverImportTransactions(
-            referencedAssetIDs: referencedAssetIDs
+            referencedAssets: referencedAssets,
+            inbox: inbox
         )
         let report = try inbox.recover(publishedItemIDs: publishedInboxItems)
         for itemID in report.cleanedCommittedIDs.intersection(publishedInboxItems) {
@@ -924,7 +923,11 @@ enum ProjectJournalPhotoReferencePolicy {
                 byteCount: prepared.metadata.byteCount,
                 pageCount: prepared.metadata.pageCount
             )
-            try files.beginImportTransaction(itemID: prepared.item.id, asset: proposedAsset)
+            try files.beginImportTransaction(
+                item: prepared.item,
+                metadata: prepared.metadata,
+                asset: proposedAsset
+            )
             let asset = try files.installAsset(
                 data: prepared.data,
                 metadata: prepared.metadata,
@@ -995,10 +998,10 @@ enum ProjectJournalPhotoReferencePolicy {
             }
             outcome = .existing(patternID: pattern.id)
         }
-        if (try? inbox.markCommitted(prepared.item)) != nil {
+        if (try? inbox.markCommitted(prepared.item)) != nil,
+           (try? inbox.cleanupCommitted(prepared.item)) != nil {
             try? files.completeImportTransaction(itemID: prepared.item.id)
         }
-        try? inbox.cleanupCommitted(prepared.item)
         return outcome
     }
 

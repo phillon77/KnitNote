@@ -19,6 +19,12 @@ private struct PatternInboxManifest: Codable, Sendable {
     let state: PatternInboxManifestState
 }
 
+struct PatternInboxJournalVerification: Sendable {
+    let item: PatternInboxItem
+    let metadata: PatternFileMetadata?
+    let isCommitted: Bool
+}
+
 public struct PatternInboxFileService: Sendable {
     public let root: URL
     private let moveItem: @Sendable (URL, URL) throws -> Void
@@ -126,6 +132,24 @@ public struct PatternInboxFileService: Sendable {
         if FileManager.default.fileExists(atPath: sidecar.path) {
             try removeItem(sidecar)
         }
+    }
+
+    /// Returns immutable evidence for a transaction journal without performing
+    /// recovery. A committed sidecar may already have removed its staged bytes;
+    /// in that one case the committed manifest itself is the cleanup proof.
+    func journalVerificationItem(id: UUID) throws -> PatternInboxJournalVerification? {
+        guard let manifest = try manifest(id: id), isSafe(manifest.item) else { return nil }
+        let staged = try stagedURL(for: manifest.item)
+        if FileManager.default.fileExists(atPath: staged.path) {
+            guard try isRegularNonSymlink(staged) else { return nil }
+            return PatternInboxJournalVerification(
+                item: manifest.item,
+                metadata: try PatternFileService(root: root).inspect(staged),
+                isCommitted: manifest.state == .committed
+            )
+        }
+        guard manifest.state == .committed else { return nil }
+        return PatternInboxJournalVerification(item: manifest.item, metadata: nil, isCommitted: true)
     }
 
     public func recover(publishedItemIDs: Set<UUID> = []) throws -> PatternInboxRecoveryReport {

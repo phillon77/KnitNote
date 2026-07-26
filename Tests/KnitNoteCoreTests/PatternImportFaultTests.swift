@@ -29,8 +29,15 @@ private final class PatternStorageAvailabilityGate: @unchecked Sendable {
     let id = PatternImportCoordinator().deterministicAssetID(for: metadata.sha256)
     let asset = PatternAsset(id: id, sha256: metadata.sha256, kind: metadata.kind, storedFilename: "\(id.uuidString).pdf", byteCount: metadata.byteCount, pageCount: metadata.pageCount)
     let files = PatternFileService(root: harness.assetsRoot)
-    try files.beginImportTransaction(itemID: UUID(), asset: asset)
-    _ = try files.installAsset(data: Data(contentsOf: source), metadata: metadata, id: id, transactionID: UUID())
+    let item = PatternInboxItem(
+        originalFilename: source.lastPathComponent,
+        receivedAt: .now,
+        origin: .library,
+        targetProjectID: nil,
+        stagedFilename: "\(UUID().uuidString).pdf"
+    )
+    try files.beginImportTransaction(item: item, metadata: metadata, asset: asset)
+    _ = try files.installAsset(data: Data(contentsOf: source), metadata: metadata, id: id, transactionID: item.id)
 
     let restarted = try harness.reopenedStore()
 
@@ -98,6 +105,77 @@ private final class PatternStorageAvailabilityGate: @unchecked Sendable {
     #expect(outcome == .created(patternID: harness.store.patterns[0].id))
     #expect(restarted.patterns.count == 1)
     #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: item.id) == nil)
+}
+
+@MainActor
+@Test func cleanupFailureRetainsJournalUntilFreshRecoveryFinishesInboxCleanup() async throws {
+    let harness = try PatternImportHarness(inboxRemove: { _ in throw PatternImportInjectedFailure() })
+    let source = try harness.makePDF(named: "cleanup-journal.pdf")
+    let item = try harness.inbox.enqueue(source: source, origin: .library, targetProjectID: nil, now: .now)
+    let journal = harness.assetsRoot
+        .appendingPathComponent("Assets/.Transactions", isDirectory: true)
+        .appendingPathComponent("\(item.id.uuidString).json")
+
+    _ = try await harness.store.processPatternInboxItem(id: item.id)
+    #expect(FileManager.default.fileExists(atPath: journal.path))
+
+    let restarted = try harness.reopenedStore()
+
+    #expect(restarted.patterns.count == 1)
+    #expect(!FileManager.default.fileExists(atPath: journal.path))
+    #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: item.id) == nil)
+}
+
+@MainActor
+@Test func tamperedJournalCannotCommitAnUnrelatedPendingInboxItem() async throws {
+    let gate = PatternImportWriteGate()
+    let harness = try PatternImportHarness(inboxWrite: { try gate.write($0, to: $1) })
+    let firstSource = try harness.makePDF(named: "first.pdf")
+    let first = try harness.inbox.enqueue(source: firstSource, origin: .library, targetProjectID: nil, now: .now)
+    _ = try await harness.store.processPatternInboxItem(id: first.id)
+    let secondSource = try harness.makePDF(named: "second.pdf")
+    let second = try harness.inbox.enqueue(source: secondSource, origin: .library, targetProjectID: nil, now: .now)
+    let journal = harness.assetsRoot
+        .appendingPathComponent("Assets/.Transactions", isDirectory: true)
+        .appendingPathComponent("\(first.id.uuidString).json")
+    let journalData = try Data(contentsOf: journal)
+    let tampered = try #require(String(data: journalData, encoding: .utf8))
+        .replacingOccurrences(of: first.id.uuidString, with: second.id.uuidString)
+    try Data(tampered.utf8).write(to: journal, options: .atomic)
+
+    let restarted = try harness.reopenedStore()
+
+    #expect(restarted.patterns.count == 1)
+    #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: first.id) != nil)
+    #expect(try PatternInboxFileService(root: harness.inbox.root).item(id: second.id) != nil)
+    #expect(!FileManager.default.fileExists(atPath: journal.path))
+}
+
+@MainActor
+@Test func startupRecoveryRejectsSymlinkedAssetTreeWithoutTouchingExternalFiles() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let patternRoot = root.appendingPathComponent("Patterns", isDirectory: true)
+    let assets = patternRoot.appendingPathComponent("Assets", isDirectory: true)
+    let outside = root.appendingPathComponent("Outside", isDirectory: true)
+    let candidateID = UUID()
+    let assetID = UUID()
+    try FileManager.default.createDirectory(at: outside.appendingPathComponent(".Candidates"), withIntermediateDirectories: true)
+    let candidate = outside.appendingPathComponent(".Candidates/\(candidateID.uuidString)")
+    let final = outside.appendingPathComponent("\(assetID.uuidString).pdf")
+    let candidateBytes = Data("external-candidate".utf8)
+    let finalBytes = Data("external-final".utf8)
+    try candidateBytes.write(to: candidate, options: .atomic)
+    try finalBytes.write(to: final, options: .atomic)
+    try FileManager.default.createDirectory(at: patternRoot, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(at: assets, withDestinationURL: outside)
+
+    let store = JSONProjectStore(url: root.appendingPathComponent("projects-v1.json"))
+
+    #expect(store.loadError == .unreadableArchive)
+    #expect(try Data(contentsOf: candidate) == candidateBytes)
+    #expect(try Data(contentsOf: final) == finalBytes)
+    #expect(throws: ProjectStoreError.archiveUnavailable) { try store.add(name: "Blocked") }
 }
 
 @MainActor

@@ -103,3 +103,44 @@ New tests first exposed the missing retry-load transition: a store remained disa
 - `swift test --filter PatternImportFaultTests --filter PatternImportSecurityTests --filter PatternInboxFileServiceTests` — PASS (19 tests), including fresh-start candidate/final crash artifacts, failed committed-sidecar writes, proactive inbox recovery, unavailable-then-available live dependencies, and symlinked asset-parent rejection.
 - `swift test` — PASS (599 tests, 44 suites).
 - `git diff --check` — PASS.
+
+## Review Remediation 3: Canonical Recovery Roots and Journal Binding
+
+### RED
+
+The third review found that recovery's owned-file deletion did not first prove
+that `Patterns/Assets` and its recovery subdirectories were physical descendants
+of the configured root. It also found that the journal only carried an asset ID,
+and that normal publication removed the journal after `markCommitted` before
+the inbox cleanup actually succeeded.
+
+Added regressions for a symlinked `Assets` tree containing external UUID-named
+candidate/final files, a decodable journal tampered to point at a different
+pending inbox item, and a real injected cleanup failure followed by fresh
+startup. They initially failed by respectively permitting the unsafe recovery
+path, retaining the tampered journal, and removing the journal too early.
+
+### GREEN
+
+- All asset installation, transaction, rollback, deletion, and startup-recovery
+  paths now validate the physical `Assets`, `.Candidates`, `.Transactions`, and
+  transaction-quarantine directories before listing, creating, moving, or
+  deleting. An externally symlinked tree throws and leaves external bytes intact.
+- The versioned journal now binds the exact inbox item (including its staged
+  filename and normalized original identity), staged content metadata
+  (hash/size/type/page count), and full `PatternAsset` identity. Its canonical
+  payload has a SHA-256 integrity value. Recovery verifies that payload against
+  the archive asset, current inbox manifest/staged bytes, and final asset bytes
+  before treating it as archive-publication proof. A malformed or cross-item
+  journal is quarantined without deleting its referenced archive asset or a
+  pending inbox item.
+- A transaction journal is now removed only after both `markCommitted` and
+  `cleanupCommitted` succeed. If cleanup is interrupted, fresh startup retries
+  cleanup idempotently and removes the journal only after the inbox is gone.
+
+### Additional Verification
+
+- Task 3 focused suite — PASS (28 tests), including external symlink safety,
+  tampered journal isolation, and cleanup-failure restart recovery.
+- `swift test` — PASS (602 tests, 44 suites).
+- `git diff --check` — PASS.

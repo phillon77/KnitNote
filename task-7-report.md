@@ -28,13 +28,19 @@ Implemented only the standalone pattern-library list, detail, and library reader
 - Library enqueue now performs recovery, validation, copy, hash inspection, move, and staged-sidecar publication in a detached user-initiated task. The security-scoped access remains alive in the awaiting UI task; processing and archive publication resume on the main actor only after enqueue finishes.
 - A failed staged-sidecar write now removes both the candidate and any already-moved staged file, leaving the inbox and archive unmodified.
 
+## Review Fix Round 2
+
+- Added a write-then-throw failpoint that persists the staged manifest at its real path before reporting failure. RED reproduced an orphan manifest, a fresh-recovery quarantine event, and quarantine residue.
+- Enqueue now records only the unique manifest path owned by the current item after confirming that path does not already exist. Its failure cleanup removes that exact path only when its UUID still matches the current item, alongside the existing candidate and staged-file cleanup.
+- The failpoint now leaves candidates, staged items, manifests, quarantine, in-memory library state, and the archive unchanged. Fresh recovery reports no orphan, pending item, cleanup retry, or quarantine work.
+
 ## Verification
 
 - Focused initial behavior: 14 tests passed across query, UI contract, localization, durable import, and thumbnail integration.
 - Review-fix RED evidence reproduced all three defects: macOS compilation failed on `navigationBarTitleDisplayMode`; duplicate presentation failed because its reducer did not exist; enqueue tests observed main-thread I/O and a staged-file residue after manifest-write failure.
-- Focused library regression: `swift test --filter PatternLibrary --quiet` passed 77 tests.
+- Focused library regression: `swift test --filter PatternLibrary --quiet` passed 78 tests.
 - Reader/library compatibility: 32 focused tests passed after updating the Task 6 source contracts for the new detail/chooser routing and durable library import.
-- Full regression: `swift test --quiet` passed 705 tests in 54 suites.
+- Full regression: `swift test --quiet` passed 706 tests in 54 suites.
 - Real iOS Simulator and macOS SwiftUI type-checks of every `KnitNote` and `Sources/KnitNoteCore` Swift file passed with zero errors. Existing Sendable warnings remain in backup and journal-photo services.
 - `jq empty` passed for `Localizable.xcstrings`; Swift parse passed for every touched Swift file; `git diff --check` passed.
 

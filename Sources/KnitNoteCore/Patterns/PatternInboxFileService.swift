@@ -66,6 +66,7 @@ public struct PatternInboxFileService: Sendable {
         try createDirectories()
         let candidate = candidateURL(for: id)
         var staged: URL?
+        var ownedManifest: URL?
         do {
             try FileManager.default.copyItem(at: source, to: candidate)
             let metadata = try PatternFileService(root: root).inspect(
@@ -83,12 +84,20 @@ public struct PatternInboxFileService: Sendable {
             let ownedStaged = try stagedURL(for: item)
             staged = ownedStaged
             try moveItem(candidate, ownedStaged)
+            let manifest = manifestURL(for: id)
+            guard !FileManager.default.fileExists(atPath: manifest.path) else {
+                throw PatternInboxError.invalidItem
+            }
+            ownedManifest = manifest
             try writeManifest(.init(version: 1, item: item, state: .staged))
             return item
         } catch {
             try? removeOwnedFile(candidate)
             if let staged {
                 try? removeOwnedStagedFile(staged)
+            }
+            if let ownedManifest {
+                try? removeOwnedManifestFile(ownedManifest, id: id)
             }
             throw error
         }
@@ -319,6 +328,14 @@ public struct PatternInboxFileService: Sendable {
         try validateOwnedInboxTree()
         guard url.deletingLastPathComponent().standardizedFileURL.path == itemsRoot.standardizedFileURL.path,
               stagedID(from: url.lastPathComponent) != nil,
+              FileManager.default.fileExists(atPath: url.path) else { return }
+        try removeItem(url)
+    }
+
+    private func removeOwnedManifestFile(_ url: URL, id: UUID) throws {
+        try validateOwnedInboxTree()
+        guard url.deletingLastPathComponent().standardizedFileURL.path == manifestsRoot.standardizedFileURL.path,
+              manifestID(from: url.lastPathComponent) == id,
               FileManager.default.fileExists(atPath: url.path) else { return }
         try removeItem(url)
     }

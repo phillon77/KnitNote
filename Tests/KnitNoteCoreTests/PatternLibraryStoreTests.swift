@@ -83,6 +83,46 @@ private final class PatternLibraryIOThreadRecorder: @unchecked Sendable {
     }
 }
 
+@MainActor @Test func writeThenThrowManifestFailureLeavesNothingForFreshRecovery() async throws {
+    let harness = try PatternImportHarness(inboxWrite: { data, url in
+        try data.write(to: url, options: .atomic)
+        throw PatternLibraryInboxWriteFailure()
+    })
+    let source = try harness.makePDF(named: "Manifest Written Then Failed.pdf")
+
+    await #expect(throws: PatternLibraryInboxWriteFailure.self) {
+        try await harness.store.importPatternFromLibrary(source)
+    }
+
+    #expect(harness.store.patterns.isEmpty)
+    #expect(harness.store.patternAssets.isEmpty)
+    #expect(harness.archivePatternCount() == 0)
+    for directory in [".Candidates", "Items", "Manifests", ".Quarantine"] {
+        let url = harness.inbox.root.appendingPathComponent(directory, isDirectory: true)
+        #expect(
+            try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil
+            ).isEmpty
+        )
+    }
+
+    let freshInbox = PatternInboxFileService(root: harness.inbox.root)
+    let report = try freshInbox.recover()
+
+    #expect(report == PatternInboxRecoveryReport())
+    #expect(try freshInbox.items().isEmpty)
+    for directory in [".Candidates", "Items", "Manifests", ".Quarantine"] {
+        let url = freshInbox.root.appendingPathComponent(directory, isDirectory: true)
+        #expect(
+            try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil
+            ).isEmpty
+        )
+    }
+}
+
 @MainActor @Test func unlinkAndRelinkRestoreTheSameUsage() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
 

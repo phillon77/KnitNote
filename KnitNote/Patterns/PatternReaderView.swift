@@ -53,8 +53,11 @@ struct PatternReaderView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: JSONProjectStore
     private let source: PatternReaderSource
+    private let storePresentation: PatternReaderStorePresentation
     @State private var state: PatternReadingState
-    @State private var didLoadContextState = false
+    @State private var readerSession: PatternReaderSession
+    @State private var canvasIsActive = false
+    @State private var handledPageIndex: Int?
     @State private var loadError = false
     @State private var pageCount = 0
     @State private var saveError: String?
@@ -81,6 +84,8 @@ struct PatternReaderView: View {
     ) {
         source = .library(context)
         _state = State(initialValue: .init())
+        _readerSession = State(initialValue: PatternReaderSession(context: context))
+        storePresentation = .standard
         self.onStoreScreenshotReady = onStoreScreenshotReady
     }
 
@@ -94,38 +99,23 @@ struct PatternReaderView: View {
         onStoreScreenshotReady: @escaping @MainActor () -> Void = {}
     ) {
         source = .legacy(projectID: projectID, patternID: pattern.id)
-        var initialState = pattern.readingState
-        switch storePresentation {
-        case .standard:
-            break
-        case .highlight:
-            initialState.highlightEnabled = true
-            initialState.highlightMode = .horizontal
-        case .crossHighlight:
-            initialState.highlightEnabled = true
-            initialState.highlightMode = .cross
-        case .markup, .notes:
-            break
-        }
-        _state = State(initialValue: initialState)
+        _state = State(initialValue: .init())
+        _readerSession = State(initialValue: PatternReaderSession(context: .project(
+            patternID: pattern.id,
+            usageID: pattern.id,
+            projectID: projectID,
+            projectIsCompleted: false
+        )))
+        self.storePresentation = storePresentation
         _markupMode = State(initialValue: storePresentation == .markup)
         _showingPageNote = State(initialValue: storePresentation == .notes)
         self.onStoreScreenshotReady = onStoreScreenshotReady
     }
 
-    private var context: PatternReaderContext {
+    private var sourceContext: PatternReaderContext {
         switch source {
         case let .library(context):
-            guard let usageID = context.usageID,
-                  let projectID = context.projectID else {
-                return context
-            }
-            return .project(
-                patternID: context.patternID,
-                usageID: usageID,
-                projectID: projectID,
-                projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
-            )
+            return context
         case let .legacy(projectID, patternID):
             return .project(
                 patternID: patternID,
@@ -134,6 +124,31 @@ struct PatternReaderView: View {
                 projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
             )
         }
+    }
+
+    private var context: PatternReaderContext {
+        let base = readerSession.phase == .hydrated ? readerSession.context : sourceContext
+        guard let usageID = base.usageID,
+              let projectID = base.projectID else {
+            return base
+        }
+        return .project(
+            patternID: base.patternID,
+            usageID: usageID,
+            projectID: projectID,
+            projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+        )
+    }
+
+    private var canvasState: Binding<PatternReadingState> {
+        Binding(
+            get: { state },
+            set: { newState in
+                guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
+                state = newState
+                _ = readerSession.acceptCanvasState(newState)
+            }
+        )
     }
 
     private var content: PatternReaderContent? {
@@ -168,7 +183,9 @@ struct PatternReaderView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let content, FileManager.default.fileExists(atPath: content.url.path) {
+                if readerSession.phase == .hydrated,
+                   let content,
+                   FileManager.default.fileExists(atPath: content.url.path) {
                     VStack(spacing: 0) {
                         PatternMarkupToolbar(
                             document: $markup,
@@ -206,7 +223,7 @@ struct PatternReaderView: View {
                             }
                         }
                     }
-                } else {
+                } else if readerSession.phase == .hydrated {
                     switch source {
                     case let .legacy(projectID, patternID):
                         ContentUnavailableView {
@@ -222,6 +239,8 @@ struct PatternReaderView: View {
                             Label("patterns.missing", systemImage: "exclamationmark.triangle")
                         }
                     }
+                } else {
+                    ProgressView()
                 }
             }
             .toolbar {
@@ -301,21 +320,25 @@ struct PatternReaderView: View {
         .tint(WatercolorTheme.actionBerry)
         .interactiveDismissDisabled()
         .onAppear {
-            loadContextStateIfNeeded()
+            hydrateReaderSessionIfNeeded()
             if expectedDataGeneration == nil { expectedDataGeneration = store.dataGeneration }
-            loadMarkup(page: state.pageIndex)
         }
         .onDisappear {
+            guard canvasIsActive, readerSession.canPersist else { return }
             guard context.canWrite else { return }
             saveMarkup(page: state.pageIndex)
             _ = save()
         }
         .onChange(of: state.pageIndex) { oldPage, newPage in
+            guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
+            guard handledPageIndex != newPage else { return }
+            handledPageIndex = newPage
             if context.canWrite { saveMarkup(page: oldPage) }
             loadMarkup(page: newPage)
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase != .active, context.canWrite else { return }
+            guard phase != .active, canvasIsActive, readerSession.canPersist else { return }
+            guard context.canWrite else { return }
             saveMarkup(page: state.pageIndex)
             _ = save()
         }
@@ -330,21 +353,21 @@ struct PatternReaderView: View {
                         url: content.url,
                         navigator: pdfNavigator,
                         scaleMode: layout.pdfScaleMode,
-                        state: $state,
+                        state: canvasState,
                         pageCount: $pageCount,
                         loadError: $loadError,
                         onReady: onStoreScreenshotReady
                     )
                     .allowsHitTesting(!markupMode)
                 } else {
-                    ImageReaderView(url: content.url, state: $state, loadError: $loadError)
+                    ImageReaderView(url: content.url, state: canvasState, loadError: $loadError)
                         .allowsHitTesting(!markupMode)
                 }
                 if state.highlightEnabled {
                     HighlightOverlay(
                         mode: state.highlightMode,
-                        horizontalPosition: $state.highlightPosition,
-                        verticalPosition: $state.verticalHighlightPosition
+                        horizontalPosition: canvasState.highlightPosition,
+                        verticalPosition: canvasState.verticalHighlightPosition
                     )
                     .allowsHitTesting(context.canWrite && !markupMode)
                 }
@@ -380,25 +403,57 @@ struct PatternReaderView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .onAppear {
+            canvasIsActive = true
+            handledPageIndex = state.pageIndex
+        }
     }
 
-    private func loadContextStateIfNeeded() {
-        guard !didLoadContextState else { return }
-        defer { didLoadContextState = true }
-        guard case .library = source,
-              let usageID = context.usageID,
-              let projectID = context.projectID,
-              let usage = store.patternUsages.first(where: {
-                  $0.id == usageID && $0.patternID == context.patternID && $0.projectID == projectID
-              }) else {
-            return
+    private func hydrateReaderSessionIfNeeded() {
+        guard readerSession.phase == .loading else { return }
+        canvasIsActive = false
+        handledPageIndex = nil
+        let currentContext = sourceContext
+        readerSession.beginLoading(context: currentContext)
+
+        switch source {
+        case .library:
+            guard let usageID = currentContext.usageID,
+                  let projectID = currentContext.projectID,
+                  let usage = store.patternUsages.first(where: {
+                      $0.id == usageID && $0.patternID == currentContext.patternID && $0.projectID == projectID
+                  }) else {
+                state = .init()
+                markup = PatternMarkupDocument()
+                readerSession.beginLoading(context: .readOnly(patternID: currentContext.patternID))
+                readerSession.hydrate(readingState: state)
+                return
+            }
+            state = usage.readingState
+        case let .legacy(projectID, patternID):
+            state = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID })?.readingState ?? .init()
+            switch storePresentation {
+            case .standard:
+                break
+            case .highlight:
+                state.highlightEnabled = true
+                state.highlightMode = .horizontal
+            case .crossHighlight:
+                state.highlightEnabled = true
+                state.highlightMode = .cross
+            case .markup, .notes:
+                break
+            }
         }
-        state = usage.readingState
+        loadMarkup(page: state.pageIndex)
+        readerSession.hydrate(readingState: state)
     }
 
     @discardableResult private func save() -> Bool {
+        guard readerSession.canPersist else { return true }
         guard context.canWrite else { return true }
         state.saveCurrentPage()
+        _ = readerSession.acceptCanvasState(state)
         do {
             switch source {
             case .library:
@@ -513,6 +568,7 @@ struct PatternReaderView: View {
     }
 
     private func saveMarkup(page: Int) {
+        guard canvasIsActive, readerSession.canPersist else { return }
         guard context.canWrite, let expectedDataGeneration else { return }
         do {
             switch source {

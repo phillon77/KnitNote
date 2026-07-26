@@ -69,9 +69,10 @@ struct PatternReaderControls: View {
         .padding(.bottom, 8)
     }
 
+    @ViewBuilder
     private func counterButton(_ counter: ProjectCounter) -> some View {
         let name = projectCounterDisplayName(counter, locale: locale)
-        return Text(counter.value, format: .number)
+        let button = Text(counter.value, format: .number)
             .font(.headline.bold().monospacedDigit())
             .foregroundStyle(.white)
             .frame(width: 44, height: 44)
@@ -92,13 +93,19 @@ struct PatternReaderControls: View {
             .accessibilityValue(Text(counter.value, format: .number))
             .accessibilityHint(Text("counter.accessibility.tapHoldHint"))
             .accessibilityAddTraits(isEnabled ? [] : .isDisabled)
-            .accessibilityAction(named: Text("counter.increment")) {
-                guard isEnabled else { return }
-                onIncrement(counter.id)
-            }
-            .accessibilityAction(named: Text("counter.manage")) {
-                guard isEnabled else { return }
-                onManage(counter.id)
-            }
+
+        if isEnabled,
+           PatternReaderCounterAccessibilityPolicy.canExposeIncrementAction(isEnabled: isEnabled),
+           PatternReaderCounterAccessibilityPolicy.canExposeManageAction(isEnabled: isEnabled) {
+            button
+                .accessibilityAction(named: Text("counter.increment")) {
+                    onIncrement(counter.id)
+                }
+                .accessibilityAction(named: Text("counter.manage")) {
+                    onManage(counter.id)
+                }
+        } else {
+            button
+        }
     }
 }

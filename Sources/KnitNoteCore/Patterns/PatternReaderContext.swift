@@ -48,3 +48,58 @@ public struct PatternReaderContext: Equatable, Hashable, Sendable {
         usageID != nil && projectID != nil && !projectIsCompleted
     }
 }
+
+/// Keeps reader content out of platform representables until the exact saved
+/// state for its current context has been resolved.
+public struct PatternReaderSession: Equatable, Sendable {
+    public enum Phase: Equatable, Sendable {
+        case loading
+        case hydrated
+    }
+
+    public private(set) var context: PatternReaderContext
+    public private(set) var phase: Phase
+    public private(set) var readingState: PatternReadingState?
+
+    public init(context: PatternReaderContext) {
+        self.context = context
+        phase = .loading
+        readingState = nil
+    }
+
+    public var canAcceptCanvasCallbacks: Bool {
+        phase == .hydrated
+    }
+
+    public var canPersist: Bool {
+        canAcceptCanvasCallbacks && context.canWrite
+    }
+
+    public mutating func beginLoading(context: PatternReaderContext) {
+        self.context = context
+        phase = .loading
+        readingState = nil
+    }
+
+    public mutating func hydrate(readingState: PatternReadingState) {
+        self.readingState = readingState
+        phase = .hydrated
+    }
+
+    @discardableResult
+    public mutating func acceptCanvasState(_ state: PatternReadingState) -> Bool {
+        guard canAcceptCanvasCallbacks else { return false }
+        readingState = state
+        return true
+    }
+}
+
+public enum PatternReaderCounterAccessibilityPolicy: Sendable {
+    public static func canExposeIncrementAction(isEnabled: Bool) -> Bool {
+        isEnabled
+    }
+
+    public static func canExposeManageAction(isEnabled: Bool) -> Bool {
+        isEnabled
+    }
+}

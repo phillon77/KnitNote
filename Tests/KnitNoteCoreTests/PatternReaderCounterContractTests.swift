@@ -89,6 +89,23 @@ import Testing
         #expect(reader.contains("store.deletePattern(projectID: projectID, id: patternID)"))
     }
 
+    @Test func readerOnlyBuildsItsCanvasAfterReaderSessionHydrates() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(reader.contains("@State private var readerSession: PatternReaderSession"))
+        #expect(reader.contains("readerSession.phase == .hydrated"))
+        #expect(reader.contains("hydrateReaderSessionIfNeeded()"))
+        #expect(reader.contains("guard readerSession.canPersist else"))
+    }
+
+    @Test func disabledCountersDoNotRegisterCustomVoiceOverActions() throws {
+        let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
+
+        #expect(controls.contains("PatternReaderCounterAccessibilityPolicy.canExposeIncrementAction"))
+        #expect(controls.contains("PatternReaderCounterAccessibilityPolicy.canExposeManageAction"))
+        #expect(controls.contains("if isEnabled"))
+    }
+
     @Test func everyPatternManagedFileWriteRoutesThroughTheStoreCoordinator() throws {
         let projectPatterns = try sourceFile("KnitNote/Patterns/ProjectPatternsView.swift")
         let library = try sourceFile("KnitNote/Patterns/PatternLibraryView.swift")

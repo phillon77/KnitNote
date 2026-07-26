@@ -28,7 +28,7 @@ import Testing
         return
     }
     #expect(candidatePatternIDs.count == 2)
-    #expect(harness.inbox.item(id: item.id) != nil)
+    #expect(try harness.inbox.item(id: item.id) != nil)
     #expect(harness.store.patternUsages.isEmpty)
 }
 
@@ -44,6 +44,6 @@ import Testing
     )
 
     #expect(selected == .existing(patternID: expected))
-    #expect(harness.inbox.item(id: item.id) == nil)
+    #expect(try harness.inbox.item(id: item.id) == nil)
     #expect(harness.store.patternAssets.count == 1)
 }

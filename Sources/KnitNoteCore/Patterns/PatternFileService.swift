@@ -2,12 +2,14 @@ import CryptoKit
 import CoreGraphics
 import Foundation
 import ImageIO
+import UniformTypeIdentifiers
 
 public enum PatternFileError: Error, Equatable, Sendable {
     case empty
     case tooLarge
     case unsupported
     case invalidContent
+    case unsafeStoredFilename
 }
 
 public struct PatternFileMetadata: Equatable, Sendable {
@@ -21,25 +23,34 @@ public struct PatternFileMetadata: Equatable, Sendable {
 public struct PatternFileService: Sendable {
     public let root: URL
     private let copyFile: @Sendable (URL, URL) throws -> Void
+    private let moveFile: @Sendable (URL, URL) throws -> Void
 
     public init(root: URL) {
         self.root = root
         copyFile = { source, destination in
             try FileManager.default.copyItem(at: source, to: destination)
         }
+        moveFile = { source, destination in
+            try FileManager.default.moveItem(at: source, to: destination)
+        }
     }
 
-    init(root: URL, copyFile: @escaping @Sendable (URL, URL) throws -> Void) {
+    init(
+        root: URL,
+        copyFile: @escaping @Sendable (URL, URL) throws -> Void = {
+            try FileManager.default.copyItem(at: $0, to: $1)
+        },
+        moveFile: @escaping @Sendable (URL, URL) throws -> Void = {
+            try FileManager.default.moveItem(at: $0, to: $1)
+        }
+    ) {
         self.root = root
         self.copyFile = copyFile
+        self.moveFile = moveFile
     }
 
-    public static func live() -> PatternFileService {
-        let locations = try? PatternStorageLocations.live()
-        return .init(root: locations?.assetRoot ?? FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        )[0].appendingPathComponent("KnitNote/Patterns"))
+    public static func live() throws -> PatternFileService {
+        .init(root: try PatternStorageLocations.live().assetRoot)
     }
 
     public var assetsRoot: URL {
@@ -47,8 +58,10 @@ public struct PatternFileService: Sendable {
     }
 
     public func inspect(_ source: URL, fileExtension declaredExtension: String? = nil) throws -> PatternFileMetadata {
-        let values = try source.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
-        guard values.isRegularFile != false else { throw PatternFileError.invalidContent }
+        let values = try source.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
+        guard values.isRegularFile == true, values.isSymbolicLink != true else {
+            throw PatternFileError.invalidContent
+        }
         let byteCount = Int64(values.fileSize ?? 0)
         guard byteCount > 0 else { throw PatternFileError.empty }
         guard byteCount <= 100_000_000 else { throw PatternFileError.tooLarge }
@@ -65,9 +78,18 @@ public struct PatternFileService: Sendable {
             pageCount = document.numberOfPages
         case "png", "jpg", "jpeg", "heic":
             guard let image = CGImageSourceCreateWithURL(source as CFURL, nil),
-                  CGImageSourceGetCount(image) > 0 else {
+                  CGImageSourceGetCount(image) > 0,
+                  let actualType = CGImageSourceGetType(image) as String? else {
                 throw PatternFileError.invalidContent
             }
+            let expectedType: String
+            switch fileExtension {
+            case "png": expectedType = UTType.png.identifier
+            case "jpg", "jpeg": expectedType = UTType.jpeg.identifier
+            case "heic": expectedType = UTType.heic.identifier
+            default: preconditionFailure("Image extension was already checked")
+            }
+            guard actualType == expectedType else { throw PatternFileError.invalidContent }
             kind = .image
             pageCount = nil
         default:
@@ -106,7 +128,7 @@ public struct PatternFileService: Sendable {
             let candidate = candidates.appendingPathComponent(UUID().uuidString)
             do {
                 try data.write(to: candidate, options: .atomic)
-                try manager.moveItem(at: candidate, to: destination)
+                try moveFile(candidate, destination)
             } catch {
                 try? manager.removeItem(at: candidate)
                 throw error
@@ -122,18 +144,45 @@ public struct PatternFileService: Sendable {
         )
     }
 
-    public func assetURL(_ asset: PatternAsset) -> URL {
-        assetsRoot.appendingPathComponent(asset.storedFilename)
+    public func assetURL(_ asset: PatternAsset) throws -> URL {
+        let filename = asset.storedFilename
+        let pieces = filename.split(separator: ".", maxSplits: 1)
+        guard pieces.count == 2,
+              UUID(uuidString: String(pieces[0])) == asset.id,
+              String(pieces[0]) == asset.id.uuidString,
+              allowedExtensions(for: asset.kind).contains(String(pieces[1]).lowercased()),
+              filename == "\(asset.id.uuidString).\(pieces[1])" else {
+            throw PatternFileError.unsafeStoredFilename
+        }
+        let root = assetsRoot.standardizedFileURL
+        let candidate = root.appendingPathComponent(filename).standardizedFileURL
+        guard candidate.deletingLastPathComponent().path == root.path else {
+            throw PatternFileError.unsafeStoredFilename
+        }
+        if FileManager.default.fileExists(atPath: candidate.path) {
+            let values = try candidate.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else {
+                throw PatternFileError.unsafeStoredFilename
+            }
+        }
+        return candidate
     }
 
-    public func exportURL(_ asset: PatternAsset) -> URL {
-        assetURL(asset)
+    public func exportURL(_ asset: PatternAsset) throws -> URL {
+        try assetURL(asset)
     }
 
     public func deleteAsset(_ asset: PatternAsset) throws {
-        let url = assetURL(asset)
+        let url = try assetURL(asset)
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
+    }
+
+    private func allowedExtensions(for kind: PatternKind) -> Set<String> {
+        switch kind {
+        case .pdf: return ["pdf"]
+        case .image: return ["png", "jpg", "jpeg", "heic"]
+        }
     }
 
     // These compatibility APIs keep existing pre-library callers functional until Task 4 moves them.

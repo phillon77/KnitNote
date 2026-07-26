@@ -3,7 +3,7 @@ import Foundation
 public struct PatternMarkupFileService: Sendable {
     public let root: URL
     public init(root: URL) { self.root = root }
-    public static func live() -> PatternMarkupFileService { .init(root: PatternFileService.live().root) }
+    public static func live() throws -> PatternMarkupFileService { .init(root: try PatternFileService.live().root) }
 
     public func load(projectID: UUID, patternID: UUID, pageIndex: Int) throws -> PatternMarkupDocument {
         let file = pageURL(projectID: projectID, patternID: patternID, pageIndex: pageIndex)

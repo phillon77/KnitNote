@@ -8,7 +8,7 @@ public struct PatternImportCoordinator: Sendable {
         inbox: PatternInboxFileService,
         fileService: PatternFileService
     ) throws -> PreparedPatternImport {
-        let source = inbox.stagedURL(for: item)
+        let source = try inbox.stagedURL(for: item)
         let metadata = try fileService.inspect(source)
         return PreparedPatternImport(
             item: item,

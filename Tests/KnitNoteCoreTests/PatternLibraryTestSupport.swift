@@ -32,10 +32,16 @@ func patternLibraryRepositoryURL(_ relativePath: String) -> URL {
 final class PatternImportHarness {
     let root: URL
     let sourceRoot: URL
+    let assetsRoot: URL
+    let archiveURL: URL
     let inbox: PatternInboxFileService
     let store: JSONProjectStore
 
-    init() throws {
+    init(
+        archiveWrite: (@Sendable (Data, URL) throws -> Void)? = nil,
+        assetMove: (@Sendable (URL, URL) throws -> Void)? = nil,
+        inboxRemove: (@Sendable (URL) throws -> Void)? = nil
+    ) throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PatternImportHarness-\(UUID().uuidString)", isDirectory: true)
         sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
@@ -44,11 +50,26 @@ final class PatternImportHarness {
             assetRoot: root.appendingPathComponent("Patterns", isDirectory: true),
             inboxRoot: root.appendingPathComponent("PatternInbox", isDirectory: true)
         )
-        inbox = PatternInboxFileService(root: locations.inboxRoot)
+        assetsRoot = locations.assetRoot
+        archiveURL = root.appendingPathComponent("projects-v1.json")
+        inbox = PatternInboxFileService(
+            root: locations.inboxRoot,
+            moveItem: { try FileManager.default.moveItem(at: $0, to: $1) },
+            removeItem: inboxRemove ?? { try FileManager.default.removeItem(at: $0) },
+            writeData: { try $0.write(to: $1, options: .atomic) }
+        )
         store = JSONProjectStore(
-            url: root.appendingPathComponent("projects-v1.json"),
-            patternFileService: PatternFileService(root: locations.assetRoot),
-            patternInboxFileService: inbox
+            url: archiveURL,
+            patternFileService: PatternFileService(
+                root: locations.assetRoot,
+                moveFile: assetMove ?? { try FileManager.default.moveItem(at: $0, to: $1) }
+            ),
+            patternInboxFileService: inbox,
+            backupService: KnitNoteBackupService(
+                liveRoot: root,
+                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true)
+            ),
+            archiveWrite: archiveWrite ?? { try $0.write(to: $1, options: .atomic) }
         )
     }
 
@@ -81,6 +102,31 @@ final class PatternImportHarness {
         return try inbox.enqueue(source: url, origin: .shareExtension, targetProjectID: nil, now: .now)
     }
 
+    func reopenedStore() throws -> JSONProjectStore {
+        JSONProjectStore(
+            url: archiveURL,
+            patternFileService: PatternFileService(root: assetsRoot),
+            patternInboxFileService: PatternInboxFileService(root: inbox.root)
+        )
+    }
+
+    func assetURLFor(source: URL) throws -> URL {
+        let metadata = try PatternFileService(root: assetsRoot).inspect(source)
+        let asset = PatternAsset(
+            id: PatternImportCoordinator().deterministicAssetID(for: metadata.sha256),
+            sha256: metadata.sha256,
+            kind: metadata.kind,
+            storedFilename: "\(PatternImportCoordinator().deterministicAssetID(for: metadata.sha256).uuidString).\(metadata.fileExtension)",
+            byteCount: metadata.byteCount,
+            pageCount: metadata.pageCount
+        )
+        return try PatternFileService(root: assetsRoot).assetURL(asset)
+    }
+
+    func archivePatternCount() -> Int {
+        (try? JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL)))?.patterns.count ?? 0
+    }
+
     static func withTwoNamesForOneAsset() async throws -> PatternImportHarness {
         let harness = try PatternImportHarness()
         let source = try harness.makePDF(named: "Original.pdf")
@@ -104,7 +150,7 @@ final class PatternImportHarness {
             patterns: [firstPattern, secondPattern]
         )
         try JSONEncoder().encode(archive).write(
-            to: harness.root.appendingPathComponent("projects-v1.json"),
+            to: harness.archiveURL,
             options: .atomic
         )
         try harness.store.reloadFromDisk()

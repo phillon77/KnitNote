@@ -350,10 +350,11 @@ public struct PatternLibraryMigrator: Sendable {
             usages: archive.patternUsages,
             validProjectIDs: archive.projects.map(\.id)
         ).validated()
+        let service = PatternFileService(
+            root: liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+        )
         for asset in archive.patternAssets {
-            let url = liveRoot
-                .appendingPathComponent("Patterns/Assets")
-                .appendingPathComponent(asset.storedFilename)
+            let url = try service.assetURL(asset)
             try validate(asset: asset, at: url)
         }
     }

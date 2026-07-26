@@ -101,6 +101,7 @@ enum ProjectJournalPhotoReferencePolicy {
     private let patternMarkupFileService: PatternMarkupFileService
     private let patternThumbnailService: PatternThumbnailFileService
     private let backupService: KnitNoteBackupService
+    private let archiveWrite: @Sendable (Data, URL) throws -> Void
     private var activeJournalPhotoTransactions = 0
     private var activePatternTransactions = 0
 
@@ -142,7 +143,10 @@ enum ProjectJournalPhotoReferencePolicy {
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil,
         backupService: KnitNoteBackupService,
-        initialLoadError: ProjectStoreError? = nil
+        initialLoadError: ProjectStoreError? = nil,
+        archiveWrite: @escaping @Sendable (Data, URL) throws -> Void = {
+            try $0.write(to: $1, options: .atomic)
+        }
     ) {
         self.url = url
         self.photoService = photoService ?? ProjectPhotoFileService(
@@ -171,6 +175,7 @@ enum ProjectJournalPhotoReferencePolicy {
             )
         )
         self.backupService = backupService
+        self.archiveWrite = archiveWrite
         if let initialLoadError {
             loadError = initialLoadError
         } else {
@@ -180,11 +185,47 @@ enum ProjectJournalPhotoReferencePolicy {
 
     public static func live() -> JSONProjectStore {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return live(baseDirectory: base)
+        do {
+            return try live(
+                baseDirectory: base,
+                locations: PatternStorageLocations.live()
+            )
+        } catch {
+            // The normal iOS path never substitutes a private inbox when the App
+            // Group is unavailable. The error store cannot publish mutations.
+            let liveRoot = base.appendingPathComponent("KnitNote", isDirectory: true)
+            let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
+            let workRoot = base.appendingPathComponent(".KnitNote-BackupWork", isDirectory: true)
+            return JSONProjectStore(
+                url: archiveURL,
+                patternFileService: PatternFileService(
+                    root: liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+                ),
+                patternInboxFileService: PatternInboxFileService(
+                    root: base.appendingPathComponent(".UnavailablePatternInbox", isDirectory: true)
+                ),
+                backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot),
+                initialLoadError: .archiveUnavailable
+            )
+        }
     }
 
     public static func live(baseDirectory: URL) -> JSONProjectStore {
         let liveRoot = baseDirectory.appendingPathComponent("KnitNote", isDirectory: true)
+        return live(
+            baseDirectory: baseDirectory,
+            locations: PatternStorageLocations(
+                assetRoot: liveRoot.appendingPathComponent("Patterns", isDirectory: true),
+                inboxRoot: liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
+            )
+        )
+    }
+
+    private static func live(
+        baseDirectory: URL,
+        locations: PatternStorageLocations
+    ) -> JSONProjectStore {
+        let liveRoot = locations.assetRoot.deletingLastPathComponent()
         let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
         let workRoot = baseDirectory.appendingPathComponent(
             ".KnitNote-BackupWork",
@@ -193,10 +234,17 @@ enum ProjectJournalPhotoReferencePolicy {
         let backupService = KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
         do {
             try backupService.recoverInterruptedReplacement()
-            return JSONProjectStore(url: archiveURL, backupService: backupService)
+            return JSONProjectStore(
+                url: archiveURL,
+                patternFileService: PatternFileService(root: locations.assetRoot),
+                patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
+                backupService: backupService
+            )
         } catch {
             return JSONProjectStore(
                 url: archiveURL,
+                patternFileService: PatternFileService(root: locations.assetRoot),
+                patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
                 backupService: backupService,
                 initialLoadError: .unreadableArchive
             )
@@ -454,7 +502,7 @@ enum ProjectJournalPhotoReferencePolicy {
         selectingPatternID: UUID? = nil
     ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
-        guard let item = patternInboxFileService.item(id: id) else {
+        guard let item = try patternInboxFileService.item(id: id) else {
             throw PatternInboxError.itemNotFound
         }
         let capturedGeneration = dataGeneration
@@ -893,7 +941,8 @@ enum ProjectJournalPhotoReferencePolicy {
             }
             outcome = .existing(patternID: pattern.id)
         }
-        try patternInboxFileService.remove(prepared.item)
+        try patternInboxFileService.markCommitted(prepared.item)
+        try? patternInboxFileService.cleanupCommitted(prepared.item)
         return outcome
     }
 
@@ -959,7 +1008,7 @@ enum ProjectJournalPhotoReferencePolicy {
                 patterns: libraryPatterns,
                 patternUsages: usages
             ))
-            try data.write(to: url, options: .atomic)
+            try archiveWrite(data, url)
             projects = sortedProjects
             yarns = sortedYarns
             patternAssets = assets

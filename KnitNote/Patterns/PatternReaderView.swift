@@ -61,6 +61,7 @@ struct PatternReaderView: View {
     @State private var handledPageIndex: Int?
     @State private var loadError = false
     @State private var pageCount = 0
+    @State private var pdfPageFrame: CGRect?
     @State private var saveError: String?
     @State private var showingPageNote = false
     @State private var originalPageNote = ""
@@ -432,6 +433,7 @@ struct PatternReaderView: View {
                         state: canvasState,
                         pageCount: $pageCount,
                         loadError: $loadError,
+                        pageFrame: $pdfPageFrame,
                         onReady: onStoreScreenshotReady
                     )
                     .allowsHitTesting(!markupMode)
@@ -443,7 +445,8 @@ struct PatternReaderView: View {
                     HighlightOverlay(
                         mode: state.highlightMode,
                         horizontalPosition: canvasState.highlightPosition,
-                        verticalPosition: canvasState.verticalHighlightPosition
+                        verticalPosition: canvasState.verticalHighlightPosition,
+                        contentRect: content.kind == .pdf ? pdfPageFrame : nil
                     )
                     .allowsHitTesting(context.canWrite && !markupMode)
                 }
@@ -492,6 +495,7 @@ struct PatternReaderView: View {
         handledPageIndex = nil
         pendingPageTransition = nil
         pageCount = 0
+        pdfPageFrame = nil
         loadError = false
         saveError = nil
         managingCounter = nil

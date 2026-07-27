@@ -4,37 +4,61 @@ struct HighlightOverlay: View {
     let mode: HighlightMode
     @Binding var horizontalPosition: Double
     @Binding var verticalPosition: Double
+    let contentRect: CGRect?
+    private let coordinateSpaceName = "patternHighlightCanvas"
 
     var body: some View {
         GeometryReader { proxy in
+            let rect = PatternHighlightGeometry.resolvedContentRect(
+                contentRect,
+                canvasSize: proxy.size
+            )
             ZStack {
                 if mode == .horizontal || mode == .cross {
-                    horizontalBand(in: proxy.size)
+                    horizontalBand(in: rect)
                 }
                 if mode == .vertical || mode == .cross {
-                    verticalBand(in: proxy.size)
+                    verticalBand(in: rect)
                 }
             }
-        }.allowsHitTesting(true)
+            .coordinateSpace(name: coordinateSpaceName)
+        }
+        .allowsHitTesting(true)
     }
 
-    private func horizontalBand(in size: CGSize) -> some View {
+    private func horizontalBand(in rect: CGRect) -> some View {
         ZStack(alignment: .trailing) {
             RoundedRectangle(cornerRadius: 4)
                 .fill(.yellow.opacity(0.32))
+                .frame(width: rect.width)
                 .frame(height: PatternHighlightMetrics.horizontalVisibleThickness)
             Color.clear
                 .contentShape(Rectangle())
+                .frame(width: rect.width)
                 .frame(height: PatternHighlightMetrics.minimumDragThickness)
         }
-        .frame(height: PatternHighlightMetrics.minimumDragThickness)
-        .position(
-            x: size.width / 2,
-            y: max(22, min(size.height - 22, size.height * horizontalPosition))
+        .frame(
+            width: rect.width,
+            height: PatternHighlightMetrics.minimumDragThickness
         )
-        .gesture(DragGesture().onChanged { value in
-            horizontalPosition = min(1, max(0, value.location.y / max(1, size.height)))
-        })
+        .position(
+            x: rect.midX,
+            y: PatternHighlightGeometry.coordinate(
+                normalized: horizontalPosition,
+                origin: rect.minY,
+                length: rect.height
+            )
+        )
+        .gesture(
+            DragGesture(coordinateSpace: .named(coordinateSpaceName))
+                .onChanged { value in
+                    horizontalPosition = PatternHighlightGeometry.normalized(
+                        coordinate: value.location.y,
+                        origin: rect.minY,
+                        length: rect.height
+                    )
+                }
+        )
         .accessibilityLabel(Text("patterns.highlight.horizontalControl"))
         .accessibilityAdjustableAction { direction in
             let delta = direction == .increment ? 0.05 : -0.05
@@ -42,22 +66,38 @@ struct HighlightOverlay: View {
         }
     }
 
-    private func verticalBand(in size: CGSize) -> some View {
+    private func verticalBand(in rect: CGRect) -> some View {
         ZStack {
             Rectangle().fill(.pink)
                 .frame(width: PatternHighlightMetrics.verticalVisibleThickness)
+                .frame(height: rect.height)
             Color.clear
                 .contentShape(Rectangle())
                 .frame(width: PatternHighlightMetrics.minimumDragThickness)
+                .frame(height: rect.height)
         }
-        .frame(width: PatternHighlightMetrics.minimumDragThickness)
-        .position(
-            x: max(22, min(size.width - 22, size.width * verticalPosition)),
-            y: size.height / 2
+        .frame(
+            width: PatternHighlightMetrics.minimumDragThickness,
+            height: rect.height
         )
-        .gesture(DragGesture().onChanged { value in
-            verticalPosition = min(1, max(0, value.location.x / max(1, size.width)))
-        })
+        .position(
+            x: PatternHighlightGeometry.coordinate(
+                normalized: verticalPosition,
+                origin: rect.minX,
+                length: rect.width
+            ),
+            y: rect.midY
+        )
+        .gesture(
+            DragGesture(coordinateSpace: .named(coordinateSpaceName))
+                .onChanged { value in
+                    verticalPosition = PatternHighlightGeometry.normalized(
+                        coordinate: value.location.x,
+                        origin: rect.minX,
+                        length: rect.width
+                    )
+                }
+        )
         .accessibilityLabel(Text("patterns.highlight.verticalControl"))
         .accessibilityAdjustableAction { direction in
             let delta = direction == .increment ? 0.05 : -0.05

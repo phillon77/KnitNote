@@ -36,6 +36,13 @@ import Testing
         #expect(source.contains(".padding(.trailing, counterRailSafeAreaWidth)"))
     }
 
+    @Test func pdfReaderFrameFeedsTheHighlightWithoutChangingImageBehavior() throws {
+        let source = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        #expect(source.contains("@State private var pdfPageFrame: CGRect?"))
+        #expect(source.contains("pageFrame: $pdfPageFrame"))
+        #expect(source.contains("content.kind == .pdf ? pdfPageFrame : nil"))
+    }
+
     @Test func iPadPortraitCanReservePageControlsOutsideTheReaderOverlay() throws {
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")

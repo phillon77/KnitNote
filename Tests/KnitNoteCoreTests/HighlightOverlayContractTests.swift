@@ -12,6 +12,15 @@ import Testing
         #expect(source.components(separatedBy: ".accessibilityAdjustableAction").count - 1 == 2)
     }
 
+    @Test func overlayUsesAnOptionalContentRectAndCanvasCoordinateDragging() throws {
+        let source = try highlightSource()
+        #expect(source.contains("let contentRect: CGRect?"))
+        #expect(source.contains("PatternHighlightGeometry.resolvedContentRect"))
+        #expect(source.contains("PatternHighlightGeometry.coordinate"))
+        #expect(source.contains("PatternHighlightGeometry.normalized"))
+        #expect(source.contains("coordinateSpace: .named"))
+    }
+
     private func highlightSource() throws -> String {
         let root = URL(filePath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()

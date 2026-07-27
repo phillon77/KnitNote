@@ -52,4 +52,77 @@ import Testing
             canvasSize: canvas
         ) == CGRect(origin: .zero, size: canvas))
     }
+
+    @Test func fullCanvasEndpointsKeepDragTargetCentersInsideEachEdge() {
+        let inset = PatternHighlightGeometry.centerInset(contentRect: nil)
+
+        #expect(inset == 22)
+        #expect(PatternHighlightGeometry.coordinate(
+            normalized: 0,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 22)
+        #expect(PatternHighlightGeometry.coordinate(
+            normalized: 1,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 178)
+        #expect(PatternHighlightGeometry.normalized(
+            coordinate: 22,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 0)
+        #expect(PatternHighlightGeometry.normalized(
+            coordinate: 178,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 1)
+    }
+
+    @Test func fullCanvasInsetCollapsesSafelyWhenEitherAxisIsSmallerThanDragTarget() {
+        let inset = PatternHighlightGeometry.centerInset(contentRect: nil)
+
+        for length: CGFloat in [0, 20, 43.9, 44] {
+            let minimum = PatternHighlightGeometry.coordinate(
+                normalized: 0,
+                origin: 7,
+                length: length,
+                centerInset: inset
+            )
+            let maximum = PatternHighlightGeometry.coordinate(
+                normalized: 1,
+                origin: 7,
+                length: length,
+                centerInset: inset
+            )
+
+            #expect(minimum.isFinite)
+            #expect(maximum.isFinite)
+            #expect(minimum == maximum)
+            #expect(minimum == 7 + (max(0, length) / 2))
+        }
+    }
+
+    @Test func validPDFPageFrameKeepsExactNormalizedEndpointsWithoutAnInset() {
+        let pageFrame = CGRect(x: 83, y: -217, width: 612, height: 792)
+        let inset = PatternHighlightGeometry.centerInset(contentRect: pageFrame)
+
+        #expect(inset == 0)
+        #expect(PatternHighlightGeometry.coordinate(
+            normalized: 0,
+            origin: pageFrame.minY,
+            length: pageFrame.height,
+            centerInset: inset
+        ) == pageFrame.minY)
+        #expect(PatternHighlightGeometry.coordinate(
+            normalized: 1,
+            origin: pageFrame.minX,
+            length: pageFrame.width,
+            centerInset: inset
+        ) == pageFrame.maxX)
+    }
 }

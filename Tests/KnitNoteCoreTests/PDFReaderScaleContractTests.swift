@@ -25,6 +25,17 @@ import Testing
         #expect(pdf.contains("publishPageFrame"))
     }
 
+    @Test func macOSFlipsOnlyThePublishedFrameWhileIOSKeepsTheRawConversion() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let method = try #require(
+            pdf.slice(from: "private func publishPageFrame", to: "@objc private func changed")
+        )
+
+        #expect(method.contains("#if os(macOS)"))
+        #expect(method.contains("PatternPDFPageFrameGeometry.flippedFrame(converted, in: view.bounds)"))
+        #expect(method.contains("#else\n            let platformFrame = converted\n#endif"))
+    }
+
     @Test func readerIgnoresStaleAsynchronousPageFrameWrites() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
         let method = try #require(pdf.slice(from: "private func publishPageFrame", to: "@objc private func changed"))

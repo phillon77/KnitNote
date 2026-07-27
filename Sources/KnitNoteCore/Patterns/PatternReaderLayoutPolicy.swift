@@ -45,6 +45,44 @@ public enum PatternHighlightGeometry {
         canvasSize: CGSize
     ) -> CGRect {
         let fallback = CGRect(origin: .zero, size: canvasSize)
+        return validContentRect(contentRect) ?? fallback
+    }
+
+    public static func centerInset(contentRect: CGRect?) -> CGFloat {
+        validContentRect(contentRect) == nil
+            ? PatternHighlightMetrics.minimumDragThickness / 2
+            : 0
+    }
+
+    public static func coordinate(
+        normalized: Double,
+        origin: CGFloat,
+        length: CGFloat,
+        centerInset: CGFloat = 0
+    ) -> CGFloat {
+        let clamped = min(1, max(0, normalized))
+        let inset = resolvedCenterInset(centerInset, length: length)
+        let effectiveLength = max(0, length - (inset * 2))
+        return origin + inset + (effectiveLength * clamped)
+    }
+
+    public static func normalized(
+        coordinate: CGFloat,
+        origin: CGFloat,
+        length: CGFloat,
+        centerInset: CGFloat = 0
+    ) -> Double {
+        guard length.isFinite, length > 0 else { return 0.5 }
+        let inset = resolvedCenterInset(centerInset, length: length)
+        let effectiveLength = length - (inset * 2)
+        guard effectiveLength > 0 else { return 0.5 }
+        return min(1, max(
+            0,
+            Double((coordinate - origin - inset) / effectiveLength)
+        ))
+    }
+
+    private static func validContentRect(_ contentRect: CGRect?) -> CGRect? {
         guard let contentRect,
               contentRect.origin.x.isFinite,
               contentRect.origin.y.isFinite,
@@ -53,26 +91,24 @@ public enum PatternHighlightGeometry {
               contentRect.width > 0,
               contentRect.height > 0
         else {
-            return fallback
+            return nil
         }
         return contentRect
     }
 
-    public static func coordinate(
-        normalized: Double,
-        origin: CGFloat,
+    private static func resolvedCenterInset(
+        _ centerInset: CGFloat,
         length: CGFloat
     ) -> CGFloat {
-        let clamped = min(1, max(0, normalized))
-        return origin + (length * clamped)
+        guard centerInset.isFinite, length.isFinite, length > 0 else { return 0 }
+        return min(max(0, centerInset), length / 2)
     }
+}
 
-    public static func normalized(
-        coordinate: CGFloat,
-        origin: CGFloat,
-        length: CGFloat
-    ) -> Double {
-        guard length.isFinite, length > 0 else { return 0.5 }
-        return min(1, max(0, Double((coordinate - origin) / length)))
+public enum PatternPDFPageFrameGeometry {
+    public static func flippedFrame(_ frame: CGRect, in bounds: CGRect) -> CGRect {
+        var result = frame
+        result.origin.y = bounds.maxY - frame.maxY
+        return result
     }
 }

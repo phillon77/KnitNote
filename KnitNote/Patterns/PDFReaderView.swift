@@ -211,13 +211,18 @@ extension PDFReaderView {
             }
 
             let converted = view.convert(page.bounds(for: view.displayBox), from: page)
-            let candidate: CGRect? = converted.origin.x.isFinite
-                && converted.origin.y.isFinite
-                && converted.width.isFinite
-                && converted.height.isFinite
-                && converted.width > 0
-                && converted.height > 0
-                ? converted
+#if os(macOS)
+            let platformFrame = PatternPDFPageFrameGeometry.flippedFrame(converted, in: view.bounds)
+#else
+            let platformFrame = converted
+#endif
+            let candidate: CGRect? = platformFrame.origin.x.isFinite
+                && platformFrame.origin.y.isFinite
+                && platformFrame.width.isFinite
+                && platformFrame.height.isFinite
+                && platformFrame.width > 0
+                && platformFrame.height > 0
+                ? platformFrame
                 : nil
 
             guard candidate != lastPublishedPageFrame else { return }

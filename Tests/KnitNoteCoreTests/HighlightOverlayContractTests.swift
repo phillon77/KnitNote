@@ -21,6 +21,18 @@ import Testing
         #expect(source.contains("coordinateSpace: .named"))
     }
 
+    @Test func fullCanvasCenterInsetFeedsBothHorizontalAndVerticalGeometry() throws {
+        let source = try highlightSource()
+        let horizontal = try #require(horizontalBandSource(from: source))
+        let vertical = try #require(verticalBandSource(from: source))
+
+        #expect(source.contains(
+            "let centerInset = PatternHighlightGeometry.centerInset(contentRect: contentRect)"
+        ))
+        #expect(horizontal.components(separatedBy: "centerInset: centerInset").count - 1 == 2)
+        #expect(vertical.components(separatedBy: "centerInset: centerInset").count - 1 == 2)
+    }
+
     @Test func editingControlsCommitPositionsOnlyAfterEachDragEnds() throws {
         let source = try highlightSource()
         let horizontal = try #require(horizontalBandSource(from: source))

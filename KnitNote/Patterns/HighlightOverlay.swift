@@ -14,12 +14,13 @@ struct HighlightOverlay: View {
                 contentRect,
                 canvasSize: proxy.size
             )
+            let centerInset = PatternHighlightGeometry.centerInset(contentRect: contentRect)
             ZStack {
                 if mode == .horizontal || mode == .cross {
-                    horizontalBand(in: rect)
+                    horizontalBand(in: rect, centerInset: centerInset)
                 }
                 if mode == .vertical || mode == .cross {
-                    verticalBand(in: rect)
+                    verticalBand(in: rect, centerInset: centerInset)
                 }
             }
             .coordinateSpace(name: coordinateSpaceName)
@@ -27,7 +28,7 @@ struct HighlightOverlay: View {
         .allowsHitTesting(true)
     }
 
-    private func horizontalBand(in rect: CGRect) -> some View {
+    private func horizontalBand(in rect: CGRect, centerInset: CGFloat) -> some View {
         ZStack(alignment: .trailing) {
             RoundedRectangle(cornerRadius: 4)
                 .fill(.yellow.opacity(0.32))
@@ -47,7 +48,8 @@ struct HighlightOverlay: View {
             y: PatternHighlightGeometry.coordinate(
                 normalized: horizontalPosition,
                 origin: rect.minY,
-                length: rect.height
+                length: rect.height,
+                centerInset: centerInset
             )
         )
         .gesture(
@@ -56,7 +58,8 @@ struct HighlightOverlay: View {
                     horizontalPosition = PatternHighlightGeometry.normalized(
                         coordinate: value.location.y,
                         origin: rect.minY,
-                        length: rect.height
+                        length: rect.height,
+                        centerInset: centerInset
                     )
                 }
                 .onEnded { _ in
@@ -71,7 +74,7 @@ struct HighlightOverlay: View {
         }
     }
 
-    private func verticalBand(in rect: CGRect) -> some View {
+    private func verticalBand(in rect: CGRect, centerInset: CGFloat) -> some View {
         ZStack {
             Rectangle().fill(.pink)
                 .frame(width: PatternHighlightMetrics.verticalVisibleThickness)
@@ -89,7 +92,8 @@ struct HighlightOverlay: View {
             x: PatternHighlightGeometry.coordinate(
                 normalized: verticalPosition,
                 origin: rect.minX,
-                length: rect.width
+                length: rect.width,
+                centerInset: centerInset
             ),
             y: rect.midY
         )
@@ -99,7 +103,8 @@ struct HighlightOverlay: View {
                     verticalPosition = PatternHighlightGeometry.normalized(
                         coordinate: value.location.x,
                         origin: rect.minX,
-                        length: rect.width
+                        length: rect.width,
+                        centerInset: centerInset
                     )
                 }
                 .onEnded { _ in

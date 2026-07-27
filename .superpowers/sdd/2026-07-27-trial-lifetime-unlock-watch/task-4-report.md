@@ -170,3 +170,55 @@ deferred minor and was intentionally not included in this focused fix.
 An independent read-only review found no Critical or Important issues; its two
 Minor test-coverage suggestions were both incorporated before the final
 focused runs.
+
+## Fix round 2 — authoritative refresh and failed-refresh closure
+
+The round-1 verification-rank rule was re-reviewed as an Important semantic
+error. It made an older lifetime or legacy snapshot monotonic even after a
+newer completed StoreKit refresh authoritatively returned `.none`, and it
+kept mutation authorization prepared when the required trial-record load
+failed.
+
+### RED evidence
+
+- The coordinator-focused run exited 65 with three reported failures.
+- After an overlapping lifetime flight completed, a later controlled
+  `.none` refresh loaded no trial but incorrectly left the snapshot
+  `.permanentlyUnlocked` instead of publishing `.trialNotStarted`.
+- When the later `.none` refresh reached a failing trial load, the stale
+  lifetime still authorized `.changeCounter` and did not publish the rejected
+  mutation.
+
+### Fix
+
+- The identified preparation single-flight remains unchanged: overlapping
+  callers still share one external `prepare()` and
+  `currentQualification()` operation, and only the current flight identifier
+  may publish and clear.
+- A completed current flight now publishes its resolved snapshot
+  unconditionally. StoreKit `.none` plus the authoritative trial-store result
+  can therefore revoke a previous lifetime or legacy snapshot.
+- Any preparation failure now sets `isPrepared` to false regardless of the
+  previous snapshot. Subsequent mutations fail closed and publish the exact
+  `unlockRequest`.
+- Screenshot mode remains intentionally pre-resolved because it has no
+  external preparation flight.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| Coordinator-focused app tests | 9 tests passed |
+| Full `KnitNoteAppTests` | 15 tests / 17 parameter executions passed |
+| `swift test` | 889 tests in 73 suites passed |
+| `swift test --filter WatchSyncPersistenceTests` | 20 tests in 1 suite passed |
+| unsigned generic iOS build | passed |
+| unsigned generic macOS build | passed |
+| `git diff --check` | passed |
+
+The deferred nested import double-authorization minor remains out of scope and
+unchanged.
+An independent round-2 read-only review found no Critical or Important
+issues. It noted optional legacy-owner-specific revocation coverage as a
+non-blocking Minor; both lifetime and legacy currently use the same
+unconditional authoritative publication branch.

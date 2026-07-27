@@ -22,7 +22,8 @@ import Testing
         #expect(trialStore.loadCallCount == 0)
     }
 
-    @Test @MainActor func overlappingPreparationSharesOneFlightAndLifetimeCannotBeDowngraded() async {
+    @Test @MainActor
+    func overlappingPreparationSharesOneFlightAndLaterAuthoritativeRefreshRevokesLifetime() async {
         let purchaseService = ControlledPurchaseService()
         let trialStore = TrialStoreSpy(loadedRecord: nil)
         let coordinator = EntitlementCoordinator(
@@ -63,7 +64,36 @@ import Testing
         #expect(purchaseService.prepareCallCount == 2)
         #expect(purchaseService.qualificationCallCount == 2)
         #expect(trialStore.loadCallCount == 1)
+        #expect(coordinator.snapshot == .trialNotStarted)
+    }
+
+    @Test @MainActor func failedRefreshAfterLifetimeFailsClosed() async {
+        let purchaseService = ControlledPurchaseService()
+        let trialStore = TrialStoreSpy(
+            loadedRecord: nil,
+            loadError: TrialStoreSpy.Failure.load
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: trialStore
+        )
+
+        let initial = Task { await coordinator.prepare() }
+        await purchaseService.waitForQualificationCall(count: 1)
+        purchaseService.resumeAllQualifications(returning: .lifetime)
+        await initial.value
         #expect(coordinator.snapshot == .permanentlyUnlocked)
+
+        let refresh = Task { await coordinator.prepare() }
+        await purchaseService.waitForQualificationCall(count: 2)
+        purchaseService.resumeAllQualifications(returning: .none)
+        await refresh.value
+
+        #expect(purchaseService.prepareCallCount == 2)
+        #expect(purchaseService.qualificationCallCount == 2)
+        #expect(trialStore.loadCallCount == 1)
+        #expect(coordinator.authorize(.changeCounter) == .requiresUnlock)
+        #expect(coordinator.unlockRequest == .changeCounter)
     }
 
     @Test @MainActor func unpreparedCoordinatorBlocksDurableWatchCommandBeforeAnyWrite() throws {
@@ -346,11 +376,13 @@ private final class MainActorSignal {
 
 private final class TrialStoreSpy: TrialStore, @unchecked Sendable {
     enum Failure: Error {
+        case load
         case start
     }
 
     private let loadedRecord: TrialRecord?
     private let startedRecord: TrialRecord?
+    private let loadError: Error?
     private let startError: Error?
     private(set) var loadCallCount = 0
     private(set) var startCallDates: [Date] = []
@@ -358,15 +390,20 @@ private final class TrialStoreSpy: TrialStore, @unchecked Sendable {
     init(
         loadedRecord: TrialRecord?,
         startedRecord: TrialRecord? = nil,
+        loadError: Error? = nil,
         startError: Error? = nil
     ) {
         self.loadedRecord = loadedRecord
         self.startedRecord = startedRecord
+        self.loadError = loadError
         self.startError = startError
     }
 
     func load() throws -> TrialRecord? {
         loadCallCount += 1
+        if let loadError {
+            throw loadError
+        }
         return loadedRecord
     }
 

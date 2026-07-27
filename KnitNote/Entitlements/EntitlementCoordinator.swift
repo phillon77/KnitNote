@@ -107,15 +107,11 @@ final class EntitlementCoordinator: ObservableObject {
 
         switch result {
         case let .prepared(preparedSnapshot):
-            if preparedSnapshot.verificationRank >= snapshot.verificationRank {
-                snapshot = preparedSnapshot
-            }
+            snapshot = preparedSnapshot
             unlockRequest = nil
             isPrepared = true
         case .failed:
-            if snapshot.verificationRank == 0 {
-                isPrepared = false
-            }
+            isPrepared = false
         }
     }
 
@@ -157,19 +153,6 @@ final class EntitlementCoordinator: ObservableObject {
         } catch {
             unlockRequest = mutation
             return .requiresUnlock
-        }
-    }
-}
-
-private extension EntitlementSnapshot {
-    var verificationRank: Int {
-        switch self {
-        case .permanentlyUnlocked:
-            2
-        case .legacyPaidOwner:
-            1
-        case .trialNotStarted, .trial:
-            0
         }
     }
 }

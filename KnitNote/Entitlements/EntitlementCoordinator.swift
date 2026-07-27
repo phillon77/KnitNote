@@ -16,12 +16,17 @@ final class EntitlementCoordinator: ObservableObject {
     @Published private(set) var snapshot: EntitlementSnapshot
     @Published private(set) var unlockRequest: FeatureMutation?
 
+    var localizedLifetimePrice: String? {
+        purchaseService?.localizedLifetimePrice
+    }
+
     private let purchaseService: (any PurchaseService)?
     private let trialStore: (any TrialStore)?
     private let resolver: EntitlementResolver
     private let now: () -> Date
     private var isPrepared: Bool
     private var preparationFlight: PreparationFlight?
+    private var entitlementUpdatesTask: Task<Void, Never>?
 
     init(
         purchaseService: any PurchaseService,
@@ -35,6 +40,14 @@ final class EntitlementCoordinator: ObservableObject {
         self.resolver = resolver
         self.now = now
         isPrepared = false
+        entitlementUpdatesTask = nil
+        let updates = purchaseService.entitlementUpdates
+        entitlementUpdatesTask = Task { [weak self] in
+            for await _ in updates {
+                guard !Task.isCancelled else { return }
+                await self?.refreshEntitlement()
+            }
+        }
     }
 
     private init(
@@ -47,6 +60,11 @@ final class EntitlementCoordinator: ObservableObject {
         resolver = EntitlementResolver()
         self.now = now
         isPrepared = true
+        entitlementUpdatesTask = nil
+    }
+
+    deinit {
+        entitlementUpdatesTask?.cancel()
     }
 
     static func configured(
@@ -101,6 +119,17 @@ final class EntitlementCoordinator: ObservableObject {
             flight = newFlight
         }
 
+        await finishPreparation(flight)
+    }
+
+    func refreshEntitlement() async {
+        if let existing = preparationFlight {
+            await finishPreparation(existing)
+        }
+        await prepare()
+    }
+
+    private func finishPreparation(_ flight: PreparationFlight) async {
         let result = await flight.task.value
         guard preparationFlight?.id == flight.id else { return }
         preparationFlight = nil
@@ -113,6 +142,34 @@ final class EntitlementCoordinator: ObservableObject {
         case .failed:
             isPrepared = false
         }
+    }
+
+    func purchaseLifetime() async throws -> PurchaseOutcome {
+        guard let purchaseService else {
+            throw PurchaseServiceError.lifetimeProductUnavailable
+        }
+
+        let outcome = try await purchaseService.purchaseLifetime()
+        if outcome == .purchased {
+            await refreshEntitlement()
+        }
+        return outcome
+    }
+
+    func restorePurchases() async throws -> PurchaseQualification {
+        guard let purchaseService else {
+            return .legacyPaidOwner
+        }
+
+        let qualification = try await purchaseService.restore()
+        if qualification.entitlementSnapshot != nil {
+            await refreshEntitlement()
+        }
+        return qualification
+    }
+
+    func dismissUnlock() {
+        unlockRequest = nil
     }
 
     func authorize(_ mutation: FeatureMutation) -> FeatureAccessDecision {

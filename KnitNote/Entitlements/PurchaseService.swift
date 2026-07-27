@@ -2,6 +2,7 @@ import Foundation
 
 @MainActor
 protocol PurchaseService: AnyObject {
+    var entitlementUpdates: AsyncStream<Void> { get }
     var localizedLifetimePrice: String? { get }
     func prepare() async
     func currentQualification() async -> PurchaseQualification

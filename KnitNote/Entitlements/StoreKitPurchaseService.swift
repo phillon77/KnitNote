@@ -1,12 +1,15 @@
 import StoreKit
 
 struct TransactionUpdateListener: Sendable {
-    let consume: @Sendable () async -> Void
+    let consume: @Sendable (
+        @escaping @Sendable () async -> Void
+    ) async -> Void
 
-    static let storeKit = TransactionUpdateListener {
+    static let storeKit = TransactionUpdateListener { onVerifiedTransaction in
         for await verification in Transaction.updates {
             guard case let .verified(transaction) = verification else { continue }
             await transaction.finish()
+            await onVerifiedTransaction()
         }
     }
 }
@@ -16,18 +19,26 @@ final class StoreKitPurchaseService: PurchaseService {
     static let lifetimeProductIdentifier = "com.phillon.KnitNote.lifetimeUnlock"
     private static let legacyPaidMaximumVersion = "1.2.0"
 
+    let entitlementUpdates: AsyncStream<Void>
     private(set) var localizedLifetimePrice: String?
     private var lifetimeProduct: Product?
     private var transactionUpdatesTask: Task<Void, Never>?
+    private let entitlementUpdatesContinuation: AsyncStream<Void>.Continuation
 
     init(transactionUpdateListener: TransactionUpdateListener = .storeKit) {
+        let updates = AsyncStream<Void>.makeStream()
+        entitlementUpdates = updates.stream
+        entitlementUpdatesContinuation = updates.continuation
         transactionUpdatesTask = Task {
-            await transactionUpdateListener.consume()
+            await transactionUpdateListener.consume {
+                updates.continuation.yield()
+            }
         }
     }
 
     deinit {
         transactionUpdatesTask?.cancel()
+        entitlementUpdatesContinuation.finish()
     }
 
     func prepare() async {

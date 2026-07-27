@@ -24,6 +24,7 @@
 		0FCF6F4C5C2D193C026D0737 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		0FFD14D844495F2E62249E5D /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
+		145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */; };
 		14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
 		1A75459733F6F0B98DFB463F /* ProjectJournalSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BBADB1223BF69225A1DF48C /* ProjectJournalSection.swift */; };
 		1AFA6889382728256AB9F0A1 /* ProcessedWatchCommandLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373195B93B12AF80760B1A6D /* ProcessedWatchCommandLedger.swift */; };
@@ -91,10 +92,12 @@
 		58DF31DB4249DCFC5A6451E2 /* ProjectPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */; };
 		5967A246A135737FB7B89795 /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260C2E24AB236712E5FE22CC /* BackupHistory.swift */; };
 		5DE73E33FECB15961D48E385 /* PatternThumbnailFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */; };
+		5EA20C3D3320BC32E7DFF536 /* UnlockSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10731080016109C7138AA562 /* UnlockSheet.swift */; };
 		5F02E0D2504C03AE8EE35626 /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
 		5F9F4B1350C5BC0C49B1D558 /* PatternProjectUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */; };
 		60032BFAD716CA8A37E245E7 /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
 		6007144FFB9445FE542F6513 /* YarnLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */; };
+		61333EB179CA9A4FE0954015 /* UnlockPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */; };
 		62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		625C39A0B9A33D2FADACCA3E /* WatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */; };
 		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
@@ -155,6 +158,7 @@
 		A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */; };
 		AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4DC78289ACE6594449E656 /* ChoosePatternReadingContextView.swift */; };
 		ABA3AABF79B56CA98AB86ACD /* WatchStoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */; };
+		AC9BA1F0CAC571AB1EB96FDE /* UnlockPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */; };
 		ACA0E95A588CC169AC43DFC2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089688B5AE3E4E006FA88B07 /* ShareViewController.swift */; };
 		AD117B5159C333DC6EB90B7C /* PendingPatternSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3E3D0A9F82E317FB6A4B8FC /* PendingPatternSelectionView.swift */; };
 		B04213B037CEDDEC3674BF68 /* ProjectCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A51559E4B7599CA640466E3 /* ProjectCounter.swift */; };
@@ -298,6 +302,7 @@
 		0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternLinkIndex.swift; sourceTree = "<group>"; };
 		0E519BC9B336EF9AA75CC7DA /* StoreScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreScreenshotMode.swift; sourceTree = "<group>"; };
 		1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingCalculatorsView.swift; sourceTree = "<group>"; };
+		10731080016109C7138AA562 /* UnlockSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockSheet.swift; sourceTree = "<group>"; };
 		1112E674E478840A2286F6BA /* KnitNoteWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnitNoteWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		121DC898B51C86C11B40705C /* KnitNoteCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCore.swift; sourceTree = "<group>"; };
 		12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLibraryView.swift; sourceTree = "<group>"; };
@@ -310,6 +315,7 @@
 		1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternProjectView.swift; sourceTree = "<group>"; };
 		2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupExportPackage.swift; sourceTree = "<group>"; };
 		260C2E24AB236712E5FE22CC /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
+		272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockPresentation.swift; sourceTree = "<group>"; };
 		27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryView.swift; sourceTree = "<group>"; };
 		282D4248758A8480ED49B7C0 /* LemonEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LemonEmptyState.swift; sourceTree = "<group>"; };
 		2A4DC78289ACE6594449E656 /* ChoosePatternReadingContextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternReadingContextView.swift; sourceTree = "<group>"; };
@@ -383,6 +389,7 @@
 		7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalPhotoFileService.swift; sourceTree = "<group>"; };
 		7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllNotesView.swift; sourceTree = "<group>"; };
 		7ED53386A158E8DF747E954D /* GaugeCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculatorView.swift; sourceTree = "<group>"; };
+		7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrialStatusPill.swift; sourceTree = "<group>"; };
 		80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoPicker.swift; sourceTree = "<group>"; };
 		8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredPattern.swift; sourceTree = "<group>"; };
 		84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPatternPageNoteView.swift; sourceTree = "<group>"; };
@@ -726,6 +733,7 @@
 				560C63535489050C1E0E523E /* FeatureAccessPolicy.swift */,
 				E465B08D730079FCDD3CC5C4 /* LegacyPaidVersionPolicy.swift */,
 				50AA2B4D946DB9585CF69A39 /* TrialRecord.swift */,
+				272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */,
 			);
 			path = Entitlements;
 			sourceTree = "<group>";
@@ -883,6 +891,8 @@
 				F5DED661404982F2633D6133 /* KeychainTrialStore.swift */,
 				95A239FE17FD6D0CE80537CE /* PurchaseService.swift */,
 				1B41E39467311A8A58E19259 /* StoreKitPurchaseService.swift */,
+				7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */,
+				10731080016109C7138AA562 /* UnlockSheet.swift */,
 			);
 			path = Entitlements;
 			sourceTree = "<group>";
@@ -1202,6 +1212,9 @@
 				70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */,
 				941A6C75385E9861EA992A1B /* StoredYarn.swift in Sources */,
 				70EBF8DB136C4E53A34F6B23 /* TrialRecord.swift in Sources */,
+				145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */,
+				AC9BA1F0CAC571AB1EB96FDE /* UnlockPresentation.swift in Sources */,
+				5EA20C3D3320BC32E7DFF536 /* UnlockSheet.swift in Sources */,
 				6E227D5A775B6659FDBE3247 /* WatchConnectivityEnvelope.swift in Sources */,
 				0328CEE941C5F6C87629FEEC /* WatchOptimisticState.swift in Sources */,
 				91D6190C47A2D9A2564F00A8 /* WatchReliableSnapshotFingerprint.swift in Sources */,
@@ -1278,6 +1291,7 @@
 				00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */,
 				50FD51A80636056A79BEEF1C /* StoredYarn.swift in Sources */,
 				55604F7E1350796B6B0EB59F /* TrialRecord.swift in Sources */,
+				61333EB179CA9A4FE0954015 /* UnlockPresentation.swift in Sources */,
 				FF37BEFDE0C26708962E792F /* WatchConnectivityEnvelope.swift in Sources */,
 				0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */,
 				B19C5BC23A17FC1EE6880A62 /* WatchOptimisticState.swift in Sources */,

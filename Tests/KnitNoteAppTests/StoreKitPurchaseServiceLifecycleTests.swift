@@ -6,7 +6,9 @@ import Testing
         let script = TransactionUpdatesScript()
         weak var releasedService: StoreKitPurchaseService?
         var service: StoreKitPurchaseService? = StoreKitPurchaseService(
-            transactionUpdateListener: .init { await script.listenUntilCancelled() }
+            transactionUpdateListener: .init { _ in
+                await script.listenUntilCancelled()
+            }
         )
         releasedService = service
 
@@ -26,6 +28,21 @@ import Testing
         #expect(releasedService == nil)
         let didStop = await script.hasStopped()
         #expect(didStop)
+    }
+
+    @Test @MainActor func verifiedTransactionUpdateIsPublishedToConsumers() async {
+        let script = TransactionUpdatesScript()
+        let service = StoreKitPurchaseService(
+            transactionUpdateListener: .init { onVerifiedTransaction in
+                await onVerifiedTransaction()
+                await script.listenUntilCancelled()
+            }
+        )
+
+        var iterator = service.entitlementUpdates.makeAsyncIterator()
+        let update: Void? = await iterator.next()
+
+        #expect(update != nil)
     }
 }
 

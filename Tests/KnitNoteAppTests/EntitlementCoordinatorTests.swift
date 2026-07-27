@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 @testable import KnitNote
@@ -264,17 +265,212 @@ import Testing
         #expect(purchaseFactoryCalls == 0)
         #expect(trialFactoryCalls == 0)
     }
+
+    @Test @MainActor func localizedLifetimePriceIsAvailableWithoutExposingPurchaseService() async {
+        let purchaseService = PurchaseServiceSpy(
+            qualification: .none,
+            localizedLifetimePrice: "US$4.99"
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: nil)
+        )
+
+        await coordinator.refreshEntitlement()
+
+        #expect(coordinator.localizedLifetimePrice == "US$4.99")
+        #expect(purchaseService.prepareCallCount == 1)
+    }
+
+    @Test @MainActor func successfulLifetimePurchaseRefreshesSnapshotAndDismissesUnlockRequest() async throws {
+        let purchaseService = PurchaseServiceSpy(
+            qualification: .none,
+            purchaseOutcome: .purchased
+        )
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let expired = TrialRecord(
+            startedAt: now.addingTimeInterval(-TrialRecord.duration - 1)
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: expired),
+            now: { now }
+        )
+        await coordinator.prepare()
+        _ = coordinator.authorize(.changeCounter)
+        purchaseService.qualification = .lifetime
+
+        let outcome = try await coordinator.purchaseLifetime()
+
+        #expect(outcome == .purchased)
+        #expect(purchaseService.purchaseCallCount == 1)
+        #expect(coordinator.snapshot == .permanentlyUnlocked)
+        #expect(coordinator.unlockRequest == nil)
+    }
+
+    @Test @MainActor
+    func authoritativeRefreshWaitsForStartupThenStartsANewQualificationFlight() async {
+        let purchaseService = ControlledPurchaseService()
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: nil)
+        )
+
+        let startup = Task { await coordinator.prepare() }
+        await purchaseService.waitForQualificationCall(count: 1)
+        let refresh = Task { await coordinator.refreshEntitlement() }
+
+        purchaseService.resumeNextQualification(returning: .none)
+        await purchaseService.waitForQualificationCall(count: 2)
+        purchaseService.resumeNextQualification(returning: .lifetime)
+
+        await startup.value
+        await refresh.value
+
+        #expect(purchaseService.prepareCallCount == 2)
+        #expect(purchaseService.qualificationCallCount == 2)
+        #expect(coordinator.snapshot == .permanentlyUnlocked)
+    }
+
+    @Test @MainActor
+    func pendingPurchaseUnlocksWhenADeferredVerifiedTransactionArrives() async throws {
+        let purchaseService = ControlledPurchaseService(
+            purchaseOutcome: .pending
+        )
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let expired = TrialRecord(
+            startedAt: now.addingTimeInterval(-TrialRecord.duration - 1)
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: expired),
+            now: { now }
+        )
+
+        let preparation = Task { await coordinator.prepare() }
+        await purchaseService.waitForQualificationCall(count: 1)
+        purchaseService.resumeNextQualification(returning: .none)
+        await preparation.value
+        _ = coordinator.authorize(.changeCounter)
+
+        #expect(try await coordinator.purchaseLifetime() == .pending)
+        #expect(coordinator.unlockRequest == .changeCounter)
+
+        let unlocked = Task { @MainActor in
+            for await snapshot in coordinator.$snapshot.values {
+                if snapshot == .permanentlyUnlocked {
+                    return
+                }
+            }
+        }
+        purchaseService.sendEntitlementUpdate()
+        await purchaseService.waitForQualificationCall(count: 2)
+        purchaseService.resumeNextQualification(returning: .lifetime)
+        await unlocked.value
+
+        #expect(coordinator.snapshot == .permanentlyUnlocked)
+        #expect(coordinator.unlockRequest == nil)
+    }
+
+    @Test @MainActor func cancelledPurchaseKeepsUnlockRequestAndDoesNotRefreshQualification() async throws {
+        let purchaseService = PurchaseServiceSpy(
+            qualification: .none,
+            purchaseOutcome: .cancelled
+        )
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let expired = TrialRecord(
+            startedAt: now.addingTimeInterval(-TrialRecord.duration - 1)
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: expired),
+            now: { now }
+        )
+        await coordinator.prepare()
+        _ = coordinator.authorize(.changeCounter)
+        let qualificationCallsBeforePurchase = purchaseService.qualificationCallCount
+
+        let outcome = try await coordinator.purchaseLifetime()
+
+        #expect(outcome == .cancelled)
+        #expect(purchaseService.purchaseCallCount == 1)
+        #expect(purchaseService.qualificationCallCount == qualificationCallsBeforePurchase)
+        #expect(coordinator.unlockRequest == .changeCounter)
+    }
+
+    @Test @MainActor func successfulRestoreRefreshesSnapshotAndDismissesUnlockRequest() async throws {
+        let purchaseService = PurchaseServiceSpy(
+            qualification: .none,
+            restoreQualification: .lifetime
+        )
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let expired = TrialRecord(
+            startedAt: now.addingTimeInterval(-TrialRecord.duration - 1)
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: expired),
+            now: { now }
+        )
+        await coordinator.prepare()
+        _ = coordinator.authorize(.createProject)
+        purchaseService.qualification = .lifetime
+
+        let qualification = try await coordinator.restorePurchases()
+
+        #expect(qualification == .lifetime)
+        #expect(purchaseService.restoreCallCount == 1)
+        #expect(coordinator.snapshot == .permanentlyUnlocked)
+        #expect(coordinator.unlockRequest == nil)
+    }
+
+    @Test @MainActor func dismissUnlockClearsOnlyThePublishedRequest() async {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let expired = TrialRecord(
+            startedAt: now.addingTimeInterval(-TrialRecord.duration - 1)
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .none),
+            trialStore: TrialStoreSpy(loadedRecord: expired),
+            now: { now }
+        )
+        await coordinator.prepare()
+        _ = coordinator.authorize(.createYarn)
+        let snapshotBeforeDismissal = coordinator.snapshot
+
+        coordinator.dismissUnlock()
+
+        #expect(coordinator.unlockRequest == nil)
+        #expect(coordinator.snapshot == snapshotBeforeDismissal)
+    }
 }
 
 @MainActor
 private final class PurchaseServiceSpy: PurchaseService {
-    private let qualification: PurchaseQualification
+    let entitlementUpdates: AsyncStream<Void>
+    private let entitlementUpdatesContinuation: AsyncStream<Void>.Continuation
+    var qualification: PurchaseQualification
     private(set) var prepareCallCount = 0
     private(set) var qualificationCallCount = 0
+    private(set) var purchaseCallCount = 0
+    private(set) var restoreCallCount = 0
     var localizedLifetimePrice: String?
+    private let purchaseOutcome: PurchaseOutcome
+    private let restoreQualification: PurchaseQualification
 
-    init(qualification: PurchaseQualification) {
+    init(
+        qualification: PurchaseQualification,
+        localizedLifetimePrice: String? = nil,
+        purchaseOutcome: PurchaseOutcome = .cancelled,
+        restoreQualification: PurchaseQualification? = nil
+    ) {
+        let updates = AsyncStream<Void>.makeStream()
+        entitlementUpdates = updates.stream
+        entitlementUpdatesContinuation = updates.continuation
         self.qualification = qualification
+        self.localizedLifetimePrice = localizedLifetimePrice
+        self.purchaseOutcome = purchaseOutcome
+        self.restoreQualification = restoreQualification ?? qualification
     }
 
     func prepare() async {
@@ -287,16 +483,20 @@ private final class PurchaseServiceSpy: PurchaseService {
     }
 
     func purchaseLifetime() async throws -> PurchaseOutcome {
-        .cancelled
+        purchaseCallCount += 1
+        return purchaseOutcome
     }
 
     func restore() async throws -> PurchaseQualification {
-        qualification
+        restoreCallCount += 1
+        return restoreQualification
     }
 }
 
 @MainActor
 private final class ControlledPurchaseService: PurchaseService {
+    let entitlementUpdates: AsyncStream<Void>
+    private let entitlementUpdatesContinuation: AsyncStream<Void>.Continuation
     private var qualificationContinuations: [
         CheckedContinuation<PurchaseQualification, Never>
     ] = []
@@ -306,6 +506,14 @@ private final class ControlledPurchaseService: PurchaseService {
     private(set) var prepareCallCount = 0
     private(set) var qualificationCallCount = 0
     var localizedLifetimePrice: String?
+    private let purchaseOutcome: PurchaseOutcome
+
+    init(purchaseOutcome: PurchaseOutcome = .cancelled) {
+        let updates = AsyncStream<Void>.makeStream()
+        entitlementUpdates = updates.stream
+        entitlementUpdatesContinuation = updates.continuation
+        self.purchaseOutcome = purchaseOutcome
+    }
 
     func prepare() async {
         prepareCallCount += 1
@@ -314,9 +522,10 @@ private final class ControlledPurchaseService: PurchaseService {
     func currentQualification() async -> PurchaseQualification {
         qualificationCallCount += 1
         resumeSatisfiedQualificationCallWaiters()
-        return await withCheckedContinuation {
+        let result = await withCheckedContinuation {
             qualificationContinuations.append($0)
         }
+        return result
     }
 
     func waitForQualificationCall(count: Int) async {
@@ -334,8 +543,17 @@ private final class ControlledPurchaseService: PurchaseService {
         }
     }
 
+    func resumeNextQualification(returning qualification: PurchaseQualification) {
+        guard !qualificationContinuations.isEmpty else { return }
+        qualificationContinuations.removeFirst().resume(returning: qualification)
+    }
+
+    func sendEntitlementUpdate() {
+        entitlementUpdatesContinuation.yield()
+    }
+
     func purchaseLifetime() async throws -> PurchaseOutcome {
-        .cancelled
+        purchaseOutcome
     }
 
     func restore() async throws -> PurchaseQualification {
@@ -353,6 +571,7 @@ private final class ControlledPurchaseService: PurchaseService {
             waiter.continuation.resume()
         }
     }
+
 }
 
 @MainActor

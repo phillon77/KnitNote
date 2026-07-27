@@ -42,9 +42,11 @@ final class PatternBackupReminderPresenter: ObservableObject {
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     @EnvironmentObject private var patternInboxProcessor: PatternInboxProcessor
     @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
     @Binding var storedLanguage: String
+    @State private var isUnlockSheetRequested = false
 
     @ViewBuilder
     var body: some View {
@@ -62,6 +64,9 @@ struct RootView: View {
                 )
             ) { selection in
                 PendingPatternSelectionView(selection: selection)
+            }
+            .sheet(isPresented: unlockSheetBinding) {
+                UnlockSheet()
             }
             .sheet(
                 isPresented: Binding(
@@ -128,6 +133,19 @@ struct RootView: View {
             .task {
                 patternInboxProcessor.processPending()
             }
+            .onChange(of: entitlementCoordinator.unlockRequest) { _, request in
+                if request != nil {
+                    isUnlockSheetRequested = true
+                }
+            }
+            .onChange(of: entitlementCoordinator.snapshot) { _, snapshot in
+                if UnlockPresentation.shouldDismissUnlock(
+                    snapshot: snapshot,
+                    now: .now
+                ) {
+                    isUnlockSheetRequested = false
+                }
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     patternInboxProcessor.processPending()
@@ -161,7 +179,9 @@ struct RootView: View {
 
     private var homeTabs: some View {
         TabView {
-            ProjectsView()
+            ProjectsView(onShowUnlock: {
+                isUnlockSheetRequested = true
+            })
                 .tabItem { Label("nav.projects", systemImage: "square.grid.2x2") }
             PatternLibraryView()
                 .tabItem { Label("nav.patterns", systemImage: "doc.text.image") }
@@ -172,6 +192,20 @@ struct RootView: View {
         }
         .tint(WatercolorTheme.actionBerry)
         .watercolorTabBar()
+    }
+
+    private var unlockSheetBinding: Binding<Bool> {
+        Binding(
+            get: {
+                isUnlockSheetRequested
+                    || entitlementCoordinator.unlockRequest != nil
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                isUnlockSheetRequested = false
+                entitlementCoordinator.dismissUnlock()
+            }
+        )
     }
 }
 

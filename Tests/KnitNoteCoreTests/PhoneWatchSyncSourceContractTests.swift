@@ -17,6 +17,19 @@ import Testing
         #expect(coordinator.contains("projectStore.$projects"))
         #expect(coordinator.contains("private var serialTask"))
         #expect(coordinator.contains("await previous.value"))
+        #expect(coordinator.contains("entitlementCoordinator.$snapshot"))
+        #expect(coordinator.contains("entitlementCoordinator.verifiedSnapshot"))
+        #expect(coordinator.contains("scheduleEntitlementExpiryRefresh"))
+        #expect(coordinator.contains("entitlementExpiryTask"))
+    }
+
+    @Test func entitlementBlockSendsSnapshotWithoutAcknowledgingOrMutating() throws {
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+
+        #expect(coordinator.contains("entitlement: entitlement"))
+        #expect(coordinator.contains("catch ProjectStoreError.accessRestricted"))
+        #expect(coordinator.contains("sendSnapshot(reply: reply)"))
+        #expect(!coordinator.contains("rejection: .entitlementRequired"))
     }
 
     @Test func coordinatorHandlesEveryEnvelopeKindWithoutTraps() throws {

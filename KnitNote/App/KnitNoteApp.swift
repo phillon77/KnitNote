@@ -58,7 +58,10 @@ struct KnitNoteApp: App {
             )
         )
 #if os(iOS)
-        let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(projectStore: projectStore)
+        let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(
+            projectStore: projectStore,
+            entitlementCoordinator: entitlementCoordinator
+        )
         _phoneWatchSyncCoordinator = StateObject(
             wrappedValue: phoneWatchSyncCoordinator
         )

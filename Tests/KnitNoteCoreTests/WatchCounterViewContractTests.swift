@@ -92,11 +92,50 @@ import Testing
         #expect(source.contains("perform(.reset, counterID: counter.id)"))
     }
 
+    @Test func expiredEntitlementIsReadOnlyAndGuidesUnlockOnIPhone() throws {
+        let viewSource = try source("KnitNoteWatch/ProjectCountersView.swift")
+
+        #expect(viewSource.contains("coordinator.canMutate"))
+        #expect(viewSource.contains("Text(\"watch.entitlement.unlockOnIPhone\")"))
+        #expect(viewSource.contains(".disabled(!canMutate)"))
+        #expect(viewSource.contains("watch.entitlement.unlockOnIPhone"))
+        #expect(viewSource.contains("guard canMutate"))
+
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+        #expect(coordinator.contains("state.canMutate(now:"))
+        #expect(coordinator.contains("state.nextDeliverableCommand(now: now())"))
+    }
+
+    @Test func unlockGuidanceIsLocalizedInEnglishAndTraditionalChinese() throws {
+        let data = try Data(contentsOf: rootURL().appending(
+            path: "KnitNoteWatch/Localizable.xcstrings"
+        ))
+        let catalog = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let strings = catalog?["strings"] as? [String: Any]
+        let entry = strings?["watch.entitlement.unlockOnIPhone"] as? [String: Any]
+        let localizations = entry?["localizations"] as? [String: Any]
+
+        #expect(localizedValue("en", in: localizations) == "Unlock on iPhone")
+        #expect(localizedValue("zh-Hant", in: localizations) == "請在 iPhone 上解鎖")
+    }
+
     private func source(_ path: String) throws -> String {
-        let root = URL(filePath: #filePath)
+        try String(contentsOf: rootURL().appending(path: path), encoding: .utf8)
+    }
+
+    private func rootURL() -> URL {
+        URL(filePath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        return try String(contentsOf: root.appending(path: path), encoding: .utf8)
+    }
+
+    private func localizedValue(
+        _ language: String,
+        in localizations: [String: Any]?
+    ) -> String? {
+        let localization = localizations?[language] as? [String: Any]
+        let unit = localization?["stringUnit"] as? [String: Any]
+        return unit?["value"] as? String
     }
 }

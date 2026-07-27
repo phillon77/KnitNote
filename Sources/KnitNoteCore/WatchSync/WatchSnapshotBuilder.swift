@@ -3,6 +3,7 @@ import Foundation
 public enum WatchSnapshotBuilder {
     public static func make(
         projects: [StoredProject],
+        entitlement: EntitlementSnapshot,
         locale: Locale,
         generatedAt: Date
     ) throws -> WatchSyncSnapshot {
@@ -18,6 +19,7 @@ public enum WatchSnapshotBuilder {
 
         return WatchSyncSnapshot(
             generatedAt: generatedAt,
+            entitlement: watchEntitlement(from: entitlement, generatedAt: generatedAt),
             projects: try orderedProjects.map { project in
                 try WatchProjectSnapshot(
                     id: project.id,
@@ -35,5 +37,37 @@ public enum WatchSnapshotBuilder {
                 )
             }
         )
+    }
+
+    private static func watchEntitlement(
+        from entitlement: EntitlementSnapshot,
+        generatedAt: Date
+    ) -> WatchEntitlementSnapshot {
+        switch entitlement {
+        case .trialNotStarted:
+            WatchEntitlementSnapshot(
+                kind: .trialNotStarted,
+                expiresAt: nil,
+                generatedAt: generatedAt
+            )
+        case let .trial(_, expiresAt):
+            WatchEntitlementSnapshot(
+                kind: .trial,
+                expiresAt: expiresAt,
+                generatedAt: generatedAt
+            )
+        case .permanentlyUnlocked:
+            WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: generatedAt
+            )
+        case .legacyPaidOwner:
+            WatchEntitlementSnapshot(
+                kind: .legacyPaidOwner,
+                expiresAt: nil,
+                generatedAt: generatedAt
+            )
+        }
     }
 }

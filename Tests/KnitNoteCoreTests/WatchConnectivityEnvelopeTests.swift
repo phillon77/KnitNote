@@ -20,6 +20,9 @@ import Testing
     @Test func everyEnvelopeKindRoundTripsWithADataPayload() throws {
         let snapshot = WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: 100),
+            entitlement: unlockedWatchEntitlement(
+                at: Date(timeIntervalSince1970: 100)
+            ),
             projects: []
         )
         let commandID = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
@@ -101,6 +104,9 @@ import Testing
         }
         let invalidSnapshot = WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: .infinity),
+            entitlement: unlockedWatchEntitlement(
+                at: Date(timeIntervalSince1970: 100)
+            ),
             projects: []
         )
 
@@ -114,7 +120,12 @@ import Testing
     @MainActor
     @Test func transportProtocolSupportsFakeInjectionWithoutWatchConnectivity() throws {
         let transport: any WatchConnectivityTransport = FakeWatchConnectivityTransport()
-        let snapshot = WatchSyncSnapshot(generatedAt: .now, projects: [])
+        let generatedAt = Date.now
+        let snapshot = WatchSyncSnapshot(
+            generatedAt: generatedAt,
+            entitlement: unlockedWatchEntitlement(at: generatedAt),
+            projects: []
+        )
 
         try transport.updateApplicationContext(.snapshot(snapshot))
         transport.transferUserInfo(.snapshotRequest)
@@ -134,6 +145,14 @@ private final class LockedInvocationCount: @unchecked Sendable {
     func increment() {
         lock.withLock { count += 1 }
     }
+}
+
+private func unlockedWatchEntitlement(at date: Date) -> WatchEntitlementSnapshot {
+    WatchEntitlementSnapshot(
+        kind: .permanentlyUnlocked,
+        expiresAt: nil,
+        generatedAt: date
+    )
 }
 
 private final class LockedReplies: @unchecked Sendable {

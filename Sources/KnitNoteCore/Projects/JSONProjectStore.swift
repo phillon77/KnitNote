@@ -883,7 +883,40 @@ final class PatternLibraryDeletionTransaction {
         now: Date = .now
     ) throws -> WatchCommandAcknowledgement {
         try authorizeWatchCounterMutation()
-        return try applyAuthorizedWatchCommand(command, ledger: &ledger, now: now)
+        return try applyAuthorizedWatchCommand(
+            command,
+            entitlement: .permanentlyUnlocked,
+            ledger: &ledger,
+            now: now
+        )
+    }
+
+    public func applyWatchCommand(
+        _ command: WatchCounterCommand,
+        entitlement: EntitlementSnapshot,
+        ledger: inout ProcessedWatchCommandLedger,
+        now: Date = .now
+    ) throws -> WatchCommandAcknowledgement {
+        try requireWatchEntitlement(entitlement, now: now)
+        return try applyAuthorizedWatchCommand(
+            command,
+            entitlement: entitlement,
+            ledger: &ledger,
+            now: now
+        )
+    }
+
+    func requireWatchEntitlement(_ entitlement: EntitlementSnapshot, now: Date) throws {
+        guard FeatureAccessPolicy.decision(
+            for: .changeCounter,
+            snapshot: entitlement,
+            now: now
+        ) == .allow else {
+            throw ProjectStoreError.accessRestricted
+        }
+        guard entitlement.state(at: now) != .trialNotStarted else {
+            throw ProjectStoreError.accessRestricted
+        }
     }
 
     func authorizeWatchCounterMutation() throws {
@@ -892,12 +925,18 @@ final class PatternLibraryDeletionTransaction {
 
     func applyAuthorizedWatchCommand(
         _ command: WatchCounterCommand,
+        entitlement: EntitlementSnapshot = .permanentlyUnlocked,
         ledger: inout ProcessedWatchCommandLedger,
         now: Date
     ) throws -> WatchCommandAcknowledgement {
         try ensureArchiveAvailable()
         if ledger.contains(command.id) {
-            return try watchAcknowledgement(for: command.id, rejection: nil, now: now)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: nil,
+                entitlement: entitlement,
+                now: now
+            )
         }
 
         let rejection: WatchCommandRejection?
@@ -920,6 +959,7 @@ final class PatternLibraryDeletionTransaction {
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: rejection,
+                entitlement: entitlement,
                 now: now
             )
         }
@@ -935,7 +975,12 @@ final class PatternLibraryDeletionTransaction {
             }
         }
         ledger.record(command.id, at: now)
-        return try watchAcknowledgement(for: command.id, rejection: nil, now: now)
+        return try watchAcknowledgement(
+            for: command.id,
+            rejection: nil,
+            entitlement: entitlement,
+            now: now
+        )
     }
     public func saveNote(projectID: UUID, counterID: UUID, row: Int, text: String) throws {
         try requireAccess(.editNote)
@@ -1602,6 +1647,7 @@ final class PatternLibraryDeletionTransaction {
     private func watchAcknowledgement(
         for commandID: UUID,
         rejection: WatchCommandRejection?,
+        entitlement: EntitlementSnapshot,
         now: Date
     ) throws -> WatchCommandAcknowledgement {
         WatchCommandAcknowledgement(
@@ -1609,6 +1655,7 @@ final class PatternLibraryDeletionTransaction {
             rejection: rejection,
             snapshot: try WatchSnapshotBuilder.make(
                 projects: projects,
+                entitlement: entitlement,
                 locale: .current,
                 generatedAt: now
             )

@@ -83,6 +83,22 @@
         }
       }
     },
+    "watch.entitlement.unlockOnIPhone" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock on iPhone"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在 iPhone 上解鎖"
+          }
+        }
+      }
+    },
     "watch.project.completed" : {
       "localizations" : {
         "en" : {

@@ -34,10 +34,12 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
 
 @MainActor extension JSONProjectStore {
     public func recoverWatchCommandPersistence(
+        entitlement: EntitlementSnapshot = .permanentlyUnlocked,
         ledgerURL: URL,
         preparedCommandURL: URL,
         now: Date = .now
     ) throws -> WatchCommandRecoveryState {
+        try requireWatchEntitlement(entitlement, now: now)
         try authorizeWatchCounterMutation()
         return try recoverAuthorizedWatchCommandPersistence(
             ledgerURL: ledgerURL,
@@ -110,11 +112,13 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
 
     public func applyWatchCommandDurably(
         _ command: WatchCounterCommand,
+        entitlement: EntitlementSnapshot = .permanentlyUnlocked,
         ledgerURL: URL,
         preparedCommandURL: URL,
         now: Date = .now,
         failureInjector: (WatchCommandPersistenceBoundary) throws -> Void = { _ in }
     ) throws -> WatchCommandAcknowledgement {
+        try requireWatchEntitlement(entitlement, now: now)
         try authorizeWatchCounterMutation()
         guard try recoverAuthorizedWatchCommandPersistence(
             ledgerURL: ledgerURL,
@@ -130,7 +134,12 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             throw WatchCommandPersistenceError.requiresFreshHandshake
         }
         if ledger.contains(command.id) {
-            return try applyAuthorizedWatchCommand(command, ledger: &ledger, now: now)
+            return try applyAuthorizedWatchCommand(
+                command,
+                entitlement: entitlement,
+                ledger: &ledger,
+                now: now
+            )
         }
 
         guard
@@ -139,7 +148,12 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             !project.isCompleted,
             let counter = project.counters.first(where: { $0.id == command.counterID })
         else {
-            let acknowledgement = try applyAuthorizedWatchCommand(command, ledger: &ledger, now: now)
+            let acknowledgement = try applyAuthorizedWatchCommand(
+                command,
+                entitlement: entitlement,
+                ledger: &ledger,
+                now: now
+            )
             try ledgerFile.save(ledger)
             return acknowledgement
         }
@@ -152,7 +166,12 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         ))
         try failureInjector(.afterPreparedCommandSave)
 
-        let acknowledgement = try applyAuthorizedWatchCommand(command, ledger: &ledger, now: now)
+        let acknowledgement = try applyAuthorizedWatchCommand(
+            command,
+            entitlement: entitlement,
+            ledger: &ledger,
+            now: now
+        )
         try failureInjector(.afterProjectArchiveSave)
         try ledgerFile.save(ledger)
         try failureInjector(.afterLedgerSave)
@@ -163,9 +182,11 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
 
     public func completeWatchQueueHandshake(
         queuedCommandIDs: [UUID],
+        entitlement: EntitlementSnapshot = .permanentlyUnlocked,
         ledgerURL: URL,
         now: Date = .now
     ) throws {
+        try requireWatchEntitlement(entitlement, now: now)
         try authorizeWatchCounterMutation()
         let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
         var ledger = try loadLedgerRecoveringCorruption(from: ledgerFile)
@@ -180,10 +201,12 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
 
     public func reconcileWatchQueueHandshakeDurably(
         queuedCommandIDs: [UUID],
+        entitlement: EntitlementSnapshot = .permanentlyUnlocked,
         ledgerURL: URL,
         preparedCommandURL: URL,
         now: Date = .now
     ) throws -> WatchCommandRecoveryState {
+        try requireWatchEntitlement(entitlement, now: now)
         try authorizeWatchCounterMutation()
         let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
         var ledger = try loadLedgerRecoveringCorruption(from: ledgerFile)

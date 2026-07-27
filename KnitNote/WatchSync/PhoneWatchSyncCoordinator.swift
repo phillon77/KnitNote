@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class PhoneWatchSyncCoordinator: ObservableObject {
     private let projectStore: JSONProjectStore
+    private let entitlementCoordinator: EntitlementCoordinator
     private let transport: any WatchConnectivityTransport
     private let ledgerURL: URL
     private let preparedCommandURL: URL
@@ -12,10 +13,13 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     private let now: () -> Date
 
     private var projectSubscription: AnyCancellable?
+    private var entitlementSubscription: AnyCancellable?
     private var serialTask: Task<Void, Never> = Task {}
     private var activationRetryTask: Task<Void, Never>?
     private var reliableSnapshotRetryTask: Task<Void, Never>?
+    private var entitlementExpiryTask: Task<Void, Never>?
     private var lastPublishedProjects: [WatchProjectSnapshot]?
+    private var lastPublishedEntitlement: WatchEntitlementSnapshot?
     private var reliableSnapshotTransferState = WatchReliableSnapshotTransferState()
     private var recoveryState: WatchCommandRecoveryState?
     private var isConfigured = false
@@ -23,12 +27,14 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
 
     init(
         projectStore: JSONProjectStore,
+        entitlementCoordinator: EntitlementCoordinator,
         transport: (any WatchConnectivityTransport)? = nil,
         applicationSupportRoot: URL? = nil,
         locale: @escaping () -> Locale = { .current },
         now: @escaping () -> Date = { .now }
     ) {
         self.projectStore = projectStore
+        self.entitlementCoordinator = entitlementCoordinator
         self.transport = transport ?? PhoneWatchSession()
         let liveRoot = applicationSupportRoot ?? FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -85,15 +91,19 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
                 }
             }
 
-        do {
-            recoveryState = try projectStore.recoverWatchCommandPersistence(
-                ledgerURL: ledgerURL,
-                preparedCommandURL: preparedCommandURL,
-                now: now()
-            )
-        } catch {
-            recoveryState = nil
-        }
+        entitlementSubscription = entitlementCoordinator.$snapshot
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self,
+                          self.entitlementCoordinator.verifiedSnapshot != nil
+                    else { return }
+                    self.scheduleEntitlementExpiryRefresh()
+                    self.recoverPersistenceIfPossible()
+                    self.publishLatestSnapshotIfChanged()
+                }
+            }
+
+        recoverPersistenceIfPossible()
     }
 
     private func activate() {
@@ -112,8 +122,27 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         }
     }
 
+    private func scheduleEntitlementExpiryRefresh() {
+        entitlementExpiryTask?.cancel()
+        entitlementExpiryTask = nil
+        guard
+            case let .trial(_, expiresAt)? = entitlementCoordinator.verifiedSnapshot,
+            expiresAt > now()
+        else { return }
+
+        let delay = expiresAt.timeIntervalSince(now())
+        entitlementExpiryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self else { return }
+            entitlementExpiryTask = nil
+            publishLatestSnapshotIfChanged()
+            scheduleEntitlementExpiryRefresh()
+        }
+    }
+
     func publishLatestSnapshot() {
-        publish(latestSnapshot())
+        guard let snapshot = latestSnapshot() else { return }
+        publish(snapshot)
     }
 
     func receive(_ envelope: WatchConnectivityEnvelope) async {
@@ -157,6 +186,9 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         _ command: WatchCounterCommand,
         reply: WatchConnectivityEnvelopeReply?
     ) {
+        guard let entitlement = entitlementCoordinator.verifiedSnapshot else {
+            return
+        }
         guard recoveryState != .requiresFreshHandshake else {
             // A snapshot reply is deliberately not an acknowledgement: the Watch
             // retains this command and includes its ID in the required handshake.
@@ -167,6 +199,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         do {
             let acknowledgement = try projectStore.applyWatchCommandDurably(
                 command,
+                entitlement: entitlement,
                 ledgerURL: ledgerURL,
                 preparedCommandURL: preparedCommandURL,
                 now: now()
@@ -182,6 +215,10 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         } catch WatchCommandPersistenceError.requiresFreshHandshake {
             recoveryState = .requiresFreshHandshake
             sendSnapshot(reply: reply)
+        } catch ProjectStoreError.accessRestricted {
+            // An entitlement block is deliberately not acknowledged. The Watch
+            // retains the command and retries after a newer writable snapshot.
+            sendSnapshot(reply: reply)
         } catch {
             recoveryState = nil
             sendSnapshot(reply: reply)
@@ -192,8 +229,10 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         _ commandIDs: [UUID],
         reply: WatchConnectivityEnvelopeReply?
     ) {
+        guard let entitlement = entitlementCoordinator.verifiedSnapshot else { return }
         do {
             recoveryState = try projectStore.recoverWatchCommandPersistence(
+                entitlement: entitlement,
                 ledgerURL: ledgerURL,
                 preparedCommandURL: preparedCommandURL,
                 now: now()
@@ -201,6 +240,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
             if recoveryState == .requiresFreshHandshake {
                 recoveryState = try projectStore.reconcileWatchQueueHandshakeDurably(
                     queuedCommandIDs: commandIDs,
+                    entitlement: entitlement,
                     ledgerURL: ledgerURL,
                     preparedCommandURL: preparedCommandURL,
                     now: now()
@@ -213,7 +253,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     }
 
     private func sendSnapshot(reply: WatchConnectivityEnvelopeReply?) {
-        let snapshot = latestSnapshot()
+        guard let snapshot = latestSnapshot() else { return }
         let envelope = WatchConnectivityEnvelope.snapshot(snapshot)
         if let reply {
             reply(envelope)
@@ -222,8 +262,9 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     }
 
     private func publishLatestSnapshotIfChanged() {
-        let snapshot = latestSnapshot()
-        if snapshot.projects != lastPublishedProjects {
+        guard let snapshot = latestSnapshot() else { return }
+        if snapshot.projects != lastPublishedProjects
+            || snapshot.entitlement != lastPublishedEntitlement {
             publish(snapshot)
         } else {
             queueReliableSnapshotIfNeeded(snapshot)
@@ -234,6 +275,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         do {
             try transport.updateApplicationContext(.snapshot(snapshot))
             lastPublishedProjects = snapshot.projects
+            lastPublishedEntitlement = snapshot.entitlement
         } catch {
             // Leave the marker unchanged so start, reachability, or the next
             // project event retries this exact authoritative payload.
@@ -253,19 +295,46 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, let self else { return }
             reliableSnapshotRetryTask = nil
-            queueReliableSnapshotIfNeeded(latestSnapshot())
+            guard let snapshot = latestSnapshot() else { return }
+            queueReliableSnapshotIfNeeded(snapshot)
         }
     }
 
-    private func latestSnapshot() -> WatchSyncSnapshot {
+    private func latestSnapshot() -> WatchSyncSnapshot? {
+        guard let entitlement = entitlementCoordinator.verifiedSnapshot else {
+            return nil
+        }
         do {
             return try WatchSnapshotBuilder.make(
                 projects: projectStore.projects,
+                entitlement: entitlement,
                 locale: locale(),
                 generatedAt: now()
             )
         } catch {
-            return WatchSyncSnapshot(generatedAt: now(), projects: [])
+            return WatchSyncSnapshot(
+                generatedAt: now(),
+                entitlement: WatchEntitlementSnapshot(
+                    kind: .trialNotStarted,
+                    expiresAt: nil,
+                    generatedAt: now()
+                ),
+                projects: []
+            )
+        }
+    }
+
+    private func recoverPersistenceIfPossible() {
+        guard let entitlement = entitlementCoordinator.verifiedSnapshot else { return }
+        do {
+            recoveryState = try projectStore.recoverWatchCommandPersistence(
+                entitlement: entitlement,
+                ledgerURL: ledgerURL,
+                preparedCommandURL: preparedCommandURL,
+                now: now()
+            )
+        } catch {
+            recoveryState = nil
         }
     }
 }

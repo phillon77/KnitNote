@@ -66,20 +66,55 @@ public struct WatchProjectSnapshot: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+public struct WatchEntitlementSnapshot: Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Equatable, Sendable {
+        case trialNotStarted
+        case trial
+        case permanentlyUnlocked
+        case legacyPaidOwner
+    }
+
+    public let kind: Kind
+    public let expiresAt: Date?
+    public let generatedAt: Date
+
+    public init(kind: Kind, expiresAt: Date?, generatedAt: Date) {
+        self.kind = kind
+        self.expiresAt = expiresAt
+        self.generatedAt = generatedAt
+    }
+
+    public func canMutate(now: Date) -> Bool {
+        switch kind {
+        case .trial:
+            guard let expiresAt else { return false }
+            _ = now
+            return generatedAt < expiresAt
+        case .permanentlyUnlocked, .legacyPaidOwner:
+            return expiresAt == nil
+        case .trialNotStarted:
+            return false
+        }
+    }
+}
+
 public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public let schemaVersion: Int
     public let generatedAt: Date
+    public let entitlement: WatchEntitlementSnapshot
     public let projects: [WatchProjectSnapshot]
 
     public init(
         schemaVersion: Int = currentSchemaVersion,
         generatedAt: Date,
+        entitlement: WatchEntitlementSnapshot,
         projects: [WatchProjectSnapshot]
     ) {
         self.schemaVersion = schemaVersion
         self.generatedAt = generatedAt
+        self.entitlement = entitlement
         self.projects = projects
     }
 
@@ -92,6 +127,10 @@ public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
 
         self.schemaVersion = schemaVersion
         self.generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+        self.entitlement = try container.decode(
+            WatchEntitlementSnapshot.self,
+            forKey: .entitlement
+        )
         self.projects = try container.decode([WatchProjectSnapshot].self, forKey: .projects)
     }
 }
@@ -149,6 +188,7 @@ public enum WatchCommandRejection: String, Codable, Equatable, Sendable {
     case projectMissing
     case counterMissing
     case projectCompleted
+    case entitlementRequired
     case storageFailure
 }
 

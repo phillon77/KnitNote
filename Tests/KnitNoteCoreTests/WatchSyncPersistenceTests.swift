@@ -4,6 +4,69 @@ import Testing
 
 @Suite struct WatchSyncPersistenceTests {
     @Test @MainActor
+    func trialNotStartedRecoveryLeavesPreparedCommandAndArchiveUntouched() throws {
+        let fixture = try DurableWatchFixture()
+        let prepared = PreparedWatchCommand(
+            command: fixture.command,
+            expectedCounterRevision: 0,
+            expectedCounterValue: 0
+        )
+        try AtomicWatchSyncFile<PreparedWatchCommand>(
+            url: fixture.preparedURL
+        ).save(prepared)
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        let preparedBefore = try Data(contentsOf: fixture.preparedURL)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(throws: ProjectStoreError.accessRestricted) {
+            _ = try store.recoverWatchCommandPersistence(
+                entitlement: .trialNotStarted,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now
+            )
+        }
+
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+        #expect(try Data(contentsOf: fixture.preparedURL) == preparedBefore)
+        #expect(!FileManager.default.fileExists(atPath: fixture.ledgerURL.path))
+    }
+
+    @Test @MainActor
+    func trialNotStartedHandshakeLeavesLedgerAndPreparedCommandUntouched() throws {
+        let fixture = try DurableWatchFixture()
+        let ledger = ProcessedWatchCommandLedger(requiresFreshHandshake: true)
+        try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).save(ledger)
+        try AtomicWatchSyncFile<PreparedWatchCommand>(
+            url: fixture.preparedURL
+        ).save(PreparedWatchCommand(
+            command: fixture.command,
+            expectedCounterRevision: 0,
+            expectedCounterValue: 0
+        ))
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        let ledgerBefore = try Data(contentsOf: fixture.ledgerURL)
+        let preparedBefore = try Data(contentsOf: fixture.preparedURL)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(throws: ProjectStoreError.accessRestricted) {
+            _ = try store.reconcileWatchQueueHandshakeDurably(
+                queuedCommandIDs: [fixture.command.id],
+                entitlement: .trialNotStarted,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now
+            )
+        }
+
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+        #expect(try Data(contentsOf: fixture.ledgerURL) == ledgerBefore)
+        #expect(try Data(contentsOf: fixture.preparedURL) == preparedBefore)
+    }
+
+    @Test @MainActor
     func restrictedDurableCommandLeavesEveryDurableStateUntouchedAndCannotReplay() throws {
         let fixture = try DurableWatchFixture()
         var originalLedger = ProcessedWatchCommandLedger()
@@ -664,6 +727,11 @@ private func makeSnapshot() throws -> WatchSyncSnapshot {
     let counters = (0..<6).map { WatchCounterSnapshot(id: UUID(), name: "Counter \($0 + 1)", value: 0) }
     return WatchSyncSnapshot(
         generatedAt: Date(timeIntervalSince1970: 100),
+        entitlement: WatchEntitlementSnapshot(
+            kind: .permanentlyUnlocked,
+            expiresAt: nil,
+            generatedAt: Date(timeIntervalSince1970: 100)
+        ),
         projects: [try WatchProjectSnapshot(
             id: projectID,
             name: "Project",

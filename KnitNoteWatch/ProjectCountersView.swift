@@ -13,6 +13,7 @@ struct ProjectCountersView: View {
     private var actionableCounterID: UUID? {
         guard let actionCounterID,
               let project,
+              coordinator.canMutate(),
               !project.isCompleted,
               project.counters.contains(where: { $0.id == actionCounterID })
         else { return nil }
@@ -24,7 +25,12 @@ struct ProjectCountersView: View {
             WatchWatercolorBackground()
 
             if let project {
-                counterList(for: project)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    counterList(
+                        for: project,
+                        canMutate: coordinator.canMutate(at: context.date)
+                    )
+                }
             } else {
                 Text("watch.sync.error.projectMissing")
                     .font(.callout)
@@ -60,11 +66,26 @@ struct ProjectCountersView: View {
         }
     }
 
-    private func counterList(for project: WatchProjectSnapshot) -> some View {
+    private func counterList(
+        for project: WatchProjectSnapshot,
+        canMutate: Bool
+    ) -> some View {
         ScrollView {
             LazyVStack(spacing: 8) {
+                if !canMutate {
+                    Label {
+                        Text("watch.entitlement.unlockOnIPhone")
+                    } icon: {
+                        Image(systemName: "iphone")
+                    }
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(WatchWatercolorTheme.berry)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 8)
+                }
                 ForEach(project.counters) { counter in
-                    counterRow(counter, in: project)
+                    counterRow(counter, in: project, canMutate: canMutate)
                 }
             }
             .padding(.horizontal, 4)
@@ -78,12 +99,14 @@ struct ProjectCountersView: View {
     @ViewBuilder
     private func counterRow(
         _ counter: WatchCounterSnapshot,
-        in project: WatchProjectSnapshot
+        in project: WatchProjectSnapshot,
+        canMutate: Bool
     ) -> some View {
         let isPending = coordinator.hasPending(projectID: project.id, counterID: counter.id)
         let row = counterRowContent(counter, in: project, isPending: isPending)
             .disabled(project.isCompleted)
-            .opacity(project.isCompleted ? 0.72 : 1)
+            .disabled(!canMutate)
+            .opacity(project.isCompleted || !canMutate ? 0.72 : 1)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: "\(project.name), \(counter.name), \(counter.value)"))
             .accessibilityValue(counterAccessibilityValue(
@@ -94,6 +117,8 @@ struct ProjectCountersView: View {
 
         if project.isCompleted {
             row.accessibilityHint(Text("watch.sync.error.projectCompleted"))
+        } else if !canMutate {
+            row.accessibilityHint(Text("watch.entitlement.unlockOnIPhone"))
         } else {
             activeCounterRow(row, counter: counter)
         }
@@ -206,6 +231,11 @@ struct ProjectCountersView: View {
     }
 
     private func perform(_ operation: WatchCounterOperation, counterID: UUID) {
+        let canMutate = coordinator.canMutate()
+        guard canMutate else {
+            actionCounterID = nil
+            return
+        }
         guard let project = currentActiveProject(containing: counterID) else {
             actionCounterID = nil
             return

@@ -79,6 +79,13 @@ import Testing
         }
         return WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: generatedAt ?? TimeInterval(value)),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: Date(
+                    timeIntervalSince1970: generatedAt ?? TimeInterval(value)
+                )
+            ),
             projects: [try WatchProjectSnapshot(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000100")!,
                 name: "Sweater",

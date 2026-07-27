@@ -237,6 +237,40 @@ import Testing
         #expect(trialStore.loadCallCount == 0)
     }
 
+    @Test @MainActor
+    func expiredWatchCommandDoesNotPublishUnlockRequestOrWriteDurableState() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let expired = TrialRecord(
+            startedAt: now.addingTimeInterval(-TrialRecord.duration - 1)
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .none),
+            trialStore: TrialStoreSpy(loadedRecord: expired),
+            now: { now }
+        )
+        await coordinator.prepare()
+        let fixture = try DurableWatchStoreFixture(
+            authorize: { coordinator.authorize($0) }
+        )
+        defer { fixture.remove() }
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+
+        #expect(throws: ProjectStoreError.accessRestricted) {
+            _ = try fixture.store.applyWatchCommandDurably(
+                fixture.command,
+                entitlement: coordinator.snapshot,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: now
+            )
+        }
+
+        #expect(coordinator.unlockRequest == nil)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+        #expect(!FileManager.default.fileExists(atPath: fixture.ledgerURL.path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
+    }
+
     @Test @MainActor func firstProjectCreationAtomicallyStartsTrialBeforeTheStoreWrites() async throws {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let purchaseService = PurchaseServiceSpy(qualification: .none)

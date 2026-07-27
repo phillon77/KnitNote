@@ -20,6 +20,10 @@ final class EntitlementCoordinator: ObservableObject {
         purchaseService?.localizedLifetimePrice
     }
 
+    var verifiedSnapshot: EntitlementSnapshot? {
+        isPrepared ? snapshot : nil
+    }
+
     private let purchaseService: (any PurchaseService)?
     private let trialStore: (any TrialStore)?
     private let resolver: EntitlementResolver
@@ -226,9 +230,9 @@ final class EntitlementCoordinator: ObservableObject {
 
     private func publishSnapshot(_ newSnapshot: EntitlementSnapshot) {
         let generatedAt = now()
+        isPrepared = true
         snapshot = newSnapshot
         unlockRequest = nil
-        isPrepared = true
         onSnapshotChange(newSnapshot, generatedAt)
     }
 }

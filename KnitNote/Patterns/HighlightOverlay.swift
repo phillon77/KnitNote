@@ -5,6 +5,7 @@ struct HighlightOverlay: View {
     @Binding var horizontalPosition: Double
     @Binding var verticalPosition: Double
     let contentRect: CGRect?
+    var onPositionCommit: () -> Void = {}
     private let coordinateSpaceName = "patternHighlightCanvas"
 
     var body: some View {
@@ -58,11 +59,15 @@ struct HighlightOverlay: View {
                         length: rect.height
                     )
                 }
+                .onEnded { _ in
+                    onPositionCommit()
+                }
         )
         .accessibilityLabel(Text("patterns.highlight.horizontalControl"))
         .accessibilityAdjustableAction { direction in
             let delta = direction == .increment ? 0.05 : -0.05
             horizontalPosition = min(1, max(0, horizontalPosition + delta))
+            onPositionCommit()
         }
     }
 
@@ -97,11 +102,15 @@ struct HighlightOverlay: View {
                         length: rect.width
                     )
                 }
+                .onEnded { _ in
+                    onPositionCommit()
+                }
         )
         .accessibilityLabel(Text("patterns.highlight.verticalControl"))
         .accessibilityAdjustableAction { direction in
             let delta = direction == .increment ? 0.05 : -0.05
             verticalPosition = min(1, max(0, verticalPosition + delta))
+            onPositionCommit()
         }
     }
 }

@@ -59,6 +59,22 @@ import Testing
         #expect(assignment.lowerBound < acceptance.lowerBound)
     }
 
+    @Test func readerCommitsHighlightEditsThroughOneGuardedPersistenceHelper() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let canvasState = try #require(sourceSection(reader, from: "private var canvasState", to: "private var content"))
+        let helper = try #require(sourceSection(reader, from: "private func commitHighlightPositionEdit", to: "@discardableResult private func save"))
+
+        #expect(reader.contains("onPositionCommit: commitHighlightPositionEdit"))
+        #expect(helper.contains("guard canvasIsActive"))
+        #expect(helper.contains("readerSession.canPersist"))
+        #expect(helper.contains("readerSession.identity == readerContextIdentity"))
+        #expect(helper.contains("context.canWrite"))
+        #expect(helper.contains("state.saveCurrentPage()"))
+        #expect(helper.contains("readerSession.acceptCanvasState(state)"))
+        #expect(helper.contains("_ = save()"))
+        #expect(!canvasState.contains("commitHighlightPositionEdit"))
+    }
+
     @Test func iPadPortraitCanReservePageControlsOutsideTheReaderOverlay() throws {
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")

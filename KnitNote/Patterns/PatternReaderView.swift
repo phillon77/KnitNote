@@ -448,7 +448,8 @@ struct PatternReaderView: View {
                         mode: state.highlightMode,
                         horizontalPosition: canvasState.highlightPosition,
                         verticalPosition: canvasState.verticalHighlightPosition,
-                        contentRect: content.kind == .pdf ? pdfPageFrame : nil
+                        contentRect: content.kind == .pdf ? pdfPageFrame : nil,
+                        onPositionCommit: commitHighlightPositionEdit
                     )
                     .allowsHitTesting(context.canWrite && !markupMode)
                 }
@@ -582,6 +583,16 @@ struct PatternReaderView: View {
         handledPageIndex = transition.rollbackState.pageIndex
         pendingPageTransition = nil
         pdfNavigator.go(to: transition.rollbackPageIndex)
+    }
+
+    private func commitHighlightPositionEdit() {
+        guard canvasIsActive,
+              readerSession.canPersist,
+              readerSession.identity == readerContextIdentity,
+              context.canWrite else { return }
+        state.saveCurrentPage()
+        _ = readerSession.acceptCanvasState(state)
+        _ = save()
     }
 
     @discardableResult private func save() -> Bool {

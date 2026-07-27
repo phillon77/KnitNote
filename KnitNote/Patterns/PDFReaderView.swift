@@ -21,24 +21,24 @@ import SwiftUI
 
 #if os(macOS)
 struct PDFReaderView: NSViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; let onReady: @MainActor () -> Void
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var pageFrame: CGRect?; let onReady: @MainActor () -> Void
     func makeNSView(context: Context) -> PDFView { makeView(context: context) }
     func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator, onReady: onReady) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }
     private func makeView(context: Context) -> PDFView { context.coordinator.make(url: url) }
 }
 #else
 struct PDFReaderView: UIViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; let onReady: @MainActor () -> Void
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var pageFrame: CGRect?; let onReady: @MainActor () -> Void
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
     func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, navigator: navigator, onReady: onReady) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }
 }
 #endif
 
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
-        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; private let initialState: PatternReadingState; private let navigator: PDFPageNavigator; private let onReady: @MainActor () -> Void; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private var reportedReady = false; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
+        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; @Binding private var pageFrame: CGRect?; private let initialState: PatternReadingState; private let navigator: PDFPageNavigator; private let onReady: @MainActor () -> Void; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private var reportedReady = false; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
         private struct ScaleSignature: Equatable {
             let mode: PatternPDFScaleMode
             let size: CGSize
@@ -47,8 +47,9 @@ extension PDFReaderView {
 
         private var latestScaleMode = PatternPDFScaleMode.automatic
         private var lastScaleSignature: ScaleSignature?
+        private var lastPublishedPageFrame: CGRect?
 
-        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, navigator: PDFPageNavigator, onReady: @escaping @MainActor () -> Void) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; self.navigator=navigator; self.onReady=onReady }
+        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, pageFrame: Binding<CGRect?>, navigator: PDFPageNavigator, onReady: @escaping @MainActor () -> Void) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; _pageFrame=pageFrame; self.navigator=navigator; self.onReady=onReady }
         func make(url: URL) -> PDFView {
             let view=PDFView(); view.autoScales=true; view.displayMode = .singlePage; view.displayDirection = .horizontal
 #if !os(macOS)
@@ -109,6 +110,7 @@ extension PDFReaderView {
                     self.state.offsetY=0
                     self.restoreGate.didRestore()
                     self.applyScaleMode(self.latestScaleMode, to: view)
+                    self.publishPageFrame(from: view)
                     if !self.reportedReady {
                         self.reportedReady = true
                         self.onReady()
@@ -123,6 +125,7 @@ extension PDFReaderView {
             guard let page = view.currentPage,
                   let document = view.document
             else { return }
+            defer { publishPageFrame(from: view) }
 #if os(macOS)
             view.layoutSubtreeIfNeeded()
 #else
@@ -152,15 +155,49 @@ extension PDFReaderView {
             }
         }
 
+        private func publishPageFrame(from view: PDFView) {
+            guard let page = view.currentPage else {
+                if lastPublishedPageFrame != nil {
+                    lastPublishedPageFrame = nil
+                    Task { @MainActor [weak self] in self?.pageFrame = nil }
+                }
+                return
+            }
+
+            let converted = view.convert(page.bounds(for: view.displayBox), from: page)
+            let candidate: CGRect? = converted.origin.x.isFinite
+                && converted.origin.y.isFinite
+                && converted.width.isFinite
+                && converted.height.isFinite
+                && converted.width > 0
+                && converted.height > 0
+                ? converted
+                : nil
+
+            guard candidate != lastPublishedPageFrame else { return }
+            lastPublishedPageFrame = candidate
+            Task { @MainActor [weak self] in self?.pageFrame = candidate }
+        }
+
         @objc private func changed(_ note: Notification) {
             guard let view = note.object as? PDFView else { return }
             if note.name == .PDFViewPageChanged {
                 lastScaleSignature = nil
                 applyScaleMode(latestScaleMode, to: view)
             }
+            publishPageFrame(from: view)
             sample(view)
         }
-        private func sample(_ source: PDFView? = nil) { guard restoreGate.canSample, let view=source ?? view else{return}; let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0; guard pageRequestGate.accepts(visiblePage) else { return }; state.transitionToPDFPage(visiblePage); state.zoomScale=1; state.offsetX=0; state.offsetY=0 }
+        private func sample(_ source: PDFView? = nil) {
+            guard restoreGate.canSample, let view=source ?? view else { return }
+            publishPageFrame(from: view)
+            let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0
+            guard pageRequestGate.accepts(visiblePage) else { return }
+            state.transitionToPDFPage(visiblePage)
+            state.zoomScale=1
+            state.offsetX=0
+            state.offsetY=0
+        }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }
 }

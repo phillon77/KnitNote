@@ -18,6 +18,13 @@ import Testing
         #expect(!method.contains("state.pageNote"))
     }
 
+    @Test func readerReportsTheCurrentDisplayedPageFrame() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        #expect(pdf.contains("@Binding var pageFrame: CGRect?"))
+        #expect(pdf.contains("view.convert(page.bounds(for: view.displayBox), from: page)"))
+        #expect(pdf.contains("publishPageFrame"))
+    }
+
     private func source(_ path: String) throws -> String {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()

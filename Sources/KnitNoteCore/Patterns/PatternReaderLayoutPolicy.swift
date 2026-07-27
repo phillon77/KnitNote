@@ -38,3 +38,41 @@ public enum PatternHighlightMetrics {
     public static let verticalVisibleThickness: CGFloat = 3
     public static let minimumDragThickness: CGFloat = 44
 }
+
+public enum PatternHighlightGeometry {
+    public static func resolvedContentRect(
+        _ contentRect: CGRect?,
+        canvasSize: CGSize
+    ) -> CGRect {
+        let fallback = CGRect(origin: .zero, size: canvasSize)
+        guard let contentRect,
+              contentRect.origin.x.isFinite,
+              contentRect.origin.y.isFinite,
+              contentRect.width.isFinite,
+              contentRect.height.isFinite,
+              contentRect.width > 0,
+              contentRect.height > 0
+        else {
+            return fallback
+        }
+        return contentRect
+    }
+
+    public static func coordinate(
+        normalized: Double,
+        origin: CGFloat,
+        length: CGFloat
+    ) -> CGFloat {
+        let clamped = min(1, max(0, normalized))
+        return origin + (length * clamped)
+    }
+
+    public static func normalized(
+        coordinate: CGFloat,
+        origin: CGFloat,
+        length: CGFloat
+    ) -> Double {
+        guard length.isFinite, length > 0 else { return 0.5 }
+        return min(1, max(0, Double((coordinate - origin) / length)))
+    }
+}

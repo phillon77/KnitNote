@@ -38,6 +38,26 @@ import Testing
         #expect(pdf.contains("pageFrame: Binding<CGRect?> = .constant(nil)"))
     }
 
+    @Test func everyPlatformUpdateRefreshesTheCoordinatorStateBindingBeforeUpdateWork() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+
+        #expect(pdf.contains(
+            "func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }"
+        ))
+        #expect(pdf.contains(
+            "func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }"
+        ))
+
+        let method = try #require(pdf.slice(from: "        func update(\n", to: "        private func scheduleRestore"))
+        let bindingRefresh = try #require(method.range(of: "_state = state"))
+        let scaleModeUpdate = try #require(method.range(of: "latestScaleMode = scaleMode"))
+        let restoreOrScaleWork = try #require(method.range(of: "if restoreGate.beginRestoring()"))
+
+        #expect(method.contains("state: Binding<PatternReadingState>"))
+        #expect(bindingRefresh.lowerBound < scaleModeUpdate.lowerBound)
+        #expect(bindingRefresh.lowerBound < restoreOrScaleWork.lowerBound)
+    }
+
     private func source(_ path: String) throws -> String {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()

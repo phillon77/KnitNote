@@ -44,7 +44,7 @@ struct PDFReaderView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> PDFView { makeView(context: context) }
-    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
+    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }
     private func makeView(context: Context) -> PDFView { context.coordinator.make(url: url) }
 }
@@ -73,7 +73,7 @@ struct PDFReaderView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
-    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
+    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }
 }
 #endif
@@ -114,9 +114,10 @@ extension PDFReaderView {
         }
         func update(
             _ view: PDFView,
-            state: PatternReadingState,
+            state: Binding<PatternReadingState>,
             scaleMode: PatternPDFScaleMode
         ) {
+            _state = state
             latestScaleMode = scaleMode
             if restoreGate.beginRestoring() {
                 scheduleRestore(view)

@@ -3,6 +3,16 @@ import SwiftUI
 
 @MainActor
 final class EntitlementCoordinator: ObservableObject {
+    private enum PreparationResult: Sendable {
+        case prepared(EntitlementSnapshot)
+        case failed
+    }
+
+    private struct PreparationFlight {
+        let id: UUID
+        let task: Task<PreparationResult, Never>
+    }
+
     @Published private(set) var snapshot: EntitlementSnapshot
     @Published private(set) var unlockRequest: FeatureMutation?
 
@@ -11,6 +21,7 @@ final class EntitlementCoordinator: ObservableObject {
     private let resolver: EntitlementResolver
     private let now: () -> Date
     private var isPrepared: Bool
+    private var preparationFlight: PreparationFlight?
 
     init(
         purchaseService: any PurchaseService,
@@ -61,26 +72,50 @@ final class EntitlementCoordinator: ObservableObject {
             return
         }
 
-        await purchaseService.prepare()
-        let purchase = await purchaseService.currentQualification()
-        if let verifiedPurchase = purchase.entitlementSnapshot {
-            snapshot = verifiedPurchase
-            unlockRequest = nil
-            isPrepared = true
-            return
+        let flight: PreparationFlight
+        if let existing = preparationFlight {
+            flight = existing
+        } else {
+            let newFlight = PreparationFlight(
+                id: UUID(),
+                task: Task { @MainActor [resolver, now] in
+                    await purchaseService.prepare()
+                    let purchase = await purchaseService.currentQualification()
+                    if let verifiedPurchase = purchase.entitlementSnapshot {
+                        return .prepared(verifiedPurchase)
+                    }
+
+                    do {
+                        let trial = try trialStore.load()
+                        return .prepared(resolver.resolve(
+                            purchase: purchase,
+                            trial: trial,
+                            now: now()
+                        ))
+                    } catch {
+                        return .failed
+                    }
+                }
+            )
+            preparationFlight = newFlight
+            flight = newFlight
         }
 
-        do {
-            let trial = try trialStore.load()
-            snapshot = resolver.resolve(
-                purchase: purchase,
-                trial: trial,
-                now: now()
-            )
+        let result = await flight.task.value
+        guard preparationFlight?.id == flight.id else { return }
+        preparationFlight = nil
+
+        switch result {
+        case let .prepared(preparedSnapshot):
+            if preparedSnapshot.verificationRank >= snapshot.verificationRank {
+                snapshot = preparedSnapshot
+            }
             unlockRequest = nil
             isPrepared = true
-        } catch {
-            isPrepared = false
+        case .failed:
+            if snapshot.verificationRank == 0 {
+                isPrepared = false
+            }
         }
     }
 
@@ -122,6 +157,19 @@ final class EntitlementCoordinator: ObservableObject {
         } catch {
             unlockRequest = mutation
             return .requiresUnlock
+        }
+    }
+}
+
+private extension EntitlementSnapshot {
+    var verificationRank: Int {
+        switch self {
+        case .permanentlyUnlocked:
+            2
+        case .legacyPaidOwner:
+            1
+        case .trialNotStarted, .trial:
+            0
         }
     }
 }

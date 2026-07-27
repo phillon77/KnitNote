@@ -882,7 +882,19 @@ final class PatternLibraryDeletionTransaction {
         ledger: inout ProcessedWatchCommandLedger,
         now: Date = .now
     ) throws -> WatchCommandAcknowledgement {
+        try authorizeWatchCounterMutation()
+        return try applyAuthorizedWatchCommand(command, ledger: &ledger, now: now)
+    }
+
+    func authorizeWatchCounterMutation() throws {
         try requireAccess(.changeCounter)
+    }
+
+    func applyAuthorizedWatchCommand(
+        _ command: WatchCounterCommand,
+        ledger: inout ProcessedWatchCommandLedger,
+        now: Date
+    ) throws -> WatchCommandAcknowledgement {
         try ensureArchiveAvailable()
         if ledger.contains(command.id) {
             return try watchAcknowledgement(for: command.id, rejection: nil, now: now)

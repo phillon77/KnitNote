@@ -107,3 +107,66 @@ had no failures.
   no physical-device purchase or Keychain acceptance test was performed.
 - This task enforces the mutation boundary and publishes unlock requests. The
   unlock/paywall presentation belongs to the following task.
+
+## Fix round 1 — durable Watch authorization and preparation single-flight
+
+### RED evidence
+
+- The new restricted Watch persistence tests initially reported 14 issues:
+  durable commands could save a prepared receipt and archive before the
+  authorizer rejected the counter mutation, while recovery, handshake, and
+  reconciliation could also rewrite or quarantine persistence while access
+  was restricted.
+- The new coordinator concurrency test failed with seven expectations under
+  the old implementation. Two overlapping callers independently invoked both
+  `PurchaseService.prepare()` and `currentQualification()` (two calls instead
+  of one), and a later `.none` result replaced a previously verified lifetime
+  snapshot.
+
+### Fix
+
+- Every public Watch persistence mutation now authorizes `.changeCounter`
+  before reading, quarantining, preparing, or writing durable state. Direct
+  application and each durable entry point authorize exactly once, then use
+  internal authorized application/recovery primitives so nested recovery does
+  not authorize twice.
+- `EntitlementCoordinator.prepare()` now stores one identified
+  `Task<PreparationResult, Never>` flight. Overlapping callers await that same
+  task; only a caller whose flight identifier is still current may publish the
+  result and clear the flight.
+- Published entitlement snapshots use an explicit verification rank
+  (`lifetime` above legacy ownership above trial state), so a lower
+  qualification or failed refresh cannot revoke a previously verified
+  lifetime unlock.
+- Normal coordinators remain fail-closed until preparation finishes. A
+  durable Watch regression test verifies that an unprepared coordinator
+  publishes `.changeCounter`, throws `accessRestricted`, leaves the archive
+  byte-for-byte unchanged, and creates neither ledger nor prepared receipt.
+  Screenshot mode remains the intentionally pre-resolved exception; a
+  companion test applies a durable Watch command successfully without calling
+  `prepare()` or constructing StoreKit/Keychain services.
+- `PhoneWatchSyncCoordinator` may receive a command before entitlement
+  preparation completes. That command is deliberately not acknowledged, so
+  the Watch retains it for retry; after preparation, the next command or
+  handshake authorizes recovery and does not lose the queued mutation.
+- The overlap test uses a `MainActor` continuation signal, rather than timing
+  or `Task.yield`, to prove the second caller has entered `prepare()` before
+  the controlled purchase qualification resumes.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| `swift test --filter WatchSyncPersistenceTests` | 20 tests in 1 suite passed |
+| Coordinator-focused app tests | 8 tests passed |
+| `swift test` | 889 tests in 73 suites passed |
+| Full `KnitNoteAppTests` | 14 tests / 16 parameter executions passed |
+| unsigned generic iOS build | passed |
+| unsigned generic macOS build | passed |
+| `git diff --check` | passed |
+
+The previously noted nested import double-authorization cleanup remains a
+deferred minor and was intentionally not included in this focused fix.
+An independent read-only review found no Critical or Important issues; its two
+Minor test-coverage suggestions were both incorporated before the final
+focused runs.

@@ -3,6 +3,7 @@ import Foundation
 enum ShareImportViewState: Equatable {
     case loading
     case success
+    case entitlementBlocked
     case failure(PatternShareImportErrorMessage)
 
     var messageKey: String {
@@ -11,6 +12,8 @@ enum ShareImportViewState: Equatable {
             return "share.loading"
         case .success:
             return "share.success"
+        case .entitlementBlocked:
+            return "share.entitlement.blocked"
         case let .failure(message):
             return message.rawValue
         }
@@ -52,19 +55,32 @@ final class ShareImportController: ObservableObject {
         qos: .userInitiated
     )
     private let extensionContext: NSExtensionContext?
+    private let entitlementReader: EntitlementProjectionReader
+    private let now: () -> Date
     private var providerSession: PatternShareImportProviderSession?
     private var timeoutTask: Task<Void, Never>?
     private var successCompletionTask: Task<Void, Never>?
     private var contextFinished = false
     private var started = false
 
-    init(extensionContext: NSExtensionContext?) {
+    init(
+        extensionContext: NSExtensionContext?,
+        entitlementReader: EntitlementProjectionReader = .live(),
+        now: @escaping () -> Date = Date.init
+    ) {
         self.extensionContext = extensionContext
+        self.entitlementReader = entitlementReader
+        self.now = now
     }
 
     func start() {
         guard !started else { return }
         started = true
+
+        guard entitlementReader.canAcceptImport(now: now()) else {
+            state = .entitlementBlocked
+            return
+        }
 
         do {
             let items = extensionContext?.inputItems.compactMap {
@@ -96,7 +112,7 @@ final class ShareImportController: ObservableObject {
         switch state {
         case .success:
             completeRequest()
-        case .failure:
+        case .entitlementBlocked, .failure:
             cancelRequest(with: PatternShareImportFailure.cancelled)
         case .loading:
             switch providerSession?.cancel() ?? .cancelRequest {
@@ -116,8 +132,21 @@ final class ShareImportController: ObservableObject {
         switch state {
         case .success:
             completeRequest()
-        case .loading, .failure:
+        case .loading, .entitlementBlocked, .failure:
             cancelRequest(with: PatternShareImportFailure.cancelled)
+        }
+    }
+
+    func openKnitNote() {
+        guard let url = URL(string: "knitnote://open"),
+              let extensionContext else {
+            close()
+            return
+        }
+        extensionContext.open(url) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.completeRequest()
+            }
         }
     }
 

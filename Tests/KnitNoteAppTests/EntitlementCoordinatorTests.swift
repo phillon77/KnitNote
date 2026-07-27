@@ -4,6 +4,116 @@ import Testing
 @testable import KnitNote
 
 @Suite struct EntitlementCoordinatorTests {
+    @Test func projectionWriterRoundTripsAnAtomicProjection() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "EntitlementProjectionWriterTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fileURL = root.appendingPathComponent(
+            EntitlementProjection.fileName,
+            isDirectory: false
+        )
+        let generatedAt = Date(timeIntervalSince1970: 2_000_000)
+        let writer = EntitlementProjectionWriter(fileURL: fileURL)
+
+        try writer.write(
+            snapshot: .permanentlyUnlocked,
+            generatedAt: generatedAt
+        )
+
+        let projection = try JSONDecoder().decode(
+            EntitlementProjection.self,
+            from: Data(contentsOf: fileURL)
+        )
+        #expect(projection == EntitlementProjection(
+            state: .permanentlyUnlocked,
+            expiresAt: nil,
+            generatedAt: generatedAt
+        ))
+    }
+
+    @Test @MainActor func preparedSnapshotPublishesProjectionUpdate() async {
+        let generatedAt = Date(timeIntervalSince1970: 2_000_000)
+        var updates: [(EntitlementSnapshot, Date)] = []
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .lifetime),
+            trialStore: TrialStoreSpy(loadedRecord: nil),
+            now: { generatedAt },
+            onSnapshotChange: { updates.append(($0, $1)) }
+        )
+
+        await coordinator.prepare()
+
+        #expect(updates.count == 1)
+        #expect(updates.first?.0 == .permanentlyUnlocked)
+        #expect(updates.first?.1 == generatedAt)
+    }
+
+    @Test @MainActor func startingTrialPublishesProjectionBeforeMutationReturns() async {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        var updates: [(EntitlementSnapshot, Date)] = []
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .none),
+            trialStore: TrialStoreSpy(
+                loadedRecord: nil,
+                startedRecord: TrialRecord(startedAt: now)
+            ),
+            now: { now },
+            onSnapshotChange: { updates.append(($0, $1)) }
+        )
+        await coordinator.prepare()
+        updates.removeAll()
+
+        let decision = coordinator.authorize(.createProject)
+
+        #expect(decision == .allow)
+        #expect(updates.count == 1)
+        #expect(
+            updates.first?.0 == .trial(
+                startedAt: now,
+                expiresAt: now.addingTimeInterval(TrialRecord.duration)
+            )
+        )
+        #expect(updates.first?.1 == now)
+    }
+
+    @Test @MainActor func ensurePreparedWaitsForTheCurrentQualificationFlight() async {
+        let purchaseService = ControlledPurchaseService()
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: nil)
+        )
+
+        let ensured = Task { await coordinator.ensurePrepared() }
+        await purchaseService.waitForQualificationCall(count: 1)
+
+        #expect(purchaseService.prepareCallCount == 1)
+        #expect(purchaseService.qualificationCallCount == 1)
+
+        purchaseService.resumeNextQualification(returning: .none)
+
+        #expect(await ensured.value)
+        #expect(coordinator.snapshot == .trialNotStarted)
+    }
+
+    @Test @MainActor func ensurePreparedFailsClosedWhenPreparationFails() async {
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .none),
+            trialStore: TrialStoreSpy(
+                loadedRecord: nil,
+                loadError: TrialStoreSpy.Failure.load
+            )
+        )
+
+        #expect(await coordinator.ensurePrepared() == false)
+        #expect(coordinator.authorize(.importPattern) == .requiresUnlock)
+    }
+
     @Test @MainActor func verifiedPurchaseTakesPrecedenceWithoutReadingTheTrialStore() async {
         let purchaseService = PurchaseServiceSpy(qualification: .lifetime)
         let trialStore = TrialStoreSpy(

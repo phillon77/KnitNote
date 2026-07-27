@@ -222,6 +222,22 @@
         }
       }
     },
+    "share.entitlement.blocked" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your existing data is safe. Your trial has ended or KnitNote needs to refresh your access. Open KnitNote to continue."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你現有的資料仍安全保留。試用期已結束，或 KnitNote 需要重新確認你的使用權限。請開啟 KnitNote 以繼續。"
+          }
+        }
+      }
+    },
     "share.loading" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -235,6 +251,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在儲存織圖…"
+          }
+        }
+      }
+    },
+    "share.openKnitNote" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open KnitNote"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 KnitNote"
           }
         }
       }

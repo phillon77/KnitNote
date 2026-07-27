@@ -19,6 +19,10 @@ targets:
         CFBundleDisplayName: KnitNote
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleURLTypes:
+          - CFBundleURLName: com.phillon.KnitNote
+            CFBundleURLSchemes:
+              - knitnote
         LSApplicationCategoryType: public.app-category.lifestyle
         UILaunchStoryboardName: LaunchScreen
         NSCameraUsageDescription: Take photos for your knitting projects and journal entries.
@@ -135,6 +139,8 @@ targets:
       - path: Sources/KnitNoteCore/Patterns/PatternShareInboxEnqueuer.swift
       - path: Sources/KnitNoteCore/Patterns/PatternShareImportPresentation.swift
       - path: Sources/KnitNoteCore/Patterns/PatternStorageLocations.swift
+      - path: Sources/KnitNoteCore/Entitlements/EntitlementProjection.swift
+      - path: Sources/KnitNoteCore/Entitlements/EntitlementSnapshot.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share

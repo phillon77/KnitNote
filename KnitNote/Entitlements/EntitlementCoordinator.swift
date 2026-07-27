@@ -24,6 +24,7 @@ final class EntitlementCoordinator: ObservableObject {
     private let trialStore: (any TrialStore)?
     private let resolver: EntitlementResolver
     private let now: () -> Date
+    private let onSnapshotChange: (EntitlementSnapshot, Date) -> Void
     private var isPrepared: Bool
     private var preparationFlight: PreparationFlight?
     private var entitlementUpdatesTask: Task<Void, Never>?
@@ -32,13 +33,15 @@ final class EntitlementCoordinator: ObservableObject {
         purchaseService: any PurchaseService,
         trialStore: any TrialStore,
         resolver: EntitlementResolver = EntitlementResolver(),
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        onSnapshotChange: @escaping (EntitlementSnapshot, Date) -> Void = { _, _ in }
     ) {
         snapshot = .trialNotStarted
         self.purchaseService = purchaseService
         self.trialStore = trialStore
         self.resolver = resolver
         self.now = now
+        self.onSnapshotChange = onSnapshotChange
         isPrepared = false
         entitlementUpdatesTask = nil
         let updates = purchaseService.entitlementUpdates
@@ -59,6 +62,7 @@ final class EntitlementCoordinator: ObservableObject {
         trialStore = nil
         resolver = EntitlementResolver()
         self.now = now
+        onSnapshotChange = { _, _ in }
         isPrepared = true
         entitlementUpdatesTask = nil
     }
@@ -74,14 +78,16 @@ final class EntitlementCoordinator: ObservableObject {
         },
         trialStoreFactory: () -> any TrialStore = {
             KeychainTrialStore()
-        }
+        },
+        onSnapshotChange: @escaping (EntitlementSnapshot, Date) -> Void = { _, _ in }
     ) -> EntitlementCoordinator {
         if screenshotMode {
             return EntitlementCoordinator(verifiedSnapshot: .legacyPaidOwner)
         }
         return EntitlementCoordinator(
             purchaseService: purchaseServiceFactory(),
-            trialStore: trialStoreFactory()
+            trialStore: trialStoreFactory(),
+            onSnapshotChange: onSnapshotChange
         )
     }
 
@@ -122,6 +128,14 @@ final class EntitlementCoordinator: ObservableObject {
         await finishPreparation(flight)
     }
 
+    func ensurePrepared() async -> Bool {
+        if isPrepared {
+            return true
+        }
+        await prepare()
+        return isPrepared
+    }
+
     func refreshEntitlement() async {
         if let existing = preparationFlight {
             await finishPreparation(existing)
@@ -136,9 +150,7 @@ final class EntitlementCoordinator: ObservableObject {
 
         switch result {
         case let .prepared(preparedSnapshot):
-            snapshot = preparedSnapshot
-            unlockRequest = nil
-            isPrepared = true
+            publishSnapshot(preparedSnapshot)
         case .failed:
             isPrepared = false
         }
@@ -201,15 +213,22 @@ final class EntitlementCoordinator: ObservableObject {
         }
         do {
             let trial = try trialStore.startIfNeeded(now: now())
-            snapshot = .trial(
+            publishSnapshot(.trial(
                 startedAt: trial.startedAt,
                 expiresAt: trial.expiresAt
-            )
-            unlockRequest = nil
+            ))
             return .allow
         } catch {
             unlockRequest = mutation
             return .requiresUnlock
         }
+    }
+
+    private func publishSnapshot(_ newSnapshot: EntitlementSnapshot) {
+        let generatedAt = now()
+        snapshot = newSnapshot
+        unlockRequest = nil
+        isPrepared = true
+        onSnapshotChange(newSnapshot, generatedAt)
     }
 }

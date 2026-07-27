@@ -8,10 +8,10 @@ import Testing
 
         #expect(app.contains(".environmentObject(patternInboxProcessor)"))
         #expect(root.contains("@Environment(\\.scenePhase)"))
-        #expect(root.contains(".task"))
+        #expect(root.contains(".task(id: scenePhase)"))
         #expect(root.contains("patternInboxProcessor.processPending()"))
-        #expect(root.contains(".onChange(of: scenePhase)"))
-        #expect(root.contains("newPhase == .active"))
+        #expect(root.contains("scenePhase == .active"))
+        #expect(root.contains("await entitlementCoordinator.ensurePrepared()"))
     }
 
     @Test func processorUsesTheActorDriverAndKeepsSelectionAndFailureVisible() throws {

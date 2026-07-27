@@ -23,8 +23,19 @@ struct KnitNoteApp: App {
             preconditionFailure("Invalid App Store screenshot request; refusing to open the live store")
         }
         self.screenshotMode = screenshotMode
+        #if os(iOS)
+        let entitlementProjectionWriter = try? EntitlementProjectionWriter.live()
+        #endif
         let entitlementCoordinator = EntitlementCoordinator.configured(
-            screenshotMode: screenshotMode != nil
+            screenshotMode: screenshotMode != nil,
+            onSnapshotChange: { snapshot, generatedAt in
+                #if os(iOS)
+                try? entitlementProjectionWriter?.write(
+                    snapshot: snapshot,
+                    generatedAt: generatedAt
+                )
+                #endif
+            }
         )
         _entitlementCoordinator = StateObject(wrappedValue: entitlementCoordinator)
         let projectStore = screenshotMode.map {

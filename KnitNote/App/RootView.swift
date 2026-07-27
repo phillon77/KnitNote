@@ -130,7 +130,11 @@ struct RootView: View {
             } message: {
                 Text("patterns.inbox.error.message")
             }
-            .task {
+            .task(id: scenePhase) {
+                guard scenePhase == .active,
+                      await entitlementCoordinator.ensurePrepared() else {
+                    return
+                }
                 patternInboxProcessor.processPending()
             }
             .onChange(of: entitlementCoordinator.unlockRequest) { _, request in
@@ -144,11 +148,6 @@ struct RootView: View {
                     now: .now
                 ) {
                     isUnlockSheetRequested = false
-                }
-            }
-            .onChange(of: scenePhase) { _, newPhase in
-                if newPhase == .active {
-                    patternInboxProcessor.processPending()
                 }
             }
     }

@@ -2,10 +2,27 @@ import Foundation
 import Security
 
 public struct KeychainTrialStore: TrialStore {
+    struct SecurityClient: @unchecked Sendable {
+        static let live = Self(
+            copyMatching: SecItemCopyMatching,
+            add: SecItemAdd
+        )
+
+        let copyMatching: (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
+        let add: (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
+    }
+
     private static let service = "com.phillon.KnitNote.trial"
     private static let account = "trial-record-v1"
+    private let securityClient: SecurityClient
 
-    public init() {}
+    public init() {
+        securityClient = .live
+    }
+
+    init(securityClient: SecurityClient) {
+        self.securityClient = securityClient
+    }
 
     public func load() throws -> TrialRecord? {
         let query: [CFString: Any] = [
@@ -16,7 +33,7 @@ public struct KeychainTrialStore: TrialStore {
             kSecReturnData: true,
         ]
         var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = securityClient.copyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             guard let data = result as? Data else {
@@ -48,7 +65,7 @@ public struct KeychainTrialStore: TrialStore {
             kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData: data,
         ]
-        let status = SecItemAdd(attributes as CFDictionary, nil)
+        let status = securityClient.add(attributes as CFDictionary, nil)
         switch status {
         case errSecSuccess:
             return candidate

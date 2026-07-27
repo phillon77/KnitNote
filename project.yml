@@ -143,11 +143,27 @@ targets:
         PRODUCT_NAME: KnitNoteShare
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+  KnitNoteAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/KnitNoteAppTests
+    dependencies:
+      - target: KnitNote
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNoteAppTests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/KnitNote.app/Contents/MacOS/KnitNote
+        BUNDLE_LOADER: $(TEST_HOST)
 schemes:
   KnitNote:
     build:
       targets:
         KnitNote: all
+    test:
+      targets:
+        - KnitNoteAppTests
     run:
       config: Debug
   KnitNoteWatch:

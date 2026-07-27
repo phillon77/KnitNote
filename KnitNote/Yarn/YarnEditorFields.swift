@@ -18,7 +18,7 @@ enum YarnOperationFailure: String {
                 return .archiveUnavailable
             case .invalidYarnProjectLinks:
                 return .linkedProjectsChanged
-            case .persistenceFailed, .patternNotFound, .staleDataGeneration:
+            case .persistenceFailed, .patternNotFound, .staleDataGeneration, .accessRestricted:
                 return .saveRetry
             }
         }

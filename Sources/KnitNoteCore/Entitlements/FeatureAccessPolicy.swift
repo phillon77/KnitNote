@@ -18,6 +18,7 @@ public enum FeatureMutation: String, CaseIterable, Codable, Sendable {
     case deleteYarn
     case linkYarn
     case scanYarnLabel
+    case restoreBackup
 }
 
 public enum FeatureAccessDecision: Equatable, Sendable {

@@ -66,7 +66,10 @@ public enum ProjectStoreError: Error, Equatable, Sendable {
     case patternNotFound
     case staleDataGeneration
     case persistenceFailed
+    case accessRestricted
 }
+
+public typealias MutationAuthorizer = @MainActor (FeatureMutation) -> FeatureAccessDecision
 
 public enum PatternLibraryMutationError: Error, Equatable, Sendable {
     case patternNotFound
@@ -457,6 +460,7 @@ final class PatternLibraryDeletionTransaction {
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
     private var activeJournalPhotoTransactions = 0
     private var activePatternTransactions = 0
+    private let authorizeMutation: MutationAuthorizer
 
     public convenience init(
         url: URL,
@@ -467,7 +471,8 @@ final class PatternLibraryDeletionTransaction {
         patternInboxFileService: PatternInboxFileService? = nil,
         patternPublicationReceiptService: PatternInboxPublicationReceiptService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
-        patternThumbnailService: PatternThumbnailFileService? = nil
+        patternThumbnailService: PatternThumbnailFileService? = nil,
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
     ) {
         let liveRoot = url.deletingLastPathComponent()
         let workRoot = liveRoot.deletingLastPathComponent().appendingPathComponent(
@@ -484,7 +489,8 @@ final class PatternLibraryDeletionTransaction {
             patternPublicationReceiptService: patternPublicationReceiptService,
             patternMarkupFileService: patternMarkupFileService,
             patternThumbnailService: patternThumbnailService,
-            backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
+            backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot),
+            authorizeMutation: authorizeMutation
         )
     }
 
@@ -503,7 +509,8 @@ final class PatternLibraryDeletionTransaction {
         patternStorageLocationsProvider: (() throws -> PatternStorageLocations)? = nil,
         archiveWrite: @escaping @Sendable (Data, URL) throws -> Void = {
             try $0.write(to: $1, options: .atomic)
-        }
+        },
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
     ) {
         self.url = url
         self.photoService = photoService ?? ProjectPhotoFileService(
@@ -539,6 +546,7 @@ final class PatternLibraryDeletionTransaction {
         )
         self.backupService = backupService
         self.archiveWrite = archiveWrite
+        self.authorizeMutation = authorizeMutation
         if let initialLoadError {
             loadError = initialLoadError
         } else {
@@ -546,12 +554,15 @@ final class PatternLibraryDeletionTransaction {
         }
     }
 
-    public static func live() -> JSONProjectStore {
+    public static func live(
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
+    ) -> JSONProjectStore {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         do {
             return try live(
                 baseDirectory: base,
-                locations: PatternStorageLocations.live()
+                locations: PatternStorageLocations.live(),
+                authorizeMutation: authorizeMutation
             )
         } catch {
             // The normal iOS path never substitutes a private inbox when the App
@@ -563,25 +574,31 @@ final class PatternLibraryDeletionTransaction {
                 url: archiveURL,
                 backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot),
                 initialLoadError: .archiveUnavailable,
-                patternStorageLocationsProvider: { try PatternStorageLocations.live() }
+                patternStorageLocationsProvider: { try PatternStorageLocations.live() },
+                authorizeMutation: authorizeMutation
             )
         }
     }
 
-    public static func live(baseDirectory: URL) -> JSONProjectStore {
+    public static func live(
+        baseDirectory: URL,
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
+    ) -> JSONProjectStore {
         let liveRoot = baseDirectory.appendingPathComponent("KnitNote", isDirectory: true)
         return live(
             baseDirectory: baseDirectory,
             locations: PatternStorageLocations(
                 assetRoot: liveRoot.appendingPathComponent("Patterns", isDirectory: true),
                 inboxRoot: liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
-            )
+            ),
+            authorizeMutation: authorizeMutation
         )
     }
 
     private static func live(
         baseDirectory: URL,
-        locations: PatternStorageLocations
+        locations: PatternStorageLocations,
+        authorizeMutation: @escaping MutationAuthorizer
     ) -> JSONProjectStore {
         let liveRoot = locations.assetRoot.deletingLastPathComponent()
         let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
@@ -596,7 +613,8 @@ final class PatternLibraryDeletionTransaction {
                 url: archiveURL,
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
-                backupService: backupService
+                backupService: backupService,
+                authorizeMutation: authorizeMutation
             )
             guard let interruptedInstallation else { return store }
             if store.loadError == nil {
@@ -608,7 +626,8 @@ final class PatternLibraryDeletionTransaction {
                 url: archiveURL,
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
-                backupService: backupService
+                backupService: backupService,
+                authorizeMutation: authorizeMutation
             )
         } catch {
             return JSONProjectStore(
@@ -616,7 +635,8 @@ final class PatternLibraryDeletionTransaction {
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
                 backupService: backupService,
-                initialLoadError: .unreadableArchive
+                initialLoadError: .unreadableArchive,
+                authorizeMutation: authorizeMutation
             )
         }
     }
@@ -668,6 +688,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func restoreBackup(_ backup: StagedKnitNoteBackup) async throws {
+        try requireAccess(.restoreBackup)
         try beginDataOperation()
         defer { isDataOperationInProgress = false }
         let service = backupService
@@ -696,6 +717,7 @@ final class PatternLibraryDeletionTransaction {
     }
     public func add(name: String) throws { try add(name: name, photoData: nil) }
     public func add(name: String, photoData: Data?) throws {
+        try requireAccess(.createProject)
         var project = try StoredProject(name: name)
         var newFilename: String?
         do {
@@ -711,6 +733,7 @@ final class PatternLibraryDeletionTransaction {
         }
     }
     public func delete(id: UUID) throws {
+        try requireAccess(.deleteProject)
         let deletedProject = projects.first(where: { $0.id == id })
         guard let deletedProject else { return }
         let filename = deletedProject.photoFilename
@@ -751,11 +774,16 @@ final class PatternLibraryDeletionTransaction {
         if let filename { try? photoService.delete(filename: filename) }
         deleteJournalPhotosIfUnreferenced(journalFilenames)
     }
-    public func rename(id: UUID, to name: String) throws { try mutate(id: id) { try $0.rename(to: name) } }
+    public func rename(id: UUID, to name: String) throws {
+        try requireAccess(.editProject)
+        try mutate(id: id) { try $0.rename(to: name) }
+    }
     public func markCompleted(projectID: UUID) throws {
+        try requireAccess(.completeProject)
         try mutate(id: projectID) { $0.markCompleted() }
     }
     public func resumeProject(projectID: UUID) throws {
+        try requireAccess(.resumeProject)
         try mutate(id: projectID) { $0.resume() }
     }
     public func updateProject(
@@ -766,6 +794,7 @@ final class PatternLibraryDeletionTransaction {
         toolNotes: String?,
         photoChange: ProjectPhotoChange
     ) throws {
+        try requireAccess(.editProject)
         guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
         let oldFilename = projects[index].photoFilename
         var updated = projects[index]
@@ -795,18 +824,23 @@ final class PatternLibraryDeletionTransaction {
         }
     }
     public func selectCounter(projectID: UUID, counterID: UUID) throws {
+        try requireAccess(.changeCounter)
         try mutate(id: projectID) { $0.selectCounter(id: counterID) }
     }
     public func incrementCounter(projectID: UUID, counterID: UUID) throws {
+        try requireAccess(.changeCounter)
         try mutate(id: projectID) { $0.incrementCounter(id: counterID) }
     }
     public func decrementCounter(projectID: UUID, counterID: UUID) throws {
+        try requireAccess(.changeCounter)
         try mutate(id: projectID) { $0.decrementCounter(id: counterID) }
     }
     public func resetCounter(projectID: UUID, counterID: UUID) throws {
+        try requireAccess(.changeCounter)
         try mutate(id: projectID) { $0.resetCounter(id: counterID) }
     }
     public func updateCounter(projectID: UUID, counterID: UUID, name: String?, value: Int) throws {
+        try requireAccess(.changeCounter)
         try mutate(id: projectID) { $0.updateCounter(id: counterID, name: name, value: value) }
     }
 
@@ -819,6 +853,7 @@ final class PatternLibraryDeletionTransaction {
         mutation: PatternReaderCounterMutation,
         expectedDataGeneration: UInt64
     ) throws -> UInt64 {
+        try requireAccess(.changeCounter)
         try validateExpectedDataGeneration(expectedDataGeneration)
         let usageIndex = try mutableUsageIndex(usageID: usageID)
         let projectID = patternUsages[usageIndex].projectID
@@ -839,6 +874,7 @@ final class PatternLibraryDeletionTransaction {
         return dataGeneration
     }
     public func renameCounter(projectID: UUID, counterID: UUID, name: String?) throws {
+        try requireAccess(.changeCounter)
         try mutate(id: projectID) { $0.renameCounter(id: counterID, to: name) }
     }
     public func applyWatchCommand(
@@ -846,6 +882,7 @@ final class PatternLibraryDeletionTransaction {
         ledger: inout ProcessedWatchCommandLedger,
         now: Date = .now
     ) throws -> WatchCommandAcknowledgement {
+        try requireAccess(.changeCounter)
         try ensureArchiveAvailable()
         if ledger.contains(command.id) {
             return try watchAcknowledgement(for: command.id, rejection: nil, now: now)
@@ -889,13 +926,19 @@ final class PatternLibraryDeletionTransaction {
         return try watchAcknowledgement(for: command.id, rejection: nil, now: now)
     }
     public func saveNote(projectID: UUID, counterID: UUID, row: Int, text: String) throws {
+        try requireAccess(.editNote)
         try mutate(id: projectID) { try $0.saveNote(counterID: counterID, row: row, text: text) }
     }
     public func deleteNote(projectID: UUID, counterID: UUID, row: Int) throws {
+        try requireAccess(.editNote)
         try mutate(id: projectID) { $0.deleteNote(counterID: counterID, row: row) }
     }
-    public func addPattern(projectID: UUID, pattern: PatternDocument) throws { try mutate(id: projectID) { $0.addPattern(pattern) } }
+    public func addPattern(projectID: UUID, pattern: PatternDocument) throws {
+        try requireAccess(.importPattern)
+        try mutate(id: projectID) { $0.addPattern(pattern) }
+    }
     public func importPattern(from source: URL, projectID: UUID) async throws -> PatternDocument {
+        try requireAccess(.importPattern)
         try ensureArchiveAvailable()
         guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
         activePatternTransactions += 1
@@ -918,7 +961,8 @@ final class PatternLibraryDeletionTransaction {
         id: UUID,
         selectingPatternID: UUID? = nil
     ) async throws -> PatternImportOutcome {
-        try await processPatternInboxItem(
+        try requireAccess(.importPattern)
+        return try await processPatternInboxItem(
             id: id,
             duplicateResolution: selectingPatternID.map(PatternImportDuplicateResolution.existing)
                 ?? .automatic
@@ -929,7 +973,8 @@ final class PatternLibraryDeletionTransaction {
         id: UUID,
         duplicateResolution: PatternImportDuplicateResolution
     ) async throws -> PatternImportOutcome {
-        try await withActivePatternTransaction {
+        try requireAccess(.importPattern)
+        return try await withActivePatternTransaction {
             try await processPatternInboxItemWithoutTransaction(
                 id: id,
                 duplicateResolution: duplicateResolution
@@ -977,6 +1022,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func discardPatternInboxItem(id: UUID) async throws {
+        try requireAccess(.importPattern)
         try await withActivePatternTransaction {
             try ensureArchiveAvailable()
             let inbox = try requiredPatternInboxFileService()
@@ -992,7 +1038,8 @@ final class PatternLibraryDeletionTransaction {
         _ source: URL,
         now: Date = .now
     ) async throws -> PatternImportOutcome {
-        try await enqueuePatternImport(
+        try requireAccess(.importPattern)
+        return try await enqueuePatternImport(
             source,
             origin: .library,
             targetProjectID: nil,
@@ -1005,6 +1052,7 @@ final class PatternLibraryDeletionTransaction {
         projectID: UUID,
         now: Date = .now
     ) async throws -> PatternImportOutcome {
+        try requireAccess(.importPattern)
         guard project(id: projectID) != nil else {
             throw PatternLibraryMutationError.projectNotFound
         }
@@ -1042,6 +1090,7 @@ final class PatternLibraryDeletionTransaction {
         }
     }
     public func deletePattern(projectID: UUID, id: UUID) throws {
+        try requireAccess(.editPattern)
         try ensureArchiveAvailable()
         guard let pattern = project(id: projectID)?.patterns.first(where: { $0.id == id }) else {
             return
@@ -1054,6 +1103,7 @@ final class PatternLibraryDeletionTransaction {
 
     @discardableResult
     public func linkPattern(patternID: UUID, to projectID: UUID) throws -> PatternProjectUsage {
+        try requireAccess(.linkPattern)
         try ensureArchiveAvailable()
         guard patterns.contains(where: { $0.id == patternID }) else {
             throw PatternLibraryMutationError.patternNotFound
@@ -1087,6 +1137,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func unlinkPattern(patternID: UUID, from projectID: UUID) throws {
+        try requireAccess(.linkPattern)
         try ensureArchiveAvailable()
         guard let index = patternUsages.firstIndex(where: {
             $0.patternID == patternID && $0.projectID == projectID
@@ -1101,6 +1152,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func deletePatternPermanently(id: UUID) throws {
+        try requireAccess(.editPattern)
         try ensureArchiveAvailable()
         guard let pattern = patterns.first(where: { $0.id == id }) else {
             throw PatternLibraryMutationError.patternNotFound
@@ -1146,6 +1198,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func renamePattern(id: UUID, to name: String) throws {
+        try requireAccess(.editPattern)
         try ensureArchiveAvailable()
         guard let index = patterns.firstIndex(where: { $0.id == id }) else {
             throw PatternLibraryMutationError.patternNotFound
@@ -1158,6 +1211,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func setPatternNote(id: UUID, note: String?) throws {
+        try requireAccess(.editPattern)
         try ensureArchiveAvailable()
         guard let index = patterns.firstIndex(where: { $0.id == id }) else {
             throw PatternLibraryMutationError.patternNotFound
@@ -1169,6 +1223,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func markPatternOpened(id: UUID, at date: Date = .now) throws {
+        try requireAccess(.editPattern)
         try ensureArchiveAvailable()
         guard let index = patterns.firstIndex(where: { $0.id == id }) else {
             throw PatternLibraryMutationError.patternNotFound
@@ -1205,6 +1260,7 @@ final class PatternLibraryDeletionTransaction {
         state: PatternReadingState,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
+        try requireAccess(.editPatternReadingState)
         try validateExpectedDataGeneration(expectedDataGeneration)
         let index = try mutableUsageIndex(usageID: usageID)
         var staged = patternUsages
@@ -1220,6 +1276,7 @@ final class PatternLibraryDeletionTransaction {
         text: String,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
+        try requireAccess(.editPatternReadingState)
         try validateExpectedDataGeneration(expectedDataGeneration)
         let index = try mutableUsageIndex(usageID: usageID)
         var staged = patternUsages
@@ -1257,6 +1314,7 @@ final class PatternLibraryDeletionTransaction {
         pageIndex: Int,
         expectedDataGeneration: UInt64
     ) throws -> UInt64 {
+        try requireAccess(.editPatternReadingState)
         try validateExpectedDataGeneration(expectedDataGeneration)
         _ = try mutableUsageIndex(usageID: usageID)
         activePatternTransactions += 1
@@ -1281,6 +1339,7 @@ final class PatternLibraryDeletionTransaction {
         text: String,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
+        try requireAccess(.editPatternReadingState)
         try validateExpectedDataGeneration(expectedDataGeneration)
         try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) {
@@ -1289,6 +1348,7 @@ final class PatternLibraryDeletionTransaction {
         return dataGeneration
     }
     public func updatePatternState(projectID: UUID, id: UUID, pageIndex: Int, highlightPosition: Double) throws {
+        try requireAccess(.editPatternReadingState)
         try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) { $0.updatePatternState(id: id, pageIndex: pageIndex, highlightPosition: highlightPosition) }
     }
@@ -1299,6 +1359,7 @@ final class PatternLibraryDeletionTransaction {
         state: PatternReadingState,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
+        try requireAccess(.editPatternReadingState)
         try validateExpectedDataGeneration(expectedDataGeneration)
         try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) }
@@ -1329,6 +1390,7 @@ final class PatternLibraryDeletionTransaction {
         pageIndex: Int,
         expectedDataGeneration: UInt64
     ) throws -> UInt64 {
+        try requireAccess(.editPatternReadingState)
         try ensureArchiveAvailable()
         try validateExpectedDataGeneration(expectedDataGeneration)
         guard let project = project(id: projectID),
@@ -1355,6 +1417,7 @@ final class PatternLibraryDeletionTransaction {
         caption: String?,
         createdAt: Date = .now
     ) async throws {
+        try requireAccess(.editJournal)
         guard let project = projects.first(where: { $0.id == projectID }) else {
             throw ProjectJournalMutationError.entryNotFound
         }
@@ -1406,6 +1469,7 @@ final class PatternLibraryDeletionTransaction {
         }
     }
     public func updateJournalCaption(projectID: UUID, entryID: UUID, caption: String?) throws {
+        try requireAccess(.editJournal)
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
             throw ProjectJournalMutationError.entryNotFound
         }
@@ -1414,6 +1478,7 @@ final class PatternLibraryDeletionTransaction {
         try persist(projects: staged, yarns: yarns)
     }
     public func deleteJournalEntry(projectID: UUID, entryID: UUID) throws {
+        try requireAccess(.editJournal)
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
             throw ProjectJournalMutationError.entryNotFound
         }
@@ -1429,6 +1494,7 @@ final class PatternLibraryDeletionTransaction {
         try addYarn(yarn, photoData: nil)
     }
     public func addYarn(_ yarn: StoredYarn, photoData: Data?) throws {
+        try requireAccess(.createYarn)
         var yarn = yarn
         var newFilename: String?
         do {
@@ -1447,6 +1513,7 @@ final class PatternLibraryDeletionTransaction {
         try updateYarn(yarn, photoChange: .unchanged)
     }
     public func updateYarn(_ yarn: StoredYarn, photoChange: YarnPhotoChange) throws {
+        try requireAccess(.editYarn)
         guard let index = yarns.firstIndex(where: { $0.id == yarn.id }) else { return }
         let oldFilename = yarns[index].photoFilename
         var updated = yarn
@@ -1474,12 +1541,14 @@ final class PatternLibraryDeletionTransaction {
         }
     }
     public func deleteYarn(id: UUID) throws {
+        try requireAccess(.deleteYarn)
         let filename = yarns.first(where: { $0.id == id })?.photoFilename
         try persist(projects: projects, yarns: yarns.filter { $0.id != id })
         if let filename { try? yarnPhotoService.delete(filename: filename) }
     }
     public func yarn(id: UUID) -> StoredYarn? { yarns.first { $0.id == id } }
     public func setYarnProjects(yarnID: UUID, projectIDs: Set<UUID>) throws {
+        try requireAccess(.linkYarn)
         guard let index = yarns.firstIndex(where: { $0.id == yarnID }) else { return }
         var staged = yarns
         staged[index].setLinkedProjectIDs(projectIDs)
@@ -2074,6 +2143,12 @@ final class PatternLibraryDeletionTransaction {
         try ensureArchiveAvailable()
         guard expected == nil || expected == dataGeneration else {
             throw ProjectStoreError.staleDataGeneration
+        }
+    }
+
+    private func requireAccess(_ mutation: FeatureMutation) throws {
+        guard authorizeMutation(mutation) != .requiresUnlock else {
+            throw ProjectStoreError.accessRestricted
         }
     }
 

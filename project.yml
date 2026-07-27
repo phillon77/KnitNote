@@ -41,6 +41,7 @@ targets:
           - LaunchScreen.storyboard
           - Localization/InfoPlist.xcstrings
           - PrivacyInfo.xcprivacy
+          - StoreKit/KnitNote.storekit
       - path: KnitNote/PrivacyInfo.xcprivacy
         buildPhase: resources
       - path: KnitNote/Localization/InfoPlist.xcstrings

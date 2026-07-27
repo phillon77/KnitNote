@@ -130,6 +130,7 @@
 		829313A3B81FEE7B46C7EEA5 /* ProjectCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A51559E4B7599CA640466E3 /* ProjectCounter.swift */; };
 		85F28B8AEE9E9F34BB860351 /* PatternProjectUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */; };
 		8720CB67DFF6463DAD9A72CE /* PatternLibraryImportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A55940F5FE8FDFB7A951862 /* PatternLibraryImportPresentation.swift */; };
+		8956E5751DCE92829E2B803E /* StoreKitPurchaseServiceLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */; };
 		89AA9318C5AEB7CD5C2DA4F8 /* FamilyLaunchAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */; };
 		8A0D44321A0B878C18C93038 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431158CF5C9EC212EABD87BA /* RootView.swift */; };
 		8AC28A12A7BFBEE2063DDC88 /* ProjectPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */; };
@@ -167,7 +168,6 @@
 		BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */; };
 		BF02EBBAB7F6B2B5A9DACF1F /* ProcessedWatchCommandLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373195B93B12AF80760B1A6D /* ProcessedWatchCommandLedger.swift */; };
 		BF2BD6977779AC88E600D271 /* PreparedWatchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53F8478B3089817AE2FFFA1 /* PreparedWatchCommand.swift */; };
-		BF9A01F705A33A0245123719 /* KnitNote.storekit in Resources */ = {isa = PBXBuildFile; fileRef = A08FD8C0E9C78061B04ADCDF /* KnitNote.storekit */; };
 		BFFC9B5E14DA29A679963137 /* ProjectCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05B67645287474EA73C4DDF /* ProjectCard.swift */; };
 		C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */; };
 		C288C9E81474605727E639DF /* PatternInboxPublicationReceiptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */; };
@@ -407,7 +407,6 @@
 		9DF2AB2DA3CD7F7BEF3DEA68 /* KnitNoteShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KnitNoteShare.entitlements; sourceTree = "<group>"; };
 		9FD7EFB82C9BFC4FF9F2EE78 /* ProjectJournalEntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntryDetailView.swift; sourceTree = "<group>"; };
 		A05992C5E9E4384B11D3C46A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A08FD8C0E9C78061B04ADCDF /* KnitNote.storekit */ = {isa = PBXFileReference; path = KnitNote.storekit; sourceTree = "<group>"; };
 		A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnEditorFields.swift; sourceTree = "<group>"; };
 		A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteApp.swift; sourceTree = "<group>"; };
 		A3E3D0A9F82E317FB6A4B8FC /* PendingPatternSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingPatternSelectionView.swift; sourceTree = "<group>"; };
@@ -425,6 +424,7 @@
 		C05B67645287474EA73C4DDF /* ProjectCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCard.swift; sourceTree = "<group>"; };
 		C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteWatchApp.swift; sourceTree = "<group>"; };
 		C05CEE6F88AA591A17AA4C99 /* ProjectPatternImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternImportPresentation.swift; sourceTree = "<group>"; };
+		C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseServiceLifecycleTests.swift; sourceTree = "<group>"; };
 		C27CD7D290EB0C1B3F7A706C /* WatchSyncCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncCache.swift; sourceTree = "<group>"; };
 		C474D58BBB238B47B244C7CA /* ShareImportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportController.swift; sourceTree = "<group>"; };
 		C65533430112873329E49422 /* WatchCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCounterView.swift; sourceTree = "<group>"; };
@@ -588,6 +588,7 @@
 			isa = PBXGroup;
 			children = (
 				453B830DB1C1E2A3A3954A38 /* KeychainTrialStoreTests.swift */,
+				C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */,
 			);
 			name = KnitNoteAppTests;
 			path = Tests/KnitNoteAppTests;
@@ -664,20 +665,11 @@
 				00FA7869BBC2022A1F3126E0 /* Patterns */,
 				65DC28AC37D32EA9468D7BDE /* Projects */,
 				74E746C56AB9D2B0682463AA /* Settings */,
-				7A032AD3309C0D8E97E67783 /* StoreKit */,
 				367640414936CD240A016BEB /* Theme */,
 				A09EB0452F3808BC2553AB72 /* WatchSync */,
 				1B10CD60C11ED3A2073BCA1F /* Yarn */,
 			);
 			path = KnitNote;
-			sourceTree = "<group>";
-		};
-		7A032AD3309C0D8E97E67783 /* StoreKit */ = {
-			isa = PBXGroup;
-			children = (
-				A08FD8C0E9C78061B04ADCDF /* KnitNote.storekit */,
-			);
-			path = StoreKit;
 			sourceTree = "<group>";
 		};
 		8BD3900E36112649B3129656 /* Resources */ = {
@@ -1029,7 +1021,6 @@
 			files = (
 				34DB8128866B07153BA47DD8 /* Assets.xcassets in Resources */,
 				D56C0BDFF30C510581164CC1 /* InfoPlist.xcstrings in Resources */,
-				BF9A01F705A33A0245123719 /* KnitNote.storekit in Resources */,
 				81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */,
 				6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */,
 				EFCF881CA8E318B938F4E3B7 /* PrivacyInfo.xcprivacy in Resources */,
@@ -1294,6 +1285,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CA1626EA32C6EE7500EB03A4 /* KeychainTrialStoreTests.swift in Sources */,
+				8956E5751DCE92829E2B803E /* StoreKitPurchaseServiceLifecycleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

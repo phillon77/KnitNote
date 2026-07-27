@@ -1,5 +1,16 @@
 import StoreKit
 
+struct TransactionUpdateListener: Sendable {
+    let consume: @Sendable () async -> Void
+
+    static let storeKit = TransactionUpdateListener {
+        for await verification in Transaction.updates {
+            guard case let .verified(transaction) = verification else { continue }
+            await transaction.finish()
+        }
+    }
+}
+
 @MainActor
 final class StoreKitPurchaseService: PurchaseService {
     static let lifetimeProductIdentifier = "com.phillon.KnitNote.lifetimeUnlock"
@@ -9,9 +20,9 @@ final class StoreKitPurchaseService: PurchaseService {
     private var lifetimeProduct: Product?
     private var transactionUpdatesTask: Task<Void, Never>?
 
-    init() {
-        transactionUpdatesTask = Task { [weak self] in
-            await self?.listenForTransactionUpdates()
+    init(transactionUpdateListener: TransactionUpdateListener = .storeKit) {
+        transactionUpdatesTask = Task {
+            await transactionUpdateListener.consume()
         }
     }
 
@@ -90,10 +101,4 @@ final class StoreKitPurchaseService: PurchaseService {
         return .legacyPaidOwner
     }
 
-    private func listenForTransactionUpdates() async {
-        for await verification in Transaction.updates {
-            guard case let .verified(transaction) = verification else { continue }
-            await transaction.finish()
-        }
-    }
 }

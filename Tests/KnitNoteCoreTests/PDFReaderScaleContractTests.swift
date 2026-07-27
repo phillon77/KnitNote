@@ -25,6 +25,11 @@ import Testing
         #expect(pdf.contains("publishPageFrame"))
     }
 
+    @Test func readerProvidesDefaultPageFrameBindingForExistingCallSites() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        #expect(pdf.contains("pageFrame: Binding<CGRect?> = .constant(nil)"))
+    }
+
     private func source(_ path: String) throws -> String {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()

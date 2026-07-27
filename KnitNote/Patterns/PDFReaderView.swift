@@ -22,6 +22,27 @@ import SwiftUI
 #if os(macOS)
 struct PDFReaderView: NSViewRepresentable {
     let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var pageFrame: CGRect?; let onReady: @MainActor () -> Void
+
+    init(
+        url: URL,
+        navigator: PDFPageNavigator,
+        scaleMode: PatternPDFScaleMode,
+        state: Binding<PatternReadingState>,
+        pageCount: Binding<Int>,
+        loadError: Binding<Bool>,
+        pageFrame: Binding<CGRect?> = .constant(nil),
+        onReady: @escaping @MainActor () -> Void
+    ) {
+        self.url = url
+        self.navigator = navigator
+        self.scaleMode = scaleMode
+        _state = state
+        _pageCount = pageCount
+        _loadError = loadError
+        _pageFrame = pageFrame
+        self.onReady = onReady
+    }
+
     func makeNSView(context: Context) -> PDFView { makeView(context: context) }
     func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }
@@ -30,6 +51,27 @@ struct PDFReaderView: NSViewRepresentable {
 #else
 struct PDFReaderView: UIViewRepresentable {
     let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var pageFrame: CGRect?; let onReady: @MainActor () -> Void
+
+    init(
+        url: URL,
+        navigator: PDFPageNavigator,
+        scaleMode: PatternPDFScaleMode,
+        state: Binding<PatternReadingState>,
+        pageCount: Binding<Int>,
+        loadError: Binding<Bool>,
+        pageFrame: Binding<CGRect?> = .constant(nil),
+        onReady: @escaping @MainActor () -> Void
+    ) {
+        self.url = url
+        self.navigator = navigator
+        self.scaleMode = scaleMode
+        _state = state
+        _pageCount = pageCount
+        _loadError = loadError
+        _pageFrame = pageFrame
+        self.onReady = onReady
+    }
+
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
     func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: state, scaleMode: scaleMode) }
     func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }

@@ -60,10 +60,14 @@ public enum PatternHighlightGeometry {
         length: CGFloat,
         centerInset: CGFloat = 0
     ) -> CGFloat {
+        guard length.isFinite, length > 0 else { return origin }
         let clamped = min(1, max(0, normalized))
         let inset = resolvedCenterInset(centerInset, length: length)
-        let effectiveLength = max(0, length - (inset * 2))
-        return origin + inset + (effectiveLength * clamped)
+        let legacyCoordinate = origin + (length * clamped)
+        return min(
+            origin + length - inset,
+            max(origin + inset, legacyCoordinate)
+        )
     }
 
     public static func normalized(
@@ -73,13 +77,7 @@ public enum PatternHighlightGeometry {
         centerInset: CGFloat = 0
     ) -> Double {
         guard length.isFinite, length > 0 else { return 0.5 }
-        let inset = resolvedCenterInset(centerInset, length: length)
-        let effectiveLength = length - (inset * 2)
-        guard effectiveLength > 0 else { return 0.5 }
-        return min(1, max(
-            0,
-            Double((coordinate - origin - inset) / effectiveLength)
-        ))
+        return min(1, max(0, Double((coordinate - origin) / length)))
     }
 
     private static func validContentRect(_ contentRect: CGRect?) -> CGRect? {

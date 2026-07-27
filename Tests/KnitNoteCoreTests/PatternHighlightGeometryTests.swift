@@ -74,13 +74,42 @@ import Testing
             origin: 0,
             length: 200,
             centerInset: inset
-        ) == 0)
+        ) == 0.11)
         #expect(PatternHighlightGeometry.normalized(
             coordinate: 178,
             origin: 0,
             length: 200,
             centerInset: inset
-        ) == 1)
+        ) == 0.89)
+    }
+
+    @Test func fullCanvasIntermediatePositionsPreserveLegacyCoordinates() {
+        let inset = PatternHighlightGeometry.centerInset(contentRect: nil)
+
+        #expect(PatternHighlightGeometry.coordinate(
+            normalized: 0.25,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 50)
+        #expect(PatternHighlightGeometry.coordinate(
+            normalized: 0.75,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 150)
+        #expect(PatternHighlightGeometry.normalized(
+            coordinate: 50,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 0.25)
+        #expect(PatternHighlightGeometry.normalized(
+            coordinate: 150,
+            origin: 0,
+            length: 200,
+            centerInset: inset
+        ) == 0.75)
     }
 
     @Test func fullCanvasInsetCollapsesSafelyWhenEitherAxisIsSmallerThanDragTarget() {

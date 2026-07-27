@@ -63,8 +63,12 @@ public struct PatternLibraryMigrator: Sendable {
         }
         try stepHook(.afterLegacyValidation)
 
-        let stagedRoot = liveRoot.appendingPathComponent(
-            ".KnitNote-PatternMigration-\(UUID().uuidString)",
+        let transactionDirectory = liveRoot.appendingPathComponent(
+            ".KnitNote-PatternMigrations",
+            isDirectory: true
+        )
+        let stagedRoot = transactionDirectory.appendingPathComponent(
+            UUID().uuidString,
             isDirectory: true
         )
         do {
@@ -159,13 +163,16 @@ public struct PatternLibraryMigrator: Sendable {
     func recoverInterruptedMigration(archiveURL: URL) throws {
         let liveRoot = archiveURL.deletingLastPathComponent()
         let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: liveRoot.path) else { return }
+        let transactionDirectory = liveRoot.appendingPathComponent(
+            ".KnitNote-PatternMigrations",
+            isDirectory: true
+        )
+        guard fileManager.fileExists(atPath: transactionDirectory.path) else { return }
         let transactions = try fileManager.contentsOfDirectory(
-            at: liveRoot,
+            at: transactionDirectory,
             includingPropertiesForKeys: nil
         ).filter {
-            $0.lastPathComponent.hasPrefix(".KnitNote-PatternMigration-")
-                && fileManager.fileExists(atPath: $0.appendingPathComponent("transaction.json").path)
+            fileManager.fileExists(atPath: $0.appendingPathComponent("transaction.json").path)
         }
 
         for transactionRoot in transactions {

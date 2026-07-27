@@ -244,6 +244,29 @@ import UniformTypeIdentifiers
     #expect(try Data(contentsOf: fixture.legacyPatternURL) == originalPattern)
 }
 
+@Test func recoveryIgnoresMigrationNamedArchiveSiblingOutsideTransactionDirectory() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PatternMigrationRecoveryScope-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let archiveURL = root.appendingPathComponent("projects.json")
+    let archiveBytes = Data("archive bytes".utf8)
+    try archiveBytes.write(to: archiveURL)
+    let unrelatedSibling = root.appendingPathComponent(
+        ".KnitNote-PatternMigration-unrelated",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(at: unrelatedSibling, withIntermediateDirectories: true)
+    try Data("not a transaction".utf8).write(
+        to: unrelatedSibling.appendingPathComponent("transaction.json")
+    )
+
+    try PatternLibraryMigrator().recoverInterruptedMigration(archiveURL: archiveURL)
+
+    #expect(try Data(contentsOf: archiveURL) == archiveBytes)
+    #expect(FileManager.default.fileExists(atPath: unrelatedSibling.path))
+}
+
 @MainActor @Test func storeRecoversInterruptedArchiveInstallBeforePublishingData() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let result = try PatternLibraryMigrator().migrate(

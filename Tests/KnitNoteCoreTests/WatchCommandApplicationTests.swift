@@ -291,8 +291,11 @@ import Testing
     }
 
     @Test @MainActor func unreadableArchiveKeepsNewCommandRetryable() throws {
-        let archiveURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WatchCommandUnreadable-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let archiveURL = root.appendingPathComponent("projects.json")
         try Data("not JSON".utf8).write(to: archiveURL, options: .atomic)
         let store = JSONProjectStore(url: archiveURL)
         let command = WatchCounterCommand(
@@ -311,8 +314,11 @@ import Testing
     }
 
     @Test @MainActor func unreadableArchiveIsCheckedBeforeDuplicateLookup() throws {
-        let archiveURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WatchCommandUnreadable-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let archiveURL = root.appendingPathComponent("projects.json")
         try Data("not JSON".utf8).write(to: archiveURL, options: .atomic)
         let store = JSONProjectStore(url: archiveURL)
         let command = WatchCounterCommand(

@@ -84,6 +84,17 @@ import Testing
         }
     }
 
+    @Test func patternLibraryVerificationRecordsScopedPhysicalShareAcceptance() throws {
+        let text = try sourceText(
+            "AppStore/Verification/PatternLibraryVerification.md"
+        )
+
+        #expect(text.contains("Signed iPhone Share Sheet: `PASS`"))
+        #expect(text.contains("iPhone 17 Pro Max"))
+        #expect(text.contains("ShareExtensionActivationVerification.md"))
+        #expect(text.contains("Remaining manual matrix: `INCOMPLETE`"))
+    }
+
     @Test func staticReleaseAuditExecutesWithoutRecursingIntoSwiftTests() throws {
         let process = Process()
         process.executableURL = URL(filePath: "/bin/bash")

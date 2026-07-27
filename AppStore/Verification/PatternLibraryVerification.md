@@ -18,8 +18,9 @@ Fresh verification completed in this worktree:
 
 - `swift test --disable-sandbox --scratch-path
   /tmp/KnitNotePatternLibraryTask14-20260727-final-swift-clean`
-  passed `830` tests in `68` suites after the final review fixes.
-- The release-contract subset passed `21` tests in `3` suites.
+  passed `831` tests in `68` suites after the final release-candidate cleanup.
+- The release-configuration, privacy-manifest, and Share-target contract subset
+  passed `16` tests in `3` suites.
 - `bash AppStore/Verification/release_audit.sh --static-only`
   completed with `METADATA CHECK: PASS` and `RELEASE AUDIT: PASS`.
 - `everySupportedLegacySchemaMigratesThroughTheStore(version:)` passed for
@@ -73,6 +74,10 @@ archives, Organizer validation, or App Store Connect processing.
 
 ## Device and manual matrix
 
+Signed iPhone Share Sheet: `PASS`
+
+Remaining manual matrix: `INCOMPLETE`
+
 | Surface | Scenario | Status | Evidence |
 | --- | --- | --- | --- |
 | iPhone portrait | Import from Files and Share Extension; search; duplicate handling; link, unlink, and relink; read-only open | BLOCKED | A clean install launched successfully with PID `38773`, but the unsigned simulator build could not open the production App Group and presented the inbox/storage error UI. Functional interaction was not accepted as a pass. Screenshot: `/tmp/KnitNoteTask14-iPhone-clean.png`. |
@@ -82,7 +87,7 @@ archives, Organizer validation, or App Store Connect processing.
 | Legacy schema 9 fixture | Names, ordering, page state, page notes, markup, and cover survive migration | NOT RUN | The automated legacy migration matrix passed, including schema 9 to schema 10; no manual fixture inspection was performed. |
 | Backup manifest 2 | Round trip preserves inactive usage and markup while excluding inbox and thumbnails | NOT RUN | Automated manifest 2 round-trip, archive allowlist, and restore tests passed; no manual exported-package inspection was performed. |
 | Backup manifest 1 | Restore remains backward compatible | NOT RUN | Automated legacy restore passed and migrated the result to schema 10; no manual restore session was performed. |
-| Share inbox | Share one supported file, then publish, retry, or discard from inbox | NOT RUN | Automated inbox, publication, recovery, retry, and discard tests passed; actual Share Sheet interaction requires a signed device build. |
+| Share inbox | Share one supported PDF twice from Files and confirm publication and duplicate handling | PASS | On a signed iPhone 17 Pro Max running iOS 26.5.2, KnitNote appeared in the Files Share Sheet, imported the one-page PDF, and kept one library record after the same PDF was shared again. Full evidence: `ShareExtensionActivationVerification.md`. Retry and discard remain covered only by automated tests. |
 | VoiceOver | Labels, values, hints, and reading order | NOT RUN | Automated accessibility contracts passed; no manual VoiceOver session was performed. |
 
 The iPhone and iPad observations prove only that the processes launched. They
@@ -99,6 +104,8 @@ The following actions are intentionally outside this report unless explicitly pe
 
 - signed archives and Organizer validation;
 - App Store Connect upload, metadata edits, submission, or release;
-- physical-device acceptance testing;
-- signed iPhone and iPad pattern-library and Share Sheet acceptance testing;
+- signed iPhone pattern-library interaction beyond the scoped Share Sheet import
+  and duplicate check recorded above;
+- signed iPad pattern-library, PDF reader, rotation, highlight, markup, and page
+  control acceptance testing;
 - manual VoiceOver acceptance testing.

@@ -2,99 +2,274 @@
   "sourceLanguage" : "en",
   "strings" : {
     "share.cancel" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
       }
     },
     "share.close" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
+          }
+        }
       }
     },
     "share.error.access" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote could not access this file." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "KnitNote 無法存取這個檔案。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote could not access this file."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote 無法存取這個檔案。"
+          }
+        }
       }
     },
     "share.error.cancelled" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sharing was cancelled." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "分享已取消。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharing was cancelled."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享已取消。"
+          }
+        }
       }
     },
     "share.error.empty" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file is empty." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個檔案是空的。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file is empty."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個檔案是空的。"
+          }
+        }
       }
     },
     "share.error.invalidFile" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This is not a valid PDF or supported image." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這不是有效的 PDF 或支援的圖片。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is not a valid PDF or supported image."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這不是有效的 PDF 或支援的圖片。"
+          }
+        }
       }
     },
     "share.error.load" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shared file could not be loaded." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法載入分享的檔案。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The shared file could not be loaded."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入分享的檔案。"
+          }
+        }
       }
     },
     "share.error.multiple" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share one pattern file at a time." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一次只能分享一個織圖檔案。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share one pattern file at a time."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次只能分享一個織圖檔案。"
+          }
+        }
       }
     },
     "share.error.storage" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern could not be saved. Please try again." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存織圖，請再試一次。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pattern could not be saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存織圖，請再試一次。"
+          }
+        }
       }
     },
     "share.error.timeout" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The file took too long to load. Please try again." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案載入時間過長，請再試一次。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file took too long to load. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案載入時間過長，請再試一次。"
+          }
+        }
       }
     },
     "share.error.tooLarge" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file is too large to add." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個檔案太大，無法加入。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file is too large to add."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個檔案太大，無法加入。"
+          }
+        }
       }
     },
     "share.error.unexpected" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The pattern could not be added. Please try again." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法加入織圖，請再試一次。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pattern could not be added. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法加入織圖，請再試一次。"
+          }
+        }
       }
     },
     "share.error.unsupported" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share one PDF or supported image file." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請分享一個 PDF 或支援的圖片檔案。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share one PDF or supported image file."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請分享一個 PDF 或支援的圖片檔案。"
+          }
+        }
       }
     },
     "share.loading" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Saving your pattern…" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在儲存織圖…" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving your pattern…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在儲存織圖…"
+          }
+        }
       }
     },
     "share.success" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Added to KnitNote" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已加入 KnitNote" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to KnitNote"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入 KnitNote"
+          }
+        }
       }
     },
     "share.title" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add to KnitNote" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加入 KnitNote" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to KnitNote"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 KnitNote"
+          }
+        }
       }
     }
   },

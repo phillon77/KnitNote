@@ -20,8 +20,9 @@
 - `IMPLEMENTED`：iOS Share Extension `KnitNoteShare` 可將一份 PDF 或支援的圖片送入待處理匣。
 - `IMPLEMENTED`：既有作品資料升級至 project archive schema 10。
 - `IMPLEMENTED`：完整備份使用 backup manifest 2，且保留舊格式還原相容性。
-- `VERIFIED LOCALLY`：完整 Swift 測試 830 項、靜態 release audit、iOS／macOS／Watch／Share clean builds 與 Share／Watch 嵌入稽核均通過；詳細證據見 `Verification/PatternLibraryVerification.md`。
-- `MANUAL ACCEPTANCE NOT RUN`：本次 unsigned Simulator build 無法取得正式 App Group，因此 iPhone／iPad 織圖庫與 Share Sheet 的簽章版本人工驗收仍待執行。
+- `VERIFIED LOCALLY`：完整 Swift 測試 831 項、靜態 release audit、iOS／macOS／Watch／Share clean builds 與 Share／Watch 嵌入稽核均通過；詳細證據見 `Verification/PatternLibraryVerification.md`。
+- `VERIFIED ON DEVICE`：簽章版本已在 iPhone 17 Pro Max 完成 Files PDF Share Sheet 顯示、匯入與重複匯入驗收；詳細證據見 `Verification/ShareExtensionActivationVerification.md`。
+- `MANUAL ACCEPTANCE INCOMPLETE`：iPhone 其餘織圖庫操作、iPad 直橫向 PDF 閱讀與標註、macOS、備份還原及 VoiceOver 的 1.2 完整人工矩陣仍待執行。
 - `NOT SUBMITTED`：1.2.0 尚未 archive、Validate、上傳或送審；完成本機 release verification 不代表已取得送審授權。
 
 ## Watch companion 狀態（1.0 歷史紀錄）

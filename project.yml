@@ -166,6 +166,7 @@ schemes:
         - KnitNoteAppTests
     run:
       config: Debug
+      storeKitConfiguration: KnitNote/StoreKit/KnitNote.storekit
   KnitNoteWatch:
     build:
       targets:

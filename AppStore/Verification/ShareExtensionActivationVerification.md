@@ -2,7 +2,7 @@
 
 - Date: 2026-07-27
 - Device: iPhone 17 Pro Max, iOS 26.5.2
-- Root-cause diagnostic: not re-run in this task; it is not used as final evidence.
+- Root-cause diagnostic: the Task 1 diagnostic build with `TRUEPREDICATE` made KnitNote appear in the Files PDF share sheet at 12:02, isolating the root cause to the activation rule. This diagnostic is not final canonical-rule evidence; the later formal nested-rule build provides that final evidence.
 - Focused contract test: `swift test --disable-sandbox --filter ShareExtensionTargetContractTests` on 2026-07-27 — 3 tests in 1 suite, 0 failures, exit 0.
 - Full Swift suite: `swift test --disable-sandbox` — 830 tests in 68 suites, 0 failures, exit 0.
 - iOS build: the required clean iOS `xcodebuild` command completed with exit 0.

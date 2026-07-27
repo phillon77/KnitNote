@@ -57,6 +57,7 @@ targets:
       - target: KnitNoteShare
         embed: true
         platformFilter: iOS
+      - sdk: Security.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote

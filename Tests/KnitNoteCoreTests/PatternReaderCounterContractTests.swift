@@ -43,6 +43,22 @@ import Testing
         #expect(source.contains("content.kind == .pdf ? pdfPageFrame : nil"))
     }
 
+    @Test func liveCanvasCallbacksSynchronizeBothCrossHighlightCoordinatesBeforeSessionAcceptance() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let canvasState = try #require(sourceSection(reader, from: "private var canvasState", to: "private var content"))
+        let synchronization = try #require(canvasState.range(of: "synchronizedState.saveCurrentPage()"))
+        let transition = try #require(canvasState.range(of: "proposedState: synchronizedState"))
+        let assignment = try #require(canvasState.range(of: "state = synchronizedState"))
+        let acceptance = try #require(canvasState.range(of: "readerSession.acceptCanvasState(synchronizedState)"))
+
+        #expect(canvasState.contains("var synchronizedState = newState"))
+        #expect(synchronization.lowerBound < transition.lowerBound)
+        #expect(synchronization.lowerBound < assignment.lowerBound)
+        #expect(synchronization.lowerBound < acceptance.lowerBound)
+        #expect(transition.lowerBound < assignment.lowerBound)
+        #expect(assignment.lowerBound < acceptance.lowerBound)
+    }
+
     @Test func iPadPortraitCanReservePageControlsOutsideTheReaderOverlay() throws {
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
@@ -221,5 +237,13 @@ import Testing
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         return try String(contentsOf: root.appending(path: path), encoding: .utf8)
+    }
+
+    private func sourceSection(_ source: String, from start: String, to end: String) -> String? {
+        guard let startRange = source.range(of: start),
+              let endRange = source.range(of: end, range: startRange.upperBound..<source.endIndex) else {
+            return nil
+        }
+        return String(source[startRange.lowerBound..<endRange.lowerBound])
     }
 }

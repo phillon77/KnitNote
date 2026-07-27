@@ -180,14 +180,16 @@ struct PatternReaderView: View {
                 guard canvasIsActive,
                       readerSession.canAcceptCanvasCallbacks,
                       readerSession.identity == readerContextIdentity else { return }
+                var synchronizedState = newState
+                synchronizedState.saveCurrentPage()
                 if let transition = PatternReaderPageTransition(
                     previousState: pendingPageTransition?.rollbackState ?? state,
-                    proposedState: newState
+                    proposedState: synchronizedState
                 ) {
                     pendingPageTransition = transition
                 }
-                state = newState
-                _ = readerSession.acceptCanvasState(newState)
+                state = synchronizedState
+                _ = readerSession.acceptCanvasState(synchronizedState)
             }
         )
     }

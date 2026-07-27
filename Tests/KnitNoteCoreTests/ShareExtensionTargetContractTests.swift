@@ -35,6 +35,9 @@ import UniformTypeIdentifiers
         #expect(extensionDictionary["NSExtensionPointIdentifier"] as? String == "com.apple.share-services")
         let attributes = try #require(extensionDictionary["NSExtensionAttributes"] as? [String: Any])
         let rule = try #require(attributes["NSExtensionActivationRule"] as? String)
+        #expect(rule.contains("SUBQUERY(extensionItems, $extensionItem"))
+        #expect(rule.contains("SUBQUERY($extensionItem.attachments, $attachment"))
+        #expect(!rule.contains("extensionItems[0]"))
         let predicate = NSPredicate(format: rule)
 
         #expect(predicate.evaluate(with: activationContext([[UTType.pdf.identifier]])))

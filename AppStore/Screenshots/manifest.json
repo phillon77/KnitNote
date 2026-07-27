@@ -1,5 +1,20 @@
 {
   "schemaVersion": 1,
+  "releaseStoryboard": [
+    {"locale":"zh-Hant","order":1,"id":"watch-sync","headline":"從手腕計數，編織不中斷。","filename":"01-watch-sync.png","requiredVisuals":["Apple Watch","iPhone"]},
+    {"locale":"zh-Hant","order":2,"id":"pattern-sync","headline":"閱讀織圖，每組計數保持同步。","filename":"02-pattern-sync.png","requiredVisuals":["iPad","iPhone","PDF"]},
+    {"locale":"zh-Hant","order":3,"id":"six-counters","headline":"六組計數器，一個安靜工作區。","filename":"03-six-counters.png","requiredVisuals":["iPhone","six named counters"]},
+    {"locale":"zh-Hant","order":4,"id":"seven-day-trial","headline":"完整功能免費試用 7 天。","filename":"04-seven-day-trial.png","requiredVisuals":["trial","7 days"]},
+    {"locale":"zh-Hant","order":5,"id":"organized-workspace","headline":"作品、毛線、筆記，全都在一起。","filename":"05-organized-workspace.png","requiredVisuals":["projects","yarn","notes"]},
+    {"locale":"zh-Hant","order":6,"id":"one-purchase","headline":"一次購買，解鎖所有 Apple 裝置。","filename":"06-one-purchase.png","requiredVisuals":["one purchase","iPhone","iPad","Mac","Apple Watch"]},
+
+    {"locale":"en","order":1,"id":"watch-sync","headline":"Count from your wrist. Keep knitting.","filename":"01-watch-sync.png","requiredVisuals":["Apple Watch","iPhone"]},
+    {"locale":"en","order":2,"id":"pattern-sync","headline":"Read patterns. Keep every count in sync.","filename":"02-pattern-sync.png","requiredVisuals":["iPad","iPhone","PDF"]},
+    {"locale":"en","order":3,"id":"six-counters","headline":"Six counters. One calm workspace.","filename":"03-six-counters.png","requiredVisuals":["iPhone","six named counters"]},
+    {"locale":"en","order":4,"id":"seven-day-trial","headline":"Try everything free for 7 days.","filename":"04-seven-day-trial.png","requiredVisuals":["trial","7 days"]},
+    {"locale":"en","order":5,"id":"organized-workspace","headline":"Projects, yarn, notes—all together.","filename":"05-organized-workspace.png","requiredVisuals":["projects","yarn","notes"]},
+    {"locale":"en","order":6,"id":"one-purchase","headline":"One purchase. All your Apple devices.","filename":"06-one-purchase.png","requiredVisuals":["one purchase","iPhone","iPad","Mac","Apple Watch"]}
+  ],
   "frames": [
     {"locale":"zh-Hant","platform":"iphone","scene":"projects","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"把每件作品，織到完成","filename":"01-projects.png"},
     {"locale":"zh-Hant","platform":"iphone","scene":"counters","device":"iPhone 17 Pro Max","width":1320,"height":2868,"headline":"六組計數器，輕點就記","filename":"02-counters.png"},

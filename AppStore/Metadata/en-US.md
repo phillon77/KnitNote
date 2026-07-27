@@ -1,15 +1,21 @@
 # KnitNote App Store Metadata — English (U.S.)
 
-- Name: KnitNote: Knitting Companion
-- Subtitle: Knitting counters & patterns
-- Promotional text: Six named counters, focused pattern reading, project journals, yarn inventory, and practical calculators—from first stitch to finished project.
-- Keywords: knitting,crochet,row counter,pattern,gauge,yarn,stitch counter,project journal
+- Name: KnitNote: Row Counter & PDF
+- Subtitle: Knitting with Apple Watch
+- Promotional text: Try everything free for 7 days. Count from Apple Watch, read PDF patterns, use six named counters, then unlock all your Apple devices with one purchase.
+- Keywords: crochet,pattern,gauge,yarn,stitch,needle,hook,journal,tracker,craft,sweater
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.0 brings project and yarn management, six named counters, focused pattern reading and markup, progress journals, calculators, backup, and restore.
+- What's New: KnitNote 1.2 adds a 7-day full-feature trial and one lifetime unlock across iPhone, iPad, Mac, and the paired Apple Watch.
 - Description: |
-  Keep your attention on the yarn in your hands. KnitNote puts project progress, six counters, and patterns in one calm, readable workspace.
+  Keep your attention on the yarn in your hands. KnitNote puts Apple Watch counting, project progress, six counters, and PDF patterns in one calm, readable workspace.
+
+  Try every feature free for 7 days
+  • Browsing does not start the trial
+  • The trial begins when you create your first project or import your first pattern
+  • After the trial, your projects, patterns, and backups remain available to read
+  • One lifetime purchase unlocks editing on iPhone, iPad, Mac, and the paired Apple Watch
 
   Stay focused and count simply
   • Give every project six counters with names you can customize
@@ -31,8 +37,10 @@
   • Track yarn brand, color, quantity, and photos
   • Calculate gauge, evenly spaced increases or decreases, and adjustments across rows
 
-  Check projects and all six counters on Apple Watch. Offline changes sync back to iPhone when the connection returns.
+  Count from your wrist
+  • Check projects and all six counters on Apple Watch
+  • Offline changes sync back to iPhone when the connection returns
 
   Export a complete backup and restore from the backup package you select.
 
-  One-time purchase. No subscription. Your working data stays on your device; a backup is created only when you explicitly export one.
+  One purchase. No subscription. No account or advertising. Your working data stays on your device; a backup is created only when you explicitly export one.

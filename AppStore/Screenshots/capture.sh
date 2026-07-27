@@ -5,6 +5,32 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST="$ROOT/manifest.json"
 LOCALE="${1:-}"
 
+if [[ "$LOCALE" == "--release-plan" ]]; then
+  LOCALE="${2:-}"
+  if [[ "$LOCALE" != "zh-Hant" && "$LOCALE" != "en" ]]; then
+    echo "usage: $0 --release-plan zh-Hant|en" >&2
+    exit 2
+  fi
+  python3 - "$MANIFEST" "$LOCALE" <<'PY'
+import json, sys
+manifest, locale = sys.argv[1:]
+storyboard = [
+    item for item in json.load(open(manifest, encoding="utf-8"))["releaseStoryboard"]
+    if item["locale"] == locale
+]
+for item in sorted(storyboard, key=lambda value: value["order"]):
+    print(
+        item["order"],
+        item["id"],
+        item["headline"],
+        item["filename"],
+        "+".join(item["requiredVisuals"]),
+        sep="|",
+    )
+PY
+  exit 0
+fi
+
 if [[ "$LOCALE" != "zh-Hant" && "$LOCALE" != "en" ]]; then
   echo "usage: $0 zh-Hant|en" >&2
   exit 2
@@ -216,9 +242,18 @@ while IFS=$'\t' read -r platform scene filename width height; do
 done < <(python3 - "$MANIFEST" "$LOCALE" <<'PY'
 import json, sys
 manifest, locale = sys.argv[1:]
-for frame in json.load(open(manifest, encoding="utf-8"))["frames"]:
-    if frame["locale"] == locale:
-        print(frame["platform"], frame["scene"], frame["filename"], frame["width"], frame["height"], sep="\t")
+localized = [
+    frame for frame in json.load(open(manifest, encoding="utf-8"))["frames"]
+    if frame["locale"] == locale
+]
+platform_priority = {"watch": 0, "ipad": 1, "iphone": 2, "mac": 3}
+scene_priority = {"watchProjects": 0, "watchCounters": 1}
+for frame in sorted(localized, key=lambda item: (
+    platform_priority[item["platform"]],
+    scene_priority.get(item["scene"], 99),
+    item["filename"],
+)):
+    print(frame["platform"], frame["scene"], frame["filename"], frame["width"], frame["height"], sep="\t")
 PY
 )
 

@@ -69,6 +69,121 @@ import Testing
         }
     }
 
+    @Test func englishMetadataUsesApprovedWatchFirstPositioning() throws {
+        let fields = try metadataFields("AppStore/Metadata/en-US.md")
+
+        #expect(fields["Name"] == "KnitNote: Row Counter & PDF")
+        #expect(fields["Subtitle"] == "Knitting with Apple Watch")
+        let promotionalText = try #require(fields["Promotional text"])
+        for message in ["7 days", "Apple Watch", "one purchase"] {
+            #expect(promotionalText.localizedCaseInsensitiveContains(message))
+        }
+    }
+
+    @Test func englishKeywordsRetainApprovedDiscoveryTermsWithoutRepeatingTitleCopy() throws {
+        let fields = try metadataFields("AppStore/Metadata/en-US.md")
+        let keywords = try #require(fields["Keywords"])
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        let required = [
+            "crochet", "pattern", "gauge", "yarn", "stitch", "needle",
+            "hook", "journal", "tracker", "craft", "sweater",
+        ]
+
+        #expect(Set(required).isSubset(of: Set(keywords)))
+        #expect(keywords.joined(separator: ",").utf8.count <= 100)
+        let reservedWords = Set(
+            [
+                try #require(fields["Name"]),
+                try #require(fields["Subtitle"]),
+            ]
+            .joined(separator: " ")
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+        )
+        #expect(Set(keywords).isDisjoint(with: reservedWords))
+    }
+
+    @Test func submissionDocumentsLifetimeProductAndCommercialLaunchChecklist() throws {
+        let text = try sourceText("AppStore/AppStoreSubmission.md")
+
+        for requirement in [
+            "com.phillon.KnitNote.lifetimeUnlock",
+            "non-consumable",
+            "review screenshot",
+            "first IAP with the new app version",
+            "US$2.99",
+            "US$4.99",
+            "20 free codes",
+            "legacy paid",
+            "free app price",
+        ] {
+            #expect(text.localizedCaseInsensitiveContains(requirement))
+        }
+    }
+
+    @Test func legacyPaidAppPricingRecordCannotBeMistakenForTheVersion12IAPPlan() throws {
+        let pricing = try sourceText("AppStore/KnitNotePricing.md")
+
+        #expect(pricing.contains("1.0 HISTORICAL"))
+        #expect(pricing.contains("DO NOT USE FOR 1.2"))
+        #expect(pricing.contains("AppStoreSubmission.md"))
+        #expect(pricing.contains("com.phillon.KnitNote.lifetimeUnlock"))
+        #expect(pricing.localizedCaseInsensitiveContains("free app"))
+        #expect(pricing.localizedCaseInsensitiveContains("later price US$4.99"))
+    }
+
+    @Test func submissionLabelsUploadedScreenshotsAsHistoricalVersion10Evidence() throws {
+        let text = try sourceText("AppStore/AppStoreSubmission.md")
+        let historicalLines = text.split(separator: "\n").filter {
+            $0.contains("28 張") || $0.contains("iPhone 5 張")
+        }
+
+        #expect(!historicalLines.isEmpty)
+        #expect(historicalLines.allSatisfy { $0.contains("1.0 HISTORICAL") })
+        #expect(text.contains("1.2 六張新版成品"))
+        #expect(text.contains("`PENDING`"))
+    }
+
+    @Test func submissionExplainsEntitlementPrivacyRestoreAndRedemptionBehavior() throws {
+        let text = try sourceText("AppStore/AppStoreSubmission.md")
+
+        for requirement in [
+            "one purchase",
+            "iPhone",
+            "iPad",
+            "Mac",
+            "Apple Watch",
+            "restore",
+            "redeem",
+            "legacy",
+            "no account",
+            "no tracking",
+        ] {
+            #expect(text.localizedCaseInsensitiveContains(requirement))
+        }
+    }
+
+    @Test func storeKitConfigurationIsDebugOnlyAndReleaseArchivesStayProductionSafe() throws {
+        let yaml = try sourceText("project.yml")
+        let scheme = try sourceText("KnitNote.xcodeproj/xcshareddata/xcschemes/KnitNote.xcscheme")
+        let generatedProject = try sourceText("KnitNote.xcodeproj/project.pbxproj")
+
+        #expect(yaml.contains("run:\n      config: Debug\n      storeKitConfiguration: KnitNote/StoreKit/KnitNote.storekit"))
+        #expect(yaml.contains("archive:\n      config: Release"))
+        #expect(yaml.contains("- \"Info 2.plist\""))
+        #expect(!generatedProject.contains("Info 2.plist"))
+        #expect(scheme.contains("<LaunchAction\n      buildConfiguration = \"Debug\""))
+        #expect(scheme.contains("<StoreKitConfigurationFileReference"))
+        #expect(scheme.contains("<ArchiveAction\n      buildConfiguration = \"Release\""))
+        let archiveSection = try #require(
+            scheme.components(separatedBy: "<ArchiveAction").last?
+                .components(separatedBy: "</ArchiveAction>").first
+        )
+        #expect(!archiveSection.contains("StoreKitConfigurationFileReference"))
+    }
+
     @Test func patternLibraryVerificationSeparatesAutomatedAndManualEvidence() throws {
         let text = try sourceText(
             "AppStore/Verification/PatternLibraryVerification.md"
@@ -146,6 +261,20 @@ private func sourceText(_ relativePath: String) throws -> String {
         contentsOf: releaseConfigurationRepositoryRoot.appending(path: relativePath),
         encoding: .utf8
     )
+}
+
+private func metadataFields(_ relativePath: String) throws -> [String: String] {
+    var fields: [String: String] = [:]
+    for line in try sourceText(relativePath).split(separator: "\n") {
+        guard line.hasPrefix("- "),
+              let separator = line.firstIndex(of: ":")
+        else { continue }
+        let key = String(line[line.index(line.startIndex, offsetBy: 2)..<separator])
+        let value = String(line[line.index(after: separator)...])
+            .trimmingCharacters(in: .whitespaces)
+        fields[key] = value
+    }
+    return fields
 }
 
 private let releaseConfigurationRepositoryRoot = URL(filePath: #filePath)

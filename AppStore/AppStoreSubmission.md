@@ -1,6 +1,6 @@
 # KnitNote App Store 提交狀態
 
-最後更新：2026-07-27
+最後更新：2026-07-28
 
 ## 版本
 
@@ -12,7 +12,20 @@
 - 下一版 release candidate：`1.2.0`
 - Build：`2`
 - Team：`9CFPAUL5N5`
-- 價格：首發 US$2.99，一次買斷；詳細紀錄見 `KnitNotePricing.md`
+- App 價格：免費下載（free app price）
+- 終身解鎖 IAP：`com.phillon.KnitNote.lifetimeUnlock`
+- IAP 類型：非消耗型（non-consumable）
+- IAP 規劃：首發 US$2.99，之後調整為 US$4.99；實際排程仍須在 App Store Connect 另行確認
+
+## 1.2 試用與終身解鎖 release candidate
+
+- `IMPLEMENTED`：完整功能試用 7 天；只瀏覽不開始試用，建立第一件作品或匯入第一份織圖才開始。
+- `IMPLEMENTED`：試用到期後進入唯讀；既有作品、織圖、筆記、日記、毛線資料及備份仍可查看或匯出。
+- `IMPLEMENTED`：one purchase 可在同一 Apple Account 的 iPhone、iPad、Mac 與配對 Apple Watch 解鎖。
+- `IMPLEMENTED`：可在解鎖畫面 restore purchases；Watch 不顯示獨立購買流程。
+- `IMPLEMENTED`：legacy paid owner 依 1.2.0 既定版本界線自動保留完整功能，不顯示 paywall。
+- `IMPLEMENTED`：App 不要求登入（no account）、不含廣告、不追蹤（no tracking），購買狀態由 Apple StoreKit 管理。
+- `NOT CONFIGURED EXTERNALLY`：本文件只準備 submission checklist；尚未建立 App Store Connect IAP、價格排程、促銷代碼或送審資料。
 
 ## 1.2 織圖庫 release candidate
 
@@ -46,13 +59,19 @@
 - [x] 完成 App Store Connect metadata、隱私、截圖與 build 對照
 - [x] 使用者已於 2026-07-23 明確授權繼續送審
 
-Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 metadata、28 張截圖、審核資訊、年齡分級、內容版權、出口法規、雙語隱私網址與隱私問卷均已完成。iOS 1.0 已於 2026-07-24 18:24:59（Asia/Taipei）公開上架；macOS 1.0 已於 2026-07-24 21:44（Asia/Taipei）正式提交，目前「正在等待審查」。App Store Connect 實際狀態見 `Verification/AppStoreConnectSubmissionVerification.md`。
+`1.0 HISTORICAL`：Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 metadata、28 張截圖、審核資訊、年齡分級、內容版權、出口法規、雙語隱私網址與隱私問卷均已完成。iOS 1.0 已於 2026-07-24 18:24:59（Asia/Taipei）公開上架；macOS 1.0 已於 2026-07-24 21:44（Asia/Taipei）正式提交，目前「正在等待審查」。App Store Connect 實際狀態見 `Verification/AppStoreConnectSubmissionVerification.md`。
 
 ## Commercial configuration／商業設定
 
-- `VERIFIED`：一次買斷，首發美國 US$2.99、台灣 NT$90，無訂閱與 App 內購買。
-- `VERIFIED`：175 個國家或地區供應。
-- `SCHEDULED`：2026-08-23 起永久調整為美國 US$4.99、台灣 NT$150，其餘地區採 Apple 同等價格。
+- `REPOSITORY READY`：終身解鎖為 non-consumable IAP `com.phillon.KnitNote.lifetimeUnlock`，沒有訂閱。
+- `PENDING`：將 App 本體價格確認為免費（verify the free app price before release）。
+- `PENDING`：建立 non-consumable IAP，名稱為 Lifetime Unlock。
+- `PENDING`：為 IAP attach its review screenshot。
+- `PENDING`：首次建立 IAP 時，submit the first IAP with the new app version。
+- `PENDING`：configure US$2.99 launch pricing then US$4.99；日期與各地等值價格須在 App Store Connect 重新核對。
+- `PENDING`：create 20 free codes；產生後必須以未解鎖帳號實測 redeem 流程。
+- `PENDING`：以真實 1.0 付費安裝升級，validate legacy paid owner behavior。
+- `NOT AUTHORIZED`：以上均為外部寫入，尚未執行；不得將舊版 App 售價排程視為新 IAP 的價格設定。
 
 ## Builds／建置版本
 
@@ -67,8 +86,8 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 - `READY`：繁體中文 metadata 已通過欄位長度、關鍵字與禁語檢查。
 - `READY`：English (U.S.) metadata 已通過欄位長度、關鍵字與禁語檢查。
-- `SAVED`：iOS／macOS 繁體中文與英文（美國）版本 metadata 已儲存至 App Store Connect。
-- `SAVED`：英文商店名稱為 `KnitNote: Knitting Companion`。
+- `REPOSITORY READY`：1.2 英文名稱為 `KnitNote: Row Counter & PDF`，副標題為 `Knitting with Apple Watch`。
+- `NOT SAVED EXTERNALLY`：1.2 雙語 metadata 尚未寫入 App Store Connect；下方舊版儲存狀態不代表新文案已上傳。
 - `VERIFIED`：雙語支援／隱私網站已通過本機內容、連結、手機與桌面版面檢查。
 - `VERIFIED`：公開支援、行銷與隱私網址均以 HTTPS 回傳 200；證據見 `Verification/PublicSiteVerification.md`。
 
@@ -83,19 +102,47 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 ## Screenshots／截圖
 
-- `VERIFIED`：繁中與英文 iPhone、iPad、Apple Watch、Mac 共 28 張最終截圖已產出，尺寸與格式自動驗證全部通過。
-- `VERIFIED`：Debug 截圖模式已在四種平台執行；隔離的合成資料可由正式資料儲存層讀取，不會開啟正式 Application Support。
-- `VERIFIED`：兩份 contact sheet 與織圖、高亮、手寫、頁面筆記、六組計數器等重點畫面已逐張目視檢查；英文 iPad 系統日期與介面語言一致。
-- `UPLOADED`：繁中 iPhone 5 張、iPad 4 張、Apple Watch 2 張與 Mac 3 張截圖已依核准順序上傳。
-- `UPLOADED`：英文 iPhone 5 張、iPad 4 張、Apple Watch 2 張與 Mac 3 張截圖已依核准順序上傳。
+- `APPROVED 1.2 STORYBOARD`：新版六張主敘事採以下固定順序，Watch-first 原始素材也必須先擷取：
+  1. `Count from your wrist. Keep knitting.`
+  2. `Read patterns. Keep every count in sync.`
+  3. `Six counters. One calm workspace.`
+  4. `Try everything free for 7 days.`
+  5. `Projects, yarn, notes—all together.`
+  6. `One purchase. All your Apple devices.`
+- `PENDING`：產出以上 1.2 六張新版成品、逐張檢查兩種語言與各裝置尺寸，並準備 IAP review screenshot。
+- `1.0 HISTORICAL — VERIFIED`：繁中與英文 iPhone、iPad、Apple Watch、Mac 共 28 張最終截圖已產出，尺寸與格式自動驗證全部通過；這不是 1.2 六張新版證據。
+- `1.0 HISTORICAL — VERIFIED`：Debug 截圖模式已在四種平台執行；隔離的合成資料可由正式資料儲存層讀取，不會開啟正式 Application Support。
+- `1.0 HISTORICAL — VERIFIED`：兩份 contact sheet 與織圖、高亮、手寫、頁面筆記、六組計數器等重點畫面已逐張目視檢查；英文 iPad 系統日期與介面語言一致。
+- `1.0 HISTORICAL — UPLOADED`：繁中 iPhone 5 張、iPad 4 張、Apple Watch 2 張與 Mac 3 張截圖已依核准順序上傳。
+- `1.0 HISTORICAL — UPLOADED`：英文 iPhone 5 張、iPad 4 張、Apple Watch 2 張與 Mac 3 張截圖已依核准順序上傳。
 
 ## Review information／審核資訊
 
 - `READY`：公開聯絡信箱 `lzz.1999@icloud.com`。
+- `REVIEW NOTE`：免登入。首次建立作品或匯入織圖會開始 7-day trial；解鎖頁可 purchase、restore 或引導使用者 redeem code。Apple Watch 使用配對 iPhone 的權益快照，不提供獨立購買。
+- `REVIEW NOTE`：one purchase applies to iPhone, iPad, Mac and the paired Apple Watch when the same Apple Account can restore the non-consumable purchase.
 - `SAVED`：iOS 與 macOS 均設定免登入、審核聯絡人與測試步驟。
 - `SAVED`：全球年齡分級 4+，主要類別「生活風格」、次要類別「工具程式」。
 - `SAVED`：內容版權聲明為 App 可存取使用者選擇的第三方內容，且具必要權利。
 - `SAVED`：iOS／Watch 與 macOS Build 2 均完成出口法規答案，不使用需申報的加密演算法。
+
+## StoreKit 與實體裝置人工驗收
+
+這一節只記錄 1.2 新商業模式的證據。舊版功能、建置成功或既有 Watch 驗收不可代替下列 StoreKit 驗收。尚未填入實際裝置、OS 與 build 的項目均視為未完成。
+
+| 驗收項目 | 裝置／OS／Build | 結果 |
+| --- | --- | --- |
+| 全新 iPhone：瀏覽不開始試用；第一件作品開始 | 待填 | `NOT RUN` |
+| 全新 iPad：第一份織圖開始試用 | 待填 | `NOT RUN` |
+| 全新 Mac：試用到期後唯讀，backup 仍可匯出 | 待填 | `NOT RUN` |
+| Sandbox purchase 解鎖 iPhone、iPad、Mac 與 paired Watch | 待填 | `NOT RUN` |
+| 刪除並重裝後 restore purchase | 待填 | `NOT RUN` |
+| 以 free code redeem 後恢復權益 | 待填 | `NOT RUN` |
+| legacy paid 1.0 安裝升級後不出現 paywall | 待填 | `NOT RUN` |
+| Apple Watch 離線命令重新連線後 reconcile | 待填 | `NOT RUN` |
+| Share Extension 在已確認到期後阻擋匯入 | 待填 | `NOT RUN` |
+
+人工驗收完成時，必須把「待填」換成真實 model、OS version、app build 與日期，並附上 sandbox 帳號狀態或可重現步驟；不得以模擬器或單元測試結果填成 `PASS`。
 
 ## Manual release／手動發佈
 

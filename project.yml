@@ -42,6 +42,7 @@ targets:
     sources:
       - path: KnitNote
         excludes:
+          - "Info 2.plist"
           - LaunchScreen.storyboard
           - Localization/InfoPlist.xcstrings
           - PrivacyInfo.xcprivacy
@@ -174,13 +175,19 @@ schemes:
     run:
       config: Debug
       storeKitConfiguration: KnitNote/StoreKit/KnitNote.storekit
+    archive:
+      config: Release
   KnitNoteWatch:
     build:
       targets:
         KnitNoteWatch: all
     run:
       config: Debug
+    archive:
+      config: Release
   KnitNoteShare:
     build:
       targets:
         KnitNoteShare: all
+    archive:
+      config: Release

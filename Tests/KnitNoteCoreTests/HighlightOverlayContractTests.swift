@@ -25,26 +25,28 @@ import Testing
         let source = try highlightSource()
         let horizontal = try #require(horizontalBandSource(from: source))
         let vertical = try #require(verticalBandSource(from: source))
-        let horizontalDrag = try #require(sourceSection(horizontal, from: ".onChanged", to: ".accessibilityLabel"))
-        let verticalDrag = try #require(sourceSection(vertical, from: ".onChanged", to: ".accessibilityLabel"))
+        let horizontalChange = try #require(closureBody(after: ".onChanged", in: horizontal))
+        let horizontalEnd = try #require(closureBody(after: ".onEnded", in: horizontal))
+        let verticalChange = try #require(closureBody(after: ".onChanged", in: vertical))
+        let verticalEnd = try #require(closureBody(after: ".onEnded", in: vertical))
 
         #expect(source.contains("var onPositionCommit: () -> Void = {}"))
-        #expect(horizontalDrag.components(separatedBy: ".onEnded").count - 1 == 1)
-        #expect(horizontalDrag.components(separatedBy: "onPositionCommit()").count - 1 == 1)
-        #expect(verticalDrag.components(separatedBy: ".onEnded").count - 1 == 1)
-        #expect(verticalDrag.components(separatedBy: "onPositionCommit()").count - 1 == 1)
-        #expect(!horizontalDrag.contains(".onChanged { value in\n                    onPositionCommit()"))
-        #expect(!verticalDrag.contains(".onChanged { value in\n                    onPositionCommit()"))
+        #expect(!horizontalChange.contains("onPositionCommit()"))
+        #expect(horizontalEnd.components(separatedBy: "onPositionCommit()").count - 1 == 1)
+        #expect(!verticalChange.contains("onPositionCommit()"))
+        #expect(verticalEnd.components(separatedBy: "onPositionCommit()").count - 1 == 1)
     }
 
     @Test func accessibilityAdjustmentsCommitEachChangedPosition() throws {
         let source = try highlightSource()
         let horizontal = try #require(horizontalBandSource(from: source))
         let vertical = try #require(verticalBandSource(from: source))
-        let horizontalAdjustment = try #require(horizontal.range(of: ".accessibilityAdjustableAction"))
-        let verticalAdjustment = try #require(vertical.range(of: ".accessibilityAdjustableAction"))
-        let horizontalAccessibility = horizontal[horizontalAdjustment.lowerBound...]
-        let verticalAccessibility = vertical[verticalAdjustment.lowerBound...]
+        let horizontalAccessibility = try #require(
+            closureBody(after: ".accessibilityAdjustableAction", in: horizontal)
+        )
+        let verticalAccessibility = try #require(
+            closureBody(after: ".accessibilityAdjustableAction", in: vertical)
+        )
         let horizontalMutation = try #require(horizontalAccessibility.range(of: "horizontalPosition ="))
         let verticalMutation = try #require(verticalAccessibility.range(of: "verticalPosition ="))
         let horizontalCommit = try #require(horizontalAccessibility.range(of: "onPositionCommit()"))
@@ -77,11 +79,28 @@ import Testing
         return source[start.lowerBound...]
     }
 
-    private func sourceSection(_ source: Substring, from start: String, to end: String) -> Substring? {
-        guard let startRange = source.range(of: start),
-              let endRange = source.range(of: end, range: startRange.upperBound..<source.endIndex) else {
+    private func closureBody(after marker: String, in source: Substring) -> Substring? {
+        guard let markerRange = source.range(of: marker),
+              let openingBrace = source[markerRange.upperBound...].firstIndex(of: "{") else {
             return nil
         }
-        return source[startRange.lowerBound..<endRange.lowerBound]
+
+        var depth = 0
+        var index = openingBrace
+        while index < source.endIndex {
+            switch source[index] {
+            case "{":
+                depth += 1
+            case "}":
+                depth -= 1
+                if depth == 0 {
+                    return source[source.index(after: openingBrace)..<index]
+                }
+            default:
+                break
+            }
+            index = source.index(after: index)
+        }
+        return nil
     }
 }

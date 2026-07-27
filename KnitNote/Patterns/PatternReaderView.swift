@@ -590,8 +590,6 @@ struct PatternReaderView: View {
               readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
               context.canWrite else { return }
-        state.saveCurrentPage()
-        _ = readerSession.acceptCanvasState(state)
         _ = save()
     }
 

@@ -69,9 +69,9 @@ import Testing
         #expect(helper.contains("readerSession.canPersist"))
         #expect(helper.contains("readerSession.identity == readerContextIdentity"))
         #expect(helper.contains("context.canWrite"))
-        #expect(helper.contains("state.saveCurrentPage()"))
-        #expect(helper.contains("readerSession.acceptCanvasState(state)"))
-        #expect(helper.contains("_ = save()"))
+        #expect(!helper.contains("state.saveCurrentPage()"))
+        #expect(!helper.contains("readerSession.acceptCanvasState"))
+        #expect(helper.components(separatedBy: "_ = save()").count - 1 == 1)
         #expect(!canvasState.contains("commitHighlightPositionEdit"))
     }
 

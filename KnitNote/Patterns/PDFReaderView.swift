@@ -201,7 +201,10 @@ extension PDFReaderView {
             guard let page = view.currentPage else {
                 if lastPublishedPageFrame != nil {
                     lastPublishedPageFrame = nil
-                    Task { @MainActor [weak self] in self?.pageFrame = nil }
+                    Task { @MainActor [weak self] in
+                        guard let self, self.lastPublishedPageFrame == nil else { return }
+                        self.pageFrame = nil
+                    }
                 }
                 return
             }
@@ -218,7 +221,10 @@ extension PDFReaderView {
 
             guard candidate != lastPublishedPageFrame else { return }
             lastPublishedPageFrame = candidate
-            Task { @MainActor [weak self] in self?.pageFrame = candidate }
+            Task { @MainActor [weak self] in
+                guard let self, self.lastPublishedPageFrame == candidate else { return }
+                self.pageFrame = candidate
+            }
         }
 
         @objc private func changed(_ note: Notification) {

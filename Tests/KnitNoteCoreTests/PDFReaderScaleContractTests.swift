@@ -25,6 +25,14 @@ import Testing
         #expect(pdf.contains("publishPageFrame"))
     }
 
+    @Test func readerIgnoresStaleAsynchronousPageFrameWrites() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let method = try #require(pdf.slice(from: "private func publishPageFrame", to: "@objc private func changed"))
+
+        #expect(method.contains("guard let self, self.lastPublishedPageFrame == nil else { return }"))
+        #expect(method.contains("guard let self, self.lastPublishedPageFrame == candidate else { return }"))
+    }
+
     @Test func readerProvidesDefaultPageFrameBindingForExistingCallSites() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
         #expect(pdf.contains("pageFrame: Binding<CGRect?> = .constant(nil)"))

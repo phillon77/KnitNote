@@ -50,6 +50,30 @@ import Testing
         #expect(!actions.contains("recordValidCalculation"))
     }
 
+    @Test func adjustmentResultActionsRemainOutsideCombinedSummaryAccessibilityElement() throws {
+        let oneRow = try freeAppSource("Adjustment/OneRowAdjustmentView.swift")
+        let rows = try freeAppSource("Adjustment/RowIntervalAdjustmentView.swift")
+
+        #expect(resultSummaryKeepsActionsOutsideCombinedAccessibilityElement(in: oneRow))
+        #expect(resultSummaryKeepsActionsOutsideCombinedAccessibilityElement(in: rows))
+    }
+
+    private func resultSummaryKeepsActionsOutsideCombinedAccessibilityElement(
+        in source: String
+    ) -> Bool {
+        guard let successfulStart = source.range(of: "private func successfulResultView"),
+              let summaryStart = source.range(of: "private func resultSummaryView"),
+              let failureStart = source.range(of: "private func failureView") else {
+            return false
+        }
+        let successful = source[successfulStart.lowerBound..<summaryStart.lowerBound]
+        let summary = source[summaryStart.lowerBound..<failureStart.lowerBound]
+        return successful.contains("CalculatorResultActions(")
+            && !successful.contains(".accessibilityElement(children: .combine)")
+            && summary.contains(".accessibilityElement(children: .combine)")
+            && !summary.contains("CalculatorResultActions(")
+    }
+
     private func freeAppSource(_ path: String) throws -> String {
         try String(
             contentsOf: URL(filePath: #filePath)

@@ -59,3 +59,24 @@ replace simulator or physical-device acceptance.
   valid calculation.
 - The generated project changes are limited to the two app source files and
   the new XCTest membership.
+
+## Review round 1: separate VoiceOver focus for result actions
+
+- Review HEAD before this correction: `12d1529 feat: copy and share calculator results`.
+- RED: `swift test --filter KnittingCalculatorViewContractTests` failed the new
+  `adjustmentResultActionsRemainOutsideCombinedSummaryAccessibilityElement`
+  contract for both one-row and across-rows results. The actions were children
+  of a `VStack` marked `.accessibilityElement(children: .combine)`.
+- GREEN: each successful adjustment result now contains a combined
+  `resultSummaryView` and a sibling `CalculatorResultActions` view inside the
+  same visual card. Copy and Share therefore retain their own VoiceOver focus.
+  `swift test --filter KnittingCalculatorViewContractTests` passed 5 tests.
+- Gauge was inspected and needs no change: its actions already sit in
+  `gaugeCard` outside the combined `resultView`.
+- Final generic-iOS compile evidence:
+  `xcodebuild build -quiet -project KnitNote.xcodeproj -scheme
+  KnittingCalculator -destination 'generic/platform=iOS' -derivedDataPath
+  /tmp/KnittingCalculatorTask5Accessibility CODE_SIGNING_ALLOWED=NO` returned
+  explicit `xcodebuild_exit=0`.
+- Simulator execution remains unavailable for the existing CoreSimulatorService
+  / `simdiskimaged` failure; this correction has no simulator-pass claim.

@@ -221,6 +221,22 @@ struct RowIntervalAdjustmentView: View {
 
     private func successfulResultView(_ result: RowIntervalAdjustmentResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            resultSummaryView(result)
+
+            if let shareSnapshot {
+                CalculatorResultActions(
+                    text: CalculatorShareText.rowInterval(shareSnapshot, locale: locale),
+                    onSuccessfulAction: {}
+                )
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func resultSummaryView(_ result: RowIntervalAdjustmentResult) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text(verbatim: summaryText(result))
                 .font(.title3.weight(.semibold))
 
@@ -245,17 +261,7 @@ struct RowIntervalAdjustmentView: View {
                 }
                 .padding(.top, 6)
             }
-
-            if let shareSnapshot {
-                CalculatorResultActions(
-                    text: CalculatorShareText.rowInterval(shareSnapshot, locale: locale),
-                    onSuccessfulAction: {}
-                )
-            }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(verbatim: accessibilitySummary(result)))
     }

@@ -1,6 +1,6 @@
 # KnitNote App Store 提交狀態
 
-最後更新：2026-07-27
+最後更新：2026-07-28
 
 ## 版本
 
@@ -23,7 +23,7 @@
 - `VERIFIED LOCALLY`：完整 Swift 測試 853 項、靜態 release audit、iOS／macOS／Watch／Share clean builds 與 Share／Watch 嵌入稽核均通過；詳細證據見 `Verification/PatternLibraryVerification.md`。
 - `VERIFIED ON DEVICE`：簽章版本已在 iPhone 17 Pro Max 完成 Files PDF Share Sheet 顯示、匯入與重複匯入驗收；詳細證據見 `Verification/ShareExtensionActivationVerification.md`。
 - `MANUAL ACCEPTANCE INCOMPLETE`：iPhone 其餘織圖庫操作、iPad 直橫向 PDF 閱讀與標註、macOS、備份還原及 VoiceOver 的 1.2 完整人工矩陣仍待執行。
-- `NOT SUBMITTED`：1.2.0 尚未 archive、Validate、上傳或送審；完成本機 release verification 不代表已取得送審授權。
+- `WAITING FOR REVIEW`：1.2.0／Build 3 的 iOS／iPadOS／Apple Watch 與 macOS 已完成 archive、上傳、雙語版本資料與出口合規設定，並於 2026-07-28 正式送審。
 
 ## Watch companion 狀態（1.0 歷史紀錄）
 
@@ -58,7 +58,7 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 - `CANDIDATE`：iOS／iPadOS／watchOS、Share Extension 與 macOS 的設定版本均為 `1.2.0`、Build `3`。
 - `VERIFIED LOCALLY`：1.2.0 generic iOS／macOS clean build、Share embed、Watch embed 與 fresh Watch／Share target build 均通過，證據記錄於 `Verification/PatternLibraryVerification.md`。
-- `NOT UPLOADED`：1.2.0／Build 3 尚未上傳 App Store Connect。
+- `UPLOADED AND SELECTED`：1.2.0／Build 3 已上傳 App Store Connect，並分別選入 iOS／iPadOS／Apple Watch 與 macOS 1.2.0。
 - `VERIFIED`：iOS／iPadOS／watchOS 與 macOS 版本 `1.0.0`、Build `2`。
 - `VERIFIED`：iOS／Watch Build 2 已通過 Xcode Organizer Validate App。
 - `UPLOADED`：iOS／iPadOS／Watch 與 macOS Build 2 均已由 Xcode Organizer 上傳至 Apple；等待 App Store Connect 完成後續處理。
@@ -67,7 +67,7 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 - `READY`：繁體中文 metadata 已通過欄位長度、關鍵字與禁語檢查。
 - `READY`：English (U.S.) metadata 已通過欄位長度、關鍵字與禁語檢查。
-- `SAVED`：iOS／macOS 繁體中文與英文（美國）版本 metadata 已儲存至 App Store Connect。
+- `SAVED`：iOS／macOS 1.2.0 的繁體中文與英文（美國）版本 metadata 與「此版本的新增功能」已儲存至 App Store Connect。
 - `SAVED`：英文商店名稱為 `KnitNote: Knitting Companion`。
 - `VERIFIED`：雙語支援／隱私網站已通過本機內容、連結、手機與桌面版面檢查。
 - `VERIFIED`：公開支援、行銷與隱私網址均以 HTTPS 回傳 200；證據見 `Verification/PublicSiteVerification.md`。
@@ -95,18 +95,18 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 - `SAVED`：iOS 與 macOS 均設定免登入、審核聯絡人與測試步驟。
 - `SAVED`：全球年齡分級 4+，主要類別「生活風格」、次要類別「工具程式」。
 - `SAVED`：內容版權聲明為 App 可存取使用者選擇的第三方內容，且具必要權利。
-- `SAVED`：iOS／Watch 與 macOS Build 2 均完成出口法規答案，不使用需申報的加密演算法。
+- `SAVED`：iOS／Watch 與 macOS Build 2、Build 3 均完成出口法規答案，不使用需申報的加密演算法。
 
 ## Manual release／手動發佈
 
-- `NOT SUBMITTED`：1.2.0 尚未送審或發佈。
+- `WAITING FOR REVIEW`：iOS／iPadOS／Apple Watch 1.2.0／Build 3 已於 2026-07-28 12:10（Asia/Taipei）提交，提交 ID 為 `ddd4c2dc-69b1-4910-9785-be4b6b9d37ac`。
+- `WAITING FOR REVIEW`：macOS 1.2.0／Build 3 已於 2026-07-28 12:09（Asia/Taipei）提交，提交 ID 為 `1d7d71a6-de1e-4b2a-9cf9-61b5c24f2865`。
 - `RELEASED`：iOS 1.0 已由帳號持有人手動發佈，並於 2026-07-24 公開上架。
 - `WAITING FOR REVIEW`：macOS 1.0 已提交審查，核准後仍採手動發佈。
 
 ## Final approval boundary／最終批准界線
 
-- `NOT AUTHORIZED`：目前工作只涵蓋 1.2.0 release candidate 的本機驗證與文件；任何 archive 上傳、App Store Connect 編輯、送審或發佈仍需使用者另行明確授權。
-- `AUTHORIZED FOR 1.0`：使用者曾明確要求繼續 1.0 送審；此授權不延伸到 1.2.0。
+- `AUTHORIZED FOR 1.2`：使用者於 2026-07-28 明確要求推送並更新上架版本；1.2.0／Build 3 已依此授權完成上傳、App Store Connect 編輯與送審。
 - `RELEASED`：iOS 1.0／Build 2 已通過審查並公開上架。
 - `SUBMITTED`：macOS 1.0／Build 2 已完成雙語資料、截圖與審核資訊核對，並正式提交。
 - `WAITING FOR REVIEW`：App Store Connect 的 macOS 版本頁顯示「正在等待審查」。

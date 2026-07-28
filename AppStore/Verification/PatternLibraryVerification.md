@@ -1,7 +1,7 @@
 # KnitNote 1.2 Pattern Library Verification
 
 Date: 2026-07-27
-Candidate: `1.2.0` / Build `2`
+Candidate: `1.2.0` / Build `3`
 Scope: local release-candidate verification only; no archive upload, App Store Connect edit, submission, or release is authorized by this report.
 
 Status legend:

@@ -732,8 +732,8 @@ final class PatternLibraryDeletionTransaction {
     }
     public func add(name: String) throws { try add(name: name, photoData: nil) }
     public func add(name: String, photoData: Data?) throws {
-        try requireAccess(.createProject)
         var project = try StoredProject(name: name)
+        try requireAccess(.createProject)
         var newFilename: String?
         do {
             if let photoData {
@@ -1047,12 +1047,14 @@ final class PatternLibraryDeletionTransaction {
         try mutate(id: projectID) { $0.addPattern(pattern) }
     }
     public func importPattern(from source: URL, projectID: UUID) async throws -> PatternDocument {
-        try requireAccess(.importPattern)
+        let access = try preflightAccess(.importPattern)
         try ensureArchiveAvailable()
         guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
+        let service = try requiredPatternFileService()
+        _ = try service.inspect(source)
+        try commitAccessIfNeeded(access, mutation: .importPattern)
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
-        let service = try requiredPatternFileService()
         let pattern = try await Task.detached(priority: .userInitiated) {
             try service.importFile(from: source, projectID: projectID)
         }.value
@@ -1146,7 +1148,10 @@ final class PatternLibraryDeletionTransaction {
         _ source: URL,
         now: Date = .now
     ) async throws -> PatternImportOutcome {
-        try requireAccess(.importPattern)
+        let access = try preflightAccess(.importPattern)
+        try ensureArchiveAvailable()
+        _ = try requiredPatternFileService().inspect(source)
+        try commitAccessIfNeeded(access, mutation: .importPattern)
         return try await enqueuePatternImport(
             source,
             origin: .library,
@@ -1160,10 +1165,13 @@ final class PatternLibraryDeletionTransaction {
         projectID: UUID,
         now: Date = .now
     ) async throws -> PatternImportOutcome {
-        try requireAccess(.importPattern)
+        let access = try preflightAccess(.importPattern)
         guard project(id: projectID) != nil else {
             throw PatternLibraryMutationError.projectNotFound
         }
+        try ensureArchiveAvailable()
+        _ = try requiredPatternFileService().inspect(source)
+        try commitAccessIfNeeded(access, mutation: .importPattern)
         return try await enqueuePatternImport(
             source,
             origin: .project,
@@ -2318,7 +2326,23 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func requireAccess(_ mutation: FeatureMutation) throws {
-        switch authorizeMutation(mutation) {
+        let access = try preflightAccess(mutation)
+        try commitAccessIfNeeded(access, mutation: mutation)
+    }
+
+    private func preflightAccess(_ mutation: FeatureMutation) throws -> FeatureAccessDecision {
+        let decision = authorizeMutation(mutation)
+        guard decision != .requiresUnlock else {
+            throw ProjectStoreError.accessRestricted
+        }
+        return decision
+    }
+
+    private func commitAccessIfNeeded(
+        _ decision: FeatureAccessDecision,
+        mutation: FeatureMutation
+    ) throws {
+        switch decision {
         case .allow:
             return
         case .startTrial:

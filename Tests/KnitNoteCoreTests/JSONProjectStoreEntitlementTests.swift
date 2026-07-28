@@ -63,7 +63,7 @@ import UniformTypeIdentifiers
     let committer = MutationCommitterProbe()
     let store = JSONProjectStore(
         url: root.appendingPathComponent("projects-v1.json"),
-        authorizeMutation: { _ in .allow },
+        authorizeMutation: { _ in .startTrial },
         commitSuccessfulMutation: { committer.commit($0) }
     )
 
@@ -113,7 +113,7 @@ import UniformTypeIdentifiers
     let committer = MutationCommitterProbe()
     let store = JSONProjectStore(
         url: archive,
-        authorizeMutation: { _ in .allow },
+        authorizeMutation: { _ in .startTrial },
         commitSuccessfulMutation: { committer.commit($0) }
     )
 

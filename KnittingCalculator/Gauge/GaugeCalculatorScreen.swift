@@ -43,8 +43,17 @@ enum GaugeDraftConverter {
 
 struct GaugeCalculatorScreen: View {
     @ObservedObject var preferences: CalculatorPreferencesStore
+    let onShareSnapshotChange: (GaugeShareSnapshot?) -> Void
     @Environment(\.locale) private var locale
     @State private var lastCountedSnapshot: GaugeShareSnapshot?
+
+    init(
+        preferences: CalculatorPreferencesStore,
+        onShareSnapshotChange: @escaping (GaugeShareSnapshot?) -> Void = { _ in }
+    ) {
+        self.preferences = preferences
+        self.onShareSnapshotChange = onShareSnapshotChange
+    }
 
     var body: some View {
         ScrollView {
@@ -79,7 +88,11 @@ struct GaugeCalculatorScreen: View {
             .padding()
         }
         .navigationTitle("calculator.gauge.title")
+        .onAppear {
+            onShareSnapshotChange(shareSnapshot)
+        }
         .onChange(of: shareSnapshot) { _, newValue in
+            onShareSnapshotChange(newValue)
             guard let newValue, newValue != lastCountedSnapshot else { return }
             lastCountedSnapshot = newValue
             preferences.recordValidCalculation()

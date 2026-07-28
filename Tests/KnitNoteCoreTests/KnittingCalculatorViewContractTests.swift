@@ -13,6 +13,13 @@ import Testing
         #expect(source.contains("accessibilityElement(children: .combine)"))
     }
 
+    @Test func gaugeScreenExposesItsCurrentSnapshotToAConsumer() throws {
+        let source = try freeAppSource("Gauge/GaugeCalculatorScreen.swift")
+        #expect(source.contains("onShareSnapshotChange"))
+        #expect(source.contains("onShareSnapshotChange(shareSnapshot)"))
+        #expect(source.contains("onShareSnapshotChange(newValue)"))
+    }
+
     private func freeAppSource(_ path: String) throws -> String {
         try String(
             contentsOf: URL(filePath: #filePath)

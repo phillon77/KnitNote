@@ -71,6 +71,7 @@ struct RowIntervalAdjustmentView: View {
 
     @ObservedObject var preferences: CalculatorPreferencesStore
     @EnvironmentObject private var ratingCoordinator: RatingRequestCoordinator
+    @EnvironmentObject private var ratingRequestContext: RatingRequestContext
     let onShareSnapshotChange: (RowIntervalShareSnapshot?) -> Void
     @Environment(\.locale) private var locale
     @State private var lastCountedSnapshot: RowIntervalShareSnapshot?
@@ -144,7 +145,7 @@ struct RowIntervalAdjustmentView: View {
         }
         .onDisappear {
             guard hadValidResult else { return }
-            ratingCoordinator.considerRequest()
+            ratingRequestContext.considerRequest(using: ratingCoordinator)
         }
     }
 

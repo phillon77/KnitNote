@@ -79,14 +79,34 @@ final class RatingEligibilityTests: XCTestCase {
         }
     }
 
-    func testAppInjectsOneCoordinatorAndRootUsesItsCurrentWindowScene() throws {
+    func testEachCalculatorRootOwnsItsReviewSceneInsteadOfSharingOneOnTheCoordinator() throws {
+        let ratingSource = try source(at: "KnittingCalculator/Model/RatingEligibility.swift")
         let appSource = try source(at: "KnittingCalculator/App/KnittingCalculatorApp.swift")
         let rootSource = try source(at: "KnittingCalculator/App/CalculatorRootView.swift")
+        let coordinatorStart = try XCTUnwrap(
+            ratingSource.range(of: "final class RatingRequestCoordinator")
+        )
+        let coordinatorSource = ratingSource[coordinatorStart.lowerBound...]
 
         XCTAssertTrue(appSource.contains("RatingRequestCoordinator(preferences: preferences)"))
         XCTAssertTrue(appSource.contains(".environmentObject(ratingCoordinator)"))
+        XCTAssertFalse(coordinatorSource.contains("private weak var windowScene"))
+        XCTAssertFalse(coordinatorSource.contains("func update(windowScene:"))
+        XCTAssertFalse(coordinatorSource.contains("func considerRequest()"))
+        XCTAssertTrue(rootSource.contains("@StateObject private var ratingRequestContext = RatingRequestContext()"))
+        XCTAssertTrue(rootSource.contains(".environmentObject(ratingRequestContext)"))
         XCTAssertTrue(rootSource.contains("RatingRequestSceneObserver"))
-        XCTAssertTrue(rootSource.contains("ratingCoordinator.update(windowScene: scene)"))
+        XCTAssertTrue(rootSource.contains("ratingRequestContext.update(windowScene: scene)"))
+
+        for path in [
+            "KnittingCalculator/Gauge/GaugeCalculatorScreen.swift",
+            "KnittingCalculator/Adjustment/OneRowAdjustmentView.swift",
+            "KnittingCalculator/Adjustment/RowIntervalAdjustmentView.swift",
+        ] {
+            let source = try source(at: path)
+            XCTAssertTrue(source.contains("@EnvironmentObject private var ratingRequestContext"))
+            XCTAssertTrue(source.contains("ratingRequestContext.considerRequest(using: ratingCoordinator)"))
+        }
     }
 
     private func source(at path: String) throws -> String {

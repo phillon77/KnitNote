@@ -50,11 +50,24 @@ final class RatingRequestSceneView: UIView {
 }
 
 @MainActor
+final class RatingRequestContext: ObservableObject {
+    private weak var windowScene: UIWindowScene?
+
+    func update(windowScene: UIWindowScene) {
+        self.windowScene = windowScene
+    }
+
+    func considerRequest(using coordinator: RatingRequestCoordinator) {
+        guard let windowScene else { return }
+        coordinator.considerRequest(in: windowScene)
+    }
+}
+
+@MainActor
 final class RatingRequestCoordinator: ObservableObject {
     private let preferences: CalculatorPreferencesStore
     private let versionProvider: () -> String
     private let reviewRequester: (UIWindowScene) -> Void
-    private weak var windowScene: UIWindowScene?
 
     init(
         preferences: CalculatorPreferencesStore,
@@ -70,15 +83,6 @@ final class RatingRequestCoordinator: ObservableObject {
         self.preferences = preferences
         self.versionProvider = versionProvider
         self.reviewRequester = reviewRequester
-    }
-
-    func update(windowScene: UIWindowScene) {
-        self.windowScene = windowScene
-    }
-
-    func considerRequest() {
-        guard let windowScene else { return }
-        considerRequest(in: windowScene)
     }
 
     func considerRequest(in scene: UIWindowScene) {

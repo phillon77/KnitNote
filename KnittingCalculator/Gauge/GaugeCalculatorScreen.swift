@@ -72,7 +72,8 @@ struct GaugeCalculatorScreen: View {
                         ("calculator.gauge.sampleStitches", fieldBinding(\.sampleStitches), .integer, stitchesWereStarted && GaugeCalculator.fieldNeedsValidation(stitchesInput?.sampleCount, groupStarted: true)),
                         ("calculator.gauge.targetWidth", fieldBinding(\.targetWidth), .decimal, stitchesWereStarted && GaugeCalculator.fieldNeedsValidation(stitchesInput?.targetLength, groupStarted: true)),
                     ],
-                    result: stitchesResult
+                    result: stitchesResult,
+                    showsResultActions: true
                 )
 
                 gaugeCard(
@@ -191,7 +192,8 @@ struct GaugeCalculatorScreen: View {
     private func gaugeCard(
         title: LocalizedStringKey,
         fields: [(LocalizedStringKey, Binding<String>, CalculatorField.InputKind, Bool)],
-        result: GaugeResult?
+        result: GaugeResult?,
+        showsResultActions: Bool = false
     ) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
@@ -206,6 +208,12 @@ struct GaugeCalculatorScreen: View {
 
                 if let result {
                     resultView(result)
+                    if showsResultActions, let shareSnapshot {
+                        CalculatorResultActions(
+                            text: CalculatorShareText.gauge(shareSnapshot, locale: locale),
+                            onSuccessfulAction: {}
+                        )
+                    }
                 }
             }
             .padding(.top, 4)

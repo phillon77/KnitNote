@@ -34,6 +34,22 @@ import Testing
         #expect(!oneRow.contains("Knit "))
     }
 
+    @Test func validCalculatorResultsExposeAccessibleCopyAndSystemShareActions() throws {
+        let gauge = try freeAppSource("Gauge/GaugeCalculatorScreen.swift")
+        let oneRow = try freeAppSource("Adjustment/OneRowAdjustmentView.swift")
+        let rows = try freeAppSource("Adjustment/RowIntervalAdjustmentView.swift")
+        let actions = try freeAppSource("Components/CalculatorResultActions.swift")
+
+        #expect(gauge.contains("CalculatorShareText.gauge"))
+        #expect(oneRow.contains("CalculatorShareText.oneRow"))
+        #expect(rows.contains("CalculatorShareText.rowInterval"))
+        #expect(actions.contains("ShareLink(item: text)"))
+        #expect(actions.contains("UIPasteboard.general.string = text"))
+        #expect(actions.contains("accessibilityLabel"))
+        #expect(actions.contains("minHeight: 44"))
+        #expect(!actions.contains("recordValidCalculation"))
+    }
+
     private func freeAppSource(_ path: String) throws -> String {
         try String(
             contentsOf: URL(filePath: #filePath)

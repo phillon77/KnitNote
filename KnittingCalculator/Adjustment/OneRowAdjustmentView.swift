@@ -177,6 +177,13 @@ struct OneRowAdjustmentView: View {
                     .padding(.top, 6)
                 }
             }
+
+            if let shareSnapshot {
+                CalculatorResultActions(
+                    text: CalculatorShareText.oneRow(shareSnapshot, locale: locale),
+                    onSuccessfulAction: {}
+                )
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)

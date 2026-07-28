@@ -245,6 +245,13 @@ struct RowIntervalAdjustmentView: View {
                 }
                 .padding(.top, 6)
             }
+
+            if let shareSnapshot {
+                CalculatorResultActions(
+                    text: CalculatorShareText.rowInterval(shareSnapshot, locale: locale),
+                    onSuccessfulAction: {}
+                )
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)

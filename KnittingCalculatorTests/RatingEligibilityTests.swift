@@ -72,7 +72,7 @@ final class RatingEligibilityTests: XCTestCase {
             XCTAssertTrue(source.contains("hadValidResult = true"))
             XCTAssertTrue(source.contains(".onDisappear"))
             XCTAssertTrue(source.contains("guard hadValidResult else { return }"))
-            XCTAssertTrue(source.contains("ratingCoordinator.considerRequest()"))
+            XCTAssertTrue(source.contains("ratingRequestContext.considerRequest(using: ratingCoordinator)"))
 
             let onChange = try XCTUnwrap(source.range(of: ".onChange(of: shareSnapshot)"))
             XCTAssertFalse(source[..<onChange.lowerBound].contains("hadValidResult = true"))

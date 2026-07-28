@@ -66,6 +66,13 @@ struct GaugeCalculatorScreen: View {
                 }
                 .pickerStyle(.segmented)
                 .accessibilityLabel(Text("calculator.gauge.unit"))
+                .accessibilityValue(
+                    Text(
+                        preferences.gauge.unit == .centimeters
+                            ? "calculator.gauge.unit.centimeters"
+                            : "calculator.gauge.unit.inches"
+                    )
+                )
 
                 gaugeCard(
                     title: "calculator.gauge.stitches",
@@ -89,6 +96,8 @@ struct GaugeCalculatorScreen: View {
                 )
             }
             .padding()
+            .frame(maxWidth: 680, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .navigationTitle("calculator.gauge.title")
         .toolbar {

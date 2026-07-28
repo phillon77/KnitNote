@@ -208,7 +208,7 @@ struct OneRowAdjustmentView: View {
     }
 
     private func failureView(_ failure: EvenStitchAdjustmentFailure) -> some View {
-        Text(failureKey(failure))
+        Label(failureKey(failure), systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(.red)
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)

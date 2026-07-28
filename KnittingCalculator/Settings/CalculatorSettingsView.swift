@@ -13,6 +13,13 @@ struct CalculatorSettingsView: View {
                     Text("calculator.gauge.unit.inches").tag(GaugeLengthUnit.inches)
                 }
                 .accessibilityLabel(Text("calculator.gauge.unit"))
+                .accessibilityValue(
+                    Text(
+                        preferences.gauge.unit == .centimeters
+                            ? "calculator.gauge.unit.centimeters"
+                            : "calculator.gauge.unit.inches"
+                    )
+                )
             }
 
             Section("calculator.settings.data.section") {

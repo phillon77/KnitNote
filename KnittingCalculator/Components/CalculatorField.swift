@@ -23,7 +23,7 @@ struct CalculatorField: View {
                 .accessibilityLabel(Text(title))
 
             if let validationKey {
-                Text(validationKey)
+                Label(validationKey, systemImage: "exclamationmark.triangle.fill")
                     .font(.footnote)
                     .foregroundStyle(.red)
             }

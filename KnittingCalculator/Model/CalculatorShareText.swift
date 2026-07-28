@@ -221,7 +221,7 @@ enum CalculatorShareText {
     }
 
     private static func localized(_ key: String, locale: Locale) -> String {
-        String(localized: String.LocalizationValue(key), locale: locale)
+        CalculatorLocalization.string(key, locale: locale)
     }
 
     private static func formatted(_ key: String, _ value: CVarArg, locale: Locale) -> String {

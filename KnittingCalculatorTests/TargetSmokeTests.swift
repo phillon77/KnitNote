@@ -11,10 +11,9 @@ final class TargetSmokeTests: XCTestCase {
 
     func testCalculatorBundleLoadsRepresentativeAdjustmentLocalization() {
         XCTAssertEqual(
-            Bundle.main.localizedString(
-                forKey: "calculator.adjustment.mode.acrossRows",
-                value: nil,
-                table: "Localizable"
+            CalculatorLocalization.string(
+                "calculator.adjustment.mode.acrossRows",
+                locale: Locale(identifier: "en")
             ),
             "Across rows"
         )

@@ -2,28 +2,67 @@ import Foundation
 import Testing
 
 @Suite struct KnittingCalculatorLocalizationContractTests {
-    @Test func calculatorCatalogCoversCurrentGaugeAndAdjustmentScreens() throws {
-        let data = try Data(contentsOf: repositoryRoot.appending(path: catalogPath))
-        let catalog = try #require(
-            JSONSerialization.jsonObject(with: data) as? [String: Any]
-        )
-        let entries = try #require(catalog["strings"] as? [String: [String: Any]])
+    @Test func everyFreeAppStringHasEnglishAndTraditionalChinese() throws {
+        let entries = try stringEntries(at: catalogPath)
+        for (key, entry) in entries {
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            for locale in ["en", "zh-Hant"] {
+                let localized = try #require(localizations[locale])
+                let values = leafValues(in: localized)
+                #expect(!values.isEmpty, "Missing \(locale): \(key)")
+                #expect(values.allSatisfy { !$0.isEmpty }, "Empty \(locale): \(key)")
+            }
+            let english = leafValues(in: try #require(localizations["en"]))
+            let chinese = leafValues(in: try #require(localizations["zh-Hant"]))
+            #expect(
+                english.flatMap(formatTokens).sorted()
+                    == chinese.flatMap(formatTokens).sorted(),
+                "Format mismatch: \(key)"
+            )
+        }
+    }
 
+    @Test func allFreeAppLocalizationReferencesResolveInBothSupportedLanguages() throws {
+        let entries = try stringEntries(at: catalogPath)
         for key in currentScreenKeys {
             let entry = try #require(entries[key], "Missing catalog entry: \(key)")
-            let localizations = try #require(
-                entry["localizations"] as? [String: Any],
-                "Missing localizations: \(key)"
-            )
+            let localizations = try #require(entry["localizations"] as? [String: Any])
             for locale in ["en", "zh-Hant"] {
-                let localization = try #require(
-                    localizations[locale] as? [String: Any],
+                #expect(
+                    !leafValues(in: try #require(localizations[locale])).isEmpty,
                     "Missing \(locale): \(key)"
                 )
-                let stringUnit = try #require(localization["stringUnit"] as? [String: Any])
-                let value = try #require(stringUnit["value"] as? String)
-                #expect(!value.isEmpty, "Empty \(locale): \(key)")
             }
+        }
+    }
+
+    @Test func displayNameIsLocalized() throws {
+        let entries = try stringEntries(
+            at: "KnittingCalculator/Localization/InfoPlist.xcstrings"
+        )
+        let entry = try #require(entries["CFBundleDisplayName"])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        #expect(leafValues(in: try #require(localizations["en"])) == ["Knitting Calculator"])
+        #expect(leafValues(in: try #require(localizations["zh-Hant"])) == ["編織計算器"])
+    }
+
+    @Test func calculatorScreensKeepAccessibleErrorOrderAndAdaptiveLayoutContracts() throws {
+        let gauge = try freeAppSource("Gauge/GaugeCalculatorScreen.swift")
+        let oneRow = try freeAppSource("Adjustment/OneRowAdjustmentView.swift")
+        let rows = try freeAppSource("Adjustment/RowIntervalAdjustmentView.swift")
+        let modePicker = try freeAppSource("Adjustment/AdjustmentCalculatorScreen.swift")
+        let field = try freeAppSource("Components/CalculatorField.swift")
+        let actions = try freeAppSource("Components/CalculatorResultActions.swift")
+
+        #expect(gauge.contains("frame(maxWidth: 680, alignment: .leading)"))
+        #expect(oneRow.contains("Label(failureKey(failure), systemImage: \"exclamationmark.triangle.fill\")"))
+        #expect(rows.contains("Label(failureKey(failure), systemImage: \"exclamationmark.triangle.fill\")"))
+        #expect(field.contains("Label(validationKey, systemImage: \"exclamationmark.triangle.fill\")"))
+        #expect(modePicker.contains("accessibilityValue"))
+        #expect(actions.components(separatedBy: "minWidth: 44").count - 1 == 2)
+
+        for source in [gauge, oneRow, rows, modePicker, field, actions] {
+            #expect(!source.contains(".dynamicTypeSize("))
         }
     }
 
@@ -166,5 +205,42 @@ import Testing
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+    }
+
+    private func stringEntries(at relativePath: String) throws -> [String: [String: Any]] {
+        let data = try Data(contentsOf: repositoryRoot.appending(path: relativePath))
+        let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return try #require(root["strings"] as? [String: [String: Any]])
+    }
+
+    private func leafValues(in value: Any) -> [String] {
+        if let dictionary = value as? [String: Any] {
+            let direct = dictionary["value"] as? String
+            return (direct.map { [$0] } ?? [])
+                + dictionary.flatMap { key, child in
+                    key == "value" ? [] : leafValues(in: child)
+                }
+        }
+        if let array = value as? [Any] {
+            return array.flatMap(leafValues)
+        }
+        return []
+    }
+
+    private func formatTokens(in value: String) -> [String] {
+        let expression = try! NSRegularExpression(
+            pattern: #"%(\d+\$)?[-+ #0]*(\d+|\*)?(\.\d+)?(hh|h|ll|l|L|z|t|j)?[@diuoxXfFeEgGaAcCsSp]"#
+        )
+        let range = NSRange(value.startIndex..., in: value)
+        return expression.matches(in: value, range: range).compactMap {
+            Range($0.range, in: value).map { String(value[$0]) }
+        }
+    }
+
+    private func freeAppSource(_ path: String) throws -> String {
+        try String(
+            contentsOf: repositoryRoot.appending(path: "KnittingCalculator/" + path),
+            encoding: .utf8
+        )
     }
 }

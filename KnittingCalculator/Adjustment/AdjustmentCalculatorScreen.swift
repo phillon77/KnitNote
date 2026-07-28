@@ -33,6 +33,13 @@ struct AdjustmentCalculatorScreen: View {
             .pickerStyle(.segmented)
             .padding([.horizontal, .top])
             .accessibilityLabel(Text("calculator.adjustment.mode"))
+            .accessibilityValue(
+                Text(
+                    mode == .oneRow
+                        ? "calculator.adjustment.mode.oneRow"
+                        : "calculator.adjustment.mode.acrossRows"
+                )
+            )
 
             switch mode {
             case .oneRow:

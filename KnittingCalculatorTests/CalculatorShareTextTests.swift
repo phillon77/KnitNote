@@ -45,7 +45,7 @@ final class CalculatorShareTextTests: XCTestCase {
 
         XCTAssertTrue(text.contains("20"))
         XCTAssertTrue(text.contains("24"))
-        XCTAssertTrue(text.contains("one edge stitch on each side"))
+        XCTAssertTrue(text.contains("One edge stitch on each side"))
         XCTAssertTrue(text.contains("Increase 1 stitch"))
         XCTAssertTrue(text.contains("Calculated with Knitting Calculator"))
         XCTAssertTrue(text.contains(CalculatorProductLinks.freeApp.absoluteString))

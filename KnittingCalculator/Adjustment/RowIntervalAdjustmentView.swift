@@ -21,7 +21,7 @@ enum RowIntervalAdjustmentPresentationText {
         case (.decrease, .bothSides, false):
             key = "calculator.adjustment.rows.summary.decrease.bothSides.range.format"
         }
-        let format = String(localized: String.LocalizationValue(key), locale: locale)
+        let format = CalculatorLocalization.string(key, locale: locale)
         return String.localizedStringWithFormat(format, summaryInterval(for: result, locale: locale), result.eventCount)
     }
 
@@ -33,8 +33,8 @@ enum RowIntervalAdjustmentPresentationText {
                 locale: locale
             )
         }
-        let format = String(
-            localized: "calculator.adjustment.rows.interval.range.format",
+        let format = CalculatorLocalization.string(
+            "calculator.adjustment.rows.interval.range.format",
             locale: locale
         )
         return String.localizedStringWithFormat(format, result.minimumInterval, result.maximumInterval)
@@ -48,15 +48,15 @@ enum RowIntervalAdjustmentPresentationText {
                 locale: locale
             )
         }
-        let format = String(
-            localized: "calculator.adjustment.rows.interval.summary.range.format",
+        let format = CalculatorLocalization.string(
+            "calculator.adjustment.rows.interval.summary.range.format",
             locale: locale
         )
         return String.localizedStringWithFormat(format, result.minimumInterval, result.maximumInterval)
     }
 
     private static func formattedText(_ key: String, _ value: Int, locale: Locale) -> String {
-        let format = String(localized: String.LocalizationValue(key), locale: locale)
+        let format = CalculatorLocalization.string(key, locale: locale)
         return String.localizedStringWithFormat(format, value)
     }
 }
@@ -100,6 +100,14 @@ struct RowIntervalAdjustmentView: View {
                                 .tag(RowIntervalAdjustmentOperation.decrease)
                         }
                         .pickerStyle(.segmented)
+                        .accessibilityLabel(Text("calculator.adjustment.rows.operation"))
+                        .accessibilityValue(
+                            Text(
+                                preferences.rowInterval.operation == .increase
+                                    ? "calculator.adjustment.rows.operation.increase"
+                                    : "calculator.adjustment.rows.operation.decrease"
+                            )
+                        )
 
                         CalculatorField(
                             title: "calculator.adjustment.rows.totalRows",
@@ -214,6 +222,13 @@ struct RowIntervalAdjustmentView: View {
             .pickerStyle(.menu)
         }
         .accessibilityLabel(Text("calculator.adjustment.rows.style"))
+        .accessibilityValue(
+            Text(
+                preferences.rowInterval.style == .singleSide
+                    ? "calculator.adjustment.rows.style.singleSide"
+                    : "calculator.adjustment.rows.style.bothSides"
+            )
+        )
     }
 
     @ViewBuilder
@@ -276,7 +291,7 @@ struct RowIntervalAdjustmentView: View {
     }
 
     private func failureView(_ failure: RowIntervalAdjustmentFailure) -> some View {
-        Text(failureKey(failure))
+        Label(failureKey(failure), systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(.red)
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)

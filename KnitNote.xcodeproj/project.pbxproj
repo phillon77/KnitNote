@@ -160,6 +160,7 @@
 		99E049E46AD249953A40912C /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		A2A709914A7CDEA3EDF4673A /* CalculatorResultActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952FABC7379BAECFBE96DA8A /* CalculatorResultActions.swift */; };
+		A3680F3A368B7257841A04CD /* CalculatorLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A0177427612A4AD6C6A53D /* CalculatorLocalization.swift */; };
 		A4FC998617515EDEE746AAD5 /* ProjectCountersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */; };
 		A52E7801B3B923E905D003DF /* CalculatorShareText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C68C0B50E277CBCB65E519D /* CalculatorShareText.swift */; };
 		A7BB8A45CB9C31ED273B4BBD /* LocalizedNumberCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6A20AD4E16ADA64C3AFC37 /* LocalizedNumberCodecTests.swift */; };
@@ -385,6 +386,7 @@
 		5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStore.swift; sourceTree = "<group>"; };
 		600A5A211EF6682DED675574 /* EditCounterNameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditCounterNameView.swift; sourceTree = "<group>"; };
 		6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupFileService.swift; sourceTree = "<group>"; };
+		60A0177427612A4AD6C6A53D /* CalculatorLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorLocalization.swift; sourceTree = "<group>"; };
 		6494124F909E997E16F5BB08 /* ShareImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportView.swift; sourceTree = "<group>"; };
 		67146022BE86DEA48F100C13 /* KnitNoteShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KnitNoteShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		67698E6468A86FD58C45B5E5 /* GaugeCalculatorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculatorScreen.swift; sourceTree = "<group>"; };
@@ -795,6 +797,7 @@
 		93A59F2AB7D007F43C860360 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				60A0177427612A4AD6C6A53D /* CalculatorLocalization.swift */,
 				3977482FCF6CA5D026035225 /* CalculatorPreferencesStore.swift */,
 				8C68C0B50E277CBCB65E519D /* CalculatorShareText.swift */,
 				94B895F27EA3B11F30CF51B2 /* KnitNoteLinkRouter.swift */,
@@ -1239,6 +1242,7 @@
 				7C1479B81AB22EE5CC3E5454 /* CalculatorField.swift in Sources */,
 				2F47D2F2CEFA16407307C266 /* CalculatorHelpSheet.swift in Sources */,
 				4AC5851D4DE145722C5BFB1D /* CalculatorHomeView.swift in Sources */,
+				A3680F3A368B7257841A04CD /* CalculatorLocalization.swift in Sources */,
 				BC97D8DC5694446C440D9269 /* CalculatorPreferencesStore.swift in Sources */,
 				A2A709914A7CDEA3EDF4673A /* CalculatorResultActions.swift in Sources */,
 				7D1631A0398946E49E93700C /* CalculatorRootView.swift in Sources */,

@@ -12,6 +12,9 @@ Verified Task 2 baseline source commit:
 Verified review-fix Round 1 source commit:
 `043e0aa9c39ead5cff71ac4db1f3375316988054`
 
+Verified review-fix Round 2 source commit:
+`b5ce45bd781a84fda4082a015559a2fc61799871`
+
 Release candidate: `1.2.1` / Build `3`
 
 This is local, unsigned verification only. No archive was uploaded, no App Store
@@ -29,8 +32,12 @@ state were not changed.
 - Each async pattern import and journal-photo mutation now has one authorization
   boundary. An operation admitted before the exact seven-day expiry may finish
   across that boundary; entry at the exact expiry is rejected before mutation.
-- Passive pattern open/close, page position, and browsing housekeeping no longer
-  start a trial. An explicit reader edit still starts the trial before saving.
+- Passive pattern open/close and browsing housekeeping no longer start a trial.
+  Housekeeping is type-limited to page index, zoom, and content offsets and
+  merges those fields into stored state; it cannot accept or overwrite
+  highlights, page notes, per-page state, markup, or other explicit edits.
+  `lastOpenedAt` remains a separate scalar browsing update. An explicit reader
+  edit still starts the trial before saving its full state.
 - An expired authoritative iPhone entitlement now rejects a queued Watch command
   with `.entitlementRequired`, durably records the command identity, sends an
   acknowledgement that removes it from the Watch queue, and publishes the
@@ -62,8 +69,29 @@ scheme below.
 | Passive browsing RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1BrowsingRed --filter 'passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes'` | 1 | 1 test; 2 issues. `markPatternOpened` started the trial and the later explicit edit caused a duplicate trial commit. |
 | Inbox authorization RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1InboxRed --filter 'patternInboxConvenienceOverloadUsesOneEntryAuthorizationBoundary'` | 1 | 1 test; the convenience overload authorized `.importPattern` twice. |
 | Combined GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1Green --filter 'WatchOptimisticStateTests\|WatchEntitlementSnapshotTests\|PhoneWatchSyncSourceContractTests\|WatchCommandApplicationTests\|JSONProjectStoreEntitlementTests\|FeatureAccessPolicyTests\|PatternReaderCounterContractTests'` | 0 | 115 tests in 5 suites passed. |
-| Focused boundary GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1Green --filter 'passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes\|exactSevenDayBoundaryRejectsAsyncMutationEntry\|trialNotStartedReaderSeparatesBrowsingHousekeepingFromExplicitEdits'` | 0 | All selected tests and both exact-boundary argument cases passed. |
+| Focused boundary GREEN (superseded for browsing isolation) | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1Green --filter 'passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes\|exactSevenDayBoundaryRejectsAsyncMutationEntry\|trialNotStartedReaderSeparatesBrowsingHousekeepingFromExplicitEdits'` | 0 | All selected tests and both exact-boundary argument cases passed. This proved that browsing did not start the trial, but did not prove that the browsing endpoint excluded explicit reader fields; Round 2 supplies that evidence. |
 | Inbox authorization GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1InboxRed --filter 'patternInboxConvenienceOverloadUsesOneEntryAuthorizationBoundary'` | 0 | The convenience overload used exactly one entry authorization and no post-publication entitlement commit. |
+
+## Review-fix Round 2 TDD evidence
+
+The passive projection contains only `pageIndex`, `zoomScale`, `offsetX`, and
+`offsetY`. On a page change, the current highlight positions and note are
+derived from the already-stored target-page state. The input cannot carry
+highlight enablement, mode or positions, page notes, the per-page dictionary,
+markup, counters, or other explicit edit fields.
+
+| Phase | Command | Exit | Evidence |
+| --- | --- | ---: | --- |
+| Browsing projection RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound2Red --filter 'passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes'` | 1 | 1 test; 6 issues. Housekeeping overwrote highlight enablement, mode, both positions, page note, and the full per-page state dictionary. |
+| Reader boundary RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound2Red --filter 'trialNotStartedReaderSeparatesBrowsingHousekeepingFromExplicitEdits'` | 1 | 1 test; 2 issues. Reader call sites still passed the whole `PatternReadingState`, and the store endpoint still accepted it. |
+| Focused GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound2Green --filter 'PatternReaderCounterContractTests\|JSONProjectStoreEntitlementTests\|FeatureAccessPolicyTests\|PatternDocumentTests'` | 0 | 79 tests in 1 suite plus parameterized cases passed. Passive page/zoom/offset fields updated without a trial commit; stored explicit fields remained unchanged. The explicit endpoint then started the trial and persisted the full explicit state. |
+
+Unsigned Round 2 Release builds:
+
+| Target | Destination | DerivedData | Exit |
+| --- | --- | --- | ---: |
+| KnitNote iOS / iPadOS | `generic/platform=iOS` | `/tmp/KnitNoteTrialRepairRound2IOS` | 0 |
+| KnitNote macOS | `generic/platform=macOS` | `/tmp/KnitNoteTrialRepairRound2Mac` | 0 |
 
 ## App and package tests
 

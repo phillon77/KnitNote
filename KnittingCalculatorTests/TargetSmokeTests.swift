@@ -18,4 +18,16 @@ final class TargetSmokeTests: XCTestCase {
             "Across rows"
         )
     }
+
+    func testTraditionalChineseLocaleVariantsResolveTheTraditionalChineseCatalog() {
+        for identifier in ["zh-Hant-TW", "zh_TW"] {
+            XCTAssertEqual(
+                CalculatorLocalization.string(
+                    "calculator.adjustment.mode.acrossRows",
+                    locale: Locale(identifier: identifier)
+                ),
+                "跨排"
+            )
+        }
+    }
 }

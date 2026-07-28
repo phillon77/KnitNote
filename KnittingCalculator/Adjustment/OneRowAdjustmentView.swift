@@ -167,6 +167,7 @@ struct OneRowAdjustmentView: View {
     private func successfulResultView(_ result: EvenStitchAdjustmentResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             resultSummaryView(result)
+            stepsView(result)
 
             if let shareSnapshot {
                 CalculatorResultActions(
@@ -192,19 +193,23 @@ struct OneRowAdjustmentView: View {
             )
             .foregroundStyle(.secondary)
 
-            if !result.steps.isEmpty {
-                DisclosureGroup("calculator.adjustment.steps.show") {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(result.steps.indices, id: \.self) { index in
-                            Text(verbatim: stepText(result.steps[index]))
-                        }
-                    }
-                    .padding(.top, 6)
-                }
-            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(verbatim: accessibilitySummary(result)))
+    }
+
+    @ViewBuilder
+    private func stepsView(_ result: EvenStitchAdjustmentResult) -> some View {
+        if !result.steps.isEmpty {
+            DisclosureGroup("calculator.adjustment.steps.show") {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(result.steps.indices, id: \.self) { index in
+                        Text(verbatim: stepText(result.steps[index]))
+                    }
+                }
+                .padding(.top, 6)
+            }
+        }
     }
 
     private func failureView(_ failure: EvenStitchAdjustmentFailure) -> some View {

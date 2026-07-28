@@ -246,6 +246,7 @@ struct RowIntervalAdjustmentView: View {
     private func successfulResultView(_ result: RowIntervalAdjustmentResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             resultSummaryView(result)
+            stepsView(result)
 
             if let shareSnapshot {
                 CalculatorResultActions(
@@ -277,17 +278,20 @@ struct RowIntervalAdjustmentView: View {
                 value: intervalText(result)
             )
 
-            DisclosureGroup("calculator.adjustment.rows.details.show") {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(result.adjustmentRows.indices, id: \.self) { index in
-                        Text(verbatim: adjustmentRowText(result.adjustmentRows[index]))
-                    }
-                }
-                .padding(.top, 6)
-            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(verbatim: accessibilitySummary(result)))
+    }
+
+    private func stepsView(_ result: RowIntervalAdjustmentResult) -> some View {
+        DisclosureGroup("calculator.adjustment.rows.details.show") {
+            LazyVStack(alignment: .leading, spacing: 8) {
+                ForEach(result.adjustmentRows.indices, id: \.self) { index in
+                    Text(verbatim: adjustmentRowText(result.adjustmentRows[index]))
+                }
+            }
+            .padding(.top, 6)
+        }
     }
 
     private func failureView(_ failure: RowIntervalAdjustmentFailure) -> some View {

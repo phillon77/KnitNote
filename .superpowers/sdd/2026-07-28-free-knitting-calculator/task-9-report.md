@@ -23,3 +23,10 @@
 
 - CoreSimulator became unavailable after the initial iPhone run, so post-fix simulator test execution and visual runtime inspection could not be rerun. The two localized resource bundles are present in each fresh build; the focused contract and en/zh-Hant build-for-testing checks remain the executable evidence.
 - The earlier full `swift test` run completed its suite output and exposed four unrelated KnitNote 1.2 build-three release-metadata contract failures, then retained a SwiftPM lock. The exact stalled PID was terminated before focused Task 9 verification. No release metadata was changed.
+
+## Review round 1 corrections
+
+- Traditional Chinese locale candidates now normalize separators and include language-script-region, language-script, and Taiwan/Hong Kong/Macao `zh-Hant` fallback candidates. App-target coverage exercises both `zh-Hant-TW` and `zh_TW`.
+- Result cards now keep the combined summary separate from their interactive complete-steps/details disclosure. VoiceOver order is summary, disclosure, then copy/share actions.
+- Settings version display now uses `calculator.settings.version.format` with matching English and Traditional Chinese format tokens instead of raw parentheses concatenation.
+- The review-focused package localization/accessibility contract is green (5 tests). Fresh en/US and zh-Hant/TW `build-for-testing` products were created. A runtime retry was attempted, but `simctl` still reports CoreSimulatorService connection refused.

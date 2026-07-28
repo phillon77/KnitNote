@@ -66,6 +66,41 @@ import Testing
         }
     }
 
+    @Test func localeVariantsVersionCopyAndResultStepOrderRemainAccessible() throws {
+        let catalog = try stringEntries(at: catalogPath)
+        #expect(
+            localizedValue("calculator.settings.version.format", locale: "en", entries: catalog)
+                == "Version %@ (%@)"
+        )
+        #expect(
+            localizedValue("calculator.settings.version.format", locale: "zh-Hant", entries: catalog)
+                == "版本 %@（%@）"
+        )
+
+        let localization = try freeAppSource("Model/CalculatorLocalization.swift")
+        #expect(localization.contains("locale.language.script"))
+        #expect(localization.contains("locale.region"))
+        #expect(localization.contains("languageCode + \"-\" + scriptCode"))
+
+        let settings = try freeAppSource("Settings/CalculatorSettingsView.swift")
+        #expect(settings.contains("calculator.settings.version.format"))
+        #expect(!settings.contains("return \"\\(version) (\\(build))\""))
+
+        for path in [
+            "Adjustment/OneRowAdjustmentView.swift",
+            "Adjustment/RowIntervalAdjustmentView.swift",
+        ] {
+            let source = try freeAppSource(path)
+            let summary = try #require(functionBody(named: "resultSummaryView", in: source))
+            let successful = try #require(functionBody(named: "successfulResultView", in: source))
+            #expect(!summary.contains("DisclosureGroup"))
+            #expect(successful.contains("stepsView"))
+            let steps = try #require(successful.range(of: "stepsView"))
+            let actions = try #require(successful.range(of: "CalculatorResultActions"))
+            #expect(steps.lowerBound < actions.lowerBound)
+        }
+    }
+
     private let catalogPath = "KnittingCalculator/Localization/Localizable.xcstrings"
 
     private let currentScreenKeys = [
@@ -242,5 +277,26 @@ import Testing
             contentsOf: repositoryRoot.appending(path: "KnittingCalculator/" + path),
             encoding: .utf8
         )
+    }
+
+    private func localizedValue(
+        _ key: String,
+        locale: String,
+        entries: [String: [String: Any]]
+    ) -> String? {
+        guard let localizations = entries[key]?["localizations"] as? [String: Any],
+              let localized = localizations[locale] else {
+            return nil
+        }
+        return leafValues(in: localized).first
+    }
+
+    private func functionBody(named name: String, in source: String) -> Substring? {
+        guard let start = source.range(of: "private func \(name)") else { return nil }
+        let remainder = source[start.lowerBound...]
+        guard let next = remainder.dropFirst().range(of: "\n    private ") else {
+            return remainder
+        }
+        return remainder[..<next.lowerBound]
     }
 }

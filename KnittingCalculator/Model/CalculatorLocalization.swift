@@ -17,12 +17,30 @@ enum CalculatorLocalization {
         return Bundle.main.localizedString(forKey: key, value: key, table: "Localizable")
     }
 
+    static func formatted(
+        _ key: String,
+        _ arguments: CVarArg...,
+        locale: Locale
+    ) -> String {
+        String(format: string(key, locale: locale), locale: locale, arguments: arguments)
+    }
+
     private static func localizationIdentifiers(for locale: Locale) -> [String] {
         let languageCode = locale.language.languageCode?.identifier ?? "en"
-        let candidates = [
-            locale.identifier.replacingOccurrences(of: "_", with: "-"),
-            languageCode,
-        ]
+        let scriptCode = locale.language.script?.identifier
+        let regionCode = locale.region?.identifier
+        var candidates = [locale.identifier.replacingOccurrences(of: "_", with: "-")]
+
+        if let scriptCode, let regionCode {
+            candidates.append(languageCode + "-" + scriptCode + "-" + regionCode)
+        }
+        if let scriptCode {
+            candidates.append(languageCode + "-" + scriptCode)
+        }
+        if languageCode == "zh", ["TW", "HK", "MO"].contains(regionCode) {
+            candidates.append("zh-Hant")
+        }
+        candidates.append(languageCode)
         return candidates.reduce(into: []) { identifiers, candidate in
             if !identifiers.contains(candidate) {
                 identifiers.append(candidate)

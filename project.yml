@@ -88,9 +88,12 @@ targets:
           - Info.plist
           - PrivacyInfo.xcprivacy
           - Localization/InfoPlist.xcstrings
+          - Localization/Localizable.xcstrings
       - path: KnittingCalculator/PrivacyInfo.xcprivacy
         buildPhase: resources
       - path: KnittingCalculator/Localization/InfoPlist.xcstrings
+        buildPhase: resources
+      - path: KnittingCalculator/Localization/Localizable.xcstrings
         buildPhase: resources
       - path: Sources/KnitNoteCore/Calculators/GaugeCalculator.swift
       - path: Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentCalculator.swift

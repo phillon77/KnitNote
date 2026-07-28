@@ -19,6 +19,7 @@
 		0C5577C16097062613E39E51 /* PatternLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */; };
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
 		0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
+		0D9C2E71C4DF21A6D159F296 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 3BB84E5510464C21EF0CFC3C /* Localizable.xcstrings */; };
 		0EB4F5AA1F727A8B7EFAF0CA /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */; };
 		0FCF6F4C5C2D193C026D0737 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		0FFD14D844495F2E62249E5D /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
@@ -339,6 +340,7 @@
 		3977482FCF6CA5D026035225 /* CalculatorPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorPreferencesStore.swift; sourceTree = "<group>"; };
 		3A8BA0F1D4ABF2AA7472AEE6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3B4C9A44F8AF4A5A552A63AC /* WatchSyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncModels.swift; sourceTree = "<group>"; };
+		3BB84E5510464C21EF0CFC3C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		3C1FE7F6E3926F76E8684A55 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3C207C026A98D9C668822C9A /* PatternReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderView.swift; sourceTree = "<group>"; };
 		3CD5B158A45CBD8018FC499A /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
@@ -602,6 +604,7 @@
 			isa = PBXGroup;
 			children = (
 				58740EE09606BD4AC6FA457D /* InfoPlist.xcstrings */,
+				3BB84E5510464C21EF0CFC3C /* Localizable.xcstrings */,
 			);
 			name = Localization;
 			path = KnittingCalculator/Localization;
@@ -1086,6 +1089,7 @@
 			files = (
 				7C3617D358D7EA6933E2D74B /* Assets.xcassets in Resources */,
 				85341C0BA491067C1DC22BD1 /* InfoPlist.xcstrings in Resources */,
+				0D9C2E71C4DF21A6D159F296 /* Localizable.xcstrings in Resources */,
 				16E6096598D3F5D44D9834E3 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

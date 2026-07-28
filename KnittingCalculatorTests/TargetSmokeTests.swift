@@ -8,4 +8,15 @@ final class TargetSmokeTests: XCTestCase {
         )
         XCTAssertEqual(result?.recommendedCount, 80)
     }
+
+    func testCalculatorBundleLoadsRepresentativeAdjustmentLocalization() {
+        XCTAssertEqual(
+            Bundle.main.localizedString(
+                forKey: "calculator.adjustment.mode.acrossRows",
+                value: nil,
+                table: "Localizable"
+            ),
+            "Across rows"
+        )
+    }
 }

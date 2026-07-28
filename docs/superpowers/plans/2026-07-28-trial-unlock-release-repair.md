@@ -149,7 +149,11 @@ Persistence must not call page-loading/display projection helpers and must not
 change `lastOpenedAt`, project `updatedAt`, or any explicit-field timestamp.
 Target-page highlight positions and notes may be projected only into a
 temporary hydration/display copy; that projection is never written through
-`.recordPatternBrowsing`.
+`.recordPatternBrowsing`. The temporary copy must use the saved target-page
+entry when one exists. If the passively selected target has no `pageStates`
+entry, both library and legacy hydration must use horizontal `0.5`, vertical
+`0.5`, and an empty page note rather than stale top-level values from the
+previous page.
 
 Run:
 

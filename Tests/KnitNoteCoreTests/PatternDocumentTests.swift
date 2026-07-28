@@ -60,7 +60,15 @@ import Testing
     let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store=JSONProjectStore(url:url); try store.add(name:"Shawl"); let projectID=store.projects[0].id
     let pattern=PatternDocument(displayName:"Lace",kind:.pdf,storedFilename:"lace.pdf"); try store.addPattern(projectID:projectID,pattern:pattern)
-    let expected=PatternReadingState(highlightEnabled:true,highlightPosition:0.2,highlightMode:.cross,verticalHighlightPosition:0.8)
+    let expected=PatternReadingState(
+        highlightEnabled:true,
+        highlightPosition:0.2,
+        highlightMode:.cross,
+        verticalHighlightPosition:0.8,
+        pageStates: [
+            0: PatternPageState(horizontalPosition: 0.2, verticalPosition: 0.8),
+        ]
+    )
     try store.updatePatternState(projectID:projectID,id:pattern.id,state:expected)
     let actual=JSONProjectStore(url:url).projects[0].patterns[0].readingState
     #expect(actual.highlightMode == .cross)
@@ -84,10 +92,46 @@ import Testing
     let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store=JSONProjectStore(url:url); try store.add(name:"Blanket"); let projectID=store.projects[0].id
     let pattern=PatternDocument(displayName:"Chart",kind:.pdf,storedFilename:"chart.pdf"); try store.addPattern(projectID:projectID,pattern:pattern)
-    let expected=PatternReadingState(pageIndex:5,zoomScale:2.5,offsetX:0.3,offsetY:0.8,highlightEnabled:true,highlightPosition:0.66)
+    let expected=PatternReadingState(
+        pageIndex:5,
+        zoomScale:2.5,
+        offsetX:0.3,
+        offsetY:0.8,
+        highlightEnabled:true,
+        highlightPosition:0.66,
+        pageStates: [
+            5: PatternPageState(horizontalPosition: 0.66),
+        ]
+    )
     try store.updatePatternState(projectID:projectID,id:pattern.id,state:expected)
     let actual=JSONProjectStore(url:url).projects[0].patterns[0].readingState
     #expect(actual == expected)
+}
+
+@Test func legacyReadingStateDefaultsUnsavedTargetPageExplicitFieldsWithoutMutatingDocument() {
+    var pattern = PatternDocument(
+        displayName: "Legacy",
+        kind: .pdf,
+        storedFilename: "legacy.pdf"
+    )
+    pattern.pageIndex = 2
+    pattern.highlightPosition = 0.24
+    pattern.verticalHighlightPosition = 0.76
+    pattern.pageStates = [
+        0: PatternPageState(
+            horizontalPosition: 0.24,
+            verticalPosition: 0.76,
+            note: "Previous page"
+        ),
+    ]
+    let stored = pattern
+
+    let loaded = pattern.readingState
+
+    #expect(loaded.highlightPosition == 0.5)
+    #expect(loaded.verticalHighlightPosition == 0.5)
+    #expect(loaded.pageNote.isEmpty)
+    #expect(pattern == stored)
 }
 
 @Test func pdfReaderDoesNotSampleBeforeSavedPositionIsRestored() {

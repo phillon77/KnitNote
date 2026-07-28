@@ -169,7 +169,7 @@ public extension PatternReadingState {
     }
 
     func projectedForDisplay() -> PatternReadingState {
-        guard let pageState = pageStates[pageIndex] else { return self }
+        let pageState = pageStates[pageIndex] ?? PatternPageState()
         var projected = self
         projected.highlightPosition = pageState.horizontalPosition
         projected.verticalHighlightPosition = pageState.verticalPosition
@@ -227,6 +227,7 @@ public struct PatternPDFPageRequestGate: Sendable {
 
 public extension PatternDocument {
     var readingState: PatternReadingState {
-        .init(pageIndex: pageIndex, zoomScale: zoomScale, offsetX: contentOffsetX, offsetY: contentOffsetY, highlightEnabled: highlightEnabled, highlightPosition: pageStates[pageIndex]?.horizontalPosition ?? highlightPosition, highlightMode: highlightMode, verticalHighlightPosition: pageStates[pageIndex]?.verticalPosition ?? verticalHighlightPosition, pageNote: pageStates[pageIndex]?.note ?? "", pageStates: pageStates)
+        let pageState = pageStates[pageIndex] ?? PatternPageState()
+        return .init(pageIndex: pageIndex, zoomScale: zoomScale, offsetX: contentOffsetX, offsetY: contentOffsetY, highlightEnabled: highlightEnabled, highlightPosition: pageState.horizontalPosition, highlightMode: highlightMode, verticalHighlightPosition: pageState.verticalPosition, pageNote: pageState.note ?? "", pageStates: pageStates)
     }
 }

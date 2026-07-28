@@ -1083,18 +1083,20 @@ final class PatternLibraryDeletionTransaction {
         id: UUID,
         duplicateResolution: PatternImportDuplicateResolution
     ) async throws -> PatternImportOutcome {
-        try requireAccess(.importPattern)
+        let access = try preflightAccess(.importPattern)
         return try await withActivePatternTransaction {
             try await processPatternInboxItemWithoutTransaction(
                 id: id,
-                duplicateResolution: duplicateResolution
+                duplicateResolution: duplicateResolution,
+                access: access
             )
         }
     }
 
     private func processPatternInboxItemWithoutTransaction(
         id: UUID,
-        duplicateResolution: PatternImportDuplicateResolution
+        duplicateResolution: PatternImportDuplicateResolution,
+        access: FeatureAccessDecision
     ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
         try await reconcilePublishedPatternInboxItems()
@@ -1117,7 +1119,16 @@ final class PatternLibraryDeletionTransaction {
         if dataGeneration != capturedGeneration {
             try ensureArchiveAvailable()
         }
-        return try publishPatternImport(prepared, duplicateResolution: duplicateResolution)
+        if let targetProjectID = prepared.item.targetProjectID {
+            guard project(id: targetProjectID) != nil else {
+                throw ProjectStoreError.patternNotFound
+            }
+        }
+        return try publishPatternImport(
+            prepared,
+            duplicateResolution: duplicateResolution,
+            access: access
+        )
     }
 
     public func pendingPatternInboxItems() async throws -> [PatternInboxItem] {
@@ -1201,7 +1212,8 @@ final class PatternLibraryDeletionTransaction {
             try Task.checkCancellation()
             return try await processPatternInboxItemWithoutTransaction(
                 id: item.id,
-                duplicateResolution: .automatic
+                duplicateResolution: .automatic,
+                access: .allow
             )
         }
     }
@@ -1988,7 +2000,8 @@ final class PatternLibraryDeletionTransaction {
     }
     private func publishPatternImport(
         _ prepared: PreparedPatternImport,
-        duplicateResolution: PatternImportDuplicateResolution
+        duplicateResolution: PatternImportDuplicateResolution,
+        access: FeatureAccessDecision
     ) throws -> PatternImportOutcome {
         let files = try requiredPatternFileService()
         let inbox = try requiredPatternInboxFileService()
@@ -2011,6 +2024,7 @@ final class PatternLibraryDeletionTransaction {
                 byteCount: prepared.metadata.byteCount,
                 pageCount: prepared.metadata.pageCount
             )
+            try commitAccessIfNeeded(access, mutation: .importPattern)
             try files.beginImportTransaction(
                 item: prepared.item,
                 metadata: prepared.metadata,
@@ -2062,6 +2076,7 @@ final class PatternLibraryDeletionTransaction {
                     targetProjectID: prepared.item.targetProjectID,
                     to: patternUsages
                 )
+                try commitAccessIfNeeded(access, mutation: .importPattern)
                 do {
                     try receipts.begin(item: prepared.item, pattern: pattern)
                     try persist(
@@ -2113,6 +2128,7 @@ final class PatternLibraryDeletionTransaction {
                 targetProjectID: prepared.item.targetProjectID,
                 to: patternUsages
             )
+            try commitAccessIfNeeded(access, mutation: .importPattern)
             do {
                 try receipts.begin(item: prepared.item, pattern: pattern)
                 if usages != patternUsages {

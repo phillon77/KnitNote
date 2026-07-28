@@ -867,6 +867,81 @@ import UniformTypeIdentifiers
 }
 
 @MainActor
+@Test func missingPatternInboxItemNeverCommitsTrialStart() async throws {
+    let fixture = try RestrictedMutationFixture(authorizerDecision: .startTrial)
+    defer { fixture.removeFiles() }
+
+    await #expect(throws: PatternInboxError.itemNotFound) {
+        _ = try await fixture.store.processPatternInboxItem(
+            id: UUID(),
+            duplicateResolution: .automatic
+        )
+    }
+
+    #expect(fixture.authorizer.mutations == [.importPattern])
+    #expect(fixture.committer.mutations.isEmpty)
+}
+
+@MainActor
+@Test func patternInboxItemWithMissingTargetNeverCommitsTrialStart() async throws {
+    let fixture = try RestrictedMutationFixture(authorizerDecision: .startTrial)
+    defer { fixture.removeFiles() }
+    let source = fixture.root.appendingPathComponent("inbox-pattern.pdf")
+    try makeTestPatternPDF(at: source)
+    let inbox = PatternInboxFileService(
+        root: fixture.root.appendingPathComponent("PatternInbox", isDirectory: true)
+    )
+    let item = try inbox.enqueue(
+        source: source,
+        origin: .shareExtension,
+        targetProjectID: UUID(),
+        now: .now
+    )
+
+    await #expect(throws: ProjectStoreError.patternNotFound) {
+        _ = try await fixture.store.processPatternInboxItem(
+            id: item.id,
+            duplicateResolution: .automatic
+        )
+    }
+
+    #expect(fixture.committer.mutations.isEmpty)
+}
+
+@MainActor
+@Test func ambiguousPatternInboxItemCommitsTrialOnlyAfterSelectionPublishes() async throws {
+    let harness = try await PatternImportHarness.withTwoNamesForOneAsset()
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: harness.archiveURL,
+        patternFileService: PatternFileService(root: harness.assetsRoot),
+        patternInboxFileService: PatternInboxFileService(root: harness.inbox.root),
+        authorizeMutation: { _ in .startTrial },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+    let item = try harness.enqueueMatchingFile()
+
+    let pending = try await store.processPatternInboxItem(
+        id: item.id,
+        duplicateResolution: .automatic
+    )
+    guard case let .needsSelection(_, candidatePatternIDs) = pending else {
+        Issue.record("Expected duplicate selection before publication")
+        return
+    }
+    #expect(committer.mutations.isEmpty)
+
+    let selectedID = try #require(candidatePatternIDs.first)
+    let published = try await store.processPatternInboxItem(
+        id: item.id,
+        duplicateResolution: .existing(selectedID)
+    )
+
+    #expect(published == .existing(patternID: selectedID))
+    #expect(committer.mutations == [.importPattern])
+}
+
+@MainActor
 @Test func restrictedPatternDetailMutationsLeaveLibraryAndArchiveUnchanged() throws {
     let fixture = try RestrictedMutationFixture()
     defer { fixture.removeFiles() }

@@ -162,13 +162,19 @@ public extension PatternReadingState {
     }
 
     mutating func applyBrowsingState(_ browsingState: PatternBrowsingState) {
-        if pageIndex != browsingState.pageIndex {
-            loadPage(browsingState.pageIndex)
-        }
         pageIndex = browsingState.pageIndex
         zoomScale = browsingState.zoomScale
         offsetX = browsingState.offsetX
         offsetY = browsingState.offsetY
+    }
+
+    func projectedForDisplay() -> PatternReadingState {
+        guard let pageState = pageStates[pageIndex] else { return self }
+        var projected = self
+        projected.highlightPosition = pageState.horizontalPosition
+        projected.verticalHighlightPosition = pageState.verticalPosition
+        projected.pageNote = pageState.note ?? ""
+        return projected
     }
 }
 

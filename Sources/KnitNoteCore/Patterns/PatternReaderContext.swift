@@ -104,7 +104,7 @@ public enum PatternReaderStateLoader: Sendable {
               }) else {
             return .init()
         }
-        return usage.readingState
+        return usage.readingState.projectedForDisplay()
     }
 }
 

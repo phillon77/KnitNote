@@ -145,6 +145,11 @@ projection, while `lastOpenedAt` remains a separate scalar update. The browsing
 endpoint must merge those fields into stored state and must not accept or
 overwrite highlight enablement, highlight mode or positions, page notes,
 per-page state, markup, counters, or any other explicit edit field.
+Persistence must not call page-loading/display projection helpers and must not
+change `lastOpenedAt`, project `updatedAt`, or any explicit-field timestamp.
+Target-page highlight positions and notes may be projected only into a
+temporary hydration/display copy; that projection is never written through
+`.recordPatternBrowsing`.
 
 Run:
 

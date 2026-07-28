@@ -371,6 +371,8 @@ import UniformTypeIdentifiers
     #expect(committer.mutations.isEmpty)
     #expect(store.patterns.first?.lastOpenedAt == Date(timeIntervalSince1970: 30_001))
 
+    let stateBeforeBrowsing = try #require(store.patternUsages.first?.readingState)
+    let lastOpenedBeforeBrowsing = try #require(store.patterns.first?.lastOpenedAt)
     _ = try store.updatePatternBrowsingState(
         usageID: usage.id,
         state: PatternReadingState(
@@ -400,12 +402,19 @@ import UniformTypeIdentifiers
     #expect(browsed.zoomScale == 2.25)
     #expect(browsed.offsetX == 0.3)
     #expect(browsed.offsetY == 0.7)
+    var expectedBrowsingState = stateBeforeBrowsing
+    expectedBrowsingState.pageIndex = 2
+    expectedBrowsingState.zoomScale = 2.25
+    expectedBrowsingState.offsetX = 0.3
+    expectedBrowsingState.offsetY = 0.7
+    #expect(browsed == expectedBrowsingState)
     #expect(browsed.highlightEnabled)
     #expect(browsed.highlightMode == .cross)
-    #expect(browsed.highlightPosition == 0.42)
-    #expect(browsed.verticalHighlightPosition == 0.64)
-    #expect(browsed.pageNote == "Stored page two")
+    #expect(browsed.highlightPosition == 0.21)
+    #expect(browsed.verticalHighlightPosition == 0.79)
+    #expect(browsed.pageNote == "Stored page zero")
     #expect(browsed.pageStates == storedPageStates)
+    #expect(store.patterns.first?.lastOpenedAt == lastOpenedBeforeBrowsing)
 
     let explicitState = PatternReadingState(
         pageIndex: 3,
@@ -433,6 +442,121 @@ import UniformTypeIdentifiers
 
     #expect(committer.mutations == [.editPatternReadingState])
     #expect(store.patternUsages.first?.readingState == explicitState)
+}
+
+@MainActor
+@Test func legacyBrowsingChangesOnlyPassiveScalarsWithoutTouchingTimestamps() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("LegacyPassiveBrowsing-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+    let initialLastOpenedAt = Date(timeIntervalSince1970: 41_000)
+    let storedPageStates = [
+        0: PatternPageState(
+            horizontalPosition: 0.24,
+            verticalPosition: 0.76,
+            note: "Legacy page zero"
+        ),
+        2: PatternPageState(
+            horizontalPosition: 0.43,
+            verticalPosition: 0.67,
+            note: "Legacy page two"
+        ),
+    ]
+    var pattern = PatternDocument(
+        displayName: "Legacy",
+        kind: .pdf,
+        storedFilename: "legacy.pdf"
+    )
+    pattern.lastOpenedAt = initialLastOpenedAt
+    pattern.highlightEnabled = true
+    pattern.highlightPosition = 0.24
+    pattern.highlightMode = .cross
+    pattern.verticalHighlightPosition = 0.76
+    pattern.pageStates = storedPageStates
+    var project = try StoredProject(
+        name: "Legacy project",
+        now: Date(timeIntervalSince1970: 40_000)
+    )
+    project.addPattern(pattern)
+
+    let archive = root.appendingPathComponent("projects-v1.json")
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [project]
+    )).write(to: archive, options: .atomic)
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: archive,
+        authorizeMutation: {
+            FeatureAccessPolicy.decision(
+                for: $0,
+                snapshot: .trialNotStarted,
+                now: Date(timeIntervalSince1970: 42_000)
+            )
+        },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+
+    let projectBeforeBrowsing = try #require(store.project(id: project.id))
+    let patternBeforeBrowsing = try #require(
+        projectBeforeBrowsing.patterns.first(where: { $0.id == pattern.id })
+    )
+    _ = try store.updatePatternBrowsingState(
+        projectID: project.id,
+        id: pattern.id,
+        state: PatternBrowsingState(
+            pageIndex: 2,
+            zoomScale: 2.4,
+            offsetX: 0.35,
+            offsetY: 0.65
+        ),
+        expectedDataGeneration: store.dataGeneration
+    )
+
+    let projectAfterBrowsing = try #require(store.project(id: project.id))
+    let patternAfterBrowsing = try #require(
+        projectAfterBrowsing.patterns.first(where: { $0.id == pattern.id })
+    )
+    var expectedPattern = patternBeforeBrowsing
+    expectedPattern.pageIndex = 2
+    expectedPattern.zoomScale = 2.4
+    expectedPattern.contentOffsetX = 0.35
+    expectedPattern.contentOffsetY = 0.65
+
+    #expect(committer.mutations.isEmpty)
+    #expect(patternAfterBrowsing == expectedPattern)
+    #expect(patternAfterBrowsing.lastOpenedAt == initialLastOpenedAt)
+    #expect(projectAfterBrowsing.updatedAt == projectBeforeBrowsing.updatedAt)
+
+    let explicitState = PatternReadingState(
+        pageIndex: 3,
+        zoomScale: 1.6,
+        offsetX: 0.15,
+        offsetY: 0.85,
+        highlightEnabled: false,
+        highlightPosition: 0.82,
+        highlightMode: .vertical,
+        verticalHighlightPosition: 0.18,
+        pageNote: "Explicit legacy edit",
+        pageStates: [
+            3: PatternPageState(
+                horizontalPosition: 0.82,
+                verticalPosition: 0.18,
+                note: "Explicit legacy edit"
+            ),
+        ]
+    )
+    _ = try store.updatePatternState(
+        projectID: project.id,
+        id: pattern.id,
+        state: explicitState,
+        expectedDataGeneration: store.dataGeneration
+    )
+
+    #expect(committer.mutations == [.editPatternReadingState])
+    #expect(store.project(id: project.id)?.patterns.first?.readingState == explicitState)
 }
 
 @MainActor

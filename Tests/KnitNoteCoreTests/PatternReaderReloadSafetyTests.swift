@@ -31,6 +31,53 @@ import Testing
         ) == wanted)
     }
 
+    @Test func loaderProjectsTargetPageExplicitFieldsWithoutMutatingStoredUsage() {
+        let patternID = UUID()
+        let projectID = UUID()
+        let usageID = UUID()
+        let stored = PatternReadingState(
+            pageIndex: 2,
+            zoomScale: 2.2,
+            offsetX: 0.3,
+            offsetY: 0.7,
+            highlightEnabled: true,
+            highlightPosition: 0.21,
+            highlightMode: .cross,
+            verticalHighlightPosition: 0.79,
+            pageNote: "Stored top-level page",
+            pageStates: [
+                2: PatternPageState(
+                    horizontalPosition: 0.42,
+                    verticalPosition: 0.64,
+                    note: "Displayed target page"
+                ),
+            ]
+        )
+        let usage = PatternProjectUsage(
+            id: usageID,
+            patternID: patternID,
+            projectID: projectID,
+            sortOrder: 0,
+            readingState: stored
+        )
+        let context = PatternReaderContext.project(
+            patternID: patternID,
+            usageID: usageID,
+            projectID: projectID,
+            projectIsCompleted: false
+        )
+
+        let loaded = PatternReaderStateLoader.readingState(
+            for: context,
+            usages: [usage]
+        )
+
+        #expect(loaded.highlightPosition == 0.42)
+        #expect(loaded.verticalHighlightPosition == 0.64)
+        #expect(loaded.pageNote == "Displayed target page")
+        #expect(usage.readingState == stored)
+    }
+
     @Test func staleHydrationGenerationCannotApplyAfterContextReset() {
         let first = writableContext()
         let second = PatternReaderContext.project(

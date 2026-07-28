@@ -174,9 +174,11 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     ) {
         guard !isCompleted,
               let index = legacyPatternDocuments.firstIndex(where: { $0.id == id }) else { return }
-        var merged = legacyPatternDocuments[index].readingState
-        merged.applyBrowsingState(state)
-        updatePatternState(id: id, state: merged, now: now)
+        legacyPatternDocuments[index].pageIndex = state.pageIndex
+        legacyPatternDocuments[index].zoomScale = state.zoomScale
+        legacyPatternDocuments[index].contentOffsetX = state.offsetX
+        legacyPatternDocuments[index].contentOffsetY = state.offsetY
+        _ = now
     }
 
     public mutating func updatePatternState(id: UUID, pageIndex: Int, highlightPosition: Double) { updatePatternState(id: id, state: .init(pageIndex: pageIndex, highlightPosition: highlightPosition)) }

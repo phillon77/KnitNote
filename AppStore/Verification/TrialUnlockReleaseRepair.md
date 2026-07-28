@@ -15,6 +15,9 @@ Verified review-fix Round 1 source commit:
 Verified review-fix Round 2 source commit:
 `b5ce45bd781a84fda4082a015559a2fc61799871`
 
+Verified review-fix Round 3 source commit:
+`691383bd3a0cde330f4b76ed48d0dad8224f74b4`
+
 Release candidate: `1.2.1` / Build `3`
 
 This is local, unsigned verification only. No archive was uploaded, no App Store
@@ -36,8 +39,10 @@ state were not changed.
   Housekeeping is type-limited to page index, zoom, and content offsets and
   merges those fields into stored state; it cannot accept or overwrite
   highlights, page notes, per-page state, markup, or other explicit edits.
-  `lastOpenedAt` remains a separate scalar browsing update. An explicit reader
-  edit still starts the trial before saving its full state.
+  `lastOpenedAt` remains a separate scalar browsing update; passive reader-state
+  persistence changes neither it nor project `updatedAt`. Target-page
+  highlight/note values are projected only into a temporary hydration copy.
+  An explicit reader edit still starts the trial before saving its full state.
 - An expired authoritative iPhone entitlement now rejects a queued Watch command
   with `.entitlementRequired`, durably records the command identity, sends an
   acknowledgement that removes it from the Watch queue, and publishes the
@@ -72,19 +77,20 @@ scheme below.
 | Focused boundary GREEN (superseded for browsing isolation) | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1Green --filter 'passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes\|exactSevenDayBoundaryRejectsAsyncMutationEntry\|trialNotStartedReaderSeparatesBrowsingHousekeepingFromExplicitEdits'` | 0 | All selected tests and both exact-boundary argument cases passed. This proved that browsing did not start the trial, but did not prove that the browsing endpoint excluded explicit reader fields; Round 2 supplies that evidence. |
 | Inbox authorization GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound1InboxRed --filter 'patternInboxConvenienceOverloadUsesOneEntryAuthorizationBoundary'` | 0 | The convenience overload used exactly one entry authorization and no post-publication entitlement commit. |
 
-## Review-fix Round 2 TDD evidence
+## Review-fix Round 2 TDD evidence (superseded)
 
 The passive projection contains only `pageIndex`, `zoomScale`, `offsetX`, and
-`offsetY`. On a page change, the current highlight positions and note are
-derived from the already-stored target-page state. The input cannot carry
-highlight enablement, mode or positions, page notes, the per-page dictionary,
-markup, counters, or other explicit edit fields.
+`offsetY`, but the Round 2 persistence merge called `loadPage` on a page
+change. That call wrote target-page highlight positions and note into the
+stored top-level fields. The legacy path then performed a full update that also
+changed `lastOpenedAt` and project `updatedAt`. Round 2 therefore narrowed the
+input but did not satisfy the exact-four-field persistence contract.
 
 | Phase | Command | Exit | Evidence |
 | --- | --- | ---: | --- |
 | Browsing projection RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound2Red --filter 'passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes'` | 1 | 1 test; 6 issues. Housekeeping overwrote highlight enablement, mode, both positions, page note, and the full per-page state dictionary. |
 | Reader boundary RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound2Red --filter 'trialNotStartedReaderSeparatesBrowsingHousekeepingFromExplicitEdits'` | 1 | 1 test; 2 issues. Reader call sites still passed the whole `PatternReadingState`, and the store endpoint still accepted it. |
-| Focused GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound2Green --filter 'PatternReaderCounterContractTests\|JSONProjectStoreEntitlementTests\|FeatureAccessPolicyTests\|PatternDocumentTests'` | 0 | 79 tests in 1 suite plus parameterized cases passed. Passive page/zoom/offset fields updated without a trial commit; stored explicit fields remained unchanged. The explicit endpoint then started the trial and persisted the full explicit state. |
+| Focused GREEN (superseded) | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound2Green --filter 'PatternReaderCounterContractTests\|JSONProjectStoreEntitlementTests\|FeatureAccessPolicyTests\|PatternDocumentTests'` | 0 | 79 tests in 1 suite plus parameterized cases passed, but the new test incorrectly expected target-page highlight positions and note to replace stored top-level fields and did not cover legacy timestamps. This is not accepted as exact-four-field evidence. |
 
 Unsigned Round 2 Release builds:
 
@@ -92,6 +98,21 @@ Unsigned Round 2 Release builds:
 | --- | --- | --- | ---: |
 | KnitNote iOS / iPadOS | `generic/platform=iOS` | `/tmp/KnitNoteTrialRepairRound2IOS` | 0 |
 | KnitNote macOS | `generic/platform=macOS` | `/tmp/KnitNoteTrialRepairRound2Mac` | 0 |
+
+## Review-fix Round 3 TDD evidence
+
+| Phase | Command | Exit | Evidence |
+| --- | --- | ---: | --- |
+| Library and legacy persistence RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound3Red --filter 'passivePatternBrowsingPreservesExplicitFieldsAndExplicitEditStartsTrial\|legacyBrowsingChangesOnlyPassiveScalarsWithoutTouchingTimestamps'` | 1 | 2 tests; 7 issues. Library persistence changed three explicit top-level fields. Legacy persistence changed the full document equality, `lastOpenedAt`, and project `updatedAt`. |
+| Hydration projection RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound3Red --filter 'loaderProjectsTargetPageExplicitFieldsWithoutMutatingStoredUsage'` | 1 | 1 test; 3 issues. The loader did not yet derive target-page highlight positions and note into a temporary display copy. |
+| Focused GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound3Green --filter 'PatternDocumentTests\|PatternReaderReloadSafetyTests\|PatternReaderCounterContractTests\|JSONProjectStoreEntitlementTests\|FeatureAccessPolicyTests\|PatternLibraryStoreTests'` | 0 | 116 tests in 2 suites plus parameterized cases passed. Library and legacy stored equality changed only the four passive scalars; explicit fields and timestamps remained unchanged. Display hydration projected target-page values without mutating the stored usage. Explicit endpoints still started the trial and fully persisted edits. |
+
+Unsigned Round 3 Release builds:
+
+| Target | Destination | DerivedData | Exit |
+| --- | --- | --- | ---: |
+| KnitNote iOS / iPadOS | `generic/platform=iOS` | `/tmp/KnitNoteTrialRepairRound3IOS` | 0 |
+| KnitNote macOS | `generic/platform=macOS` | `/tmp/KnitNoteTrialRepairRound3Mac` | 0 |
 
 ## App and package tests
 

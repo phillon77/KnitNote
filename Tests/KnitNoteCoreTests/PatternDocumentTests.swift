@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
-@Test func onlyIPadUsesFullScreenPatternPresentation() {
+@Test func everyIOSDeviceUsesFullScreenPatternPresentation() {
     #expect(patternReaderPresentation(isPad: true) == .fullScreen)
-    #expect(patternReaderPresentation(isPad: false) == .sheet)
+    #expect(patternReaderPresentation(isPad: false) == .fullScreen)
 }
 
 @Test func patternStateClampsAndPersistsAsV3() throws {
@@ -144,6 +144,27 @@ import Testing
     #expect(state.highlightPosition == 0.2)
     #expect(state.verticalHighlightPosition == 0.8)
     #expect(state.pageNote == "page two")
+}
+
+@Test func synchronizingAnUnchangedVisiblePDFPageDoesNotMutateReaderState() {
+    var state = PatternReadingState(
+        pageIndex: 2,
+        zoomScale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        highlightEnabled: true,
+        highlightPosition: 0.27,
+        highlightMode: .cross,
+        verticalHighlightPosition: 0.73,
+        pageNote: "keep this row"
+    )
+    state.saveCurrentPage()
+    let original = state
+
+    let changed = state.synchronizeVisiblePDFPage(2)
+
+    #expect(!changed)
+    #expect(state == original)
 }
 
 @Test func pageStatesKeepIndependentHighlightsAndTrimNotes() {

@@ -2,7 +2,7 @@ import Foundation
 public enum PatternKind: String, Codable, Sendable { case image, pdf }
 public enum HighlightMode: String, Codable, CaseIterable, Sendable { case horizontal, vertical, cross }
 public enum PatternReaderPresentation: Sendable { case sheet, fullScreen }
-public func patternReaderPresentation(isPad: Bool) -> PatternReaderPresentation { isPad ? .fullScreen : .sheet }
+public func patternReaderPresentation(isPad: Bool) -> PatternReaderPresentation { .fullScreen }
 public struct PatternPageState: Codable, Hashable, Sendable {
     public var horizontalPosition: Double
     public var verticalPosition: Double
@@ -95,6 +95,18 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
         offsetX = 0
         offsetY = 0
         loadPage(cleanTarget)
+    }
+
+    @discardableResult
+    public mutating func synchronizeVisiblePDFPage(_ target: Int) -> Bool {
+        var updated = self
+        updated.transitionToPDFPage(target)
+        updated.zoomScale = 1
+        updated.offsetX = 0
+        updated.offsetY = 0
+        guard updated != self else { return false }
+        self = updated
+        return true
     }
 
     public mutating func saveCurrentPage() {

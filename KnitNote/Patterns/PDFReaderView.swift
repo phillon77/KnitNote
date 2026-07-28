@@ -244,13 +244,11 @@ extension PDFReaderView {
         }
         private func sample(_ source: PDFView? = nil) {
             guard restoreGate.canSample, let view=source ?? view else { return }
-            publishPageFrame(from: view)
             let visiblePage=view.currentPage.flatMap{view.document?.index(for:$0)} ?? 0
             guard pageRequestGate.accepts(visiblePage) else { return }
-            state.transitionToPDFPage(visiblePage)
-            state.zoomScale=1
-            state.offsetX=0
-            state.offsetY=0
+            var synchronizedState = state
+            guard synchronizedState.synchronizeVisiblePDFPage(visiblePage) else { return }
+            state = synchronizedState
         }
         deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     }

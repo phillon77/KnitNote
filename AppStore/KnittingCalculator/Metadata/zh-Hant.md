@@ -3,7 +3,7 @@
 - Name: 編織計算器
 - Subtitle: 密度與加減針工具
 - Promotional text: 免費、離線的編織與鉤針密度、平均加減針工具；不需要帳號。
-- Keywords: 編織,棒針,鉤針,密度,加針,減針,針數,排數,毛線,針目
+- Keywords: 棒針,鉤針,針數,排數,毛線,針目,樣本,尺寸,換算,間隔
 - Description: |
   編織計算器是免費、可離線使用的棒針與鉤針工具；不需要帳號、不含廣告與 App 內購買、不含分析，也不會追蹤你。
 
@@ -24,4 +24,4 @@
 
 ## 欄位驗證依據
 
-於 2026-07-28 依 Apple 目前的 [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/)、[App Store 搜尋關鍵字](https://developer.apple.com/app-store/search/) 與 [App privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/) 文件檢查。名稱與副標題均不超過 30 個字元，宣傳文字不超過 170 個字元，關鍵字不超過 100 個 UTF-8 位元組並以逗號分隔。
+於 2026-07-28 依 Apple 目前的 [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/)、[platform version information](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information)、[App Store 搜尋關鍵字](https://developer.apple.com/app-store/search/) 與 [App privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/) 文件檢查。名稱與副標題均不超過 30 個字元，宣傳文字不超過 170 個字元，關鍵字不超過 100 個 UTF-8 位元組、以逗號分隔，且不重複名稱或副標題的詞彙。

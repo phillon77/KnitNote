@@ -21,17 +21,22 @@ KnitNote is mentioned only as a separate optional project-management app from th
 Checked 2026-07-28 against Apple’s current documentation:
 
 - [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/) — name and subtitle are each limited to 30 characters; a privacy-policy URL is required.
-- [App Store search](https://developer.apple.com/app-store/search/) — keywords are limited to 100 characters/bytes, comma-separated, and should not duplicate terms.
+- [Platform version information](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information) — keywords are limited to 100 bytes and must not duplicate the app name or company name.
+- [App Store search](https://developer.apple.com/app-store/search/) — keywords are comma-separated and should avoid duplicate terms, including plural variants.
 - [Manage app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/) — App Store privacy answers and policy must accurately cover the app and integrated third-party code.
-- [Required-reason API reference](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype) — `CA92.1` permits app-local UserDefaults read/write use.
+- [NSPrivacyAccessedAPITypeReasons](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitypereasons?language=objc) — `CA92.1` permits app-local UserDefaults read/write use.
 
 ## TDD evidence
 
-The new `KnittingCalculatorMetadataContractTests` was added before any Task 11 metadata, privacy, or support artifact. Its first run compiled and failed only because the expected `AppStore/KnittingCalculator/Metadata/*.md` and `PrivacyPolicy.md` files did not exist. After the minimum artifacts were added, the contract exposed six real copy/link gaps: explicit English no-ads/no-analytics wording, explicit Traditional-Chinese no-tracking wording, direct delete wording, and the public privacy URL on the support page. The corrected GREEN run passed all three tests.
+The new `KnittingCalculatorMetadataContractTests` was added before any Task 11 metadata, privacy, or support artifact. Its first run compiled and failed only because the expected `AppStore/KnittingCalculator/Metadata/*.md` and `PrivacyPolicy.md` files did not exist. After the minimum artifacts were added, the contract exposed six real copy/link gaps: explicit English no-ads/no-analytics wording, explicit Traditional-Chinese no-tracking wording, direct delete wording, and the public privacy URL on the support page.
+
+Review round 1 added RED coverage before changing the checker or listing: the Swift contract exposed title/subtitle terms repeated in both keyword fields; `metadata_check_test.py` demonstrated that the metadata checker accepted a repeating keyword; and `site_check_test.py` demonstrated that invalid calculator support/privacy pages were skipped. The GREEN change uses truthful, non-repeating calculator terms, rejects keyword overlap with Name, Subtitle, and any locally specified category, and subjects both calculator pages to the same structural, accessibility, relative-link, script/iframe, and remote-resource checks as the existing site.
 
 ## Fresh verification
 
-- `CLANG_MODULE_CACHE_PATH=/tmp/knitting-calculator-clang-module-cache swift test --filter KnittingCalculatorMetadataContractTests` — 3 tests passed.
+- `CLANG_MODULE_CACHE_PATH=/tmp/knitting-calculator-clang-module-cache swift test --filter KnittingCalculatorMetadataContractTests` — 4 tests passed.
+- `python3 AppStore/Verification/metadata_check_test.py` — 1 regression fixture passed.
+- `python3 AppStore/Verification/site_check_test.py` — 1 calculator-page coverage fixture passed.
 - `python3 AppStore/Verification/site_check.py AppStore/SupportSite` — `SITE CHECK: PASS`.
 - `python3 AppStore/Verification/metadata_check.py AppStore/KnittingCalculator/Metadata` — `METADATA CHECK: PASS`.
 - `git diff --check` — passed.
@@ -47,5 +52,9 @@ The build reports the existing target warning that a launch configuration, launc
 - `AppStore/SupportSite/knitting-calculator.html`
 - `AppStore/SupportSite/knitting-calculator-privacy.html`
 - `AppStore/SupportSite/index.html`
+- `AppStore/Verification/metadata_check.py`
+- `AppStore/Verification/metadata_check_test.py`
+- `AppStore/Verification/site_check.py`
+- `AppStore/Verification/site_check_test.py`
 - `Tests/KnitNoteCoreTests/KnittingCalculatorMetadataContractTests.swift`
 - `task-11-report.md`

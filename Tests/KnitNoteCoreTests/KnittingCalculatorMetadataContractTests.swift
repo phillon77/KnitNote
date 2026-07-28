@@ -7,8 +7,8 @@ import Testing
 
     @Test func freeAppMetadataIsCompleteAccurateAndLocalized() throws {
         let expected = [
-            "en-US": ("Knitting Calculator", "Gauge, Increases & Decreases", ["knitting", "crochet", "gauge", "increase", "decrease", "stitches", "rows"]),
-            "zh-Hant": ("編織計算器", "密度與加減針工具", ["編織", "棒針", "鉤針", "密度", "加針", "減針", "針數", "排數"]),
+            "en-US": ("Knitting Calculator", "Gauge, Increases & Decreases", ["crochet", "stitch", "rows", "needle", "yarn", "pattern", "swatch", "math", "craft"]),
+            "zh-Hant": ("編織計算器", "密度與加減針工具", ["棒針", "鉤針", "針數", "排數", "毛線", "針目", "樣本", "尺寸", "換算", "間隔"]),
         ]
 
         for (locale, values) in expected {
@@ -37,6 +37,21 @@ import Testing
             #expect(text.localizedCaseInsensitiveContains("offline") || text.contains("離線"))
             #expect(text.localizedCaseInsensitiveContains("account") || text.contains("帳號"))
             #expect(text.range(of: "KnitNote", options: .caseInsensitive) != nil)
+        }
+    }
+
+    @Test func keywordsDoNotRepeatNameSubtitleOrLocalCategoryTerms() throws {
+        for locale in ["en-US", "zh-Hant"] {
+            let fields = try metadataFields(for: locale)
+            let reserved = normalized(fields["Name"] ?? "")
+                + normalized(fields["Subtitle"] ?? "")
+                + normalized(fields["Primary Category"] ?? "")
+                + normalized(fields["Secondary Category"] ?? "")
+            for keyword in (fields["Keywords"] ?? "").split(separator: ",") {
+                let normalizedKeyword = normalized(String(keyword))
+                #expect(!normalizedKeyword.isEmpty)
+                #expect(!reserved.contains(normalizedKeyword), "\(locale) keyword repeats a name, subtitle, or category term: \(keyword)")
+            }
         }
     }
 
@@ -97,6 +112,14 @@ import Testing
 
     private func source(_ relativePath: String) throws -> String {
         try String(contentsOf: metadataRepositoryRoot.appending(path: relativePath), encoding: .utf8)
+    }
+
+    private func normalized(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
     }
 }
 

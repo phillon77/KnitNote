@@ -3,7 +3,7 @@
 - Name: Knitting Calculator
 - Subtitle: Gauge, Increases & Decreases
 - Promotional text: Free, offline gauge and stitch-adjustment tools for knitting and crochet. No account required.
-- Keywords: knitting,crochet,gauge,increase,decrease,stitches,rows,needle,yarn
+- Keywords: crochet,stitch,rows,needle,yarn,pattern,swatch,math,craft
 - Description: |
   Knitting Calculator is a free, offline tool for knitting and crochet. It has no account, ads, in-app purchases, analytics, or tracking.
 
@@ -24,4 +24,4 @@
 
 ## Field validation reference
 
-Checked 2026-07-28 against Apple’s current App Store Connect documentation: [app information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/), [App Store search keywords](https://developer.apple.com/app-store/search/), and [app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/). Name and subtitle are within 30 characters; promotional text is within 170 characters; keywords are within 100 UTF-8 bytes and comma-separated.
+Checked 2026-07-28 against Apple’s current App Store Connect documentation: [app information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/), [platform version information](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information), [App Store search keywords](https://developer.apple.com/app-store/search/), and [app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/). Name and subtitle are within 30 characters; promotional text is within 170 characters; keywords are within 100 UTF-8 bytes, comma-separated, and do not repeat the app name or subtitle terms.

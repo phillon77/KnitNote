@@ -9,6 +9,16 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
+PAGES = (
+    "index.html",
+    "support.html",
+    "privacy.html",
+    "404.html",
+    "knitting-calculator.html",
+    "knitting-calculator-privacy.html",
+)
+
+
 class PageParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
@@ -66,7 +76,7 @@ def main() -> int:
         print("usage: site_check.py AppStore/SupportSite", file=sys.stderr)
         return 2
     root = Path(sys.argv[1])
-    pages = [root / name for name in ("index.html", "support.html", "privacy.html", "404.html")]
+    pages = [root / name for name in PAGES]
     errors = [error for page in pages for error in check_page(page, root)]
     css = (root / "styles.css").read_text(encoding="utf-8")
     if ":focus-visible" not in css:

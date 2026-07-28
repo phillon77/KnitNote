@@ -35,6 +35,10 @@ FORBIDDEN = (
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 
 
+def normalized(value: str) -> str:
+    return "".join(character for character in value.casefold() if character.isalnum())
+
+
 def parse(path: Path) -> dict[str, str]:
     fields: dict[str, str] = {}
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -80,6 +84,16 @@ def validate(path: Path) -> list[str]:
     duplicates = sorted({item for item in keywords if item and keywords.count(item) > 1})
     if duplicates:
         errors.append(f"{path}: Keywords: duplicates: {', '.join(duplicates)}")
+
+    reserved = "".join(
+        normalized(fields.get(name, ""))
+        for name in ("Name", "Subtitle", "Primary Category", "Secondary Category")
+    )
+    repeated = [keyword for keyword in keywords if keyword and normalized(keyword) in reserved]
+    if repeated:
+        errors.append(
+            f"{path}: Keywords: repeats Name, Subtitle, or category term: {', '.join(repeated)}"
+        )
 
     searchable = " " + "\n".join(fields.values()).casefold() + " "
     searchable = searchable.replace("no subscription", "")

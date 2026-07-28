@@ -90,6 +90,8 @@ import Testing
         "calculator.adjustment.rows.interval",
         "calculator.adjustment.rows.interval.exact.format",
         "calculator.adjustment.rows.interval.range.format",
+        "calculator.adjustment.rows.interval.summary.exact.format",
+        "calculator.adjustment.rows.interval.summary.range.format",
         "calculator.adjustment.rows.details.show",
         "calculator.adjustment.rows.detail.format",
         "calculator.adjustment.rows.summary.increase.singleSide.exact.format",

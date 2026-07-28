@@ -1,5 +1,66 @@
 import SwiftUI
 
+enum RowIntervalAdjustmentPresentationText {
+    static func summary(for result: RowIntervalAdjustmentResult, locale: Locale) -> String {
+        let key: String
+        switch (result.operation, result.style, result.minimumInterval == result.maximumInterval) {
+        case (.increase, .singleSide, true):
+            key = "calculator.adjustment.rows.summary.increase.singleSide.exact.format"
+        case (.increase, .singleSide, false):
+            key = "calculator.adjustment.rows.summary.increase.singleSide.range.format"
+        case (.increase, .bothSides, true):
+            key = "calculator.adjustment.rows.summary.increase.bothSides.exact.format"
+        case (.increase, .bothSides, false):
+            key = "calculator.adjustment.rows.summary.increase.bothSides.range.format"
+        case (.decrease, .singleSide, true):
+            key = "calculator.adjustment.rows.summary.decrease.singleSide.exact.format"
+        case (.decrease, .singleSide, false):
+            key = "calculator.adjustment.rows.summary.decrease.singleSide.range.format"
+        case (.decrease, .bothSides, true):
+            key = "calculator.adjustment.rows.summary.decrease.bothSides.exact.format"
+        case (.decrease, .bothSides, false):
+            key = "calculator.adjustment.rows.summary.decrease.bothSides.range.format"
+        }
+        let format = String(localized: String.LocalizationValue(key), locale: locale)
+        return String.localizedStringWithFormat(format, summaryInterval(for: result, locale: locale), result.eventCount)
+    }
+
+    static func interval(for result: RowIntervalAdjustmentResult, locale: Locale) -> String {
+        if result.minimumInterval == result.maximumInterval {
+            return formattedText(
+                "calculator.adjustment.rows.interval.exact.format",
+                result.minimumInterval,
+                locale: locale
+            )
+        }
+        let format = String(
+            localized: "calculator.adjustment.rows.interval.range.format",
+            locale: locale
+        )
+        return String.localizedStringWithFormat(format, result.minimumInterval, result.maximumInterval)
+    }
+
+    private static func summaryInterval(for result: RowIntervalAdjustmentResult, locale: Locale) -> String {
+        if result.minimumInterval == result.maximumInterval {
+            return formattedText(
+                "calculator.adjustment.rows.interval.summary.exact.format",
+                result.minimumInterval,
+                locale: locale
+            )
+        }
+        let format = String(
+            localized: "calculator.adjustment.rows.interval.summary.range.format",
+            locale: locale
+        )
+        return String.localizedStringWithFormat(format, result.minimumInterval, result.maximumInterval)
+    }
+
+    private static func formattedText(_ key: String, _ value: Int, locale: Locale) -> String {
+        let format = String(localized: String.LocalizationValue(key), locale: locale)
+        return String.localizedStringWithFormat(format, value)
+    }
+}
+
 struct RowIntervalShareSnapshot: Equatable {
     let input: RowIntervalAdjustmentInput
     let result: RowIntervalAdjustmentResult
@@ -236,42 +297,11 @@ struct RowIntervalAdjustmentView: View {
     }
 
     private func summaryText(_ result: RowIntervalAdjustmentResult) -> String {
-        let exact = result.minimumInterval == result.maximumInterval
-        let key: String
-        switch (result.operation, result.style, exact) {
-        case (.increase, .singleSide, true):
-            key = "calculator.adjustment.rows.summary.increase.singleSide.exact.format"
-        case (.increase, .singleSide, false):
-            key = "calculator.adjustment.rows.summary.increase.singleSide.range.format"
-        case (.increase, .bothSides, true):
-            key = "calculator.adjustment.rows.summary.increase.bothSides.exact.format"
-        case (.increase, .bothSides, false):
-            key = "calculator.adjustment.rows.summary.increase.bothSides.range.format"
-        case (.decrease, .singleSide, true):
-            key = "calculator.adjustment.rows.summary.decrease.singleSide.exact.format"
-        case (.decrease, .singleSide, false):
-            key = "calculator.adjustment.rows.summary.decrease.singleSide.range.format"
-        case (.decrease, .bothSides, true):
-            key = "calculator.adjustment.rows.summary.decrease.bothSides.exact.format"
-        case (.decrease, .bothSides, false):
-            key = "calculator.adjustment.rows.summary.decrease.bothSides.range.format"
-        }
-        let format = String(localized: String.LocalizationValue(key), locale: locale)
-        return String.localizedStringWithFormat(format, intervalText(result), result.eventCount)
+        RowIntervalAdjustmentPresentationText.summary(for: result, locale: locale)
     }
 
     private func intervalText(_ result: RowIntervalAdjustmentResult) -> String {
-        if result.minimumInterval == result.maximumInterval {
-            return formattedText(
-                "calculator.adjustment.rows.interval.exact.format",
-                result.minimumInterval
-            )
-        }
-        let format = String(
-            localized: "calculator.adjustment.rows.interval.range.format",
-            locale: locale
-        )
-        return String.localizedStringWithFormat(format, result.minimumInterval, result.maximumInterval)
+        RowIntervalAdjustmentPresentationText.interval(for: result, locale: locale)
     }
 
     private func adjustmentRowText(_ row: Int) -> String {

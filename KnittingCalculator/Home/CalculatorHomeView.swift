@@ -22,7 +22,6 @@ struct CalculatorHomeView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint(Text("calculator.home.gauge.description"))
 
                     NavigationLink {
                         AdjustmentCalculatorScreen()
@@ -34,7 +33,6 @@ struct CalculatorHomeView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint(Text("calculator.home.adjustment.description"))
 
                     KnitNotePromotionCard()
                 }
@@ -44,7 +42,7 @@ struct CalculatorHomeView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             }
         }
-        .navigationTitle("Knitting Calculator")
+        .navigationTitle("app.title")
     }
 }
 

@@ -27,3 +27,12 @@
 ## Review
 
 - Reviewed the full staged diff against `a9f5d537b78d961cb985deac94b78b7b25cc3d2c` for scope: no onboarding, settings screen, KnitNote action/routing, rating, icon, or store work was added.
+
+## Review Round 1 Correction
+
+- RED: added source contracts for a localized home navigation title, a visible neutral reserved card, and removal of redundant navigation hints. The contract failed for all three existing issues. The localization contract also failed for missing `app.title`.
+- Replaced the hard-coded navigation title with the English and Traditional Chinese `app.title` catalog entry.
+- Replaced the empty bordered reserve with a noninteractive, accessible neutral message: “More knitting tools are on their way.” It contains no KnitNote name, link, or Task 7 behavior.
+- Removed the two description-repeating `NavigationLink` accessibility hints; VoiceOver still receives each card's visible title and description.
+- GREEN: `swift test --filter KnittingCalculatorViewContractTests` passed (8 tests in 1 suite) and `swift test --filter KnittingCalculatorLocalizationContractTests` passed (1 test in 1 suite).
+- The review's iPhone 17 Pro Max and iPad Pro 13-inch (M5) simulator-destination build commands were rerun after service recovery. Their output contained no destination, compiler, or `BUILD FAILED` diagnostic; it did include existing malformed provisioning-profile warnings. No launch, screenshot, Dynamic Type, or VoiceOver runtime acceptance was performed because the Task 6 brief requires builds, not those runtime checks.

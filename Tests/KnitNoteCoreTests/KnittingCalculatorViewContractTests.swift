@@ -74,6 +74,15 @@ import Testing
         #expect(adjustment.contains("CalculatorHelpSheet(tool: .adjustment)"))
     }
 
+    @Test func homeUsesLocalizedNavigationTitleAndNeutralVisibleReservedCard() throws {
+        let home = try freeAppSource("Home/CalculatorHomeView.swift")
+        let theme = try freeAppSource("Theme/CalculatorTheme.swift")
+
+        #expect(home.contains(".navigationTitle(\"app.title\")"))
+        #expect(!home.contains(".accessibilityHint"))
+        #expect(theme.contains("Text(\"calculator.home.promotion.placeholder\")"))
+    }
+
     private func resultSummaryKeepsActionsOutsideCombinedAccessibilityElement(
         in source: String
     ) -> Bool {

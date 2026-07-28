@@ -30,6 +30,7 @@ import Testing
     private let catalogPath = "KnittingCalculator/Localization/Localizable.xcstrings"
 
     private let currentScreenKeys = [
+        "app.title",
         "app.home.title",
         "app.settings.title",
         "calculator.home.gauge.description",

@@ -67,9 +67,17 @@ struct CalculatorCard<Content: View>: View {
 struct KnitNotePromotionCard: View {
     var body: some View {
         CalculatorCard {
-            Color.clear
-                .frame(minHeight: 44)
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(CalculatorTheme.berry)
+                    .accessibilityHidden(true)
+                Text("calculator.home.promotion.placeholder")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44)
         }
-        .accessibilityHidden(true)
+        .accessibilityElement(children: .combine)
     }
 }

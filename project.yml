@@ -67,6 +67,54 @@ targets:
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": KnitNote/KnitNote-macOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": KnitNote/KnitNote-iOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": KnitNote/KnitNote-iOS.entitlements
+  KnittingCalculator:
+    type: application
+    platform: iOS
+    info:
+      path: KnittingCalculator/Info.plist
+      properties:
+        CFBundleDisplayName: $(PRODUCT_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.utilities
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    sources:
+      - path: KnittingCalculator
+        excludes:
+          - Info.plist
+          - PrivacyInfo.xcprivacy
+          - Localization/InfoPlist.xcstrings
+      - path: KnittingCalculator/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: KnittingCalculator/Localization/InfoPlist.xcstrings
+        buildPhase: resources
+      - path: Sources/KnitNoteCore/Calculators/GaugeCalculator.swift
+      - path: Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentCalculator.swift
+      - path: Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentInputParser.swift
+      - path: Sources/KnitNoteCore/Calculators/RowIntervalAdjustmentCalculator.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculator
+        PRODUCT_MODULE_NAME: KnittingCalculator
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        PRODUCT_NAME: KnittingCalculator
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  KnittingCalculatorTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: KnittingCalculatorTests
+    dependencies:
+      - target: KnittingCalculator
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculatorTests
+        GENERATE_INFOPLIST_FILE: YES
   KnitNoteWatch:
     type: application
     platform: watchOS
@@ -143,6 +191,17 @@ targets:
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
 schemes:
+  KnittingCalculator:
+    build:
+      targets:
+        KnittingCalculator: all
+        KnittingCalculatorTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - KnittingCalculatorTests
   KnitNote:
     build:
       targets:

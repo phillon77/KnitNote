@@ -1,0 +1,12 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knitting Calculator" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編織計算器" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

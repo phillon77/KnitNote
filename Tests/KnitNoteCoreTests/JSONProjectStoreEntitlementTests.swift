@@ -1,5 +1,8 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @MainActor
@@ -125,7 +128,7 @@ import Testing
 }
 
 @MainActor
-@Test func successfulProjectCreationAndImportCommitTrialStart() async throws {
+@Test func successfulProjectCreationAndImportUseOnlyTheEntryAuthorizationBoundary() async throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("SuccessfulMutationCommit-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -143,35 +146,130 @@ import Testing
     let projectID = try #require(store.projects.first?.id)
     _ = try await store.importPattern(from: source, projectID: projectID)
 
-    #expect(committer.mutations == [.createProject, .importPattern])
+    #expect(committer.mutations.isEmpty)
 }
 
 @MainActor
-@Test func failedTrialCommitDoesNotRollBackAnAlreadyPublishedImport() async throws {
+@Test func importAdmittedBeforeExactExpiryCompletesAcrossTheBoundary() async throws {
     let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("PublishedImportCommitFailure-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("ImportExpiryBoundary-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     let source = root.appendingPathComponent("pattern.pdf")
     try makeTestPatternPDF(at: source)
-    let committer = MutationCommitterProbe()
-    let store = JSONProjectStore(
-        url: root.appendingPathComponent("projects-v1.json"),
-        authorizeMutation: { _ in .allow },
-        commitSuccessfulMutation: { committer.commit($0) }
+    let startedAt = Date(timeIntervalSince1970: 10_000)
+    let trial = TrialRecord(startedAt: startedAt)
+    let clock = MutationBoundaryClock(
+        now: trial.expiresAt.addingTimeInterval(-0.001)
     )
-    try store.add(name: "First")
-    let projectID = try #require(store.projects.first?.id)
-    committer.decision = .requiresUnlock
+    let project = try StoredProject(name: "First")
+    let archive = root.appendingPathComponent("projects-v1.json")
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [project]
+    )).write(to: archive, options: .atomic)
+    let patternRoot = root.appendingPathComponent("Patterns", isDirectory: true)
+    var authorizations: [FeatureMutation] = []
+    var laterCommitChecks: [FeatureMutation] = []
+    let store = JSONProjectStore(
+        url: archive,
+        patternFileService: PatternFileService(
+            root: patternRoot,
+            copyFile: { source, destination in
+                try FileManager.default.copyItem(at: source, to: destination)
+                clock.setNow(trial.expiresAt)
+            }
+        ),
+        authorizeMutation: { mutation in
+            authorizations.append(mutation)
+            return FeatureAccessPolicy.decision(
+                for: mutation,
+                snapshot: .trial(startedAt: startedAt, expiresAt: trial.expiresAt),
+                now: clock.now
+            )
+        },
+        commitSuccessfulMutation: { mutation in
+            laterCommitChecks.append(mutation)
+            return FeatureAccessPolicy.decision(
+                for: mutation,
+                snapshot: .trial(startedAt: startedAt, expiresAt: trial.expiresAt),
+                now: clock.now
+            )
+        }
+    )
 
-    await #expect(throws: ProjectStoreError.accessRestricted) {
-        _ = try await store.importPattern(from: source, projectID: projectID)
-    }
+    let imported = try await store.importPattern(from: source, projectID: project.id)
 
-    let pattern = try #require(store.project(id: projectID)?.patterns.first)
+    #expect(clock.now == trial.expiresAt)
+    #expect(authorizations == [.importPattern])
+    #expect(laterCommitChecks.isEmpty)
+    #expect(store.project(id: project.id)?.patterns == [imported])
     #expect(FileManager.default.fileExists(
-        atPath: store.patternURL(projectID: projectID, pattern: pattern).path
+        atPath: store.patternURL(projectID: project.id, pattern: imported).path
     ))
+}
+
+@MainActor
+@Test func journalPhotoAdmittedBeforeExactExpiryCompletesAcrossTheBoundary() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("JournalExpiryBoundary-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let startedAt = Date(timeIntervalSince1970: 20_000)
+    let trial = TrialRecord(startedAt: startedAt)
+    let clock = MutationBoundaryClock(
+        now: trial.expiresAt.addingTimeInterval(-0.001)
+    )
+    let project = try StoredProject(name: "Journal")
+    let archive = root.appendingPathComponent("projects-v1.json")
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [project]
+    )).write(to: archive, options: .atomic)
+    var authorizations: [FeatureMutation] = []
+    var laterCommitChecks: [FeatureMutation] = []
+    let journalDirectory = root.appendingPathComponent("JournalPhotos", isDirectory: true)
+    let store = JSONProjectStore(
+        url: archive,
+        journalPhotoService: ProjectJournalPhotoFileService(
+            directory: journalDirectory,
+            writeData: { data, destination in
+                clock.setNow(trial.expiresAt)
+                try data.write(to: destination, options: .atomic)
+            }
+        ),
+        authorizeMutation: { mutation in
+            authorizations.append(mutation)
+            return FeatureAccessPolicy.decision(
+                for: mutation,
+                snapshot: .trial(startedAt: startedAt, expiresAt: trial.expiresAt),
+                now: clock.now
+            )
+        },
+        commitSuccessfulMutation: { mutation in
+            laterCommitChecks.append(mutation)
+            return FeatureAccessPolicy.decision(
+                for: mutation,
+                snapshot: .trial(startedAt: startedAt, expiresAt: trial.expiresAt),
+                now: clock.now
+            )
+        }
+    )
+
+    try await store.addJournalEntry(
+        projectID: project.id,
+        photoData: try journalBoundaryJPEG(),
+        caption: "Crossed",
+        createdAt: trial.expiresAt
+    )
+
+    let entry = try #require(store.project(id: project.id)?.journalEntries.first)
+    #expect(clock.now == trial.expiresAt)
+    #expect(authorizations == [.editJournal])
+    #expect(laterCommitChecks.isEmpty)
+    #expect(store.journalPhotoURL(for: entry).map {
+        FileManager.default.fileExists(atPath: $0.path)
+    } == true)
 }
 
 @MainActor
@@ -190,6 +288,86 @@ import Testing
     }
     #expect(store.yarns.isEmpty)
     #expect(!FileManager.default.fileExists(atPath: archive.path))
+}
+
+@MainActor
+@Test func passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PassivePatternBrowsing-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let assetID = UUID()
+    let patternsRoot = root.appendingPathComponent("Patterns", isDirectory: true)
+    let assetURL = patternsRoot
+        .appendingPathComponent("Assets", isDirectory: true)
+        .appendingPathComponent("\(assetID.uuidString).pdf")
+    try FileManager.default.createDirectory(
+        at: assetURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try makeTestPatternPDF(at: assetURL)
+    let metadata = try PatternFileService(root: patternsRoot).inspect(assetURL)
+    let asset = PatternAsset(
+        id: assetID,
+        sha256: metadata.sha256,
+        kind: metadata.kind,
+        storedFilename: assetURL.lastPathComponent,
+        byteCount: metadata.byteCount,
+        pageCount: metadata.pageCount
+    )
+    let pattern = StoredPattern(assetID: asset.id, displayName: "Browse")
+    let project = try StoredProject(name: "Linked")
+    let usage = PatternProjectUsage(
+        patternID: pattern.id,
+        projectID: project.id,
+        sortOrder: 0
+    )
+    let archive = root.appendingPathComponent("projects-v1.json")
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [project],
+        patternAssets: [asset],
+        patterns: [pattern],
+        patternUsages: [usage]
+    )).write(to: archive, options: .atomic)
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: archive,
+        authorizeMutation: {
+            FeatureAccessPolicy.decision(
+                for: $0,
+                snapshot: .trialNotStarted,
+                now: Date(timeIntervalSince1970: 30_000)
+            )
+        },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+
+    try store.markPatternOpened(
+        id: pattern.id,
+        at: Date(timeIntervalSince1970: 30_001)
+    )
+
+    #expect(committer.mutations.isEmpty)
+    #expect(store.patterns.first?.lastOpenedAt == Date(timeIntervalSince1970: 30_001))
+
+    _ = try store.updatePatternBrowsingState(
+        usageID: usage.id,
+        state: PatternReadingState(pageIndex: 2),
+        expectedDataGeneration: store.dataGeneration
+    )
+
+    #expect(committer.mutations.isEmpty)
+    #expect(store.patternUsages.first?.readingState.pageIndex == 2)
+
+    _ = try store.updatePatternState(
+        usageID: usage.id,
+        state: PatternReadingState(pageIndex: 3),
+        expectedDataGeneration: store.dataGeneration
+    )
+
+    #expect(committer.mutations == [.editPatternReadingState])
+    #expect(store.patternUsages.first?.readingState.pageIndex == 3)
 }
 
 @MainActor
@@ -484,28 +662,44 @@ import Testing
 }
 
 @MainActor
+@Test func patternInboxConvenienceOverloadUsesOneEntryAuthorizationBoundary() async throws {
+    let fixture = try RestrictedMutationFixture(authorizerDecision: .allow)
+    defer { fixture.removeFiles() }
+
+    await #expect(throws: Error.self) {
+        _ = try await fixture.store.processPatternInboxItem(
+            id: UUID(),
+            selectingPatternID: nil
+        )
+    }
+
+    #expect(fixture.authorizer.mutations == [.importPattern])
+    #expect(fixture.committer.mutations.isEmpty)
+}
+
+@MainActor
 @Test func restrictedPatternDetailMutationsLeaveLibraryAndArchiveUnchanged() throws {
     let fixture = try RestrictedMutationFixture()
     defer { fixture.removeFiles() }
-    let operations: [(JSONProjectStore) throws -> Void] = [
-        {
+    let operations: [(FeatureMutation, (JSONProjectStore) throws -> Void)] = [
+        (.editPattern, {
             try $0.deletePattern(projectID: fixture.projectID, id: UUID())
-        },
-        {
+        }),
+        (.editPattern, {
             try $0.deletePatternPermanently(id: fixture.patternID)
-        },
-        {
+        }),
+        (.editPattern, {
             try $0.renamePattern(id: fixture.patternID, to: "Blocked")
-        },
-        {
+        }),
+        (.editPattern, {
             try $0.setPatternNote(id: fixture.patternID, note: "Blocked")
-        },
-        {
+        }),
+        (.recordPatternBrowsing, {
             try $0.markPatternOpened(id: fixture.patternID)
-        },
+        }),
     ]
 
-    for operation in operations {
+    for (mutation, operation) in operations {
         fixture.authorizer.reset()
         let patternsBefore = fixture.store.patterns
         let archiveBefore = try Data(contentsOf: fixture.archiveURL)
@@ -514,7 +708,7 @@ import Testing
         #expect(throws: ProjectStoreError.accessRestricted) {
             try operation(fixture.store)
         }
-        #expect(fixture.authorizer.mutations == [.editPattern])
+        #expect(fixture.authorizer.mutations == [mutation])
         #expect(fixture.store.patterns == patternsBefore)
         #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
         #expect(try fixture.fileSnapshot() == filesBefore)
@@ -820,6 +1014,54 @@ private final class MutationCommitterProbe {
     func reset() {
         mutations.removeAll()
     }
+}
+
+private final class MutationBoundaryClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+
+    init(now: Date) {
+        value = now
+    }
+
+    var now: Date {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func setNow(_ date: Date) {
+        lock.lock()
+        value = date
+        lock.unlock()
+    }
+}
+
+private func journalBoundaryJPEG() throws -> Data {
+    let context = try #require(CGContext(
+        data: nil,
+        width: 32,
+        height: 24,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ))
+    context.setFillColor(CGColor(red: 0.4, green: 0.5, blue: 0.8, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
+    let image = try #require(context.makeImage())
+    let data = NSMutableData()
+    let destination = try #require(
+        CGImageDestinationCreateWithData(
+            data,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        )
+    )
+    CGImageDestinationAddImage(destination, image, nil)
+    #expect(CGImageDestinationFinalize(destination))
+    return data as Data
 }
 
 @MainActor

@@ -182,7 +182,9 @@ struct PatternReaderView: View {
             get: { state.highlightEnabled },
             set: { value in
                 guard requestReaderWriteAccess() else { return }
+                guard value != state.highlightEnabled else { return }
                 state.highlightEnabled = value
+                _ = save()
             }
         )
     }
@@ -192,7 +194,9 @@ struct PatternReaderView: View {
             get: { state.highlightMode },
             set: { value in
                 guard requestReaderWriteAccess() else { return }
+                guard value != state.highlightMode else { return }
                 state.highlightMode = value
+                _ = save()
             }
         )
     }
@@ -340,7 +344,9 @@ struct PatternReaderView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common.ok") {
-                        if saveMarkup(page: state.pageIndex), save() { dismiss() }
+                        if saveMarkup(page: state.pageIndex), saveBrowsingState() {
+                            dismiss()
+                        }
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -440,7 +446,7 @@ struct PatternReaderView: View {
             guard canvasIsActive, readerSession.canPersist else { return }
             guard context.canWrite else { return }
             guard saveMarkup(page: state.pageIndex) else { return }
-            _ = save()
+            _ = saveBrowsingState()
         }
         .onChange(of: state.pageIndex) { _, newPage in
             guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
@@ -464,7 +470,7 @@ struct PatternReaderView: View {
             guard phase != .active, canvasIsActive, readerSession.canPersist else { return }
             guard context.canWrite else { return }
             guard saveMarkup(page: state.pageIndex) else { return }
-            _ = save()
+            _ = saveBrowsingState()
         }
     }
 
@@ -643,6 +649,14 @@ struct PatternReaderView: View {
     }
 
     @discardableResult private func save() -> Bool {
+        persistReadingState(isBrowsingHousekeeping: false)
+    }
+
+    @discardableResult private func saveBrowsingState() -> Bool {
+        persistReadingState(isBrowsingHousekeeping: true)
+    }
+
+    private func persistReadingState(isBrowsingHousekeeping: Bool) -> Bool {
         guard readerSession.canPersist, readerSession.identity == readerContextIdentity else { return true }
         guard context.canWrite else { return true }
         state.saveCurrentPage()
@@ -652,18 +666,35 @@ struct PatternReaderView: View {
             switch source {
             case .library:
                 guard let usageID = context.usageID else { return true }
-                nextGeneration = try store.updatePatternState(
-                    usageID: usageID,
-                    state: state,
-                    expectedDataGeneration: expectedDataGeneration
-                )
+                if isBrowsingHousekeeping {
+                    nextGeneration = try store.updatePatternBrowsingState(
+                        usageID: usageID,
+                        state: state,
+                        expectedDataGeneration: expectedDataGeneration
+                    )
+                } else {
+                    nextGeneration = try store.updatePatternState(
+                        usageID: usageID,
+                        state: state,
+                        expectedDataGeneration: expectedDataGeneration
+                    )
+                }
             case let .legacy(projectID, patternID):
-                nextGeneration = try store.updatePatternState(
-                    projectID: projectID,
-                    id: patternID,
-                    state: state,
-                    expectedDataGeneration: expectedDataGeneration
-                )
+                if isBrowsingHousekeeping {
+                    nextGeneration = try store.updatePatternBrowsingState(
+                        projectID: projectID,
+                        id: patternID,
+                        state: state,
+                        expectedDataGeneration: expectedDataGeneration
+                    )
+                } else {
+                    nextGeneration = try store.updatePatternState(
+                        projectID: projectID,
+                        id: patternID,
+                        state: state,
+                        expectedDataGeneration: expectedDataGeneration
+                    )
+                }
             }
             self.expectedDataGeneration = nextGeneration
             revisionCoordinator.confirmMutation(generation: nextGeneration)

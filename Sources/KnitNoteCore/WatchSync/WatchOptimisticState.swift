@@ -101,16 +101,6 @@ public struct WatchOptimisticState: Equatable, Sendable {
         guard pendingCommands.first?.id == acknowledgement.commandID else {
             return false
         }
-        if acknowledgement.rejection == .entitlementRequired {
-            if authoritativeSnapshot.map({
-                acknowledgement.snapshot.generatedAt >= $0.generatedAt
-            }) ?? true {
-                authoritativeSnapshot = acknowledgement.snapshot
-            }
-            repairSelection()
-            return false
-        }
-
         pendingCommands.removeFirst()
         if authoritativeSnapshot.map({
             acknowledgement.snapshot.generatedAt >= $0.generatedAt

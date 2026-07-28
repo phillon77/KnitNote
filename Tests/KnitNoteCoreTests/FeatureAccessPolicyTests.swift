@@ -46,7 +46,9 @@ func legacyPaidOwnerAllowsEveryMutation(_ mutation: FeatureMutation) {
     ) == .allow)
 }
 
-@Test(arguments: FeatureMutation.allCases.filter { $0 != .restoreBackup })
+@Test(arguments: FeatureMutation.allCases.filter {
+    $0 != .restoreBackup && $0 != .recordPatternBrowsing
+})
 func trialNotStartedStartsForEveryUserAuthoredMutation(_ mutation: FeatureMutation) {
     #expect(FeatureAccessPolicy.decision(
         for: mutation,
@@ -61,4 +63,23 @@ func trialNotStartedStartsForEveryUserAuthoredMutation(_ mutation: FeatureMutati
         snapshot: .trialNotStarted,
         now: policyNow
     ) == .allow)
+}
+
+@Test func trialNotStartedAllowsAutomaticPatternBrowsingHousekeeping() {
+    #expect(FeatureAccessPolicy.decision(
+        for: .recordPatternBrowsing,
+        snapshot: .trialNotStarted,
+        now: policyNow
+    ) == .allow)
+}
+
+@Test(arguments: [FeatureMutation.importPattern, .editJournal])
+func exactSevenDayBoundaryRejectsAsyncMutationEntry(_ mutation: FeatureMutation) {
+    let trial = TrialRecord(startedAt: Date(timeIntervalSince1970: 40_000))
+
+    #expect(FeatureAccessPolicy.decision(
+        for: mutation,
+        snapshot: .trial(startedAt: trial.startedAt, expiresAt: trial.expiresAt),
+        now: trial.expiresAt
+    ) == .requiresUnlock)
 }

@@ -118,7 +118,7 @@ import Testing
         ))
     }
 
-    @Test func expiredSnapshotKeepsQueuedCommandForLaterEntitlementRetry() throws {
+    @Test func entitlementRejectionRemovesQueuedCommandBeforeLaterUnlock() throws {
         let fixture = try WatchEntitlementFixture(
             entitlement: .init(
                 kind: .trial,
@@ -141,7 +141,27 @@ import Testing
         #expect(!state.canMutate(now: now.addingTimeInterval(1)))
         #expect(state.nextDeliverableCommand(now: now.addingTimeInterval(1)) == nil)
 
-        state.replaceSnapshot(try fixture.snapshot(
+        let acknowledged = state.acknowledge(WatchCommandAcknowledgement(
+            commandID: fixture.command.id,
+            rejection: .entitlementRequired,
+            snapshot: try fixture.snapshot(
+                entitlement: .init(
+                    kind: .trial,
+                    expiresAt: now,
+                    generatedAt: now.addingTimeInterval(1)
+                )
+            )
+        ))
+        let persisted = try WatchSyncCodec.decode(
+            WatchSyncCache.self,
+            from: WatchSyncCodec.encode(state.cache)
+        )
+        var restarted = WatchOptimisticState(cache: persisted)
+
+        #expect(acknowledged)
+        #expect(restarted.pendingCommands.isEmpty)
+
+        restarted.replaceSnapshot(try fixture.snapshot(
             entitlement: .init(
                 kind: .permanentlyUnlocked,
                 expiresAt: nil,
@@ -149,12 +169,9 @@ import Testing
             )
         ))
 
-        #expect(state.pendingCommands == [fixture.command])
-        #expect(state.canMutate(now: now.addingTimeInterval(2)))
-        #expect(
-            state.nextDeliverableCommand(now: now.addingTimeInterval(2))
-                == fixture.command
-        )
+        #expect(restarted.pendingCommands.isEmpty)
+        #expect(restarted.canMutate(now: now.addingTimeInterval(2)))
+        #expect(restarted.nextDeliverableCommand(now: now.addingTimeInterval(2)) == nil)
     }
 
     @Test func expiredSnapshotRejectsNewOptimisticMutationWithoutSideEffects() throws {
@@ -183,33 +200,6 @@ import Testing
         )
     }
 
-    @Test func entitlementRejectionCannotAcknowledgeOrDropQueuedCommand() throws {
-        let fixture = try WatchEntitlementFixture(
-            entitlement: .init(
-                kind: .permanentlyUnlocked,
-                expiresAt: nil,
-                generatedAt: now
-            )
-        )
-        var state = WatchOptimisticState(cache: fixture.cache)
-        #expect(state.enqueue(fixture.command, now: now) == nil)
-
-        let acknowledged = state.acknowledge(WatchCommandAcknowledgement(
-            commandID: fixture.command.id,
-            rejection: .entitlementRequired,
-            snapshot: try fixture.snapshot(
-                entitlement: .init(
-                    kind: .trial,
-                    expiresAt: now,
-                    generatedAt: now.addingTimeInterval(1)
-                )
-            )
-        ))
-
-        #expect(!acknowledged)
-        #expect(state.pendingCommands == [fixture.command])
-        #expect(!state.canMutate(now: now.addingTimeInterval(1)))
-    }
 }
 
 private struct WatchEntitlementFixture {

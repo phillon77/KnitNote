@@ -746,7 +746,6 @@ final class PatternLibraryDeletionTransaction {
             if let newFilename { try? photoService.delete(filename: newFilename) }
             throw error
         }
-        try commitSuccessfulAccess(.createProject)
     }
     public func delete(id: UUID) throws {
         try requireAccess(.deleteProject)
@@ -1040,7 +1039,6 @@ final class PatternLibraryDeletionTransaction {
     public func addPattern(projectID: UUID, pattern: PatternDocument) throws {
         try requireAccess(.importPattern)
         try addPatternWithoutAuthorization(projectID: projectID, pattern: pattern)
-        try commitSuccessfulAccess(.importPattern)
     }
     private func addPatternWithoutAuthorization(
         projectID: UUID,
@@ -1066,14 +1064,12 @@ final class PatternLibraryDeletionTransaction {
             try? service.delete(projectID: projectID, pattern: pattern)
             throw error
         }
-        try commitSuccessfulAccess(.importPattern)
         return pattern
     }
     public func processPatternInboxItem(
         id: UUID,
         selectingPatternID: UUID? = nil
     ) async throws -> PatternImportOutcome {
-        try requireAccess(.importPattern)
         return try await processPatternInboxItem(
             id: id,
             duplicateResolution: selectingPatternID.map(PatternImportDuplicateResolution.existing)
@@ -1335,7 +1331,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func markPatternOpened(id: UUID, at date: Date = .now) throws {
-        try requireAccess(.editPattern)
+        try requireAccess(.recordPatternBrowsing)
         try ensureArchiveAvailable()
         guard let index = patterns.firstIndex(where: { $0.id == id }) else {
             throw PatternLibraryMutationError.patternNotFound
@@ -1372,7 +1368,35 @@ final class PatternLibraryDeletionTransaction {
         state: PatternReadingState,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
-        try requireAccess(.editPatternReadingState)
+        try updatePatternState(
+            usageID: usageID,
+            state: state,
+            expectedDataGeneration: expectedDataGeneration,
+            mutation: .editPatternReadingState
+        )
+    }
+
+    @discardableResult
+    public func updatePatternBrowsingState(
+        usageID: UUID,
+        state: PatternReadingState,
+        expectedDataGeneration: UInt64? = nil
+    ) throws -> UInt64 {
+        try updatePatternState(
+            usageID: usageID,
+            state: state,
+            expectedDataGeneration: expectedDataGeneration,
+            mutation: .recordPatternBrowsing
+        )
+    }
+
+    private func updatePatternState(
+        usageID: UUID,
+        state: PatternReadingState,
+        expectedDataGeneration: UInt64?,
+        mutation: FeatureMutation
+    ) throws -> UInt64 {
+        try requireAccess(mutation)
         try validateExpectedDataGeneration(expectedDataGeneration)
         let index = try mutableUsageIndex(usageID: usageID)
         var staged = patternUsages
@@ -1471,7 +1495,39 @@ final class PatternLibraryDeletionTransaction {
         state: PatternReadingState,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
-        try requireAccess(.editPatternReadingState)
+        try updatePatternState(
+            projectID: projectID,
+            id: id,
+            state: state,
+            expectedDataGeneration: expectedDataGeneration,
+            mutation: .editPatternReadingState
+        )
+    }
+
+    @discardableResult
+    public func updatePatternBrowsingState(
+        projectID: UUID,
+        id: UUID,
+        state: PatternReadingState,
+        expectedDataGeneration: UInt64? = nil
+    ) throws -> UInt64 {
+        try updatePatternState(
+            projectID: projectID,
+            id: id,
+            state: state,
+            expectedDataGeneration: expectedDataGeneration,
+            mutation: .recordPatternBrowsing
+        )
+    }
+
+    private func updatePatternState(
+        projectID: UUID,
+        id: UUID,
+        state: PatternReadingState,
+        expectedDataGeneration: UInt64?,
+        mutation: FeatureMutation
+    ) throws -> UInt64 {
+        try requireAccess(mutation)
         try validateExpectedDataGeneration(expectedDataGeneration)
         try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
         try mutate(id: projectID) { $0.updatePatternState(id: id, state: state) }
@@ -2017,7 +2073,6 @@ final class PatternLibraryDeletionTransaction {
                     files: files,
                     receipts: receipts
                 )
-                try commitSuccessfulAccess(.importPattern)
                 return outcome
             }
             let selected: StoredPattern?
@@ -2072,7 +2127,6 @@ final class PatternLibraryDeletionTransaction {
             files: files,
             receipts: receipts
         )
-        try commitSuccessfulAccess(.importPattern)
         return outcome
     }
 

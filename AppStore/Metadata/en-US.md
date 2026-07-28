@@ -13,7 +13,7 @@
 
   Try every feature free for 7 days
   • Browsing does not start the trial
-  • The trial begins when you create your first project or import your first pattern
+  • The trial begins with your first data change, including edits to existing or restored work
   • After the trial, your projects, patterns, and backups remain available to read
   • One lifetime purchase unlocks editing on iPhone, iPad, Mac, and the paired Apple Watch
 

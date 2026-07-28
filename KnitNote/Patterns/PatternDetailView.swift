@@ -333,7 +333,7 @@ struct PatternDetailView: View {
             showingReadingChooser = true
             return
         }
-        if entitlementCoordinator.allowsWrites {
+        if entitlementCoordinator.allowsAutomaticReaderPersistence {
             try? store.markPatternOpened(id: patternID)
         }
     }

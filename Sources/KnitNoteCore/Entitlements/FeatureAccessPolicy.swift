@@ -12,6 +12,7 @@ public enum FeatureMutation: String, CaseIterable, Codable, Sendable {
     case importPattern
     case editPattern
     case linkPattern
+    case recordPatternBrowsing
     case editPatternReadingState
     case createYarn
     case editYarn
@@ -35,7 +36,9 @@ public enum FeatureAccessPolicy {
     ) -> FeatureAccessDecision {
         switch snapshot.state(at: now) {
         case .trialNotStarted:
-            mutation == .restoreBackup ? .allow : .startTrial
+            mutation == .restoreBackup || mutation == .recordPatternBrowsing
+                ? .allow
+                : .startTrial
         case .trialActive, .permanentlyUnlocked, .legacyPaidOwner:
             .allow
         case .trialExpired:

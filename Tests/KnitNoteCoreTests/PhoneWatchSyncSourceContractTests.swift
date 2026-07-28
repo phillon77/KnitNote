@@ -34,6 +34,19 @@ import Testing
         #expect(coordinator.contains("publish(acknowledgement.snapshot)"))
     }
 
+    @Test func watchPersistsEveryMatchedHeadAcknowledgementBeforeAdvancingDelivery() throws {
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+        let handler = try #require(sourceSection(
+            coordinator,
+            from: "private func handleAcknowledgement(",
+            to: "private func beginHandshakeAndReplay()"
+        ))
+
+        #expect(handler.contains("guard candidate.acknowledge(acknowledgement) else { return }"))
+        #expect(handler.contains("guard persistThenPublish(candidate) else"))
+        #expect(handler.contains("deliveryState.acknowledge(acknowledgement.commandID)"))
+    }
+
     @Test func coordinatorHandlesEveryEnvelopeKindWithoutTraps() throws {
         let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
 
@@ -117,5 +130,17 @@ import Testing
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         return try String(contentsOf: root.appending(path: path), encoding: .utf8)
+    }
+
+    private func sourceSection(
+        _ source: String,
+        from start: String,
+        to end: String
+    ) -> Substring? {
+        guard let startRange = source.range(of: start),
+              let endRange = source.range(of: end, range: startRange.upperBound..<source.endIndex) else {
+            return nil
+        }
+        return source[startRange.lowerBound..<endRange.lowerBound]
     }
 }

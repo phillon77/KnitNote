@@ -127,7 +127,7 @@
 ## Review information／審核資訊
 
 - `READY`：公開聯絡信箱 `lzz.1999@icloud.com`。
-- `REVIEW NOTE`：免登入。只瀏覽或完整備份還原不開始試用；首次新增或編輯作品資料會開始 7-day trial。解鎖頁可 purchase、restore 或引導使用者 redeem code。Apple Watch 使用配對 iPhone 的權益快照，不提供獨立購買。
+- `REVIEW NOTE`：免登入。只瀏覽或完整備份還原不開始試用；首次變更使用者資料（包含既有或還原資料）會開始 7-day trial。解鎖頁可 purchase、restore 或引導使用者 redeem code。Apple Watch 使用配對 iPhone 的權益快照，不提供獨立購買。
 - `REVIEW NOTE`：one purchase applies to iPhone, iPad, Mac and the paired Apple Watch when the same Apple Account can restore the non-consumable purchase.
 - `SAVED`：iOS 與 macOS 均設定免登入、審核聯絡人與測試步驟。
 - `SAVED`：全球年齡分級 4+，主要類別「生活風格」、次要類別「工具程式」。

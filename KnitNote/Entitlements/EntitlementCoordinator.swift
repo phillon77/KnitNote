@@ -36,6 +36,16 @@ final class EntitlementCoordinator: ObservableObject {
         }
     }
 
+    var allowsAutomaticReaderPersistence: Bool {
+        guard isPrepared else { return false }
+        switch snapshot.state(at: now()) {
+        case .trialExpired:
+            return false
+        case .trialNotStarted, .trialActive, .permanentlyUnlocked, .legacyPaidOwner:
+            return true
+        }
+    }
+
     private let purchaseService: (any PurchaseService)?
     private let trialStore: (any TrialStore)?
     private let resolver: EntitlementResolver

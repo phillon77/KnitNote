@@ -12,7 +12,10 @@
 
 - Deployment targets remain iOS 18.0, macOS 15.0, and watchOS 11.0.
 - Lifetime product identifier is exactly `com.phillon.KnitNote.lifetimeUnlock`.
-- Trial duration is exactly 7 × 24 hours and starts only after the first successful project creation or completed pattern import.
+- Trial duration is exactly 7 × 24 hours. Browsing and complete backup restore do
+  not start it; the first user-authored mutation starts it before the write,
+  including edits to existing or restored data and successful project or
+  pattern creation.
 - The final paid-app version boundary is `1.2.0`; Apple-verified paid owners must receive lifetime access.
 - New users must not receive permanent access from a local Boolean, backup restore, unverified transaction, or StoreKit test configuration.
 - Trial expiry preserves all user data and complete backup while every mutation path becomes read-only.

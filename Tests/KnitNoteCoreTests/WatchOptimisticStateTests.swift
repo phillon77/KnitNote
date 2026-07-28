@@ -92,6 +92,36 @@ import Testing
         #expect(state.displayedValue(projectID: fixture.projectID, counterID: fixture.counterID) == 4)
     }
 
+    @Test func entitlementRejectionRemovesHeadAndPersistsAuthoritativeSnapshot() throws {
+        let fixture = try Fixture(value: 4)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let command = fixture.command(.increment)
+        #expect(state.enqueue(command) == nil)
+        let expired = try fixture.snapshot(
+            value: 4,
+            generatedAt: Date(timeIntervalSince1970: 40),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .trial,
+                expiresAt: Date(timeIntervalSince1970: 40),
+                generatedAt: Date(timeIntervalSince1970: 40)
+            )
+        )
+
+        let acknowledged = state.acknowledge(.init(
+            commandID: command.id,
+            rejection: .entitlementRequired,
+            snapshot: expired
+        ))
+
+        #expect(acknowledged)
+        #expect(state.pendingCommands.isEmpty)
+        #expect(state.cache.snapshot == expired)
+        #expect(state.displayedValue(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID
+        ) == 4)
+    }
+
     @Test func unmatchedAcknowledgementCannotRemoveOrReconcilePendingState() throws {
         let fixture = try Fixture(value: 4)
         var state = WatchOptimisticState(cache: fixture.cache)
@@ -536,14 +566,15 @@ private struct Fixture {
 
     func snapshot(
         value: Int,
-        generatedAt: Date = Date(timeIntervalSince1970: 30)
+        generatedAt: Date = Date(timeIntervalSince1970: 30),
+        entitlement: WatchEntitlementSnapshot? = nil
     ) throws -> WatchSyncSnapshot {
         let counters = counterIDs.enumerated().map { index, id in
             WatchCounterSnapshot(id: id, name: "Counter \(index + 1)", value: index == 0 ? value : 0)
         }
         return WatchSyncSnapshot(
             generatedAt: generatedAt,
-            entitlement: WatchEntitlementSnapshot(
+            entitlement: entitlement ?? WatchEntitlementSnapshot(
                 kind: .permanentlyUnlocked,
                 expiresAt: nil,
                 generatedAt: generatedAt

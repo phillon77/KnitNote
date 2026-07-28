@@ -134,9 +134,11 @@ import Testing
             now: { now }
         )
         #expect(!unprepared.allowsWrites)
+        #expect(!unprepared.allowsAutomaticReaderPersistence)
 
         await unprepared.prepare()
         #expect(unprepared.allowsWrites)
+        #expect(unprepared.allowsAutomaticReaderPersistence)
 
         let expired = EntitlementCoordinator(
             purchaseService: PurchaseServiceSpy(qualification: .none),
@@ -149,6 +151,7 @@ import Testing
         )
         await expired.prepare()
         #expect(!expired.allowsWrites)
+        #expect(!expired.allowsAutomaticReaderPersistence)
 
         let lifetime = EntitlementCoordinator(
             purchaseService: PurchaseServiceSpy(qualification: .lifetime),
@@ -157,6 +160,7 @@ import Testing
         )
         await lifetime.prepare()
         #expect(lifetime.allowsWrites)
+        #expect(lifetime.allowsAutomaticReaderPersistence)
     }
 
     @Test @MainActor func verifiedPurchaseTakesPrecedenceWithoutReadingTheTrialStore() async {

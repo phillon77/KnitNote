@@ -215,8 +215,37 @@ import Testing
         #expect(lifecycle.contains("context.canWrite"))
         #expect(!lifecycle.contains("requestReaderWriteAccess"))
         #expect(!lifecycle.contains("entitlementCoordinator.authorize"))
-        #expect(detail.contains("if entitlementCoordinator.allowsWrites {"))
+        #expect(detail.contains(
+            "if entitlementCoordinator.allowsAutomaticReaderPersistence {"
+        ))
         #expect(detail.contains("try? store.markPatternOpened(id: patternID)"))
+    }
+
+    @Test func trialNotStartedReaderSeparatesBrowsingHousekeepingFromExplicitEdits() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let detail = try sourceFile("KnitNote/Patterns/PatternDetailView.swift")
+        let store = try sourceFile("Sources/KnitNoteCore/Projects/JSONProjectStore.swift")
+
+        let lifecycle = try #require(sourceSection(
+            reader,
+            from: ".onDisappear {",
+            to: "private func readerCanvas"
+        ))
+        let highlightCommit = try #require(sourceSection(
+            reader,
+            from: "private func commitHighlightPositionEdit()",
+            to: "@discardableResult private func save()"
+        ))
+        let markOpened = try #require(sourceSection(
+            store,
+            from: "public func markPatternOpened(",
+            to: "public func patternAssetURL("
+        ))
+
+        #expect(lifecycle.contains("saveBrowsingState()"))
+        #expect(highlightCommit.contains("_ = save()"))
+        #expect(markOpened.contains("requireAccess(.recordPatternBrowsing)"))
+        #expect(detail.contains("entitlementCoordinator.allowsAutomaticReaderPersistence"))
     }
 
     @Test func legacyReaderStillOffersItsMissingFileRecoveryAction() throws {

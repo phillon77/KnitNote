@@ -86,6 +86,7 @@
 		5536B07A38E71EE08FCBEFB8 /* WatercolorSurfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1587DA4ECD08A93EFE0BB89A /* WatercolorSurfaces.swift */; };
 		565387B340966E6FE0BA8C03 /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */; };
 		57027A881A62D015E3538D3C /* ChoosePatternProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */; };
+		57FCF862A93921859A6051B2 /* OneRowAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D5B353BE652F0A5FC00DF7 /* OneRowAdjustmentView.swift */; };
 		585606C343A35128411BC2E1 /* EditProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B159464A91F0F008CBAD167 /* EditProjectView.swift */; };
 		58DF31DB4249DCFC5A6451E2 /* ProjectPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */; };
 		5967A246A135737FB7B89795 /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260C2E24AB236712E5FE22CC /* BackupHistory.swift */; };
@@ -103,6 +104,7 @@
 		6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */; };
 		6AA7291F406E7FCF8B1382C6 /* LemonEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282D4248758A8480ED49B7C0 /* LemonEmptyState.swift */; };
 		6AF16B60E9057AC4B2FD2EDE /* YarnDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451B0A168DC2F848CEE98A74 /* YarnDetailView.swift */; };
+		6B6513B354C9F6BD963655A4 /* AdjustmentCalculatorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE08F231A00E7A116C66C8F /* AdjustmentCalculatorScreen.swift */; };
 		6BC049BFAF91A56D66CF016D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */; };
 		6C1465A6FA4F7D7B674D34CA /* KnitNoteBackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */; };
 		6D76B8009FFD25FE40DD14C0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */; };
@@ -210,6 +212,8 @@
 		DF72C03E88F98EC24A37FE38 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };
 		E027E8ADB3D1D51F88D2E861 /* WatchSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */; };
+		E098B5EF8ACDF04E3FCF62D1 /* AdjustmentPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FF7112B12EC8602DE06351 /* AdjustmentPresentationTests.swift */; };
+		E50BE4BF524F9BF2BE966A70 /* RowIntervalAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F1982871F557EC10DBA148 /* RowIntervalAdjustmentView.swift */; };
 		E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */; };
 		E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
 		E6CEF9520B8FF5240924A1BE /* PatternThumbnailFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */; };
@@ -418,6 +422,7 @@
 		A3E3D0A9F82E317FB6A4B8FC /* PendingPatternSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingPatternSelectionView.swift; sourceTree = "<group>"; };
 		A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A91B85F52C8261698AC46384 /* KnitNote-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KnitNote-macOS.entitlements"; sourceTree = "<group>"; };
+		A9F1982871F557EC10DBA148 /* RowIntervalAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentView.swift; sourceTree = "<group>"; };
 		AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilder.swift; sourceTree = "<group>"; };
 		AB51A2457EA062265F81BF42 /* ProjectCoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCoverView.swift; sourceTree = "<group>"; };
 		AD315B2053510F599375477E /* PatternDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternDetailView.swift; sourceTree = "<group>"; };
@@ -433,6 +438,7 @@
 		C05CEE6F88AA591A17AA4C99 /* ProjectPatternImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternImportPresentation.swift; sourceTree = "<group>"; };
 		C27CD7D290EB0C1B3F7A706C /* WatchSyncCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncCache.swift; sourceTree = "<group>"; };
 		C474D58BBB238B47B244C7CA /* ShareImportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportController.swift; sourceTree = "<group>"; };
+		C4D5B353BE652F0A5FC00DF7 /* OneRowAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneRowAdjustmentView.swift; sourceTree = "<group>"; };
 		C65533430112873329E49422 /* WatchCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCounterView.swift; sourceTree = "<group>"; };
 		C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		C9C17AF6B6756E61DCAE3970 /* KnitNote-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KnitNote-iOS.entitlements"; sourceTree = "<group>"; };
@@ -446,11 +452,13 @@
 		E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternProjectUsage.swift; sourceTree = "<group>"; };
 		E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		E9F9AB70EA6020F2BECF5EFD /* KnitNoteBackupDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupDocument.swift; sourceTree = "<group>"; };
+		EBE08F231A00E7A116C66C8F /* AdjustmentCalculatorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdjustmentCalculatorScreen.swift; sourceTree = "<group>"; };
 		EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentCalculator.swift; sourceTree = "<group>"; };
 		F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalPhotoPicker.swift; sourceTree = "<group>"; };
 		F1636706F0E1A52CEA341F56 /* ChooseYarnProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseYarnProjectsView.swift; sourceTree = "<group>"; };
 		F230CAF876E38744139D44BC /* CalculatorPreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorPreferencesStoreTests.swift; sourceTree = "<group>"; };
 		F3AAE108F03B9699F488B637 /* LaunchExperienceCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchExperienceCoordinator.swift; sourceTree = "<group>"; };
+		F4FF7112B12EC8602DE06351 /* AdjustmentPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdjustmentPresentationTests.swift; sourceTree = "<group>"; };
 		F53F8478B3089817AE2FFFA1 /* PreparedWatchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparedWatchCommand.swift; sourceTree = "<group>"; };
 		F5F160074737C554D783176A /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		F6419CDF76465FB4CD38A92D /* CalculatorRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorRootView.swift; sourceTree = "<group>"; };
@@ -599,6 +607,16 @@
 			path = KnittingCalculator/Localization;
 			sourceTree = "<group>";
 		};
+		64680AB9ABB5C074D462C542 /* Adjustment */ = {
+			isa = PBXGroup;
+			children = (
+				EBE08F231A00E7A116C66C8F /* AdjustmentCalculatorScreen.swift */,
+				C4D5B353BE652F0A5FC00DF7 /* OneRowAdjustmentView.swift */,
+				A9F1982871F557EC10DBA148 /* RowIntervalAdjustmentView.swift */,
+			);
+			path = Adjustment;
+			sourceTree = "<group>";
+		};
 		65DC28AC37D32EA9468D7BDE /* Projects */ = {
 			isa = PBXGroup;
 			children = (
@@ -671,6 +689,7 @@
 			children = (
 				323DB1D79B9E3716A2DD5E42 /* Assets.xcassets */,
 				20D1897A43E7A4F7F3561D0E /* PrivacyInfo.xcprivacy */,
+				64680AB9ABB5C074D462C542 /* Adjustment */,
 				836DCD3DE3E5F63B6C0B7F12 /* App */,
 				93BC286CF312AAEBE197FFFA /* Components */,
 				96D49F4C0C68A115A1E20428 /* Gauge */,
@@ -784,6 +803,7 @@
 		9C3837A4B9D23FDBF0AC33E3 /* KnittingCalculatorTests */ = {
 			isa = PBXGroup;
 			children = (
+				F4FF7112B12EC8602DE06351 /* AdjustmentPresentationTests.swift */,
 				F230CAF876E38744139D44BC /* CalculatorPreferencesStoreTests.swift */,
 				8607F6093D2D226E75391644 /* GaugeDraftBehaviorTests.swift */,
 				7E6A20AD4E16ADA64C3AFC37 /* LocalizedNumberCodecTests.swift */,
@@ -1128,6 +1148,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E098B5EF8ACDF04E3FCF62D1 /* AdjustmentPresentationTests.swift in Sources */,
 				DAFE04FE10781F7E6BA1083B /* CalculatorPreferencesStoreTests.swift in Sources */,
 				9982E88710DD8686CF417820 /* GaugeDraftBehaviorTests.swift in Sources */,
 				A7BB8A45CB9C31ED273B4BBD /* LocalizedNumberCodecTests.swift in Sources */,
@@ -1139,6 +1160,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6B6513B354C9F6BD963655A4 /* AdjustmentCalculatorScreen.swift in Sources */,
 				7C1479B81AB22EE5CC3E5454 /* CalculatorField.swift in Sources */,
 				BC97D8DC5694446C440D9269 /* CalculatorPreferencesStore.swift in Sources */,
 				7D1631A0398946E49E93700C /* CalculatorRootView.swift in Sources */,
@@ -1148,7 +1170,9 @@
 				93CE103D41744B1AAFB5D6ED /* GaugeCalculatorScreen.swift in Sources */,
 				530A2B658C0A5C8883A8EC94 /* KnittingCalculatorApp.swift in Sources */,
 				475997D3C3AFC0820B98D05B /* LocalizedNumberCodec.swift in Sources */,
+				57FCF862A93921859A6051B2 /* OneRowAdjustmentView.swift in Sources */,
 				CB5E81E3AFF80FCCA711C0AE /* RowIntervalAdjustmentCalculator.swift in Sources */,
+				E50BE4BF524F9BF2BE966A70 /* RowIntervalAdjustmentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

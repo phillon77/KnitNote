@@ -6,12 +6,12 @@ struct CalculatorRootView: View {
             CalculatorHomeView()
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            // Settings routing is intentionally added with Task 7.
+                        NavigationLink {
+                            CalculatorSettingsView()
                         } label: {
                             Label("app.settings.title", systemImage: "gearshape")
                         }
-                        .disabled(true)
+                        .accessibilityLabel(Text("app.settings.title"))
                     }
                 }
         }

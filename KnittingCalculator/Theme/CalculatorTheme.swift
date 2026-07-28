@@ -62,22 +62,3 @@ struct CalculatorCard<Content: View>: View {
             }
     }
 }
-
-/// A neutral reserved home-card slot. Task 7 replaces its contents with KnitNote routing.
-struct KnitNotePromotionCard: View {
-    var body: some View {
-        CalculatorCard {
-            HStack(spacing: 12) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(CalculatorTheme.berry)
-                    .accessibilityHidden(true)
-                Text("calculator.home.promotion.placeholder")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .frame(minHeight: 44)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}

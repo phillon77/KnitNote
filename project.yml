@@ -35,6 +35,10 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - knitnote-backup
+        CFBundleURLTypes:
+          - CFBundleURLName: com.phillon.KnitNote
+            CFBundleURLSchemes:
+              - knitnote
     sources:
       - path: KnitNote
         excludes:

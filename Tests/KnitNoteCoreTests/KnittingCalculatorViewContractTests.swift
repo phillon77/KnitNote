@@ -74,13 +74,32 @@ import Testing
         #expect(adjustment.contains("CalculatorHelpSheet(tool: .adjustment)"))
     }
 
-    @Test func homeUsesLocalizedNavigationTitleAndNeutralVisibleReservedCard() throws {
+    @Test func promotionExistsOnlyOnHomeAndSettings() throws {
         let home = try freeAppSource("Home/CalculatorHomeView.swift")
-        let theme = try freeAppSource("Theme/CalculatorTheme.swift")
+        let settings = try freeAppSource("Settings/CalculatorSettingsView.swift")
+        let gauge = try freeAppSource("Gauge/GaugeCalculatorScreen.swift")
+        let oneRow = try freeAppSource("Adjustment/OneRowAdjustmentView.swift")
 
         #expect(home.contains(".navigationTitle(\"app.title\")"))
-        #expect(!home.contains(".accessibilityHint"))
-        #expect(theme.contains("Text(\"calculator.home.promotion.placeholder\")"))
+        #expect(home.contains("KnitNotePromotionCard"))
+        #expect(settings.contains("KnitNotePromotionCard"))
+        #expect(!gauge.contains("KnitNotePromotionCard"))
+        #expect(!oneRow.contains("KnitNotePromotionCard"))
+    }
+
+    @Test func settingsKeepUserUnitAndOnlyResetDrafts() throws {
+        let settings = try freeAppSource("Settings/CalculatorSettingsView.swift")
+        #expect(settings.contains("preferences.gauge.unit"))
+        #expect(settings.contains("preferences.resetDrafts()"))
+        #expect(settings.contains("confirmationDialog"))
+        #expect(settings.contains("mailto:lzz.1999@icloud.com"))
+        #expect(settings.contains("knitting-calculator-privacy.html"))
+    }
+
+    @Test func promotionUsesSeparateProductLanguageWithoutInterruptingTools() throws {
+        let promotion = try freeAppSource("Home/KnitNotePromotionCard.swift")
+        #expect(promotion.contains("calculator.promotion.product.relationship"))
+        #expect(promotion.contains("buttonStyle(.bordered)"))
     }
 
     private func resultSummaryKeepsActionsOutsideCombinedAccessibilityElement(

@@ -18,7 +18,8 @@ Fresh verification completed in this worktree:
 
 - `swift test --disable-sandbox --scratch-path
   /tmp/KnitNotePatternLibraryTask14-20260727-final-swift-clean`
-  passed `831` tests in `68` suites after the final release-candidate cleanup.
+  passed `853` tests in `70` suites after the Build 3 rotation-crash fix and
+  release-candidate update.
 - The release-configuration, privacy-manifest, and Share-target contract subset
   passed `16` tests in `3` suites.
 - `bash AppStore/Verification/release_audit.sh --static-only`
@@ -63,11 +64,11 @@ The iOS product audit confirmed:
 - bundle identifiers are `com.phillon.KnitNote`,
   `com.phillon.KnitNote.share`, and `com.phillon.KnitNote.watch`;
 - the app, Share extension, Watch app, and macOS app all report version `1.2.0`
-  and build `2`;
+  and build `3`;
 - app, Share, Watch, and macOS privacy manifests are present and pass
   `plutil -lint`;
 - fresh standalone Share and Watch products also report version `1.2.0`,
-  build `2`, and contain valid privacy manifests.
+  build `3`, and contain valid privacy manifests.
 
 These are unsigned local build checks. They are not substitutes for signed
 archives, Organizer validation, or App Store Connect processing.

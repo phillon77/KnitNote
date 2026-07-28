@@ -10,7 +10,7 @@
 - Watch bundle ID：`com.phillon.KnitNote.watch`
 - Share extension bundle ID：`com.phillon.KnitNote.share`
 - 下一版 release candidate：`1.2.0`
-- Build：`2`
+- Build：`3`
 - Team：`9CFPAUL5N5`
 - 價格：首發 US$2.99，一次買斷；詳細紀錄見 `KnitNotePricing.md`
 
@@ -20,7 +20,7 @@
 - `IMPLEMENTED`：iOS Share Extension `KnitNoteShare` 可將一份 PDF 或支援的圖片送入待處理匣。
 - `IMPLEMENTED`：既有作品資料升級至 project archive schema 10。
 - `IMPLEMENTED`：完整備份使用 backup manifest 2，且保留舊格式還原相容性。
-- `VERIFIED LOCALLY`：完整 Swift 測試 831 項、靜態 release audit、iOS／macOS／Watch／Share clean builds 與 Share／Watch 嵌入稽核均通過；詳細證據見 `Verification/PatternLibraryVerification.md`。
+- `VERIFIED LOCALLY`：完整 Swift 測試 853 項、靜態 release audit、iOS／macOS／Watch／Share clean builds 與 Share／Watch 嵌入稽核均通過；詳細證據見 `Verification/PatternLibraryVerification.md`。
 - `VERIFIED ON DEVICE`：簽章版本已在 iPhone 17 Pro Max 完成 Files PDF Share Sheet 顯示、匯入與重複匯入驗收；詳細證據見 `Verification/ShareExtensionActivationVerification.md`。
 - `MANUAL ACCEPTANCE INCOMPLETE`：iPhone 其餘織圖庫操作、iPad 直橫向 PDF 閱讀與標註、macOS、備份還原及 VoiceOver 的 1.2 完整人工矩陣仍待執行。
 - `NOT SUBMITTED`：1.2.0 尚未 archive、Validate、上傳或送審；完成本機 release verification 不代表已取得送審授權。
@@ -56,9 +56,9 @@ Build 2 已上傳並選入 iOS／Watch 與 macOS 版本。繁體中文與英文 
 
 ## Builds／建置版本
 
-- `CANDIDATE`：iOS／iPadOS／watchOS、Share Extension 與 macOS 的設定版本均為 `1.2.0`、Build `2`。
+- `CANDIDATE`：iOS／iPadOS／watchOS、Share Extension 與 macOS 的設定版本均為 `1.2.0`、Build `3`。
 - `VERIFIED LOCALLY`：1.2.0 generic iOS／macOS clean build、Share embed、Watch embed 與 fresh Watch／Share target build 均通過，證據記錄於 `Verification/PatternLibraryVerification.md`。
-- `NOT UPLOADED`：1.2.0／Build 2 尚未上傳 App Store Connect。
+- `NOT UPLOADED`：1.2.0／Build 3 尚未上傳 App Store Connect。
 - `VERIFIED`：iOS／iPadOS／watchOS 與 macOS 版本 `1.0.0`、Build `2`。
 - `VERIFIED`：iOS／Watch Build 2 已通過 Xcode Organizer Validate App。
 - `UPLOADED`：iOS／iPadOS／Watch 與 macOS Build 2 均已由 Xcode Organizer 上傳至 Apple；等待 App Store Connect 完成後續處理。

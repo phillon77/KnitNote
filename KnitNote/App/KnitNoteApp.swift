@@ -41,10 +41,16 @@ struct KnitNoteApp: App {
         let projectStore = screenshotMode.map {
             JSONProjectStore.live(
                 baseDirectory: $0.baseDirectory,
-                authorizeMutation: { entitlementCoordinator.authorize($0) }
+                authorizeMutation: { entitlementCoordinator.authorize($0) },
+                commitSuccessfulMutation: {
+                    entitlementCoordinator.commitSuccessfulMutation($0)
+                }
             )
         } ?? JSONProjectStore.live(
-            authorizeMutation: { entitlementCoordinator.authorize($0) }
+            authorizeMutation: { entitlementCoordinator.authorize($0) },
+            commitSuccessfulMutation: {
+                entitlementCoordinator.commitSuccessfulMutation($0)
+            }
         )
         _projectStore = StateObject(wrappedValue: projectStore)
         let patternBackupReminderPresenter = PatternBackupReminderPresenter()

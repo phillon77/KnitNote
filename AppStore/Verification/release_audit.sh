@@ -61,7 +61,7 @@ plutil -lint \
   KnitNote/KnitNote-iOS.entitlements \
   KnitNoteShare/KnitNoteShare.entitlements >/dev/null
 
-EXPECTED_VERSION="1.2.0"
+EXPECTED_VERSION="1.2.1"
 EXPECTED_BUILD="2"
 for target in KnitNote KnitNoteWatch KnitNoteShare; do
   version="$(jq -er --arg target "$target" \

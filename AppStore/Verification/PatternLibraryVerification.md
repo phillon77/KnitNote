@@ -1,7 +1,7 @@
 # KnitNote 1.2 Pattern Library Verification
 
 Date: 2026-07-27
-Candidate: `1.2.0` / Build `2`
+Candidate: `1.2.1` / Build `2`
 Scope: local release-candidate verification only; no archive upload, App Store Connect edit, submission, or release is authorized by this report.
 
 Status legend:
@@ -62,11 +62,11 @@ The iOS product audit confirmed:
   `Watch/KnitNoteWatch.app` are present;
 - bundle identifiers are `com.phillon.KnitNote`,
   `com.phillon.KnitNote.share`, and `com.phillon.KnitNote.watch`;
-- the app, Share extension, Watch app, and macOS app all report version `1.2.0`
+- the app, Share extension, Watch app, and macOS app all report version `1.2.1`
   and build `2`;
 - app, Share, Watch, and macOS privacy manifests are present and pass
   `plutil -lint`;
-- fresh standalone Share and Watch products also report version `1.2.0`,
+- fresh standalone Share and Watch products also report version `1.2.1`,
   build `2`, and contain valid privacy manifests.
 
 These are unsigned local build checks. They are not substitutes for signed

@@ -14,6 +14,17 @@ struct TransactionUpdateListener: Sendable {
     }
 }
 
+struct StoreKitEntitlementSource {
+    enum LifetimeQualification {
+        case none
+        case entitled
+        case unavailable
+    }
+
+    let lifetimeQualification: () async -> LifetimeQualification
+    let legacyQualification: () async -> PurchaseQualification
+}
+
 @MainActor
 final class StoreKitPurchaseService: PurchaseService {
     static let lifetimeProductIdentifier = "com.phillon.KnitNote.lifetimeUnlock"
@@ -24,11 +35,19 @@ final class StoreKitPurchaseService: PurchaseService {
     private var lifetimeProduct: Product?
     private var transactionUpdatesTask: Task<Void, Never>?
     private let entitlementUpdatesContinuation: AsyncStream<Void>.Continuation
+    private let entitlementSource: StoreKitEntitlementSource
 
-    init(transactionUpdateListener: TransactionUpdateListener = .storeKit) {
+    init(
+        transactionUpdateListener: TransactionUpdateListener = .storeKit,
+        entitlementSource: StoreKitEntitlementSource? = nil
+    ) {
         let updates = AsyncStream<Void>.makeStream()
         entitlementUpdates = updates.stream
         entitlementUpdatesContinuation = updates.continuation
+        self.entitlementSource = entitlementSource ?? .init(
+            lifetimeQualification: Self.lifetimeEntitlementQualification,
+            legacyQualification: Self.legacyPaidQualification
+        )
         transactionUpdatesTask = Task {
             await transactionUpdateListener.consume {
                 updates.continuation.yield()
@@ -53,10 +72,14 @@ final class StoreKitPurchaseService: PurchaseService {
     }
 
     func currentQualification() async -> PurchaseQualification {
-        if await hasVerifiedLifetimeEntitlement() {
+        switch await entitlementSource.lifetimeQualification() {
+        case .entitled:
             return .lifetime
+        case .unavailable:
+            return .unavailable
+        case .none:
+            return await entitlementSource.legacyQualification()
         }
-        return await legacyPaidQualification()
     }
 
     func purchaseLifetime() async throws -> PurchaseOutcome {
@@ -91,25 +114,39 @@ final class StoreKitPurchaseService: PurchaseService {
         return await currentQualification()
     }
 
-    private func hasVerifiedLifetimeEntitlement() async -> Bool {
+    private static func lifetimeEntitlementQualification() async
+        -> StoreKitEntitlementSource.LifetimeQualification {
         for await verification in Transaction.currentEntitlements {
-            guard case let .verified(transaction) = verification,
-                  transaction.productID == Self.lifetimeProductIdentifier,
-                  transaction.productType == .nonConsumable
-            else { continue }
-            return true
+            switch verification {
+            case let .verified(transaction)
+                where transaction.productID == Self.lifetimeProductIdentifier
+                    && transaction.productType == .nonConsumable:
+                return .entitled
+            case let .unverified(transaction, _)
+                where transaction.productID == Self.lifetimeProductIdentifier
+                    && transaction.productType == .nonConsumable:
+                return .unavailable
+            default:
+                continue
+            }
         }
-        return false
+        return .none
     }
 
-    private func legacyPaidQualification() async -> PurchaseQualification {
-        guard let verification = try? await AppTransaction.shared,
-              case let .verified(appTransaction) = verification,
-              LegacyPaidVersionPolicy(
+    private static func legacyPaidQualification() async -> PurchaseQualification {
+        do {
+            let verification = try await AppTransaction.shared
+            guard case let .verified(appTransaction) = verification else {
+                return .unavailable
+            }
+            return LegacyPaidVersionPolicy(
                 maximumPaidVersion: Self.legacyPaidMaximumVersion
-              ).qualifies(originalAppVersion: appTransaction.originalAppVersion)
-        else { return .none }
-        return .legacyPaidOwner
+            ).qualifies(originalAppVersion: appTransaction.originalAppVersion)
+                ? .legacyPaidOwner
+                : .none
+        } catch {
+            return .unavailable
+        }
     }
 
 }

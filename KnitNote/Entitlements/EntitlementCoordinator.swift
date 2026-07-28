@@ -5,11 +5,13 @@ import SwiftUI
 final class EntitlementCoordinator: ObservableObject {
     private enum PreparationResult: Sendable {
         case prepared(EntitlementSnapshot)
+        case unavailable
         case failed
     }
 
     private struct PreparationFlight {
         let id: UUID
+        let generation: UInt64
         let task: Task<PreparationResult, Never>
     }
 
@@ -24,12 +26,23 @@ final class EntitlementCoordinator: ObservableObject {
         isPrepared ? snapshot : nil
     }
 
+    var allowsWrites: Bool {
+        guard isPrepared else { return false }
+        switch snapshot.state(at: now()) {
+        case .trialExpired:
+            return false
+        case .trialNotStarted, .trialActive, .permanentlyUnlocked, .legacyPaidOwner:
+            return true
+        }
+    }
+
     private let purchaseService: (any PurchaseService)?
     private let trialStore: (any TrialStore)?
     private let resolver: EntitlementResolver
     private let now: () -> Date
     private let onSnapshotChange: (EntitlementSnapshot, Date) -> Void
     private var isPrepared: Bool
+    private var preparationGeneration: UInt64 = 0
     private var preparationFlight: PreparationFlight?
     private var entitlementUpdatesTask: Task<Void, Never>?
 
@@ -106,11 +119,15 @@ final class EntitlementCoordinator: ObservableObject {
         } else {
             let newFlight = PreparationFlight(
                 id: UUID(),
+                generation: preparationGeneration,
                 task: Task { @MainActor [resolver, now] in
                     await purchaseService.prepare()
                     let purchase = await purchaseService.currentQualification()
                     if let verifiedPurchase = purchase.entitlementSnapshot {
                         return .prepared(verifiedPurchase)
+                    }
+                    if purchase == .unavailable {
+                        return .unavailable
                     }
 
                     do {
@@ -141,20 +158,30 @@ final class EntitlementCoordinator: ObservableObject {
     }
 
     func refreshEntitlement() async {
+        let generation = preparationGeneration
         if let existing = preparationFlight {
             await finishPreparation(existing)
         }
+        guard preparationGeneration == generation else { return }
         await prepare()
     }
 
     private func finishPreparation(_ flight: PreparationFlight) async {
         let result = await flight.task.value
-        guard preparationFlight?.id == flight.id else { return }
+        guard preparationGeneration == flight.generation,
+              preparationFlight?.id == flight.id else {
+            return
+        }
         preparationFlight = nil
 
         switch result {
         case let .prepared(preparedSnapshot):
             publishSnapshot(preparedSnapshot)
+        case .unavailable:
+            if !isPrepared
+                || (snapshot != .permanentlyUnlocked && snapshot != .legacyPaidOwner) {
+                isPrepared = false
+            }
         case .failed:
             isPrepared = false
         }
@@ -178,10 +205,44 @@ final class EntitlementCoordinator: ObservableObject {
         }
 
         let qualification = try await purchaseService.restore()
-        if qualification.entitlementSnapshot != nil {
-            await refreshEntitlement()
-        }
+        invalidatePreparationFlights()
+        try applyRestoredQualification(qualification)
         return qualification
+    }
+
+    private func applyRestoredQualification(
+        _ qualification: PurchaseQualification
+    ) throws {
+        if let restoredSnapshot = qualification.entitlementSnapshot {
+            publishSnapshot(restoredSnapshot)
+            return
+        }
+
+        switch qualification {
+        case .none:
+            guard let trialStore else {
+                isPrepared = false
+                return
+            }
+            do {
+                let trial = try trialStore.load()
+                publishSnapshot(resolver.resolve(
+                    purchase: .none,
+                    trial: trial,
+                    now: now()
+                ))
+            } catch {
+                isPrepared = false
+                throw error
+            }
+        case .unavailable:
+            if !isPrepared
+                || (snapshot != .permanentlyUnlocked && snapshot != .legacyPaidOwner) {
+                isPrepared = false
+            }
+        case .lifetime, .legacyPaidOwner:
+            preconditionFailure("Handled by entitlementSnapshot")
+        }
     }
 
     func dismissUnlock() {
@@ -206,6 +267,27 @@ final class EntitlementCoordinator: ObservableObject {
             unlockRequest = mutation
             return .requiresUnlock
         case .startTrial:
+            return .allow
+        }
+    }
+
+    func commitSuccessfulMutation(_ mutation: FeatureMutation) -> FeatureAccessDecision {
+        guard isPrepared else {
+            unlockRequest = mutation
+            return .requiresUnlock
+        }
+
+        switch FeatureAccessPolicy.decision(
+            for: mutation,
+            snapshot: snapshot,
+            now: now()
+        ) {
+        case .allow:
+            return .allow
+        case .requiresUnlock:
+            unlockRequest = mutation
+            return .requiresUnlock
+        case .startTrial:
             return startTrial(for: mutation)
         }
     }
@@ -215,6 +297,7 @@ final class EntitlementCoordinator: ObservableObject {
             unlockRequest = mutation
             return .requiresUnlock
         }
+        invalidatePreparationFlights()
         do {
             let trial = try trialStore.startIfNeeded(now: now())
             publishSnapshot(.trial(
@@ -223,9 +306,15 @@ final class EntitlementCoordinator: ObservableObject {
             ))
             return .allow
         } catch {
+            isPrepared = false
             unlockRequest = mutation
             return .requiresUnlock
         }
+    }
+
+    private func invalidatePreparationFlights() {
+        preparationGeneration &+= 1
+        preparationFlight = nil
     }
 
     private func publishSnapshot(_ newSnapshot: EntitlementSnapshot) {

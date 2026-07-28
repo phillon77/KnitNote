@@ -70,6 +70,7 @@ public enum ProjectStoreError: Error, Equatable, Sendable {
 }
 
 public typealias MutationAuthorizer = @MainActor (FeatureMutation) -> FeatureAccessDecision
+public typealias MutationSuccessCommitter = @MainActor (FeatureMutation) -> FeatureAccessDecision
 
 public enum PatternLibraryMutationError: Error, Equatable, Sendable {
     case patternNotFound
@@ -461,6 +462,7 @@ final class PatternLibraryDeletionTransaction {
     private var activeJournalPhotoTransactions = 0
     private var activePatternTransactions = 0
     private let authorizeMutation: MutationAuthorizer
+    private let commitSuccessfulMutation: MutationSuccessCommitter
 
     public convenience init(
         url: URL,
@@ -472,7 +474,8 @@ final class PatternLibraryDeletionTransaction {
         patternPublicationReceiptService: PatternInboxPublicationReceiptService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil,
-        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
+        commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) {
         let liveRoot = url.deletingLastPathComponent()
         let workRoot = liveRoot.deletingLastPathComponent().appendingPathComponent(
@@ -490,7 +493,8 @@ final class PatternLibraryDeletionTransaction {
             patternMarkupFileService: patternMarkupFileService,
             patternThumbnailService: patternThumbnailService,
             backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot),
-            authorizeMutation: authorizeMutation
+            authorizeMutation: authorizeMutation,
+            commitSuccessfulMutation: commitSuccessfulMutation
         )
     }
 
@@ -510,7 +514,8 @@ final class PatternLibraryDeletionTransaction {
         archiveWrite: @escaping @Sendable (Data, URL) throws -> Void = {
             try $0.write(to: $1, options: .atomic)
         },
-        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
+        commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) {
         self.url = url
         self.photoService = photoService ?? ProjectPhotoFileService(
@@ -547,6 +552,7 @@ final class PatternLibraryDeletionTransaction {
         self.backupService = backupService
         self.archiveWrite = archiveWrite
         self.authorizeMutation = authorizeMutation
+        self.commitSuccessfulMutation = commitSuccessfulMutation
         if let initialLoadError {
             loadError = initialLoadError
         } else {
@@ -555,14 +561,16 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public static func live(
-        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
+        commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) -> JSONProjectStore {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         do {
             return try live(
                 baseDirectory: base,
                 locations: PatternStorageLocations.live(),
-                authorizeMutation: authorizeMutation
+                authorizeMutation: authorizeMutation,
+                commitSuccessfulMutation: commitSuccessfulMutation
             )
         } catch {
             // The normal iOS path never substitutes a private inbox when the App
@@ -575,14 +583,16 @@ final class PatternLibraryDeletionTransaction {
                 backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot),
                 initialLoadError: .archiveUnavailable,
                 patternStorageLocationsProvider: { try PatternStorageLocations.live() },
-                authorizeMutation: authorizeMutation
+                authorizeMutation: authorizeMutation,
+                commitSuccessfulMutation: commitSuccessfulMutation
             )
         }
     }
 
     public static func live(
         baseDirectory: URL,
-        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
+        commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) -> JSONProjectStore {
         let liveRoot = baseDirectory.appendingPathComponent("KnitNote", isDirectory: true)
         return live(
@@ -591,14 +601,16 @@ final class PatternLibraryDeletionTransaction {
                 assetRoot: liveRoot.appendingPathComponent("Patterns", isDirectory: true),
                 inboxRoot: liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
             ),
-            authorizeMutation: authorizeMutation
+            authorizeMutation: authorizeMutation,
+            commitSuccessfulMutation: commitSuccessfulMutation
         )
     }
 
     private static func live(
         baseDirectory: URL,
         locations: PatternStorageLocations,
-        authorizeMutation: @escaping MutationAuthorizer
+        authorizeMutation: @escaping MutationAuthorizer,
+        commitSuccessfulMutation: @escaping MutationSuccessCommitter
     ) -> JSONProjectStore {
         let liveRoot = locations.assetRoot.deletingLastPathComponent()
         let archiveURL = liveRoot.appendingPathComponent("projects-v1.json")
@@ -614,7 +626,8 @@ final class PatternLibraryDeletionTransaction {
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
                 backupService: backupService,
-                authorizeMutation: authorizeMutation
+                authorizeMutation: authorizeMutation,
+                commitSuccessfulMutation: commitSuccessfulMutation
             )
             guard let interruptedInstallation else { return store }
             if store.loadError == nil {
@@ -627,7 +640,8 @@ final class PatternLibraryDeletionTransaction {
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
                 backupService: backupService,
-                authorizeMutation: authorizeMutation
+                authorizeMutation: authorizeMutation,
+                commitSuccessfulMutation: commitSuccessfulMutation
             )
         } catch {
             return JSONProjectStore(
@@ -636,7 +650,8 @@ final class PatternLibraryDeletionTransaction {
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
                 backupService: backupService,
                 initialLoadError: .unreadableArchive,
-                authorizeMutation: authorizeMutation
+                authorizeMutation: authorizeMutation,
+                commitSuccessfulMutation: commitSuccessfulMutation
             )
         }
     }
@@ -731,6 +746,7 @@ final class PatternLibraryDeletionTransaction {
             if let newFilename { try? photoService.delete(filename: newFilename) }
             throw error
         }
+        try commitSuccessfulAccess(.createProject)
     }
     public func delete(id: UUID) throws {
         try requireAccess(.deleteProject)
@@ -992,6 +1008,13 @@ final class PatternLibraryDeletionTransaction {
     }
     public func addPattern(projectID: UUID, pattern: PatternDocument) throws {
         try requireAccess(.importPattern)
+        try addPatternWithoutAuthorization(projectID: projectID, pattern: pattern)
+        try commitSuccessfulAccess(.importPattern)
+    }
+    private func addPatternWithoutAuthorization(
+        projectID: UUID,
+        pattern: PatternDocument
+    ) throws {
         try mutate(id: projectID) { $0.addPattern(pattern) }
     }
     public func importPattern(from source: URL, projectID: UUID) async throws -> PatternDocument {
@@ -1007,12 +1030,13 @@ final class PatternLibraryDeletionTransaction {
         do {
             try Task.checkCancellation()
             guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
-            try addPattern(projectID: projectID, pattern: pattern)
-            return pattern
+            try addPatternWithoutAuthorization(projectID: projectID, pattern: pattern)
         } catch {
             try? service.delete(projectID: projectID, pattern: pattern)
             throw error
         }
+        try commitSuccessfulAccess(.importPattern)
+        return pattern
     }
     public func processPatternInboxItem(
         id: UUID,
@@ -1962,6 +1986,7 @@ final class PatternLibraryDeletionTransaction {
                     files: files,
                     receipts: receipts
                 )
+                try commitSuccessfulAccess(.importPattern)
                 return outcome
             }
             let selected: StoredPattern?
@@ -2016,6 +2041,7 @@ final class PatternLibraryDeletionTransaction {
             files: files,
             receipts: receipts
         )
+        try commitSuccessfulAccess(.importPattern)
         return outcome
     }
 
@@ -2207,6 +2233,12 @@ final class PatternLibraryDeletionTransaction {
 
     private func requireAccess(_ mutation: FeatureMutation) throws {
         guard authorizeMutation(mutation) != .requiresUnlock else {
+            throw ProjectStoreError.accessRestricted
+        }
+    }
+
+    private func commitSuccessfulAccess(_ mutation: FeatureMutation) throws {
+        guard commitSuccessfulMutation(mutation) != .requiresUnlock else {
             throw ProjectStoreError.accessRestricted
         }
     }

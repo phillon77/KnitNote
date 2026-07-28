@@ -55,4 +55,31 @@ import Testing
         #expect(!context.usageIsActive)
         #expect(!context.canWrite)
     }
+
+    @Test func entitlementLockedProjectContextIsReadOnlyButCanRequestUnlock() {
+        let context = PatternReaderContext.project(
+            patternID: UUID(),
+            usageID: UUID(),
+            projectID: UUID(),
+            projectIsCompleted: false,
+            entitlementCanWrite: false
+        )
+
+        #expect(!context.entitlementCanWrite)
+        #expect(!context.canWrite)
+        #expect(context.canRequestUnlock)
+    }
+
+    @Test func structurallyReadOnlyContextsNeverRequestUnlock() {
+        let completed = PatternReaderContext.project(
+            patternID: UUID(),
+            usageID: UUID(),
+            projectID: UUID(),
+            projectIsCompleted: true,
+            entitlementCanWrite: false
+        )
+
+        #expect(!PatternReaderContext.readOnly(patternID: UUID()).canRequestUnlock)
+        #expect(!completed.canRequestUnlock)
+    }
 }

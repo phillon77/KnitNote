@@ -44,6 +44,56 @@ import Testing
 
         #expect(update != nil)
     }
+
+    @Test @MainActor func transientAppTransactionFailureIsReportedAsUnavailable() async {
+        let service = StoreKitPurchaseService(
+            transactionUpdateListener: .init { _ in },
+            entitlementSource: .init(
+                lifetimeQualification: { .none },
+                legacyQualification: { .unavailable }
+            )
+        )
+
+        #expect(await service.currentQualification() == .unavailable)
+    }
+
+    @Test @MainActor func verifiedFreeAppTransactionIsAuthoritativeNone() async {
+        let service = StoreKitPurchaseService(
+            transactionUpdateListener: .init { _ in },
+            entitlementSource: .init(
+                lifetimeQualification: { .none },
+                legacyQualification: { .none }
+            )
+        )
+
+        #expect(await service.currentQualification() == .none)
+    }
+
+    @Test @MainActor func unavailableLifetimeLookupStopsBeforeAuthoritativeLegacyLookup() async {
+        let legacy = QualificationCallProbe()
+        let service = StoreKitPurchaseService(
+            transactionUpdateListener: .init { _ in },
+            entitlementSource: .init(
+                lifetimeQualification: { .unavailable },
+                legacyQualification: {
+                    legacy.record()
+                    return .none
+                }
+            )
+        )
+
+        #expect(await service.currentQualification() == .unavailable)
+        #expect(legacy.callCount == 0)
+    }
+}
+
+@MainActor
+private final class QualificationCallProbe {
+    private(set) var callCount = 0
+
+    func record() {
+        callCount += 1
+    }
 }
 
 private actor TransactionUpdatesScript {

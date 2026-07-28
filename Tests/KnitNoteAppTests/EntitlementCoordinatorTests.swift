@@ -54,24 +54,33 @@ import Testing
         #expect(updates.first?.1 == generatedAt)
     }
 
-    @Test @MainActor func startingTrialPublishesProjectionBeforeMutationReturns() async {
+    @Test @MainActor func trialStartsOnlyAfterSuccessfulMutationCommit() async {
         let now = Date(timeIntervalSince1970: 2_000_000)
         var updates: [(EntitlementSnapshot, Date)] = []
+        let trialStore = TrialStoreSpy(
+            loadedRecord: nil,
+            startedRecord: TrialRecord(startedAt: now)
+        )
         let coordinator = EntitlementCoordinator(
             purchaseService: PurchaseServiceSpy(qualification: .none),
-            trialStore: TrialStoreSpy(
-                loadedRecord: nil,
-                startedRecord: TrialRecord(startedAt: now)
-            ),
+            trialStore: trialStore,
             now: { now },
             onSnapshotChange: { updates.append(($0, $1)) }
         )
         await coordinator.prepare()
         updates.removeAll()
 
-        let decision = coordinator.authorize(.createProject)
+        let preflight = coordinator.authorize(.createProject)
 
-        #expect(decision == .allow)
+        #expect(preflight == .allow)
+        #expect(trialStore.startCallDates.isEmpty)
+        #expect(coordinator.snapshot == .trialNotStarted)
+        #expect(updates.isEmpty)
+
+        let commit = coordinator.commitSuccessfulMutation(.createProject)
+
+        #expect(commit == .allow)
+        #expect(trialStore.startCallDates == [now])
         #expect(updates.count == 1)
         #expect(
             updates.first?.0 == .trial(
@@ -80,6 +89,9 @@ import Testing
             )
         )
         #expect(updates.first?.1 == now)
+
+        #expect(coordinator.commitSuccessfulMutation(.importPattern) == .allow)
+        #expect(trialStore.startCallDates == [now])
     }
 
     @Test @MainActor func ensurePreparedWaitsForTheCurrentQualificationFlight() async {
@@ -112,6 +124,39 @@ import Testing
 
         #expect(await coordinator.ensurePrepared() == false)
         #expect(coordinator.authorize(.importPattern) == .requiresUnlock)
+    }
+
+    @Test @MainActor func readerWritesRequireAPreparedNonExpiredEntitlement() async {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let unprepared = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .none),
+            trialStore: TrialStoreSpy(loadedRecord: nil),
+            now: { now }
+        )
+        #expect(!unprepared.allowsWrites)
+
+        await unprepared.prepare()
+        #expect(unprepared.allowsWrites)
+
+        let expired = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .none),
+            trialStore: TrialStoreSpy(
+                loadedRecord: TrialRecord(
+                    startedAt: now.addingTimeInterval(-TrialRecord.duration - 1)
+                )
+            ),
+            now: { now }
+        )
+        await expired.prepare()
+        #expect(!expired.allowsWrites)
+
+        let lifetime = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .lifetime),
+            trialStore: TrialStoreSpy(loadedRecord: nil),
+            now: { now }
+        )
+        await lifetime.prepare()
+        #expect(lifetime.allowsWrites)
     }
 
     @Test @MainActor func verifiedPurchaseTakesPrecedenceWithoutReadingTheTrialStore() async {
@@ -178,12 +223,9 @@ import Testing
         #expect(coordinator.snapshot == .trialNotStarted)
     }
 
-    @Test @MainActor func failedRefreshAfterLifetimeFailsClosed() async {
+    @Test @MainActor func unavailableRefreshAfterLifetimePreservesVerifiedUnlock() async {
         let purchaseService = ControlledPurchaseService()
-        let trialStore = TrialStoreSpy(
-            loadedRecord: nil,
-            loadError: TrialStoreSpy.Failure.load
-        )
+        let trialStore = TrialStoreSpy(loadedRecord: nil)
         let coordinator = EntitlementCoordinator(
             purchaseService: purchaseService,
             trialStore: trialStore
@@ -197,14 +239,43 @@ import Testing
 
         let refresh = Task { await coordinator.prepare() }
         await purchaseService.waitForQualificationCall(count: 2)
-        purchaseService.resumeAllQualifications(returning: .none)
+        purchaseService.resumeAllQualifications(returning: .unavailable)
         await refresh.value
 
         #expect(purchaseService.prepareCallCount == 2)
         #expect(purchaseService.qualificationCallCount == 2)
-        #expect(trialStore.loadCallCount == 1)
+        #expect(trialStore.loadCallCount == 0)
+        #expect(coordinator.snapshot == .permanentlyUnlocked)
+        #expect(coordinator.authorize(.changeCounter) == .allow)
+        #expect(coordinator.unlockRequest == nil)
+    }
+
+    @Test @MainActor func unavailableRefreshAfterLegacyOwnerPreservesVerifiedUnlock() async {
+        let purchaseService = PurchaseServiceSpy(qualification: .legacyPaidOwner)
+        let trialStore = TrialStoreSpy(loadedRecord: nil)
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: trialStore
+        )
+        await coordinator.prepare()
+        purchaseService.qualification = .unavailable
+
+        await coordinator.refreshEntitlement()
+
+        #expect(trialStore.loadCallCount == 0)
+        #expect(coordinator.snapshot == .legacyPaidOwner)
+        #expect(coordinator.authorize(.changeCounter) == .allow)
+    }
+
+    @Test @MainActor func initialUnavailableQualificationFailsClosed() async {
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .unavailable),
+            trialStore: TrialStoreSpy(loadedRecord: nil)
+        )
+
+        #expect(await coordinator.ensurePrepared() == false)
+        #expect(coordinator.verifiedSnapshot == nil)
         #expect(coordinator.authorize(.changeCounter) == .requiresUnlock)
-        #expect(coordinator.unlockRequest == .changeCounter)
     }
 
     @Test @MainActor func unpreparedCoordinatorBlocksDurableWatchCommandBeforeAnyWrite() throws {
@@ -271,7 +342,7 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
     }
 
-    @Test @MainActor func firstProjectCreationAtomicallyStartsTrialBeforeTheStoreWrites() async throws {
+    @Test @MainActor func firstProjectCreationStartsTrialAfterTheStorePublishes() async throws {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let purchaseService = PurchaseServiceSpy(qualification: .none)
         let trialStore = TrialStoreSpy(
@@ -284,7 +355,10 @@ import Testing
             now: { now }
         )
         await coordinator.prepare()
-        let fixture = try StoreFixture(authorize: { coordinator.authorize($0) })
+        let fixture = try StoreFixture(
+            authorize: { coordinator.authorize($0) },
+            commit: { coordinator.commitSuccessfulMutation($0) }
+        )
         defer { fixture.remove() }
 
         try fixture.store.add(name: "First project")
@@ -300,7 +374,7 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: fixture.archiveURL.path))
     }
 
-    @Test @MainActor func failedTrialStartBlocksTheTriggeringStoreWrite() async throws {
+    @Test @MainActor func failedTrialCommitFailsClosedAfterTheStoreWrite() async throws {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let trialStore = TrialStoreSpy(
             loadedRecord: nil,
@@ -312,17 +386,23 @@ import Testing
             now: { now }
         )
         await coordinator.prepare()
-        let fixture = try StoreFixture(authorize: { coordinator.authorize($0) })
+        let fixture = try StoreFixture(
+            authorize: { coordinator.authorize($0) },
+            commit: { coordinator.commitSuccessfulMutation($0) }
+        )
         defer { fixture.remove() }
 
         #expect(throws: ProjectStoreError.accessRestricted) {
             try fixture.store.add(name: "Must not exist")
         }
 
-        #expect(fixture.store.projects.isEmpty)
-        #expect(!FileManager.default.fileExists(atPath: fixture.archiveURL.path))
+        #expect(fixture.store.projects.map(\.name) == ["Must not exist"])
+        #expect(FileManager.default.fileExists(atPath: fixture.archiveURL.path))
         #expect(coordinator.snapshot == .trialNotStarted)
+        #expect(coordinator.verifiedSnapshot == nil)
         #expect(coordinator.unlockRequest == .createProject)
+        #expect(coordinator.authorize(.createProject) == .requiresUnlock)
+        #expect(coordinator.authorize(.changeCounter) == .requiresUnlock)
     }
 
     @Test @MainActor func expiredTrialPublishesTheRejectedMutation() async throws {
@@ -477,6 +557,60 @@ import Testing
     }
 
     @Test @MainActor
+    func restoredLifetimeIsNotOverwrittenByAnOlderPreparationFlight() async throws {
+        let purchaseService = ControlledPurchaseService(
+            restoreQualification: .lifetime
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: nil)
+        )
+
+        let preparation = Task { await coordinator.prepare() }
+        await purchaseService.waitForQualificationCall(count: 1)
+
+        #expect(try await coordinator.restorePurchases() == .lifetime)
+        purchaseService.resumeNextQualification(returning: .none)
+        await preparation.value
+
+        #expect(coordinator.snapshot == .permanentlyUnlocked)
+        #expect(coordinator.verifiedSnapshot == .permanentlyUnlocked)
+    }
+
+    @Test @MainActor
+    func successfulTrialCommitIsNotOverwrittenByAnOlderRefreshFlight() async {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let trialStore = TrialStoreSpy(
+            loadedRecord: nil,
+            startedRecord: TrialRecord(startedAt: now)
+        )
+        let purchaseService = ControlledPurchaseService()
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: trialStore,
+            now: { now }
+        )
+        let preparation = Task { await coordinator.prepare() }
+        await purchaseService.waitForQualificationCall(count: 1)
+        purchaseService.resumeNextQualification(returning: .none)
+        await preparation.value
+
+        let refresh = Task { await coordinator.refreshEntitlement() }
+        await purchaseService.waitForQualificationCall(count: 2)
+
+        #expect(coordinator.commitSuccessfulMutation(.createProject) == .allow)
+        purchaseService.resumeNextQualification(returning: .none)
+        await refresh.value
+
+        #expect(coordinator.snapshot == .trial(
+            startedAt: now,
+            expiresAt: now.addingTimeInterval(TrialRecord.duration)
+        ))
+        #expect(coordinator.verifiedSnapshot == coordinator.snapshot)
+        #expect(purchaseService.qualificationCallCount == 2)
+    }
+
+    @Test @MainActor
     func pendingPurchaseUnlocksWhenADeferredVerifiedTransactionArrives() async throws {
         let purchaseService = ControlledPurchaseService(
             purchaseOutcome: .pending
@@ -568,6 +702,39 @@ import Testing
         #expect(coordinator.unlockRequest == nil)
     }
 
+    @Test @MainActor func authoritativeNoneRestoreRevokesVerifiedLifetime() async throws {
+        let purchaseService = PurchaseServiceSpy(
+            qualification: .lifetime,
+            restoreQualification: PurchaseQualification.none
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: TrialStoreSpy(loadedRecord: nil)
+        )
+        await coordinator.prepare()
+
+        #expect(try await coordinator.restorePurchases() == .none)
+        #expect(coordinator.snapshot == .trialNotStarted)
+        #expect(coordinator.verifiedSnapshot == .trialNotStarted)
+    }
+
+    @Test @MainActor func unavailableRestorePreservesVerifiedLifetime() async throws {
+        let purchaseService = PurchaseServiceSpy(
+            qualification: .lifetime,
+            restoreQualification: .unavailable
+        )
+        let trialStore = TrialStoreSpy(loadedRecord: nil)
+        let coordinator = EntitlementCoordinator(
+            purchaseService: purchaseService,
+            trialStore: trialStore
+        )
+        await coordinator.prepare()
+
+        #expect(try await coordinator.restorePurchases() == .unavailable)
+        #expect(coordinator.snapshot == .permanentlyUnlocked)
+        #expect(trialStore.loadCallCount == 0)
+    }
+
     @Test @MainActor func dismissUnlockClearsOnlyThePublishedRequest() async {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let expired = TrialRecord(
@@ -651,12 +818,17 @@ private final class ControlledPurchaseService: PurchaseService {
     private(set) var qualificationCallCount = 0
     var localizedLifetimePrice: String?
     private let purchaseOutcome: PurchaseOutcome
+    private let restoreQualification: PurchaseQualification
 
-    init(purchaseOutcome: PurchaseOutcome = .cancelled) {
+    init(
+        purchaseOutcome: PurchaseOutcome = .cancelled,
+        restoreQualification: PurchaseQualification = .none
+    ) {
         let updates = AsyncStream<Void>.makeStream()
         entitlementUpdates = updates.stream
         entitlementUpdatesContinuation = updates.continuation
         self.purchaseOutcome = purchaseOutcome
+        self.restoreQualification = restoreQualification
     }
 
     func prepare() async {
@@ -701,7 +873,7 @@ private final class ControlledPurchaseService: PurchaseService {
     }
 
     func restore() async throws -> PurchaseQualification {
-        .none
+        restoreQualification
     }
 
     private func resumeSatisfiedQualificationCallWaiters() {
@@ -785,7 +957,10 @@ private struct StoreFixture {
     let archiveURL: URL
     let store: JSONProjectStore
 
-    init(authorize: @escaping MutationAuthorizer) throws {
+    init(
+        authorize: @escaping MutationAuthorizer,
+        commit: @escaping MutationSuccessCommitter = { _ in .allow }
+    ) throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("EntitlementCoordinatorTests-\(UUID().uuidString)")
         archiveURL = root.appendingPathComponent("projects-v1.json")
@@ -795,7 +970,8 @@ private struct StoreFixture {
         )
         store = JSONProjectStore(
             url: archiveURL,
-            authorizeMutation: authorize
+            authorizeMutation: authorize,
+            commitSuccessfulMutation: commit
         )
     }
 

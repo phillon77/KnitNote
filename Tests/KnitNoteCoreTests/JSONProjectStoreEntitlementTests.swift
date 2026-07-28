@@ -53,6 +53,128 @@ import Testing
 }
 
 @MainActor
+@Test func failedProjectCreationNeverCommitsTrialStart() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("FailedCreateCommit-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: root.appendingPathComponent("projects-v1.json"),
+        authorizeMutation: { _ in .allow },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+
+    #expect(throws: Error.self) {
+        try store.add(name: "   ")
+    }
+
+    #expect(committer.mutations.isEmpty)
+    #expect(store.projects.isEmpty)
+}
+
+@MainActor
+@Test func archiveWriteFailureNeverCommitsTrialStart() throws {
+    enum WriteFailure: Error { case expected }
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("FailedArchiveCommit-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: root.appendingPathComponent("projects-v1.json"),
+        backupService: KnitNoteBackupService(
+            liveRoot: root,
+            workRoot: root.appendingPathComponent("Work", isDirectory: true)
+        ),
+        archiveWrite: { _, _ in throw WriteFailure.expected },
+        authorizeMutation: { _ in .allow },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        try store.add(name: "Write fails")
+    }
+
+    #expect(committer.mutations.isEmpty)
+    #expect(store.projects.isEmpty)
+}
+
+@MainActor
+@Test func failedPatternImportsNeverCommitTrialStart() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("FailedImportCommit-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let archive = root.appendingPathComponent("projects-v1.json")
+    let badPDF = root.appendingPathComponent("bad.pdf")
+    try Data("not a pdf".utf8).write(to: badPDF)
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: archive,
+        authorizeMutation: { _ in .allow },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+
+    await #expect(throws: ProjectStoreError.patternNotFound) {
+        _ = try await store.importPattern(from: badPDF, projectID: UUID())
+    }
+    await #expect(throws: PatternFileError.invalidContent) {
+        _ = try await store.importPatternFromLibrary(badPDF)
+    }
+
+    #expect(committer.mutations.isEmpty)
+}
+
+@MainActor
+@Test func successfulProjectCreationAndImportCommitTrialStart() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("SuccessfulMutationCommit-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let source = root.appendingPathComponent("pattern.pdf")
+    try makeTestPatternPDF(at: source)
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: root.appendingPathComponent("projects-v1.json"),
+        authorizeMutation: { _ in .allow },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+
+    try store.add(name: "First")
+    let projectID = try #require(store.projects.first?.id)
+    _ = try await store.importPattern(from: source, projectID: projectID)
+
+    #expect(committer.mutations == [.createProject, .importPattern])
+}
+
+@MainActor
+@Test func failedTrialCommitDoesNotRollBackAnAlreadyPublishedImport() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PublishedImportCommitFailure-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let source = root.appendingPathComponent("pattern.pdf")
+    try makeTestPatternPDF(at: source)
+    let committer = MutationCommitterProbe()
+    let store = JSONProjectStore(
+        url: root.appendingPathComponent("projects-v1.json"),
+        authorizeMutation: { _ in .allow },
+        commitSuccessfulMutation: { committer.commit($0) }
+    )
+    try store.add(name: "First")
+    let projectID = try #require(store.projects.first?.id)
+    committer.decision = .requiresUnlock
+
+    await #expect(throws: ProjectStoreError.accessRestricted) {
+        _ = try await store.importPattern(from: source, projectID: projectID)
+    }
+
+    let pattern = try #require(store.project(id: projectID)?.patterns.first)
+    #expect(FileManager.default.fileExists(
+        atPath: store.patternURL(projectID: projectID, pattern: pattern).path
+    ))
+}
+
+@MainActor
 @Test func restrictedYarnMutationFailsWithoutChangingMemoryOrDisk() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("RestrictedYarn-\(UUID().uuidString)", isDirectory: true)
@@ -608,6 +730,17 @@ private final class MutationAuthorizerProbe {
 
     func reset() {
         mutations.removeAll()
+    }
+}
+
+@MainActor
+private final class MutationCommitterProbe {
+    var decision: FeatureAccessDecision = .allow
+    private(set) var mutations: [FeatureMutation] = []
+
+    func commit(_ mutation: FeatureMutation) -> FeatureAccessDecision {
+        mutations.append(mutation)
+        return decision
     }
 }
 

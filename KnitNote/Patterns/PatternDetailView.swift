@@ -4,6 +4,7 @@ struct PatternDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     let patternID: UUID
 
     @State private var showingRename = false
@@ -332,7 +333,9 @@ struct PatternDetailView: View {
             showingReadingChooser = true
             return
         }
-        try? store.markPatternOpened(id: patternID)
+        if entitlementCoordinator.allowsWrites {
+            try? store.markPatternOpened(id: patternID)
+        }
     }
 
     private func unlink(projectID: UUID) {

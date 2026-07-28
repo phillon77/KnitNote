@@ -40,10 +40,11 @@ public enum PurchaseQualification: Equatable, Sendable {
     case none
     case lifetime
     case legacyPaidOwner
+    case unavailable
 
     public var entitlementSnapshot: EntitlementSnapshot? {
         switch self {
-        case .none:
+        case .none, .unavailable:
             nil
         case .lifetime:
             .permanentlyUnlocked

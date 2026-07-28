@@ -9,7 +9,7 @@ import Testing
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch"))
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share"))
         #expect(
-            yaml.components(separatedBy: "MARKETING_VERSION: 1.2.0").count == 4
+            yaml.components(separatedBy: "MARKETING_VERSION: 1.2.1").count == 4
         )
         #expect(
             yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 2").count == 4
@@ -51,7 +51,8 @@ import Testing
     @Test func submissionSourceHasEveryRequiredSection() throws {
         let text = try sourceText("AppStore/AppStoreSubmission.md")
 
-        #expect(text.contains("1.2.0"))
+        #expect(text.contains("下一版 release candidate：`1.2.1`"))
+        #expect(text.contains("legacy paid owner 依 1.2.0 既定版本界線"))
         #expect(text.contains("schema 10"))
         #expect(text.contains("manifest 2"))
         #expect(text.contains("KnitNoteShare"))
@@ -67,6 +68,16 @@ import Testing
         ] {
             #expect(text.contains(heading))
         }
+    }
+
+    @Test func releaseAuditAndVerificationUseTheFreeCandidateVersion() throws {
+        let audit = try sourceText("AppStore/Verification/release_audit.sh")
+        let verification = try sourceText(
+            "AppStore/Verification/PatternLibraryVerification.md"
+        )
+
+        #expect(audit.contains(#"EXPECTED_VERSION="1.2.1""#))
+        #expect(verification.contains("Candidate: `1.2.1` / Build `2`"))
     }
 
     @Test func englishMetadataUsesApprovedWatchFirstPositioning() throws {

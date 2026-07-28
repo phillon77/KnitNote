@@ -67,7 +67,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
-        MARKETING_VERSION: 1.2.0
+        MARKETING_VERSION: 1.2.1
         CURRENT_PROJECT_VERSION: 2
         PRODUCT_NAME: KnitNote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -105,7 +105,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
-        MARKETING_VERSION: 1.2.0
+        MARKETING_VERSION: 1.2.1
         CURRENT_PROJECT_VERSION: 2
         PRODUCT_NAME: KnitNoteWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -146,7 +146,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share
         CODE_SIGN_ENTITLEMENTS: KnitNoteShare/KnitNoteShare.entitlements
-        MARKETING_VERSION: 1.2.0
+        MARKETING_VERSION: 1.2.1
         CURRENT_PROJECT_VERSION: 2
         PRODUCT_NAME: KnitNoteShare
         APPLICATION_EXTENSION_API_ONLY: YES

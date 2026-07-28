@@ -9,19 +9,22 @@ public struct PatternReaderContext: Equatable, Hashable, Sendable {
     public let projectID: UUID?
     public let usageIsActive: Bool
     public let projectIsCompleted: Bool
+    public let entitlementCanWrite: Bool
 
     private init(
         patternID: UUID,
         usageID: UUID?,
         projectID: UUID?,
         usageIsActive: Bool,
-        projectIsCompleted: Bool
+        projectIsCompleted: Bool,
+        entitlementCanWrite: Bool
     ) {
         self.patternID = patternID
         self.usageID = usageID
         self.projectID = projectID
         self.usageIsActive = usageIsActive
         self.projectIsCompleted = projectIsCompleted
+        self.entitlementCanWrite = entitlementCanWrite
     }
 
     public static func readOnly(patternID: UUID) -> Self {
@@ -30,7 +33,8 @@ public struct PatternReaderContext: Equatable, Hashable, Sendable {
             usageID: nil,
             projectID: nil,
             usageIsActive: false,
-            projectIsCompleted: false
+            projectIsCompleted: false,
+            entitlementCanWrite: false
         )
     }
 
@@ -39,19 +43,27 @@ public struct PatternReaderContext: Equatable, Hashable, Sendable {
         usageID: UUID,
         projectID: UUID,
         usageIsActive: Bool = true,
-        projectIsCompleted: Bool
+        projectIsCompleted: Bool,
+        entitlementCanWrite: Bool = true
     ) -> Self {
         .init(
             patternID: patternID,
             usageID: usageID,
             projectID: projectID,
             usageIsActive: usageIsActive,
-            projectIsCompleted: projectIsCompleted
+            projectIsCompleted: projectIsCompleted,
+            entitlementCanWrite: entitlementCanWrite
         )
+    }
+
+    public var canRequestUnlock: Bool {
+        usageID != nil && projectID != nil && usageIsActive && !projectIsCompleted
+            && !entitlementCanWrite
     }
 
     public var canWrite: Bool {
         usageID != nil && projectID != nil && usageIsActive && !projectIsCompleted
+            && entitlementCanWrite
     }
 }
 
@@ -65,6 +77,7 @@ public struct PatternReaderContextIdentity: Hashable, Sendable {
     public let assetID: UUID?
     public let usageIsActive: Bool
     public let projectIsCompleted: Bool
+    public let entitlementCanWrite: Bool
 
     public init(context: PatternReaderContext, assetID: UUID?) {
         patternID = context.patternID
@@ -73,6 +86,7 @@ public struct PatternReaderContextIdentity: Hashable, Sendable {
         self.assetID = assetID
         usageIsActive = context.usageIsActive
         projectIsCompleted = context.projectIsCompleted
+        entitlementCanWrite = context.entitlementCanWrite
     }
 }
 

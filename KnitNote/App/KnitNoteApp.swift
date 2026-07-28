@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct KnitNoteApp: App {
+    @StateObject private var entitlementCoordinator: EntitlementCoordinator
     @StateObject private var projectStore: JSONProjectStore
     @StateObject private var patternInboxProcessor: PatternInboxProcessor
     @StateObject private var patternBackupReminderPresenter: PatternBackupReminderPresenter
@@ -22,9 +23,35 @@ struct KnitNoteApp: App {
             preconditionFailure("Invalid App Store screenshot request; refusing to open the live store")
         }
         self.screenshotMode = screenshotMode
+        #if os(iOS)
+        let entitlementProjectionWriter = try? EntitlementProjectionWriter.live()
+        #endif
+        let entitlementCoordinator = EntitlementCoordinator.configured(
+            screenshotMode: screenshotMode != nil,
+            onSnapshotChange: { snapshot, generatedAt in
+                #if os(iOS)
+                try? entitlementProjectionWriter?.write(
+                    snapshot: snapshot,
+                    generatedAt: generatedAt
+                )
+                #endif
+            }
+        )
+        _entitlementCoordinator = StateObject(wrappedValue: entitlementCoordinator)
         let projectStore = screenshotMode.map {
-            JSONProjectStore.live(baseDirectory: $0.baseDirectory)
-        } ?? JSONProjectStore.live()
+            JSONProjectStore.live(
+                baseDirectory: $0.baseDirectory,
+                authorizeMutation: { entitlementCoordinator.authorize($0) },
+                commitSuccessfulMutation: {
+                    entitlementCoordinator.commitSuccessfulMutation($0)
+                }
+            )
+        } ?? JSONProjectStore.live(
+            authorizeMutation: { entitlementCoordinator.authorize($0) },
+            commitSuccessfulMutation: {
+                entitlementCoordinator.commitSuccessfulMutation($0)
+            }
+        )
         _projectStore = StateObject(wrappedValue: projectStore)
         let patternBackupReminderPresenter = PatternBackupReminderPresenter()
         _patternBackupReminderPresenter = StateObject(
@@ -37,7 +64,10 @@ struct KnitNoteApp: App {
             )
         )
 #if os(iOS)
-        let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(projectStore: projectStore)
+        let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(
+            projectStore: projectStore,
+            entitlementCoordinator: entitlementCoordinator
+        )
         _phoneWatchSyncCoordinator = StateObject(
             wrappedValue: phoneWatchSyncCoordinator
         )
@@ -72,9 +102,13 @@ struct KnitNoteApp: App {
             }
                 .environment(\.locale, appLocale)
                 .environmentObject(projectStore)
+                .environmentObject(entitlementCoordinator)
                 .environmentObject(patternInboxProcessor)
                 .environmentObject(patternBackupReminderPresenter)
                 .preferredColorScheme(.light)
+                .task {
+                    await entitlementCoordinator.prepare()
+                }
         }
     }
 }

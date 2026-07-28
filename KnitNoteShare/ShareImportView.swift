@@ -34,6 +34,12 @@ struct ShareImportView: View {
                 .foregroundStyle(.green)
                 .accessibilityHidden(true)
             statusText("share.success")
+        case .entitlementBlocked:
+            Image(systemName: "lock.fill")
+                .font(.system(size: 34))
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            statusText("share.entitlement.blocked")
         case let .failure(message):
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 34))
@@ -54,15 +60,23 @@ struct ShareImportView: View {
     }
 
     private var actionTitle: LocalizedStringKey {
-        controller.state == .loading
-            ? "share.cancel"
-            : "share.close"
+        switch controller.state {
+        case .loading:
+            "share.cancel"
+        case .entitlementBlocked:
+            "share.openKnitNote"
+        case .success, .failure:
+            "share.close"
+        }
     }
 
     private func action() {
-        if controller.state == .loading {
+        switch controller.state {
+        case .loading:
             controller.cancel()
-        } else {
+        case .entitlementBlocked:
+            controller.openKnitNote()
+        case .success, .failure:
             controller.close()
         }
     }

@@ -53,6 +53,7 @@ struct PatternReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     private let source: PatternReaderSource
     private let storePresentation: PatternReaderStorePresentation
     @State private var state: PatternReadingState
@@ -129,7 +130,8 @@ struct PatternReaderView: View {
                 patternID: patternID,
                 usageID: patternID,
                 projectID: projectID,
-                projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+                projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true,
+                entitlementCanWrite: entitlementCoordinator.allowsWrites
             )
         }
     }
@@ -154,7 +156,8 @@ struct PatternReaderView: View {
             usageID: usageID,
             projectID: projectID,
             usageIsActive: usageIsActive,
-            projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+            projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true,
+            entitlementCanWrite: entitlementCoordinator.allowsWrites
         )
     }
 
@@ -169,7 +172,48 @@ struct PatternReaderView: View {
             usageID: usageID,
             projectID: projectID,
             usageIsActive: base.usageIsActive,
-            projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true
+            projectIsCompleted: store.project(id: projectID)?.isCompleted ?? true,
+            entitlementCanWrite: entitlementCoordinator.allowsWrites
+        )
+    }
+
+    private var highlightEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { state.highlightEnabled },
+            set: { value in
+                guard requestReaderWriteAccess() else { return }
+                state.highlightEnabled = value
+            }
+        )
+    }
+
+    private var highlightModeBinding: Binding<HighlightMode> {
+        Binding(
+            get: { state.highlightMode },
+            set: { value in
+                guard requestReaderWriteAccess() else { return }
+                state.highlightMode = value
+            }
+        )
+    }
+
+    private var horizontalHighlightBinding: Binding<Double> {
+        Binding(
+            get: { state.highlightPosition },
+            set: { value in
+                guard requestReaderWriteAccess() else { return }
+                state.highlightPosition = value
+            }
+        )
+    }
+
+    private var verticalHighlightBinding: Binding<Double> {
+        Binding(
+            get: { state.verticalHighlightPosition },
+            set: { value in
+                guard requestReaderWriteAccess() else { return }
+                state.verticalHighlightPosition = value
+            }
         )
     }
 
@@ -300,12 +344,12 @@ struct PatternReaderView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Toggle("patterns.highlight", isOn: $state.highlightEnabled)
-                        .disabled(!context.canWrite)
+                    Toggle("patterns.highlight", isOn: highlightEnabledBinding)
+                        .disabled(!(context.canWrite || context.canRequestUnlock))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        Picker("patterns.highlightMode", selection: $state.highlightMode) {
+                        Picker("patterns.highlightMode", selection: highlightModeBinding) {
                             Text("patterns.highlight.horizontal").tag(HighlightMode.horizontal)
                             Text("patterns.highlight.vertical").tag(HighlightMode.vertical)
                             Text("patterns.highlight.cross").tag(HighlightMode.cross)
@@ -313,14 +357,15 @@ struct PatternReaderView: View {
                     } label: {
                         Label("patterns.highlightMode", systemImage: "scope")
                     }
-                    .disabled(!context.canWrite)
+                    .disabled(!(context.canWrite || context.canRequestUnlock))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("patterns.markup", systemImage: "pencil.and.outline") {
-                        guard context.canWrite, readerSession.identity == readerContextIdentity else { return }
+                        guard requestReaderWriteAccess() else { return }
+                        guard readerSession.identity == readerContextIdentity else { return }
                         markupMode.toggle()
                     }
-                    .disabled(!context.canWrite)
+                    .disabled(!(context.canWrite || context.canRequestUnlock))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -446,12 +491,14 @@ struct PatternReaderView: View {
                 if state.highlightEnabled {
                     HighlightOverlay(
                         mode: state.highlightMode,
-                        horizontalPosition: canvasState.highlightPosition,
-                        verticalPosition: canvasState.verticalHighlightPosition,
+                        horizontalPosition: horizontalHighlightBinding,
+                        verticalPosition: verticalHighlightBinding,
                         contentRect: content.kind == .pdf ? pdfPageFrame : nil,
                         onPositionCommit: commitHighlightPositionEdit
                     )
-                    .allowsHitTesting(context.canWrite && !markupMode)
+                    .allowsHitTesting(
+                        (context.canWrite || context.canRequestUnlock) && !markupMode
+                    )
                 }
                 if markupMode, context.canWrite {
                     PatternMarkupOverlay(
@@ -471,7 +518,7 @@ struct PatternReaderView: View {
                !markupMode {
                 PatternReaderControls(
                     counters: project.counters,
-                    isEnabled: context.canWrite,
+                    isEnabled: context.canWrite || context.canRequestUnlock,
                     pageIndex: state.pageIndex,
                     pageCount: content.kind == .pdf ? pageCount : 0,
                     showsOverlayPageControls: layout.pageControlPlacement == .overlay,
@@ -479,6 +526,7 @@ struct PatternReaderView: View {
                     onNextPage: { navigatePDF(by: 1) },
                     onIncrement: { _ = incrementCounter($0) },
                     onManage: { counterID in
+                        guard requestReaderWriteAccess() else { return }
                         managingCounter = project.counters.first { $0.id == counterID }
                     }
                 )
@@ -586,6 +634,7 @@ struct PatternReaderView: View {
     }
 
     private func commitHighlightPositionEdit() {
+        guard requestReaderWriteAccess() else { return }
         guard canvasIsActive,
               readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
@@ -627,6 +676,7 @@ struct PatternReaderView: View {
 
     @discardableResult
     private func incrementCounter(_ counterID: UUID) -> Bool {
+        guard requestReaderWriteAccess() else { return false }
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
               context.canWrite else { return false }
@@ -649,6 +699,7 @@ struct PatternReaderView: View {
 
     @discardableResult
     private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool {
+        guard requestReaderWriteAccess() else { return false }
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
               context.canWrite else { return false }
@@ -806,6 +857,15 @@ struct PatternReaderView: View {
               context.canWrite else { return }
         guard saveMarkup(page: state.pageIndex) else { return }
         markupMode = false
+    }
+
+    private func requestReaderWriteAccess() -> Bool {
+        if context.canWrite {
+            return true
+        }
+        guard context.canRequestUnlock else { return false }
+        _ = entitlementCoordinator.authorize(.editPatternReadingState)
+        return false
     }
 }
 

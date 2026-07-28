@@ -401,7 +401,7 @@ import Testing
         #expect(coordinator.contains("case .queueHandshake:"))
         #expect(coordinator.contains("pendingCommands.map(\\.id)"))
         #expect(!coordinator.contains("for command in state.pendingCommands"))
-        #expect(coordinator.contains("state.nextPendingCommand"))
+        #expect(coordinator.contains("state.nextDeliverableCommand(now: now())"))
         #expect(coordinator.contains("private func deliverHeadIfNeeded()"))
 
         let transferCompletion = try #require(coordinator.range(of: "onTransferCompleted ="))
@@ -511,6 +511,11 @@ private struct Fixture {
         )
         snapshot = WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: 11),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: Date(timeIntervalSince1970: 11)
+            ),
             projects: [project]
         )
     }
@@ -538,6 +543,11 @@ private struct Fixture {
         }
         return WatchSyncSnapshot(
             generatedAt: generatedAt,
+            entitlement: WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: generatedAt
+            ),
             projects: [try WatchProjectSnapshot(
                 id: projectID,
                 name: "Sweater",

@@ -27,6 +27,52 @@ import Testing
         #expect(fingerprint != WatchReliableSnapshotFingerprint(snapshot: selectedCounter))
     }
 
+    @Test func detectsEntitlementChangesThatMustReachWatchReliably() throws {
+        let baseline = try snapshot()
+        let expired = WatchSyncSnapshot(
+            generatedAt: baseline.generatedAt.addingTimeInterval(1),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .trial,
+                expiresAt: baseline.generatedAt,
+                generatedAt: baseline.generatedAt.addingTimeInterval(1)
+            ),
+            projects: baseline.projects
+        )
+
+        #expect(
+            WatchReliableSnapshotFingerprint(snapshot: baseline)
+                != WatchReliableSnapshotFingerprint(snapshot: expired)
+        )
+    }
+
+    @Test func detectsTrialTransitionAtSameExpiry() throws {
+        let active = try snapshot(generatedAt: 20)
+        let expiry = Date(timeIntervalSince1970: 30)
+        let activeTrial = WatchSyncSnapshot(
+            generatedAt: active.generatedAt,
+            entitlement: WatchEntitlementSnapshot(
+                kind: .trial,
+                expiresAt: expiry,
+                generatedAt: active.generatedAt
+            ),
+            projects: active.projects
+        )
+        let expiredTrial = WatchSyncSnapshot(
+            generatedAt: expiry,
+            entitlement: WatchEntitlementSnapshot(
+                kind: .trial,
+                expiresAt: expiry,
+                generatedAt: expiry
+            ),
+            projects: active.projects
+        )
+
+        #expect(
+            WatchReliableSnapshotFingerprint(snapshot: activeTrial)
+                != WatchReliableSnapshotFingerprint(snapshot: expiredTrial)
+        )
+    }
+
     @Test func ignoresProjectAndCounterReorderingCausedByValueUpdates() throws {
         let first = try multiProjectSnapshot(reverseProjects: false, reverseCounters: false)
         let reordered = try multiProjectSnapshot(reverseProjects: true, reverseCounters: true)
@@ -64,6 +110,11 @@ import Testing
         )
         return WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: generatedAt),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: Date(timeIntervalSince1970: generatedAt)
+            ),
             projects: [project]
         )
     }
@@ -107,6 +158,11 @@ import Testing
         }
         return WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: reverseProjects ? 99 : 10),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: Date(timeIntervalSince1970: reverseProjects ? 99 : 10)
+            ),
             projects: projects
         )
     }

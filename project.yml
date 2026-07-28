@@ -19,6 +19,10 @@ targets:
         CFBundleDisplayName: KnitNote
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleURLTypes:
+          - CFBundleURLName: com.phillon.KnitNote
+            CFBundleURLSchemes:
+              - knitnote
         LSApplicationCategoryType: public.app-category.lifestyle
         UILaunchStoryboardName: LaunchScreen
         NSCameraUsageDescription: Take photos for your knitting projects and journal entries.
@@ -38,9 +42,11 @@ targets:
     sources:
       - path: KnitNote
         excludes:
+          - "Info 2.plist"
           - LaunchScreen.storyboard
           - Localization/InfoPlist.xcstrings
           - PrivacyInfo.xcprivacy
+          - StoreKit/KnitNote.storekit
       - path: KnitNote/PrivacyInfo.xcprivacy
         buildPhase: resources
       - path: KnitNote/Localization/InfoPlist.xcstrings
@@ -57,10 +63,11 @@ targets:
       - target: KnitNoteShare
         embed: true
         platformFilter: iOS
+      - sdk: Security.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
-        MARKETING_VERSION: 1.2.0
+        MARKETING_VERSION: 1.2.1
         CURRENT_PROJECT_VERSION: 3
         PRODUCT_NAME: KnitNote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -98,7 +105,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
-        MARKETING_VERSION: 1.2.0
+        MARKETING_VERSION: 1.2.1
         CURRENT_PROJECT_VERSION: 3
         PRODUCT_NAME: KnitNoteWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -133,29 +140,54 @@ targets:
       - path: Sources/KnitNoteCore/Patterns/PatternShareInboxEnqueuer.swift
       - path: Sources/KnitNoteCore/Patterns/PatternShareImportPresentation.swift
       - path: Sources/KnitNoteCore/Patterns/PatternStorageLocations.swift
+      - path: Sources/KnitNoteCore/Entitlements/EntitlementProjection.swift
+      - path: Sources/KnitNoteCore/Entitlements/EntitlementSnapshot.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share
         CODE_SIGN_ENTITLEMENTS: KnitNoteShare/KnitNoteShare.entitlements
-        MARKETING_VERSION: 1.2.0
+        MARKETING_VERSION: 1.2.1
         CURRENT_PROJECT_VERSION: 3
         PRODUCT_NAME: KnitNoteShare
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+  KnitNoteAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/KnitNoteAppTests
+    dependencies:
+      - target: KnitNote
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNoteAppTests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/KnitNote.app/Contents/MacOS/KnitNote
+        BUNDLE_LOADER: $(TEST_HOST)
 schemes:
   KnitNote:
     build:
       targets:
         KnitNote: all
+    test:
+      targets:
+        - KnitNoteAppTests
     run:
       config: Debug
+      storeKitConfiguration: KnitNote/StoreKit/KnitNote.storekit
+    archive:
+      config: Release
   KnitNoteWatch:
     build:
       targets:
         KnitNoteWatch: all
     run:
       config: Debug
+    archive:
+      config: Release
   KnitNoteShare:
     build:
       targets:
         KnitNoteShare: all
+    archive:
+      config: Release

@@ -127,4 +127,90 @@ import Testing
             "calculators",
         ])
     }
+
+    @Test func releaseStoryboardUsesTheApprovedSixImageOrder() throws {
+        let expected: [String: [String]] = [
+            "en": [
+                "1|watch-sync|Count from your wrist. Keep knitting.|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|Read patterns. Keep every count in sync.|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|Six counters. One calm workspace.|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|Try everything free for 7 days.|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|Projects, yarn, notes—all together.|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|One purchase. All your Apple devices.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
+            "zh-Hant": [
+                "1|watch-sync|從手腕計數，編織不中斷。|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|閱讀織圖，每組計數保持同步。|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|六組計數器，一個安靜工作區。|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|完整功能免費試用 7 天。|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|作品、毛線、筆記，全都在一起。|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|一次購買，解鎖所有 Apple 裝置。|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
+        ]
+
+        let data = try Data(
+            contentsOf: screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/manifest.json")
+        )
+        let payload = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let storyboard = try #require(payload["releaseStoryboard"] as? [[String: Any]])
+
+        for locale in ["en", "zh-Hant"] {
+            let actual = storyboard
+                .filter { $0["locale"] as? String == locale }
+                .map(storyboardContractLine)
+            #expect(actual == expected[locale])
+            #expect(try releasePlanOutput(locale: locale) == expected[locale]?.joined(separator: "\n"))
+        }
+    }
+
+    @Test func rawCapturePlanPutsTheWatchFixtureFirst() throws {
+        let script = try screenshotSourceText("AppStore/Screenshots/capture.sh")
+
+        #expect(script.contains("\"watch\": 0"))
+        #expect(script.contains("sorted(localized, key="))
+        #expect(script.contains("watchProjects"))
+    }
 }
+
+private func storyboardContractLine(_ item: [String: Any]) -> String {
+    let order = item["order"] as? Int ?? -1
+    let id = item["id"] as? String ?? ""
+    let headline = item["headline"] as? String ?? ""
+    let filename = item["filename"] as? String ?? ""
+    let requiredVisuals = item["requiredVisuals"] as? [String] ?? []
+    return "\(order)|\(id)|\(headline)|\(filename)|\(requiredVisuals.joined(separator: "+"))"
+}
+
+private func releasePlanOutput(locale: String) throws -> String {
+    let process = Process()
+    process.executableURL = URL(filePath: "/bin/bash")
+    process.arguments = [
+        "AppStore/Screenshots/capture.sh",
+        "--release-plan",
+        locale,
+    ]
+    process.currentDirectoryURL = screenshotRepositoryRoot
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = output
+
+    try process.run()
+    process.waitUntilExit()
+    #expect(process.terminationStatus == 0)
+    return String(
+        data: output.fileHandleForReading.readDataToEndOfFile(),
+        encoding: .utf8
+    )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+}
+
+private func screenshotSourceText(_ relativePath: String) throws -> String {
+    try String(
+        contentsOf: screenshotRepositoryRoot.appending(path: relativePath),
+        encoding: .utf8
+    )
+}
+
+private let screenshotRepositoryRoot = URL(filePath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()

@@ -186,14 +186,37 @@ import Testing
         #expect(reader.contains("private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool"))
     }
 
-    @Test func readerDisablesEveryWriteControlWhenItsContextIsReadOnly() throws {
+    @Test func readerDisablesWriteControlsOnlyForStructurallyReadOnlyContexts() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
         let controls = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
 
-        #expect(reader.contains(".disabled(!context.canWrite)"))
-        #expect(reader.contains("isEnabled: context.canWrite"))
+        #expect(reader.contains(".disabled(!(context.canWrite || context.canRequestUnlock))"))
+        #expect(reader.contains("isEnabled: context.canWrite || context.canRequestUnlock"))
         #expect(reader.contains("guard context.canWrite else { return }"))
         #expect(controls.contains("PatternReaderCounterAccessibilityPolicy.accessibilityHintKey(isEnabled: isEnabled)"))
+    }
+
+    @Test func expiredReaderStaysPassiveUntilAnExplicitEditAttempt() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let detail = try sourceFile("KnitNote/Patterns/PatternDetailView.swift")
+
+        #expect(reader.contains("@EnvironmentObject private var entitlementCoordinator"))
+        #expect(reader.contains("entitlementCanWrite: entitlementCoordinator.allowsWrites"))
+        #expect(reader.contains("private func requestReaderWriteAccess() -> Bool"))
+        #expect(reader.contains("entitlementCoordinator.authorize(.editPatternReadingState)"))
+        #expect(reader.contains("guard requestReaderWriteAccess() else { return }"))
+
+        let lifecycle = try #require(sourceSection(
+            reader,
+            from: ".onDisappear {",
+            to: "private func readerCanvas"
+        ))
+        #expect(lifecycle.contains("readerSession.canPersist"))
+        #expect(lifecycle.contains("context.canWrite"))
+        #expect(!lifecycle.contains("requestReaderWriteAccess"))
+        #expect(!lifecycle.contains("entitlementCoordinator.authorize"))
+        #expect(detail.contains("if entitlementCoordinator.allowsWrites {"))
+        #expect(detail.contains("try? store.markPatternOpened(id: patternID)"))
     }
 
     @Test func legacyReaderStillOffersItsMissingFileRecoveryAction() throws {

@@ -79,6 +79,11 @@ struct WatchStoreScreenshotMode {
         )
         let snapshot = WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: 1_767_225_600),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .legacyPaidOwner,
+                expiresAt: nil,
+                generatedAt: Date(timeIntervalSince1970: 1_767_225_600)
+            ),
             projects: [project]
         )
         return (

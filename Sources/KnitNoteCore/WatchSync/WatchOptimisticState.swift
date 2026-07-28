@@ -34,8 +34,17 @@ public struct WatchOptimisticState: Equatable, Sendable {
         pendingCommands.first
     }
 
+    public func nextDeliverableCommand(now: Date = .now) -> WatchCounterCommand? {
+        guard canMutate(now: now) else { return nil }
+        return nextPendingCommand
+    }
+
     public var pendingCounterIDs: Set<UUID> {
         Set(pendingCommands.map(\.counterID))
+    }
+
+    public func canMutate(now: Date = .now) -> Bool {
+        authoritativeSnapshot?.entitlement.canMutate(now: now) == true
     }
 
     public func hasPending(projectID: UUID, counterID: UUID) -> Bool {
@@ -64,10 +73,14 @@ public struct WatchOptimisticState: Equatable, Sendable {
     }
 
     @discardableResult
-    public mutating func enqueue(_ command: WatchCounterCommand) -> WatchCommandRejection? {
+    public mutating func enqueue(
+        _ command: WatchCounterCommand,
+        now: Date = .now
+    ) -> WatchCommandRejection? {
         guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion else {
             return .unsupportedSchema
         }
+        guard canMutate(now: now) else { return .entitlementRequired }
         guard let project = authoritativeSnapshot?.projects.first(where: {
             $0.id == command.projectID
         }) else {
@@ -86,6 +99,15 @@ public struct WatchOptimisticState: Equatable, Sendable {
     @discardableResult
     public mutating func acknowledge(_ acknowledgement: WatchCommandAcknowledgement) -> Bool {
         guard pendingCommands.first?.id == acknowledgement.commandID else {
+            return false
+        }
+        if acknowledgement.rejection == .entitlementRequired {
+            if authoritativeSnapshot.map({
+                acknowledgement.snapshot.generatedAt >= $0.generatedAt
+            }) ?? true {
+                authoritativeSnapshot = acknowledgement.snapshot
+            }
+            repairSelection()
             return false
         }
 
@@ -192,6 +214,7 @@ public struct WatchOptimisticState: Equatable, Sendable {
         return WatchSyncSnapshot(
             schemaVersion: snapshot.schemaVersion,
             generatedAt: snapshot.generatedAt,
+            entitlement: snapshot.entitlement,
             projects: projects
         )
     }

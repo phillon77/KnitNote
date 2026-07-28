@@ -14,7 +14,13 @@ import Testing
         )
         let value = WatchSyncSnapshot(
             schemaVersion: WatchSyncSnapshot.currentSchemaVersion,
-            generatedAt: Date(timeIntervalSince1970: 101), projects: [project]
+            generatedAt: Date(timeIntervalSince1970: 101),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: Date(timeIntervalSince1970: 101)
+            ),
+            projects: [project]
         )
         let decoded = try WatchSyncCodec.decode(
             WatchSyncSnapshot.self,

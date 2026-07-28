@@ -86,6 +86,10 @@ final class WatchSyncCoordinator: ObservableObject {
         state.hasPending(projectID: projectID, counterID: counterID)
     }
 
+    func canMutate(at date: Date? = nil) -> Bool {
+        state.canMutate(now: date ?? now())
+    }
+
     func selectProject(_ projectID: UUID?) {
         var candidate = state
         guard candidate.selectProject(projectID) else { return }
@@ -187,7 +191,7 @@ final class WatchSyncCoordinator: ObservableObject {
             createdAt: now()
         )
         var candidate = state
-        if let rejection = candidate.enqueue(command) {
+        if let rejection = candidate.enqueue(command, now: now()) {
             setError(rejection)
             return
         }
@@ -228,6 +232,9 @@ final class WatchSyncCoordinator: ObservableObject {
         candidate.replaceSnapshot(snapshot)
         guard persistThenPublish(candidate) else { return }
         requiresSnapshot = false
+        if state.nextDeliverableCommand(now: now()) != nil {
+            beginHandshakeAndReplay()
+        }
     }
 
     private func handleAcknowledgement(_ acknowledgement: WatchCommandAcknowledgement) {
@@ -285,7 +292,10 @@ final class WatchSyncCoordinator: ObservableObject {
     }
 
     private func deliverHeadIfNeeded() {
-        guard let command = state.nextPendingCommand else { return }
+        guard let command = state.nextDeliverableCommand(now: now()) else {
+            deliveryState.cancelInteractiveDelivery()
+            return
+        }
 
         if deliveryState.prepareBackgroundTransfer(for: command.id) {
             transport.transferUserInfo(.command(command))
@@ -364,6 +374,8 @@ private extension WatchCommandRejection {
             "watch.sync.error.counterMissing"
         case .projectCompleted:
             "watch.sync.error.projectCompleted"
+        case .entitlementRequired:
+            "watch.entitlement.unlockOnIPhone"
         case .storageFailure:
             "watch.sync.error.storageFailure"
         }

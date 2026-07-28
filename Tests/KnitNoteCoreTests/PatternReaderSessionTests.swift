@@ -31,6 +31,21 @@ import Testing
         #expect(session.readingState == nil)
     }
 
+    @Test func entitlementLockedSessionNeverPersistsPassiveCanvasCallbacks() {
+        let context = PatternReaderContext.project(
+            patternID: UUID(),
+            usageID: UUID(),
+            projectID: UUID(),
+            projectIsCompleted: false,
+            entitlementCanWrite: false
+        )
+        var session = PatternReaderSession(context: context)
+        session.hydrate(readingState: richReadingState())
+
+        #expect(session.canAcceptCanvasCallbacks)
+        #expect(!session.canPersist)
+    }
+
     @Test func changingProjectUsageResetsThenLoadsOnlyTheNewUsageState() {
         let firstContext = projectContext()
         let secondContext = PatternReaderContext.project(

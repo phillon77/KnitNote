@@ -15,8 +15,16 @@ struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
     }
 
     private let projects: [Project]
+    private let entitlementKind: WatchEntitlementSnapshot.Kind
+    private let entitlementExpiry: Date?
+    private let entitlementAllowsMutation: Bool
 
     init(snapshot: WatchSyncSnapshot) {
+        entitlementKind = snapshot.entitlement.kind
+        entitlementExpiry = snapshot.entitlement.expiresAt
+        entitlementAllowsMutation = snapshot.entitlement.canMutate(
+            now: snapshot.generatedAt
+        )
         projects = snapshot.projects.map { project in
             Project(
                 id: project.id,

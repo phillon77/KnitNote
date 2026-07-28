@@ -1,0 +1,34 @@
+{
+  "identifier" : "3FEFE8D4-E981-44A4-98F3-6D81F3B1C1C1",
+  "nonRenewingSubscriptionGroups" : [],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "93A50F04-5B20-48D5-B304-A2BC4D92A6F7",
+      "localizations" : [
+        {
+          "description" : "Unlock all KnitNote features with a one-time purchase.",
+          "displayName" : "Lifetime Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.phillon.KnitNote.lifetimeUnlock",
+      "referenceName" : "Lifetime Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "en_US",
+    "_storeKitErrors" : [],
+    "_timeRate" : 0
+  },
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

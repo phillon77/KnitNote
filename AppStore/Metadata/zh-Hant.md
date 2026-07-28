@@ -1,15 +1,21 @@
 # KnitNote App Store Metadata — 繁體中文
 
 - Name: KnitNote
-- Subtitle: 編織計數、織圖與毛線管理
-- Promotional text: 六組計數器、織圖高亮與手寫標記、編織日記、毛線庫和實用計算工具，陪你從第一針一路織到完成。
+- Subtitle: Apple Watch 編織計數
+- Promotional text: 完整功能免費試用 7 天。用 Apple Watch 抬腕計數、閱讀 PDF 織圖與使用六組命名計數器；一次購買即可解鎖所有 Apple 裝置。
 - Keywords: 編織,毛線,鉤針,棒針,計數器,織圖,密度,針數,毛線庫,編織日記
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.0 正式推出：管理作品與毛線、使用六組自訂計數器、閱讀及標記織圖、記錄編織歷程，並可備份與還原資料。
+- What's New: KnitNote 1.2 加入 7 天完整功能試用；一次購買即可在 iPhone、iPad、Mac 與配對的 Apple Watch 終身解鎖。
 - Description: |
-  把注意力留給手上的毛線。KnitNote 把作品進度、六組計數器與織圖放在清楚、安靜的畫面裡。
+  把注意力留給手上的毛線。KnitNote 把 Apple Watch 計數、作品進度、六組計數器與 PDF 織圖放在清楚、安靜的畫面裡。
+
+  完整功能免費試用 7 天
+  • 只瀏覽不會開始試用
+  • 建立第一件作品或匯入第一份織圖時才開始試用
+  • 試用結束後，仍可閱讀既有作品、織圖與備份資料
+  • 一次購買即可在 iPhone、iPad、Mac 與配對的 Apple Watch 解鎖編輯
 
   專心編織，簡單記錄
   • 每件作品都有六組可自訂名稱的計數器
@@ -31,8 +37,10 @@
   • 建立毛線庫，記錄品牌、顏色、數量與照片
   • 計算密度、等距加減針，以及跨段平均加減針
 
-  在 Apple Watch 上快速查看作品與六組計數器；離線操作會在重新連線後同步回 iPhone。
+  從手腕直接計數
+  • 在 Apple Watch 上快速查看作品與六組計數器
+  • 離線操作會在重新連線後同步回 iPhone
 
   資料可匯出成完整備份，並由你選擇的備份套件還原。
 
-  一次購買，沒有訂閱。資料留在你的裝置上；只有你主動匯出時才會建立備份。
+  一次購買，沒有訂閱、帳號或廣告。資料留在你的裝置上；只有你主動匯出時才會建立備份。

@@ -2,14 +2,26 @@ import SwiftUI
 
 struct ProjectsView: View {
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     @State private var showingCreate = false
     @State private var pendingDeletion: StoredProject?
+    let onShowUnlock: () -> Void
+
+    init(onShowUnlock: @escaping () -> Void = {}) {
+        self.onShowUnlock = onShowUnlock
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 ScrollView {
                     LazyVStack(spacing: 16) {
+                        TrialStatusPill(
+                            snapshot: entitlementCoordinator.snapshot,
+                            action: onShowUnlock
+                        )
+                        .frame(maxWidth: 880, alignment: .leading)
+
                         if store.projects.isEmpty {
                             LemonEmptyState(
                                 title: "projects.empty.title",

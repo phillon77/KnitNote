@@ -21,6 +21,7 @@ import Testing
 
         let snapshot = try WatchSnapshotBuilder.make(
             projects: [completed, oldActive, newActive, sameDateFirst, sameDateSecond],
+            entitlement: .legacyPaidOwner,
             locale: Locale(identifier: "en"),
             generatedAt: date(900)
         )
@@ -290,9 +291,40 @@ import Testing
         #expect(!ledger.contains(command.id))
     }
 
+    @Test @MainActor
+    func expiredIPhoneEntitlementRejectsBeforeMutationOrLedgerDeduplication() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let command = WatchCounterCommand(
+            projectID: project.id,
+            counterID: project.counters[0].id,
+            operation: .increment
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        let expired = EntitlementSnapshot.trial(
+            startedAt: fixture.now.addingTimeInterval(-100),
+            expiresAt: fixture.now
+        )
+
+        #expect(throws: ProjectStoreError.accessRestricted) {
+            _ = try fixture.store.applyWatchCommand(
+                command,
+                entitlement: expired,
+                ledger: &ledger,
+                now: fixture.now
+            )
+        }
+
+        #expect(fixture.store.project(id: project.id)?.counters[0].value == 0)
+        #expect(ledger.entries.isEmpty)
+    }
+
     @Test @MainActor func unreadableArchiveKeepsNewCommandRetryable() throws {
-        let archiveURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WatchCommandUnreadable-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let archiveURL = root.appendingPathComponent("projects.json")
         try Data("not JSON".utf8).write(to: archiveURL, options: .atomic)
         let store = JSONProjectStore(url: archiveURL)
         let command = WatchCounterCommand(
@@ -311,8 +343,11 @@ import Testing
     }
 
     @Test @MainActor func unreadableArchiveIsCheckedBeforeDuplicateLookup() throws {
-        let archiveURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WatchCommandUnreadable-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let archiveURL = root.appendingPathComponent("projects.json")
         try Data("not JSON".utf8).write(to: archiveURL, options: .atomic)
         let store = JSONProjectStore(url: archiveURL)
         let command = WatchCounterCommand(

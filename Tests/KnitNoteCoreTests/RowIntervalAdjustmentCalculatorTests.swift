@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import KnitNoteCore
 
@@ -155,5 +156,19 @@ import Testing
                 }
             }
         }
+    }
+
+    @Test func operationAndStyleRoundTripThroughJSON() throws {
+        let operation = try JSONDecoder().decode(
+            RowIntervalAdjustmentOperation.self,
+            from: JSONEncoder().encode(RowIntervalAdjustmentOperation.decrease)
+        )
+        let style = try JSONDecoder().decode(
+            RowIntervalAdjustmentStyle.self,
+            from: JSONEncoder().encode(RowIntervalAdjustmentStyle.bothSides)
+        )
+
+        #expect(operation == .decrease)
+        #expect(style == .bothSides)
     }
 }

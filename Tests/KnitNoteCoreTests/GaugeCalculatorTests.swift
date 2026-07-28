@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import KnitNoteCore
 
@@ -51,5 +52,12 @@ import Testing
         #expect(GaugeCalculator.fieldNeedsValidation(.infinity, groupStarted: true))
         #expect(GaugeCalculator.fieldNeedsValidation(.nan, groupStarted: true))
         #expect(!GaugeCalculator.fieldNeedsValidation(0.1, groupStarted: true))
+    }
+
+    @Test func lengthUnitsRoundTripThroughJSON() throws {
+        let encoded = try JSONEncoder().encode(GaugeLengthUnit.inches)
+        let decoded = try JSONDecoder().decode(GaugeLengthUnit.self, from: encoded)
+
+        #expect(decoded == .inches)
     }
 }

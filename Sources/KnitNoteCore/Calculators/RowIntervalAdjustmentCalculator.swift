@@ -1,9 +1,9 @@
-public enum RowIntervalAdjustmentOperation: Equatable, Sendable {
+public enum RowIntervalAdjustmentOperation: String, Codable, Equatable, Sendable {
     case increase
     case decrease
 }
 
-public enum RowIntervalAdjustmentStyle: Equatable, Sendable {
+public enum RowIntervalAdjustmentStyle: String, Codable, Equatable, Sendable {
     case singleSide
     case bothSides
 }

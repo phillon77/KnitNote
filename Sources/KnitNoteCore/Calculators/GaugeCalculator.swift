@@ -1,4 +1,4 @@
-public enum GaugeLengthUnit: String, CaseIterable, Sendable {
+public enum GaugeLengthUnit: String, CaseIterable, Codable, Sendable {
     case centimeters
     case inches
 }

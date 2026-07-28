@@ -42,16 +42,15 @@ enum GaugeDraftConverter {
 }
 
 struct GaugeCalculatorScreen: View {
-    @ObservedObject var preferences: CalculatorPreferencesStore
+    @EnvironmentObject private var preferences: CalculatorPreferencesStore
     let onShareSnapshotChange: (GaugeShareSnapshot?) -> Void
     @Environment(\.locale) private var locale
     @State private var lastCountedSnapshot: GaugeShareSnapshot?
+    @State private var showsHelp = false
 
     init(
-        preferences: CalculatorPreferencesStore,
         onShareSnapshotChange: @escaping (GaugeShareSnapshot?) -> Void = { _ in }
     ) {
-        self.preferences = preferences
         self.onShareSnapshotChange = onShareSnapshotChange
     }
 
@@ -89,6 +88,19 @@ struct GaugeCalculatorScreen: View {
             .padding()
         }
         .navigationTitle("calculator.gauge.title")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showsHelp = true
+                } label: {
+                    Label("calculator.help.title", systemImage: "questionmark.circle")
+                }
+                .accessibilityLabel(Text("calculator.help.title"))
+            }
+        }
+        .sheet(isPresented: $showsHelp) {
+            CalculatorHelpSheet(tool: .gauge)
+        }
         .onAppear {
             onShareSnapshotChange(shareSnapshot)
         }

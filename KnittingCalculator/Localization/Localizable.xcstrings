@@ -1,6 +1,15 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "app.home.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "What would you like to calculate?" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "今天要計算什麼？" } } } },
+    "app.settings.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "設定" } } } },
+    "calculator.home.gauge.description" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Find stitch and row counts for your finished size." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "計算成品尺寸需要的針數與排數。" } } } },
+    "calculator.home.adjustment.description" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Space increases or decreases evenly in your knitting." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "平均安排編織中的加針或減針。" } } } },
+    "calculator.home.promotion.placeholder" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reserved home content" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "保留的首頁內容" } } } },
+    "calculator.help.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "How It Works" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用說明" } } } },
+    "calculator.help.gauge" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measure a swatch, enter its size and stitch count, then enter your target size. Example: 20 stitches across 10 cm becomes 80 stitches across 40 cm." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "量好試片後輸入尺寸與針數，再輸入目標尺寸。例如：10 公分 20 針，40 公分建議 80 針。" } } } },
+    "calculator.help.adjustment" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter the current and target stitch counts for one row, or spread a total adjustment across rows. Example: increasing from 80 to 90 adds 10 stitches evenly." } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單行可輸入目前與目標針數，也可把總調整分配到多排。例如：80 針增加到 90 針，會平均安排 10 次加針。" } } } },
+    "calculator.help.dismiss" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成" } } } },
     "calculator.gauge.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Gauge Calculator" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "密度計算" } } } },
     "calculator.gauge.unit" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unit" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單位" } } } },
     "calculator.gauge.unit.centimeters" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Centimeters" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "公分" } } } },

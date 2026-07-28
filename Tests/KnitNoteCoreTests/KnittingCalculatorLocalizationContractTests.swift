@@ -30,6 +30,15 @@ import Testing
     private let catalogPath = "KnittingCalculator/Localization/Localizable.xcstrings"
 
     private let currentScreenKeys = [
+        "app.home.title",
+        "app.settings.title",
+        "calculator.home.gauge.description",
+        "calculator.home.adjustment.description",
+        "calculator.home.promotion.placeholder",
+        "calculator.help.title",
+        "calculator.help.gauge",
+        "calculator.help.adjustment",
+        "calculator.help.dismiss",
         "calculator.gauge.title",
         "calculator.gauge.unit",
         "calculator.gauge.unit.centimeters",

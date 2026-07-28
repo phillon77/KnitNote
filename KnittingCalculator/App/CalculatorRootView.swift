@@ -3,7 +3,17 @@ import SwiftUI
 struct CalculatorRootView: View {
     var body: some View {
         NavigationStack {
-            Text("Knitting Calculator")
+            CalculatorHomeView()
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            // Settings routing is intentionally added with Task 7.
+                        } label: {
+                            Label("app.settings.title", systemImage: "gearshape")
+                        }
+                        .disabled(true)
+                    }
+                }
         }
     }
 }

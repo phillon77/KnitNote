@@ -8,17 +8,16 @@ enum AdjustmentMode: String, CaseIterable, Identifiable {
 }
 
 struct AdjustmentCalculatorScreen: View {
-    @ObservedObject var preferences: CalculatorPreferencesStore
+    @EnvironmentObject private var preferences: CalculatorPreferencesStore
     let onOneRowShareSnapshotChange: (OneRowShareSnapshot?) -> Void
     let onRowIntervalShareSnapshotChange: (RowIntervalShareSnapshot?) -> Void
     @State private var mode = AdjustmentMode.oneRow
+    @State private var showsHelp = false
 
     init(
-        preferences: CalculatorPreferencesStore,
         onOneRowShareSnapshotChange: @escaping (OneRowShareSnapshot?) -> Void = { _ in },
         onRowIntervalShareSnapshotChange: @escaping (RowIntervalShareSnapshot?) -> Void = { _ in }
     ) {
-        self.preferences = preferences
         self.onOneRowShareSnapshotChange = onOneRowShareSnapshotChange
         self.onRowIntervalShareSnapshotChange = onRowIntervalShareSnapshotChange
     }
@@ -49,5 +48,18 @@ struct AdjustmentCalculatorScreen: View {
             }
         }
         .navigationTitle("calculator.adjustment.title")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showsHelp = true
+                } label: {
+                    Label("calculator.help.title", systemImage: "questionmark.circle")
+                }
+                .accessibilityLabel(Text("calculator.help.title"))
+            }
+        }
+        .sheet(isPresented: $showsHelp) {
+            CalculatorHelpSheet(tool: .adjustment)
+        }
     }
 }

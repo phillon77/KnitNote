@@ -58,6 +58,22 @@ import Testing
         #expect(resultSummaryKeepsActionsOutsideCombinedAccessibilityElement(in: rows))
     }
 
+    @Test func homeHasExactlyTwoToolDestinationsAndOnePromotionSlot() throws {
+        let source = try freeAppSource("Home/CalculatorHomeView.swift")
+        #expect(source.components(separatedBy: "NavigationLink").count - 1 == 2)
+        #expect(source.contains("GaugeCalculatorScreen()"))
+        #expect(source.contains("AdjustmentCalculatorScreen()"))
+        #expect(source.components(separatedBy: "KnitNotePromotionCard").count - 1 == 1)
+        #expect(source.contains("frame(maxWidth: 620)"))
+    }
+
+    @Test func toolScreensExposeSinglePageHelp() throws {
+        let gauge = try freeAppSource("Gauge/GaugeCalculatorScreen.swift")
+        let adjustment = try freeAppSource("Adjustment/AdjustmentCalculatorScreen.swift")
+        #expect(gauge.contains("CalculatorHelpSheet(tool: .gauge)"))
+        #expect(adjustment.contains("CalculatorHelpSheet(tool: .adjustment)"))
+    }
+
     private func resultSummaryKeepsActionsOutsideCombinedAccessibilityElement(
         in source: String
     ) -> Bool {

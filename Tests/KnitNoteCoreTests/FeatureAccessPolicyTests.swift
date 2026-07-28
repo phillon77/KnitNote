@@ -46,25 +46,18 @@ func legacyPaidOwnerAllowsEveryMutation(_ mutation: FeatureMutation) {
     ) == .allow)
 }
 
-@Test func firstMeaningfulActionsStartTrial() {
+@Test(arguments: FeatureMutation.allCases.filter { $0 != .restoreBackup })
+func trialNotStartedStartsForEveryUserAuthoredMutation(_ mutation: FeatureMutation) {
     #expect(FeatureAccessPolicy.decision(
-        for: .createProject,
-        snapshot: .trialNotStarted,
-        now: policyNow
-    ) == .startTrial)
-    #expect(FeatureAccessPolicy.decision(
-        for: .importPattern,
+        for: mutation,
         snapshot: .trialNotStarted,
         now: policyNow
     ) == .startTrial)
 }
 
-@Test(arguments: FeatureMutation.allCases.filter {
-    $0 != .createProject && $0 != .importPattern
-})
-func otherMutationsDoNotStartTrial(_ mutation: FeatureMutation) {
+@Test func trialNotStartedAllowsBackupRestore() {
     #expect(FeatureAccessPolicy.decision(
-        for: mutation,
+        for: .restoreBackup,
         snapshot: .trialNotStarted,
         now: policyNow
     ) == .allow)

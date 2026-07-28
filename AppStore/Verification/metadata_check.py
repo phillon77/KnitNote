@@ -95,10 +95,10 @@ def validate(path: Path) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) > 2:
         print("usage: metadata_check.py AppStore/Metadata", file=sys.stderr)
         return 2
-    root = Path(sys.argv[1])
+    root = Path(sys.argv[1]) if len(sys.argv) == 2 else Path("AppStore/Metadata")
     paths = [root / "zh-Hant.md", root / "en-US.md"]
     errors = [error for path in paths for error in validate(path)]
     if errors:

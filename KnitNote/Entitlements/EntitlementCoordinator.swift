@@ -267,7 +267,7 @@ final class EntitlementCoordinator: ObservableObject {
             unlockRequest = mutation
             return .requiresUnlock
         case .startTrial:
-            return .allow
+            return .startTrial
         }
     }
 

@@ -273,6 +273,80 @@ import Testing
 }
 
 @MainActor
+@Test func restoredDataStartsTrialBeforeItsFirstExistingDataMutation() throws {
+    let fixture = try RestrictedMutationFixture(
+        authorizerDecision: .startTrial,
+        committerDecision: .requiresUnlock
+    )
+    defer { fixture.removeFiles() }
+    let existingYarn = try #require(fixture.store.yarn(id: fixture.yarnID))
+    let operations: [(FeatureMutation, (JSONProjectStore) throws -> Void)] = [
+        (.editProject, {
+            try $0.rename(id: fixture.projectID, to: "Must not persist")
+        }),
+        (.changeCounter, {
+            try $0.incrementCounter(
+                projectID: fixture.projectID,
+                counterID: fixture.counterID
+            )
+        }),
+        (.editNote, {
+            try $0.saveNote(
+                projectID: fixture.projectID,
+                counterID: fixture.counterID,
+                row: 4,
+                text: "Must not persist"
+            )
+        }),
+        (.editJournal, {
+            try $0.updateJournalCaption(
+                projectID: fixture.projectID,
+                entryID: fixture.journalEntryID,
+                caption: "Must not persist"
+            )
+        }),
+        (.editYarn, {
+            try $0.updateYarn(existingYarn)
+        }),
+        (.linkPattern, {
+            try $0.unlinkPattern(
+                patternID: fixture.patternID,
+                from: fixture.projectID
+            )
+        }),
+        (.editPatternReadingState, {
+            _ = try $0.savePatternMarkup(
+                PatternMarkupDocument(),
+                usageID: fixture.usageID,
+                pageIndex: 0,
+                expectedDataGeneration: $0.dataGeneration
+            )
+        }),
+    ]
+
+    for (mutation, operation) in operations {
+        fixture.authorizer.reset()
+        fixture.committer.reset()
+        let projectsBefore = fixture.store.projects
+        let yarnsBefore = fixture.store.yarns
+        let usagesBefore = fixture.store.patternUsages
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        let filesBefore = try fixture.fileSnapshot()
+
+        #expect(throws: ProjectStoreError.accessRestricted) {
+            try operation(fixture.store)
+        }
+        #expect(fixture.authorizer.mutations == [mutation])
+        #expect(fixture.committer.mutations == [mutation])
+        #expect(fixture.store.projects == projectsBefore)
+        #expect(fixture.store.yarns == yarnsBefore)
+        #expect(fixture.store.patternUsages == usagesBefore)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+        #expect(try fixture.fileSnapshot() == filesBefore)
+    }
+}
+
+@MainActor
 @Test func restrictedRowNoteMutationsLeaveMemoryAndArchiveUnchanged() throws {
     let fixture = try RestrictedMutationFixture()
     defer { fixture.removeFiles() }
@@ -742,6 +816,10 @@ private final class MutationCommitterProbe {
         mutations.append(mutation)
         return decision
     }
+
+    func reset() {
+        mutations.removeAll()
+    }
 }
 
 @MainActor
@@ -757,9 +835,13 @@ private final class RestrictedMutationFixture {
     let yarnID: UUID
     let journalEntryID: UUID
     let authorizer: MutationAuthorizerProbe
+    let committer: MutationCommitterProbe
     let store: JSONProjectStore
 
-    init() throws {
+    init(
+        authorizerDecision: FeatureAccessDecision = .requiresUnlock,
+        committerDecision: FeatureAccessDecision = .allow
+    ) throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("RestrictedMutation-\(UUID().uuidString)", isDirectory: true)
         archiveURL = root.appendingPathComponent("projects-v1.json")
@@ -820,11 +902,16 @@ private final class RestrictedMutationFixture {
             )
         ).write(to: archiveURL, options: .atomic)
         let authorizer = MutationAuthorizerProbe()
+        authorizer.decision = authorizerDecision
         self.authorizer = authorizer
+        let committer = MutationCommitterProbe()
+        committer.decision = committerDecision
+        self.committer = committer
         store = JSONProjectStore(
             url: archiveURL,
             journalPhotoService: ProjectJournalPhotoFileService(directory: journalDirectory),
-            authorizeMutation: { authorizer.authorize($0) }
+            authorizeMutation: { authorizer.authorize($0) },
+            commitSuccessfulMutation: { committer.commit($0) }
         )
     }
 

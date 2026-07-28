@@ -205,23 +205,42 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
                 now: now()
             )
             recoveryState = .ready
-            let envelope = WatchConnectivityEnvelope.acknowledgement(acknowledgement)
-            if let reply {
-                reply(envelope)
-            } else {
-                transport.transferUserInfo(envelope)
-            }
+            send(acknowledgement, reply: reply)
             publish(acknowledgement.snapshot)
         } catch WatchCommandPersistenceError.requiresFreshHandshake {
             recoveryState = .requiresFreshHandshake
             sendSnapshot(reply: reply)
         } catch ProjectStoreError.accessRestricted {
-            // An entitlement block is deliberately not acknowledged. The Watch
-            // retains the command and retries after a newer writable snapshot.
-            sendSnapshot(reply: reply)
+            do {
+                let acknowledgement = try projectStore.acknowledgeRejectedWatchCommandDurably(
+                    command,
+                    rejection: .entitlementRequired,
+                    entitlement: entitlement,
+                    ledgerURL: ledgerURL,
+                    now: now()
+                )
+                recoveryState = .ready
+                send(acknowledgement, reply: reply)
+                publish(acknowledgement.snapshot)
+            } catch {
+                recoveryState = nil
+                sendSnapshot(reply: reply)
+            }
         } catch {
             recoveryState = nil
             sendSnapshot(reply: reply)
+        }
+    }
+
+    private func send(
+        _ acknowledgement: WatchCommandAcknowledgement,
+        reply: WatchConnectivityEnvelopeReply?
+    ) {
+        let envelope = WatchConnectivityEnvelope.acknowledgement(acknowledgement)
+        if let reply {
+            reply(envelope)
+        } else {
+            transport.transferUserInfo(envelope)
         }
     }
 

@@ -54,7 +54,7 @@ import Testing
         #expect(updates.first?.1 == generatedAt)
     }
 
-    @Test @MainActor func trialStartsOnlyAfterSuccessfulMutationCommit() async {
+    @Test @MainActor func trialStartDecisionCommitsBeforeStoreMutation() async {
         let now = Date(timeIntervalSince1970: 2_000_000)
         var updates: [(EntitlementSnapshot, Date)] = []
         let trialStore = TrialStoreSpy(
@@ -72,7 +72,7 @@ import Testing
 
         let preflight = coordinator.authorize(.createProject)
 
-        #expect(preflight == .allow)
+        #expect(preflight == .startTrial)
         #expect(trialStore.startCallDates.isEmpty)
         #expect(coordinator.snapshot == .trialNotStarted)
         #expect(updates.isEmpty)
@@ -342,7 +342,7 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
     }
 
-    @Test @MainActor func firstProjectCreationStartsTrialAfterTheStorePublishes() async throws {
+    @Test @MainActor func firstProjectCreationStartsTrialBeforeTheStorePublishes() async throws {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let purchaseService = PurchaseServiceSpy(qualification: .none)
         let trialStore = TrialStoreSpy(
@@ -374,7 +374,7 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: fixture.archiveURL.path))
     }
 
-    @Test @MainActor func failedTrialCommitFailsClosedAfterTheStoreWrite() async throws {
+    @Test @MainActor func failedTrialCommitFailsClosedBeforeTheStoreWrite() async throws {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let trialStore = TrialStoreSpy(
             loadedRecord: nil,
@@ -396,8 +396,8 @@ import Testing
             try fixture.store.add(name: "Must not exist")
         }
 
-        #expect(fixture.store.projects.map(\.name) == ["Must not exist"])
-        #expect(FileManager.default.fileExists(atPath: fixture.archiveURL.path))
+        #expect(fixture.store.projects.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: fixture.archiveURL.path))
         #expect(coordinator.snapshot == .trialNotStarted)
         #expect(coordinator.verifiedSnapshot == nil)
         #expect(coordinator.unlockRequest == .createProject)

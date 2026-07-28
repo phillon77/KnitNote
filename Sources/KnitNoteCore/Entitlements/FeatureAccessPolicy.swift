@@ -35,7 +35,7 @@ public enum FeatureAccessPolicy {
     ) -> FeatureAccessDecision {
         switch snapshot.state(at: now) {
         case .trialNotStarted:
-            mutation == .createProject || mutation == .importPattern ? .startTrial : .allow
+            mutation == .restoreBackup ? .allow : .startTrial
         case .trialActive, .permanentlyUnlocked, .legacyPaidOwner:
             .allow
         case .trialExpired:

@@ -23,13 +23,15 @@ import Testing
         #expect(coordinator.contains("entitlementExpiryTask"))
     }
 
-    @Test func entitlementBlockSendsSnapshotWithoutAcknowledgingOrMutating() throws {
+    @Test func entitlementBlockDurablyAcknowledgesRemovalWithoutMutating() throws {
         let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
 
         #expect(coordinator.contains("entitlement: entitlement"))
         #expect(coordinator.contains("catch ProjectStoreError.accessRestricted"))
-        #expect(coordinator.contains("sendSnapshot(reply: reply)"))
-        #expect(!coordinator.contains("rejection: .entitlementRequired"))
+        #expect(coordinator.contains("acknowledgeRejectedWatchCommandDurably("))
+        #expect(coordinator.contains("rejection: .entitlementRequired"))
+        #expect(coordinator.contains("send(acknowledgement, reply: reply)"))
+        #expect(coordinator.contains("publish(acknowledgement.snapshot)"))
     }
 
     @Test func coordinatorHandlesEveryEnvelopeKindWithoutTraps() throws {

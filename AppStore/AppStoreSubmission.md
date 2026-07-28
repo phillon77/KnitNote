@@ -21,7 +21,7 @@
 
 ## 1.2 試用與終身解鎖 release candidate
 
-- `IMPLEMENTED`：完整功能試用 7 天；只瀏覽不開始試用，建立第一件作品或匯入第一份織圖才開始。
+- `IMPLEMENTED`：完整功能試用 7 天；只瀏覽不開始試用，首次新增或編輯作品、計數器、筆記、日記、毛線或織圖時才開始；完整備份還原本身不開始試用。
 - `IMPLEMENTED`：試用到期後進入唯讀；既有作品、織圖、筆記、日記、毛線資料及備份仍可查看或匯出。
 - `IMPLEMENTED`：one purchase 可在同一 Apple Account 的 iPhone、iPad、Mac 與配對 Apple Watch 解鎖。
 - `IMPLEMENTED`：可在解鎖畫面 restore purchases；Watch 不顯示獨立購買流程。
@@ -103,7 +103,7 @@
 
 - `REPOSITORY READY`：1.2.1 主 App、Watch 與 `KnitNoteShare` 的 `PrivacyInfo.xcprivacy` 已通過靜態合約檢查；整合後實際 build-product 存在性與 `plutil -lint` 稽核仍待重新執行。
 - `VERIFIED`：不追蹤、不含廣告／分析 SDK、不傳送使用資料到開發者伺服器。
-- `VERIFIED`：主 App、Watch 與 macOS archive 均含經稽核的隱私權清單。
+- `1.0 HISTORICAL — VERIFIED`：1.0／Build 2 的主 App、Watch 與 macOS archive 均含經稽核的隱私權清單；這不是 1.2.1／Build 3 archive 證據。
 - `READY`：雙語公開隱私權政策來源已完成。
 - `PUBLISHED`：App Store Connect「App 隱私權」問卷已發佈為「不收集資料」。
 - `SAVED`：繁體中文與英文（美國）的公開隱私權政策 URL 均已儲存並重新讀取確認。
@@ -127,12 +127,12 @@
 ## Review information／審核資訊
 
 - `READY`：公開聯絡信箱 `lzz.1999@icloud.com`。
-- `REVIEW NOTE`：免登入。首次建立作品或匯入織圖會開始 7-day trial；解鎖頁可 purchase、restore 或引導使用者 redeem code。Apple Watch 使用配對 iPhone 的權益快照，不提供獨立購買。
+- `REVIEW NOTE`：免登入。只瀏覽或完整備份還原不開始試用；首次新增或編輯作品資料會開始 7-day trial。解鎖頁可 purchase、restore 或引導使用者 redeem code。Apple Watch 使用配對 iPhone 的權益快照，不提供獨立購買。
 - `REVIEW NOTE`：one purchase applies to iPhone, iPad, Mac and the paired Apple Watch when the same Apple Account can restore the non-consumable purchase.
 - `SAVED`：iOS 與 macOS 均設定免登入、審核聯絡人與測試步驟。
 - `SAVED`：全球年齡分級 4+，主要類別「生活風格」、次要類別「工具程式」。
 - `SAVED`：內容版權聲明為 App 可存取使用者選擇的第三方內容，且具必要權利。
-- `SAVED`：iOS／Watch 與 macOS Build 2、Build 3 均完成出口法規答案，不使用需申報的加密演算法。
+- `1.0／1.2.0 HISTORICAL — SAVED`：iOS／Watch 與 macOS 的 1.0／Build 2、1.2.0／Build 3 均完成出口法規答案，不使用需申報的加密演算法；這不是 1.2.1／Build 3 submission 證據。
 
 ## StoreKit 與實體裝置人工驗收
 

@@ -913,11 +913,42 @@ final class PatternLibraryDeletionTransaction {
         ledger: inout ProcessedWatchCommandLedger,
         now: Date = .now
     ) throws -> WatchCommandAcknowledgement {
-        try requireWatchEntitlement(entitlement, now: now)
+        do {
+            try requireWatchEntitlement(entitlement, now: now)
+        } catch ProjectStoreError.accessRestricted {
+            try ensureArchiveAvailable()
+            ledger.record(command.id, at: now)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: .entitlementRequired,
+                entitlement: entitlement,
+                now: now
+            )
+        }
         return try applyAuthorizedWatchCommand(
             command,
             entitlement: entitlement,
             ledger: &ledger,
+            now: now
+        )
+    }
+
+    public func acknowledgeRejectedWatchCommandDurably(
+        _ command: WatchCounterCommand,
+        rejection: WatchCommandRejection,
+        entitlement: EntitlementSnapshot,
+        ledgerURL: URL,
+        now: Date = .now
+    ) throws -> WatchCommandAcknowledgement {
+        try ensureArchiveAvailable()
+        let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+        var ledger = try ledgerFile.load() ?? ProcessedWatchCommandLedger()
+        ledger.record(command.id, at: now)
+        try ledgerFile.save(ledger)
+        return try watchAcknowledgement(
+            for: command.id,
+            rejection: rejection,
+            entitlement: entitlement,
             now: now
         )
     }
@@ -2232,7 +2263,12 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func requireAccess(_ mutation: FeatureMutation) throws {
-        guard authorizeMutation(mutation) != .requiresUnlock else {
+        switch authorizeMutation(mutation) {
+        case .allow:
+            return
+        case .startTrial:
+            try commitSuccessfulAccess(mutation)
+        case .requiresUnlock:
             throw ProjectStoreError.accessRestricted
         }
     }

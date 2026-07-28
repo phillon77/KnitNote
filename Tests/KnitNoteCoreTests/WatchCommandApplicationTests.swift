@@ -292,7 +292,7 @@ import Testing
     }
 
     @Test @MainActor
-    func expiredIPhoneEntitlementRejectsBeforeMutationOrLedgerDeduplication() throws {
+    func expiredIPhoneEntitlementAcknowledgesWithoutMutationAndCannotReplayAfterUnlock() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
         let command = WatchCounterCommand(
@@ -306,17 +306,27 @@ import Testing
             expiresAt: fixture.now
         )
 
-        #expect(throws: ProjectStoreError.accessRestricted) {
-            _ = try fixture.store.applyWatchCommand(
-                command,
-                entitlement: expired,
-                ledger: &ledger,
-                now: fixture.now
-            )
-        }
+        let rejection = try fixture.store.applyWatchCommand(
+            command,
+            entitlement: expired,
+            ledger: &ledger,
+            now: fixture.now
+        )
 
+        #expect(rejection.rejection == .entitlementRequired)
         #expect(fixture.store.project(id: project.id)?.counters[0].value == 0)
-        #expect(ledger.entries.isEmpty)
+        #expect(ledger.contains(command.id))
+
+        let replay = try fixture.store.applyWatchCommand(
+            command,
+            entitlement: .permanentlyUnlocked,
+            ledger: &ledger,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(replay.commandID == command.id)
+        #expect(fixture.store.project(id: project.id)?.counters[0].value == 0)
+        #expect(ledger.entries.count == 1)
     }
 
     @Test @MainActor func unreadableArchiveKeepsNewCommandRetryable() throws {

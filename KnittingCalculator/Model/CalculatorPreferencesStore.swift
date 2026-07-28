@@ -78,6 +78,10 @@ final class CalculatorPreferencesStore: ObservableObject {
         validCalculationCount = min(validCalculationCount + 1, 5)
     }
 
+    func markRatingAttempt(version: String) {
+        ratingAttemptVersion = version
+    }
+
     func resetDrafts() {
         gauge = GaugeDraft(unit: gauge.unit)
         oneRow = OneRowAdjustmentDraft()

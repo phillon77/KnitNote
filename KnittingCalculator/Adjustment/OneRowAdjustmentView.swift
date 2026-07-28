@@ -29,9 +29,11 @@ struct OneRowAdjustmentView: View {
     private typealias IntegerInput = EvenStitchAdjustmentInputParseResult
 
     @ObservedObject var preferences: CalculatorPreferencesStore
+    @EnvironmentObject private var ratingCoordinator: RatingRequestCoordinator
     let onShareSnapshotChange: (OneRowShareSnapshot?) -> Void
     @Environment(\.locale) private var locale
     @State private var lastCountedSnapshot: OneRowShareSnapshot?
+    @State private var hadValidResult = false
 
     init(
         preferences: CalculatorPreferencesStore,
@@ -85,9 +87,15 @@ struct OneRowAdjustmentView: View {
         }
         .onChange(of: shareSnapshot) { _, newValue in
             onShareSnapshotChange(newValue)
-            guard let newValue, newValue != lastCountedSnapshot else { return }
+            guard let newValue else { return }
+            hadValidResult = true
+            guard newValue != lastCountedSnapshot else { return }
             lastCountedSnapshot = newValue
             preferences.recordValidCalculation()
+        }
+        .onDisappear {
+            guard hadValidResult else { return }
+            ratingCoordinator.considerRequest()
         }
     }
 

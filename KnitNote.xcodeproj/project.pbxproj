@@ -69,6 +69,7 @@
 		3D2E218C2F45088DCE0EB1FD /* KnitNoteBackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */; };
 		3DF82E72F81800C8080884A3 /* YarnPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */; };
 		3FCB7818FD9E10CF8F9FD2E4 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
+		42B6BBD4D2DAE2BBA94F868E /* RatingEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D062E9551D94CA14FF74D58 /* RatingEligibilityTests.swift */; };
 		44ECDB6FE17DB38EBCE188B2 /* PatternMarkupFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */; };
 		45CEBD6E4B176EEF1424F7C2 /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
 		461C5C4F403AA6DA585E97F0 /* PreparedWatchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53F8478B3089817AE2FFFA1 /* PreparedWatchCommand.swift */; };
@@ -79,6 +80,7 @@
 		4AC5851D4DE145722C5BFB1D /* CalculatorHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E09A8B4BAE5E8B85A7C3D1E /* CalculatorHomeView.swift */; };
 		4C20957D5FA3111762B00D82 /* StoreScreenshotFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F646048FCFBE6FDC2AF932 /* StoreScreenshotFixtures.swift */; };
 		4C27647023ABC97554835EFB /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
+		4DB833C1C97EDEFE176A2E2E /* RatingEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B7EFE80F1D6179EAB2C937 /* RatingEligibility.swift */; };
 		4FA4DFBFB3C4C0211CF579C2 /* JournalPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */; };
 		50FD51A80636056A79BEEF1C /* StoredYarn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */; };
 		5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
@@ -317,6 +319,7 @@
 		12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLibraryView.swift; sourceTree = "<group>"; };
 		14B46C9D90D2250C063CBEB9 /* KnitNote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnitNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1587DA4ECD08A93EFE0BB89A /* WatercolorSurfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatercolorSurfaces.swift; sourceTree = "<group>"; };
+		16B7EFE80F1D6179EAB2C937 /* RatingEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingEligibility.swift; sourceTree = "<group>"; };
 		1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingProject.swift; sourceTree = "<group>"; };
 		1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSession.swift; sourceTree = "<group>"; };
 		1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternProjectView.swift; sourceTree = "<group>"; };
@@ -371,6 +374,7 @@
 		4A55940F5FE8FDFB7A951862 /* PatternLibraryImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryImportPresentation.swift; sourceTree = "<group>"; };
 		4C2468DA39C5DFD9A1D17660 /* CalculatorField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorField.swift; sourceTree = "<group>"; };
 		4C2B7038D08F6C6E76229D7F /* KnitNoteBackupManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupManifest.swift; sourceTree = "<group>"; };
+		4D062E9551D94CA14FF74D58 /* RatingEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingEligibilityTests.swift; sourceTree = "<group>"; };
 		4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapturePhotoEncoder.swift; sourceTree = "<group>"; };
 		557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoFileService.swift; sourceTree = "<group>"; };
 		58740EE09606BD4AC6FA457D /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -795,6 +799,7 @@
 				8C68C0B50E277CBCB65E519D /* CalculatorShareText.swift */,
 				94B895F27EA3B11F30CF51B2 /* KnitNoteLinkRouter.swift */,
 				CE07268BFBF48FC08C0469A5 /* LocalizedNumberCodec.swift */,
+				16B7EFE80F1D6179EAB2C937 /* RatingEligibility.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -864,6 +869,7 @@
 				8607F6093D2D226E75391644 /* GaugeDraftBehaviorTests.swift */,
 				DC85EEE70A4605812EFE0868 /* KnitNoteLinkRouterTests.swift */,
 				7E6A20AD4E16ADA64C3AFC37 /* LocalizedNumberCodecTests.swift */,
+				4D062E9551D94CA14FF74D58 /* RatingEligibilityTests.swift */,
 				4A2A66E10DAC127B12C09B1E /* TargetSmokeTests.swift */,
 			);
 			path = KnittingCalculatorTests;
@@ -1220,6 +1226,7 @@
 				9982E88710DD8686CF417820 /* GaugeDraftBehaviorTests.swift in Sources */,
 				FDF08B73999D3EBDA6E607A6 /* KnitNoteLinkRouterTests.swift in Sources */,
 				A7BB8A45CB9C31ED273B4BBD /* LocalizedNumberCodecTests.swift in Sources */,
+				42B6BBD4D2DAE2BBA94F868E /* RatingEligibilityTests.swift in Sources */,
 				73D0FED0ECE4F78D3FAB982E /* TargetSmokeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1247,6 +1254,7 @@
 				530A2B658C0A5C8883A8EC94 /* KnittingCalculatorApp.swift in Sources */,
 				475997D3C3AFC0820B98D05B /* LocalizedNumberCodec.swift in Sources */,
 				57FCF862A93921859A6051B2 /* OneRowAdjustmentView.swift in Sources */,
+				4DB833C1C97EDEFE176A2E2E /* RatingEligibility.swift in Sources */,
 				CB5E81E3AFF80FCCA711C0AE /* RowIntervalAdjustmentCalculator.swift in Sources */,
 				E50BE4BF524F9BF2BE966A70 /* RowIntervalAdjustmentView.swift in Sources */,
 			);

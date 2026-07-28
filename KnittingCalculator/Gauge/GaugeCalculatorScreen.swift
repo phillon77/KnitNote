@@ -43,9 +43,11 @@ enum GaugeDraftConverter {
 
 struct GaugeCalculatorScreen: View {
     @EnvironmentObject private var preferences: CalculatorPreferencesStore
+    @EnvironmentObject private var ratingCoordinator: RatingRequestCoordinator
     let onShareSnapshotChange: (GaugeShareSnapshot?) -> Void
     @Environment(\.locale) private var locale
     @State private var lastCountedSnapshot: GaugeShareSnapshot?
+    @State private var hadValidResult = false
     @State private var showsHelp = false
 
     init(
@@ -106,9 +108,15 @@ struct GaugeCalculatorScreen: View {
         }
         .onChange(of: shareSnapshot) { _, newValue in
             onShareSnapshotChange(newValue)
-            guard let newValue, newValue != lastCountedSnapshot else { return }
+            guard let newValue else { return }
+            hadValidResult = true
+            guard newValue != lastCountedSnapshot else { return }
             lastCountedSnapshot = newValue
             preferences.recordValidCalculation()
+        }
+        .onDisappear {
+            guard hadValidResult else { return }
+            ratingCoordinator.considerRequest()
         }
     }
 

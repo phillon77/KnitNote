@@ -18,6 +18,9 @@ Verified review-fix Round 2 source commit:
 Verified review-fix Round 3 source commit:
 `691383bd3a0cde330f4b76ed48d0dad8224f74b4`
 
+Verified review-fix Round 4 source commit:
+`c8820219a25a42845c17afda88de7ba4d6738c69`
+
 Release candidate: `1.2.1` / Build `3`
 
 This is local, unsigned verification only. No archive was uploaded, no App Store
@@ -42,7 +45,10 @@ state were not changed.
   `lastOpenedAt` remains a separate scalar browsing update; passive reader-state
   persistence changes neither it nor project `updatedAt`. Target-page
   highlight/note values are projected only into a temporary hydration copy.
-  An explicit reader edit still starts the trial before saving its full state.
+  A saved target page uses its `pageStates` entry; an unsaved target page uses
+  horizontal `0.5`, vertical `0.5`, and an empty note rather than stale
+  top-level values from the previous page. An explicit reader edit still starts
+  the trial before saving its full state.
 - An expired authoritative iPhone entitlement now rejects a queued Watch command
   with `.entitlementRequired`, durably records the command identity, sends an
   acknowledgement that removes it from the Watch queue, and publishes the
@@ -113,6 +119,30 @@ Unsigned Round 3 Release builds:
 | --- | --- | --- | ---: |
 | KnitNote iOS / iPadOS | `generic/platform=iOS` | `/tmp/KnitNoteTrialRepairRound3IOS` | 0 |
 | KnitNote macOS | `generic/platform=macOS` | `/tmp/KnitNoteTrialRepairRound3Mac` | 0 |
+
+## Review-fix Round 4 TDD evidence
+
+Round 3 correctly persisted only the four passive scalars, but its temporary
+hydration projection returned the stored reading state unchanged when the
+passively selected page had no `pageStates` entry. Library hydration therefore
+displayed stale previous-page top-level positions and note. Legacy hydration
+also fell back to stale top-level positions. Round 4 uses a temporary default
+`PatternPageState` for an unsaved target without changing the stored state,
+archive, or timestamps.
+
+| Phase | Command | Exit | Evidence |
+| --- | --- | ---: | --- |
+| Unsaved target-page RED | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound4Red --filter 'loaderDefaultsUnsavedTargetPageExplicitFieldsWithoutMutatingStoredUsage\|legacyReadingStateDefaultsUnsavedTargetPageExplicitFieldsWithoutMutatingDocument'` | 1 | 2 tests in 1 suite; 5 issues. Library hydration returned stale `0.21` / `0.79` / `Previous page`; legacy hydration returned stale `0.24` / `0.76`. |
+| Unsaved target-page GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound4Green --filter 'loaderDefaultsUnsavedTargetPageExplicitFieldsWithoutMutatingStoredUsage\|legacyReadingStateDefaultsUnsavedTargetPageExplicitFieldsWithoutMutatingDocument'` | 0 | Both tests passed and complete stored usage/document equality remained unchanged. |
+| Saved target and explicit gate GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound4Green --filter 'loaderProjectsTargetPageExplicitFieldsWithoutMutatingStoredUsage\|loaderDefaultsUnsavedTargetPageExplicitFieldsWithoutMutatingStoredUsage\|legacyReadingStateDefaultsUnsavedTargetPageExplicitFieldsWithoutMutatingDocument\|pageNoteSurvivesProjectStoreReload\|passivePatternBrowsingPreservesExplicitFieldsAndExplicitEditStartsTrial\|legacyBrowsingChangesOnlyPassiveScalarsWithoutTouchingTimestamps'` | 0 | 6 tests in 1 suite passed. Saved target-page projection still used its stored entry, while both library and legacy explicit edits still committed `.editPatternReadingState`. |
+| Focused GREEN | `swift test --scratch-path /tmp/KnitNoteTrialRepairRound4Focused --filter 'PatternDocumentTests\|PatternReaderReloadSafetyTests\|PatternReaderContextTests\|PatternReaderSessionTests\|PatternLibraryStoreTests\|JSONProjectStoreEntitlementTests\|JSONProjectStoreTests'` | 0 | 168 tests in 4 suites passed. The first focused run exposed two old legacy fixtures that omitted a target `pageStates` entry while expecting the stale fallback; those fixtures now model a saved target page and the same command passes. |
+
+Unsigned Round 4 Release builds:
+
+| Target | Destination | DerivedData | Exit |
+| --- | --- | --- | ---: |
+| KnitNote iOS / iPadOS | `generic/platform=iOS` | `/tmp/KnitNoteTrialRepairRound4IOS` | 0 |
+| KnitNote macOS | `generic/platform=macOS` | `/tmp/KnitNoteTrialRepairRound4Mac` | 0 |
 
 ## App and package tests
 

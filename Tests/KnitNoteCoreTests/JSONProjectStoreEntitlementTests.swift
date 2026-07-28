@@ -291,7 +291,7 @@ import UniformTypeIdentifiers
 }
 
 @MainActor
-@Test func passivePatternOpenDoesNotStartTrialButExplicitMetadataEditDoes() throws {
+@Test func passivePatternBrowsingPreservesExplicitFieldsAndExplicitEditStartsTrial() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("PassivePatternBrowsing-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -317,10 +317,30 @@ import UniformTypeIdentifiers
     )
     let pattern = StoredPattern(assetID: asset.id, displayName: "Browse")
     let project = try StoredProject(name: "Linked")
+    let storedPageStates = [
+        0: PatternPageState(
+            horizontalPosition: 0.21,
+            verticalPosition: 0.79,
+            note: "Stored page zero"
+        ),
+        2: PatternPageState(
+            horizontalPosition: 0.42,
+            verticalPosition: 0.64,
+            note: "Stored page two"
+        ),
+    ]
     let usage = PatternProjectUsage(
         patternID: pattern.id,
         projectID: project.id,
-        sortOrder: 0
+        sortOrder: 0,
+        readingState: PatternReadingState(
+            highlightEnabled: true,
+            highlightPosition: 0.21,
+            highlightMode: .cross,
+            verticalHighlightPosition: 0.79,
+            pageNote: "Stored page zero",
+            pageStates: storedPageStates
+        )
     )
     let archive = root.appendingPathComponent("projects-v1.json")
     try JSONEncoder().encode(ProjectArchive(
@@ -353,21 +373,66 @@ import UniformTypeIdentifiers
 
     _ = try store.updatePatternBrowsingState(
         usageID: usage.id,
-        state: PatternReadingState(pageIndex: 2),
+        state: PatternReadingState(
+            pageIndex: 2,
+            zoomScale: 2.25,
+            offsetX: 0.3,
+            offsetY: 0.7,
+            highlightEnabled: false,
+            highlightPosition: 0.91,
+            highlightMode: .vertical,
+            verticalHighlightPosition: 0.09,
+            pageNote: "Injected housekeeping note",
+            pageStates: [
+                2: PatternPageState(
+                    horizontalPosition: 0.91,
+                    verticalPosition: 0.09,
+                    note: "Injected housekeeping note"
+                ),
+            ]
+        ).browsingState,
         expectedDataGeneration: store.dataGeneration
     )
 
     #expect(committer.mutations.isEmpty)
-    #expect(store.patternUsages.first?.readingState.pageIndex == 2)
+    let browsed = try #require(store.patternUsages.first?.readingState)
+    #expect(browsed.pageIndex == 2)
+    #expect(browsed.zoomScale == 2.25)
+    #expect(browsed.offsetX == 0.3)
+    #expect(browsed.offsetY == 0.7)
+    #expect(browsed.highlightEnabled)
+    #expect(browsed.highlightMode == .cross)
+    #expect(browsed.highlightPosition == 0.42)
+    #expect(browsed.verticalHighlightPosition == 0.64)
+    #expect(browsed.pageNote == "Stored page two")
+    #expect(browsed.pageStates == storedPageStates)
 
+    let explicitState = PatternReadingState(
+        pageIndex: 3,
+        zoomScale: 1.4,
+        offsetX: 0.2,
+        offsetY: 0.6,
+        highlightEnabled: false,
+        highlightPosition: 0.83,
+        highlightMode: .vertical,
+        verticalHighlightPosition: 0.17,
+        pageNote: "Explicit edit",
+        pageStates: [
+            3: PatternPageState(
+                horizontalPosition: 0.83,
+                verticalPosition: 0.17,
+                note: "Explicit edit"
+            ),
+        ]
+    )
     _ = try store.updatePatternState(
         usageID: usage.id,
-        state: PatternReadingState(pageIndex: 3),
+        state: explicitState,
         expectedDataGeneration: store.dataGeneration
     )
 
     #expect(committer.mutations == [.editPatternReadingState])
-    #expect(store.patternUsages.first?.readingState.pageIndex == 3)
+    #expect(store.patternUsages.first?.readingState == explicitState)
 }
 
 @MainActor

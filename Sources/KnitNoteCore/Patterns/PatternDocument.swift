@@ -128,6 +128,50 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+public struct PatternBrowsingState: Equatable, Hashable, Sendable {
+    public let pageIndex: Int
+    public let zoomScale: Double
+    public let offsetX: Double
+    public let offsetY: Double
+
+    public init(
+        pageIndex: Int,
+        zoomScale: Double,
+        offsetX: Double,
+        offsetY: Double
+    ) {
+        self.pageIndex = max(0, pageIndex)
+        self.zoomScale = max(0.1, zoomScale)
+        self.offsetX = min(1, max(0, offsetX))
+        self.offsetY = min(1, max(0, offsetY))
+    }
+
+    public init(readingState: PatternReadingState) {
+        self.init(
+            pageIndex: readingState.pageIndex,
+            zoomScale: readingState.zoomScale,
+            offsetX: readingState.offsetX,
+            offsetY: readingState.offsetY
+        )
+    }
+}
+
+public extension PatternReadingState {
+    var browsingState: PatternBrowsingState {
+        PatternBrowsingState(readingState: self)
+    }
+
+    mutating func applyBrowsingState(_ browsingState: PatternBrowsingState) {
+        if pageIndex != browsingState.pageIndex {
+            loadPage(browsingState.pageIndex)
+        }
+        pageIndex = browsingState.pageIndex
+        zoomScale = browsingState.zoomScale
+        offsetX = browsingState.offsetX
+        offsetY = browsingState.offsetY
+    }
+}
+
 /// Preserves the exact reader state before a platform PDF callback changes
 /// pages. A failed markup save must roll back the whole state, not only the
 /// page number, because the callback has already loaded the target page's

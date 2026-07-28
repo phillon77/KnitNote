@@ -244,6 +244,11 @@ import Testing
 
         #expect(lifecycle.contains("saveBrowsingState()"))
         #expect(highlightCommit.contains("_ = save()"))
+        #expect(
+            reader.components(separatedBy: "state: state.browsingState").count - 1
+                == 2
+        )
+        #expect(store.contains("state: PatternBrowsingState"))
         #expect(markOpened.contains("requireAccess(.recordPatternBrowsing)"))
         #expect(detail.contains("entitlementCoordinator.allowsAutomaticReaderPersistence"))
     }

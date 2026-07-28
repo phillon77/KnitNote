@@ -139,6 +139,13 @@ Expected before the repair: at least one new assertion fails because existing-da
 
 Change the access policy so every user-authored data mutation in `trialNotStarted` returns `.startTrial`, not only project creation and pattern import. Keep reads and complete backup export allowed. The coordinator must durably commit the Keychain trial record and publish the trial snapshot before the store mutation proceeds; if the Keychain commit fails, fail closed and do not mutate data.
 
+Passive pattern-reader housekeeping is the narrow exception: it may persist only
+`pageIndex`, `zoomScale`, `offsetX`, and `offsetY` through a dedicated browsing
+projection, while `lastOpenedAt` remains a separate scalar update. The browsing
+endpoint must merge those fields into stored state and must not accept or
+overwrite highlight enablement, highlight mode or positions, page notes,
+per-page state, markup, counters, or any other explicit edit field.
+
 Run:
 
 ```bash

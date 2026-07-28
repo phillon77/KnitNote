@@ -669,7 +669,7 @@ struct PatternReaderView: View {
                 if isBrowsingHousekeeping {
                     nextGeneration = try store.updatePatternBrowsingState(
                         usageID: usageID,
-                        state: state,
+                        state: state.browsingState,
                         expectedDataGeneration: expectedDataGeneration
                     )
                 } else {
@@ -684,7 +684,7 @@ struct PatternReaderView: View {
                     nextGeneration = try store.updatePatternBrowsingState(
                         projectID: projectID,
                         id: patternID,
-                        state: state,
+                        state: state.browsingState,
                         expectedDataGeneration: expectedDataGeneration
                     )
                 } else {

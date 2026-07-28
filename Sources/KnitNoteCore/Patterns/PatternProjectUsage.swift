@@ -37,4 +37,12 @@ public struct PatternProjectUsage: Identifiable, Codable, Hashable, Sendable {
         readingState = state
         _ = now
     }
+
+    public mutating func updateBrowsingState(
+        _ state: PatternBrowsingState,
+        now: Date = .now
+    ) {
+        readingState.applyBrowsingState(state)
+        _ = now
+    }
 }

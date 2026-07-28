@@ -1379,15 +1379,16 @@ final class PatternLibraryDeletionTransaction {
     @discardableResult
     public func updatePatternBrowsingState(
         usageID: UUID,
-        state: PatternReadingState,
+        state: PatternBrowsingState,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
-        try updatePatternState(
-            usageID: usageID,
-            state: state,
-            expectedDataGeneration: expectedDataGeneration,
-            mutation: .recordPatternBrowsing
-        )
+        try requireAccess(.recordPatternBrowsing)
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        let index = try mutableUsageIndex(usageID: usageID)
+        var staged = patternUsages
+        staged[index].updateBrowsingState(state)
+        try persist(projects: projects, yarns: yarns, patternUsages: staged)
+        return dataGeneration
     }
 
     private func updatePatternState(
@@ -1508,16 +1509,16 @@ final class PatternLibraryDeletionTransaction {
     public func updatePatternBrowsingState(
         projectID: UUID,
         id: UUID,
-        state: PatternReadingState,
+        state: PatternBrowsingState,
         expectedDataGeneration: UInt64? = nil
     ) throws -> UInt64 {
-        try updatePatternState(
-            projectID: projectID,
-            id: id,
-            state: state,
-            expectedDataGeneration: expectedDataGeneration,
-            mutation: .recordPatternBrowsing
-        )
+        try requireAccess(.recordPatternBrowsing)
+        try validateExpectedDataGeneration(expectedDataGeneration)
+        try ensureLegacyPatternReaderWriteAllowed(projectID: projectID)
+        try mutate(id: projectID) {
+            $0.updatePatternBrowsingState(id: id, state: state)
+        }
+        return dataGeneration
     }
 
     private func updatePatternState(

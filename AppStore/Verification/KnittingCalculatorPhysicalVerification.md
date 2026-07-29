@@ -181,10 +181,10 @@ Build artifacts:
 - Both built `Info.plist` files SHA-256:
   `e2550a6d7857eef4d977aacd8402633024cbe2d66fe5944fab313ccd4bef3756`
 
-The machine evidence proves independent-project signing, installation/launch
-on the iPhone, and the exact running bundle process. It does not prove any
-visible layout, calculation, accessibility, persistence, share-sheet, link, or
-permission-prompt behavior. Those observations remain explicitly gated below.
+The machine evidence proves independent-project signing, installation, launch,
+and exact running bundle-process identity on both devices. It does not prove
+visible layout or behavior; the later user confirmations cover only their
+explicitly listed scope. All broader observations remain gated below.
 
 ## Evidence boundary
 
@@ -262,9 +262,9 @@ edge-case rows below have passed.
 | Check | Status | Evidence / follow-up |
 | --- | --- | --- |
 | Entire iPhone functional matrix | AWAITING USER | Installation and launch passed; repeat the applicable iPhone rows. |
-| Landscape and portrait | PASS | User confirmed the installed candidate has no clipping. |
-| One-third Split View | PASS | User confirmed the narrow Split View keeps fields and buttons visible. |
-| Half Split View | PASS | User confirmed Half Split View keeps fields and buttons visible. |
+| Landscape and portrait | AWAITING USER | The scoped confirmation above covers no clipping; this broader row still requires cards, fields, results, and disclosures to be checked. |
+| One-third Split View | AWAITING USER | The scoped confirmation above covers visible fields and buttons; this broader row still requires cards, results, and disclosures to be checked. |
+| Half Split View | AWAITING USER | The scoped confirmation above covers visible fields and buttons; this broader row still requires cards, results, and disclosures to be checked. |
 | Two-thirds Split View | AWAITING USER | Verify no clipped cards, fields, results, or disclosures. |
 | External-keyboard numeric entry | AWAITING USER | Run only if a keyboard is available; record availability. |
 | Share-sheet presentation and dismissal | AWAITING USER | Confirm it is correctly anchored and dismisses. |

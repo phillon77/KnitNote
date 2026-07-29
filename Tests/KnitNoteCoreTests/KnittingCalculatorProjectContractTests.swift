@@ -112,6 +112,100 @@ import Testing
         #expect(!storyboard.contains("FamilyKnittingHero"))
     }
 
+    @Test func independentProjectDefinesOnlyCalculatorAppAndTests() throws {
+        let yaml = try source("KnittingCalculator/project.yml")
+
+        #expect(yaml.contains("name: KnittingCalculator"))
+        #expect(yaml.contains("  KnittingCalculator:\n    type: application"))
+        #expect(yaml.contains("  KnittingCalculatorTests:\n    type: bundle.unit-test"))
+        #expect(
+            targetNames(in: yaml) == [
+                "KnittingCalculator",
+                "KnittingCalculatorTests",
+            ]
+        )
+        #expect(!yaml.contains("KnitNoteWatch"))
+        #expect(!yaml.contains("KnitNoteShare"))
+        #expect(!yaml.contains("StoreKit"))
+        #expect(!yaml.contains("entitlements"))
+    }
+
+    @Test func independentAppOwnsIdentityResourcesAndSharedPackage() throws {
+        let yaml = try source("KnittingCalculator/project.yml")
+        let appTarget = try #require(
+            yaml.split(separator: "  KnittingCalculatorTests:").first?
+                .split(separator: "  KnittingCalculator:").last
+        )
+
+        #expect(yaml.contains("path: Packages/KnittingCalculatorCore"))
+        #expect(appTarget.contains("- package: KnittingCalculatorCore"))
+        #expect(
+            appTarget.contains(
+                "PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculator"
+            )
+        )
+        #expect(appTarget.contains("MARKETING_VERSION: 1.0.0"))
+        #expect(appTarget.contains("CURRENT_PROJECT_VERSION: 1"))
+        #expect(appTarget.contains("UILaunchStoryboardName: LaunchScreen"))
+        #expect(
+            appTarget.contains(
+                "- path: KnittingCalculator/LaunchScreen.storyboard"
+            )
+        )
+        #expect(
+            appTarget.contains(
+                "- path: KnittingCalculator/PrivacyInfo.xcprivacy"
+            )
+        )
+        #expect(
+            appTarget.contains(
+                "- path: KnittingCalculator/Localization/InfoPlist.xcstrings"
+            )
+        )
+        #expect(
+            appTarget.contains(
+                "- path: KnittingCalculator/Localization/Localizable.xcstrings"
+            )
+        )
+        #expect(appTarget.contains("ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon"))
+    }
+
+    @Test
+    func generatedIndependentProjectContainsOwnedResourcesAndNoKnitNoteProducts() throws {
+        let project = try source("KnittingCalculator.xcodeproj/project.pbxproj")
+
+        #expect(project.contains("productName = KnittingCalculator;"))
+        #expect(project.contains("productName = KnittingCalculatorTests;"))
+        #expect(project.contains("LaunchScreen.storyboard in Resources"))
+        #expect(project.contains("PrivacyInfo.xcprivacy in Resources"))
+        #expect(project.contains("Localizable.xcstrings in Resources"))
+        #expect(project.contains("InfoPlist.xcstrings in Resources"))
+        #expect(project.contains("XCLocalSwiftPackageReference"))
+        #expect(project.contains("relativePath = Packages/KnittingCalculatorCore;"))
+        #expect(!project.contains("KnitNoteWatch"))
+        #expect(!project.contains("KnitNoteShare"))
+        #expect(!project.contains("KnitNote-iOS.entitlements"))
+        #expect(!project.contains("StoreKit"))
+    }
+
+    private func targetNames(in yaml: String) -> [String] {
+        guard let targets = yaml.split(separator: "targets:", maxSplits: 1).last,
+              let schemes = targets.split(separator: "schemes:", maxSplits: 1).first
+        else {
+            return []
+        }
+
+        return schemes.split(whereSeparator: \.isNewline).compactMap { line in
+            guard line.hasPrefix("  "),
+                  !line.hasPrefix("    "),
+                  line.hasSuffix(":")
+            else {
+                return nil
+            }
+            return String(line.dropFirst(2).dropLast())
+        }
+    }
+
     private func source(_ path: String) throws -> String {
         try String(
             contentsOf: URL(filePath: #filePath)

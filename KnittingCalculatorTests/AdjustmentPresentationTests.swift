@@ -1,5 +1,6 @@
 import XCTest
 @testable import KnittingCalculator
+import KnittingCalculatorCore
 
 final class AdjustmentPresentationTests: XCTestCase {
     func testStepTokensUseNeutralTermsForEveryCalculatorStep() {

@@ -1,0 +1,82 @@
+name: KnittingCalculator
+options:
+  bundleIdPrefix: com.phillon
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: 9CFPAUL5N5
+packages:
+  KnittingCalculatorCore:
+    path: Packages/KnittingCalculatorCore
+targets:
+  KnittingCalculator:
+    type: application
+    platform: iOS
+    info:
+      path: KnittingCalculator/Info.plist
+      properties:
+        CFBundleDisplayName: $(PRODUCT_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.utilities
+        UILaunchStoryboardName: LaunchScreen
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    sources:
+      - path: KnittingCalculator/Adjustment
+      - path: KnittingCalculator/App
+      - path: KnittingCalculator/Assets.xcassets
+      - path: KnittingCalculator/Components
+      - path: KnittingCalculator/Gauge
+      - path: KnittingCalculator/Help
+      - path: KnittingCalculator/Home
+      - path: KnittingCalculator/Model
+      - path: KnittingCalculator/Settings
+      - path: KnittingCalculator/Theme
+      - path: KnittingCalculator/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: KnittingCalculator/LaunchScreen.storyboard
+        buildPhase: resources
+      - path: KnittingCalculator/Localization/InfoPlist.xcstrings
+        buildPhase: resources
+      - path: KnittingCalculator/Localization/Localizable.xcstrings
+        buildPhase: resources
+    dependencies:
+      - package: KnittingCalculatorCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculator
+        PRODUCT_MODULE_NAME: KnittingCalculator
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        PRODUCT_NAME: KnittingCalculator
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  KnittingCalculatorTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: KnittingCalculatorTests
+    dependencies:
+      - target: KnittingCalculator
+      - package: KnittingCalculatorCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculatorTests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  KnittingCalculator:
+    build:
+      targets:
+        KnittingCalculator: all
+        KnittingCalculatorTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - KnittingCalculatorTests

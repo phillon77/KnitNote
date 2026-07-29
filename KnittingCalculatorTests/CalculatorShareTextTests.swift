@@ -1,5 +1,6 @@
 import XCTest
 @testable import KnittingCalculator
+import KnittingCalculatorCore
 
 final class CalculatorShareTextTests: XCTestCase {
     func testGaugeShareContainsInputsResultAttributionAndFreeAppURL() throws {

@@ -16,8 +16,11 @@ private func importedModules(in source: String) -> [String] {
 
     return source
         .split(whereSeparator: \.isNewline)
-        .compactMap { line -> String? in
-            let components = line
+        .flatMap { line in
+            line.split(separator: ";")
+        }
+        .compactMap { statement -> String? in
+            let components = statement
                 .split(separator: "//", maxSplits: 1, omittingEmptySubsequences: false)[0]
                 .split(whereSeparator: \.isWhitespace)
             guard let importIndex = components.firstIndex(of: "import") else {
@@ -46,6 +49,14 @@ private func importedModules(in source: String) -> [String] {
         """
 
         #expect(importedModules(in: source) == ["UIKit", "StoreKit", "Combine"])
+    }
+
+    @Test func recognizesSemicolonSeparatedImports() {
+        let source = "import Foundation; import StoreKit; public import Combine"
+
+        #expect(
+            importedModules(in: source) == ["Foundation", "StoreKit", "Combine"]
+        )
     }
 
     @Test func productionSourcesDoNotImportProductOrPlatformFrameworks() throws {

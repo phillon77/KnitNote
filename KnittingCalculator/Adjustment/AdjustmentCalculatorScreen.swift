@@ -11,13 +11,18 @@ struct AdjustmentCalculatorScreen: View {
     @EnvironmentObject private var preferences: CalculatorPreferencesStore
     let onOneRowShareSnapshotChange: (OneRowShareSnapshot?) -> Void
     let onRowIntervalShareSnapshotChange: (RowIntervalShareSnapshot?) -> Void
-    @State private var mode = AdjustmentMode.oneRow
+    let expandsRowDetails: Bool
+    @State private var mode: AdjustmentMode
     @State private var showsHelp = false
 
     init(
+        initialMode: AdjustmentMode = .oneRow,
+        expandsRowDetails: Bool = false,
         onOneRowShareSnapshotChange: @escaping (OneRowShareSnapshot?) -> Void = { _ in },
         onRowIntervalShareSnapshotChange: @escaping (RowIntervalShareSnapshot?) -> Void = { _ in }
     ) {
+        self.expandsRowDetails = expandsRowDetails
+        _mode = State(initialValue: initialMode)
         self.onOneRowShareSnapshotChange = onOneRowShareSnapshotChange
         self.onRowIntervalShareSnapshotChange = onRowIntervalShareSnapshotChange
     }
@@ -50,6 +55,7 @@ struct AdjustmentCalculatorScreen: View {
             case .acrossRows:
                 RowIntervalAdjustmentView(
                     preferences: preferences,
+                    initiallyExpandsDetails: expandsRowDetails,
                     onShareSnapshotChange: onRowIntervalShareSnapshotChange
                 )
             }

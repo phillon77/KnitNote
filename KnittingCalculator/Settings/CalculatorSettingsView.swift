@@ -5,6 +5,11 @@ struct CalculatorSettingsView: View {
     @EnvironmentObject private var preferences: CalculatorPreferencesStore
     @Environment(\.locale) private var locale
     @State private var showsResetConfirmation = false
+    let showsKnitNotePromotion: Bool
+
+    init(showsKnitNotePromotion: Bool = true) {
+        self.showsKnitNotePromotion = showsKnitNotePromotion
+    }
 
     var body: some View {
         Form {
@@ -32,8 +37,10 @@ struct CalculatorSettingsView: View {
                 .accessibilityHint(Text("calculator.settings.reset.hint"))
             }
 
-            Section("calculator.settings.knitnote.section") {
-                KnitNotePromotionCard()
+            if showsKnitNotePromotion {
+                Section("calculator.settings.knitnote.section") {
+                    KnitNotePromotionCard()
+                }
             }
 
             Section("calculator.settings.support.section") {

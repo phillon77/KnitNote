@@ -1,6 +1,12 @@
 import SwiftUI
 
 struct CalculatorHomeView: View {
+    let showsKnitNotePromotion: Bool
+
+    init(showsKnitNotePromotion: Bool = true) {
+        self.showsKnitNotePromotion = showsKnitNotePromotion
+    }
+
     var body: some View {
         ZStack {
             CalculatorWatercolorBackground()
@@ -34,7 +40,9 @@ struct CalculatorHomeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    KnitNotePromotionCard()
+                    if showsKnitNotePromotion {
+                        KnitNotePromotionCard()
+                    }
                 }
                 .frame(maxWidth: 620)
                 .padding(.horizontal, 20)

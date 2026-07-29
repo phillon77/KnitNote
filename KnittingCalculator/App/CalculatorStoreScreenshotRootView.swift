@@ -7,11 +7,15 @@ struct CalculatorStoreScreenshotRootView: View {
     @StateObject private var ratingRequestContext = RatingRequestContext()
 
     var body: some View {
+        let presentation = mode.scene.presentation
+
         Group {
-            switch mode.scene {
-            case .home, .promotion:
+            switch presentation.destination {
+            case .home:
                 NavigationStack {
-                    CalculatorHomeView()
+                    CalculatorHomeView(
+                        showsKnitNotePromotion: presentation.showsKnitNotePromotion
+                    )
                 }
             case .gauge:
                 NavigationStack {
@@ -19,11 +23,16 @@ struct CalculatorStoreScreenshotRootView: View {
                 }
             case .adjustment:
                 NavigationStack {
-                    AdjustmentCalculatorScreen()
+                    AdjustmentCalculatorScreen(
+                        initialMode: presentation.adjustmentMode,
+                        expandsRowDetails: presentation.expandsAdjustmentRowDetails
+                    )
                 }
-            case .privacy, .privacyPromotion:
+            case .settings:
                 NavigationStack {
-                    CalculatorSettingsView()
+                    CalculatorSettingsView(
+                        showsKnitNotePromotion: presentation.showsKnitNotePromotion
+                    )
                 }
             }
         }

@@ -77,12 +77,15 @@ struct RowIntervalAdjustmentView: View {
     @Environment(\.locale) private var locale
     @State private var lastCountedSnapshot: RowIntervalShareSnapshot?
     @State private var hadValidResult = false
+    @State private var detailsExpanded: Bool
 
     init(
         preferences: CalculatorPreferencesStore,
+        initiallyExpandsDetails: Bool = false,
         onShareSnapshotChange: @escaping (RowIntervalShareSnapshot?) -> Void = { _ in }
     ) {
         self.preferences = preferences
+        _detailsExpanded = State(initialValue: initiallyExpandsDetails)
         self.onShareSnapshotChange = onShareSnapshotChange
     }
 
@@ -285,7 +288,10 @@ struct RowIntervalAdjustmentView: View {
     }
 
     private func stepsView(_ result: RowIntervalAdjustmentResult) -> some View {
-        DisclosureGroup("calculator.adjustment.rows.details.show") {
+        DisclosureGroup(
+            "calculator.adjustment.rows.details.show",
+            isExpanded: $detailsExpanded
+        ) {
             LazyVStack(alignment: .leading, spacing: 8) {
                 ForEach(result.adjustmentRows.indices, id: \.self) { index in
                     Text(verbatim: adjustmentRowText(result.adjustmentRows[index]))

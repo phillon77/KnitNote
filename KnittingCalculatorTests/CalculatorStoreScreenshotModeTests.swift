@@ -91,4 +91,43 @@ struct CalculatorStoreScreenshotModeTests {
             style: .singleSide
         ))
     }
+
+    @Test func screenshotScenesMapToApprovedPresentationBehavior() {
+        #expect(CalculatorStoreScreenshotScene.home.presentation == .init(
+            destination: .home,
+            showsKnitNotePromotion: false,
+            adjustmentMode: .oneRow,
+            expandsAdjustmentRowDetails: false
+        ))
+        #expect(CalculatorStoreScreenshotScene.gauge.presentation == .init(
+            destination: .gauge,
+            showsKnitNotePromotion: false,
+            adjustmentMode: .oneRow,
+            expandsAdjustmentRowDetails: false
+        ))
+        #expect(CalculatorStoreScreenshotScene.adjustment.presentation == .init(
+            destination: .adjustment,
+            showsKnitNotePromotion: false,
+            adjustmentMode: .acrossRows,
+            expandsAdjustmentRowDetails: true
+        ))
+        #expect(CalculatorStoreScreenshotScene.privacy.presentation == .init(
+            destination: .settings,
+            showsKnitNotePromotion: false,
+            adjustmentMode: .oneRow,
+            expandsAdjustmentRowDetails: false
+        ))
+        #expect(CalculatorStoreScreenshotScene.promotion.presentation == .init(
+            destination: .home,
+            showsKnitNotePromotion: true,
+            adjustmentMode: .oneRow,
+            expandsAdjustmentRowDetails: false
+        ))
+        #expect(CalculatorStoreScreenshotScene.privacyPromotion.presentation == .init(
+            destination: .settings,
+            showsKnitNotePromotion: true,
+            adjustmentMode: .oneRow,
+            expandsAdjustmentRowDetails: false
+        ))
+    }
 }

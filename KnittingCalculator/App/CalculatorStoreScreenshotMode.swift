@@ -4,6 +4,59 @@ import KnittingCalculatorCore
 
 enum CalculatorStoreScreenshotScene: String, CaseIterable {
     case home, gauge, adjustment, privacy, promotion, privacyPromotion
+
+    var presentation: CalculatorStoreScreenshotPresentation {
+        switch self {
+        case .home:
+            .init(destination: .home)
+        case .gauge:
+            .init(destination: .gauge)
+        case .adjustment:
+            .init(
+                destination: .adjustment,
+                adjustmentMode: .acrossRows,
+                expandsAdjustmentRowDetails: true
+            )
+        case .privacy:
+            .init(destination: .settings)
+        case .promotion:
+            .init(
+                destination: .home,
+                showsKnitNotePromotion: true
+            )
+        case .privacyPromotion:
+            .init(
+                destination: .settings,
+                showsKnitNotePromotion: true
+            )
+        }
+    }
+}
+
+enum CalculatorStoreScreenshotDestination: Equatable {
+    case home
+    case gauge
+    case adjustment
+    case settings
+}
+
+struct CalculatorStoreScreenshotPresentation: Equatable {
+    let destination: CalculatorStoreScreenshotDestination
+    let showsKnitNotePromotion: Bool
+    let adjustmentMode: AdjustmentMode
+    let expandsAdjustmentRowDetails: Bool
+
+    init(
+        destination: CalculatorStoreScreenshotDestination,
+        showsKnitNotePromotion: Bool = false,
+        adjustmentMode: AdjustmentMode = .oneRow,
+        expandsAdjustmentRowDetails: Bool = false
+    ) {
+        self.destination = destination
+        self.showsKnitNotePromotion = showsKnitNotePromotion
+        self.adjustmentMode = adjustmentMode
+        self.expandsAdjustmentRowDetails = expandsAdjustmentRowDetails
+    }
 }
 
 enum CalculatorStoreScreenshotLanguage: String {

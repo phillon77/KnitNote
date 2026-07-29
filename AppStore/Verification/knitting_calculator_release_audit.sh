@@ -13,17 +13,22 @@ PROJECT_FILE="KnittingCalculator.xcodeproj"
 APP_STORE_URL_PATTERN='apps.apple.com/app/id[0-9]+'
 STATIC_ONLY=0
 ARCHIVE=""
+IPA=""
 TEMP_FILES=()
+TEMP_DIRS=()
 
 cleanup() {
   if [[ "${#TEMP_FILES[@]}" -gt 0 ]]; then
     rm -f "${TEMP_FILES[@]}"
   fi
+  if [[ "${#TEMP_DIRS[@]}" -gt 0 ]]; then
+    rm -rf "${TEMP_DIRS[@]}"
+  fi
 }
 trap cleanup EXIT
 
 usage() {
-  echo "usage: knitting_calculator_release_audit.sh [--static-only] [--archive PATH]" >&2
+  echo "usage: knitting_calculator_release_audit.sh [--static-only] [--archive PATH | --ipa PATH]" >&2
 }
 
 fail() {
@@ -95,7 +100,8 @@ verify_static_network_boundary() {
     case "$url" in
       https://phillon77.github.io/KnitNote/knitting-calculator.html|\
       https://phillon77.github.io/KnitNote/knitting-calculator-privacy.html|\
-      https://apps.apple.com/app/id6793023054)
+      https://apps.apple.com/app/id6793023054|\
+      https://apps.apple.com/app/id6795877892)
         ;;
       *)
         fail "unapproved literal URL in calculator source: $url"
@@ -264,9 +270,8 @@ verify_archive_no_permission_descriptions() {
     || fail "archive declares prohibited camera, photo, or file-access capability"
 }
 
-verify_archive() {
-  local archive="$1"
-  local app="$archive/Products/Applications/KnittingCalculator.app"
+verify_app_bundle() {
+  local app="$1"
   local info="$app/Info.plist"
   local resources="$app"
   [[ -d "$app" ]] || fail "missing application bundle: $app"
@@ -291,9 +296,20 @@ verify_archive() {
   verify_archive_no_permission_descriptions "$info"
 }
 
+verify_archive() {
+  local archive="$1"
+  verify_app_bundle "$archive/Products/Applications/KnittingCalculator.app"
+}
+
 verify_archive_release_signing() {
   local archive="$1"
   local app="$archive/Products/Applications/KnittingCalculator.app"
+
+  verify_release_signing "$app"
+}
+
+verify_release_signing() {
+  local app="$1"
 
   verify_app_store_profile "$app"
   verify_archive_entitlements "$app"
@@ -313,6 +329,11 @@ while [[ $# -gt 0 ]]; do
       ARCHIVE="$2"
       shift 2
       ;;
+    --ipa)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      IPA="$2"
+      shift 2
+      ;;
     *)
       usage
       exit 2
@@ -320,8 +341,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -z "$ARCHIVE" || "$STATIC_ONLY" -eq 0 ]] \
-  || fail "--static-only cannot be combined with --archive"
+[[ "$STATIC_ONLY" -eq 0 || ( -z "$ARCHIVE" && -z "$IPA" ) ]] \
+  || fail "--static-only cannot be combined with --archive or --ipa"
+[[ -z "$ARCHIVE" || -z "$IPA" ]] \
+  || fail "--archive and --ipa cannot be combined"
 
 plutil -lint KnittingCalculator/Info.plist KnittingCalculator/PrivacyInfo.xcprivacy >/dev/null
 verify_independent_project_scope
@@ -350,6 +373,19 @@ if [[ -n "$ARCHIVE" ]]; then
   echo "KNITTING CALCULATOR RELEASE AUDIT: ARCHIVE STRUCTURE PASS"
   verify_archive_release_signing "$ARCHIVE"
   echo "KNITTING CALCULATOR RELEASE AUDIT: ARCHIVE RELEASE SIGNING PASS"
+fi
+
+if [[ -n "$IPA" ]]; then
+  require_file "$IPA"
+  IPA_DIR="$(mktemp -d "${TMPDIR:-/tmp}/knitting-calculator-ipa.XXXXXX")"
+  TEMP_DIRS+=("$IPA_DIR")
+  unzip -q "$IPA" -d "$IPA_DIR" \
+    || fail "cannot extract IPA"
+  IPA_APP="$IPA_DIR/Payload/KnittingCalculator.app"
+  verify_app_bundle "$IPA_APP"
+  echo "KNITTING CALCULATOR RELEASE AUDIT: IPA STRUCTURE PASS"
+  verify_release_signing "$IPA_APP"
+  echo "KNITTING CALCULATOR RELEASE AUDIT: IPA RELEASE SIGNING PASS"
 fi
 
 if [[ "$APP_STORE_URL_MISSING" -eq 1 ]]; then

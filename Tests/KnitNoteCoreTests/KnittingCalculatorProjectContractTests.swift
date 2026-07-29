@@ -105,6 +105,8 @@ import Testing
         #expect(script.contains("\"get-task-allow\""))
         #expect(script.contains("ARCHIVE STRUCTURE PASS"))
         #expect(script.contains("ARCHIVE RELEASE SIGNING PASS"))
+        #expect(script.contains("--ipa"))
+        #expect(script.contains("IPA RELEASE SIGNING PASS"))
     }
 
     @Test func releaseAuditTargetsOnlyTheIndependentCalculatorProject() throws {

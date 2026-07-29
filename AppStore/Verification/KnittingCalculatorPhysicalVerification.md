@@ -86,7 +86,7 @@ Archive artifact SHA-256:
 - `Info.plist`:
   `e2550a6d7857eef4d977aacd8402633024cbe2d66fe5944fab313ccd4bef3756`
 
-### Audit results and remaining blockers
+### Audit results and App Store signing
 
 Static-only command:
 
@@ -98,7 +98,7 @@ Result:
 
 ```text
 KNITTING CALCULATOR RELEASE AUDIT: STATIC PRODUCT SCOPE PASS
-KNITTING CALCULATOR RELEASE AUDIT: FAIL — free-app App Store URL is still the development landing page; App Store Connect must assign a real numeric App Store ID before this audit can pass
+KNITTING CALCULATOR RELEASE AUDIT: PASS
 ```
 
 Archive command:
@@ -116,27 +116,57 @@ KNITTING CALCULATOR RELEASE AUDIT: ARCHIVE STRUCTURE PASS
 KNITTING CALCULATOR RELEASE AUDIT: FAIL — embedded profile is missing beta-reports-active
 ```
 
-The existing numeric URL `https://apps.apple.com/app/id6793023054` is the
-KnitNote promotion destination and is intentionally not accepted as the free
-calculator App Store URL. Remaining release blockers are:
+App Store Connect record created on 2026-07-29:
 
-1. App Store Connect must assign the free calculator its own numeric App Store
-   ID, then `CalculatorShareText.swift` must replace the development landing
-   page.
-2. A usable App Store distribution provisioning profile/signing path must
-   produce an archive whose decoded embedded profile has the single exact team
-   `9CFPAUL5N5`, exact application identifier
-   `9CFPAUL5N5.com.phillon.KnittingCalculator`,
-   `get-task-allow=false`, `beta-reports-active=true`, no
-   `ProvisionedDevices`, and no `ProvisionsAllDevices`.
-3. The leaf signing identity must begin with `Apple Distribution:` and strict
-   `codesign` verification must pass. This separately rejects Apple
-   Development; the profile rules above reject Ad Hoc and Enterprise
-   provisioning even when those builds also use an Apple Distribution
-   certificate.
+- App name: `編織計算器`
+- Apple ID: `6795877892`
+- Bundle ID: `com.phillon.KnittingCalculator`
+- SKU: `com.phillon.KnittingCalculator`
+- Primary language: Traditional Chinese
+- Platform/version state: iOS 1.0, Prepare for Submission
 
-These blockers do not invalidate the independent project topology or archive
-structure, but the overall release audit remains `FAIL`.
+`CalculatorShareText.swift` now uses the calculator's own public destination,
+`https://apps.apple.com/app/id6795877892`. The existing
+`https://apps.apple.com/app/id6793023054` remains the KnitNote promotion
+destination.
+
+App Store signing completed locally on 2026-07-29:
+
+- development archive:
+  `/tmp/KnittingCalculatorAppStore-20260729.xcarchive`
+- exported App Store IPA:
+  `/tmp/KnittingCalculatorAppStoreExport-20260729/KnittingCalculator.ipa`
+- IPA SHA-256:
+  `720dcb242f6bd56d0e216a860a5e23e5b80113fecfe2cc45be0b9585e74286a0`
+- provisioning profile:
+  `iOS Team Store Provisioning Profile: com.phillon.KnittingCalculator`
+- profile UUID: `9c823f5b-ce62-47cd-9b51-5fa7a7152e5c`
+- profile expiration: 2027-07-17
+- application identifier:
+  `9CFPAUL5N5.com.phillon.KnittingCalculator`
+- entitlements: `get-task-allow=false`, `beta-reports-active=true`
+- profile contains neither `ProvisionedDevices` nor `ProvisionsAllDevices`
+- leaf signer:
+  `Apple Distribution: Chen Chung Lung (9CFPAUL5N5)`
+- strict `codesign` verification: pass
+
+Final IPA command:
+
+```bash
+AppStore/Verification/knitting_calculator_release_audit.sh \
+  --ipa /tmp/KnittingCalculatorAppStoreExport-20260729/KnittingCalculator.ipa
+```
+
+Result:
+
+```text
+KNITTING CALCULATOR RELEASE AUDIT: STATIC PRODUCT SCOPE PASS
+KNITTING CALCULATOR RELEASE AUDIT: IPA STRUCTURE PASS
+KNITTING CALCULATOR RELEASE AUDIT: IPA RELEASE SIGNING PASS
+KNITTING CALCULATOR RELEASE AUDIT: PASS
+```
+
+The IPA was not uploaded, submitted for review, or released.
 
 ## Independent-project physical machine evidence — 2026-07-29
 

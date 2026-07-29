@@ -3,6 +3,13 @@ import XCTest
 import KnittingCalculatorCore
 
 final class CalculatorShareTextTests: XCTestCase {
+    func testFreeAppLinkUsesAssignedAppStoreID() {
+        XCTAssertEqual(
+            CalculatorProductLinks.freeApp.absoluteString,
+            "https://apps.apple.com/app/id6795877892"
+        )
+    }
+
     func testGaugeShareContainsInputsResultAttributionAndFreeAppURL() throws {
         let result = try XCTUnwrap(
             GaugeCalculator.calculate(

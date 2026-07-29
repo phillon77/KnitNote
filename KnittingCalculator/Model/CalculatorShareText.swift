@@ -3,7 +3,7 @@ import KnittingCalculatorCore
 
 enum CalculatorProductLinks {
     static let freeApp = URL(
-        string: "https://phillon77.github.io/KnitNote/knitting-calculator.html"
+        string: "https://apps.apple.com/app/id6795877892"
     )!
 }
 

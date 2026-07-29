@@ -119,3 +119,60 @@ the follow-up correction preserves prior verified lifetime and legacy-paid
 ownership during StoreKit outages while retaining local-trial preparation for
 initially unverified users. Automated checks are green, but no physical
 acceptance is claimed.
+
+## Final review correction
+
+Final functional candidate commit:
+`b1eda5981ce448996ba50af39f322c97c7e44d05`
+(`fix: defer project unlock and retain outage status`).
+
+This correction closes the final review findings:
+
+- Root unlock presentation now uses an explicit orchestration state. A
+  `.createProject` request remains false at the root while the create sheet is
+  presented, then transitions false-to-true only after the child sheet's
+  `onDismiss`. Other mutation requests remain immediate.
+- StoreKit verification availability is published separately as
+  `unknown`, `available`, or `unavailable`. It is neither an entitlement
+  snapshot nor an input to the Watch entitlement projection.
+- Initial StoreKit unavailability still resolves the Keychain trial; later
+  outages preserve verified lifetime and legacy-paid snapshots.
+- Restore maps `.unavailable` to the existing retry/error notice rather than
+  the no-purchase notice.
+- The first successful `JSONProjectStore.add` after initial `.unavailable`
+  starts a real `KeychainTrialStore` record that can be loaded through a fresh
+  store instance.
+
+### Final-review TDD evidence
+
+| Phase | Command | Exit/result |
+| --- | --- | --- |
+| RED | `swift test --scratch-path /tmp/KnitNoteBuild4FinalFixCoreRed --filter UnlockPresentationTests` | Exit `1`; expected compile failures for the missing `UnlockPresentationOrchestrator`, `UnlockRestorePresentation`, and restore mapper. |
+| RED | `xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteBuild4FinalFixAppRed CODE_SIGNING_ALLOWED=NO -only-testing:KnitNoteAppTests/EntitlementCoordinatorTests` | Exit `65`; expected compile failures because `purchaseVerificationAvailability` did not exist. |
+| GREEN | `swift test --scratch-path /tmp/KnitNoteBuild4FinalFixCoreGreen --filter UnlockPresentationTests` | Exit `0`; `8` tests in `1` suite passed. |
+| GREEN | `xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteBuild4FinalFixAppGreen2 CODE_SIGNING_ALLOWED=NO -only-testing:KnitNoteAppTests/EntitlementCoordinatorTests -only-testing:KnitNoteAppTests/CreateProjectPresentationTests` | Exit `0`; xcresult reports `34` logical tests, `35` parameterized cases, `0` failures. |
+
+### Final full verification
+
+All commands below ran against functional candidate
+`b1eda5981ce448996ba50af39f322c97c7e44d05`.
+
+| Command | Exit/result |
+| --- | --- |
+| `swift test --scratch-path /tmp/KnitNoteBuild4FinalFixSwiftTests` | Exit `0`; `966` tests in `78` suites passed. |
+| `xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteBuild4FinalFixAppTests CODE_SIGNING_ALLOWED=NO` | Exit `0`; xcresult reports `44` logical tests, `47` parameterized cases, `0` failed, `0` skipped, and `0` expected failures. |
+| `bash AppStore/Verification/release_audit.sh --static-only` | Exit `0`; `METADATA CHECK: PASS`; `RELEASE AUDIT: PASS`. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNote -configuration Release -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNoteBuild4FinalFix-iOS-OutsideSandbox CODE_SIGNING_ALLOWED=NO` | Exit `0`. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNote -configuration Release -destination 'generic/platform=macOS' -derivedDataPath /tmp/KnitNoteBuild4FinalFix-macOS CODE_SIGNING_ALLOWED=NO` | Exit `0`. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNoteWatch -configuration Release -destination 'generic/platform=watchOS' -derivedDataPath /tmp/KnitNoteBuild4FinalFix-watchOS CODE_SIGNING_ALLOWED=NO` | Exit `0`. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNoteShare -configuration Release -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNoteBuild4FinalFix-share CODE_SIGNING_ALLOWED=NO` | Exit `0`. |
+
+The first sandboxed iOS build attempt at
+`/tmp/KnitNoteBuild4FinalFix-iOS` exited `65` because CoreSimulator and
+watchsimulator asset-catalog services were unavailable. The identical unsigned
+Release build was rerun with normal Xcode service access at
+`/tmp/KnitNoteBuild4FinalFix-iOS-OutsideSandbox` and exited `0`.
+
+Version remains `1.2.1`, Build `4`. No pricing, App Store metadata, archive,
+upload, tester-group, submission, or release action was performed. Physical
+TestFlight/iPad acceptance remains required.

@@ -170,7 +170,9 @@ App Store Connect upload completed on 2026-07-29 at 20:06 Asia/Taipei:
 
 - version/build: `1.0.0 (1)`
 - Xcode result: `Upload succeeded`
-- App Store Connect upload status: Processing
+- App Store Connect upload status: Complete
+- export compliance: no proprietary or non-Apple standard encryption
+- TestFlight build status: Ready to Submit, expires in 90 days
 - no TestFlight group or tester was added
 - the build was not submitted for review or released
 

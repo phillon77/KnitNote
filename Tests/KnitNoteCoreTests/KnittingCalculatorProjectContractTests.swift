@@ -9,7 +9,7 @@ import Testing
         ).joined()
         let yaml = try source("project.yml")
         let knitNoteTarget = try #require(
-            yaml.split(separator: "  KnittingCalculator:").first?
+            yaml.split(separator: "  KnitNoteWatch:").first?
                 .split(separator: "  KnitNote:").last
         )
 
@@ -45,7 +45,7 @@ import Testing
         }
     }
 
-    @Test func combinedFreeAppCalculatorConsumersImportSharedModule() throws {
+    @Test func standaloneFreeAppCalculatorConsumersImportSharedModule() throws {
         for path in [
             "KnittingCalculator/Adjustment/OneRowAdjustmentView.swift",
             "KnittingCalculator/Adjustment/RowIntervalAdjustmentView.swift",
@@ -61,19 +61,35 @@ import Testing
         }
     }
 
-    @Test func projectDefinesIsolatedFreeAppAndTestTargets() throws {
-        let yaml = try source("project.yml")
-        #expect(yaml.contains("  KnittingCalculator:\n    type: application\n    platform: iOS"))
-        #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculator"))
-        #expect(yaml.contains("MARKETING_VERSION: 1.0.0"))
-        #expect(yaml.contains("CURRENT_PROJECT_VERSION: 1"))
-        #expect(yaml.contains("  KnittingCalculatorTests:\n    type: bundle.unit-test"))
-        #expect(yaml.contains("- target: KnittingCalculator"))
-        #expect(yaml.contains("  KnittingCalculator:\n    build:"))
+    @Test func knitNoteProjectDoesNotOwnStandaloneCalculatorProducts() throws {
+        let knitNoteSpec = try source("project.yml")
+        let knitNoteProject = try source("KnitNote.xcodeproj/project.pbxproj")
+        let independentSpec = try source("KnittingCalculator/project.yml")
+
+        #expect(
+            targetNames(in: knitNoteSpec) == [
+                "KnitNote",
+                "KnitNoteWatch",
+                "KnitNoteShare",
+            ]
+        )
+        #expect(!knitNoteProject.contains("productName = KnittingCalculator;"))
+        #expect(!knitNoteProject.contains("productName = KnittingCalculatorTests;"))
+        #expect(
+            !fileExists(
+                "KnitNote.xcodeproj/xcshareddata/xcschemes/KnittingCalculator.xcscheme"
+            )
+        )
+        #expect(
+            targetNames(in: independentSpec) == [
+                "KnittingCalculator",
+                "KnittingCalculatorTests",
+            ]
+        )
     }
 
-    @Test func combinedFreeAppConsumesSharedCalculatorPackage() throws {
-        let yaml = try source("project.yml")
+    @Test func standaloneFreeAppConsumesSharedCalculatorPackage() throws {
+        let yaml = try source("KnittingCalculator/project.yml")
         let target = try #require(
             yaml.split(separator: "  KnittingCalculatorTests:").first?
                 .split(separator: "  KnittingCalculator:").last
@@ -164,7 +180,7 @@ import Testing
     }
 
     @Test func freeAppDeclaresItsOwnLaunchScreen() throws {
-        let yaml = try source("project.yml")
+        let yaml = try source("KnittingCalculator/project.yml")
         let calculatorTarget = try #require(
             yaml.split(separator: "  KnittingCalculatorTests:").first?
                 .split(separator: "  KnittingCalculator:").last
@@ -172,7 +188,6 @@ import Testing
         let storyboard = try source("KnittingCalculator/LaunchScreen.storyboard")
 
         #expect(calculatorTarget.contains("UILaunchStoryboardName: LaunchScreen"))
-        #expect(calculatorTarget.contains("- LaunchScreen.storyboard"))
         #expect(
             calculatorTarget.contains(
                 "- path: KnittingCalculator/LaunchScreen.storyboard"
@@ -292,12 +307,21 @@ import Testing
 
     private func source(_ path: String) throws -> String {
         try String(
-            contentsOf: URL(filePath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appending(path: path),
+            contentsOf: repositoryRoot.appending(path: path),
             encoding: .utf8
         )
+    }
+
+    private func fileExists(_ path: String) -> Bool {
+        FileManager.default.fileExists(
+            atPath: repositoryRoot.appending(path: path).path
+        )
+    }
+
+    private var repositoryRoot: URL {
+        URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 }

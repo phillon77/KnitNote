@@ -7,6 +7,7 @@ import Testing
 
         #expect(project.contains("""
             dependencies:
+              - package: KnittingCalculatorCore
               - target: KnitNoteWatch
                 embed: true
                 platformFilter: iOS

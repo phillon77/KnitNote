@@ -166,7 +166,13 @@ KNITTING CALCULATOR RELEASE AUDIT: IPA RELEASE SIGNING PASS
 KNITTING CALCULATOR RELEASE AUDIT: PASS
 ```
 
-The IPA was not uploaded, submitted for review, or released.
+App Store Connect upload completed on 2026-07-29 at 20:06 Asia/Taipei:
+
+- version/build: `1.0.0 (1)`
+- Xcode result: `Upload succeeded`
+- App Store Connect upload status: Processing
+- no TestFlight group or tester was added
+- the build was not submitted for review or released
 
 ## Independent-project physical machine evidence — 2026-07-29
 

@@ -19,6 +19,24 @@ BLUSH = (252, 232, 246)
 SOFT_WHITE = (255, 253, 255)
 
 
+def validate_path_component(value: object, field: str) -> None:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value in {".", ".."}
+        or value.startswith("/")
+        or "/" in value
+        or "\\" in value
+        or any(character in value for character in "\t\r\n")
+    ):
+        raise ValueError(f"{field} must be a single safe path component")
+
+
+def validate_path_fields(frame: dict) -> None:
+    for field in ("locale", "platform", "filename"):
+        validate_path_component(frame.get(field), field)
+
+
 def font_for(locale: str, size: int) -> ImageFont.ImageFont:
     candidates = (
         (
@@ -231,6 +249,7 @@ def compose_manifest(manifest_path: Path) -> int:
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     frames = payload["frames"]
     for frame in frames:
+        validate_path_fields(frame)
         compose_frame(frame, manifest_path.parent)
     locales = list(dict.fromkeys(frame["locale"] for frame in frames))
     for locale in locales:

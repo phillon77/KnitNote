@@ -19,6 +19,7 @@ REQUIRED_FIELDS = {
     "locale", "platform", "scene", "device", "width", "height", "headline",
     "subheadline", "filename",
 }
+PATH_FIELDS = ("locale", "platform", "filename")
 
 
 def fail(message: str) -> None:
@@ -31,6 +32,24 @@ def contains_denylisted_marker(value: str) -> bool:
 
 def contains_denylisted_bytes(value: bytes) -> bool:
     return any(marker.encode("utf-8") in value for marker in DENYLIST)
+
+
+def validate_path_component(value: object, field: str) -> None:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value in {".", ".."}
+        or value.startswith("/")
+        or "/" in value
+        or "\\" in value
+        or any(character in value for character in "\t\r\n")
+    ):
+        fail(f"{field} must be a single safe path component")
+
+
+def validate_path_fields(frame: dict) -> None:
+    for field in PATH_FIELDS:
+        validate_path_component(frame.get(field), field)
 
 
 def load_manifest(path: Path) -> list[dict]:
@@ -57,6 +76,7 @@ def validate_manifest(frames: list[dict]) -> None:
         missing = REQUIRED_FIELDS - frame.keys()
         if missing:
             fail(f"frame {index} missing: {', '.join(sorted(missing))}")
+        validate_path_fields(frame)
         if frame["locale"] not in LOCALES:
             fail(f"frame {index} has unsupported locale")
         platform = frame["platform"]

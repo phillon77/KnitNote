@@ -168,11 +168,6 @@ require_variable CALC_IPAD_UDID
 [[ -f "$MANIFEST" ]] || { echo "missing screenshot manifest: $MANIFEST" >&2; exit 2; }
 [[ -d "$APP" ]] || { echo "missing built app: $APP" >&2; exit 2; }
 
-verify_dedicated_device "$CALC_IPHONE_UDID" iphone
-verify_dedicated_device "$CALC_IPAD_UDID" ipad
-prepare_device "$CALC_IPHONE_UDID" iphone
-prepare_device "$CALC_IPAD_UDID" ipad
-
 ROWS_FILE="$(mktemp "${TMPDIR:-/tmp}/knitting-calculator-frames.XXXXXX")"
 trap 'rm -f "$ROWS_FILE"' EXIT
 "$PYTHON" - "$MANIFEST" "$LOCALE" >"$ROWS_FILE" <<'PY'
@@ -180,10 +175,53 @@ import json
 import sys
 
 manifest_path, locale = sys.argv[1:]
-with open(manifest_path, encoding="utf-8") as manifest_file:
-    frames = json.load(manifest_file)["frames"]
-for frame in frames:
-    if frame["locale"] == locale:
+
+
+def safe_component(value, field):
+    if (
+        not isinstance(value, str)
+        or not value
+        or value in {".", ".."}
+        or value.startswith("/")
+        or "/" in value
+        or "\\" in value
+        or any(character in value for character in "\t\r\n")
+    ):
+        raise ValueError(f"{field} must be a single safe path component")
+
+
+try:
+    with open(manifest_path, encoding="utf-8") as manifest_file:
+        payload = json.load(manifest_file)
+    if not isinstance(payload, dict) or not isinstance(payload.get("frames"), list):
+        raise ValueError("payload must contain a frames array")
+    selected = []
+    for index, frame in enumerate(payload["frames"], 1):
+        if not isinstance(frame, dict):
+            raise ValueError(f"frame {index} must be an object")
+        for field in ("locale", "platform", "filename"):
+            safe_component(frame.get(field), field)
+        if frame["locale"] != locale:
+            continue
+        if frame["platform"] not in {"iphone", "ipad"}:
+            raise ValueError(f"frame {index} has unsupported platform")
+        for field in ("scene", "filename"):
+            if not isinstance(frame.get(field), str) or not frame[field]:
+                raise ValueError(f"frame {index} has invalid {field}")
+        width, height = frame.get("width"), frame.get("height")
+        if (
+            not isinstance(width, int)
+            or isinstance(width, bool)
+            or not isinstance(height, int)
+            or isinstance(height, bool)
+            or width <= 0
+            or height <= 0
+        ):
+            raise ValueError(f"frame {index} has invalid dimensions")
+        selected.append(frame)
+    if not selected:
+        raise ValueError(f"manifest contains no frames for locale {locale}")
+    for frame in selected:
         print(
             frame["platform"],
             frame["scene"],
@@ -192,7 +230,14 @@ for frame in frames:
             frame["height"],
             sep="\t",
         )
+except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+    raise SystemExit(f"invalid screenshot manifest: {error}")
 PY
+
+verify_dedicated_device "$CALC_IPHONE_UDID" iphone
+verify_dedicated_device "$CALC_IPAD_UDID" ipad
+prepare_device "$CALC_IPHONE_UDID" iphone
+prepare_device "$CALC_IPAD_UDID" ipad
 
 while IFS=$'\t' read -r platform scene filename width height; do
   echo "Capturing $LOCALE $platform $scene"

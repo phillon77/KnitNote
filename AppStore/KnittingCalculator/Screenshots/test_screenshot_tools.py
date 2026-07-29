@@ -92,6 +92,24 @@ class ScreenshotToolsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "frame 1 must be an object"):
             validate.validate_manifest(frames)
 
+    def test_manifest_rejects_unsafe_path_components(self):
+        unsafe_values = (
+            ("filename", "../escape.png"),
+            ("filename", "/tmp/escape.png"),
+            ("filename", "folder/escape.png"),
+            ("filename", "folder\\escape.png"),
+            ("filename", "."),
+            ("filename", ".."),
+            ("locale", "en\toutside"),
+            ("platform", "iphone\noutside"),
+        )
+        for field, unsafe_value in unsafe_values:
+            with self.subTest(field=field, unsafe_value=unsafe_value):
+                frames = self.make_valid_frames()
+                frames[0][field] = unsafe_value
+                with self.assertRaisesRegex(ValueError, "safe path component"):
+                    validate.validate_manifest(frames)
+
     def test_generated_image_must_be_opaque_rgb(self):
         root, frames = self.write_complete_fixture(mode="RGBA")
         with self.assertRaisesRegex(ValueError, "opaque RGB"):
@@ -137,6 +155,46 @@ class ScreenshotToolsTests(unittest.TestCase):
             self.assertEqual(output.mode, "RGB")
             self.assertNotEqual(output.getpixel((0, 0)), raw.getpixel((0, 0)))
         self.assertTrue((root / "Generated" / "en" / "contact-sheet.png").is_file())
+
+    def test_compositor_rejects_traversal_and_absolute_filenames(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        for unsafe_filename in ("../escaped.png", str(root / "absolute.png")):
+            with self.subTest(unsafe_filename=unsafe_filename):
+                frame = {
+                    "locale": "en",
+                    "platform": "iphone",
+                    "scene": "home",
+                    "device": "iPhone",
+                    "width": 1284,
+                    "height": 2778,
+                    "headline": "Knitting math",
+                    "subheadline": "Offline",
+                    "filename": unsafe_filename,
+                }
+                manifest_path = root / "manifest.json"
+                manifest_path.write_text(
+                    json.dumps({"schemaVersion": 1, "frames": [frame]}),
+                    encoding="utf-8",
+                )
+                escaped_raw = (
+                    root / "Raw" / "en" / "escaped.png"
+                    if unsafe_filename.startswith("..")
+                    else Path(unsafe_filename)
+                )
+                escaped_raw.parent.mkdir(parents=True, exist_ok=True)
+                Image.new("RGB", (1284, 2778), "white").save(escaped_raw)
+
+                compositor_spec = importlib.util.spec_from_file_location(
+                    "calculator_screenshot_compose_unsafe",
+                    COMPOSITOR_PATH,
+                )
+                compositor = importlib.util.module_from_spec(compositor_spec)
+                assert compositor_spec.loader is not None
+                compositor_spec.loader.exec_module(compositor)
+                with self.assertRaisesRegex(ValueError, "safe path component"):
+                    compositor.compose_manifest(manifest_path)
 
     def write_capture_fixture(self, *, dedicated=True, screenshot_size=(1284, 2778)):
         temporary_directory = tempfile.TemporaryDirectory()
@@ -270,6 +328,51 @@ class ScreenshotToolsTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("wrong raw dimensions", result.stderr)
+
+    def test_capture_rejects_unsafe_filename_before_erasing_devices(self):
+        root, environment, record_path = self.write_capture_fixture()
+        manifest_path = root / "manifest.json"
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload["frames"][0]["filename"] = "../escaped.png"
+        manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+        result = subprocess.run(
+            [str(CAPTURE_PATH), "en"],
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        invocations = (
+            record_path.read_text(encoding="utf-8")
+            if record_path.exists()
+            else ""
+        )
+        self.assertNotIn("simctl\terase\t", invocations)
+
+    def test_capture_parses_manifest_before_erasing_and_requires_locale_rows(self):
+        for manifest_contents, locale in (("{", "en"), (None, "zh-Hant")):
+            with self.subTest(manifest_contents=manifest_contents, locale=locale):
+                root, environment, record_path = self.write_capture_fixture()
+                if manifest_contents is not None:
+                    (root / "manifest.json").write_text(
+                        manifest_contents,
+                        encoding="utf-8",
+                    )
+                result = subprocess.run(
+                    [str(CAPTURE_PATH), locale],
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                invocations = (
+                    record_path.read_text(encoding="utf-8")
+                    if record_path.exists()
+                    else ""
+                )
+                self.assertNotIn("simctl\terase\t", invocations)
 
 
 if __name__ == "__main__":

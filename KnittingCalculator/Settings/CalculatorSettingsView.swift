@@ -1,3 +1,4 @@
+import KnittingCalculatorCore
 import SwiftUI
 
 struct CalculatorSettingsView: View {

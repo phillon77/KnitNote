@@ -1,3 +1,4 @@
+import KnittingCalculatorCore
 import SwiftUI
 
 enum AdjustmentStepToken: Equatable {

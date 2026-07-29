@@ -2,6 +2,65 @@ import Foundation
 import Testing
 
 @Suite struct KnittingCalculatorProjectContractTests {
+    @Test func knitNoteDeclaresSharedCalculatorPackageDependency() throws {
+        let package = try source("Package.swift")
+        let compactPackage = package.components(
+            separatedBy: .whitespacesAndNewlines
+        ).joined()
+        let yaml = try source("project.yml")
+        let knitNoteTarget = try #require(
+            yaml.split(separator: "  KnittingCalculator:").first?
+                .split(separator: "  KnitNote:").last
+        )
+
+        #expect(compactPackage.contains(".package(path:\"Packages/KnittingCalculatorCore\")"))
+        #expect(
+            compactPackage.contains(
+                ".product(name:\"KnittingCalculatorCore\",package:\"KnittingCalculatorCore\")"
+            )
+        )
+        #expect(yaml.contains("  KnittingCalculatorCore:\n    path: Packages/KnittingCalculatorCore"))
+        #expect(knitNoteTarget.contains("- package: KnittingCalculatorCore"))
+
+        for obsoletePath in [
+            "Sources/KnitNoteCore/Calculators/GaugeCalculator.swift",
+            "Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentCalculator.swift",
+            "Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentInputParser.swift",
+            "Sources/KnitNoteCore/Calculators/RowIntervalAdjustmentCalculator.swift",
+        ] {
+            #expect(!yaml.contains("- path: \(obsoletePath)"))
+        }
+    }
+
+    @Test func knitNoteCalculatorConsumersImportSharedModule() throws {
+        for path in [
+            "KnitNote/Calculators/GaugeCalculatorView.swift",
+            "KnitNote/Calculators/EvenStitchAdjustmentCalculatorView.swift",
+            "KnitNote/Calculators/RowIntervalAdjustmentView.swift",
+        ] {
+            #expect(
+                try source(path).contains("import KnittingCalculatorCore"),
+                "\(path) must explicitly import KnittingCalculatorCore"
+            )
+        }
+    }
+
+    @Test func combinedFreeAppCalculatorConsumersImportSharedModule() throws {
+        for path in [
+            "KnittingCalculator/Adjustment/OneRowAdjustmentView.swift",
+            "KnittingCalculator/Adjustment/RowIntervalAdjustmentView.swift",
+            "KnittingCalculator/Gauge/GaugeCalculatorScreen.swift",
+            "KnittingCalculator/Model/CalculatorPreferencesStore.swift",
+            "KnittingCalculator/Model/CalculatorShareText.swift",
+            "KnittingCalculator/Settings/CalculatorSettingsView.swift",
+        ] {
+            #expect(
+                try source(path).contains("import KnittingCalculatorCore"),
+                "\(path) must explicitly import KnittingCalculatorCore"
+            )
+        }
+    }
+
     @Test func projectDefinesIsolatedFreeAppAndTestTargets() throws {
         let yaml = try source("project.yml")
         #expect(yaml.contains("  KnittingCalculator:\n    type: application\n    platform: iOS"))
@@ -13,20 +72,22 @@ import Testing
         #expect(yaml.contains("  KnittingCalculator:\n    build:"))
     }
 
-    @Test func freeAppCompilesOnlyCalculatorCoreFiles() throws {
+    @Test func combinedFreeAppConsumesSharedCalculatorPackage() throws {
         let yaml = try source("project.yml")
+        let target = try #require(
+            yaml.split(separator: "  KnittingCalculatorTests:").first?
+                .split(separator: "  KnittingCalculator:").last
+        )
+
+        #expect(target.contains("- package: KnittingCalculatorCore"))
         for path in [
             "Sources/KnitNoteCore/Calculators/GaugeCalculator.swift",
             "Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentCalculator.swift",
             "Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentInputParser.swift",
             "Sources/KnitNoteCore/Calculators/RowIntervalAdjustmentCalculator.swift",
         ] {
-            #expect(yaml.contains("- path: \(path)"))
+            #expect(!target.contains("- path: \(path)"))
         }
-        let target = try #require(
-            yaml.split(separator: "  KnittingCalculatorTests:").first?
-                .split(separator: "  KnittingCalculator:").last
-        )
         #expect(!target.contains("Sources/KnitNoteCore/Projects"))
         #expect(!target.contains("Sources/KnitNoteCore/Yarn"))
         #expect(!target.contains("KnitNoteWatch"))

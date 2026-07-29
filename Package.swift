@@ -6,8 +6,20 @@ let package = Package(
     defaultLocalization: "en",
     platforms: [.iOS(.v18), .macOS(.v15), .watchOS(.v11)],
     products: [.library(name: "KnitNoteCore", targets: ["KnitNoteCore"])],
+    dependencies: [
+        .package(path: "Packages/KnittingCalculatorCore"),
+    ],
     targets: [
-        .target(name: "KnitNoteCore", resources: [.process("Resources")]),
+        .target(
+            name: "KnitNoteCore",
+            dependencies: [
+                .product(
+                    name: "KnittingCalculatorCore",
+                    package: "KnittingCalculatorCore"
+                ),
+            ],
+            resources: [.process("Resources")]
+        ),
         .testTarget(name: "KnitNoteCoreTests", dependencies: ["KnitNoteCore"])
     ]
 )

@@ -1,4 +1,5 @@
 import Foundation
+import KnittingCalculatorCore
 import SwiftUI
 
 struct GaugeCalculatorView: View {

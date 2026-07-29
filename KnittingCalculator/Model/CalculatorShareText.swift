@@ -1,4 +1,5 @@
 import Foundation
+import KnittingCalculatorCore
 
 enum CalculatorProductLinks {
     static let freeApp = URL(

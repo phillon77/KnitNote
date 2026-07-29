@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import KnittingCalculatorCore
 
 struct GaugeDraft: Codable, Equatable {
     var unit: GaugeLengthUnit

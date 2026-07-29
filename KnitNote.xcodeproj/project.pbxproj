@@ -10,7 +10,6 @@
 		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
 		01969CEC3E446A5A02192151 /* YarnEditorFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */; };
-		02288F6B6BDCDFC985672ED6 /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		02A8AC06B5EB1AE99351FED1 /* CreateYarnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */; };
 		0328CEE941C5F6C87629FEEC /* WatchOptimisticState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */; };
 		0397F283110D3D83BA57F59F /* ProjectCoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB51A2457EA062265F81BF42 /* ProjectCoverView.swift */; };
@@ -49,7 +48,6 @@
 		2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */; };
 		2C65A881C19AB58778C5A130 /* KnitNoteBackupExportPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */; };
-		2CC1A69EE25E2BC8EF9FDB37 /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		2D8DE183974FE72F453971C4 /* ShareImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6494124F909E997E16F5BB08 /* ShareImportView.swift */; };
 		2DD65ED0D2A50114ED195600 /* PhoneWatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEC6756D753A4BB41008CF0 /* PhoneWatchSession.swift */; };
 		2DDBE8B1B70E14C61110D1F1 /* ProjectCounterName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */; };
@@ -102,9 +100,7 @@
 		5F9F4B1350C5BC0C49B1D558 /* PatternProjectUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */; };
 		60032BFAD716CA8A37E245E7 /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
 		6007144FFB9445FE542F6513 /* YarnLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */; };
-		62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		625C39A0B9A33D2FADACCA3E /* WatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */; };
-		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600A5A211EF6682DED675574 /* EditCounterNameView.swift */; };
 		663B2995D4916807B85049DA /* KnitNotePromotionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC04D6138832D57FAD4A553 /* KnitNotePromotionCard.swift */; };
 		66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
@@ -124,7 +120,6 @@
 		7268B20D129F4E40432255B5 /* ProjectJournalEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD7EFB82C9BFC4FF9F2EE78 /* ProjectJournalEntryDetailView.swift */; };
 		73D0FED0ECE4F78D3FAB982E /* TargetSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2A66E10DAC127B12C09B1E /* TargetSmokeTests.swift */; };
 		74876C768CC7C9A9FB5066A9 /* YarnCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF42C26BEFE47601ED68433 /* YarnCard.swift */; };
-		7656DEB167A5633003EF3883 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		774C92AA4520877CB17C1614 /* EditProjectJournalEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */; };
 		7A6FEBFB6755ECB0902D768E /* PatternInboxFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FF7B32F41BD1F635DAA9CD1 /* PatternInboxFileService.swift */; };
 		7AFDC74016606E87006C92F1 /* ProjectPatternImportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05CEE6F88AA591A17AA4C99 /* ProjectPatternImportPresentation.swift */; };
@@ -154,11 +149,9 @@
 		936DA4AC5AFBC827946FCA49 /* KnitNoteWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 1112E674E478840A2286F6BA /* KnitNoteWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		93CE103D41744B1AAFB5D6ED /* GaugeCalculatorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67698E6468A86FD58C45B5E5 /* GaugeCalculatorScreen.swift */; };
 		941A6C75385E9861EA992A1B /* StoredYarn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */; };
-		971900674C9C5D5FD20475B3 /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		9769C28AD1B6B4442F93C096 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0909BEC96D61347D4BF52C0A /* PrivacyInfo.xcprivacy */; };
 		997DEDA5DBCE086E364F52E3 /* BackupSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */; };
 		9982E88710DD8686CF417820 /* GaugeDraftBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8607F6093D2D226E75391644 /* GaugeDraftBehaviorTests.swift */; };
-		99E049E46AD249953A40912C /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		A2A709914A7CDEA3EDF4673A /* CalculatorResultActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952FABC7379BAECFBE96DA8A /* CalculatorResultActions.swift */; };
 		A3680F3A368B7257841A04CD /* CalculatorLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A0177427612A4AD6C6A53D /* CalculatorLocalization.swift */; };
@@ -168,6 +161,7 @@
 		A8121B8CC33DEC5E639C59CA /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2721C6AB54E5F271947F0E /* ProjectListView.swift */; };
 		A8EFB5CB1EF4319452A430B3 /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
 		A8F65FDC2EB37F7CC35B551D /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
+		AAA3F7CE0F98960225105829 /* KnittingCalculatorCore in Frameworks */ = {isa = PBXBuildFile; productRef = EE07E7AA3FB6C5D37035DBE3 /* KnittingCalculatorCore */; };
 		AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4DC78289ACE6594449E656 /* ChoosePatternReadingContextView.swift */; };
 		ABA3AABF79B56CA98AB86ACD /* WatchStoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */; };
 		ACA0E95A588CC169AC43DFC2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089688B5AE3E4E006FA88B07 /* ShareViewController.swift */; };
@@ -179,7 +173,6 @@
 		B5E86840D34A58A4FD8E57C0 /* PatternLibraryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DEB55BFC29EE9E020BD06A /* PatternLibraryIndex.swift */; };
 		B6416630292A021B3D6F3B87 /* YarnPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */; };
 		B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */; };
-		B9B98629A558F0E749165916 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		BAFAF8C2E97A15BD42353132 /* PatternInboxProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */; };
 		BC97D8DC5694446C440D9269 /* CalculatorPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3977482FCF6CA5D026035225 /* CalculatorPreferencesStore.swift */; };
 		BCA2F5D135FB115F9E282FF7 /* RowNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE75A4BC6F25D9138B684ADF /* RowNote.swift */; };
@@ -198,7 +191,6 @@
 		C816A92D53BDA5A3586F7216 /* WatchSyncCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C27CD7D290EB0C1B3F7A706C /* WatchSyncCache.swift */; };
 		C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
 		CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD5B158A45CBD8018FC499A /* AppLanguage.swift */; };
-		CB5E81E3AFF80FCCA711C0AE /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		CCD519063886D57AA8BFAC77 /* PatternShareImportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1BE41B85956FD576EF65C /* PatternShareImportPresentation.swift */; };
 		CCDF6300731D26A983F6340E /* PatternImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DE7BD9D5FA9BEABF361D4E1 /* PatternImportCoordinator.swift */; };
 		CDB6094E4EEE474D448635A4 /* PatternShareImportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1BE41B85956FD576EF65C /* PatternShareImportPresentation.swift */; };
@@ -214,15 +206,14 @@
 		D70477783D80381ABCF01AFF /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };
 		D7C50FBBD069D5EC77A91446 /* ShareImportController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C474D58BBB238B47B244C7CA /* ShareImportController.swift */; };
 		D8C39A1514196D426E41EA7E /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07AC936135E44C341839B236 /* ProjectDetailView.swift */; };
-		D9AF7E5D37109091A4968B09 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		D9D96422EAA83DBC4E03A060 /* PaintingOverlayRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */; };
 		DA95835CF1FE8ED5122062AF /* ProjectPatternsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */; };
 		DAFE04FE10781F7E6BA1083B /* CalculatorPreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F230CAF876E38744139D44BC /* CalculatorPreferencesStoreTests.swift */; };
 		DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
 		DC39760B7C07407210A12CF0 /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
+		DCCEEF21D0AA7068C3593919 /* KnittingCalculatorCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0C267D50CB06E36037D729B5 /* KnittingCalculatorCore */; };
 		DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		DD86888BF9949C6FC0E5597D /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
-		DF72C03E88F98EC24A37FE38 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };
 		E027E8ADB3D1D51F88D2E861 /* WatchSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */; };
 		E098B5EF8ACDF04E3FCF62D1 /* AdjustmentPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FF7112B12EC8602DE06351 /* AdjustmentPresentationTests.swift */; };
@@ -238,7 +229,6 @@
 		EC34F97C1EBEF741F560F2F4 /* PatternInboxPublicationReceiptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */; };
 		EEC1792373275761A9A1AC14 /* KnitNoteLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B895F27EA3B11F30CF51B2 /* KnitNoteLinkRouter.swift */; };
 		EFCF881CA8E318B938F4E3B7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */; };
-		F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		F1A9E3015D8D2FE61E35D6E8 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
 		F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
@@ -378,6 +368,7 @@
 		4C2B7038D08F6C6E76229D7F /* KnitNoteBackupManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupManifest.swift; sourceTree = "<group>"; };
 		4D062E9551D94CA14FF74D58 /* RatingEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingEligibilityTests.swift; sourceTree = "<group>"; };
 		4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapturePhotoEncoder.swift; sourceTree = "<group>"; };
+		529DDA97F88EF783336736D2 /* KnittingCalculatorCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KnittingCalculatorCore; path = Packages/KnittingCalculatorCore; sourceTree = SOURCE_ROOT; };
 		557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoFileService.swift; sourceTree = "<group>"; };
 		58740EE09606BD4AC6FA457D /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchOptimisticState.swift; sourceTree = "<group>"; };
@@ -396,7 +387,6 @@
 		699B5C3006C3742CA7B8416A /* PatternImportResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternImportResultView.swift; sourceTree = "<group>"; };
 		6A809FA0EA2975C2A10383B6 /* RowIntervalAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentView.swift; sourceTree = "<group>"; };
 		6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupService.swift; sourceTree = "<group>"; };
-		6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentCalculator.swift; sourceTree = "<group>"; };
 		6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderLayoutPolicy.swift; sourceTree = "<group>"; };
 		6E8F5BF383F8F3346F45D520 /* PatternLibrarySort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibrarySort.swift; sourceTree = "<group>"; };
 		6F0D9377602621B5C978D56F /* YarnPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoPicker.swift; sourceTree = "<group>"; };
@@ -423,7 +413,6 @@
 		8D2E722BF22B736D8CA30A55 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		8DE7BD9D5FA9BEABF361D4E1 /* PatternImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternImportCoordinator.swift; sourceTree = "<group>"; };
 		8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxProcessor.swift; sourceTree = "<group>"; };
-		8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentInputParser.swift; sourceTree = "<group>"; };
 		90CE1C0101996F572112D739 /* PatternReaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderControls.swift; sourceTree = "<group>"; };
 		926C002CC977A56CD9D4B192 /* WatchConnectivityEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityEnvelope.swift; sourceTree = "<group>"; };
 		94A3A973C57BA3A256E78283 /* LanguageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettings.swift; sourceTree = "<group>"; };
@@ -474,7 +463,6 @@
 		CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternAsset.swift; sourceTree = "<group>"; };
 		CE07268BFBF48FC08C0469A5 /* LocalizedNumberCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedNumberCodec.swift; sourceTree = "<group>"; };
 		D10455BC3195B85049B3524D /* PatternReaderContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderContext.swift; sourceTree = "<group>"; };
-		D157077494138E6450BAC49F /* GaugeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculator.swift; sourceTree = "<group>"; };
 		DC85EEE70A4605812EFE0868 /* KnitNoteLinkRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteLinkRouterTests.swift; sourceTree = "<group>"; };
 		DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaintingOverlayRegion.swift; sourceTree = "<group>"; };
 		E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntry.swift; sourceTree = "<group>"; };
@@ -482,7 +470,6 @@
 		E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		E9F9AB70EA6020F2BECF5EFD /* KnitNoteBackupDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupDocument.swift; sourceTree = "<group>"; };
 		EBE08F231A00E7A116C66C8F /* AdjustmentCalculatorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdjustmentCalculatorScreen.swift; sourceTree = "<group>"; };
-		EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentCalculator.swift; sourceTree = "<group>"; };
 		F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalPhotoPicker.swift; sourceTree = "<group>"; };
 		F1636706F0E1A52CEA341F56 /* ChooseYarnProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseYarnProjectsView.swift; sourceTree = "<group>"; };
 		F230CAF876E38744139D44BC /* CalculatorPreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorPreferencesStoreTests.swift; sourceTree = "<group>"; };
@@ -497,6 +484,25 @@
 		FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternThumbnailFileService.swift; sourceTree = "<group>"; };
 		FE75A4BC6F25D9138B684ADF /* RowNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowNote.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		78F2FADC1C6B96F7E6F5FC5A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DCCEEF21D0AA7068C3593919 /* KnittingCalculatorCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B084D5CB44F59F6397830BD7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAA3F7CE0F98960225105829 /* KnittingCalculatorCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		00FA7869BBC2022A1F3126E0 /* Patterns */ = {
@@ -525,6 +531,14 @@
 			path = Patterns;
 			sourceTree = "<group>";
 		};
+		02583666822FAC6D7745626A /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				529DDA97F88EF783336736D2 /* KnittingCalculatorCore */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
 		05636426C59DEAB3CEAD6A80 /* Localization */ = {
 			isa = PBXGroup;
 			children = (
@@ -539,7 +553,6 @@
 			children = (
 				121DC898B51C86C11B40705C /* KnitNoteCore.swift */,
 				96EA599FAEBF5EAECB21EC72 /* Backup */,
-				FC1D51A444F323A1A8388B2D /* Calculators */,
 				4949BE0E6E803BAC3DC22BD8 /* Demo */,
 				179F52A90796543AF192B87A /* Launch */,
 				05636426C59DEAB3CEAD6A80 /* Localization */,
@@ -964,6 +977,7 @@
 				8851D63D4A759C9CA54FB013 /* KnittingCalculator */,
 				9C3837A4B9D23FDBF0AC33E3 /* KnittingCalculatorTests */,
 				598F0A24531B97C4E6F54BA2 /* Localization */,
+				02583666822FAC6D7745626A /* Packages */,
 				9BC10CC549E3CC0E29EE734A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -996,17 +1010,6 @@
 				46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */,
 			);
 			path = Theme;
-			sourceTree = "<group>";
-		};
-		FC1D51A444F323A1A8388B2D /* Calculators */ = {
-			isa = PBXGroup;
-			children = (
-				EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */,
-				8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */,
-				D157077494138E6450BAC49F /* GaugeCalculator.swift */,
-				6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */,
-			);
-			path = Calculators;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1054,6 +1057,7 @@
 			buildPhases = (
 				7F8243B94B9721271496D369 /* Sources */,
 				D72DC11952E505F69C264F17 /* Resources */,
+				B084D5CB44F59F6397830BD7 /* Frameworks */,
 				0FA67F7F9F173AE7379B8375 /* Embed Foundation Extensions */,
 				89A9FA2998389504E7990190 /* Embed Watch Content */,
 			);
@@ -1065,6 +1069,7 @@
 			);
 			name = KnitNote;
 			packageProductDependencies = (
+				EE07E7AA3FB6C5D37035DBE3 /* KnittingCalculatorCore */,
 			);
 			productName = KnitNote;
 			productReference = 14B46C9D90D2250C063CBEB9 /* KnitNote.app */;
@@ -1076,6 +1081,7 @@
 			buildPhases = (
 				679A9741D7E043387CA5CC89 /* Sources */,
 				098D0A3540BEFF4F935141B6 /* Resources */,
+				78F2FADC1C6B96F7E6F5FC5A /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -1083,6 +1089,7 @@
 			);
 			name = KnittingCalculator;
 			packageProductDependencies = (
+				0C267D50CB06E36037D729B5 /* KnittingCalculatorCore */,
 			);
 			productName = KnittingCalculator;
 			productReference = AFC5EB6B19661977909A1A93 /* KnittingCalculator.app */;
@@ -1142,6 +1149,9 @@
 			);
 			mainGroup = BFE7ACE6E08F193BC58351A7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				31410D5345923A8DE3D5DEE2 /* XCLocalSwiftPackageReference "Packages/KnittingCalculatorCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9BC10CC549E3CC0E29EE734A /* Products */;
 			projectDirPath = "";
@@ -1253,9 +1263,6 @@
 				7C88FDC5C91923EE408F4C02 /* CalculatorSettingsView.swift in Sources */,
 				A52E7801B3B923E905D003DF /* CalculatorShareText.swift in Sources */,
 				C4D4E85542BD25BCB636BE66 /* CalculatorTheme.swift in Sources */,
-				99E049E46AD249953A40912C /* EvenStitchAdjustmentCalculator.swift in Sources */,
-				DF72C03E88F98EC24A37FE38 /* EvenStitchAdjustmentInputParser.swift in Sources */,
-				B9B98629A558F0E749165916 /* GaugeCalculator.swift in Sources */,
 				93CE103D41744B1AAFB5D6ED /* GaugeCalculatorScreen.swift in Sources */,
 				EEC1792373275761A9A1AC14 /* KnitNoteLinkRouter.swift in Sources */,
 				663B2995D4916807B85049DA /* KnitNotePromotionCard.swift in Sources */,
@@ -1263,7 +1270,6 @@
 				475997D3C3AFC0820B98D05B /* LocalizedNumberCodec.swift in Sources */,
 				57FCF862A93921859A6051B2 /* OneRowAdjustmentView.swift in Sources */,
 				4DB833C1C97EDEFE176A2E2E /* RatingEligibility.swift in Sources */,
-				CB5E81E3AFF80FCCA711C0AE /* RowIntervalAdjustmentCalculator.swift in Sources */,
 				E50BE4BF524F9BF2BE966A70 /* RowIntervalAdjustmentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1292,13 +1298,10 @@
 				585606C343A35128411BC2E1 /* EditProjectView.swift in Sources */,
 				E7B3D88A524E639567C68181 /* EditRowNoteView.swift in Sources */,
 				353A18D950BE57FAB2C7F3D6 /* EditYarnView.swift in Sources */,
-				971900674C9C5D5FD20475B3 /* EvenStitchAdjustmentCalculator.swift in Sources */,
 				52FA8A3EA61D356F594109C4 /* EvenStitchAdjustmentCalculatorView.swift in Sources */,
-				F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */,
 				6F1E62E6245C4628E176F414 /* FamilyHeroFramePreferenceKey.swift in Sources */,
 				89AA9318C5AEB7CD5C2DA4F8 /* FamilyLaunchAnimationView.swift in Sources */,
 				2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */,
-				62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */,
 				49C3DCD3D65CBFECF0DE94E9 /* GaugeCalculatorView.swift in Sources */,
 				36584501F2661D8E10A19BE6 /* HighlightOverlay.swift in Sources */,
 				064665149A05CC8E272CA59B /* ImageReaderView.swift in Sources */,
@@ -1372,7 +1375,6 @@
 				27A3D14010BEAF07C41EE93C /* ProjectPhotoView.swift in Sources */,
 				3CA4295D672D7BB3EEC8EF3B /* ProjectsView.swift in Sources */,
 				8A0D44321A0B878C18C93038 /* RootView.swift in Sources */,
-				65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */,
 				CE312200163E82C3B64BC745 /* RowIntervalAdjustmentView.swift in Sources */,
 				3067B978D7AD5AD41407CF05 /* RowNote.swift in Sources */,
 				3B4F33C9BB928655D1287371 /* SettingsView.swift in Sources */,
@@ -1410,10 +1412,7 @@
 				816E08F2B937791F0F1FF8C7 /* AtomicWatchSyncFile.swift in Sources */,
 				5967A246A135737FB7B89795 /* BackupHistory.swift in Sources */,
 				2117BE8DBD549F7B8C10181C /* CameraCapturePhotoEncoder.swift in Sources */,
-				02288F6B6BDCDFC985672ED6 /* EvenStitchAdjustmentCalculator.swift in Sources */,
-				7656DEB167A5633003EF3883 /* EvenStitchAdjustmentInputParser.swift in Sources */,
 				DC39760B7C07407210A12CF0 /* FamilyLaunchTimeline.swift in Sources */,
-				D9AF7E5D37109091A4968B09 /* GaugeCalculator.swift in Sources */,
 				326D6303F4CB969B6F1667DA /* JSONProjectStore.swift in Sources */,
 				2C65A881C19AB58778C5A130 /* KnitNoteBackupExportPackage.swift in Sources */,
 				C45C69DFC567B4F3A2041002 /* KnitNoteBackupManifest.swift in Sources */,
@@ -1447,7 +1446,6 @@
 				F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */,
 				A8121B8CC33DEC5E639C59CA /* ProjectListView.swift in Sources */,
 				51864AD110E9811C0839F35D /* ProjectPhotoFileService.swift in Sources */,
-				2CC1A69EE25E2BC8EF9FDB37 /* RowIntervalAdjustmentCalculator.swift in Sources */,
 				BCA2F5D135FB115F9E282FF7 /* RowNote.swift in Sources */,
 				4C20957D5FA3111762B00D82 /* StoreScreenshotFixtures.swift in Sources */,
 				7B36CD7A8A59039791A1D325 /* StoredPattern.swift in Sources */,
@@ -1870,6 +1868,24 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		31410D5345923A8DE3D5DEE2 /* XCLocalSwiftPackageReference "Packages/KnittingCalculatorCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/KnittingCalculatorCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0C267D50CB06E36037D729B5 /* KnittingCalculatorCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KnittingCalculatorCore;
+		};
+		EE07E7AA3FB6C5D37035DBE3 /* KnittingCalculatorCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KnittingCalculatorCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = C3D817B8651440BF1170DB4F /* Project object */;
 }

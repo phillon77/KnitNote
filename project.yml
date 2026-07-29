@@ -9,6 +9,9 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     DEVELOPMENT_TEAM: 9CFPAUL5N5
+packages:
+  KnittingCalculatorCore:
+    path: Packages/KnittingCalculatorCore
 targets:
   KnitNote:
     type: application
@@ -55,6 +58,7 @@ targets:
         destinationFilters: [iOS]
       - path: Sources/KnitNoteCore
     dependencies:
+      - package: KnittingCalculatorCore
       - target: KnitNoteWatch
         embed: true
         platformFilter: iOS
@@ -103,10 +107,8 @@ targets:
         buildPhase: resources
       - path: KnittingCalculator/Localization/Localizable.xcstrings
         buildPhase: resources
-      - path: Sources/KnitNoteCore/Calculators/GaugeCalculator.swift
-      - path: Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentCalculator.swift
-      - path: Sources/KnitNoteCore/Calculators/EvenStitchAdjustmentInputParser.swift
-      - path: Sources/KnitNoteCore/Calculators/RowIntervalAdjustmentCalculator.swift
+    dependencies:
+      - package: KnittingCalculatorCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculator

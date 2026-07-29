@@ -170,6 +170,18 @@ import Testing
         #expect(appTarget.contains("ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon"))
     }
 
+    @Test func independentSpecUsesRepositoryRootPathsForProjectRootGeneration() throws {
+        let yaml = try source("KnittingCalculator/project.yml")
+
+        #expect(yaml.contains("path: Packages/KnittingCalculatorCore"))
+        #expect(yaml.contains("path: KnittingCalculator/Info.plist"))
+        #expect(yaml.contains("- path: KnittingCalculator/Adjustment"))
+        #expect(yaml.contains("- path: KnittingCalculator/LaunchScreen.storyboard"))
+        #expect(yaml.contains("- path: KnittingCalculatorTests"))
+        #expect(!yaml.contains("postGenCommand"))
+        #expect(!yaml.contains("path: KnittingCalculator/KnittingCalculator/"))
+    }
+
     @Test
     func generatedIndependentProjectContainsOwnedResourcesAndNoKnitNoteProducts() throws {
         let project = try source("KnittingCalculator.xcodeproj/project.pbxproj")
@@ -182,6 +194,8 @@ import Testing
         #expect(project.contains("InfoPlist.xcstrings in Resources"))
         #expect(project.contains("XCLocalSwiftPackageReference"))
         #expect(project.contains("relativePath = Packages/KnittingCalculatorCore;"))
+        #expect(project.contains("INFOPLIST_FILE = KnittingCalculator/Info.plist;"))
+        #expect(!project.contains("KnittingCalculator/KnittingCalculator/"))
         #expect(!project.contains("KnitNoteWatch"))
         #expect(!project.contains("KnitNoteShare"))
         #expect(!project.contains("KnitNote-iOS.entitlements"))

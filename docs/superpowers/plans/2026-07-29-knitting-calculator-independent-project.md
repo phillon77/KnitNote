@@ -152,14 +152,15 @@ xcodebuild -project KnitNote.xcodeproj \
 - [ ] Write failing contracts for the independent project topology, package
   dependency, bundle/version settings, launch resource membership, and absence
   of KnitNote, Watch, Share, StoreKit config, and KnitNote entitlements.
-- [ ] Create calculator-only XcodeGen spec using paths relative to
-  `KnittingCalculator/project.yml`.
+- [ ] Create calculator-only XcodeGen spec using paths relative to the
+  repository root supplied with `--project-root .`.
 - [ ] Generate only the independent project:
 
 ```bash
 xcodegen generate \
   --spec KnittingCalculator/project.yml \
-  --project .
+  --project . \
+  --project-root .
 ```
 
 - [ ] Verify the generated project lists exactly the app and test targets:

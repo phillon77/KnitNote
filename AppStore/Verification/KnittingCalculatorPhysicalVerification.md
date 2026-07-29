@@ -217,6 +217,24 @@ This concise confirmation does not imply the unrequested accessibility,
 permission, share-sheet, deep-link, reset, force-termination, or exhaustive
 edge-case rows below have passed.
 
+### Independent-project iPad equivalence confirmation
+
+On 2026-07-29, after the independent-project candidate was installed and
+launched, the user replied `ipad ok` to the requested checks. This confirms the
+following scope for source commit
+`4f8e564e40bf3acfefd8a3ccdc0f6f7ab1b0524b`:
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Portrait and landscape show no clipping | PASS | User observation on the installed iPad candidate. |
+| Density and increase/decrease tools perform normally | PASS | User observation on the installed iPad candidate. |
+| Half and narrow Split View keep fields and buttons visible | PASS | User observation on the installed iPad candidate. |
+| No unexpected permission prompt | PASS | User observation on the installed iPad candidate. |
+
+This concise confirmation does not imply the unrequested external-keyboard,
+share-sheet, two-thirds Split View, accessibility, deep-link, or exhaustive
+edge-case rows below have passed.
+
 ## iPhone acceptance
 
 | Check | Status | Evidence / follow-up |
@@ -244,13 +262,13 @@ edge-case rows below have passed.
 | Check | Status | Evidence / follow-up |
 | --- | --- | --- |
 | Entire iPhone functional matrix | AWAITING USER | Installation and launch passed; repeat the applicable iPhone rows. |
-| Landscape and portrait | AWAITING USER | Inspect cards, fields, disclosures, errors, and results. |
-| One-third Split View | AWAITING USER | Verify no clipped cards, fields, results, or disclosures. |
-| Half Split View | AWAITING USER | Verify no clipped cards, fields, results, or disclosures. |
+| Landscape and portrait | PASS | User confirmed the installed candidate has no clipping. |
+| One-third Split View | PASS | User confirmed the narrow Split View keeps fields and buttons visible. |
+| Half Split View | PASS | User confirmed Half Split View keeps fields and buttons visible. |
 | Two-thirds Split View | AWAITING USER | Verify no clipped cards, fields, results, or disclosures. |
 | External-keyboard numeric entry | AWAITING USER | Run only if a keyboard is available; record availability. |
 | Share-sheet presentation and dismissal | AWAITING USER | Confirm it is correctly anchored and dismisses. |
-| No unexpected permission prompt | AWAITING USER | Observe the installed candidate through all accessible screens. |
+| No unexpected permission prompt | PASS | User confirmed no unexpected permission prompt appeared during the requested checks. |
 
 ## Acceptance rule
 

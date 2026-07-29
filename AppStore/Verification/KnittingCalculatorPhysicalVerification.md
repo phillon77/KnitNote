@@ -166,7 +166,7 @@ Both devices were discovered as available, paired, and connected by USB using
 | iPhone launch and process identity | PASS | `devicectl device process launch` reported launch of `com.phillon.KnittingCalculator`. A fresh process query found `/private/var/containers/Bundle/Application/1846104F-B859-4B3F-B610-E076E45B4E0C/KnittingCalculator.app/KnittingCalculator` running as PID `15500`. |
 | iPad signed Debug build from the independent project | PASS | `xcodebuild -project KnittingCalculator.xcodeproj -scheme KnittingCalculator -configuration Debug -destination 'id=00008103-001934E41128A01E' -derivedDataPath /tmp/KnittingCalculatorPhysical-iPad build` ended with `** BUILD SUCCEEDED **`. |
 | iPad signature integrity | PASS | `codesign --verify --deep --strict --verbose=2` reported valid on disk and satisfied the designated requirement. |
-| iPad install/launch gate | BLOCKED — DEVICE LOCKED | The install command acquired the device tunnel and usage assertion but returned no installation summary, so installation is not claimed. The one launch attempt was denied by `SBMainWorkspace` with `FBSOpenApplicationErrorDomain error 7`, reason `Locked`: the device was not or could not be unlocked. No retry was performed. |
+| iPad install/launch gate | PASS | After the user unlocked the device, `devicectl` installed bundle `com.phillon.KnittingCalculator` at `/private/var/containers/Bundle/Application/91316361-BBDA-4B52-A757-92F5915AC998/KnittingCalculator.app/` and launched it successfully. The app query reported `1.0.0 (1)` and the process query found the expected executable running as PID `2083`. |
 
 Build artifacts:
 
@@ -195,11 +195,9 @@ permission-prompt behavior. Those observations remain explicitly gated below.
 - Available physical iPhone: iPhone 17 Pro Max, iOS 26.5.2 (23F84)
 - Available physical iPad: iPad Air (5th generation), iPadOS 26.5.2 (23F84)
 
-The iPhone machine gate passed, but every visible or functional row remains an
-acceptance blocker until the user records the observation. The iPad build
-passed, but its install/launch and all manual rows are blocked until the
-physical device is unlocked and the gate is rerun. Simulator or source
-evidence must not replace either device observation.
+The iPhone and iPad machine gates passed, but visible or functional rows remain
+acceptance blockers until the user records the observation. Simulator or
+source evidence must not replace either device observation.
 
 ### Independent-project iPhone equivalence confirmation
 
@@ -245,14 +243,14 @@ edge-case rows below have passed.
 
 | Check | Status | Evidence / follow-up |
 | --- | --- | --- |
-| Entire iPhone functional matrix | BLOCKED — DEVICE LOCKED | Unlock the iPad, confirm installation/launch, then repeat every iPhone row. |
-| Landscape and portrait | BLOCKED — DEVICE LOCKED | Inspect cards, fields, disclosures, errors, and results after launch is unblocked. |
-| One-third Split View | BLOCKED — DEVICE LOCKED | Verify no clipped cards, fields, results, or disclosures. |
-| Half Split View | BLOCKED — DEVICE LOCKED | Verify no clipped cards, fields, results, or disclosures. |
-| Two-thirds Split View | BLOCKED — DEVICE LOCKED | Verify no clipped cards, fields, results, or disclosures. |
-| External-keyboard numeric entry | BLOCKED — DEVICE LOCKED | Run only if a keyboard is available; record availability. |
-| Share-sheet presentation and dismissal | BLOCKED — DEVICE LOCKED | Confirm it is correctly anchored and dismisses. |
-| No unexpected permission prompt | BLOCKED — DEVICE LOCKED | Observe clean install through all accessible screens. |
+| Entire iPhone functional matrix | AWAITING USER | Installation and launch passed; repeat the applicable iPhone rows. |
+| Landscape and portrait | AWAITING USER | Inspect cards, fields, disclosures, errors, and results. |
+| One-third Split View | AWAITING USER | Verify no clipped cards, fields, results, or disclosures. |
+| Half Split View | AWAITING USER | Verify no clipped cards, fields, results, or disclosures. |
+| Two-thirds Split View | AWAITING USER | Verify no clipped cards, fields, results, or disclosures. |
+| External-keyboard numeric entry | AWAITING USER | Run only if a keyboard is available; record availability. |
+| Share-sheet presentation and dismissal | AWAITING USER | Confirm it is correctly anchored and dismisses. |
+| No unexpected permission prompt | AWAITING USER | Observe the installed candidate through all accessible screens. |
 
 ## Acceptance rule
 

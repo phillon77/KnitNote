@@ -173,8 +173,12 @@ App Store Connect upload completed on 2026-07-29 at 20:06 Asia/Taipei:
 - App Store Connect upload status: Complete
 - export compliance: no proprietary or non-Apple standard encryption
 - TestFlight build status: Ready to Submit, expires in 90 days
-- no TestFlight group or tester was added
-- the build was not submitted for review or released
+- internal group: `編織計算器內部測試`
+- automatic distribution: disabled
+- group build: `1.0.0 (1)`, Ready to Test
+- internal tester: `lzz.1999@gmail.com` (`LonPhil`), Invited
+- no external group was created
+- the build was not submitted for beta review, App Review, or release
 
 ## Independent-project physical machine evidence — 2026-07-29
 

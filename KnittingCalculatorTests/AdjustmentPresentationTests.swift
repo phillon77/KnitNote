@@ -10,7 +10,46 @@ final class AdjustmentPresentationTests: XCTestCase {
         XCTAssertEqual(AdjustmentStepText.token(for: .edge(1)), .edge(1))
     }
 
-    func testAcrossRowsSummaryDoesNotRepeatTheLocalizedIntervalPrefix() throws {
+    func testTraditionalChineseAcrossRowsSummariesJoinIntervalAndOperationWithoutASpace() throws {
+        let cases: [(
+            operation: RowIntervalAdjustmentOperation,
+            style: RowIntervalAdjustmentStyle,
+            totalRows: Int,
+            totalStitches: Int,
+            expected: String
+        )] = [
+            (.increase, .singleSide, 6, 2, "單側每 3 排加針，共 2 次調整。"),
+            (.increase, .singleSide, 7, 2, "單側每 3–4 排加針，共 2 次調整。"),
+            (.increase, .bothSides, 6, 4, "雙側每 3 排加針，共 2 次調整。"),
+            (.increase, .bothSides, 7, 4, "雙側每 3–4 排加針，共 2 次調整。"),
+            (.decrease, .singleSide, 6, 2, "單側每 3 排減針，共 2 次調整。"),
+            (.decrease, .singleSide, 7, 2, "單側每 3–4 排減針，共 2 次調整。"),
+            (.decrease, .bothSides, 6, 4, "雙側每 3 排減針，共 2 次調整。"),
+            (.decrease, .bothSides, 7, 4, "雙側每 3–4 排減針，共 2 次調整。"),
+        ]
+
+        for testCase in cases {
+            let result = try RowIntervalAdjustmentCalculator.calculate(
+                .init(
+                    totalRows: testCase.totalRows,
+                    totalStitches: testCase.totalStitches,
+                    operation: testCase.operation,
+                    style: testCase.style
+                )
+            )
+
+            XCTAssertEqual(
+                RowIntervalAdjustmentPresentationText.summary(
+                    for: result,
+                    locale: Locale(identifier: "zh-Hant")
+                ),
+                testCase.expected,
+                "\(testCase.operation.rawValue), \(testCase.style.rawValue), \(testCase.totalRows) rows"
+            )
+        }
+    }
+
+    func testEnglishAcrossRowsSummaryDoesNotRepeatTheLocalizedIntervalPrefix() throws {
         let result = try RowIntervalAdjustmentCalculator.calculate(
             .init(
                 totalRows: 6,
@@ -26,13 +65,6 @@ final class AdjustmentPresentationTests: XCTestCase {
                 locale: Locale(identifier: "en")
             ),
             "Increase on one side every 3 rows for 2 adjustments."
-        )
-        XCTAssertEqual(
-            RowIntervalAdjustmentPresentationText.summary(
-                for: result,
-                locale: Locale(identifier: "zh-Hant")
-            ),
-            "單側每 3 排加針，共 2 次調整。"
         )
     }
 }

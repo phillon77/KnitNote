@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import KnitNoteCore
+@testable import KnittingCalculatorCore
 
 @Suite struct GaugeCalculatorTests {
     @Test func calculatesStitchesAndRoundsHalfUp() throws {

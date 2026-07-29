@@ -38,6 +38,8 @@ def load_manifest(path: Path) -> list[dict]:
     if contains_denylisted_marker(raw):
         fail("manifest contains private-data marker")
     payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        fail("manifest payload must be an object")
     frames = payload.get("frames")
     if payload.get("schemaVersion") != 1 or not isinstance(frames, list):
         fail("manifest schemaVersion must be 1 and frames must be an array")
@@ -50,6 +52,8 @@ def validate_manifest(frames: list[dict]) -> None:
 
     filenames: set[tuple[str, str, str]] = set()
     for index, frame in enumerate(frames, 1):
+        if not isinstance(frame, dict):
+            fail(f"frame {index} must be an object")
         missing = REQUIRED_FIELDS - frame.keys()
         if missing:
             fail(f"frame {index} missing: {', '.join(sorted(missing))}")

@@ -71,6 +71,19 @@ class ScreenshotToolsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "incorrect dimensions"):
             validate.validate_manifest(frames)
 
+    def test_manifest_rejects_non_object_payloads_and_frames(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        manifest_path = Path(temporary_directory.name) / "manifest.json"
+        manifest_path.write_text("[]", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "payload must be an object"):
+            validate.load_manifest(manifest_path)
+
+        frames = self.make_valid_frames()
+        frames[0] = []
+        with self.assertRaisesRegex(ValueError, "frame 1 must be an object"):
+            validate.validate_manifest(frames)
+
     def test_generated_image_must_be_opaque_rgb(self):
         root, frames = self.write_complete_fixture(mode="RGBA")
         with self.assertRaisesRegex(ValueError, "opaque RGB"):

@@ -70,12 +70,12 @@ clean terminate/reopen and rotation sequence:
 | No black compatibility bars | PASS | The portrait screenshot shows no legacy black bars above, below, or beside the installed app. |
 | Portrait fills the display | PASS | The portrait home screenshot shows the app filling the iPhone display. |
 | Landscape fills the display | PASS | The landscape adjustment-screen screenshot shows the app filling the iPhone display after rotation. |
-| Background and foreground remain full screen | PENDING | No screenshot or user observation covers a background-to-foreground transition. |
+| Background and foreground remain full screen | PASS | User confirmation in current thread, 2026-07-29: after swiping to the iPhone Home Screen and reopening Knitting Calculator, it remained full screen (`正常`). |
 | Terminate and reopen remain full screen | PASS | User confirmed the requested clean terminate/reopen sequence; the resulting portrait screenshot shows full-screen presentation. |
 
 ## Integration gate
 
-The current physical evidence authorizes integration of the narrow launch-screen
-repair only. The background/foreground scenario remains a later manual check.
-The original `codex/free-knitting-calculator` worktree's interrupted Task 12
-files must remain untouched by that integration.
+All six physical display rows are `PASS`. The current physical evidence confirms
+the full-screen repair gate for the narrow launch-screen integration already in
+`codex/free-knitting-calculator` as commit `7e82d60`. Its interrupted Task 12
+files remain outside that integration.

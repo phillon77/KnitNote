@@ -4,6 +4,7 @@ struct ProjectsView: View {
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     @State private var showingCreate = false
+    @State private var pendingUnlockAfterCreate = false
     @State private var pendingDeletion: StoredProject?
     let onShowUnlock: () -> Void
 
@@ -55,7 +56,15 @@ struct ProjectsView: View {
             .navigationTitle("nav.projects")
             .navigationDestination(for: UUID.self) { ProjectDetailView(projectID: $0) }
             .toolbar { Button("projects.add", systemImage: "plus") { showingCreate = true } }
-            .sheet(isPresented: $showingCreate) { CreateProjectView() }
+            .sheet(isPresented: $showingCreate, onDismiss: {
+                guard pendingUnlockAfterCreate else { return }
+                pendingUnlockAfterCreate = false
+                onShowUnlock()
+            }) {
+                CreateProjectView(onRequestUnlock: {
+                    pendingUnlockAfterCreate = true
+                })
+            }
             .confirmationDialog(
                 "project.delete.title",
                 isPresented: Binding(

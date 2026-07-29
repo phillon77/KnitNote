@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A42000000000000000000004 /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000003 /* CreateProjectPresentation.swift */; };
+		A42000000000000000000002 /* CreateProjectPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000001 /* CreateProjectPresentationTests.swift */; };
 		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
 		01969CEC3E446A5A02192151 /* YarnEditorFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1693882FFD9DFAA6DE672BF /* YarnEditorFields.swift */; };
@@ -298,6 +300,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A42000000000000000000003 /* CreateProjectPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentation.swift; sourceTree = "<group>"; };
+		A42000000000000000000001 /* CreateProjectPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentationTests.swift; sourceTree = "<group>"; };
 		02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoFileService.swift; sourceTree = "<group>"; };
 		0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxPublicationReceiptService.swift; sourceTree = "<group>"; };
 		07AC936135E44C341839B236 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
@@ -610,6 +614,7 @@
 		491A1A35F59A29BF49F08ADE /* KnitNoteAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				A42000000000000000000001 /* CreateProjectPresentationTests.swift */,
 				6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */,
 				453B830DB1C1E2A3A3954A38 /* KeychainTrialStoreTests.swift */,
 				C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */,
@@ -643,6 +648,7 @@
 				7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */,
 				3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */,
 				33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */,
+				A42000000000000000000003 /* CreateProjectPresentation.swift */,
 				75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */,
 				600A5A211EF6682DED675574 /* EditCounterNameView.swift */,
 				5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */,
@@ -1120,6 +1126,7 @@
 				AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */,
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
 				C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */,
+				A42000000000000000000004 /* CreateProjectPresentation.swift in Sources */,
 				52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */,
 				02A8AC06B5EB1AE99351FED1 /* CreateYarnView.swift in Sources */,
 				660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */,
@@ -1329,6 +1336,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A42000000000000000000002 /* CreateProjectPresentationTests.swift in Sources */,
 				A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */,
 				CA1626EA32C6EE7500EB03A4 /* KeychainTrialStoreTests.swift in Sources */,
 				8956E5751DCE92829E2B803E /* StoreKitPurchaseServiceLifecycleTests.swift in Sources */,

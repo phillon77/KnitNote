@@ -8,6 +8,7 @@ struct CreateProjectView: View {
     @State private var removesPhoto = false
     @State private var isPhotoLoading = false
     @State private var errorMessage: String?
+    let onRequestUnlock: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,14 @@ struct CreateProjectView: View {
         do {
             try store.add(name: name, photoData: selectedPhotoData)
             dismiss()
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            switch CreateProjectFailureMapper.presentation(for: error) {
+            case .requestUnlock:
+                dismiss()
+                onRequestUnlock()
+            case let .saveError(message):
+                errorMessage = message
+            }
+        }
     }
 }

@@ -33,11 +33,13 @@
 
 - `KnittingCalculator/App/CalculatorStoreScreenshotMode.swift` — DEBUG-only launch-argument parser and deterministic draft seeding.
 - `KnittingCalculator/App/CalculatorStoreScreenshotRootView.swift` — DEBUG-only scene router built from production calculator views.
-- `Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift` — source and isolation contracts for screenshot mode.
+- `Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift` — decoded manifest scope contract.
+- `KnittingCalculatorTests/CalculatorStoreScreenshotModeTests.swift` — executable DEBUG argument-resolution and draft-seeding tests.
 - `AppStore/KnittingCalculator/Screenshots/manifest.json` — canonical 18-frame bilingual screenshot definition.
 - `AppStore/KnittingCalculator/Screenshots/capture.sh` — dedicated-simulator capture and dimension checks.
 - `AppStore/KnittingCalculator/Screenshots/compose.py` — approved B frame composition.
 - `AppStore/KnittingCalculator/Screenshots/validate.py` — manifest, image, opacity, locale, and privacy validation.
+- `AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py` — executable validator, compositor, and fake-`xcrun` capture tests.
 - `AppStore/KnittingCalculator/Screenshots/requirements.txt` — pinned Pillow dependency range.
 - `AppStore/KnittingCalculator/Screenshots/README.md` — reproducible capture and review instructions.
 - `AppStore/Verification/KnittingCalculatorAppStorePreparationVerification.md` — immutable local and App Store Connect evidence.
@@ -70,6 +72,7 @@
 - Create: `AppStore/KnittingCalculator/Screenshots/manifest.json`
 - Create: `AppStore/KnittingCalculator/Screenshots/validate.py`
 - Create: `AppStore/KnittingCalculator/Screenshots/requirements.txt`
+- Create: `AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py`
 - Create: `Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift`
 
 **Interfaces:**
@@ -202,7 +205,39 @@ or:
 18 screenshots valid
 ```
 
-- [ ] **Step 5: Pin the compositor dependency**
+- [ ] **Step 5: Add executable validator regression tests**
+
+Use Python `unittest` with temporary manifests and images. Import the real
+`validate.py` module and call `load_manifest`, `validate_manifest`, and
+`validate_images`. Cover these observable behaviors with hand-written fixtures:
+
+```python
+def test_valid_manifest_accepts_exact_bilingual_scope(self):
+    frames = self.make_valid_frames()
+    validate.validate_manifest(frames)
+
+def test_manifest_rejects_wrong_locale_platform_count(self):
+    frames = self.make_valid_frames()
+    frames.pop()
+    with self.assertRaisesRegex(ValueError, "expected 18 frames"):
+        validate.validate_manifest(frames)
+
+def test_manifest_rejects_wrong_pixel_size(self):
+    frames = self.make_valid_frames()
+    frames[0]["width"] = 1
+    with self.assertRaisesRegex(ValueError, "incorrect dimensions"):
+        validate.validate_manifest(frames)
+
+def test_generated_image_must_be_opaque_rgb(self):
+    root, frames = self.write_complete_fixture(mode="RGBA")
+    with self.assertRaisesRegex(ValueError, "opaque RGB"):
+        validate.validate_images(root, frames)
+```
+
+The expected messages are literals derived from the public validator contract,
+not values computed by `validate.py`.
+
+- [ ] **Step 6: Pin the compositor dependency**
 
 Create `requirements.txt`:
 
@@ -210,25 +245,29 @@ Create `requirements.txt`:
 Pillow>=11.0,<12
 ```
 
-- [ ] **Step 6: Run the validator and Swift contract**
+- [ ] **Step 7: Run the validator and behavioral contracts**
 
 Run:
 
 ```bash
 python3 AppStore/KnittingCalculator/Screenshots/validate.py \
   AppStore/KnittingCalculator/Screenshots/manifest.json --manifest-only
+python3 -m unittest \
+  AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py
 swift test --filter KnittingCalculatorStoreScreenshotContractTests
 ```
 
-Expected: validator prints `18 screenshot definitions valid`; Swift test PASS.
+Expected: validator prints `18 screenshot definitions valid`; Python and Swift
+tests PASS.
 
-- [ ] **Step 7: Commit Task 1**
+- [ ] **Step 8: Commit Task 1**
 
 ```bash
 git add \
   AppStore/KnittingCalculator/Screenshots/manifest.json \
   AppStore/KnittingCalculator/Screenshots/validate.py \
   AppStore/KnittingCalculator/Screenshots/requirements.txt \
+  AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py \
   Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift
 git commit -m "test: lock calculator screenshot package"
 ```
@@ -240,8 +279,8 @@ git commit -m "test: lock calculator screenshot package"
 **Files:**
 - Create: `KnittingCalculator/App/CalculatorStoreScreenshotMode.swift`
 - Create: `KnittingCalculator/App/CalculatorStoreScreenshotRootView.swift`
+- Create: `KnittingCalculatorTests/CalculatorStoreScreenshotModeTests.swift`
 - Modify: `KnittingCalculator/App/KnittingCalculatorApp.swift`
-- Modify: `Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift`
 
 **Interfaces:**
 - Produces: `CalculatorStoreScreenshotMode.resolve(processInfo:) -> CalculatorStoreScreenshotResolution`.
@@ -249,31 +288,51 @@ git commit -m "test: lock calculator screenshot package"
 - Produces: `CalculatorStoreScreenshotRootView(mode:)`.
 - Consumes: production `CalculatorHomeView`, `GaugeCalculatorScreen`, `AdjustmentCalculatorScreen`, `CalculatorSettingsView`, and `CalculatorPreferencesStore`.
 
-- [ ] **Step 1: Extend the contract test and verify RED**
+- [ ] **Step 1: Write executable argument-resolution tests and verify RED**
 
-Add assertions that:
+In the app unit-test target, call the real pure argument boundary:
 
 ```swift
-#expect(mode.contains("#if DEBUG"))
-#expect(mode.contains("case home, gauge, adjustment, privacy, promotion, privacyPromotion"))
-#expect(mode.contains("-storeScreenshotScene"))
-#expect(mode.contains("-storeScreenshotLanguage"))
-#expect(mode.contains("-storeScreenshotToken"))
-#expect(root.contains("GaugeCalculatorScreen()"))
-#expect(root.contains("AdjustmentCalculatorScreen()"))
-#expect(root.contains("CalculatorSettingsView()"))
-#expect(app.contains("CalculatorStoreScreenshotMode.resolve"))
-#expect(app.contains("case .notRequested"))
-#expect(app.contains("case .ready(let mode)"))
+@Test func screenshotArgumentsResolveOnlyWhenComplete() {
+    #expect(CalculatorStoreScreenshotMode.resolve(arguments: ["app"]) == .notRequested)
+    #expect(
+        CalculatorStoreScreenshotMode.resolve(arguments: [
+            "app", "-storeScreenshotMode", "YES",
+            "-storeScreenshotScene", "gauge",
+            "-storeScreenshotLanguage", "zh-Hant",
+            "-storeScreenshotToken", "token-1",
+        ]) == .ready(.init(
+            scene: .gauge,
+            language: .zhHant,
+            readinessToken: "token-1"
+        ))
+    )
+}
+
+@Test func requestedScreenshotModeRejectsMissingOrUnknownValues() {
+    #expect(CalculatorStoreScreenshotMode.resolve(arguments: [
+        "app", "-storeScreenshotMode", "YES",
+    ]) == .invalid)
+    #expect(CalculatorStoreScreenshotMode.resolve(arguments: [
+        "app", "-storeScreenshotMode", "YES",
+        "-storeScreenshotScene", "unknown",
+        "-storeScreenshotLanguage", "en",
+        "-storeScreenshotToken", "token-2",
+    ]) == .invalid)
+}
 ```
 
-Run:
+Add a test that calls `makePreferences()` and checks the literal gauge 50/60
+inputs and across-row schedule inputs. Run:
 
 ```bash
-swift test --filter KnittingCalculatorStoreScreenshotContractTests
+xcodebuild test -quiet -project KnittingCalculator.xcodeproj \
+  -scheme KnittingCalculator \
+  -destination 'platform=iOS Simulator,name=iPhone 13 Pro Max,OS=26.5' \
+  -only-testing:KnittingCalculatorTests/CalculatorStoreScreenshotModeTests
 ```
 
-Expected: FAIL because the DEBUG host files and app integration do not exist.
+Expected: FAIL to compile because the screenshot-mode API does not exist.
 
 - [ ] **Step 2: Implement strict DEBUG-only argument resolution**
 
@@ -303,8 +362,14 @@ struct CalculatorStoreScreenshotMode: Equatable {
     let readinessToken: String
 
     static func resolve(
-        processInfo: ProcessInfo = .processInfo
+        arguments: [String]
     ) -> CalculatorStoreScreenshotResolution
+
+    static func resolve(
+        processInfo: ProcessInfo = .processInfo
+    ) -> CalculatorStoreScreenshotResolution {
+        resolve(arguments: processInfo.arguments)
+    }
 }
 
 enum CalculatorStoreScreenshotResolution: Equatable {
@@ -408,14 +473,17 @@ Both valid roots receive the same required preference/rating environment
 objects. No screenshot flag, fixture, synthetic file, or scene symbol may be
 compiled into the Release branch.
 
-- [ ] **Step 6: Verify focused tests, project regeneration, and both configs**
+- [ ] **Step 6: Verify focused executable tests, project regeneration, and both configs**
 
 Run:
 
 ```bash
-swift test --filter KnittingCalculatorStoreScreenshotContractTests
 xcodegen generate --spec KnittingCalculator/project.yml \
   --project-root .
+xcodebuild test -quiet -project KnittingCalculator.xcodeproj \
+  -scheme KnittingCalculator \
+  -destination 'platform=iOS Simulator,name=iPhone 13 Pro Max,OS=26.5' \
+  -only-testing:KnittingCalculatorTests/CalculatorStoreScreenshotModeTests
 xcodebuild -project KnittingCalculator.xcodeproj \
   -scheme KnittingCalculator -configuration Debug \
   -destination 'generic/platform=iOS Simulator' \
@@ -436,8 +504,9 @@ git add \
   KnittingCalculator/App/CalculatorStoreScreenshotMode.swift \
   KnittingCalculator/App/CalculatorStoreScreenshotRootView.swift \
   KnittingCalculator/App/KnittingCalculatorApp.swift \
+  KnittingCalculatorTests/CalculatorStoreScreenshotModeTests.swift \
   KnittingCalculator.xcodeproj/project.pbxproj \
-  Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift
+  KnittingCalculator.xcodeproj/xcshareddata/xcschemes/KnittingCalculator.xcscheme
 git commit -m "feat: add isolated calculator screenshot mode"
 ```
 
@@ -449,7 +518,7 @@ git commit -m "feat: add isolated calculator screenshot mode"
 - Create: `AppStore/KnittingCalculator/Screenshots/capture.sh`
 - Create: `AppStore/KnittingCalculator/Screenshots/compose.py`
 - Create: `AppStore/KnittingCalculator/Screenshots/README.md`
-- Modify: `Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift`
+- Modify: `AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py`
 
 **Interfaces:**
 - Consumes: manifest scenes and DEBUG launch arguments from Tasks 1–2.
@@ -457,35 +526,43 @@ git commit -m "feat: add isolated calculator screenshot mode"
 - Produces: `compose.py manifest.json`.
 - Produces: raw screenshots in `Raw/<locale>/<platform>/` and final assets in `Generated/<locale>/<platform>/`.
 
-- [ ] **Step 1: Add failing script-isolation contracts**
+- [ ] **Step 1: Add failing executable tool tests**
 
-Assert the future script contains:
+Extend `test_screenshot_tools.py` to import and execute the real compositor
+against a temporary RGB capture. Assert the generated image:
 
-```swift
-#expect(script.contains("Knitting Calculator Store"))
-#expect(script.contains("xcrun simctl erase"))
-#expect(script.contains("com.phillon.KnittingCalculator"))
-#expect(script.contains("-storeScreenshotMode YES"))
-#expect(script.contains("-storeScreenshotToken"))
-#expect(script.contains("verify_dimensions"))
-#expect(!script.contains("com.phillon.KnitNote\""))
+```python
+self.assertEqual(output.size, (1284, 2778))
+self.assertEqual(output.mode, "RGB")
+self.assertNotEqual(output.getpixel((0, 0)), raw.getpixel((0, 0)))
 ```
 
-Assert the compositor contains:
+For `capture.sh`, place a fake executable named `xcrun` first in a temporary
+`PATH`. The fake returns a controlled `simctl list devices --json` payload and
+records every remaining argument. Run the real script with a one-frame fixture
+manifest through environment variable `CALC_SCREENSHOT_MANIFEST`. Verify:
 
-```swift
-#expect(compositor.contains("PALE_BLUE"))
-#expect(compositor.contains("LAVENDER"))
-#expect(compositor.contains("BLUSH"))
-#expect(compositor.contains("frame[\"headline\"]"))
-#expect(compositor.contains("frame[\"subheadline\"]"))
+- a device not named with the `Knitting Calculator Store` prefix exits 2;
+- a valid dedicated device invokes `simctl erase`, `install`, `launch`, and
+  `io ... screenshot`;
+- the recorded launch contains the real bundle ID and all four screenshot
+  arguments;
+- a fake screenshot with wrong dimensions exits nonzero.
+
+Run:
+
+```bash
+python3 -m unittest \
+  AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py
 ```
 
-Run the focused suite and verify FAIL because the scripts do not exist.
+Expected: FAIL because `capture.sh` and `compose.py` do not exist.
 
 - [ ] **Step 2: Implement dedicated simulator safety**
 
-`capture.sh` accepts only `zh-Hant` or `en`. It requires:
+`capture.sh` accepts only `zh-Hant` or `en`. It uses `xcrun` from `PATH` and
+accepts `CALC_SCREENSHOT_MANIFEST` only as a testable manifest-path override;
+the default is its sibling `manifest.json`. It requires:
 
 ```text
 CALC_IPHONE_UDID
@@ -573,13 +650,14 @@ bash -n AppStore/KnittingCalculator/Screenshots/capture.sh
 python3 -m py_compile \
   AppStore/KnittingCalculator/Screenshots/compose.py \
   AppStore/KnittingCalculator/Screenshots/validate.py
+python3 -m unittest \
+  AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py
 python3 AppStore/KnittingCalculator/Screenshots/validate.py \
   AppStore/KnittingCalculator/Screenshots/manifest.json --manifest-only
-swift test --filter KnittingCalculatorStoreScreenshotContractTests
 ```
 
 Expected: shell syntax succeeds, Python compiles, 18 definitions validate, and
-the focused Swift suite passes.
+the executable Python tool tests pass.
 
 - [ ] **Step 7: Commit Task 3**
 
@@ -588,7 +666,7 @@ git add \
   AppStore/KnittingCalculator/Screenshots/capture.sh \
   AppStore/KnittingCalculator/Screenshots/compose.py \
   AppStore/KnittingCalculator/Screenshots/README.md \
-  Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift
+  AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py
 git commit -m "feat: automate calculator App Store screenshots"
 ```
 

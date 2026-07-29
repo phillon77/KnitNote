@@ -43,6 +43,17 @@ import Testing
         #expect(try reasonsByCategory(in: manifest).isEmpty)
     }
 
+    @Test func knittingCalculatorDeclaresOnlyUserDefaultsAndNoCollectionOrTracking() throws {
+        let manifest = try privacyManifest(at: "KnittingCalculator/PrivacyInfo.xcprivacy")
+
+        try requireNoCollectionOrTracking(manifest)
+        #expect(
+            try reasonsByCategory(in: manifest) == [
+                "NSPrivacyAccessedAPICategoryUserDefaults": ["CA92.1"],
+            ]
+        )
+    }
+
     private func privacyManifest(at relativePath: String) throws -> [String: Any] {
         let data = try Data(
             contentsOf: privacyManifestRepositoryRoot.appending(path: relativePath)

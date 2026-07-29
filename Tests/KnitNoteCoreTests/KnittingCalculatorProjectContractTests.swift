@@ -93,6 +93,41 @@ import Testing
         #expect(!target.contains("KnitNoteWatch"))
     }
 
+    @Test func freeAppReleaseAuditPinsIdentityAndRejectsSentinels() throws {
+        let script = try source("AppStore/Verification/knitting_calculator_release_audit.sh")
+
+        #expect(script.contains("EXPECTED_BUNDLE=\"com.phillon.KnittingCalculator\""))
+        #expect(script.contains("EXPECTED_VERSION=\"1.0.0\""))
+        #expect(script.contains("EXPECTED_BUILD=\"1\""))
+        #expect(script.contains("apps.apple.com/app/id[0-9]+"))
+        #expect(script.contains("KnittingCalculator/PrivacyInfo.xcprivacy"))
+        #expect(script.contains("KnittingCalculator/Localization/Localizable.xcstrings"))
+        #expect(script.contains("\"get-task-allow\""))
+        #expect(script.contains("ARCHIVE STRUCTURE PASS"))
+        #expect(script.contains("ARCHIVE RELEASE SIGNING PASS"))
+    }
+
+    @Test func releaseAuditTargetsOnlyTheIndependentCalculatorProject() throws {
+        let script = try source("AppStore/Verification/knitting_calculator_release_audit.sh")
+
+        #expect(
+            script.contains(
+                "PROJECT_SPEC=\"KnittingCalculator/project.yml\""
+            )
+        )
+        #expect(
+            script.contains(
+                "PROJECT_FILE=\"KnittingCalculator.xcodeproj\""
+            )
+        )
+        #expect(script.contains("xcodegen dump"))
+        #expect(script.contains("--spec \"$PROJECT_SPEC\""))
+        #expect(script.contains("require_file \"$PROJECT_FILE/project.pbxproj\""))
+        #expect(!script.contains("KnitNote.xcodeproj"))
+        #expect(!script.contains("KnitNoteWatch"))
+        #expect(!script.contains("KnitNoteShare"))
+    }
+
     @Test func freeAppDeclaresItsOwnLaunchScreen() throws {
         let yaml = try source("project.yml")
         let calculatorTarget = try #require(

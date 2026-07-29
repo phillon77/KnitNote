@@ -138,53 +138,103 @@ calculator App Store URL. Remaining release blockers are:
 These blockers do not invalidate the independent project topology or archive
 structure, but the overall release audit remains `FAIL`.
 
+## Independent-project physical machine evidence — 2026-07-29
+
+### Tested source and devices
+
+- Source commit: `4f8e564e40bf3acfefd8a3ccdc0f6f7ab1b0524b`
+- Branch: `codex/knitting-calculator-independent-project`
+- Project/scheme: `KnittingCalculator.xcodeproj` / `KnittingCalculator`
+- Bundle/version: `com.phillon.KnittingCalculator`, `1.0.0 (1)`
+- iPhone: iPhone 17 Pro Max, iOS 26.5.2 (23F84),
+  UDID `00008150-00042D6A3612401C`, CoreDevice
+  `30C68657-A038-5548-A1C6-F9280C02D5FB`
+- iPad: iPad Air (5th generation), iPadOS 26.5.2 (23F84),
+  UDID `00008103-001934E41128A01E`, CoreDevice
+  `39B75EBF-8028-5713-87AC-A3BDBF985270`
+
+Both devices were discovered as available, paired, and connected by USB using
+`xcrun xcdevice list` and `xcrun devicectl list devices`.
+
+### Machine-verifiable gate
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| iPhone signed Debug build from the independent project | PASS | `xcodebuild -project KnittingCalculator.xcodeproj -scheme KnittingCalculator -configuration Debug -destination 'id=00008150-00042D6A3612401C' -derivedDataPath /tmp/KnittingCalculatorPhysical-iPhone build` ended with `** BUILD SUCCEEDED **`. |
+| iPhone signature integrity | PASS | `codesign --verify --deep --strict --verbose=2` reported valid on disk and satisfied the designated requirement. |
+| iPhone install identity | PASS | `devicectl device install app` returned bundle ID `com.phillon.KnittingCalculator` and installation path `/private/var/containers/Bundle/Application/1846104F-B859-4B3F-B610-E076E45B4E0C/KnittingCalculator.app/`. A subsequent app query reported name `Knitting Calculator`, version/build `1.0.0 (1)`, and `Developer App=true`. |
+| iPhone launch and process identity | PASS | `devicectl device process launch` reported launch of `com.phillon.KnittingCalculator`. A fresh process query found `/private/var/containers/Bundle/Application/1846104F-B859-4B3F-B610-E076E45B4E0C/KnittingCalculator.app/KnittingCalculator` running as PID `15500`. |
+| iPad signed Debug build from the independent project | PASS | `xcodebuild -project KnittingCalculator.xcodeproj -scheme KnittingCalculator -configuration Debug -destination 'id=00008103-001934E41128A01E' -derivedDataPath /tmp/KnittingCalculatorPhysical-iPad build` ended with `** BUILD SUCCEEDED **`. |
+| iPad signature integrity | PASS | `codesign --verify --deep --strict --verbose=2` reported valid on disk and satisfied the designated requirement. |
+| iPad install/launch gate | BLOCKED — DEVICE LOCKED | The install command acquired the device tunnel and usage assertion but returned no installation summary, so installation is not claimed. The one launch attempt was denied by `SBMainWorkspace` with `FBSOpenApplicationErrorDomain error 7`, reason `Locked`: the device was not or could not be unlocked. No retry was performed. |
+
+Build artifacts:
+
+- iPhone:
+  `/tmp/KnittingCalculatorPhysical-iPhone/Build/Products/Debug-iphoneos/KnittingCalculator.app`
+- iPhone executable SHA-256:
+  `4c6603e512bcdc0cacc07e8575abe53bb6ad823a7b179d0ce6f745e21ee96e01`
+- iPad:
+  `/tmp/KnittingCalculatorPhysical-iPad/Build/Products/Debug-iphoneos/KnittingCalculator.app`
+- iPad executable SHA-256:
+  `68dea5a6f4ca263c78c95dac99bdbb74a1b908ed139ea5041d226cc1e5567b2d`
+- Both built `Info.plist` files SHA-256:
+  `e2550a6d7857eef4d977aacd8402633024cbe2d66fe5944fab313ccd4bef3756`
+
+The machine evidence proves independent-project signing, installation/launch
+on the iPhone, and the exact running bundle process. It does not prove any
+visible layout, calculation, accessibility, persistence, share-sheet, link, or
+permission-prompt behavior. Those observations remain explicitly gated below.
+
 ## Evidence boundary
 
-- Recorded: 2026-07-28 (Asia/Taipei)
-- Candidate source commit: `aecc1db251a717a8b39102ee3e2042ec85579b23`
+- Recorded: 2026-07-29 (Asia/Taipei)
+- Candidate source commit: `4f8e564e40bf3acfefd8a3ccdc0f6f7ab1b0524b`
 - Expected app version/build: `1.0.0 (1)`
 - Discovery method: `xcrun xcdevice list` and `xcrun devicectl list devices`
 - Available physical iPhone: iPhone 17 Pro Max, iOS 26.5.2 (23F84)
 - Available physical iPad: iPad Air (5th generation), iPadOS 26.5.2 (23F84)
 
-Discovery only proves that paired devices were visible. No Knitting Calculator build has
-been signed, installed, or launched on either device in this record. Every `PENDING`
-row below remains an acceptance blocker; simulator or source evidence must not replace it.
+The iPhone machine gate passed, but every visible or functional row remains an
+acceptance blocker until the user records the observation. The iPad build
+passed, but its install/launch and all manual rows are blocked until the
+physical device is unlocked and the gate is rerun. Simulator or source
+evidence must not replace either device observation.
 
 ## iPhone acceptance
 
 | Check | Status | Evidence / follow-up |
 | --- | --- | --- |
-| Clean install opens directly to the two-tool home | PENDING | Requires signed install and manual launch. |
-| First unit follows device region | PENDING | Verify with a known device-region setting. |
-| Gauge exact/recommended results and unit conversion | PENDING | Check known values, nearest recommendation, and preserved counts. |
-| Optional gauge row group | PENDING | Exercise empty, complete, and partial row inputs. |
-| One-row increase/decrease and edge toggle | PENDING | Check increase and decrease with edge reservation on/off. |
-| Across-rows increase/decrease, one/both sides | PENDING | Check valid schedules and all error branches. |
-| Every specified failure | PENDING | Verify invalid, unsupported-limit, edge, and interval failures. |
-| Copy and share text | PENDING | Verify clipboard and share sheet payload. |
-| Portrait and landscape | PENDING | Inspect no clipping or lost result/action controls. |
-| Background, termination, and reopen persistence | PENDING | Verify last drafts and unit persistence after a force termination. |
-| Reset confirmation and scope | PENDING | Confirm drafts clear while unit/counters remain. |
-| KnitNote installed launch | PENDING | Requires KnitNote installed and a manual link tap. |
-| KnitNote uninstalled App Store fallback | PENDING | Requires a separate uninstalled-state pass. |
-| Maximum Dynamic Type | PENDING | Inspect home, both calculators, settings, errors, and results. |
-| VoiceOver | PENDING | Manually traverse labels, values, errors, disclosures, copy/share. |
-| High contrast, reduced motion, light/dark mode | PENDING | Verify each system setting combination. |
-| No unexpected permission prompt | PENDING | Observe clean install through both calculators and settings. |
+| Clean install opens directly to the two-tool home | AWAITING USER | Machine install and launch passed; visually confirm the two-tool home. |
+| First unit follows device region | AWAITING USER | Verify with a known device-region setting. |
+| Gauge exact/recommended results and unit conversion | AWAITING USER | Check known values, nearest recommendation, and preserved counts. |
+| Optional gauge row group | AWAITING USER | Exercise empty, complete, and partial row inputs. |
+| One-row increase/decrease and edge toggle | AWAITING USER | Check increase and decrease with edge reservation on/off. |
+| Across-rows increase/decrease, one/both sides | AWAITING USER | Check valid schedules and all error branches. |
+| Every specified failure | AWAITING USER | Verify invalid, unsupported-limit, edge, and interval failures. |
+| Copy and share text | AWAITING USER | Verify clipboard and share sheet payload. |
+| Portrait and landscape | AWAITING USER | Inspect no clipping or lost result/action controls. |
+| Background, termination, and reopen persistence | AWAITING USER | Verify last drafts and unit persistence after a force termination. |
+| Reset confirmation and scope | AWAITING USER | Confirm drafts clear while unit/counters remain. |
+| KnitNote installed launch | AWAITING USER | Requires KnitNote installed and a manual link tap. |
+| KnitNote uninstalled App Store fallback | AWAITING USER | Requires a separate uninstalled-state pass. |
+| Maximum Dynamic Type | AWAITING USER | Inspect home, both calculators, settings, errors, and results. |
+| VoiceOver | AWAITING USER | Manually traverse labels, values, errors, disclosures, copy/share. |
+| High contrast, reduced motion, light/dark mode | AWAITING USER | Verify each system setting combination. |
+| No unexpected permission prompt | AWAITING USER | Observe the installed candidate through both calculators and settings. |
 
 ## iPad acceptance
 
 | Check | Status | Evidence / follow-up |
 | --- | --- | --- |
-| Entire iPhone functional matrix | PENDING | Repeat every iPhone row on iPad Air (5th generation). |
-| Landscape and portrait | PENDING | Inspect cards, fields, disclosures, errors, and results. |
-| One-third Split View | PENDING | Verify no clipped cards, fields, results, or disclosures. |
-| Half Split View | PENDING | Verify no clipped cards, fields, results, or disclosures. |
-| Two-thirds Split View | PENDING | Verify no clipped cards, fields, results, or disclosures. |
-| External-keyboard numeric entry | PENDING | Run only if a keyboard is available; record availability. |
-| Share-sheet presentation and dismissal | PENDING | Confirm it is correctly anchored and dismisses. |
-| No unexpected permission prompt | PENDING | Observe clean install through all accessible screens. |
+| Entire iPhone functional matrix | BLOCKED — DEVICE LOCKED | Unlock the iPad, confirm installation/launch, then repeat every iPhone row. |
+| Landscape and portrait | BLOCKED — DEVICE LOCKED | Inspect cards, fields, disclosures, errors, and results after launch is unblocked. |
+| One-third Split View | BLOCKED — DEVICE LOCKED | Verify no clipped cards, fields, results, or disclosures. |
+| Half Split View | BLOCKED — DEVICE LOCKED | Verify no clipped cards, fields, results, or disclosures. |
+| Two-thirds Split View | BLOCKED — DEVICE LOCKED | Verify no clipped cards, fields, results, or disclosures. |
+| External-keyboard numeric entry | BLOCKED — DEVICE LOCKED | Run only if a keyboard is available; record availability. |
+| Share-sheet presentation and dismissal | BLOCKED — DEVICE LOCKED | Confirm it is correctly anchored and dismisses. |
+| No unexpected permission prompt | BLOCKED — DEVICE LOCKED | Observe clean install through all accessible screens. |
 
 ## Acceptance rule
 

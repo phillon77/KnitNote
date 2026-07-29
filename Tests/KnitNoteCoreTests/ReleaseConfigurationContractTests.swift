@@ -12,7 +12,7 @@ import Testing
             yaml.components(separatedBy: "MARKETING_VERSION: 1.2.1").count == 4
         )
         #expect(
-            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 3").count == 4
+            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 4").count == 4
         )
         #expect(yaml.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
     }
@@ -257,10 +257,10 @@ import Testing
         #expect(text?.contains("RELEASE AUDIT: PASS") == true)
     }
 
-    @Test func staticReleaseAuditPinsBuildThreeAndChecksEveryStringCatalog() throws {
+    @Test func staticReleaseAuditPinsBuildFourAndChecksEveryStringCatalog() throws {
         let script = try sourceText("AppStore/Verification/release_audit.sh")
 
-        #expect(script.contains("EXPECTED_BUILD=\"3\""))
+        #expect(script.contains("EXPECTED_BUILD=\"4\""))
         #expect(script.contains("def localization_is_complete"))
         for catalog in [
             "KnitNote/Localization/Localizable.xcstrings",

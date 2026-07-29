@@ -4,7 +4,8 @@ Date: 2026-07-29 (Asia/Taipei)
 
 Candidate: `1.2.1` / Build `4`
 
-Commit: `chore: prepare KnitNote 1.2.1 Build 4`
+Base release-candidate commit: `ec1bbabb1651bde8c935e8de5da232f0a559ffc6`
+(`chore: prepare KnitNote 1.2.1 Build 4`)
 
 Status: `LOCAL AUTOMATED VERIFICATION PASSED — physical TestFlight/iPad acceptance remains outstanding.`
 
@@ -38,6 +39,42 @@ The XcodeGen source (`project.yml`) and generated
 The macOS test command printed Xcode's existing multiple-matching-macOS-
 destination warning, then completed successfully against the arm64 local Mac.
 
+## Follow-up entitlement-outage correction
+
+The base candidate initially treated every unavailable StoreKit lookup as a
+trial refresh. The correction keeps a previously verified
+`.permanentlyUnlocked` or `.legacyPaidOwner` snapshot intact and does not read
+the trial store in that case. An initially unverified `.unavailable` lookup
+still resolves the Keychain-backed trial and never receives permanent access.
+
+The updated lifetime and legacy-paid regression expectations were first run
+against the pre-fix implementation with:
+
+```text
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote \
+  -destination 'platform=macOS' \
+  -derivedDataPath /tmp/KnitNoteBuild4OutagePreservationRedFull \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+The Swift Testing diagnostic reported six expected issues: for each preserved
+entitlement it observed an unwanted trial-store read, a downgrade to
+`.trialNotStarted`, and `.startTrial` instead of `.allow`.
+
+After the minimal fix, the complete app suite was rerun with
+`/tmp/KnitNoteBuild4OutagePreservationGreen`: exit `0`; xcresult reports `42`
+total tests, `42` passed, and `0` failures. The final package and release
+rechecks also completed with exit `0`:
+
+| Command | Result |
+| --- | --- |
+| `swift test --scratch-path /tmp/KnitNoteBuild4SwiftTests` | `963` tests in `78` suites passed. |
+| `bash AppStore/Verification/release_audit.sh --static-only` | `METADATA CHECK: PASS`; `RELEASE AUDIT: PASS`. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNote -configuration Release -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNoteBuild4Fix1-iOS CODE_SIGNING_ALLOWED=NO` | passed. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNote -configuration Release -destination 'generic/platform=macOS' -derivedDataPath /tmp/KnitNoteBuild4Fix1-macOS CODE_SIGNING_ALLOWED=NO` | passed. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNoteWatch -configuration Release -destination 'generic/platform=watchOS' -derivedDataPath /tmp/KnitNoteBuild4Fix1-watchOS CODE_SIGNING_ALLOWED=NO` | passed. |
+| `xcodebuild clean build -quiet -project KnitNote.xcodeproj -scheme KnitNoteShare -configuration Release -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNoteBuild4Fix1-share CODE_SIGNING_ALLOWED=NO` | passed. |
+
 ## Unsigned clean Release build evidence
 
 Each build used a separate derived-data path and
@@ -58,22 +95,27 @@ iPad:
 
 1. A previously verified lifetime entitlement remains usable during a later
    StoreKit outage; it must not be downgraded or show a false unlock prompt.
-2. A new, unpurchased installation can use the local seven-day trial when
+2. A previously verified legacy-paid entitlement remains usable during a later
+   StoreKit outage; it must not be downgraded or show a false unlock prompt.
+3. A new, unpurchased installation can use the local seven-day trial when
    StoreKit is unavailable, but does not gain permanent ownership.
-3. An expired trial remains restricted while StoreKit is unavailable.
-4. Restricted project creation dismisses the child create sheet before showing
+4. An expired trial remains restricted while StoreKit is unavailable.
+5. Restricted project creation dismisses the child create sheet before showing
    the root unlock presentation; it must not expose `ProjectStoreError error 6`.
-5. Reopen after each case to confirm durable entitlement/project state in iPad
+6. Reopen after each case to confirm durable entitlement/project state in iPad
    portrait and landscape layouts.
 
 ## External-action boundary and self-review
 
 This local verification does not authorize archive, validation, upload,
 TestFlight tester-group changes, App Store Connect metadata/IAP/price changes,
-submission, or release. Explicit authorization is required after the iPad
+submission, or release. Explicit authorization is required **before** any
+archive or upload; only then can a TestFlight build be available for the iPad
 acceptance run.
 
 Self-review confirmed that the only functional changes already present are the
 Task 1 StoreKit-outage trial recovery and Task 2 deferred unlock presentation;
-Task 3 changes only synchronize Build `4` release metadata and its audit
-contracts. Automated checks are green, but no physical acceptance is claimed.
+the follow-up correction preserves prior verified lifetime and legacy-paid
+ownership during StoreKit outages while retaining local-trial preparation for
+initially unverified users. Automated checks are green, but no physical
+acceptance is claimed.

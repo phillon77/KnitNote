@@ -137,6 +137,10 @@ final class EntitlementCoordinator: ObservableObject {
                         return .prepared(verifiedPurchase)
                     }
 
+                    if purchase == .unavailable {
+                        return .unavailable
+                    }
+
                     do {
                         let trial = try trialStore.load()
                         return .prepared(resolver.resolve(
@@ -185,8 +189,22 @@ final class EntitlementCoordinator: ObservableObject {
         case let .prepared(preparedSnapshot):
             publishSnapshot(preparedSnapshot)
         case .unavailable:
-            if !isPrepared
-                || (snapshot != .permanentlyUnlocked && snapshot != .legacyPaidOwner) {
+            guard snapshot != .permanentlyUnlocked,
+                  snapshot != .legacyPaidOwner else {
+                return
+            }
+            guard let trialStore else {
+                isPrepared = false
+                return
+            }
+            do {
+                let trial = try trialStore.load()
+                publishSnapshot(resolver.resolve(
+                    purchase: .none,
+                    trial: trial,
+                    now: now()
+                ))
+            } catch {
                 isPrepared = false
             }
         case .failed:

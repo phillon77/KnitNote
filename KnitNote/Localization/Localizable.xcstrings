@@ -4065,6 +4065,22 @@
         }
       }
     },
+    "patterns.inbox.later" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後處理"
+          }
+        }
+      }
+    },
     "patterns.inbox.retry" : {
       "localizations" : {
         "en" : {

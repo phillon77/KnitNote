@@ -56,6 +56,10 @@ final class PatternInboxProcessor: ObservableObject {
         processPending()
     }
 
+    func dismissFailure() {
+        failure = nil
+    }
+
     func discard() {
         guard let itemID = failure?.itemID else { return }
         failure = nil

@@ -40,13 +40,19 @@ import Testing
 
     @Test func failureHasReadableRetryAndDiscardActionsAndNoticeIsNonNavigating() throws {
         let root = try readRepositoryFile("KnitNote/App/RootView.swift")
+        let processor = try readRepositoryFile("KnitNote/Patterns/PatternInboxProcessor.swift")
 
         #expect(root.contains("patterns.inbox.error.title"))
         #expect(root.contains("patterns.inbox.error.message"))
         #expect(root.contains("patterns.inbox.retry"))
         #expect(root.contains("patterns.inbox.discard"))
+        #expect(root.contains("patterns.inbox.later"))
+        #expect(root.contains("patternInboxProcessor.dismissFailure()"))
+        #expect(root.contains("patternInboxProcessor.failure?.itemID"))
         #expect(root.contains("PatternInboxNoticeView"))
         #expect(root.contains(".overlay(alignment: .top)"))
+        #expect(processor.contains("func dismissFailure()"))
+        #expect(processor.contains("failure = nil"))
     }
 
     @Test func allInboxCopyIsTranslatedInEnglishAndTraditionalChinese() throws {
@@ -64,6 +70,7 @@ import Testing
             "patterns.inbox.error.message",
             "patterns.inbox.retry",
             "patterns.inbox.discard",
+            "patterns.inbox.later",
         ]
 
         for key in keys {

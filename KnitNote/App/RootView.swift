@@ -126,6 +126,10 @@ struct RootView: View {
                     Button("patterns.inbox.discard", role: .destructive) {
                         patternInboxProcessor.discard()
                     }
+                } else {
+                    Button("patterns.inbox.later", role: .cancel) {
+                        patternInboxProcessor.dismissFailure()
+                    }
                 }
             } message: {
                 Text("patterns.inbox.error.message")

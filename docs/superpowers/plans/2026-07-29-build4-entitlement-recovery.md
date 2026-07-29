@@ -37,7 +37,7 @@ Add tests that construct `EntitlementCoordinator` with
 ```swift
 @Test @MainActor
 func unavailablePurchaseLookupStillPreparesTrialNotStarted() async {
-    let trialStore = TrialStoreSpy(record: nil)
+    let trialStore = TrialStoreSpy(loadedRecord: nil)
     let coordinator = EntitlementCoordinator(
         purchaseService: PurchaseServiceSpy(qualification: .unavailable),
         trialStore: trialStore

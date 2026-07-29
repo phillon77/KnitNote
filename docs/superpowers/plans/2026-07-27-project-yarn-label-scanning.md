@@ -1,4 +1,4 @@
-# Project Yarn and Label Scanning Implementation Plan
+# KnitNote 1.3 Project Yarn and Label Scanning Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,6 +8,10 @@
 
 **Tech Stack:** Swift 6, SwiftUI, Vision, PhotosUI, AVFoundation/UIKit camera wrapper, Foundation, Swift Testing, XcodeGen
 
+**Approved Design:** `docs/superpowers/specs/2026-07-29-knitnote-1.3-yarn-workflow-design.md`
+
+**Milestones:** Tasks 4–5 deliver and review the project/yarn relationship milestone. Tasks 1–3 and 6–8 deliver and review the label-scanning milestone. Task 9 is the shared 1.3 release gate. Task numbering follows code dependencies; neither milestone authorizes a release by itself.
+
 ## Global Constraints
 
 - Deployment targets remain iOS 18.0, macOS 15.0, and watchOS 11.0.
@@ -16,11 +20,16 @@
 - Unlinking never deletes a yarn or any yarn photo.
 - Completed projects show historical yarn links read-only.
 - Scan supports camera and photo library, one image by default and at most two label images.
+- New and existing yarn records both support label scanning.
+- Keep optimized managed JPEG copies only: strip metadata, longest edge approximately 1600 px, and target approximately 150–400 KB per image without making text unreadable.
+- The user can delete a saved label photo without deleting confirmed text fields.
+- Settings shows the total storage used by managed yarn-label photos.
 - OCR and parsing remain on device; no network lookup, barcode database, generative guessing, analytics, or tracking.
 - Uncertain fields remain empty or visibly require confirmation; the user must confirm the editor before save.
 - Traditional Chinese and English localization and VoiceOver coverage are required.
 - New backup data must remain backward-compatible with archive versions 1–10.
 - Preserve user-owned untracked `.superpowers/brainstorm/`, `KnitNote 5.xcodeproj/`, and `KnitNote 6.xcodeproj/`.
+- Do not change the release version/build until Tasks 1–9 pass review and the user explicitly authorizes release preparation.
 
 ---
 
@@ -206,7 +215,7 @@ git commit -m "feat: parse yarn label text on device"
 - Modify: `Sources/KnitNoteCore/Projects/JSONProjectStore.swift:438-520`
 
 **Interfaces:**
-- Produces: `YarnLabelPhotoFileService.prepare(data:yarnID:ordinal:)`, atomic publish/rollback, `url(filename:)`, and filename validation.
+- Produces: `YarnLabelPhotoFileService.prepare(data:yarnID:ordinal:)`, atomic publish/rollback, `url(filename:)`, `totalStorageBytes()`, and filename validation.
 - Consumes: JPEG/HEIC/PNG bytes, yarn ID, ordinal 1 or 2.
 
 - [ ] **Step 1: Write failing security and transaction tests**
@@ -222,6 +231,20 @@ git commit -m "feat: parse yarn label text on device"
         try service.prepare(data: fixtureJPEG, yarnID: yarnID, ordinal: 3)
     }
 }
+
+@Test func normalizedPhotoIsJPEGWithinDimensionAndStoragePolicy() throws {
+    let prepared = try service.prepare(data: oversizedFixture, yarnID: yarnID, ordinal: 1)
+    let properties = try fixtureInspector.properties(of: prepared.url)
+    #expect(properties.format == .jpeg)
+    #expect(max(properties.width, properties.height) <= 1_600)
+    #expect(properties.metadataKeys.isEmpty)
+}
+
+@Test func storageUsageCountsOnlyManagedRegularFiles() throws {
+    try fixtureWriter.installManagedJPEG(bytes: 240_000, in: labelDirectory)
+    try fixtureWriter.installManagedJPEG(bytes: 180_000, in: labelDirectory)
+    #expect(try service.totalStorageBytes() == 420_000)
+}
 ```
 
 - [ ] **Step 2: Run and verify failure**
@@ -232,11 +255,13 @@ Expected: FAIL because service is missing.
 
 - [ ] **Step 3: Implement isolated label storage**
 
-Use `YarnLabelPhotos/` separate from display `YarnPhotos/`. Validate regular files and decoded image bounds, reject symlinks and path traversal, strip metadata through normalized re-encoding, cap each normalized image at the existing yarn-photo byte/pixel limits, and use unique filenames containing yarn ID and ordinal.
+Use `YarnLabelPhotos/` separate from display `YarnPhotos/`. Validate regular files and decoded image bounds, reject symlinks and path traversal, strip metadata, orient the pixels, resize proportionally until the longest edge is at most 1600 px, and encode a managed JPEG. Start near 0.78 quality and reduce quality in bounded steps only when needed; target roughly 150–400 KB while prioritizing readable label text. Enforce a hard decoded-pixel and encoded-byte ceiling before publication. Use unique filenames containing yarn ID and ordinal.
 
 - [ ] **Step 4: Implement prepare/publish/rollback**
 
 Prepared files live under a validated transaction directory. Archive persistence occurs between prepare and publish; failure removes candidates and leaves old photos. Successful replacement removes old managed photos only after the new archive is durable.
+
+Implement `totalStorageBytes()` by enumerating only validated regular managed files directly inside `YarnLabelPhotos/`. Ignore transaction directories, symlinks, and unknown filenames; surface enumeration failure rather than reporting a misleading zero.
 
 - [ ] **Step 5: Run service tests**
 
@@ -341,6 +366,7 @@ git commit -m "feat: link project yarn and save label photos"
 - Create: `KnitNote/Projects/ProjectYarnSection.swift`
 - Create: `KnitNote/Projects/ChooseProjectYarnsView.swift`
 - Modify: `KnitNote/Projects/ProjectDetailView.swift:84-110`
+- Modify: `KnitNote/Yarn/YarnEditorFields.swift:120-145`
 - Modify: `KnitNote/Localization/Localizable.xcstrings`
 - Test: `Tests/KnitNoteCoreTests/ProjectYarnViewContractTests.swift`
 - Test: `Tests/KnitNoteCoreTests/ProjectDetailLayoutContractTests.swift`
@@ -351,7 +377,7 @@ git commit -m "feat: link project yarn and save label photos"
 
 - [ ] **Step 1: Write failing layout contract**
 
-Assert source order places `ProjectYarnSection` after `CounterSelectorGrid` and before `ProjectJournalSection`; assert completed projects pass `isEditable: false`.
+Assert source order places `ProjectYarnSection` after `CounterSelectorGrid` and before `ProjectJournalSection`; assert completed projects pass `isEditable: false`. Assert the existing yarn editor still exposes project selection, saves through the same `linkedProjectIDs`, and refuses completed-project relationship changes.
 
 - [ ] **Step 2: Run and verify failure**
 
@@ -366,6 +392,8 @@ For no links, show only localized “Add Used Yarn” when editable and a concis
 - [ ] **Step 4: Implement multi-select linking**
 
 `ChooseProjectYarnsView` receives the current set, toggles existing library yarns, and calls `setProjectYarns` only on Done. Cancel makes no changes. An unlink confirmation states that the yarn remains in the library.
+
+Keep the yarn-side project picker as the second editing entry point. Before save, intersect selected IDs with existing projects and restore links for completed projects to their original values. The Store remains authoritative and rejects any attempt to add or remove a completed-project link, so both UI entry points use one relationship model and one persistence rule.
 
 - [ ] **Step 5: Add Traditional Chinese/English and VoiceOver**
 
@@ -382,7 +410,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add KnitNote/Projects/ProjectYarnSection.swift KnitNote/Projects/ChooseProjectYarnsView.swift KnitNote/Projects/ProjectDetailView.swift KnitNote/Localization/Localizable.xcstrings Tests/KnitNoteCoreTests
+git add KnitNote/Projects/ProjectYarnSection.swift KnitNote/Projects/ChooseProjectYarnsView.swift KnitNote/Projects/ProjectDetailView.swift KnitNote/Yarn/YarnEditorFields.swift KnitNote/Localization/Localizable.xcstrings Tests/KnitNoteCoreTests
 git commit -m "feat: show used yarn in projects"
 ```
 
@@ -451,9 +479,11 @@ git commit -m "feat: recognize yarn labels with vision"
 - Create: `KnitNote/Yarn/YarnLabelImagePicker.swift`
 - Create: `KnitNote/Yarn/YarnLabelScanView.swift`
 - Create: `KnitNote/Yarn/YarnLabelCandidateReviewView.swift`
+- Create: `KnitNote/Yarn/YarnLabelScanLauncher.swift`
 - Create: `Sources/KnitNoteCore/Yarn/YarnLabelDraftSeed.swift`
 - Modify: `KnitNote/Yarn/YarnLibraryView.swift:55-66`
 - Modify: `KnitNote/Yarn/CreateYarnView.swift`
+- Modify: `KnitNote/Yarn/EditYarnView.swift`
 - Modify: `KnitNote/Yarn/YarnEditorFields.swift:37-142`
 - Modify: `KnitNote/Info.plist`
 - Modify: `project.yml`
@@ -474,11 +504,20 @@ git commit -m "feat: recognize yarn labels with vision"
     #expect(seed.series == "BELLE")
     #expect(seed.colorCode == "12")
 }
+
+@Test func applyingScanToExistingYarnChangesDraftOnly() throws {
+    var draft = YarnEditorDraft(yarn: existingYarn, locale: enUS)
+    let seed = YarnLabelDraftSeed(scanResult: fixtureResult, accepted: [.colorCode, .dyeLot])
+    draft.apply(seed)
+    #expect(draft.colorCode == "12")
+    #expect(draft.dyeLot == "991")
+    #expect(store.yarn(id: existingYarn.id) == existingYarn)
+}
 ```
 
 - [ ] **Step 2: Implement entry chooser**
 
-The yarn-library plus button presents two large, simple actions: scan label or add manually. Manual path opens the unchanged editor. Scan path offers camera and photo library. On macOS, hide camera and offer photo-file selection while preserving manual entry.
+The yarn-library plus button presents two large, simple actions: scan label or add manually. Manual path opens the unchanged editor. Scan path offers camera and photo library. `EditYarnView` exposes the same reusable `YarnLabelScanLauncher`, initialized with any existing first/second label images. On macOS, hide camera and offer photo-file selection while preserving manual entry.
 
 - [ ] **Step 3: Implement one/two-image scan flow**
 
@@ -486,11 +525,11 @@ After the first image, run OCR and show result. Display “Scan Other Side” on
 
 - [ ] **Step 4: Implement candidate review**
 
-Preselect one unique high-confidence candidate per field. Low-confidence/ambiguous fields show “Needs confirmation” text and require an explicit choice or remain empty. Conflicting candidates show both source-side values. Continue creates the tested core `YarnLabelDraftSeed`, then opens `CreateYarnView` with a `YarnEditorDraft(seed:)` adapter and label image data; it does not save.
+Preselect one unique high-confidence candidate per field. Low-confidence/ambiguous fields show “Needs confirmation” text and require an explicit choice or remain empty. Conflicting candidates show both source-side values. Continue creates the tested core `YarnLabelDraftSeed`. The create flow initializes `YarnEditorDraft(seed:)`; the edit flow calls `draft.apply(seed)` without clearing existing fields that the user did not accept from the scan. Neither path saves before the user taps Done.
 
 - [ ] **Step 5: Extend editor fields and save path**
 
-Add weight grams, length meters, fiber content, needle range, and hook range. Use locale-aware decimal input and validation. If series is present and name is blank, propose series as name but keep it editable. Done calls the atomic store overload with zero, one, or two label photos.
+Add weight grams, length meters, fiber content, needle range, and hook range. Use locale-aware decimal input and validation. If series is present and name is blank, propose series as name but keep it editable. Create and edit Done both call the atomic store overload with zero, one, or two label photos. Removing a photo submits a photo change only; it never clears already confirmed label fields.
 
 - [ ] **Step 6: Add permissions and failure UI**
 
@@ -517,15 +556,18 @@ git commit -m "feat: add confirmed yarn label scanning flow"
 - Modify: `KnitNote/Yarn/YarnDetailView.swift`
 - Modify: `KnitNote/Yarn/EditYarnView.swift`
 - Create: `KnitNote/Yarn/YarnLabelPhotoGallery.swift`
+- Create: `KnitNote/Settings/YarnLabelStorageRow.swift`
+- Modify: `KnitNote/Settings/SettingsView.swift`
 - Modify: `Sources/KnitNoteCore/Backup/KnitNoteBackupService.swift`
 - Modify: `Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift`
 - Modify: `Sources/KnitNoteCore/Projects/JSONProjectStore.swift:1565-2020`
 - Test: `Tests/KnitNoteCoreTests/KnitNoteBackupServiceTests.swift`
 - Test: `Tests/KnitNoteCoreTests/YarnLabelPhotoViewContractTests.swift`
+- Test: `Tests/KnitNoteCoreTests/YarnLabelStorageContractTests.swift`
 
 **Interfaces:**
 - Consumes: managed label-photo filenames and new structured fields.
-- Produces: inspect/replace/remove label images and safe version-11 backup/restore.
+- Produces: inspect/replace/remove label images, visible storage usage, and safe version-11 backup/restore.
 
 - [ ] **Step 1: Write failing backup tests**
 
@@ -543,18 +585,26 @@ At successful load/recovery remove only unreferenced managed files inside the va
 
 Yarn detail shows structured label information only when present and a horizontally scrollable, VoiceOver-labeled gallery of up to two originals. Edit permits view, replace, or remove, and submits one atomic change.
 
-- [ ] **Step 5: Run backup and view tests**
+- [ ] **Step 5: Add storage usage to Settings**
+
+`YarnLabelStorageRow` asynchronously reads `totalStorageBytes()` through the store/service boundary and formats it with `ByteCountFormatter`. Show localized “Yarn label photos” plus the formatted value. While loading, show a progress indicator; on enumeration failure, show localized “Unavailable” rather than `0 KB`. Refresh after Settings appears and after a yarn label-photo mutation notification.
+
+Add contract tests that assert Settings includes the row, uses `ByteCountFormatter`, exposes a VoiceOver value, and distinguishes loading/error/loaded states.
+
+- [ ] **Step 6: Run backup, view, and storage tests**
 
 Run: `swift test --filter KnitNoteBackupServiceTests`
 
 Run: `swift test --filter YarnLabelPhoto`
 
+Run: `swift test --filter YarnLabelStorage`
+
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add KnitNote/Yarn Sources/KnitNoteCore/Backup Sources/KnitNoteCore/Projects/JSONProjectStore.swift Tests/KnitNoteCoreTests
+git add KnitNote/Yarn KnitNote/Settings Sources/KnitNoteCore/Backup Sources/KnitNoteCore/Projects/JSONProjectStore.swift Tests/KnitNoteCoreTests
 git commit -m "feat: back up yarn label details and photos"
 ```
 
@@ -591,11 +641,19 @@ Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'gene
 
 Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=macOS' -configuration Release -derivedDataPath .derived-data/yarn-release-mac CODE_SIGNING_ALLOWED=NO build`
 
-Expected: all tests pass and both Release builds succeed.
+Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNoteWatch -destination 'generic/platform=watchOS' -configuration Release -derivedDataPath .derived-data/yarn-release-watch CODE_SIGNING_ALLOWED=NO build`
+
+Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNoteShare -destination 'generic/platform=iOS' -configuration Release -derivedDataPath .derived-data/yarn-release-share CODE_SIGNING_ALLOWED=NO build`
+
+Run: `bash AppStore/Verification/release_audit.sh --static-only`
+
+Expected: all tests pass; iOS, macOS, watchOS, and Share Extension Release builds succeed; metadata and static release audit pass.
 
 - [ ] **Step 4: Perform physical iPhone/iPad acceptance**
 
-Verify camera scan, photo-library scan, Traditional Chinese label, English label, mixed label, blurred/no-text image, second side, conflict choice, cancel/retry, saved label originals, project with multiple yarns, one yarn in multiple projects, unlink without deletion, completed-project read-only state, backup/restore, Dynamic Type, and VoiceOver. Record device/OS/build and pass/fail evidence.
+Verify camera scan, photo-library scan, Traditional Chinese label, English label, mixed label, blurred/no-text image, second side, conflict choice, cancel/retry, optimized saved label copies, label-photo storage usage, project with multiple yarns, one yarn in multiple projects, unlink without deletion, completed-project read-only state, backup/restore, Dynamic Type, and VoiceOver. Record exact commit SHA, version, build, device, OS, and pass/fail evidence.
+
+Use the same candidate through TestFlight to re-run the commercial regression matrix: new seven-day trial user, expired trial, verified Lifetime Unlock owner, legacy paid owner, StoreKit temporarily unavailable, reinstall/restore purchase, Share Extension import, paired Watch entitlement sync, and Watch reconnection. A green local StoreKit configuration run is not accepted as TestFlight evidence.
 
 - [ ] **Step 5: Run diff and review gates**
 
@@ -603,7 +661,9 @@ Run: `git diff --check main...HEAD`
 
 Run: `git status --short && git diff --stat main...HEAD`
 
-Use `superpowers:requesting-code-review` for specification compliance and then code quality. Fix confirmed findings with tests and repeat Step 3.
+Run: `git rev-parse --show-toplevel && git branch --show-current && git rev-parse HEAD && git rev-parse origin/main`
+
+Confirm the intended repository/worktree, expected feature branch, no unrelated tracked changes, and preservation of user-owned untracked paths. Use `superpowers:requesting-code-review` for specification compliance and then code quality. Fix confirmed findings with tests and repeat Steps 3–5.
 
 - [ ] **Step 6: Commit verification documentation**
 
@@ -614,4 +674,6 @@ git commit -m "test: verify yarn scanning release"
 
 - [ ] **Step 7: Stop for integration choice**
 
-Use `superpowers:finishing-a-development-branch`. Do not merge, push, create a PR, or submit a release without explicit user authorization.
+Use `superpowers:finishing-a-development-branch`. Do not merge, push, create a PR, alter version/build, archive, upload, change App Store price/IAP/metadata, submit, or release without explicit user authorization.
+
+After an authorized merge, create one immutable release-candidate commit and repeat Steps 3–5 against that exact commit. Before submission, verify the selected App Store Connect build, free App price, non-consumable Lifetime Unlock IAP, localized metadata, screenshots, and review notes all describe the same candidate. After submission, record archive path, commit SHA, version/build, selected build, IAP, price, storefront state, and submission ID; push/tag the submitted source so it can be reconstructed.

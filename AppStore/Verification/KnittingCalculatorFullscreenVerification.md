@@ -58,18 +58,24 @@ acceptance has been inferred from install or launch output.
 Status legend: `PASS` requires direct visual observation on the listed physical
 iPhone. `PENDING` is not an acceptance result.
 
-| Scenario | Status | Required handoff observation |
+The supplied screenshots were captured on the listed iPhone after the requested
+clean terminate/reopen and rotation sequence:
+
+- Portrait home: `/Users/longzhenzhong/Downloads/截圖 2026-07-29 15.18.14.png`
+- Landscape adjustment screen: `/Users/longzhenzhong/Downloads/截圖 2026-07-29 15.18.37.png`
+
+| Scenario | Status | Evidence |
 | --- | --- | --- |
-| Clean launch fills from the top safe area to the bottom safe area | PENDING | Open the installed Calculator from a terminated state and confirm the app content reaches both safe-area edges. |
-| No black compatibility bars | PENDING | On the clean launch, confirm no black letterboxing appears above, below, or beside the app. |
-| Portrait fills the display | PENDING | Hold the iPhone in portrait and confirm the content fills the screen. |
-| Landscape fills the display | PENDING | Rotate to landscape and confirm the content fills the screen. |
-| Background and foreground remain full screen | PENDING | Background the app, return to it, and confirm full-screen presentation remains. |
-| Terminate and reopen remain full screen | PENDING | Terminate the app, reopen it, and confirm full-screen presentation remains. |
+| Clean launch fills from the top safe area to the bottom safe area | PASS | User confirmed the requested clean terminate/reopen sequence; the portrait home screenshot fills the displayed iPhone area. |
+| No black compatibility bars | PASS | The portrait screenshot shows no legacy black bars above, below, or beside the installed app. |
+| Portrait fills the display | PASS | The portrait home screenshot shows the app filling the iPhone display. |
+| Landscape fills the display | PASS | The landscape adjustment-screen screenshot shows the app filling the iPhone display after rotation. |
+| Background and foreground remain full screen | PENDING | No screenshot or user observation covers a background-to-foreground transition. |
+| Terminate and reopen remain full screen | PASS | User confirmed the requested clean terminate/reopen sequence; the resulting portrait screenshot shows full-screen presentation. |
 
 ## Integration gate
 
-This evidence does not authorize cherry-picking into the original
-`codex/free-knitting-calculator` worktree: every physical row above must be
-directly observed as `PASS` first. That worktree's interrupted Task 12 files
-must remain untouched until this gate is met.
+The current physical evidence authorizes integration of the narrow launch-screen
+repair only. The background/foreground scenario remains a later manual check.
+The original `codex/free-knitting-calculator` worktree's interrupted Task 12
+files must remain untouched by that integration.

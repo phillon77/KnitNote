@@ -136,14 +136,11 @@ final class EntitlementCoordinator: ObservableObject {
                     if let verifiedPurchase = purchase.entitlementSnapshot {
                         return .prepared(verifiedPurchase)
                     }
-                    if purchase == .unavailable {
-                        return .unavailable
-                    }
 
                     do {
                         let trial = try trialStore.load()
                         return .prepared(resolver.resolve(
-                            purchase: purchase,
+                            purchase: .none,
                             trial: trial,
                             now: now()
                         ))

@@ -227,7 +227,7 @@ import Testing
         #expect(coordinator.snapshot == .trialNotStarted)
     }
 
-    @Test @MainActor func unavailableRefreshAfterLifetimePreservesVerifiedUnlock() async {
+    @Test @MainActor func unavailableRefreshAfterLifetimePreparesTheLocalTrial() async {
         let purchaseService = ControlledPurchaseService()
         let trialStore = TrialStoreSpy(loadedRecord: nil)
         let coordinator = EntitlementCoordinator(
@@ -248,13 +248,13 @@ import Testing
 
         #expect(purchaseService.prepareCallCount == 2)
         #expect(purchaseService.qualificationCallCount == 2)
-        #expect(trialStore.loadCallCount == 0)
-        #expect(coordinator.snapshot == .permanentlyUnlocked)
-        #expect(coordinator.authorize(.changeCounter) == .allow)
+        #expect(trialStore.loadCallCount == 1)
+        #expect(coordinator.verifiedSnapshot == .trialNotStarted)
+        #expect(coordinator.authorize(.changeCounter) == .startTrial)
         #expect(coordinator.unlockRequest == nil)
     }
 
-    @Test @MainActor func unavailableRefreshAfterLegacyOwnerPreservesVerifiedUnlock() async {
+    @Test @MainActor func unavailableRefreshAfterLegacyOwnerPreparesTheLocalTrial() async {
         let purchaseService = PurchaseServiceSpy(qualification: .legacyPaidOwner)
         let trialStore = TrialStoreSpy(loadedRecord: nil)
         let coordinator = EntitlementCoordinator(
@@ -266,20 +266,51 @@ import Testing
 
         await coordinator.refreshEntitlement()
 
-        #expect(trialStore.loadCallCount == 0)
-        #expect(coordinator.snapshot == .legacyPaidOwner)
-        #expect(coordinator.authorize(.changeCounter) == .allow)
+        #expect(trialStore.loadCallCount == 1)
+        #expect(coordinator.verifiedSnapshot == .trialNotStarted)
+        #expect(coordinator.authorize(.changeCounter) == .startTrial)
     }
 
-    @Test @MainActor func initialUnavailableQualificationFailsClosed() async {
+    @Test @MainActor
+    func unavailablePurchaseLookupStillPreparesTrialNotStarted() async {
+        let trialStore = TrialStoreSpy(loadedRecord: nil)
         let coordinator = EntitlementCoordinator(
             purchaseService: PurchaseServiceSpy(qualification: .unavailable),
-            trialStore: TrialStoreSpy(loadedRecord: nil)
+            trialStore: trialStore
         )
 
-        #expect(await coordinator.ensurePrepared() == false)
-        #expect(coordinator.verifiedSnapshot == nil)
-        #expect(coordinator.authorize(.changeCounter) == .requiresUnlock)
+        await coordinator.prepare()
+
+        #expect(coordinator.verifiedSnapshot == .trialNotStarted)
+        #expect(coordinator.allowsWrites)
+        #expect(trialStore.loadCallCount == 1)
+    }
+
+    @Test(arguments: [0.0, -TrialRecord.duration - 1])
+    @MainActor
+    func unavailablePurchaseLookupResolvesExistingTrialRecord(
+        startedAtOffset: TimeInterval
+    ) async {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let record = TrialRecord(
+            startedAt: now.addingTimeInterval(startedAtOffset)
+        )
+        let trialStore = TrialStoreSpy(loadedRecord: record)
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .unavailable),
+            trialStore: trialStore,
+            now: { now }
+        )
+
+        await coordinator.prepare()
+
+        #expect(coordinator.verifiedSnapshot == .trial(
+            startedAt: record.startedAt,
+            expiresAt: record.expiresAt
+        ))
+        #expect(coordinator.verifiedSnapshot != .permanentlyUnlocked)
+        #expect(coordinator.verifiedSnapshot != .legacyPaidOwner)
+        #expect(trialStore.loadCallCount == 1)
     }
 
     @Test @MainActor func unpreparedCoordinatorBlocksDurableWatchCommandBeforeAnyWrite() throws {

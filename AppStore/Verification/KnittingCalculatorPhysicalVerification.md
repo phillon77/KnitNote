@@ -201,6 +201,24 @@ passed, but its install/launch and all manual rows are blocked until the
 physical device is unlocked and the gate is rerun. Simulator or source
 evidence must not replace either device observation.
 
+### Independent-project iPhone equivalence confirmation
+
+On 2026-07-29, after the independent-project candidate was installed and
+launched, the user replied `iphone ok` to the requested checks. This confirms
+the following scope for source commit
+`4f8e564e40bf3acfefd8a3ccdc0f6f7ab1b0524b`:
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Home fills the complete screen with no black bars | PASS | User observation on the installed iPhone candidate. |
+| Portrait and landscape fill the display | PASS | User observation on the installed iPhone candidate. |
+| Background then foreground remains full screen | PASS | User observation on the installed iPhone candidate. |
+| Density and increase/decrease tools perform normally | PASS | User observation on the installed iPhone candidate. |
+
+This concise confirmation does not imply the unrequested accessibility,
+permission, share-sheet, deep-link, reset, force-termination, or exhaustive
+edge-case rows below have passed.
+
 ## iPhone acceptance
 
 | Check | Status | Evidence / follow-up |

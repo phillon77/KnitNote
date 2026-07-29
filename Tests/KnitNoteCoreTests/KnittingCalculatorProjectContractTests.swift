@@ -128,6 +128,39 @@ import Testing
         #expect(!script.contains("KnitNoteShare"))
     }
 
+    @Test func releaseAuditRequiresExactAppStoreDistributionSigning() throws {
+        let script = try source("AppStore/Verification/knitting_calculator_release_audit.sh")
+
+        #expect(script.contains("EXPECTED_TEAM_IDENTIFIER=\"9CFPAUL5N5\""))
+        #expect(script.contains("security cms -D -i"))
+        #expect(script.contains("|| fail \"cannot decode embedded provisioning profile\""))
+        #expect(
+            script.contains(
+                "[[ \"$app_identifier\" == \"$EXPECTED_TEAM_IDENTIFIER.$EXPECTED_BUNDLE\" ]]"
+            )
+        )
+        #expect(script.contains("[[ \"$get_task_allow\" == \"false\" ]]"))
+        #expect(script.contains("[[ \"$beta_reports_active\" == \"true\" ]]"))
+        #expect(
+            script.contains(
+                "if plist_value \"$profile_plist\" \"ProvisionedDevices\""
+            )
+        )
+        #expect(
+            script.contains(
+                "if plist_value \"$profile_plist\" \"ProvisionsAllDevices\""
+            )
+        )
+        #expect(script.contains("TeamIdentifier"))
+        #expect(
+            script.contains(
+                "[[ \"$leaf_authority\" == \"Apple Distribution: \"* ]]"
+            )
+        )
+        #expect(script.contains("|| fail \"cannot decode archive signing authority\""))
+        #expect(script.contains("leaf signing authority"))
+    }
+
     @Test func freeAppDeclaresItsOwnLaunchScreen() throws {
         let yaml = try source("project.yml")
         let calculatorTarget = try #require(

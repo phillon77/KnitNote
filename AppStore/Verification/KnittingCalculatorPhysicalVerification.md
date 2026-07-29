@@ -76,7 +76,7 @@ Result: `** ARCHIVE SUCCEEDED **`.
 | Required resources | PASS | `Assets.car`, `PrivacyInfo.xcprivacy`, and `en` / `zh-Hant` `Localizable.strings` plus `InfoPlist.strings` are present. |
 | Prohibited app capabilities | PASS | No app group, iCloud, push, camera, photo, document, or file-browser declaration. |
 | Signature integrity in the normal Keychain context | PASS | `codesign --verify --deep --strict --verbose=2` reported valid on disk and satisfied its designated requirement. |
-| Distribution signing | BLOCKED | Xcode selected `Apple Development: lzz.1999@gmail.com (6VTQJ4MR59)` and wildcard profile `bb3d61d1-4aa7-4ef9-ab1b-712da0f32a20`; entitlements contain `get-task-allow=true`. This is not an App Store distribution archive. |
+| Distribution signing | BLOCKED | Xcode selected `Apple Development: lzz.1999@gmail.com (6VTQJ4MR59)` and wildcard profile `bb3d61d1-4aa7-4ef9-ab1b-712da0f32a20`. The decoded profile has `application-identifier=9CFPAUL5N5.*`, `get-task-allow=true`, no `beta-reports-active`, and a `ProvisionedDevices` list. Its leaf identity is not Apple Distribution. |
 | Restricted/sandbox trust check | BLOCKED | A separate restricted-context strict verification reported `CSSMERR_TP_NOT_TRUSTED`; no release claim relies on that context passing. |
 
 Archive artifact SHA-256:
@@ -113,7 +113,7 @@ Result:
 ```text
 KNITTING CALCULATOR RELEASE AUDIT: STATIC PRODUCT SCOPE PASS
 KNITTING CALCULATOR RELEASE AUDIT: ARCHIVE STRUCTURE PASS
-KNITTING CALCULATOR RELEASE AUDIT: FAIL — release archive contains a prohibited capability or development-only get-task-allow entitlement
+KNITTING CALCULATOR RELEASE AUDIT: FAIL — embedded profile is missing beta-reports-active
 ```
 
 The existing numeric URL `https://apps.apple.com/app/id6793023054` is the
@@ -124,8 +124,16 @@ calculator App Store URL. Remaining release blockers are:
    ID, then `CalculatorShareText.swift` must replace the development landing
    page.
 2. A usable App Store distribution provisioning profile/signing path must
-   produce an archive with `get-task-allow=false` and a trusted strict
-   `codesign` verification result.
+   produce an archive whose decoded embedded profile has the single exact team
+   `9CFPAUL5N5`, exact application identifier
+   `9CFPAUL5N5.com.phillon.KnittingCalculator`,
+   `get-task-allow=false`, `beta-reports-active=true`, no
+   `ProvisionedDevices`, and no `ProvisionsAllDevices`.
+3. The leaf signing identity must begin with `Apple Distribution:` and strict
+   `codesign` verification must pass. This separately rejects Apple
+   Development; the profile rules above reject Ad Hoc and Enterprise
+   provisioning even when those builds also use an Apple Distribution
+   certificate.
 
 These blockers do not invalidate the independent project topology or archive
 structure, but the overall release audit remains `FAIL`.

@@ -7,6 +7,7 @@ cd "$ROOT"
 EXPECTED_BUNDLE="com.phillon.KnittingCalculator"
 EXPECTED_VERSION="1.0.0"
 EXPECTED_BUILD="1"
+EXPECTED_TEAM_IDENTIFIER="9CFPAUL5N5"
 PROJECT_SPEC="KnittingCalculator/project.yml"
 PROJECT_FILE="KnittingCalculator.xcodeproj"
 APP_STORE_URL_PATTERN='apps.apple.com/app/id[0-9]+'
@@ -174,6 +175,75 @@ verify_archive_entitlements() {
     || fail "release archive contains a prohibited capability or development-only get-task-allow entitlement"
 }
 
+verify_app_store_profile() {
+  local app="$1"
+  local profile="$app/embedded.mobileprovision"
+  local profile_plist
+  local app_identifier
+  local profile_team_identifier
+  local entitlement_team_identifier
+  local get_task_allow
+  local beta_reports_active
+  require_file "$profile"
+  profile_plist="$(mktemp "${TMPDIR:-/tmp}/knitting-calculator-profile.XXXXXX")"
+  TEMP_FILES+=("$profile_plist")
+
+  security cms -D -i "$profile" >"$profile_plist" 2>/dev/null \
+    || fail "cannot decode embedded provisioning profile"
+
+  app_identifier="$(
+    plist_value "$profile_plist" "Entitlements:application-identifier" 2>/dev/null
+  )" || fail "embedded profile is missing application-identifier"
+  profile_team_identifier="$(
+    plist_value "$profile_plist" "TeamIdentifier:0" 2>/dev/null
+  )" || fail "embedded profile is missing TeamIdentifier"
+  entitlement_team_identifier="$(
+    plist_value "$profile_plist" "Entitlements:com.apple.developer.team-identifier" 2>/dev/null
+  )" || fail "embedded profile is missing team entitlement"
+  get_task_allow="$(
+    plist_value "$profile_plist" "Entitlements:get-task-allow" 2>/dev/null
+  )" || fail "embedded profile is missing get-task-allow"
+  beta_reports_active="$(
+    plist_value "$profile_plist" "Entitlements:beta-reports-active" 2>/dev/null
+  )" || fail "embedded profile is missing beta-reports-active"
+
+  [[ "$app_identifier" == "$EXPECTED_TEAM_IDENTIFIER.$EXPECTED_BUNDLE" ]] \
+    || fail "embedded profile application-identifier is not ${EXPECTED_TEAM_IDENTIFIER}.${EXPECTED_BUNDLE}"
+  [[ "$profile_team_identifier" == "$EXPECTED_TEAM_IDENTIFIER" ]] \
+    || fail "embedded profile TeamIdentifier is not $EXPECTED_TEAM_IDENTIFIER"
+  if plist_value "$profile_plist" "TeamIdentifier:1" >/dev/null 2>&1; then
+    fail "embedded profile contains more than one TeamIdentifier"
+  fi
+  [[ "$entitlement_team_identifier" == "$EXPECTED_TEAM_IDENTIFIER" ]] \
+    || fail "embedded profile team entitlement is not $EXPECTED_TEAM_IDENTIFIER"
+  [[ "$get_task_allow" == "false" ]] \
+    || fail "embedded profile get-task-allow is not false"
+  [[ "$beta_reports_active" == "true" ]] \
+    || fail "embedded profile beta-reports-active is not true"
+  if plist_value "$profile_plist" "ProvisionedDevices" >/dev/null 2>&1; then
+    fail "embedded profile contains ProvisionedDevices and is not App Store distribution"
+  fi
+  if plist_value "$profile_plist" "ProvisionsAllDevices" >/dev/null 2>&1; then
+    fail "embedded profile contains ProvisionsAllDevices and is not App Store distribution"
+  fi
+}
+
+verify_apple_distribution_identity() {
+  local app="$1"
+  local signing_info
+  local leaf_authority
+
+  signing_info="$(codesign -d --verbose=4 "$app" 2>&1)" \
+    || fail "cannot decode archive signing authority"
+  leaf_authority="$(
+    printf '%s\n' "$signing_info" \
+      | awk '/^Authority=/{sub(/^Authority=/, ""); print; exit}'
+  )"
+
+  [[ "$leaf_authority" == "Apple Distribution: "* ]] \
+    || fail "leaf signing authority is not Apple Distribution: ${leaf_authority:-missing}"
+}
+
 verify_archive_no_permission_descriptions() {
   local info="$1"
   plutil -convert json -o - "$info" \
@@ -225,7 +295,9 @@ verify_archive_release_signing() {
   local archive="$1"
   local app="$archive/Products/Applications/KnittingCalculator.app"
 
+  verify_app_store_profile "$app"
   verify_archive_entitlements "$app"
+  verify_apple_distribution_identity "$app"
   codesign --verify --deep --strict "$app" \
     || fail "release codesign verification failed"
 }

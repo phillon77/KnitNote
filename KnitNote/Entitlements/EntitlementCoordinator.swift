@@ -1,12 +1,21 @@
 import Foundation
 import SwiftUI
 
+enum PurchaseVerificationAvailability: Equatable, Sendable {
+    case unknown
+    case available
+    case unavailable
+}
+
 @MainActor
 final class EntitlementCoordinator: ObservableObject {
     private enum PreparationResult: Sendable {
-        case prepared(EntitlementSnapshot)
+        case prepared(
+            EntitlementSnapshot,
+            PurchaseVerificationAvailability
+        )
         case unavailable
-        case failed
+        case failed(PurchaseVerificationAvailability)
     }
 
     private struct PreparationFlight {
@@ -17,6 +26,8 @@ final class EntitlementCoordinator: ObservableObject {
 
     @Published private(set) var snapshot: EntitlementSnapshot
     @Published private(set) var unlockRequest: FeatureMutation?
+    @Published private(set) var purchaseVerificationAvailability:
+        PurchaseVerificationAvailability
 
     var localizedLifetimePrice: String? {
         purchaseService?.localizedLifetimePrice
@@ -70,6 +81,7 @@ final class EntitlementCoordinator: ObservableObject {
         self.now = now
         self.onSnapshotChange = onSnapshotChange
         isPrepared = false
+        purchaseVerificationAvailability = .unknown
         entitlementUpdatesTask = nil
         let updates = purchaseService.entitlementUpdates
         entitlementUpdatesTask = Task { [weak self] in
@@ -91,6 +103,7 @@ final class EntitlementCoordinator: ObservableObject {
         self.now = now
         onSnapshotChange = { _, _ in }
         isPrepared = true
+        purchaseVerificationAvailability = .unknown
         entitlementUpdatesTask = nil
     }
 
@@ -134,7 +147,10 @@ final class EntitlementCoordinator: ObservableObject {
                     await purchaseService.prepare()
                     let purchase = await purchaseService.currentQualification()
                     if let verifiedPurchase = purchase.entitlementSnapshot {
-                        return .prepared(verifiedPurchase)
+                        return .prepared(
+                            verifiedPurchase,
+                            .available
+                        )
                     }
 
                     if purchase == .unavailable {
@@ -147,9 +163,9 @@ final class EntitlementCoordinator: ObservableObject {
                             purchase: .none,
                             trial: trial,
                             now: now()
-                        ))
+                        ), .available)
                     } catch {
-                        return .failed
+                        return .failed(.available)
                     }
                 }
             )
@@ -186,9 +202,11 @@ final class EntitlementCoordinator: ObservableObject {
         preparationFlight = nil
 
         switch result {
-        case let .prepared(preparedSnapshot):
+        case let .prepared(preparedSnapshot, availability):
+            purchaseVerificationAvailability = availability
             publishSnapshot(preparedSnapshot)
         case .unavailable:
+            purchaseVerificationAvailability = .unavailable
             guard snapshot != .permanentlyUnlocked,
                   snapshot != .legacyPaidOwner else {
                 return
@@ -207,7 +225,8 @@ final class EntitlementCoordinator: ObservableObject {
             } catch {
                 isPrepared = false
             }
-        case .failed:
+        case let .failed(availability):
+            purchaseVerificationAvailability = availability
             isPrepared = false
         }
     }
@@ -238,6 +257,10 @@ final class EntitlementCoordinator: ObservableObject {
     private func applyRestoredQualification(
         _ qualification: PurchaseQualification
     ) throws {
+        purchaseVerificationAvailability = qualification == .unavailable
+            ? .unavailable
+            : .available
+
         if let restoredSnapshot = qualification.entitlementSnapshot {
             publishSnapshot(restoredSnapshot)
             return

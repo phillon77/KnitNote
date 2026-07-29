@@ -48,8 +48,8 @@ struct CreateProjectView: View {
         } catch {
             switch CreateProjectFailureMapper.presentation(for: error) {
             case .requestUnlock:
-                dismiss()
                 onRequestUnlock()
+                dismiss()
             case let .saveError(message):
                 errorMessage = message
             }

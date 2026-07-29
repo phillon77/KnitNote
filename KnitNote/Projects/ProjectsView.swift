@@ -7,9 +7,15 @@ struct ProjectsView: View {
     @State private var pendingUnlockAfterCreate = false
     @State private var pendingDeletion: StoredProject?
     let onShowUnlock: () -> Void
+    let onCreateSheetPresentationChanged: (Bool) -> Void
 
-    init(onShowUnlock: @escaping () -> Void = {}) {
+    init(
+        onShowUnlock: @escaping () -> Void = {},
+        onCreateSheetPresentationChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
         self.onShowUnlock = onShowUnlock
+        self.onCreateSheetPresentationChanged =
+            onCreateSheetPresentationChanged
     }
 
     var body: some View {
@@ -28,7 +34,7 @@ struct ProjectsView: View {
                                 title: "projects.empty.title",
                                 message: "projects.empty.message",
                                 actionTitle: "projects.add",
-                                action: { showingCreate = true }
+                                action: showCreateSheet
                             )
                         } else {
                             ForEach(store.projects) { project in
@@ -55,8 +61,15 @@ struct ProjectsView: View {
             }
             .navigationTitle("nav.projects")
             .navigationDestination(for: UUID.self) { ProjectDetailView(projectID: $0) }
-            .toolbar { Button("projects.add", systemImage: "plus") { showingCreate = true } }
+            .toolbar {
+                Button(
+                    "projects.add",
+                    systemImage: "plus",
+                    action: showCreateSheet
+                )
+            }
             .sheet(isPresented: $showingCreate, onDismiss: {
+                onCreateSheetPresentationChanged(false)
                 guard pendingUnlockAfterCreate else { return }
                 pendingUnlockAfterCreate = false
                 onShowUnlock()
@@ -64,6 +77,9 @@ struct ProjectsView: View {
                 CreateProjectView(onRequestUnlock: {
                     pendingUnlockAfterCreate = true
                 })
+                .onAppear {
+                    onCreateSheetPresentationChanged(true)
+                }
             }
             .confirmationDialog(
                 "project.delete.title",
@@ -79,5 +95,9 @@ struct ProjectsView: View {
                 Button("common.cancel", role: .cancel) { pendingDeletion = nil }
             }
         }
+    }
+
+    private func showCreateSheet() {
+        showingCreate = true
     }
 }

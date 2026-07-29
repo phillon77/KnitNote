@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Security
 import Testing
 @testable import KnitNote
 
@@ -250,6 +251,9 @@ import Testing
         #expect(purchaseService.qualificationCallCount == 2)
         #expect(trialStore.loadCallCount == 0)
         #expect(coordinator.verifiedSnapshot == .permanentlyUnlocked)
+        #expect(
+            coordinator.purchaseVerificationAvailability == .unavailable
+        )
         #expect(coordinator.authorize(.changeCounter) == .allow)
         #expect(coordinator.unlockRequest == nil)
     }
@@ -268,15 +272,26 @@ import Testing
 
         #expect(trialStore.loadCallCount == 0)
         #expect(coordinator.verifiedSnapshot == .legacyPaidOwner)
+        #expect(
+            coordinator.purchaseVerificationAvailability == .unavailable
+        )
         #expect(coordinator.authorize(.changeCounter) == .allow)
     }
 
     @Test @MainActor
     func unavailablePurchaseLookupStillPreparesTrialNotStarted() async {
         let trialStore = TrialStoreSpy(loadedRecord: nil)
+        var projectedSnapshots: [EntitlementSnapshot] = []
         let coordinator = EntitlementCoordinator(
             purchaseService: PurchaseServiceSpy(qualification: .unavailable),
-            trialStore: trialStore
+            trialStore: trialStore,
+            onSnapshotChange: { snapshot, _ in
+                projectedSnapshots.append(snapshot)
+            }
+        )
+
+        #expect(
+            coordinator.purchaseVerificationAvailability == .unknown
         )
 
         await coordinator.prepare()
@@ -284,6 +299,12 @@ import Testing
         #expect(coordinator.verifiedSnapshot == .trialNotStarted)
         #expect(coordinator.allowsWrites)
         #expect(trialStore.loadCallCount == 1)
+        #expect(
+            coordinator.purchaseVerificationAvailability == .unavailable
+        )
+        #expect(projectedSnapshots == [.trialNotStarted])
+        #expect(!projectedSnapshots.contains(.permanentlyUnlocked))
+        #expect(!projectedSnapshots.contains(.legacyPaidOwner))
     }
 
     @Test(arguments: [0.0, -TrialRecord.duration - 1])
@@ -311,6 +332,61 @@ import Testing
         #expect(coordinator.verifiedSnapshot != .permanentlyUnlocked)
         #expect(coordinator.verifiedSnapshot != .legacyPaidOwner)
         #expect(trialStore.loadCallCount == 1)
+    }
+
+    @Test @MainActor
+    func availablePurchaseLookupPublishesAvailableVerificationStatus() async {
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(qualification: .none),
+            trialStore: TrialStoreSpy(loadedRecord: nil)
+        )
+
+        await coordinator.prepare()
+
+        #expect(
+            coordinator.purchaseVerificationAvailability == .available
+        )
+        #expect(coordinator.verifiedSnapshot == .trialNotStarted)
+    }
+
+    @Test @MainActor
+    func firstProjectAfterInitialUnavailableDurablyStartsKeychainTrial()
+        async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let keychain = InMemoryTrialKeychain()
+        let trialStore = KeychainTrialStore(
+            securityClient: keychain.client
+        )
+        let coordinator = EntitlementCoordinator(
+            purchaseService: PurchaseServiceSpy(
+                qualification: .unavailable
+            ),
+            trialStore: trialStore,
+            now: { now }
+        )
+        await coordinator.prepare()
+        let fixture = try StoreFixture(
+            authorize: { coordinator.authorize($0) },
+            commit: { coordinator.commitSuccessfulMutation($0) }
+        )
+        defer { fixture.remove() }
+
+        try fixture.store.add(name: "Offline first project")
+
+        #expect(fixture.store.projects.count == 1)
+        #expect(
+            coordinator.purchaseVerificationAvailability == .unavailable
+        )
+        #expect(
+            coordinator.snapshot == .trial(
+                startedAt: now,
+                expiresAt: now.addingTimeInterval(TrialRecord.duration)
+            )
+        )
+        #expect(
+            try KeychainTrialStore(securityClient: keychain.client).load()
+                == TrialRecord(startedAt: now)
+        )
     }
 
     @Test @MainActor func unpreparedCoordinatorBlocksDurableWatchCommandBeforeAnyWrite() throws {
@@ -767,6 +843,9 @@ import Testing
 
         #expect(try await coordinator.restorePurchases() == .unavailable)
         #expect(coordinator.snapshot == .permanentlyUnlocked)
+        #expect(
+            coordinator.purchaseVerificationAvailability == .unavailable
+        )
         #expect(trialStore.loadCallCount == 0)
     }
 
@@ -983,6 +1062,33 @@ private final class TrialStoreSpy: TrialStore, @unchecked Sendable {
             throw startError
         }
         return startedRecord ?? TrialRecord(startedAt: now)
+    }
+}
+
+private final class InMemoryTrialKeychain: @unchecked Sendable {
+    private var storedData: Data?
+
+    var client: KeychainTrialStore.SecurityClient {
+        .init(
+            copyMatching: { [self] _, result in
+                guard let storedData else {
+                    return errSecItemNotFound
+                }
+                result?.pointee = storedData as CFData
+                return errSecSuccess
+            },
+            add: { [self] attributes, _ in
+                guard storedData == nil else {
+                    return errSecDuplicateItem
+                }
+                let dictionary = attributes as NSDictionary
+                guard let data = dictionary[kSecValueData] as? Data else {
+                    return errSecParam
+                }
+                storedData = data
+                return errSecSuccess
+            }
+        )
     }
 }
 

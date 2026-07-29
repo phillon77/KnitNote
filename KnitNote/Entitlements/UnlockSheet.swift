@@ -208,10 +208,15 @@ struct UnlockSheet: View {
             defer { isBusy = false }
             do {
                 let qualification = try await coordinator.restorePurchases()
-                if qualification.entitlementSnapshot == nil {
-                    notice = .restoreNotFound
-                } else {
+                switch UnlockPresentation.restorePresentation(
+                    for: qualification
+                ) {
+                case .close:
                     closeIfQualified()
+                case .restoreNotFound:
+                    notice = .restoreNotFound
+                case .retry:
+                    notice = .retry
                 }
             } catch {
                 notice = .retry

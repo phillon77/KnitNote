@@ -87,4 +87,58 @@ import Testing
             )
         )
     }
+
+    @Test func createProjectUnlockGetsAFreshTransitionAfterChildDismissal() {
+        var orchestrator = UnlockPresentationOrchestrator()
+
+        #expect(!orchestrator.isPresented(coordinatorRequest: nil))
+
+        orchestrator.createProjectSheetDidPresent()
+        orchestrator.receiveCoordinatorRequest(.createProject)
+
+        let whileChildIsPresented = orchestrator.isPresented(
+            coordinatorRequest: .createProject
+        )
+
+        orchestrator.createProjectSheetDidDismiss()
+
+        let afterChildDismissal = orchestrator.isPresented(
+            coordinatorRequest: .createProject
+        )
+
+        #expect(!whileChildIsPresented)
+        #expect(afterChildDismissal)
+        #expect([whileChildIsPresented, afterChildDismissal] == [false, true])
+    }
+
+    @Test func otherMutationUnlockRequestsRemainImmediate() {
+        var orchestrator = UnlockPresentationOrchestrator()
+        orchestrator.createProjectSheetDidPresent()
+
+        orchestrator.receiveCoordinatorRequest(.createYarn)
+
+        #expect(
+            orchestrator.isPresented(coordinatorRequest: .createYarn)
+        )
+    }
+
+    @Test(arguments: [
+        (PurchaseQualification.none, UnlockRestorePresentation.restoreNotFound),
+        (PurchaseQualification.unavailable, UnlockRestorePresentation.retry),
+        (PurchaseQualification.lifetime, UnlockRestorePresentation.close),
+        (
+            PurchaseQualification.legacyPaidOwner,
+            UnlockRestorePresentation.close
+        ),
+    ])
+    func restoreQualificationMapsToAnHonestPresentation(
+        qualification: PurchaseQualification,
+        expected: UnlockRestorePresentation
+    ) {
+        #expect(
+            UnlockPresentation.restorePresentation(
+                for: qualification
+            ) == expected
+        )
+    }
 }

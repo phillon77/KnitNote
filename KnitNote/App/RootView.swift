@@ -46,7 +46,7 @@ struct RootView: View {
     @EnvironmentObject private var patternInboxProcessor: PatternInboxProcessor
     @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
     @Binding var storedLanguage: String
-    @State private var isUnlockSheetRequested = false
+    @State private var unlockPresentation = UnlockPresentationOrchestrator()
 
     @ViewBuilder
     var body: some View {
@@ -138,16 +138,14 @@ struct RootView: View {
                 patternInboxProcessor.processPending()
             }
             .onChange(of: entitlementCoordinator.unlockRequest) { _, request in
-                if request != nil {
-                    isUnlockSheetRequested = true
-                }
+                unlockPresentation.receiveCoordinatorRequest(request)
             }
             .onChange(of: entitlementCoordinator.snapshot) { _, snapshot in
                 if UnlockPresentation.shouldDismissUnlock(
                     snapshot: snapshot,
                     now: .now
                 ) {
-                    isUnlockSheetRequested = false
+                    unlockPresentation.dismiss()
                 }
             }
     }
@@ -179,7 +177,13 @@ struct RootView: View {
     private var homeTabs: some View {
         TabView {
             ProjectsView(onShowUnlock: {
-                isUnlockSheetRequested = true
+                unlockPresentation.requestExplicitly()
+            }, onCreateSheetPresentationChanged: { isPresented in
+                if isPresented {
+                    unlockPresentation.createProjectSheetDidPresent()
+                } else {
+                    unlockPresentation.createProjectSheetDidDismiss()
+                }
             })
                 .tabItem { Label("nav.projects", systemImage: "square.grid.2x2") }
             PatternLibraryView()
@@ -196,12 +200,13 @@ struct RootView: View {
     private var unlockSheetBinding: Binding<Bool> {
         Binding(
             get: {
-                isUnlockSheetRequested
-                    || entitlementCoordinator.unlockRequest != nil
+                unlockPresentation.isPresented(
+                    coordinatorRequest: entitlementCoordinator.unlockRequest
+                )
             },
             set: { isPresented in
                 guard !isPresented else { return }
-                isUnlockSheetRequested = false
+                unlockPresentation.dismiss()
                 entitlementCoordinator.dismissUnlock()
             }
         )

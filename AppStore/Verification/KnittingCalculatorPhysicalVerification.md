@@ -281,23 +281,40 @@ edge-case rows below have passed.
 
 | Check | Status | Evidence / follow-up |
 | --- | --- | --- |
-| Clean install opens directly to the two-tool home | AWAITING USER | Machine install and launch passed; visually confirm the two-tool home. |
+| Clean install opens directly to the two-tool home | PASS | User confirmed the TestFlight build opens full-screen to the two-tool home with no unexpected permission prompt. |
 | First unit follows device region | AWAITING USER | Verify with a known device-region setting. |
-| Gauge exact/recommended results and unit conversion | AWAITING USER | Check known values, nearest recommendation, and preserved counts. |
-| Optional gauge row group | AWAITING USER | Exercise empty, complete, and partial row inputs. |
-| One-row increase/decrease and edge toggle | AWAITING USER | Check increase and decrease with edge reservation on/off. |
-| Across-rows increase/decrease, one/both sides | AWAITING USER | Check valid schedules and all error branches. |
+| Gauge exact/recommended results and unit conversion | PASS | User verified 10 cm / 20 stitches / 25 cm produces density 2 and exact/recommended 50; switching to inches preserved the result and converted length drafts. |
+| Optional gauge row group | PASS | User verified 10 cm / 30 rows / 20 cm produces density 3 and exact/recommended 60 while the stitch result remains 50. |
+| One-row increase/decrease and edge toggle | PASS | User verified 80→92 increases 12, 80→68 decreases 12, reserved edge steps appear when enabled, and disappear when disabled. |
+| Across-rows increase/decrease, one/both sides | PASS | User verified 20 rows / 10 decreases schedules 10 single-side events every 2 rows and 5 both-side events every 4 rows; 20 rows / 6 single-side increases schedules rows 4, 7, 10, 14, 17, and 20. |
 | Every specified failure | AWAITING USER | Verify invalid, unsupported-limit, edge, and interval failures. |
-| Copy and share text | AWAITING USER | Verify clipboard and share sheet payload. |
-| Portrait and landscape | AWAITING USER | Inspect no clipping or lost result/action controls. |
-| Background, termination, and reopen persistence | AWAITING USER | Verify last drafts and unit persistence after a force termination. |
-| Reset confirmation and scope | AWAITING USER | Confirm drafts clear while unit/counters remain. |
-| KnitNote installed launch | AWAITING USER | Requires KnitNote installed and a manual link tap. |
+| Copy and share text | PASS | User pasted the copied across-rows result into Notes and confirmed the iOS share sheet presents and dismisses normally. |
+| Portrait and landscape | PASS | User rotated the TestFlight home and calculator screens in both directions with no black bars, half-screen presentation, clipping, or lost controls. |
+| Background, termination, and reopen persistence | PASS | User confirmed background/foreground and force-termination/reopen preserve drafts and selections and remain full-screen. |
+| Reset confirmation and scope | PASS | User verified cancel preserves drafts, destructive confirmation clears both calculators, and the selected inch unit remains. |
+| KnitNote installed launch | PASS | User tapped the KnitNote promotion on the calculator home and confirmed the installed KnitNote app opened successfully. |
 | KnitNote uninstalled App Store fallback | AWAITING USER | Requires a separate uninstalled-state pass. |
 | Maximum Dynamic Type | AWAITING USER | Inspect home, both calculators, settings, errors, and results. |
 | VoiceOver | AWAITING USER | Manually traverse labels, values, errors, disclosures, copy/share. |
 | High contrast, reduced motion, light/dark mode | AWAITING USER | Verify each system setting combination. |
-| No unexpected permission prompt | AWAITING USER | Observe the installed candidate through both calculators and settings. |
+| No unexpected permission prompt | PASS | User observed no camera, photo, file, or other unexpected permission prompt through the tested TestFlight flows. |
+
+### TestFlight installation and core user acceptance — 2026-07-29
+
+- Internal group: `編織計算器內部測試`
+- Internal tester: `lzz.1999@gmail.com` (`LonPhil`)
+- Tested build: `1.0.0 (1)`
+- App Store Connect status after acceptance: `Installed 1.0.0 (1)`
+- App Store Connect device: iPhone 17 Pro Max, iOS 26.5.2
+- User-confirmed core flows: full-screen launch, gauge stitches and optional
+  rows, centimeters-to-inches conversion, one-row increase/decrease with edge
+  reservation on/off, across-rows single-side/both-side schedules, uneven
+  interval distribution, odd symmetric-count validation, rotation,
+  background/foreground, force-termination persistence, copy/share, installed
+  KnitNote promotion routing, and confirmed draft reset.
+- The odd both-side count error was explicitly verified with 20 rows and 9
+  stitches. Other failure branches remain unverified and are not implied by
+  this core acceptance.
 
 ## iPad acceptance
 

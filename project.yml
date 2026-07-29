@@ -81,6 +81,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.utilities
+        UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -90,10 +91,13 @@ targets:
       - path: KnittingCalculator
         excludes:
           - Info.plist
+          - LaunchScreen.storyboard
           - PrivacyInfo.xcprivacy
           - Localization/InfoPlist.xcstrings
           - Localization/Localizable.xcstrings
       - path: KnittingCalculator/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: KnittingCalculator/LaunchScreen.storyboard
         buildPhase: resources
       - path: KnittingCalculator/Localization/InfoPlist.xcstrings
         buildPhase: resources

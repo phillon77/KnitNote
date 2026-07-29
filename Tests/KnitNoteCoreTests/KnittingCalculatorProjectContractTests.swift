@@ -32,6 +32,25 @@ import Testing
         #expect(!target.contains("KnitNoteWatch"))
     }
 
+    @Test func freeAppDeclaresItsOwnLaunchScreen() throws {
+        let yaml = try source("project.yml")
+        let calculatorTarget = try #require(
+            yaml.split(separator: "  KnittingCalculatorTests:").first?
+                .split(separator: "  KnittingCalculator:").last
+        )
+        let storyboard = try source("KnittingCalculator/LaunchScreen.storyboard")
+
+        #expect(calculatorTarget.contains("UILaunchStoryboardName: LaunchScreen"))
+        #expect(calculatorTarget.contains("- LaunchScreen.storyboard"))
+        #expect(
+            calculatorTarget.contains(
+                "- path: KnittingCalculator/LaunchScreen.storyboard"
+            )
+        )
+        #expect(storyboard.contains("launchScreen=\"YES\""))
+        #expect(!storyboard.contains("FamilyKnittingHero"))
+    }
+
     private func source(_ path: String) throws -> String {
         try String(
             contentsOf: URL(filePath: #filePath)

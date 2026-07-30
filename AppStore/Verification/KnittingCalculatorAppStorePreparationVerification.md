@@ -149,7 +149,91 @@ This document verifies local product/metadata/privacy contracts, the generated
 screenshot package, and the public support/privacy URLs. It does not claim or
 authorize App Store Connect submission.
 
-At this checkpoint there has been no App Store Connect metadata mutation,
-screenshot upload, build attachment, pricing or availability change, privacy
-answer change, review-information change, submission, “Add for Review”
-action, or public App Store release.
+## App Store Connect App-level configuration
+
+- Configured and read back: 2026-07-30 18:23–18:53 Asia/Taipei
+- Signed-in App Store Connect account: `Phil Lon`
+- App: `編織計算器`
+- Apple ID: `6795877892`
+- Bundle ID: `com.phillon.KnittingCalculator`
+- iOS version status: `1.0 準備提交` (`Prepare for Submission`)
+
+### App Information
+
+The following values were saved and then confirmed again after a fresh page
+reload:
+
+| Field | Saved read-back |
+| --- | --- |
+| Traditional Chinese name | `編織計算器` |
+| Traditional Chinese subtitle | `密度與加減針工具` |
+| English (U.S.) name | `Knitting Calculator` |
+| English (U.S.) subtitle | `Gauge, Increases & Decreases` |
+| Primary category | `工具程式` (`Utilities`) |
+| Secondary category | `生活風格` (`Lifestyle`) |
+
+The age-rating questionnaire was answered from actual app behavior and content:
+all listed controls, capabilities, mature content, medical/health content,
+sexual content, violence, gambling, contests, and loot-box questions were
+answered `No` or `None`. No rating override was selected. App Store Connect
+calculated and saved `4+`; the fresh reload continued to show `4+`.
+
+### App Privacy
+
+Both localizations saved and retained this calculator-specific privacy URL
+after reload:
+
+```text
+https://phillon77.github.io/KnitNote/knitting-calculator-privacy.html
+```
+
+The data-collection response was saved as:
+
+```text
+不收集資料
+開發者不會從這個 App 收集任何資料。
+```
+
+The final privacy publication confirmation stated that publishing affirms the
+response's correctness and compliance with the App Store Review Guidelines and
+applicable law. Work stopped at that action-time gate. After the user explicitly
+authorized `發佈`, the final publish action was completed. Fresh reload read-back
+showed:
+
+```text
+由Phil Lon於數秒鐘前發佈
+不收集資料
+開發者不會從這個 App 收集任何資料。
+```
+
+### Pricing, availability, and compatibility
+
+The initial price wizard was completed with United States (USD) price
+`$0.00`. Its worldwide equivalence review showed zero prices for all listed
+currencies, and the saved current-price detail continued to show `$0.00`,
+`₺0.00`, `¥0.00`, `kr 0.00`, and equivalent zero-price entries after reload.
+
+The saved availability and compatibility read-back after reload was:
+
+| Field | Saved read-back |
+| --- | --- |
+| Price | Free (`$0.00` and equivalent zero prices) |
+| Public availability | `175 個供應中` |
+| Distribution method | `公開 — 所有人都可以在 App Store 上找到 App (預設)` |
+| Apple silicon Mac | `供應此 App`, checkbox value `0` |
+| Apple Vision Pro | `在 Apple Vision Pro 上供應此 App`, checkbox value `0` |
+
+### Preserved remote boundary
+
+- No screenshots were uploaded.
+- No version promotional text, description, keywords, support URL, copyright,
+  review information, or release option was changed.
+- No build was uploaded or attached.
+- No App Review submission was created.
+- `新增以供審查`, submission, App release, and public release controls were not
+  used.
+
+This Task 6 checkpoint records only the App-level configuration above. It does
+not claim screenshot upload, build attachment, version-metadata completion,
+review-information completion, submission, “Add for Review”, or public App
+Store release.

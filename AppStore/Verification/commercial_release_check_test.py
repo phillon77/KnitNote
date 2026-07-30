@@ -9,6 +9,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.error import URLError
+from unittest.mock import patch
 
 import commercial_release_check
 
@@ -65,6 +67,32 @@ iOS acceptance
 macOS acceptance
 advertising remains blocked
 """
+
+VALID_TW_LOOKUP = {
+    "resultCount": 1,
+    "results": [
+        {
+            "trackId": 6793023054,
+            "bundleId": "com.phillon.KnitNote",
+            "price": 0.0,
+            "formattedPrice": "免費",
+            "currency": "TWD",
+        }
+    ],
+}
+
+VALID_US_LOOKUP = {
+    "resultCount": 1,
+    "results": [
+        {
+            "trackId": 6793023054,
+            "bundleId": "com.phillon.KnitNote",
+            "price": 0.0,
+            "formattedPrice": "Free",
+            "currency": "USD",
+        }
+    ],
+}
 
 
 class CommercialConfigurationTests(unittest.TestCase):
@@ -260,6 +288,195 @@ class CommercialDocumentTests(unittest.TestCase):
             "submission document must require CommercialReleaseChecklist.md",
             errors,
         )
+
+
+class PublicStorefrontTests(unittest.TestCase):
+    def test_certificate_bundle_falls_back_to_existing_system_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            missing = root / "missing.pem"
+            system_bundle = root / "system.pem"
+            system_bundle.write_text("test certificate bundle", encoding="utf-8")
+
+            result = commercial_release_check.certificate_bundle(
+                None,
+                (missing, system_bundle),
+            )
+
+        self.assertEqual(result, system_bundle)
+
+    def test_certificate_bundle_prefers_existing_python_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            python_default = root / "python.pem"
+            system_bundle = root / "system.pem"
+            python_default.write_text("python certificates", encoding="utf-8")
+            system_bundle.write_text("system certificates", encoding="utf-8")
+
+            result = commercial_release_check.certificate_bundle(
+                str(python_default),
+                (system_bundle,),
+            )
+
+        self.assertEqual(result, python_default)
+
+    def test_valid_taiwan_and_united_states_lookup_payloads_pass(self):
+        self.assertEqual(
+            commercial_release_check.validate_lookup_payload(
+                VALID_TW_LOOKUP,
+                "tw",
+            ),
+            [],
+        )
+        self.assertEqual(
+            commercial_release_check.validate_lookup_payload(
+                VALID_US_LOOKUP,
+                "us",
+            ),
+            [],
+        )
+
+    def test_paid_public_prices_are_rejected(self):
+        taiwan = copy.deepcopy(VALID_TW_LOOKUP)
+        taiwan["results"][0]["price"] = 90.0
+        united_states = copy.deepcopy(VALID_US_LOOKUP)
+        united_states["results"][0]["price"] = 2.99
+
+        self.assertIn(
+            "tw public App price must be 0",
+            commercial_release_check.validate_lookup_payload(taiwan, "tw"),
+        )
+        self.assertIn(
+            "us public App price must be 0",
+            commercial_release_check.validate_lookup_payload(
+                united_states,
+                "us",
+            ),
+        )
+
+    def test_lookup_payload_rejects_wrong_identity_currency_and_shape(self):
+        wrong_identity = copy.deepcopy(VALID_TW_LOOKUP)
+        wrong_identity["results"][0]["trackId"] = 1
+        wrong_identity["results"][0]["bundleId"] = "wrong.bundle"
+        wrong_identity["results"][0]["currency"] = "USD"
+
+        errors = commercial_release_check.validate_lookup_payload(
+            wrong_identity,
+            "tw",
+        )
+
+        self.assertIn("tw public Apple ID must be 6793023054", errors)
+        self.assertIn(
+            "tw public bundle ID must be com.phillon.KnitNote",
+            errors,
+        )
+        self.assertIn("tw public currency must be TWD", errors)
+        for payload in (
+            [],
+            {},
+            {"resultCount": 0, "results": []},
+            {"resultCount": 2, "results": [{}, {}]},
+            {"resultCount": 1, "results": []},
+            {"resultCount": 1, "results": [None]},
+        ):
+            with self.subTest(payload=payload):
+                self.assertTrue(
+                    commercial_release_check.validate_lookup_payload(
+                        payload,
+                        "tw",
+                    )
+                )
+
+    def test_lookup_payload_rejects_boolean_and_missing_price(self):
+        boolean_price = copy.deepcopy(VALID_US_LOOKUP)
+        boolean_price["results"][0]["price"] = False
+        missing_price = copy.deepcopy(VALID_US_LOOKUP)
+        del missing_price["results"][0]["price"]
+
+        self.assertIn(
+            "us public App price must be numeric",
+            commercial_release_check.validate_lookup_payload(
+                boolean_price,
+                "us",
+            ),
+        )
+        self.assertIn(
+            "us public App price must be numeric",
+            commercial_release_check.validate_lookup_payload(
+                missing_price,
+                "us",
+            ),
+        )
+
+    def test_public_urls_are_stable(self):
+        self.assertEqual(
+            commercial_release_check.lookup_url("tw", "6793023054"),
+            "https://itunes.apple.com/lookup?id=6793023054&country=tw",
+        )
+        self.assertEqual(
+            commercial_release_check.product_page_url("tw", "6793023054"),
+            "https://apps.apple.com/tw/app/id6793023054",
+        )
+
+    def test_product_pages_require_free_and_in_app_purchase_labels(self):
+        self.assertEqual(
+            commercial_release_check.validate_product_page(
+                "<p>免費&nbsp;·&nbsp;App內購買</p>",
+                "tw",
+            ),
+            [],
+        )
+        self.assertEqual(
+            commercial_release_check.validate_product_page(
+                "<p>Free · In‑App Purchases</p>",
+                "us",
+            ),
+            [],
+        )
+
+        self.assertIn(
+            "tw public product page must identify App內購買",
+            commercial_release_check.validate_product_page(
+                "<p>免費</p>",
+                "tw",
+            ),
+        )
+        self.assertIn(
+            "us public product page must identify In-App Purchases",
+            commercial_release_check.validate_product_page(
+                "<p>Free</p>",
+                "us",
+            ),
+        )
+        self.assertIn(
+            "us public product page must identify a free App download",
+            commercial_release_check.validate_product_page(
+                "<p>$2.99 · In-App Purchases</p>",
+                "us",
+            ),
+        )
+
+    def test_live_cli_fails_closed_on_network_error(self):
+        root = Path(__file__).resolve().parents[2]
+        stderr = io.StringIO()
+        with patch.object(
+            commercial_release_check,
+            "urlopen",
+            side_effect=URLError("offline"),
+        ):
+            with contextlib.redirect_stderr(stderr):
+                result = commercial_release_check.main(
+                    [
+                        "--live",
+                        "--configuration",
+                        str(root / "AppStore/CommercialConfiguration.json"),
+                        "--repository-root",
+                        str(root),
+                    ]
+                )
+
+        self.assertEqual(result, 1)
+        self.assertIn("live lookup failed for tw: offline", stderr.getvalue())
 
 
 if __name__ == "__main__":

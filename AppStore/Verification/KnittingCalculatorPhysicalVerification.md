@@ -334,3 +334,19 @@ edge-case rows below have passed.
 Mark a row `PASS` only after recording the installed build, device model/OS, tested source
 commit, and observed behavior. A `FAIL` on either physical device overrides all simulator,
 build, archive, and static-audit evidence until fixed and rechecked.
+
+## Store-preparation boundary — 2026-07-30
+
+See [the final App Store preparation evidence](KnittingCalculatorAppStorePreparationVerification.md#final-app-store-connect-submission-readiness-checkpoint)
+for the saved-and-reloaded App Store Connect readiness checklist and exact
+not-submitted boundary for `1.0.0 (1)`. Store preparation does not widen any
+untested physical acceptance row above: every `AWAITING USER` row remains
+untested and is not implied by screenshot, metadata, privacy, build, or review
+information evidence.
+
+Local verification did not widen this boundary. Full `swift test` exited `1`
+after `166.385s` with 855 of 856 tests passing; the sole failure was the
+pre-existing KnitNote keyword-duplication audit, not a calculator test. Under
+the human-approved Plan B, that unrelated failure remains an explicitly
+accepted concern and KnitNote metadata/audit stays unchanged. The
+calculator-specific static release audit passed.

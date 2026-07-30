@@ -324,3 +324,57 @@ the previously verified no-relevant-encryption answer was preserved.
 - Review username, password, contact information, and notes remained blank.
 - Release remained `自動發佈此版本`, value `1`.
 - `新增以供審查`, submission, and release actions were not used.
+
+## Final App Store Connect submission-readiness checkpoint
+
+- Controller-supplied, saved-and-reloaded remote evidence: 2026-07-30
+  Asia/Taipei. This local evidence update did not operate App Store Connect.
+- App: `編織計算器`; Apple ID: `6795877892`; bundle ID:
+  `com.phillon.KnittingCalculator`.
+- iOS version status: `1.0 準備提交` (`Prepare for Submission`); attached
+  candidate: Version `1.0.0`, Build `1`; App Clip: `No`.
+
+### Final remote checklist
+
+| Required item | Fresh saved/reloaded read-back |
+| --- | --- |
+| Traditional Chinese screenshots | 5 iPhone / 4 iPad |
+| English (U.S.) screenshots | 5 iPhone / 4 iPad |
+| Price | Free; Task 6 same-candidate evidence records `$0.00`; no Task 8 price mutation |
+| Availability | Current schedule: 175 countries/regions, 175 available; Public value `1` |
+| App Privacy | Published, `Data Not Collected`, calculator privacy URL retained |
+| Sign-in | Not required, value `0`; username/password absent or blank |
+| App Review contact | Existing account-holder first name, last name, telephone, and email saved; private values intentionally redacted |
+| Review Notes | `No sign-in, account, purchase, permission, or network connection is required. Both calculators work immediately. Drafts stay on device. Copy/share is available. The optional KnitNote link opens a separate app or App Store page.` |
+| Review attachment | None |
+| Game Center | Off, value `0` |
+| Release control | `Manually release this version`, value `1`; automatic release value `0` |
+| Apple silicon Mac availability | Off, value `0` |
+| Apple Vision Pro availability | Off, value `0` |
+
+### Exact stop state
+
+The version page still displayed `新增以供審查` / Add for Review, but it was
+not clicked. The App Review submissions page contained no new submission for
+this app. The calculator has not been added for review, submitted, approved,
+released, or made public. No merge or push is authorized or claimed by this
+checkpoint.
+
+### Final local verification and Plan B ruling
+
+- Full `swift test` exited `1` after `166.385s`: 855 of 856 tests passed
+  across 73 suites. The full suite did not pass.
+- The sole failed test was
+  `staticReleaseAuditExecutesWithoutRecursingIntoSwiftTests`. Its two
+  expectations failed because the pre-existing KnitNote
+  `AppStore/Verification/release_audit.sh --static-only` audit rejects keyword
+  duplication: Traditional Chinese repeats `編織`, `毛線`, and `織圖`; English
+  repeats `knitting` and `pattern`. `git blame` dates those keyword lines to
+  2026-07-23, before the independent calculator plan.
+- The human explicitly approved Plan B: retain that unrelated KnitNote failure
+  as an accepted non-calculator concern for this Task 8 evidence commit, and do
+  not modify KnitNote metadata or its keyword audit.
+- The calculator-specific
+  `AppStore/Verification/knitting_calculator_release_audit.sh --static-only`
+  audit passed with `STATIC PRODUCT SCOPE PASS` and final
+  `KNITTING CALCULATOR RELEASE AUDIT: PASS`.

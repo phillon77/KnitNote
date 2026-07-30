@@ -201,6 +201,61 @@ class ScreenshotToolsTests(unittest.TestCase):
             self.assertNotEqual(output.getpixel((0, 0)), raw.getpixel((0, 0)))
         self.assertTrue((root / "Generated" / "en" / "contact-sheet.png").is_file())
 
+    def test_compositor_crops_the_ipad_system_date_region_without_repainting(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        width, height = 2064, 2752
+        date_region_color = (3, 251, 7)
+        app_region_color = (17, 29, 241)
+        frame = {
+            "locale": "en",
+            "platform": "ipad",
+            "scene": "home",
+            "device": "iPad",
+            "width": width,
+            "height": height,
+            "headline": "Knitting math, made clear",
+            "subheadline": "Free, offline, no account",
+            "filename": "01-home.png",
+        }
+        manifest_path = root / "manifest.json"
+        manifest_path.write_text(
+            json.dumps({
+                "schemaVersion": 2,
+                "captureEnvironment": self.capture_environment(),
+                "frames": [frame],
+            }),
+            encoding="utf-8",
+        )
+        raw_path = root / "Raw" / "en" / "ipad" / "01-home.png"
+        raw_path.parent.mkdir(parents=True)
+        raw = Image.new("RGB", (width, height), app_region_color)
+        date_region_height = int(height * 0.18)
+        raw.paste(
+            date_region_color,
+            (0, 0, width, date_region_height),
+        )
+        raw.save(raw_path)
+
+        compositor_spec = importlib.util.spec_from_file_location(
+            "calculator_screenshot_compose_ipad_crop",
+            COMPOSITOR_PATH,
+        )
+        compositor = importlib.util.module_from_spec(compositor_spec)
+        assert compositor_spec.loader is not None
+        compositor_spec.loader.exec_module(compositor)
+        self.assertEqual(compositor.compose_manifest(manifest_path), 0)
+
+        output_path = root / "Generated" / "en" / "ipad" / "01-home.png"
+        ui_top = int(height * 0.18)
+        with Image.open(output_path) as output:
+            self.assertEqual(
+                output.getpixel((width // 2, ui_top + 10)),
+                app_region_color,
+            )
+            self.assertNotIn(date_region_color, output.getdata())
+
     def test_compositor_rejects_traversal_and_absolute_filenames(self):
         temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temporary_directory.cleanup)
@@ -403,6 +458,29 @@ class ScreenshotToolsTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("wrong raw dimensions", result.stderr)
+
+    def test_capture_rejects_manifest_dimensions_before_erasing_devices(self):
+        root, environment, record_path = self.write_capture_fixture()
+        manifest_path = root / "manifest.json"
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload["frames"][0]["width"] = 1
+        manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        result = subprocess.run(
+            [str(CAPTURE_PATH), "en"],
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2, result.stderr)
+        invocations = (
+            record_path.read_text(encoding="utf-8")
+            if record_path.exists()
+            else ""
+        )
+        self.assertNotIn("simctl\terase\t", invocations)
 
     def test_capture_rejects_unsafe_filename_before_erasing_devices(self):
         root, environment, record_path = self.write_capture_fixture()

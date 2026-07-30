@@ -269,6 +269,7 @@ try:
     ):
         raise ValueError("payload must pin the approved captureEnvironment and frames array")
     frames = payload["frames"]
+    expected_sizes = {"iphone": (1284, 2778), "ipad": (2064, 2752)}
     selected = []
     actual_matrix = set()
     for index, frame in enumerate(frames, 1):
@@ -291,6 +292,8 @@ try:
             or height <= 0
         ):
             raise ValueError(f"frame {index} has invalid dimensions")
+        if (width, height) != expected_sizes[frame["platform"]]:
+            raise ValueError(f"frame {index} has incorrect dimensions")
         actual_matrix.add((frame["locale"], frame["platform"], frame["scene"], frame["filename"]))
         if frame["locale"] == locale:
             selected.append(frame)

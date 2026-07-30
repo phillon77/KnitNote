@@ -105,7 +105,12 @@ def centered_text_x(
     return (width - (bounds[2] - bounds[0])) // 2
 
 
-def compose_frame(frame: dict, root: Path) -> Path:
+def compose_frame(
+    frame: dict,
+    root: Path,
+    *,
+    crop_system_date: bool = False,
+) -> Path:
     width, height = int(frame["width"]), int(frame["height"])
     raw_path = (
         root
@@ -179,7 +184,10 @@ def compose_frame(frame: dict, root: Path) -> Path:
                 f"raw capture has size {source.size}, expected {expected_size}: "
                 f"{raw_path}"
             )
-        capture = source.convert("RGB").resize(
+        source = source.convert("RGB")
+        if crop_system_date and frame["platform"] == "ipad":
+            source = source.crop((0, ui_top, width, height))
+        capture = source.resize(
             (ui_width, ui_height),
             Image.Resampling.LANCZOS,
         )
@@ -248,9 +256,18 @@ def compose_manifest(manifest_path: Path) -> int:
     manifest_path = Path(manifest_path).resolve()
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     frames = payload["frames"]
+    capture_environment = payload.get("captureEnvironment")
+    crop_system_date = (
+        isinstance(capture_environment, dict)
+        and capture_environment.get("cropSystemDate") is True
+    )
     for frame in frames:
         validate_path_fields(frame)
-        compose_frame(frame, manifest_path.parent)
+        compose_frame(
+            frame,
+            manifest_path.parent,
+            crop_system_date=crop_system_date,
+        )
     locales = list(dict.fromkeys(frame["locale"] for frame in frames))
     for locale in locales:
         localized_frames = [frame for frame in frames if frame["locale"] == locale]

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "appleId": "6793023054",
+  "bundleId": "com.phillon.KnitNote",
+  "appDownload": {
+    "model": "free",
+    "storefrontCount": 175,
+    "baseTerritory": "USA",
+    "basePrice": "0.00",
+    "futurePriceChanges": []
+  },
+  "trial": {
+    "days": 7,
+    "storage": "local"
+  },
+  "lifetimeUnlock": {
+    "productId": "com.phillon.KnitNote.lifetimeUnlock",
+    "type": "non-consumable",
+    "status": "approved",
+    "prices": {
+      "USA": "4.99",
+      "TWN": "150"
+    }
+  },
+  "subscriptions": [],
+  "permanentEntitlementPolicy": "preserve-verified"
+}

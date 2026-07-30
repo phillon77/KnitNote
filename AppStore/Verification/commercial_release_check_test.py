@@ -35,6 +35,37 @@ VALID_CONFIGURATION = {
     "permanentEntitlementPolicy": "preserve-verified",
 }
 
+APPROVED_PRICING_DOCUMENT = """# KnitNote commercial pricing
+
+Source: `AppStore/CommercialConfiguration.json`
+
+- App download: Free
+- Future App price changes: None
+
+## Historical
+
+NOT EXECUTABLE.
+"""
+
+APPROVED_SUBMISSION_DOCUMENT = """# Submission
+
+Every release requires `Verification/CommercialReleaseChecklist.md`.
+"""
+
+COMPLETE_CHECKLIST = """# Commercial release checklist
+
+Candidate SHA
+175 storefronts
+No future App price changes
+Lifetime Unlock price
+public storefront
+seven-day trial
+restore purchase
+iOS acceptance
+macOS acceptance
+advertising remains blocked
+"""
+
 
 class CommercialConfigurationTests(unittest.TestCase):
     def test_approved_contract_has_no_errors(self):
@@ -112,6 +143,123 @@ class CommercialConfigurationTests(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.assertIn("configuration root must be an object", stderr.getvalue())
+
+
+def write_repository_documents(
+    root: Path,
+    *,
+    pricing: str,
+    checklist: str,
+    submission: str,
+) -> None:
+    app_store = root / "AppStore"
+    verification = app_store / "Verification"
+    verification.mkdir(parents=True)
+    (app_store / "KnitNotePricing.md").write_text(pricing, encoding="utf-8")
+    (app_store / "AppStoreSubmission.md").write_text(
+        submission,
+        encoding="utf-8",
+    )
+    (verification / "CommercialReleaseChecklist.md").write_text(
+        checklist,
+        encoding="utf-8",
+    )
+
+
+class CommercialDocumentTests(unittest.TestCase):
+    def test_approved_documents_have_no_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_repository_documents(
+                root,
+                pricing=APPROVED_PRICING_DOCUMENT,
+                checklist=COMPLETE_CHECKLIST,
+                submission=APPROVED_SUBMISSION_DOCUMENT,
+            )
+
+            errors = commercial_release_check.validate_repository_documents(root)
+
+        self.assertEqual(errors, [])
+
+    def test_current_documents_require_all_release_gates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_repository_documents(
+                root,
+                pricing=APPROVED_PRICING_DOCUMENT,
+                checklist=(
+                    "Candidate SHA\n"
+                    "175 storefronts\n"
+                    "No future App price changes\n"
+                ),
+                submission=APPROVED_SUBMISSION_DOCUMENT,
+            )
+
+            errors = commercial_release_check.validate_repository_documents(root)
+
+        self.assertIn("commercial checklist missing: Lifetime Unlock price", errors)
+        self.assertIn("commercial checklist missing: public storefront", errors)
+        self.assertIn("commercial checklist missing: restore purchase", errors)
+
+    def test_current_pricing_instructions_reject_paid_download_language(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_repository_documents(
+                root,
+                pricing=(
+                    "# Current\n\n"
+                    "Source: `AppStore/CommercialConfiguration.json`\n\n"
+                    "- App download: US$2.99\n"
+                    "- Future App price changes: None\n"
+                ),
+                checklist=COMPLETE_CHECKLIST,
+                submission=APPROVED_SUBMISSION_DOCUMENT,
+            )
+
+            errors = commercial_release_check.validate_repository_documents(root)
+
+        self.assertIn(
+            "current pricing instructions must say the App download is free",
+            errors,
+        )
+
+    def test_current_pricing_requires_no_future_changes_and_canonical_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_repository_documents(
+                root,
+                pricing="# Current\n\n- App download: Free\n",
+                checklist=COMPLETE_CHECKLIST,
+                submission=APPROVED_SUBMISSION_DOCUMENT,
+            )
+
+            errors = commercial_release_check.validate_repository_documents(root)
+
+        self.assertIn(
+            "current pricing instructions must forbid future App price changes",
+            errors,
+        )
+        self.assertIn(
+            "pricing document must point to AppStore/CommercialConfiguration.json",
+            errors,
+        )
+
+    def test_submission_document_requires_the_commercial_checklist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_repository_documents(
+                root,
+                pricing=APPROVED_PRICING_DOCUMENT,
+                checklist=COMPLETE_CHECKLIST,
+                submission="# Submission\n",
+            )
+
+            errors = commercial_release_check.validate_repository_documents(root)
+
+        self.assertIn(
+            "submission document must require CommercialReleaseChecklist.md",
+            errors,
+        )
 
 
 if __name__ == "__main__":

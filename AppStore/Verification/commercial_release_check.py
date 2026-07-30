@@ -28,6 +28,19 @@ EXPECTED = {
     "permanentEntitlementPolicy": "preserve-verified",
 }
 
+REQUIRED_CHECKLIST_PHRASES = {
+    "Candidate SHA": "candidate identity",
+    "175 storefronts": "175-storefront App price",
+    "No future App price changes": "future App price schedule",
+    "Lifetime Unlock price": "Lifetime Unlock price",
+    "public storefront": "public storefront",
+    "seven-day trial": "seven-day trial",
+    "restore purchase": "restore purchase",
+    "iOS acceptance": "iOS acceptance",
+    "macOS acceptance": "macOS acceptance",
+    "advertising remains blocked": "advertising hold",
+}
+
 
 def nested_value(configuration: dict[str, object], key: str) -> object:
     value: object = configuration
@@ -58,6 +71,39 @@ def validate_configuration(configuration: dict[str, object]) -> list[str]:
     return errors
 
 
+def validate_repository_documents(root: Path) -> list[str]:
+    errors: list[str] = []
+    pricing_path = root / "AppStore/KnitNotePricing.md"
+    checklist_path = root / "AppStore/Verification/CommercialReleaseChecklist.md"
+    submission_path = root / "AppStore/AppStoreSubmission.md"
+    try:
+        pricing = pricing_path.read_text(encoding="utf-8")
+        checklist = checklist_path.read_text(encoding="utf-8")
+        submission = submission_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        return [f"commercial documentation: {error}"]
+
+    current_pricing = pricing.split("## Historical", 1)[0]
+    if "App download: Free" not in current_pricing:
+        errors.append("current pricing instructions must say the App download is free")
+    if "Future App price changes: None" not in current_pricing:
+        errors.append(
+            "current pricing instructions must forbid future App price changes"
+        )
+    if "AppStore/CommercialConfiguration.json" not in pricing:
+        errors.append(
+            "pricing document must point to AppStore/CommercialConfiguration.json"
+        )
+    for phrase, label in REQUIRED_CHECKLIST_PHRASES.items():
+        if phrase not in checklist:
+            errors.append(f"commercial checklist missing: {label}")
+    if "CommercialReleaseChecklist.md" not in submission:
+        errors.append(
+            "submission document must require CommercialReleaseChecklist.md"
+        )
+    return errors
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     result.add_argument("--offline", action="store_true")
@@ -65,6 +111,11 @@ def parser() -> argparse.ArgumentParser:
         "--configuration",
         type=Path,
         default=Path("AppStore/CommercialConfiguration.json"),
+    )
+    result.add_argument(
+        "--repository-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
     )
     return result
 
@@ -77,6 +128,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         print(f"{options.configuration}: {error}", file=sys.stderr)
         return 1
     errors = validate_configuration(configuration)
+    errors.extend(validate_repository_documents(options.repository_root))
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1

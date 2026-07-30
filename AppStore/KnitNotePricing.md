@@ -1,69 +1,81 @@
-# KnitNote 1.0 HISTORICAL 定價與上架執行紀錄
+# KnitNote 商業設定
 
-> **DO NOT USE FOR 1.2**
->
-> 本檔以下內容只保存 1.0 付費下載的歷史紀錄，不能作為 1.2 的
-> App 或 IAP 設定來源。1.2 將 App 改為免費下載（free app），並使用
-> non-consumable `com.phillon.KnitNote.lifetimeUnlock`：launch price
-> US$2.99，later price US$4.99。唯一可執行的 1.2 checklist 位於
-> [`AppStoreSubmission.md`](AppStoreSubmission.md)，所有 App Store
-> Connect 寫入目前仍為 `PENDING`。
->
-> **SAFETY GATE:** 修復版 binary 與第一個 non-consumable IAP 均獲
-> Apple 核准前，不得把目前付費下載的 App 改為免費，也不得執行任何
-> free-app price change。
+最後更新：2026-07-31
 
-最後更新：2026-07-24
+## 唯一執行來源
 
-## 1.0 HISTORICAL 已決定的商業模式
+可執行的商業設定只存在於
+[`AppStore/CommercialConfiguration.json`](CommercialConfiguration.json)。
+本文件負責解釋設定，不得自行建立另一組價格、排程或產品 ID。
 
-- 販售方式：付費下載、一次買斷
-- 訂閱：v1 不提供
-- App 內購買：v1 不提供
-- 首發優惠：美國商店 US$2.99，其他地區採 Apple 對應價格
-- 正式價格：美國商店 US$4.99，其他地區採 Apple 對應價格
-- 優惠期間：App 公開上架日起 30 天
-- 第 31 天起：調整為 US$4.99
-- 未來 AI 功能若產生持續成本，另行設計付費方案，不影響 v1 一次買斷內容
+## Current commercial contract
 
-## 1.0 HISTORICAL App Store Connect 設定
+- App download: Free
+- Storefronts: 175
+- Future App price changes: None
+- Trial: 7 天完整功能試用，狀態保存在本機
+- Lifetime Unlock product ID:
+  `com.phillon.KnitNote.lifetimeUnlock`
+- Lifetime Unlock type: non-consumable
+- Lifetime Unlock price:
+  - United States: US$4.99
+  - Taiwan: NT$150
+- Subscription: None
+- 已驗證的永久權益：StoreKit 暫時不可用時仍必須保留
 
-- [x] 建立 KnitNote App 紀錄（Apple ID `6793023054`）
-- [x] 註冊並確認 Bundle ID 為 `com.phillon.KnitNote`
-- [x] 設定 SKU 為 `KNITNOTE-2026-001`
-- [x] 建立 iOS 與 macOS 1.0 版本
-- [x] 確認「付費 App 合約」有效（2026-07-21 至 2027-07-02）
-- [x] 確認銀行帳戶狀態為「使用中」
-- [x] 確認台灣稅務表格、美國外國受益人證明及 W-8BEN 均已完成
-- [x] 確認歐盟《數位服務法》合規已通過審查
-- [x] 將初始 App 價格設為以美國為基準的 US$2.99
-- [x] 確認台灣自動換算價格為 NT$90
-- [x] 設定在所有 175 個國家或地區於 App 發佈時供應
-- [x] 送出 iOS App 審核
-- [x] 確認實際公開上架日期
-- [x] 排定公開上架第 31 天調整為以美國為基準的 US$4.99
-- [ ] 檢查是否符合並已加入 App Store Small Business Program
+App 下載價格與 Lifetime Unlock 是兩個不同商品。App 本體必須免費；
+US$4.99／NT$150 只屬於 Lifetime Unlock，不得套用到 App 本體。
 
-2026-07-24 已由 Apple 公開查詢資料確認 iOS 1.0 上架；首發價格為美國 US$2.99、台灣 NT$90，並於 175 個國家或地區供應。App Store Connect 已排定 2026-08-23 起永久調整為美國 US$4.99、台灣 NT$150，其餘地區採 Apple 同等價格。
+## Mandatory release order
 
-## 1.0 HISTORICAL 調價日期記錄
+每次新版本發佈或停售後重新供應，必須依序完成：
 
-- 實際公開上架時間：2026-07-24 18:24:59（Asia/Taipei）
-- 首發優惠第 30 天：2026-08-22
-- US$4.99 生效日：2026-08-23
-- 台灣對應正式價格：NT$150
+1. 固定 Git SHA、version、build、iOS archive 與 macOS archive。
+2. 執行完整 release audit 與離線商業設定檢查。
+3. 確認 Lifetime Unlock 的產品 ID、類型、核准狀態與價格。
+4. 在 App 尚未供應時，展開 App 本體「目前價格」：
+   - 175 個 storefronts 全部為 0；
+   - United States 為 US$0.00；
+   - Taiwan 為 NT$0；
+   - Future App price changes: None。
+5. 完成第 1–4 步後才可恢復 App availability。
+6. 等公開台灣與美國商店顯示免費下載及 App 內購買。
+7. 以公開版本完成 7 天試用、購買、重開、回復購買、iOS 與 macOS
+   實機驗收。
+8. 所有證據寫入
+   [`Verification/CommercialReleaseChecklist.md`](Verification/CommercialReleaseChecklist.md)
+   後，才可開始廣告。
 
-公開上架日計為優惠第 1 天；加 29 個日曆日為第 30 天，下一個日曆日開始套用正式價格。
+停售或取消 storefront availability 不會清除 App 目前價格，也不會刪除
+未來價格排程。重新供應前必須重新展開兩者確認，不能沿用上次畫面或記憶。
 
-## 1.0 HISTORICAL 對外文案原則
+## Commands
 
-- 清楚標示「一次買斷，無訂閱」。
-- 首發優惠期間可標示「首發價 US$2.99（依地區顯示當地價格）」。
-- 不承諾尚未完成或需持續付費服務的 AI 功能。
-- 價格、促銷期間與商店實際顯示保持一致。
+離線檢查：
 
-## 1.0 HISTORICAL 注意事項
+```sh
+python3 AppStore/Verification/commercial_release_check.py --offline
+```
 
-- App Store Connect 的價格設定不需要修改 App 程式碼。
-- 接受付費 App 合約屬法律行為，必須由帳號持有人親自完成。
-- Apple 允許設定 App 價格與排程價格變更；實際可用欄位取決於合約狀態與 App 的送審狀態。
+台灣與美國公開商店檢查：
+
+```sh
+python3 AppStore/Verification/commercial_release_check.py --live
+```
+
+Live 檢查只能證明公開 App 下載價格與 App 內購買標示；不能取代
+App Store Connect 內部價格排程、Lifetime Unlock 價格或實機 StoreKit
+驗收。
+
+## Historical — KnitNote 1.0 paid-download record
+
+**NOT EXECUTABLE. DO NOT COPY TO APP STORE CONNECT.**
+
+KnitNote 1.0 曾採用付費下載：
+
+- 首發 App 價格：United States US$2.99、Taiwan NT$90。
+- 曾排定 2026-08-23 將 App 本體調整為 United States US$4.99、
+  Taiwan NT$150。
+- 2026-07-31 已刪除該未來 App 價格排程，並將 App 本體改為全球免費。
+
+這些價格只保存事故脈絡，不是目前或未來的操作指示。

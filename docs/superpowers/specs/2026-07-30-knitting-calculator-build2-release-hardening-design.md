@@ -127,9 +127,16 @@ keyword audit。先前使用者核准的 Plan B 仍有效：完整 repository su
 
 ## 實機驗收
 
-Build 2 上傳前，至少在既有實體 iPhone 與 iPad：
+由於 App Store Distribution IPA 的 provisioning profile 不含可直接側載的
+裝置清單，實機驗收分成兩個不可互相取代的門檻：
 
-- 安裝 exact archived/exported candidate；
+1. 上傳前，在既有實體 iPhone 與 iPad 安裝由同一 Build source SHA 建立的
+   Development-signed App，驗證來源、滿版與功能路徑。
+2. 上傳並完成處理後，從既有內部 TestFlight 路徑安裝 Apple 處理過的精確
+   `1.0.0 (2)`；兩台裝置通過後，才替換產品頁截圖並把 Build 2 綁為候選。
+
+兩個門檻都至少驗證：
+
 - 確認 app identity 與 `1.0.0 (2)`；
 - 啟動後滿版且沒有裁切；
 - 密度計算與單排／跨排加減針各跑一個既有已知案例；

@@ -97,6 +97,27 @@ def ensure_path_within(expected_root: Path, path: Path, label: str) -> Path:
     return resolved_path
 
 
+def require_root_within_manifest(
+    manifest_root: Path,
+    resource_root: Path,
+    label: str,
+) -> Path:
+    resolved_manifest_root = Path(manifest_root).resolve(strict=False)
+    resource_root = Path(resource_root)
+    try:
+        resource_root.relative_to(resolved_manifest_root)
+    except ValueError:
+        fail(f"{label} root is outside manifest root: {resource_root}")
+    try:
+        mode = os.lstat(resource_root).st_mode
+    except FileNotFoundError:
+        return resource_root
+    if stat.S_ISLNK(mode):
+        fail(f"symlinked {label} root: {resource_root}")
+    ensure_path_within(resolved_manifest_root, resource_root, f"{label} root")
+    return resource_root
+
+
 def reject_symlinked_output_parent(manifest_root: Path, parent: Path) -> None:
     resolved_manifest_root = Path(manifest_root).resolve(strict=False)
     try:
@@ -213,12 +234,19 @@ def reject_unlisted_numbered_pngs(root: Path, frames: list[dict]) -> None:
 
 def validate_images(root: Path, frames: list[dict]) -> None:
     root = Path(root).resolve(strict=False)
+    raw_root = require_root_within_manifest(root, root / "Raw", "raw")
+    generated_root = require_root_within_manifest(
+        root,
+        root / "Generated",
+        "generated",
+    )
     reject_unlisted_numbered_pngs(root, frames)
     for frame in frames:
-        raw_path = root / "Raw" / frame["locale"] / frame["platform"] / frame["filename"]
-        generated_path = root / "Generated" / frame["locale"] / frame["platform"] / frame["filename"]
+        raw_path = raw_root / frame["locale"] / frame["platform"] / frame["filename"]
+        generated_path = generated_root / frame["locale"] / frame["platform"] / frame["filename"]
         for label, path in (("raw", raw_path), ("generated", generated_path)):
-            ensure_path_within(root / label.capitalize(), path, f"{label} screenshot")
+            expected_root = raw_root if label == "raw" else generated_root
+            ensure_path_within(expected_root, path, f"{label} screenshot")
             if not path.is_file():
                 fail(f"missing {label} screenshot: {path}")
             if contains_denylisted_bytes(path.read_bytes()):

@@ -101,14 +101,14 @@ def compose_frame(
     root = Path(root).resolve(strict=False)
     validate.validate_path_fields(frame)
     width, height = int(frame["width"]), int(frame["height"])
+    raw_root = validate.require_root_within_manifest(root, root / "Raw", "raw")
     raw_path = (
-        root
-        / "Raw"
+        raw_root
         / frame["locale"]
         / frame["platform"]
         / frame["filename"]
     )
-    validate.ensure_path_within(root / "Raw", raw_path, "raw capture")
+    validate.ensure_path_within(raw_root, raw_path, "raw capture")
     if not raw_path.is_file():
         raise FileNotFoundError(f"missing raw capture: {raw_path}")
 
@@ -196,14 +196,25 @@ def compose_frame(
         / frame["platform"]
         / frame["filename"]
     )
+    generated_root = validate.require_root_within_manifest(
+        root,
+        root / "Generated",
+        "generated",
+    )
     validate.reject_symlinked_output_parent(root, output.parent)
-    validate.ensure_path_within(root / "Generated", output, "generated output")
+    validate.ensure_path_within(generated_root, output, "generated output")
     output.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(output, **PNG_SAVE_OPTIONS)
     return output
 
 
 def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
+    root = Path(root).resolve(strict=False)
+    generated_root = validate.require_root_within_manifest(
+        root,
+        root / "Generated",
+        "generated",
+    )
     columns = 3
     cell_width, cell_height = 420, 580
     rows = math.ceil(len(frames) / columns)
@@ -222,7 +233,7 @@ def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
             / frame["platform"]
             / frame["filename"]
         )
-        validate.ensure_path_within(root / "Generated", source_path, "generated input")
+        validate.ensure_path_within(generated_root, source_path, "generated input")
         with Image.open(source_path) as source:
             thumbnail = ImageOps.contain(
                 source.convert("RGB"),
@@ -242,7 +253,7 @@ def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
     output = root / "Generated" / locale / "contact-sheet.png"
     validate.validate_path_component(locale, "locale")
     validate.reject_symlinked_output_parent(root, output.parent)
-    validate.ensure_path_within(root / "Generated", output, "contact-sheet output")
+    validate.ensure_path_within(generated_root, output, "contact-sheet output")
     output.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(output, **PNG_SAVE_OPTIONS)
     return output

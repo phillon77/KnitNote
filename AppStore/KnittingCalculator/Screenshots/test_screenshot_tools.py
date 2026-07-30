@@ -246,6 +246,20 @@ class ScreenshotToolsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "resolves outside expected root"):
                     validate.validate_images(root, frames)
 
+    def test_validator_rejects_raw_or_generated_root_symlinks_outside_manifest_root(self):
+        for directory in ("Raw", "Generated"):
+            with self.subTest(directory=directory):
+                root, frames = self.write_first_frame_fixture()
+                source = root / directory
+                outside_root = Path(tempfile.mkdtemp(prefix=f"outside-{directory.lower()}-root-"))
+                self.addCleanup(shutil.rmtree, outside_root, ignore_errors=True)
+                outside = outside_root / directory
+                shutil.copytree(source, outside)
+                shutil.rmtree(source)
+                source.symlink_to(outside, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, "symlinked .* root"):
+                    validate.validate_images(root, frames)
+
     def test_validator_rejects_unlisted_numbered_png_files(self):
         temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temporary_directory.cleanup)
@@ -347,12 +361,27 @@ class ScreenshotToolsTests(unittest.TestCase):
                     f"calculator_screenshot_compose_{component}_symlink"
                 )
                 self.write_raw_image(root, self.make_valid_frames()[0])
-                with self.assertRaisesRegex(ValueError, "symlinked output parent"):
+                with self.assertRaisesRegex(ValueError, "symlinked (generated root|output parent)"):
                     compositor.compose_frame(
                         self.make_valid_frames()[0],
                         root,
                         crop_system_date=True,
                     )
+
+    def test_compositor_rejects_a_raw_root_symlink_outside_manifest_root(self):
+        root, frames, _ = self.write_raw_fixture()
+        frame = frames[0]
+        outside_root = Path(tempfile.mkdtemp(prefix="outside-raw-root-"))
+        self.addCleanup(shutil.rmtree, outside_root, ignore_errors=True)
+        outside = outside_root / "Raw"
+        (outside / frame["locale"] / frame["platform"]).mkdir(parents=True)
+        Image.new("RGB", (frame["width"], frame["height"]), "white").save(
+            outside / frame["locale"] / frame["platform"] / frame["filename"]
+        )
+        (root / "Raw").symlink_to(outside, target_is_directory=True)
+        compositor = self.load_compositor("calculator_screenshot_compose_raw_root_symlink")
+        with self.assertRaisesRegex(ValueError, "symlinked raw root"):
+            compositor.compose_frame(frame, root, crop_system_date=True)
 
     def test_compositor_produces_identical_png_hashes_for_identical_inputs(self):
         root, frames, manifest_path = self.write_raw_fixture()

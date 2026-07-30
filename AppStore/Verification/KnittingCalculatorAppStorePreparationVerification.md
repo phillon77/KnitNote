@@ -327,8 +327,11 @@ the previously verified no-relevant-encryption answer was preserved.
 
 ## Final App Store Connect submission-readiness checkpoint
 
-- Controller-supplied, saved-and-reloaded remote evidence: 2026-07-30
-  Asia/Taipei. This local evidence update did not operate App Store Connect.
+- Fresh final-checklist verification window from controller-confirmed Chrome
+  History: 2026-07-30 20:19:21 through 20:22:04 +08:00 (Asia/Taipei). This is
+  the verification visit window, not a claim that every save or action occurred
+  at either endpoint. This local evidence update did not operate App Store
+  Connect.
 - App: `編織計算器`; Apple ID: `6795877892`; bundle ID:
   `com.phillon.KnittingCalculator`.
 - iOS version status: `1.0 準備提交` (`Prepare for Submission`); attached
@@ -378,3 +381,24 @@ checkpoint.
   `AppStore/Verification/knitting_calculator_release_audit.sh --static-only`
   audit passed with `STATIC PRODUCT SCOPE PASS` and final
   `KNITTING CALCULATOR RELEASE AUDIT: PASS`.
+
+### Tracked and untracked worktree boundary
+
+After the Task 8 readiness commit, the tracked worktree was clean. The
+remaining `git status --short` entries were only these pre-existing user/local
+artifacts, which are excluded from the calculator candidate and both Task 8
+evidence commits:
+
+```text
+?? .superpowers/brainstorm/
+?? AppStore/KnittingCalculator/Screenshots/Raw/
+?? AppStore/KnittingCalculator/Screenshots/__pycache__/
+?? AppStore/Verification/__pycache__/
+```
+
+The controller explicitly ruled that the Raw screenshot sources and both
+`__pycache__` directories pre-date Task 8, just as the local brainstorm does.
+The user-data boundary requires preserving all four paths/categories rather
+than deleting or committing them; this resolves the brief's stale expectation
+that only `.superpowers/brainstorm/` would remain untracked. No user authority
+to delete any of these artifacts exists.

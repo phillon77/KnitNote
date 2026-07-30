@@ -51,20 +51,18 @@ import Testing
     @Test func submissionSourceHasEveryRequiredSection() throws {
         let text = try sourceText("AppStore/AppStoreSubmission.md")
 
-        #expect(text.contains("下一版 release candidate：`1.2.1`"))
-        #expect(text.contains("legacy paid owner 依 1.2.0 既定版本界線"))
+        #expect(text.contains("公開版本：iOS／macOS `1.2.1`"))
+        #expect(text.contains("legacy paid owner"))
         #expect(text.contains("schema 10"))
         #expect(text.contains("manifest 2"))
         #expect(text.contains("KnitNoteShare"))
         for heading in [
-            "Commercial configuration",
-            "Builds",
-            "Localizations",
-            "Privacy",
-            "Screenshots",
-            "Review information",
-            "Manual release",
-            "Final approval boundary",
+            "App identity",
+            "Current commercial state",
+            "Commercial release boundary",
+            "Entitlement and privacy contracts",
+            "Current acceptance evidence",
+            "Historical records",
         ] {
             #expect(text.contains(heading))
         }
@@ -123,13 +121,13 @@ import Testing
         for requirement in [
             "com.phillon.KnitNote.lifetimeUnlock",
             "non-consumable",
-            "review screenshot",
-            "first IAP with the new app version",
-            "US$2.99",
+            "CommercialConfiguration.json",
+            "CommercialReleaseChecklist.md",
             "US$4.99",
-            "20 free codes",
-            "legacy paid",
-            "free app price",
+            "NT$150",
+            "175 個 storefronts",
+            "沒有未來價格調整",
+            "advertising hold",
         ] {
             #expect(text.localizedCaseInsensitiveContains(requirement))
         }
@@ -137,37 +135,41 @@ import Testing
 
     @Test func legacyPaidAppPricingRecordCannotBeMistakenForTheVersion12IAPPlan() throws {
         let pricing = try sourceText("AppStore/KnitNotePricing.md")
+        let current = try #require(
+            pricing.components(separatedBy: "## Historical").first
+        )
 
-        #expect(pricing.contains("1.0 HISTORICAL"))
-        #expect(pricing.contains("DO NOT USE FOR 1.2"))
-        #expect(pricing.contains("AppStoreSubmission.md"))
+        #expect(pricing.contains("Historical — KnitNote 1.0 paid-download record"))
+        #expect(pricing.contains("NOT EXECUTABLE"))
+        #expect(pricing.contains("AppStore/CommercialConfiguration.json"))
         #expect(pricing.contains("com.phillon.KnitNote.lifetimeUnlock"))
-        #expect(pricing.localizedCaseInsensitiveContains("free app"))
-        #expect(pricing.localizedCaseInsensitiveContains("later price US$4.99"))
-        #expect(pricing.contains("修復版 binary 與第一個 non-consumable IAP"))
-        #expect(pricing.contains("不得把目前付費下載的 App 改為免費"))
+        #expect(current.contains("App download: Free"))
+        #expect(current.contains("Future App price changes: None"))
+        #expect(!current.contains("App download: US$2.99"))
+        #expect(!current.contains("2026-08-23"))
     }
 
-    @Test func submissionSeparatesReleasedBuildFromPendingRepairAndAvailabilityHold() throws {
+    @Test func submissionRecordsCurrentFreeStateAsTimePointEvidence() throws {
         let text = try sourceText("AppStore/AppStoreSubmission.md")
 
-        #expect(text.contains("已發佈版本：`1.2.0`／Build `3`"))
-        #expect(text.contains("下一版 release candidate：`1.2.1`"))
-        #expect(text.contains("`PENDING REPAIR`：1.2.1／Build 3"))
-        #expect(text.contains("全部 175 個 storefronts"))
-        #expect(text.contains("修復版 binary 與第一個 non-consumable IAP"))
+        #expect(text.contains("公開版本：iOS／macOS `1.2.1`"))
+        #expect(text.contains("175 個 storefronts 價格均為 0"))
+        #expect(text.contains("United States App 本體價格為 US$0.00"))
+        #expect(text.contains("Taiwan App 本體價格為 NT$0"))
+        #expect(text.contains("App 本體沒有未來價格調整"))
+        #expect(text.contains("不得代替下一次 release 或 re-listing 的"))
     }
 
-    @Test func submissionLabelsUploadedScreenshotsAsHistoricalVersion10Evidence() throws {
-        let text = try sourceText("AppStore/AppStoreSubmission.md")
-        let historicalLines = text.split(separator: "\n").filter {
-            $0.contains("28 張") || $0.contains("iPhone 5 張")
-        }
+    @Test func checklistSeparatesTestFlightFromPublicBuildAcceptance() throws {
+        let text = try sourceText(
+            "AppStore/Verification/CommercialReleaseChecklist.md"
+        )
 
-        #expect(!historicalLines.isEmpty)
-        #expect(historicalLines.allSatisfy { $0.contains("1.0 HISTORICAL") })
-        #expect(text.contains("1.2 六張新版成品"))
-        #expect(text.contains("`PENDING`"))
+        #expect(text.contains("Earlier TestFlight evidence, not public-build acceptance"))
+        #expect(text.contains("- [x] 2026-07-29: iOS TestFlight"))
+        #expect(text.contains("- [ ] Fresh public iOS install"))
+        #expect(text.contains("- [ ] Fresh public macOS install"))
+        #expect(text.contains("advertising remains blocked"))
     }
 
     @Test func submissionExplainsEntitlementPrivacyRestoreAndRedemptionBehavior() throws {

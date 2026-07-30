@@ -129,6 +129,10 @@ for catalog in \
 done
 
 python3 AppStore/Verification/metadata_check.py AppStore/Metadata
+python3 AppStore/Verification/commercial_release_check.py \
+  --offline \
+  --configuration \
+  "${KNITNOTE_COMMERCIAL_CONFIGURATION:-AppStore/CommercialConfiguration.json}"
 git diff --check
 
 if rg -n "URLSession|NWConnection|Firebase|Analytics|Telemetry|tracking|https?://" \

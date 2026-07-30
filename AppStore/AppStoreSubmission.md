@@ -51,6 +51,19 @@
 任何 App Store Connect 寫入、價格變更、availability 變更、送審、發佈、
 廣告投放或 Git push，仍需使用者針對該動作明確授權。
 
+## Entitlement and privacy contracts
+
+- one purchase unlocks KnitNote on iPhone, iPad, Mac, and the paired Apple Watch
+  for the same Apple Account.
+- restore purchase must recover the Lifetime Unlock without another payment.
+- redeem code remains available through Apple's StoreKit purchase interface.
+- A verified legacy paid owner keeps permanent access; temporary StoreKit
+  unavailability must not demote that entitlement to a trial.
+- KnitNote requires no account and performs no tracking.
+- The current project archive format uses schema 10.
+- The complete backup format uses manifest 2.
+- The Share extension target is `KnitNoteShare`.
+
 ## Current acceptance evidence
 
 - 已觀察 iOS TestFlight 的 Lifetime Unlock 購買流程、US$4.99／NT$150

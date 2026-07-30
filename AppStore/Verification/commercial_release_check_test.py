@@ -6,6 +6,8 @@ import contextlib
 import copy
 import io
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -477,6 +479,36 @@ class PublicStorefrontTests(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.assertIn("live lookup failed for tw: offline", stderr.getvalue())
+
+
+class ReleaseAuditIntegrationTests(unittest.TestCase):
+    def test_static_audit_rejects_paid_commercial_configuration(self):
+        configuration = copy.deepcopy(VALID_CONFIGURATION)
+        configuration["appDownload"]["model"] = "paid"
+        configuration["appDownload"]["basePrice"] = "2.99"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "paid.json"
+            path.write_text(json.dumps(configuration), encoding="utf-8")
+            root = Path(__file__).resolve().parents[2]
+            environment = os.environ.copy()
+            environment["KNITNOTE_COMMERCIAL_CONFIGURATION"] = str(path)
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    "AppStore/Verification/release_audit.sh",
+                    "--static-only",
+                ],
+                cwd=root,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("appDownload.model must be free", result.stderr)
+        self.assertNotIn("RELEASE AUDIT: PASS", result.stdout)
 
 
 if __name__ == "__main__":

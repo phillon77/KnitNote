@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Work only in `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/knitting-calculator-independent-project` until the clean branch task explicitly creates a second worktree.
+- Work only in `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/knitting-calculator-independent-project`, except for Task 6's read/build-only detached candidate worktree and Task 8's explicit clean release worktree.
 - Preserve the current branch `codex/knitting-calculator-independent-project` as the local backup. Do not rewrite, delete, merge, or push it.
 - Preserve these user-owned untracked paths and never stage them:
   - `.superpowers/brainstorm/`
@@ -37,7 +37,7 @@
 - Modify: `KnittingCalculator/Adjustment/AdjustmentCalculatorScreen.swift`
 - Modify: `Tests/KnitNoteCoreTests/KnittingCalculatorStoreScreenshotContractTests.swift`
 
-**Step 1: Add failing behavior and source-contract tests**
+**Step 1: Add failing behavior and integration-contract tests**
 
 - Replace the expectations that `.home` and `.privacy` set `showsKnitNotePromotion: false`.
 - Define presentation state only in terms of actions a user can perform:
@@ -45,10 +45,13 @@
   - deterministic draft values;
   - adjustment tab and detail expansion;
   - a semantic scroll target such as `.top`, `.privacy`, or `.promotion`.
-- Add source-contract assertions that:
-  - `CalculatorHomeView` and `CalculatorSettingsView` no longer accept `showsKnitNotePromotion`;
-  - screenshot root uses the same default Home and Settings views as Release;
-  - no screenshot presentation property can remove `KnitNotePromotionCard`.
+- Add observable behavior tests that render or inspect the screenshot
+  presentation result and prove:
+  - Home and Settings screenshot scenes retain the normal Release promotion;
+  - screenshot root uses the same default Home and Settings hierarchy as Release;
+  - scroll targets change only the visible position, never whether
+    `KnitNotePromotionCard` exists.
+- Do not test these requirements by searching Swift source text.
 
 **Step 2: Run the focused tests and confirm RED**
 
@@ -223,7 +226,8 @@ Expected: the new decode, exact-matrix, symlink, and determinism cases fail.
 - Walk each output parent component with `lstat`; reject symlinks before `mkdir` or write.
 - Fail on unlisted numbered PNGs.
 - Save output with fixed mode and parameters and compare SHA-256 across two runs in the test.
-- Keep contact sheets as local verification artifacts, outside the 18-file submission matrix.
+- Keep contact sheets as untracked local verification artifacts, outside the
+  18-file submission matrix and outside the clean release branch.
 
 **Step 4: Confirm GREEN**
 
@@ -346,7 +350,7 @@ Record the resulting SHA as `BUILD_SOURCE_SHA`. No production source, project se
 **Files:**
 - Replace tracked outputs: `AppStore/KnittingCalculator/Screenshots/Generated/en/{iphone,ipad}/*.png`
 - Replace tracked outputs: `AppStore/KnittingCalculator/Screenshots/Generated/zh-Hant/{iphone,ipad}/*.png`
-- Replace local-only contact sheets: `AppStore/KnittingCalculator/Screenshots/Generated/{en,zh-Hant}/contact-sheet.png`
+- Produce local-only contact sheets: `AppStore/KnittingCalculator/Screenshots/Generated/{en,zh-Hant}/contact-sheet.png`
 - Create: `AppStore/Verification/KnittingCalculatorBuild2ScreenshotVerification.md`
 
 **Step 1: Build the DEBUG screenshot host from `BUILD_SOURCE_SHA`**
@@ -404,7 +408,10 @@ Inspect both contact sheets at full resolution and each of the 18 PNGs. Verify:
 The verification document records manifest SHA, 18 output hashes, screenshot-host source SHA, exact runtime/device type identifiers, validation commands, and visual PASS. It must not record simulator UDIDs.
 
 ```bash
-git add AppStore/KnittingCalculator/Screenshots/Generated \
+git add AppStore/KnittingCalculator/Screenshots/Generated/en/iphone \
+  AppStore/KnittingCalculator/Screenshots/Generated/en/ipad \
+  AppStore/KnittingCalculator/Screenshots/Generated/zh-Hant/iphone \
+  AppStore/KnittingCalculator/Screenshots/Generated/zh-Hant/ipad \
   AppStore/Verification/KnittingCalculatorBuild2ScreenshotVerification.md
 git commit -m "assets: replace calculator release screenshots"
 ```

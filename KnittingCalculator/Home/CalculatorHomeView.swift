@@ -1,53 +1,69 @@
 import SwiftUI
 
 struct CalculatorHomeView: View {
-    let showsKnitNotePromotion: Bool
+#if DEBUG
+    private let initialScrollTarget: String?
 
-    init(showsKnitNotePromotion: Bool = true) {
-        self.showsKnitNotePromotion = showsKnitNotePromotion
+    init(initialScrollTarget: String? = nil) {
+        self.initialScrollTarget = initialScrollTarget
     }
+#else
+    init() {}
+#endif
 
     var body: some View {
         ZStack {
             CalculatorWatercolorBackground()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("app.home.title")
-                        .font(.title.bold())
-                        .foregroundStyle(.primary)
-                        .padding(.bottom, 8)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("top")
 
-                    NavigationLink {
-                        GaugeCalculatorScreen()
-                    } label: {
-                        CalculatorToolCard(
-                            title: "calculator.gauge.title",
-                            description: "calculator.home.gauge.description",
-                            symbol: "ruler"
-                        )
-                    }
-                    .buttonStyle(.plain)
+                        Text("app.home.title")
+                            .font(.title.bold())
+                            .foregroundStyle(.primary)
+                            .padding(.bottom, 8)
 
-                    NavigationLink {
-                        AdjustmentCalculatorScreen()
-                    } label: {
-                        CalculatorToolCard(
-                            title: "calculator.adjustment.title",
-                            description: "calculator.home.adjustment.description",
-                            symbol: "arrow.left.and.right"
-                        )
-                    }
-                    .buttonStyle(.plain)
+                        NavigationLink {
+                            GaugeCalculatorScreen()
+                        } label: {
+                            CalculatorToolCard(
+                                title: "calculator.gauge.title",
+                                description: "calculator.home.gauge.description",
+                                symbol: "ruler"
+                            )
+                        }
+                        .buttonStyle(.plain)
 
-                    if showsKnitNotePromotion {
+                        NavigationLink {
+                            AdjustmentCalculatorScreen()
+                        } label: {
+                            CalculatorToolCard(
+                                title: "calculator.adjustment.title",
+                                description: "calculator.home.adjustment.description",
+                                symbol: "arrow.left.and.right"
+                            )
+                        }
+                        .buttonStyle(.plain)
+
                         KnitNotePromotionCard()
+                            .id("promotion")
                     }
+                    .frame(maxWidth: 620)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 24)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
-                .frame(maxWidth: 620)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
-                .frame(maxWidth: .infinity, alignment: .center)
+#if DEBUG
+                .task(id: initialScrollTarget) {
+                    guard let initialScrollTarget else { return }
+                    await Task.yield()
+                    proxy.scrollTo(initialScrollTarget, anchor: .top)
+                }
+#endif
             }
         }
         .navigationTitle("app.title")

@@ -6,16 +6,16 @@ struct CalculatorStoreScreenshotRootView: View {
     let mode: CalculatorStoreScreenshotMode
     @StateObject private var ratingRequestContext = RatingRequestContext()
 
-    var body: some View {
-        let presentation = mode.scene.presentation
+    var presentation: CalculatorStoreScreenshotPresentation {
+        mode.scene.presentation
+    }
 
+    var body: some View {
         Group {
             switch presentation.destination {
             case .home:
                 NavigationStack {
-                    CalculatorHomeView(
-                        showsKnitNotePromotion: presentation.showsKnitNotePromotion
-                    )
+                    CalculatorHomeView(initialScrollTarget: presentation.scrollTarget.rawValue)
                 }
             case .gauge:
                 NavigationStack {
@@ -30,9 +30,7 @@ struct CalculatorStoreScreenshotRootView: View {
                 }
             case .settings:
                 NavigationStack {
-                    CalculatorSettingsView(
-                        showsKnitNotePromotion: presentation.showsKnitNotePromotion
-                    )
+                    CalculatorSettingsView(initialScrollTarget: presentation.scrollTarget.rawValue)
                 }
             }
         }

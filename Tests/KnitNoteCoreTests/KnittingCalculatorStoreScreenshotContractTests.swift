@@ -20,6 +20,22 @@ import Testing
         #expect(frames.allSatisfy { $0["width"] as? Int == 1284 || $0["width"] as? Int == 2064 })
     }
 
+    @Test func screenshotManifestUsesSemanticNavigationScenes() throws {
+        let data = try Data(contentsOf: repositoryURL(
+            "AppStore/KnittingCalculator/Screenshots/manifest.json"
+        ))
+        let payload = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let frames = try #require(payload["frames"] as? [[String: Any]])
+
+        let scenes = Set(frames.compactMap { $0["scene"] as? String })
+
+        #expect(scenes == [
+            "home", "gauge", "adjustment", "privacy", "promotion", "privacyPromotion",
+        ])
+    }
+
     private func repositoryURL(_ relativePath: String) -> URL {
         URL(filePath: #filePath)
             .deletingLastPathComponent()

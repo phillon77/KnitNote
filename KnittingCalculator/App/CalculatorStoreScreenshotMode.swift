@@ -8,26 +8,27 @@ enum CalculatorStoreScreenshotScene: String, CaseIterable {
     var presentation: CalculatorStoreScreenshotPresentation {
         switch self {
         case .home:
-            .init(destination: .home)
+            .init(destination: .home, scrollTarget: .top)
         case .gauge:
-            .init(destination: .gauge)
+            .init(destination: .gauge, scrollTarget: .top)
         case .adjustment:
             .init(
                 destination: .adjustment,
+                scrollTarget: .top,
                 adjustmentMode: .acrossRows,
                 expandsAdjustmentRowDetails: true
             )
         case .privacy:
-            .init(destination: .settings)
+            .init(destination: .settings, scrollTarget: .privacy)
         case .promotion:
             .init(
                 destination: .home,
-                showsKnitNotePromotion: true
+                scrollTarget: .promotion
             )
         case .privacyPromotion:
             .init(
                 destination: .settings,
-                showsKnitNotePromotion: true
+                scrollTarget: .privacy
             )
         }
     }
@@ -40,20 +41,26 @@ enum CalculatorStoreScreenshotDestination: Equatable {
     case settings
 }
 
+enum CalculatorStoreScreenshotScrollTarget: String, Equatable {
+    case top
+    case privacy
+    case promotion
+}
+
 struct CalculatorStoreScreenshotPresentation: Equatable {
     let destination: CalculatorStoreScreenshotDestination
-    let showsKnitNotePromotion: Bool
+    let scrollTarget: CalculatorStoreScreenshotScrollTarget
     let adjustmentMode: AdjustmentMode
     let expandsAdjustmentRowDetails: Bool
 
     init(
         destination: CalculatorStoreScreenshotDestination,
-        showsKnitNotePromotion: Bool = false,
+        scrollTarget: CalculatorStoreScreenshotScrollTarget = .top,
         adjustmentMode: AdjustmentMode = .oneRow,
         expandsAdjustmentRowDetails: Bool = false
     ) {
         self.destination = destination
-        self.showsKnitNotePromotion = showsKnitNotePromotion
+        self.scrollTarget = scrollTarget
         self.adjustmentMode = adjustmentMode
         self.expandsAdjustmentRowDetails = expandsAdjustmentRowDetails
     }

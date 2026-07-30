@@ -95,39 +95,70 @@ struct CalculatorStoreScreenshotModeTests {
     @Test func screenshotScenesMapToApprovedPresentationBehavior() {
         #expect(CalculatorStoreScreenshotScene.home.presentation == .init(
             destination: .home,
-            showsKnitNotePromotion: false,
+            scrollTarget: .top,
             adjustmentMode: .oneRow,
             expandsAdjustmentRowDetails: false
         ))
         #expect(CalculatorStoreScreenshotScene.gauge.presentation == .init(
             destination: .gauge,
-            showsKnitNotePromotion: false,
+            scrollTarget: .top,
             adjustmentMode: .oneRow,
             expandsAdjustmentRowDetails: false
         ))
         #expect(CalculatorStoreScreenshotScene.adjustment.presentation == .init(
             destination: .adjustment,
-            showsKnitNotePromotion: false,
+            scrollTarget: .top,
             adjustmentMode: .acrossRows,
             expandsAdjustmentRowDetails: true
         ))
         #expect(CalculatorStoreScreenshotScene.privacy.presentation == .init(
             destination: .settings,
-            showsKnitNotePromotion: false,
+            scrollTarget: .privacy,
             adjustmentMode: .oneRow,
             expandsAdjustmentRowDetails: false
         ))
         #expect(CalculatorStoreScreenshotScene.promotion.presentation == .init(
             destination: .home,
-            showsKnitNotePromotion: true,
+            scrollTarget: .promotion,
             adjustmentMode: .oneRow,
             expandsAdjustmentRowDetails: false
         ))
         #expect(CalculatorStoreScreenshotScene.privacyPromotion.presentation == .init(
             destination: .settings,
-            showsKnitNotePromotion: true,
+            scrollTarget: .privacy,
             adjustmentMode: .oneRow,
             expandsAdjustmentRowDetails: false
         ))
+    }
+
+    @Test @MainActor
+    func screenshotRootKeepsReleaseDestinationsWhileScrollTargetsChooseTheVisibleRegion() {
+        let home = CalculatorStoreScreenshotRootView(mode: .init(
+            scene: .home,
+            language: .en,
+            readinessToken: "home"
+        ))
+        let promotion = CalculatorStoreScreenshotRootView(mode: .init(
+            scene: .promotion,
+            language: .en,
+            readinessToken: "promotion"
+        ))
+        let privacy = CalculatorStoreScreenshotRootView(mode: .init(
+            scene: .privacy,
+            language: .en,
+            readinessToken: "privacy"
+        ))
+        let privacyPromotion = CalculatorStoreScreenshotRootView(mode: .init(
+            scene: .privacyPromotion,
+            language: .en,
+            readinessToken: "privacy-promotion"
+        ))
+
+        #expect(home.presentation.destination == promotion.presentation.destination)
+        #expect(home.presentation.scrollTarget == .top)
+        #expect(promotion.presentation.scrollTarget == .promotion)
+        #expect(privacy.presentation.destination == privacyPromotion.presentation.destination)
+        #expect(privacy.presentation.scrollTarget == .privacy)
+        #expect(privacyPromotion.presentation.scrollTarget == .privacy)
     }
 }

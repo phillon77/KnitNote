@@ -10,6 +10,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
+import validate
+
 
 INK = (48, 42, 58)
 BERRY = (119, 72, 153)
@@ -19,22 +21,7 @@ BLUSH = (252, 232, 246)
 SOFT_WHITE = (255, 253, 255)
 
 
-def validate_path_component(value: object, field: str) -> None:
-    if (
-        not isinstance(value, str)
-        or not value
-        or value in {".", ".."}
-        or value.startswith("/")
-        or "/" in value
-        or "\\" in value
-        or any(character in value for character in "\t\r\n")
-    ):
-        raise ValueError(f"{field} must be a single safe path component")
-
-
-def validate_path_fields(frame: dict) -> None:
-    for field in ("locale", "platform", "filename"):
-        validate_path_component(frame.get(field), field)
+PNG_SAVE_OPTIONS = {"format": "PNG", "optimize": False, "compress_level": 9}
 
 
 def font_for(locale: str, size: int) -> ImageFont.ImageFont:
@@ -111,6 +98,8 @@ def compose_frame(
     *,
     crop_system_date: bool = False,
 ) -> Path:
+    root = Path(root).resolve(strict=False)
+    validate.validate_path_fields(frame)
     width, height = int(frame["width"]), int(frame["height"])
     raw_path = (
         root
@@ -119,6 +108,7 @@ def compose_frame(
         / frame["platform"]
         / frame["filename"]
     )
+    validate.ensure_path_within(root / "Raw", raw_path, "raw capture")
     if not raw_path.is_file():
         raise FileNotFoundError(f"missing raw capture: {raw_path}")
 
@@ -206,8 +196,10 @@ def compose_frame(
         / frame["platform"]
         / frame["filename"]
     )
+    validate.reject_symlinked_output_parent(root, output.parent)
+    validate.ensure_path_within(root / "Generated", output, "generated output")
     output.parent.mkdir(parents=True, exist_ok=True)
-    canvas.convert("RGB").save(output, format="PNG", optimize=True)
+    canvas.convert("RGB").save(output, **PNG_SAVE_OPTIONS)
     return output
 
 
@@ -230,6 +222,7 @@ def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
             / frame["platform"]
             / frame["filename"]
         )
+        validate.ensure_path_within(root / "Generated", source_path, "generated input")
         with Image.open(source_path) as source:
             thumbnail = ImageOps.contain(
                 source.convert("RGB"),
@@ -247,22 +240,20 @@ def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
         )
 
     output = root / "Generated" / locale / "contact-sheet.png"
+    validate.validate_path_component(locale, "locale")
+    validate.reject_symlinked_output_parent(root, output.parent)
+    validate.ensure_path_within(root / "Generated", output, "contact-sheet output")
     output.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(output, format="PNG", optimize=True)
+    sheet.save(output, **PNG_SAVE_OPTIONS)
     return output
 
 
 def compose_manifest(manifest_path: Path) -> int:
     manifest_path = Path(manifest_path).resolve()
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    frames = payload["frames"]
-    capture_environment = payload.get("captureEnvironment")
-    crop_system_date = (
-        isinstance(capture_environment, dict)
-        and capture_environment.get("cropSystemDate") is True
-    )
+    frames = validate.load_manifest(manifest_path)
+    validate.validate_manifest(frames)
+    crop_system_date = True
     for frame in frames:
-        validate_path_fields(frame)
         compose_frame(
             frame,
             manifest_path.parent,

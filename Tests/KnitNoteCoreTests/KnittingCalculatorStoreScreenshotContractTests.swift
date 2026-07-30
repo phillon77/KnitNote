@@ -11,13 +11,32 @@ import Testing
         )
         let frames = try #require(payload["frames"] as? [[String: Any]])
 
-        #expect(payload["schemaVersion"] as? Int == 1)
-        #expect(frames.count == 18)
-        #expect(frames.filter { $0["locale"] as? String == "zh-Hant" }.count == 9)
-        #expect(frames.filter { $0["locale"] as? String == "en" }.count == 9)
-        #expect(frames.filter { $0["platform"] as? String == "iphone" }.count == 10)
-        #expect(frames.filter { $0["platform"] as? String == "ipad" }.count == 8)
-        #expect(frames.allSatisfy { $0["width"] as? Int == 1284 || $0["width"] as? Int == 2064 })
+        #expect(payload["schemaVersion"] as? Int == 2)
+        let matrix = frames.map { frame in
+            ["locale", "platform", "scene", "filename"]
+                .compactMap { frame[$0] as? String }
+                .joined(separator: "|")
+        }
+        #expect(matrix == [
+            "zh-Hant|iphone|home|01-home.png",
+            "zh-Hant|iphone|gauge|02-gauge.png",
+            "zh-Hant|iphone|adjustment|03-adjustment.png",
+            "zh-Hant|iphone|privacy|04-privacy.png",
+            "zh-Hant|iphone|promotion|05-knitnote.png",
+            "zh-Hant|ipad|home|01-home.png",
+            "zh-Hant|ipad|gauge|02-gauge.png",
+            "zh-Hant|ipad|adjustment|03-adjustment.png",
+            "zh-Hant|ipad|privacyPromotion|04-privacy-knitnote.png",
+            "en|iphone|home|01-home.png",
+            "en|iphone|gauge|02-gauge.png",
+            "en|iphone|adjustment|03-adjustment.png",
+            "en|iphone|privacy|04-privacy.png",
+            "en|iphone|promotion|05-knitnote.png",
+            "en|ipad|home|01-home.png",
+            "en|ipad|gauge|02-gauge.png",
+            "en|ipad|adjustment|03-adjustment.png",
+            "en|ipad|privacyPromotion|04-privacy-knitnote.png",
+        ])
     }
 
     @Test func screenshotManifestUsesSemanticNavigationScenes() throws {

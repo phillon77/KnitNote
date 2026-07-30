@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import stat
 import sys
 from collections import Counter
 from pathlib import Path
@@ -14,6 +17,26 @@ from PIL import Image
 EXPECTED_COUNTS = {"iphone": 5, "ipad": 4}
 EXPECTED_SIZES = {"iphone": (1284, 2778), "ipad": (2064, 2752)}
 LOCALES = {"zh-Hant", "en"}
+EXPECTED_FRAME_MATRIX = (
+    ("zh-Hant", "iphone", "home", "01-home.png"),
+    ("zh-Hant", "iphone", "gauge", "02-gauge.png"),
+    ("zh-Hant", "iphone", "adjustment", "03-adjustment.png"),
+    ("zh-Hant", "iphone", "privacy", "04-privacy.png"),
+    ("zh-Hant", "iphone", "promotion", "05-knitnote.png"),
+    ("zh-Hant", "ipad", "home", "01-home.png"),
+    ("zh-Hant", "ipad", "gauge", "02-gauge.png"),
+    ("zh-Hant", "ipad", "adjustment", "03-adjustment.png"),
+    ("zh-Hant", "ipad", "privacyPromotion", "04-privacy-knitnote.png"),
+    ("en", "iphone", "home", "01-home.png"),
+    ("en", "iphone", "gauge", "02-gauge.png"),
+    ("en", "iphone", "adjustment", "03-adjustment.png"),
+    ("en", "iphone", "privacy", "04-privacy.png"),
+    ("en", "iphone", "promotion", "05-knitnote.png"),
+    ("en", "ipad", "home", "01-home.png"),
+    ("en", "ipad", "gauge", "02-gauge.png"),
+    ("en", "ipad", "adjustment", "03-adjustment.png"),
+    ("en", "ipad", "privacyPromotion", "04-privacy-knitnote.png"),
+)
 CAPTURE_ENVIRONMENT = {
     "runtimeIdentifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
     "iphoneDeviceTypeIdentifier": (
@@ -31,6 +54,7 @@ REQUIRED_FIELDS = {
     "subheadline", "filename",
 }
 PATH_FIELDS = ("locale", "platform", "filename")
+NUMBERED_PNG = re.compile(r"^\d{2}-.+\.png$", re.IGNORECASE)
 
 
 def fail(message: str) -> None:
@@ -61,6 +85,33 @@ def validate_path_component(value: object, field: str) -> None:
 def validate_path_fields(frame: dict) -> None:
     for field in PATH_FIELDS:
         validate_path_component(frame.get(field), field)
+
+
+def ensure_path_within(expected_root: Path, path: Path, label: str) -> Path:
+    resolved_root = Path(expected_root).resolve(strict=False)
+    resolved_path = Path(path).resolve(strict=False)
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError:
+        fail(f"{label} resolves outside expected root: {path}")
+    return resolved_path
+
+
+def reject_symlinked_output_parent(manifest_root: Path, parent: Path) -> None:
+    resolved_manifest_root = Path(manifest_root).resolve(strict=False)
+    try:
+        components = Path(parent).relative_to(resolved_manifest_root).parts
+    except ValueError:
+        fail(f"output parent resolves outside expected root: {parent}")
+    current = resolved_manifest_root
+    for component in components:
+        current /= component
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(mode):
+            fail(f"symlinked output parent: {current}")
 
 
 def validate_capture_environment(environment: object) -> None:
@@ -115,32 +166,77 @@ def validate_manifest(frames: list[dict]) -> None:
         if frame["locale"] == "en" and not headline.isascii():
             fail(f"{frame['filename']} is not an English headline")
 
+    actual_matrix = tuple(
+        (frame["locale"], frame["platform"], frame["scene"], frame["filename"])
+        for frame in frames
+    )
+    if actual_matrix != EXPECTED_FRAME_MATRIX:
+        fail("manifest frames do not match the approved frame matrix in order")
+
     for locale in LOCALES:
         counts = Counter(frame["platform"] for frame in frames if frame["locale"] == locale)
         if dict(counts) != EXPECTED_COUNTS:
             fail(f"{locale} platform counts are incorrect: {dict(counts)}")
 
 
+def decode_png(path: Path, label: str) -> tuple[tuple[int, int], str, dict]:
+    try:
+        with Image.open(path) as image:
+            if image.format != "PNG":
+                fail(f"{label} image is not a PNG: {path}")
+            image.verify()
+        with Image.open(path) as image:
+            image.load()
+            return image.size, image.mode, dict(image.info)
+    except (OSError, SyntaxError) as error:
+        fail(f"cannot decode {label} PNG: {path} ({error})")
+
+
+def reject_unlisted_numbered_pngs(root: Path, frames: list[dict]) -> None:
+    expected = {
+        (frame["locale"], frame["platform"], frame["filename"])
+        for frame in frames
+    }
+    for directory, label in (("Raw", "raw"), ("Generated", "generated")):
+        image_root = root / directory
+        if not image_root.is_dir():
+            continue
+        for path in image_root.rglob("*.png"):
+            if not NUMBERED_PNG.match(path.name):
+                continue
+            ensure_path_within(image_root, path, f"{label} screenshot")
+            relative_path = path.relative_to(image_root)
+            key = relative_path.parts
+            if len(key) != 3 or key not in expected:
+                fail(f"unlisted numbered {label} PNG: {path}")
+
+
 def validate_images(root: Path, frames: list[dict]) -> None:
+    root = Path(root).resolve(strict=False)
+    reject_unlisted_numbered_pngs(root, frames)
     for frame in frames:
         raw_path = root / "Raw" / frame["locale"] / frame["platform"] / frame["filename"]
         generated_path = root / "Generated" / frame["locale"] / frame["platform"] / frame["filename"]
         for label, path in (("raw", raw_path), ("generated", generated_path)):
+            ensure_path_within(root / label.capitalize(), path, f"{label} screenshot")
             if not path.is_file():
                 fail(f"missing {label} screenshot: {path}")
             if contains_denylisted_bytes(path.read_bytes()):
                 fail(f"private-data marker in encoded image: {path}")
-        with Image.open(raw_path) as raw:
-            if raw.size != (frame["width"], frame["height"]):
-                fail(f"incorrect raw image size: {raw_path} is {raw.size}")
-        with Image.open(generated_path) as generated:
-            if generated.size != (frame["width"], frame["height"]):
-                fail(f"incorrect image size: {generated_path} is {generated.size}")
-            if generated.mode != "RGB":
-                fail(f"generated image must be opaque RGB: {generated_path} is {generated.mode}")
-            metadata = json.dumps(generated.info, ensure_ascii=False, default=str)
-            if contains_denylisted_marker(metadata):
-                fail(f"private-data marker in image metadata: {generated_path}")
+        raw_size, _, _ = decode_png(raw_path, "raw")
+        if raw_size != (frame["width"], frame["height"]):
+            fail(f"incorrect raw image size: {raw_path} is {raw_size}")
+        generated_size, generated_mode, generated_info = decode_png(
+            generated_path,
+            "generated",
+        )
+        if generated_size != (frame["width"], frame["height"]):
+            fail(f"incorrect image size: {generated_path} is {generated_size}")
+        if generated_mode != "RGB":
+            fail(f"generated image must be opaque RGB: {generated_path} is {generated_mode}")
+        metadata = json.dumps(generated_info, ensure_ascii=False, default=str)
+        if contains_denylisted_marker(metadata):
+            fail(f"private-data marker in image metadata: {generated_path}")
 
 
 def main() -> int:

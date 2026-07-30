@@ -1,6 +1,8 @@
 import importlib.util
+import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -15,6 +17,8 @@ from PIL import Image
 VALIDATOR_PATH = Path(__file__).with_name("validate.py")
 COMPOSITOR_PATH = Path(__file__).with_name("compose.py")
 CAPTURE_PATH = Path(__file__).with_name("capture.sh")
+if str(COMPOSITOR_PATH.parent) not in sys.path:
+    sys.path.insert(0, str(COMPOSITOR_PATH.parent))
 spec = importlib.util.spec_from_file_location("calculator_screenshot_validate", VALIDATOR_PATH)
 validate = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -82,6 +86,50 @@ class ScreenshotToolsTests(unittest.TestCase):
                 image.save(path)
         return root, frames
 
+    def write_first_frame_fixture(self, generated_mode="RGB"):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        frames = self.make_valid_frames()
+        frame = frames[0]
+        for directory, mode in (("Raw", "RGB"), ("Generated", generated_mode)):
+            path = root / directory / frame["locale"] / frame["platform"] / frame["filename"]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            Image.new(mode, (frame["width"], frame["height"]), "white").save(path)
+        return root, frames
+
+    def write_raw_image(self, root, frame, color="white"):
+        path = root / "Raw" / frame["locale"] / frame["platform"] / frame["filename"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (frame["width"], frame["height"]), color).save(path)
+        return path
+
+    def write_raw_fixture(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        frames = self.make_valid_frames()
+        manifest_path = root / "manifest.json"
+        manifest_path.write_text(
+            json.dumps({
+                "schemaVersion": 2,
+                "captureEnvironment": self.capture_environment(),
+                "frames": frames,
+            }),
+            encoding="utf-8",
+        )
+        return root, frames, manifest_path
+
+    def load_compositor(self, name):
+        compositor_spec = importlib.util.spec_from_file_location(
+            name,
+            COMPOSITOR_PATH,
+        )
+        compositor = importlib.util.module_from_spec(compositor_spec)
+        assert compositor_spec.loader is not None
+        compositor_spec.loader.exec_module(compositor)
+        return compositor
+
     def test_valid_manifest_accepts_exact_bilingual_scope(self):
         frames = self.make_valid_frames()
         validate.validate_manifest(frames)
@@ -96,6 +144,23 @@ class ScreenshotToolsTests(unittest.TestCase):
         frames = self.make_valid_frames()
         frames[0]["width"] = 1
         with self.assertRaisesRegex(ValueError, "incorrect dimensions"):
+            validate.validate_manifest(frames)
+
+    def test_manifest_rejects_a_count_preserving_unapproved_scene_or_filename(self):
+        for field, value in (
+            ("scene", "unexpected"),
+            ("filename", "05-unexpected.png"),
+        ):
+            with self.subTest(field=field):
+                frames = self.make_valid_frames()
+                frames[4][field] = value
+                with self.assertRaisesRegex(ValueError, "approved frame matrix"):
+                    validate.validate_manifest(frames)
+
+    def test_manifest_rejects_approved_frames_in_the_wrong_order(self):
+        frames = self.make_valid_frames()
+        frames[0], frames[1] = frames[1], frames[0]
+        with self.assertRaisesRegex(ValueError, "approved frame matrix"):
             validate.validate_manifest(frames)
 
     def test_manifest_rejects_non_object_payloads_and_frames(self):
@@ -156,78 +221,67 @@ class ScreenshotToolsTests(unittest.TestCase):
                     validate.validate_manifest(frames)
 
     def test_generated_image_must_be_opaque_rgb(self):
-        root, frames = self.write_complete_fixture(mode="RGBA")
+        root, frames = self.write_first_frame_fixture(generated_mode="RGBA")
         with self.assertRaisesRegex(ValueError, "opaque RGB"):
             validate.validate_images(root, frames)
 
-    def test_compositor_generates_an_opaque_b_frame_at_the_manifest_size(self):
+    def test_validator_fully_decodes_a_png_with_a_valid_header(self):
+        root, frames = self.write_first_frame_fixture()
+        raw_path = root / "Raw" / "zh-Hant" / "iphone" / "01-home.png"
+        raw_path.write_bytes(raw_path.read_bytes()[:-20])
+        with self.assertRaisesRegex(ValueError, "cannot decode raw PNG"):
+            validate.validate_images(root, frames)
+
+    def test_validator_rejects_raw_or_generated_paths_resolving_outside_manifest_root(self):
+        for directory in ("Raw", "Generated"):
+            with self.subTest(directory=directory):
+                root, frames = self.write_first_frame_fixture()
+                source = root / directory / frames[0]["locale"]
+                outside_root = Path(tempfile.mkdtemp(prefix=f"outside-{directory.lower()}-"))
+                self.addCleanup(shutil.rmtree, outside_root, ignore_errors=True)
+                outside = outside_root / "en"
+                shutil.copytree(source, outside)
+                shutil.rmtree(source)
+                source.symlink_to(outside, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, "resolves outside expected root"):
+                    validate.validate_images(root, frames)
+
+    def test_validator_rejects_unlisted_numbered_png_files(self):
         temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temporary_directory.cleanup)
         root = Path(temporary_directory.name)
-        frame = {
-            "locale": "en",
-            "platform": "iphone",
-            "scene": "home",
-            "device": "iPhone",
-            "width": 1284,
-            "height": 2778,
-            "headline": "Knitting math, made clear",
-            "subheadline": "Free, offline, no account",
-            "filename": "01-home.png",
-        }
-        manifest_path = root / "manifest.json"
-        manifest_path.write_text(
-            json.dumps({"schemaVersion": 1, "frames": [frame]}),
-            encoding="utf-8",
-        )
+        frames = self.make_valid_frames()
+        extra = root / "Raw" / "en" / "iphone" / "99-unlisted.png"
+        extra.parent.mkdir(parents=True)
+        Image.new("RGB", (1284, 2778), "white").save(extra)
+        with self.assertRaisesRegex(ValueError, "unlisted numbered raw PNG"):
+            validate.validate_images(root, frames)
+
+    def test_compositor_generates_an_opaque_b_frame_at_the_manifest_size(self):
+        root, _, manifest_path = self.write_raw_fixture()
         raw_path = root / "Raw" / "en" / "iphone" / "01-home.png"
         raw_path.parent.mkdir(parents=True)
         raw = Image.new("RGB", (1284, 2778), (12, 34, 56))
         raw.save(raw_path)
-
-        compositor_spec = importlib.util.spec_from_file_location(
-            "calculator_screenshot_compose",
-            COMPOSITOR_PATH,
+        compositor = self.load_compositor("calculator_screenshot_compose")
+        frame = next(
+            frame for frame in self.make_valid_frames()
+            if frame["locale"] == "en" and frame["platform"] == "iphone"
+            and frame["filename"] == "01-home.png"
         )
-        compositor = importlib.util.module_from_spec(compositor_spec)
-        assert compositor_spec.loader is not None
-        compositor_spec.loader.exec_module(compositor)
-        self.assertEqual(compositor.compose_manifest(manifest_path), 0)
+        compositor.compose_frame(frame, root)
 
         output_path = root / "Generated" / "en" / "iphone" / "01-home.png"
         with Image.open(output_path) as output:
             self.assertEqual(output.size, (1284, 2778))
             self.assertEqual(output.mode, "RGB")
             self.assertNotEqual(output.getpixel((0, 0)), raw.getpixel((0, 0)))
-        self.assertTrue((root / "Generated" / "en" / "contact-sheet.png").is_file())
 
     def test_compositor_crops_the_ipad_system_date_region_without_repainting(self):
-        temporary_directory = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary_directory.cleanup)
-        root = Path(temporary_directory.name)
+        root, _, manifest_path = self.write_raw_fixture()
         width, height = 2064, 2752
         date_region_color = (3, 251, 7)
         app_region_color = (17, 29, 241)
-        frame = {
-            "locale": "en",
-            "platform": "ipad",
-            "scene": "home",
-            "device": "iPad",
-            "width": width,
-            "height": height,
-            "headline": "Knitting math, made clear",
-            "subheadline": "Free, offline, no account",
-            "filename": "01-home.png",
-        }
-        manifest_path = root / "manifest.json"
-        manifest_path.write_text(
-            json.dumps({
-                "schemaVersion": 2,
-                "captureEnvironment": self.capture_environment(),
-                "frames": [frame],
-            }),
-            encoding="utf-8",
-        )
         raw_path = root / "Raw" / "en" / "ipad" / "01-home.png"
         raw_path.parent.mkdir(parents=True)
         raw = Image.new("RGB", (width, height), app_region_color)
@@ -238,14 +292,13 @@ class ScreenshotToolsTests(unittest.TestCase):
         )
         raw.save(raw_path)
 
-        compositor_spec = importlib.util.spec_from_file_location(
-            "calculator_screenshot_compose_ipad_crop",
-            COMPOSITOR_PATH,
+        compositor = self.load_compositor("calculator_screenshot_compose_ipad_crop")
+        frame = next(
+            frame for frame in self.make_valid_frames()
+            if frame["locale"] == "en" and frame["platform"] == "ipad"
+            and frame["filename"] == "01-home.png"
         )
-        compositor = importlib.util.module_from_spec(compositor_spec)
-        assert compositor_spec.loader is not None
-        compositor_spec.loader.exec_module(compositor)
-        self.assertEqual(compositor.compose_manifest(manifest_path), 0)
+        compositor.compose_frame(frame, root, crop_system_date=True)
 
         output_path = root / "Generated" / "en" / "ipad" / "01-home.png"
         ui_top = int(height * 0.18)
@@ -257,44 +310,69 @@ class ScreenshotToolsTests(unittest.TestCase):
             self.assertNotIn(date_region_color, output.getdata())
 
     def test_compositor_rejects_traversal_and_absolute_filenames(self):
-        temporary_directory = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary_directory.cleanup)
-        root = Path(temporary_directory.name)
-        for unsafe_filename in ("../escaped.png", str(root / "absolute.png")):
+        for unsafe_filename in ("../escaped.png", "/tmp/absolute.png"):
             with self.subTest(unsafe_filename=unsafe_filename):
-                frame = {
-                    "locale": "en",
-                    "platform": "iphone",
-                    "scene": "home",
-                    "device": "iPhone",
-                    "width": 1284,
-                    "height": 2778,
-                    "headline": "Knitting math",
-                    "subheadline": "Offline",
-                    "filename": unsafe_filename,
-                }
-                manifest_path = root / "manifest.json"
+                root, frames, manifest_path = self.write_raw_fixture()
+                frames[0]["filename"] = unsafe_filename
                 manifest_path.write_text(
-                    json.dumps({"schemaVersion": 1, "frames": [frame]}),
+                    json.dumps({
+                        "schemaVersion": 2,
+                        "captureEnvironment": self.capture_environment(),
+                        "frames": frames,
+                    }),
                     encoding="utf-8",
                 )
-                escaped_raw = (
-                    root / "Raw" / "en" / "escaped.png"
-                    if unsafe_filename.startswith("..")
-                    else Path(unsafe_filename)
-                )
-                escaped_raw.parent.mkdir(parents=True, exist_ok=True)
-                Image.new("RGB", (1284, 2778), "white").save(escaped_raw)
-
-                compositor_spec = importlib.util.spec_from_file_location(
-                    "calculator_screenshot_compose_unsafe",
-                    COMPOSITOR_PATH,
-                )
-                compositor = importlib.util.module_from_spec(compositor_spec)
-                assert compositor_spec.loader is not None
-                compositor_spec.loader.exec_module(compositor)
+                compositor = self.load_compositor("calculator_screenshot_compose_unsafe")
                 with self.assertRaisesRegex(ValueError, "safe path component"):
                     compositor.compose_manifest(manifest_path)
+
+    def test_compositor_rejects_symlinked_generated_locale_or_platform_parent(self):
+        for component in ("Generated", "locale", "platform"):
+            with self.subTest(component=component):
+                root, _, manifest_path = self.write_raw_fixture()
+                if component == "Generated":
+                    link = root / "Generated"
+                    target = root / "safe-generated"
+                elif component == "locale":
+                    (root / "Generated").mkdir()
+                    link = root / "Generated" / "zh-Hant"
+                    target = root / "safe-locale"
+                else:
+                    (root / "Generated" / "zh-Hant").mkdir(parents=True)
+                    link = root / "Generated" / "zh-Hant" / "iphone"
+                    target = root / "safe-platform"
+                target.mkdir()
+                link.symlink_to(target, target_is_directory=True)
+                compositor = self.load_compositor(
+                    f"calculator_screenshot_compose_{component}_symlink"
+                )
+                self.write_raw_image(root, self.make_valid_frames()[0])
+                with self.assertRaisesRegex(ValueError, "symlinked output parent"):
+                    compositor.compose_frame(
+                        self.make_valid_frames()[0],
+                        root,
+                        crop_system_date=True,
+                    )
+
+    def test_compositor_produces_identical_png_hashes_for_identical_inputs(self):
+        root, frames, manifest_path = self.write_raw_fixture()
+        compositor = self.load_compositor("calculator_screenshot_compose_deterministic")
+        frame = next(
+            frame for frame in frames
+            if frame["locale"] == "en" and frame["platform"] == "iphone"
+            and frame["filename"] == "01-home.png"
+        )
+        self.write_raw_image(root, frame)
+        compositor.compose_frame(frame, root)
+
+        def output_hashes():
+            return hashlib.sha256(
+                (root / "Generated" / "en" / "iphone" / "01-home.png").read_bytes()
+            ).hexdigest()
+
+        first_hashes = output_hashes()
+        compositor.compose_frame(frame, root)
+        self.assertEqual(output_hashes(), first_hashes)
 
     def write_capture_fixture(
         self,

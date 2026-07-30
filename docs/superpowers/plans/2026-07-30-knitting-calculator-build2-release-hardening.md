@@ -99,6 +99,7 @@ git commit -m "fix: keep calculator screenshots release truthful"
 **Files:**
 - Modify: `AppStore/KnittingCalculator/Screenshots/manifest.json`
 - Modify: `AppStore/KnittingCalculator/Screenshots/capture.sh`
+- Modify: `AppStore/KnittingCalculator/Screenshots/compose.py`
 - Modify: `AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py`
 - Modify: `AppStore/KnittingCalculator/Screenshots/README.md`
 
@@ -113,6 +114,9 @@ Extend the fake `simctl list devices --json` fixture and add tests that prove ca
 - the iPad compositor crop policy would expose the live calendar/date region.
 
 Also assert the successful path validates both devices before the first destructive simulator operation.
+Add a compositor pixel test with a uniquely colored/date-region fixture that
+proves the declared crop removes those source pixels rather than merely
+checking the Boolean policy.
 
 **Step 2: Confirm RED**
 
@@ -152,6 +156,9 @@ Use the identifiers confirmed by `xcrun simctl list --json`; do not guess or sil
 - Keep the fixed status bar time.
 - Never edit calendar text in pixels; make the crop policy remove the date-bearing system region consistently.
 - Keep the selected scene and locale in launch arguments and the readiness-token wait.
+- Reject non-exact iPhone/iPad frame dimensions before shutdown or erase.
+- Make `compose.py` consume the validated crop policy and crop the iPad source
+  region before scaling/pasting; do not synthesize or repaint status text.
 
 **Step 5: Confirm GREEN and document the invocation**
 
@@ -171,6 +178,7 @@ Update README with exact runtime/device creation, build, capture, compose, and v
 ```bash
 git add AppStore/KnittingCalculator/Screenshots/manifest.json \
   AppStore/KnittingCalculator/Screenshots/capture.sh \
+  AppStore/KnittingCalculator/Screenshots/compose.py \
   AppStore/KnittingCalculator/Screenshots/test_screenshot_tools.py \
   AppStore/KnittingCalculator/Screenshots/README.md
 git commit -m "fix: pin calculator screenshot environment"

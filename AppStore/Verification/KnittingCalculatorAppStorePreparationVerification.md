@@ -237,3 +237,90 @@ This Task 6 checkpoint records only the App-level configuration above. It does
 not claim screenshot upload, build attachment, version-metadata completion,
 review-information completion, submission, “Add for Review”, or public App
 Store release.
+
+## App Store Connect product pages and Build attachment
+
+- Configured and read back: 2026-07-30 19:27–19:50 Asia/Taipei
+- Signed-in App Store Connect account: `Phil Lon`
+- App: `編織計算器`
+- Apple ID: `6795877892`
+- Bundle ID: `com.phillon.KnittingCalculator`
+- iOS version status: `1.0 準備提交` (`Prepare for Submission`)
+
+Immediately before the remote changes, the screenshot manifest validator was
+rerun and reported `18 screenshots valid`. The generated screenshot folders
+contained only the expected numbered PNG files. Each file was uploaded
+individually by its exact path, and App Store Connect was read back after every
+upload before continuing.
+
+### Traditional Chinese product page
+
+The following values were saved, the page was reloaded, and every value was
+read back:
+
+| Field | Saved read-back |
+| --- | --- |
+| Promotional text | `免費、離線的編織與鉤針密度、平均加減針工具；不需要帳號。` |
+| Description | Matches `AppStore/KnittingCalculator/Metadata/zh-Hant.md`; remaining-character count `3,715` |
+| Keywords | `棒針,鉤針,針數,排數,毛線,針目,樣本,尺寸,換算,間隔` |
+| Support URL | `https://phillon77.github.io/KnitNote/knitting-calculator.html` |
+| Marketing URL | blank (optional) |
+| Version | `1.0` |
+| Copyright | `© 2026 Chen Chung Lung` |
+
+The final screenshot read-back was:
+
+| Device | Count | App Store Connect order |
+| --- | ---: | --- |
+| iPhone 6.5-inch | 5 | `01-home.png`, `02-gauge.png`, `03-adjustment.png`, `04-privacy.png`, `05-knitnote.png` |
+| iPad 13-inch | 4 | `01-home.png`, `02-gauge.png`, `03-adjustment.png`, `04-privacy-knitnote.png` |
+
+### English (U.S.) product page
+
+App Store Connect initially inherited the Traditional Chinese screenshots for
+English (U.S.). The per-device `Edit` control was used to create custom English
+screenshot sets before any English file was uploaded. The following values
+were saved, the page was reloaded, English (U.S.) was selected again, and every
+value was read back:
+
+| Field | Saved read-back |
+| --- | --- |
+| Promotional text | `Free, offline gauge and stitch-adjustment tools for knitting and crochet. No account required.` |
+| Description | Matches `AppStore/KnittingCalculator/Metadata/en-US.md`; remaining-character count `3,118` |
+| Keywords | `crochet,stitch,rows,needle,yarn,pattern,swatch,math,craft` |
+| Support URL | `https://phillon77.github.io/KnitNote/knitting-calculator.html` |
+| Marketing URL | blank (optional) |
+| Version | `1.0` |
+| Copyright | `© 2026 Chen Chung Lung` |
+
+The final custom English screenshot read-back was:
+
+| Device | Count | App Store Connect order |
+| --- | ---: | --- |
+| iPhone 6.5-inch | 5 | `01-home.png`, `02-gauge.png`, `03-adjustment.png`, `04-privacy.png`, `05-knitnote.png` |
+| iPad 13-inch | 4 | `01-home.png`, `02-gauge.png`, `03-adjustment.png`, `04-privacy-knitnote.png` |
+
+No screenshot remained in a processing or error state when its count and
+ordered filename list were accepted.
+
+### Attached Build
+
+The Add Build dialog contained one candidate only:
+
+```text
+Version 1.0.0
+Build 1
+```
+
+That exact `1.0.0 (1)` candidate was selected and saved. A final page reload
+continued to show Build `1`, Version `1.0.0`, and `提供輕巧 APP: 否`. The
+calculator identity remained Apple ID `6795877892` and bundle ID
+`com.phillon.KnittingCalculator`. No export-compliance question was changed;
+the previously verified no-relevant-encryption answer was preserved.
+
+### Preserved Task 8 boundary
+
+- App Review sign-in remained `需要登入`, value `1`.
+- Review username, password, contact information, and notes remained blank.
+- Release remained `自動發佈此版本`, value `1`.
+- `新增以供審查`, submission, and release actions were not used.

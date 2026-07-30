@@ -1,6 +1,8 @@
 import Foundation
 import KnittingCalculatorCore
+import SwiftUI
 import Testing
+import UIKit
 @testable import KnittingCalculator
 
 struct CalculatorStoreScreenshotModeTests {
@@ -160,5 +162,53 @@ struct CalculatorStoreScreenshotModeTests {
         #expect(privacy.presentation.destination == privacyPromotion.presentation.destination)
         #expect(privacy.presentation.scrollTarget == .privacy)
         #expect(privacyPromotion.presentation.scrollTarget == .privacy)
+    }
+
+    @Test @MainActor
+    func renderedHomeAndSettingsScenesKeepTheReleasePromotionAction() async {
+        for scene in [
+            CalculatorStoreScreenshotScene.home,
+            .promotion,
+            .privacy,
+            .privacyPromotion,
+        ] {
+            let didRenderPromotion = await rendersPromotion(for: scene)
+
+            #expect(
+                didRenderPromotion,
+                "Rendered \(scene.rawValue) must retain the Release KnitNote promotion"
+            )
+        }
+    }
+
+    @MainActor
+    private func rendersPromotion(
+        for scene: CalculatorStoreScreenshotScene
+    ) async -> Bool {
+        var didRenderPromotion = false
+        let mode = CalculatorStoreScreenshotMode(
+            scene: scene,
+            language: .en,
+            readinessToken: "render-\(scene.rawValue)-\(UUID().uuidString)"
+        )
+        let root = CalculatorStoreScreenshotRootView(mode: mode)
+            .environmentObject(mode.makePreferences())
+            .onKnitNotePromotionRendered {
+                didRenderPromotion = true
+            }
+        let host = UIHostingController(rootView: root)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 430, height: 1_600))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        host.view.frame = window.bounds
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(100))
+        host.view.layoutIfNeeded()
+
+        window.isHidden = true
+        return didRenderPromotion
     }
 }

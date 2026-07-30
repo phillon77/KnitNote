@@ -114,8 +114,7 @@ import Testing
 
         #expect(script.contains("EXPECTED_BUNDLE=\"com.phillon.KnittingCalculator\""))
         #expect(script.contains("EXPECTED_VERSION=\"1.0.0\""))
-        #expect(script.contains("EXPECTED_BUILD=\"1\""))
-        #expect(script.contains("apps.apple.com/app/id[0-9]+"))
+        #expect(script.contains("EXPECTED_BUILD=\"2\""))
         #expect(script.contains("KnittingCalculator/PrivacyInfo.xcprivacy"))
         #expect(script.contains("KnittingCalculator/Localization/Localizable.xcstrings"))
         #expect(script.contains("\"get-task-allow\""))
@@ -230,7 +229,7 @@ import Testing
             )
         )
         #expect(appTarget.contains("MARKETING_VERSION: 1.0.0"))
-        #expect(appTarget.contains("CURRENT_PROJECT_VERSION: 1"))
+        #expect(appTarget.contains("CURRENT_PROJECT_VERSION: 2"))
         #expect(appTarget.contains("UILaunchStoryboardName: LaunchScreen"))
         #expect(
             appTarget.contains(
@@ -280,6 +279,7 @@ import Testing
         #expect(project.contains("XCLocalSwiftPackageReference"))
         #expect(project.contains("relativePath = Packages/KnittingCalculatorCore;"))
         #expect(project.contains("INFOPLIST_FILE = KnittingCalculator/Info.plist;"))
+        #expect(project.contains("CURRENT_PROJECT_VERSION = 2;"))
         #expect(!project.contains("KnittingCalculator/KnittingCalculator/"))
         #expect(!project.contains("KnitNoteWatch"))
         #expect(!project.contains("KnitNoteShare"))

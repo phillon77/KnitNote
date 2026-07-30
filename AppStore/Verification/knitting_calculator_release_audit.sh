@@ -6,11 +6,12 @@ cd "$ROOT"
 
 EXPECTED_BUNDLE="com.phillon.KnittingCalculator"
 EXPECTED_VERSION="1.0.0"
-EXPECTED_BUILD="1"
+EXPECTED_BUILD="2"
+EXPECTED_APP_STORE_ID="6795877892"
 EXPECTED_TEAM_IDENTIFIER="9CFPAUL5N5"
 PROJECT_SPEC="KnittingCalculator/project.yml"
 PROJECT_FILE="KnittingCalculator.xcodeproj"
-APP_STORE_URL_PATTERN='apps.apple.com/app/id[0-9]+'
+APP_STORE_URL="https://apps.apple.com/app/id${EXPECTED_APP_STORE_ID}"
 STATIC_ONLY=0
 ARCHIVE=""
 IPA=""
@@ -79,10 +80,84 @@ verify_free_privacy_manifest() {
     ' >/dev/null || fail "free-app privacy manifest must declare only UserDefaults CA92.1, no tracking, and no collection"
 }
 
-verify_static_network_boundary() {
-  if rg -n -i '\b(URLSession|NWConnection|Firebase|Analytics|Telemetry|Mixpanel|Amplitude|Segment|Sentry|Adjust|AppsFlyer|tracking)\b' \
-    KnittingCalculator --glob '*.swift'; then
-    fail "unexpected network client, analytics SDK, or tracking source"
+verify_production_dependency_boundaries() {
+  local production_sources=(
+    KnittingCalculator
+    Packages/KnittingCalculatorCore/Sources
+  )
+  local unexpected_storekit_files
+  unexpected_storekit_files="$(
+    rg -l '^[[:space:]]*import[[:space:]]+StoreKit[[:space:]]*$' \
+      "${production_sources[@]}" --glob '*.swift' \
+      | sort \
+      | comm -23 - <(printf '%s\n' \
+        KnittingCalculator/Model/RatingEligibility.swift \
+        | sort) || true
+  )"
+  [[ -z "$unexpected_storekit_files" ]] \
+    || fail "unexpected commerce dependency: $unexpected_storekit_files"
+
+  if rg -n -i \
+    '\b(RevenueCat|Adapty|Paddle|Product\.products|Transaction\.(all|currentEntitlements|latest|updates)|AppStore\.sync|purchase\(|subscription)\b' \
+    "${production_sources[@]}" --glob '*.swift'; then
+    fail "unexpected commerce dependency"
+  fi
+
+  if rg -n -i \
+    '\b(FirebaseAnalytics|FirebaseCore|Mixpanel|Amplitude|Telemetry|Sentry|Adjust|AppsFlyer|tracking)\b|^[[:space:]]*import[[:space:]]+Segment[[:space:]]*$' \
+    "${production_sources[@]}" --glob '*.swift'; then
+    fail "unexpected analytics or tracking dependency"
+  fi
+
+  if rg -n \
+    '\b(URLSession|NWConnection|Alamofire|AsyncHTTPClient)\b|^[[:space:]]*import[[:space:]]+Network[[:space:]]*$' \
+    "${production_sources[@]}" --glob '*.swift'; then
+    fail "unexpected networking dependency"
+  fi
+
+  local dependency_declarations=(
+    "$PROJECT_SPEC"
+    "$PROJECT_FILE/project.pbxproj"
+    Packages/KnittingCalculatorCore/Package.swift
+  )
+  for resolved in \
+    KnittingCalculator/Package.resolved \
+    "$PROJECT_FILE/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"; do
+    if [[ -f "$resolved" ]]; then
+      dependency_declarations+=("$resolved")
+    fi
+  done
+
+  if rg -n \
+    'XCRemoteSwiftPackageReference|repositoryURL[[:space:]]*=|^[[:space:]]*url:|\.package\([[:space:]]*url:|"kind"[[:space:]]*:[[:space:]]*"remoteSourceControl"|"location"[[:space:]]*:[[:space:]]*"https?://' \
+    "${dependency_declarations[@]}"; then
+    fail "unexpected dynamic package dependency"
+  fi
+
+  if rg -n -i '\.binaryTarget|\.xcframework\b|\.framework\b' \
+    "${dependency_declarations[@]}"; then
+    fail "unexpected binary framework dependency"
+  fi
+  local binary_framework
+  binary_framework="$(
+    find KnittingCalculator Packages/KnittingCalculatorCore/Sources \
+      -type d \( -name '*.framework' -o -name '*.xcframework' \) \
+      -print -quit
+  )"
+  [[ -z "$binary_framework" ]] \
+    || fail "unexpected binary framework dependency: $binary_framework"
+
+  local calculator_app_store_urls
+  calculator_app_store_urls="$(
+    rg -o --no-filename 'https://apps\.apple\.com/app/id[0-9]+' \
+      KnittingCalculator/Model/CalculatorShareText.swift \
+      | sort -u || true
+  )"
+  [[ "$calculator_app_store_urls" == "$APP_STORE_URL" ]] \
+    || fail "calculator App Store ID is not $EXPECTED_APP_STORE_ID"
+
+  if rg -n 'https?://' Packages/KnittingCalculatorCore/Sources --glob '*.swift'; then
+    fail "linked calculator package must not contain literal URLs"
   fi
 
   local unexpected_url_files
@@ -353,7 +428,7 @@ verify_free_privacy_manifest
 verify_string_catalog KnittingCalculator/Localization/InfoPlist.xcstrings
 verify_string_catalog KnittingCalculator/Localization/Localizable.xcstrings
 verify_static_assets
-verify_static_network_boundary
+verify_production_dependency_boundaries
 git diff --check -- \
   KnittingCalculator \
   KnittingCalculatorTests \
@@ -362,11 +437,6 @@ git diff --check -- \
   AppStore/Verification/KnittingCalculatorPhysicalVerification.md
 
 echo "KNITTING CALCULATOR RELEASE AUDIT: STATIC PRODUCT SCOPE PASS"
-
-APP_STORE_URL_MISSING=0
-if ! rg -q "$APP_STORE_URL_PATTERN" KnittingCalculator/Model/CalculatorShareText.swift; then
-  APP_STORE_URL_MISSING=1
-fi
 
 if [[ -n "$ARCHIVE" ]]; then
   verify_archive "$ARCHIVE"
@@ -386,10 +456,6 @@ if [[ -n "$IPA" ]]; then
   echo "KNITTING CALCULATOR RELEASE AUDIT: IPA STRUCTURE PASS"
   verify_release_signing "$IPA_APP"
   echo "KNITTING CALCULATOR RELEASE AUDIT: IPA RELEASE SIGNING PASS"
-fi
-
-if [[ "$APP_STORE_URL_MISSING" -eq 1 ]]; then
-  fail "free-app App Store URL is still the development landing page; App Store Connect must assign a real numeric App Store ID before this audit can pass"
 fi
 
 echo "KNITTING CALCULATOR RELEASE AUDIT: PASS"

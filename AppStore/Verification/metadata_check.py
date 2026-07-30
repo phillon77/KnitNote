@@ -24,6 +24,9 @@ REQUIRED = (
     "Privacy URL",
     "What's New",
 )
+CALCULATOR_REQUIRED = ("Copyright", "Apple ID")
+EXPECTED_COPYRIGHT = "© 2026 Chen Chung Lung"
+EXPECTED_APPLE_ID = "6795877892"
 FORBIDDEN = (
     " ai ",
     "cloud sync",
@@ -62,6 +65,13 @@ def parse(path: Path) -> dict[str, str]:
     return fields
 
 
+def is_calculator_metadata(path: Path) -> bool:
+    return (
+        path.parent.name == "Metadata"
+        and path.parent.parent.name == "KnittingCalculator"
+    )
+
+
 def validate(path: Path) -> list[str]:
     errors: list[str] = []
     try:
@@ -69,9 +79,24 @@ def validate(path: Path) -> list[str]:
     except (OSError, UnicodeError) as error:
         return [f"{path}: file: {error}"]
 
-    for name in REQUIRED:
+    calculator_metadata = is_calculator_metadata(path)
+    required = REQUIRED + (CALCULATOR_REQUIRED if calculator_metadata else ())
+    for name in required:
         if not fields.get(name):
             errors.append(f"{path}: {name}: required non-empty field")
+
+    if (
+        calculator_metadata
+        and fields.get("Copyright")
+        and fields["Copyright"] != EXPECTED_COPYRIGHT
+    ):
+        errors.append(f"{path}: Copyright: must be {EXPECTED_COPYRIGHT}")
+    if (
+        calculator_metadata
+        and fields.get("Apple ID")
+        and fields["Apple ID"] != EXPECTED_APPLE_ID
+    ):
+        errors.append(f"{path}: Apple ID: must be {EXPECTED_APPLE_ID}")
 
     for name, limit in LIMITS.items():
         value = fields.get(name, "")

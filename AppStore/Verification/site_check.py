@@ -68,6 +68,20 @@ def check_page(path: Path, root: Path) -> list[str]:
         for claim in required:
             if claim not in text:
                 errors.append(f"{path}: missing privacy claim: {claim}")
+    if path.name == "knitting-calculator-privacy.html":
+        required = (
+            "不蒐集、傳送、出售或分享個人資料",
+            "不含分析 SDK",
+            "不會跨 App 或網站追蹤你",
+            "does not collect, transmit, sell, or share personal data",
+            "no advertising or analytics SDKs",
+            "does not track you across apps or websites",
+        )
+        for claim in required:
+            if claim not in text:
+                errors.append(
+                    f"{path}: missing calculator privacy claim: {claim}"
+                )
     return errors
 
 

@@ -19,6 +19,8 @@
 - Support URL: https://phillon77.github.io/KnitNote/knitting-calculator.html
 - Privacy URL: https://phillon77.github.io/KnitNote/knitting-calculator-privacy.html
 - What's New: First release with gauge and even stitch-adjustment tools.
+- Copyright: © 2026 Chen Chung Lung
+- Apple ID: 6795877892
 - Review Notes: No sign-in, account, purchase, permission, or network connection is required. Both calculators, local draft storage, help, copy, and share text are available immediately after launch. The optional KnitNote link appears only on Home and Settings and opens a separate app or its App Store page.
 - Territory positioning: Worldwide utility listing. English is the default product-page language; Traditional Chinese is localized for Taiwan and other Traditional-Chinese readers. The app is free in every territory and does not vary features, data handling, or pricing by territory.
 

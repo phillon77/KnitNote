@@ -5,6 +5,12 @@ disposable simulators, then places the real UI into the approved B-style
 watercolor frame. The capture script erases both simulators for every locale;
 never supply a personal simulator.
 
+`manifest.json` pins the public iOS runtime and device-type identifiers, the
+fixed 9:41 status-bar time, and the iPad date crop policy. Before any shutdown
+or erase, `capture.sh` validates the full locale/platform scene matrix and
+resolves both supplied UDIDs exactly once from `simctl`; it rejects a runtime,
+device type, name, availability, or duplicate mismatch.
+
 ## One-time setup
 
 Create the exact dedicated devices:
@@ -18,6 +24,13 @@ xcrun simctl create \
   'Knitting Calculator Store iPad' \
   com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB \
   com.apple.CoreSimulator.SimRuntime.iOS-26-5
+```
+
+Confirm that the local simulator inventory exposes the same public identifiers
+before exporting the two creation-command UDIDs:
+
+```bash
+xcrun simctl list devices --json
 ```
 
 Create an isolated Pillow environment:
@@ -53,6 +66,9 @@ export SCREENSHOT_PYTHON=/tmp/knitting-calculator-screenshots-venv/bin/python
 AppStore/KnittingCalculator/Screenshots/capture.sh zh-Hant
 AppStore/KnittingCalculator/Screenshots/capture.sh en
 ```
+
+The compositor consistently crops away the date-bearing system region; do not
+edit a calendar or date string in image pixels.
 
 Compose the opaque PNG assets and validate the complete package:
 

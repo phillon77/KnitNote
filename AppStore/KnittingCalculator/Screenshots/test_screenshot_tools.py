@@ -22,6 +22,19 @@ spec.loader.exec_module(validate)
 
 
 class ScreenshotToolsTests(unittest.TestCase):
+    def capture_environment(self):
+        return {
+            "runtimeIdentifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+            "iphoneDeviceTypeIdentifier": (
+                "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max"
+            ),
+            "ipadDeviceTypeIdentifier": (
+                "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB"
+            ),
+            "statusBarTime": "9:41",
+            "cropSystemDate": True,
+        }
+
     def make_valid_frames(self):
         frames = []
         scenes = {
@@ -33,6 +46,10 @@ class ScreenshotToolsTests(unittest.TestCase):
             for platform, platform_scenes in scenes.items():
                 for index, scene in enumerate(platform_scenes, 1):
                     width, height = sizes[platform]
+                    filenames = {
+                        ("iphone", "promotion"): "05-knitnote.png",
+                        ("ipad", "privacyPromotion"): "04-privacy-knitnote.png",
+                    }
                     frames.append({
                         "locale": locale,
                         "platform": platform,
@@ -42,7 +59,9 @@ class ScreenshotToolsTests(unittest.TestCase):
                         "height": height,
                         "headline": "編織尺寸" if locale == "zh-Hant" else "Knitting math",
                         "subheadline": "測試" if locale == "zh-Hant" else "Test copy",
-                        "filename": f"{index:02d}-{scene}.png",
+                        "filename": filenames.get(
+                            (platform, scene), f"{index:02d}-{scene}.png"
+                        ),
                     })
         return frames
 
@@ -91,6 +110,32 @@ class ScreenshotToolsTests(unittest.TestCase):
         frames[0] = []
         with self.assertRaisesRegex(ValueError, "frame 1 must be an object"):
             validate.validate_manifest(frames)
+
+    def test_schema_two_manifest_requires_a_complete_capture_environment(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        manifest_path = Path(temporary_directory.name) / "manifest.json"
+        payload = {
+            "schemaVersion": 2,
+            "captureEnvironment": self.capture_environment(),
+            "frames": self.make_valid_frames(),
+        }
+        manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+        self.assertEqual(validate.load_manifest(manifest_path), payload["frames"])
+
+        for missing_field in (
+            "runtimeIdentifier",
+            "iphoneDeviceTypeIdentifier",
+            "ipadDeviceTypeIdentifier",
+            "statusBarTime",
+            "cropSystemDate",
+        ):
+            with self.subTest(missing_field=missing_field):
+                invalid_payload = json.loads(json.dumps(payload))
+                del invalid_payload["captureEnvironment"][missing_field]
+                manifest_path.write_text(json.dumps(invalid_payload), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "captureEnvironment"):
+                    validate.load_manifest(manifest_path)
 
     def test_manifest_rejects_unsafe_path_components(self):
         unsafe_values = (
@@ -196,55 +241,64 @@ class ScreenshotToolsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "safe path component"):
                     compositor.compose_manifest(manifest_path)
 
-    def write_capture_fixture(self, *, dedicated=True, screenshot_size=(1284, 2778)):
+    def write_capture_fixture(
+        self,
+        *,
+        dedicated=True,
+        screenshot_size=None,
+        iphone_runtime="com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+        ipad_runtime="com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+        iphone_device_type=(
+            "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max"
+        ),
+        ipad_device_type=(
+            "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB"
+        ),
+    ):
         temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temporary_directory.cleanup)
         root = Path(temporary_directory.name)
         manifest = {
-            "schemaVersion": 1,
-            "frames": [{
-                "locale": "en",
-                "platform": "iphone",
-                "scene": "gauge",
-                "device": "iPhone",
-                "width": 1284,
-                "height": 2778,
-                "headline": "Gauge, stitches, and rows",
-                "subheadline": "Enter a swatch and get the count",
-                "filename": "01-gauge.png",
-            }],
+            "schemaVersion": 2,
+            "captureEnvironment": self.capture_environment(),
+            "frames": self.make_valid_frames(),
         }
         manifest_path = root / "manifest.json"
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         app_path = root / "KnittingCalculator.app"
         app_path.mkdir()
-        screenshot_path = root / "fake-screenshot.png"
-        Image.new("RGB", screenshot_size, "white").save(screenshot_path)
+        iphone_screenshot_path = root / "fake-iphone-screenshot.png"
+        ipad_screenshot_path = root / "fake-ipad-screenshot.png"
+        iphone_size, ipad_size = screenshot_size or ((1284, 2778), (2064, 2752))
+        Image.new("RGB", iphone_size, "white").save(iphone_screenshot_path)
+        Image.new("RGB", ipad_size, "white").save(ipad_screenshot_path)
 
         fake_bin = root / "bin"
         fake_bin.mkdir()
         record_path = root / "xcrun-record.tsv"
         device_prefix = "Knitting Calculator Store" if dedicated else "Personal"
-        devices = {
-            "devices": {
-                "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [
-                    {
-                        "name": f"{device_prefix} iPhone",
-                        "udid": "IPHONE-UDID",
-                        "isAvailable": True,
-                        "deviceTypeIdentifier":
-                            "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max",
-                    },
-                    {
-                        "name": "Knitting Calculator Store iPad",
-                        "udid": "IPAD-UDID",
-                        "isAvailable": True,
-                        "deviceTypeIdentifier":
-                            "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB",
-                    },
-                ],
-            },
-        }
+        devices = {"devices": {}}
+        for runtime, device in (
+            (
+                iphone_runtime,
+                {
+                    "name": f"{device_prefix} iPhone",
+                    "udid": "IPHONE-UDID",
+                    "isAvailable": True,
+                    "deviceTypeIdentifier": iphone_device_type,
+                },
+            ),
+            (
+                ipad_runtime,
+                {
+                    "name": "Knitting Calculator Store iPad",
+                    "udid": "IPAD-UDID",
+                    "isAvailable": True,
+                    "deviceTypeIdentifier": ipad_device_type,
+                },
+            ),
+        ):
+            devices["devices"].setdefault(runtime, []).append(device)
         devices_path = root / "devices.json"
         devices_path.write_text(json.dumps(devices), encoding="utf-8")
         fake_xcrun = fake_bin / "xcrun"
@@ -254,13 +308,19 @@ class ScreenshotToolsTests(unittest.TestCase):
                 #!/usr/bin/env bash
                 set -euo pipefail
                 if [[ "$*" == "simctl list devices --json" ]]; then
+                  printf '%s\\t' "$@" >> "$FAKE_XCRUN_RECORD"
+                  printf '\\n' >> "$FAKE_XCRUN_RECORD"
                   /bin/cat "$FAKE_DEVICES_JSON"
                   exit 0
                 fi
                 printf '%s\\t' "$@" >> "$FAKE_XCRUN_RECORD"
                 printf '\\n' >> "$FAKE_XCRUN_RECORD"
                 if [[ "${1:-}" == "simctl" && "${2:-}" == "io" ]]; then
-                  /bin/cp "$FAKE_SCREENSHOT" "${5}"
+                  if [[ "${3:-}" == "IPAD-UDID" ]]; then
+                    /bin/cp "$FAKE_IPAD_SCREENSHOT" "${5}"
+                  else
+                    /bin/cp "$FAKE_IPHONE_SCREENSHOT" "${5}"
+                  fi
                 elif [[ "${1:-}" == "simctl" && "${2:-}" == "spawn" && "${4:-}" == "log" ]]; then
                   printf '%s\\n' "$*"
                 fi
@@ -277,7 +337,8 @@ class ScreenshotToolsTests(unittest.TestCase):
             "CALC_SCREENSHOT_APP": str(app_path),
             "CALC_SCREENSHOT_MANIFEST": str(manifest_path),
             "FAKE_DEVICES_JSON": str(devices_path),
-            "FAKE_SCREENSHOT": str(screenshot_path),
+            "FAKE_IPHONE_SCREENSHOT": str(iphone_screenshot_path),
+            "FAKE_IPAD_SCREENSHOT": str(ipad_screenshot_path),
             "FAKE_XCRUN_RECORD": str(record_path),
             "SCREENSHOT_PYTHON": sys.executable,
             "SCREENSHOT_SETTLE_SECONDS": "0",
@@ -308,8 +369,20 @@ class ScreenshotToolsTests(unittest.TestCase):
         invocations = record_path.read_text(encoding="utf-8").splitlines()
         self.assertTrue(any("simctl\terase\tIPHONE-UDID" in line for line in invocations))
         self.assertTrue(any("simctl\terase\tIPAD-UDID" in line for line in invocations))
+        first_erase = next(
+            index for index, line in enumerate(invocations)
+            if "simctl\terase\t" in line
+        )
+        self.assertEqual(
+            sum("simctl\tlist\tdevices\t--json" in line for line in invocations[:first_erase]),
+            1,
+        )
         self.assertTrue(any("simctl\tinstall\tIPHONE-UDID" in line for line in invocations))
-        launch = next(line for line in invocations if "simctl\tlaunch\tIPHONE-UDID" in line)
+        launch = next(
+            line for line in invocations
+            if "simctl\tlaunch\tIPHONE-UDID" in line
+            and "-storeScreenshotScene\tgauge" in line
+        )
         self.assertIn("com.phillon.KnittingCalculator", launch)
         self.assertIn("-storeScreenshotMode\tYES", launch)
         self.assertIn("-storeScreenshotScene\tgauge", launch)
@@ -318,7 +391,9 @@ class ScreenshotToolsTests(unittest.TestCase):
         self.assertTrue(any("simctl\tio\tIPHONE-UDID\tscreenshot" in line for line in invocations))
 
     def test_capture_rejects_a_screenshot_with_wrong_dimensions(self):
-        _, environment, _ = self.write_capture_fixture(screenshot_size=(1, 1))
+        _, environment, _ = self.write_capture_fixture(
+            screenshot_size=((1, 1), (1, 1))
+        )
         result = subprocess.run(
             [str(CAPTURE_PATH), "en"],
             env=environment,
@@ -359,6 +434,14 @@ class ScreenshotToolsTests(unittest.TestCase):
                         manifest_contents,
                         encoding="utf-8",
                     )
+                else:
+                    manifest_path = root / "manifest.json"
+                    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    payload["frames"] = [
+                        frame for frame in payload["frames"]
+                        if frame["locale"] != "zh-Hant"
+                    ]
+                    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
                 result = subprocess.run(
                     [str(CAPTURE_PATH), locale],
                     env=environment,
@@ -367,6 +450,70 @@ class ScreenshotToolsTests(unittest.TestCase):
                     check=False,
                 )
                 self.assertNotEqual(result.returncode, 0)
+                invocations = (
+                    record_path.read_text(encoding="utf-8")
+                    if record_path.exists()
+                    else ""
+                )
+                self.assertNotIn("simctl\terase\t", invocations)
+
+    def test_capture_rejects_environment_or_matrix_errors_before_erasing(self):
+        cases = {
+            "iphone under the wrong runtime": {
+                "fixture": {"iphone_runtime": "com.apple.CoreSimulator.SimRuntime.iOS-18-1"},
+            },
+            "ipad under the wrong runtime": {
+                "fixture": {"ipad_runtime": "com.apple.CoreSimulator.SimRuntime.iOS-18-1"},
+            },
+            "iphone substring device lookalike": {
+                "fixture": {
+                    "iphone_device_type": (
+                        "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max-Lookalike"
+                    ),
+                },
+            },
+            "ipad substring device lookalike": {
+                "fixture": {
+                    "ipad_device_type": (
+                        "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB-Lookalike"
+                    ),
+                },
+            },
+            "missing iphone type": {
+                "remove_environment": "iphoneDeviceTypeIdentifier",
+            },
+            "missing ipad type": {
+                "remove_environment": "ipadDeviceTypeIdentifier",
+            },
+            "missing runtime": {"remove_environment": "runtimeIdentifier"},
+            "ipad crop exposes calendar": {"crop_system_date": False},
+            "unapproved scene filename pair": {"filename": "99-gauge.png"},
+        }
+        for name, change in cases.items():
+            with self.subTest(name=name):
+                root, environment, record_path = self.write_capture_fixture(
+                    **change.get("fixture", {})
+                )
+                manifest_path = root / "manifest.json"
+                payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if "remove_environment" in change:
+                    del payload["captureEnvironment"][change["remove_environment"]]
+                if "crop_system_date" in change:
+                    payload["captureEnvironment"]["cropSystemDate"] = change[
+                        "crop_system_date"
+                    ]
+                if "filename" in change:
+                    payload["frames"][1]["filename"] = change["filename"]
+                manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+                result = subprocess.run(
+                    [str(CAPTURE_PATH), "en"],
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2, result.stderr)
                 invocations = (
                     record_path.read_text(encoding="utf-8")
                     if record_path.exists()

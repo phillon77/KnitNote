@@ -1,5 +1,12 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "captureEnvironment": {
+    "runtimeIdentifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+    "iphoneDeviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max",
+    "ipadDeviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB",
+    "statusBarTime": "9:41",
+    "cropSystemDate": true
+  },
   "frames": [
     {"locale":"zh-Hant","platform":"iphone","scene":"home","device":"iPhone","width":1284,"height":2778,"headline":"編織尺寸，一算就懂","subheadline":"免費・離線・不需帳號","filename":"01-home.png"},
     {"locale":"zh-Hant","platform":"iphone","scene":"gauge","device":"iPhone","width":1284,"height":2778,"headline":"密度、針數、排數","subheadline":"輸入樣本，立即換算尺寸","filename":"02-gauge.png"},

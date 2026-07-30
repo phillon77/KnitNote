@@ -14,6 +14,17 @@ from PIL import Image
 EXPECTED_COUNTS = {"iphone": 5, "ipad": 4}
 EXPECTED_SIZES = {"iphone": (1284, 2778), "ipad": (2064, 2752)}
 LOCALES = {"zh-Hant", "en"}
+CAPTURE_ENVIRONMENT = {
+    "runtimeIdentifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+    "iphoneDeviceTypeIdentifier": (
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max"
+    ),
+    "ipadDeviceTypeIdentifier": (
+        "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB"
+    ),
+    "statusBarTime": "9:41",
+    "cropSystemDate": True,
+}
 DENYLIST = ("lzz.1999", "/Users/", "IMG_", "截圖", "GPSLatitude", "GPSLongitude")
 REQUIRED_FIELDS = {
     "locale", "platform", "scene", "device", "width", "height", "headline",
@@ -52,6 +63,13 @@ def validate_path_fields(frame: dict) -> None:
         validate_path_component(frame.get(field), field)
 
 
+def validate_capture_environment(environment: object) -> None:
+    if not isinstance(environment, dict):
+        fail("manifest captureEnvironment must be an object")
+    if environment != CAPTURE_ENVIRONMENT:
+        fail("manifest captureEnvironment must pin the approved screenshot environment")
+
+
 def load_manifest(path: Path) -> list[dict]:
     raw = path.read_text(encoding="utf-8")
     if contains_denylisted_marker(raw):
@@ -60,8 +78,9 @@ def load_manifest(path: Path) -> list[dict]:
     if not isinstance(payload, dict):
         fail("manifest payload must be an object")
     frames = payload.get("frames")
-    if payload.get("schemaVersion") != 1 or not isinstance(frames, list):
-        fail("manifest schemaVersion must be 1 and frames must be an array")
+    if payload.get("schemaVersion") != 2 or not isinstance(frames, list):
+        fail("manifest schemaVersion must be 2 and frames must be an array")
+    validate_capture_environment(payload.get("captureEnvironment"))
     return frames
 
 

@@ -22,44 +22,81 @@ require_variable() {
   fi
 }
 
-verify_dedicated_device() {
-  local udid="$1"
-  local platform="$2"
-  if ! "$PYTHON" - "$udid" "$platform" <<'PY'
+verify_capture_environment() {
+  if ! "$PYTHON" - "$CALC_IPHONE_UDID" "$CALC_IPAD_UDID" "$MANIFEST" <<'PY'
 import json
 import subprocess
 import sys
 
-udid, platform = sys.argv[1:]
+iphone_udid, ipad_udid, manifest_path = sys.argv[1:]
+environment = {
+    "runtimeIdentifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+    "iphoneDeviceTypeIdentifier": (
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max"
+    ),
+    "ipadDeviceTypeIdentifier": (
+        "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB"
+    ),
+    "statusBarTime": "9:41",
+    "cropSystemDate": True,
+}
+expected_devices = {
+    "iphone": (
+        iphone_udid,
+        "Knitting Calculator Store iPhone",
+        environment["iphoneDeviceTypeIdentifier"],
+    ),
+    "ipad": (
+        ipad_udid,
+        "Knitting Calculator Store iPad",
+        environment["ipadDeviceTypeIdentifier"],
+    ),
+}
+
+try:
+    with open(manifest_path, encoding="utf-8") as manifest_file:
+        payload = json.load(manifest_file)
+except (OSError, json.JSONDecodeError) as error:
+    raise SystemExit(f"invalid screenshot manifest: {error}")
+
+if not isinstance(payload, dict) or payload.get("schemaVersion") != 2:
+    raise SystemExit("invalid screenshot manifest: schemaVersion must be 2")
+if payload.get("captureEnvironment") != environment:
+    raise SystemExit("invalid screenshot manifest: captureEnvironment must pin the approved environment")
+
 payload = json.loads(
     subprocess.check_output(["xcrun", "simctl", "list", "devices", "--json"])
 )
-device = next(
-    (
-        item
-        for runtime_devices in payload.get("devices", {}).values()
+devices = payload.get("devices", {})
+for platform, (udid, expected_name, expected_type) in expected_devices.items():
+    matches = [
+        (runtime, item)
+        for runtime, runtime_devices in devices.items()
         for item in runtime_devices
         if item.get("udid") == udid
-    ),
-    None,
-)
-if device is None or not device.get("isAvailable", False):
-    raise SystemExit(f"unknown or unavailable screenshot simulator: {udid}")
-
-name = device.get("name", "")
-if not name.startswith("Knitting Calculator Store"):
-    raise SystemExit(
-        f"refusing non-dedicated simulator {name!r}; "
-        "name must start with 'Knitting Calculator Store'"
-    )
-
-identifier = device.get("deviceTypeIdentifier", "")
-accepted = {
-    "iphone": ("iPhone-13-Pro-Max",),
-    "ipad": ("iPad-Pro-13-inch-M5", "iPad-Pro-13-inch-M4"),
-}[platform]
-if not any(model in identifier for model in accepted):
-    raise SystemExit(f"wrong {platform} screenshot device: {identifier or name}")
+    ]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"screenshot {platform} simulator must resolve exactly once: {udid}"
+        )
+    runtime, device = matches[0]
+    if runtime != environment["runtimeIdentifier"]:
+        raise SystemExit(
+            f"wrong {platform} screenshot runtime: {runtime}; "
+            f"expected {environment['runtimeIdentifier']}"
+        )
+    if device.get("isAvailable") is not True:
+        raise SystemExit(f"unknown or unavailable screenshot simulator: {udid}")
+    if device.get("name") != expected_name:
+        raise SystemExit(
+            f"refusing unexpected screenshot simulator {device.get('name')!r}; "
+            f"expected {expected_name!r}"
+        )
+    if device.get("deviceTypeIdentifier") != expected_type:
+        raise SystemExit(
+            f"wrong {platform} screenshot device: "
+            f"{device.get('deviceTypeIdentifier') or device.get('name')}"
+        )
 PY
   then
     exit 2
@@ -170,7 +207,7 @@ require_variable CALC_IPAD_UDID
 
 ROWS_FILE="$(mktemp "${TMPDIR:-/tmp}/knitting-calculator-frames.XXXXXX")"
 trap 'rm -f "$ROWS_FILE"' EXIT
-"$PYTHON" - "$MANIFEST" "$LOCALE" >"$ROWS_FILE" <<'PY'
+if ! "$PYTHON" - "$MANIFEST" "$LOCALE" >"$ROWS_FILE" <<'PY'
 import json
 import sys
 
@@ -193,16 +230,52 @@ def safe_component(value, field):
 try:
     with open(manifest_path, encoding="utf-8") as manifest_file:
         payload = json.load(manifest_file)
-    if not isinstance(payload, dict) or not isinstance(payload.get("frames"), list):
-        raise ValueError("payload must contain a frames array")
+    expected_environment = {
+        "runtimeIdentifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+        "iphoneDeviceTypeIdentifier": (
+            "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max"
+        ),
+        "ipadDeviceTypeIdentifier": (
+            "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB"
+        ),
+        "statusBarTime": "9:41",
+        "cropSystemDate": True,
+    }
+    approved_matrix = {
+        (locale, platform, scene, filename)
+        for locale in ("zh-Hant", "en")
+        for platform, scenes in {
+            "iphone": (
+                ("home", "01-home.png"),
+                ("gauge", "02-gauge.png"),
+                ("adjustment", "03-adjustment.png"),
+                ("privacy", "04-privacy.png"),
+                ("promotion", "05-knitnote.png"),
+            ),
+            "ipad": (
+                ("home", "01-home.png"),
+                ("gauge", "02-gauge.png"),
+                ("adjustment", "03-adjustment.png"),
+                ("privacyPromotion", "04-privacy-knitnote.png"),
+            ),
+        }.items()
+        for scene, filename in scenes
+    }
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schemaVersion") != 2
+        or payload.get("captureEnvironment") != expected_environment
+        or not isinstance(payload.get("frames"), list)
+    ):
+        raise ValueError("payload must pin the approved captureEnvironment and frames array")
+    frames = payload["frames"]
     selected = []
-    for index, frame in enumerate(payload["frames"], 1):
+    actual_matrix = set()
+    for index, frame in enumerate(frames, 1):
         if not isinstance(frame, dict):
             raise ValueError(f"frame {index} must be an object")
         for field in ("locale", "platform", "filename"):
             safe_component(frame.get(field), field)
-        if frame["locale"] != locale:
-            continue
         if frame["platform"] not in {"iphone", "ipad"}:
             raise ValueError(f"frame {index} has unsupported platform")
         for field in ("scene", "filename"):
@@ -218,7 +291,11 @@ try:
             or height <= 0
         ):
             raise ValueError(f"frame {index} has invalid dimensions")
-        selected.append(frame)
+        actual_matrix.add((frame["locale"], frame["platform"], frame["scene"], frame["filename"]))
+        if frame["locale"] == locale:
+            selected.append(frame)
+    if len(frames) != len(approved_matrix) or actual_matrix != approved_matrix:
+        raise ValueError("manifest scene and filename pairs are not the approved capture matrix")
     if not selected:
         raise ValueError(f"manifest contains no frames for locale {locale}")
     for frame in selected:
@@ -233,9 +310,11 @@ try:
 except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
     raise SystemExit(f"invalid screenshot manifest: {error}")
 PY
+then
+  exit 2
+fi
 
-verify_dedicated_device "$CALC_IPHONE_UDID" iphone
-verify_dedicated_device "$CALC_IPAD_UDID" ipad
+verify_capture_environment
 prepare_device "$CALC_IPHONE_UDID" iphone
 prepare_device "$CALC_IPAD_UDID" ipad
 

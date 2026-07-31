@@ -1,4 +1,4 @@
-import StoreKit
+import enum StoreKit.AppStore
 import SwiftUI
 import UIKit
 

@@ -11,6 +11,7 @@ EXPECTED_APP_STORE_ID="6795877892"
 EXPECTED_TEAM_IDENTIFIER="9CFPAUL5N5"
 PROJECT_SPEC="KnittingCalculator/project.yml"
 PROJECT_FILE="KnittingCalculator.xcodeproj"
+SOURCE_CHECK="AppStore/Verification/knitting_calculator_release_source_check.py"
 APP_STORE_URL="https://apps.apple.com/app/id${EXPECTED_APP_STORE_ID}"
 KNITNOTE_APP_STORE_URL="https://apps.apple.com/app/id6793023054"
 STATIC_ONLY=0
@@ -86,9 +87,11 @@ verify_production_dependency_boundaries() {
     KnittingCalculator
     Packages/KnittingCalculatorCore/Sources
   )
+  require_file "$SOURCE_CHECK"
   local unexpected_storekit_files
   unexpected_storekit_files="$(
-    rg -l '^[[:space:]]*import[[:space:]]+StoreKit[[:space:]]*$' \
+    rg -l \
+      '^[[:space:]]*import[[:space:]]+((class|enum|func|protocol|struct|typealias|var|let)[[:space:]]+)?StoreKit([.][A-Za-z_][A-Za-z0-9_]*)*[[:space:]]*$' \
       "${production_sources[@]}" --glob '*.swift' \
       | sort \
       | comm -23 - <(printf '%s\n' \
@@ -99,22 +102,14 @@ verify_production_dependency_boundaries() {
     || fail "unexpected commerce dependency: $unexpected_storekit_files"
 
   local rating_source="KnittingCalculator/Model/RatingEligibility.swift"
-  if rg -n \
-    '\bSK[A-Z][A-Za-z0-9_]*\b|\b(Product|Transaction|SubscriptionStoreView|ProductView|StoreView|AppTransaction|PurchaseAction|Storefront|StoreKitError|VerificationResult)\b' \
-    "$rating_source"; then
-    fail "unexpected commerce dependency in rating request source"
-  fi
-  local rating_app_store_calls
-  rating_app_store_calls="$(
-    rg -o --no-filename '\bAppStore\.[A-Za-z0-9_]+' "$rating_source" \
-      | sort -u || true
-  )"
-  [[ "$rating_app_store_calls" == "AppStore.requestReview" ]] \
-    || fail "rating request source may use only AppStore.requestReview"
+  python3 "$SOURCE_CHECK" rating-storekit "$rating_source" \
+    || fail "unexpected rating StoreKit surface; only import enum StoreKit.AppStore and AppStore.requestReview are allowed"
 
   if rg -n -i \
     '\b(RevenueCat|Adapty|Paddle|Product\.products|Transaction\.(all|currentEntitlements|latest|updates)|AppStore\.sync|purchase\(|subscription)\b' \
-    "${production_sources[@]}" --glob '*.swift'; then
+    "${production_sources[@]}" \
+    --glob '*.swift' \
+    --glob '!RatingEligibility.swift'; then
     fail "unexpected commerce dependency"
   fi
 
@@ -188,13 +183,27 @@ verify_production_dependency_boundaries() {
   [[ "$generated_local_package_paths" == "Packages/KnittingCalculatorCore" ]] \
     || fail "unexpected linked local package dependency in generated project"
 
+  local generated_package_products
+  generated_package_products="$(
+    awk '
+      /Begin XCSwiftPackageProductDependency section/ { inside = 1; next }
+      /End XCSwiftPackageProductDependency section/ { inside = 0 }
+      inside && /productName = / {
+        sub(/^.*productName = /, "")
+        sub(/;.*$/, "")
+        print
+      }
+    ' "$PROJECT_FILE/project.pbxproj" | sort
+  )"
+  [[ "$generated_package_products" == $'KnittingCalculatorCore\nKnittingCalculatorCore' ]] \
+    || fail "unexpected package product dependency in generated project"
+
   if rg -n '\.package\(' Packages/KnittingCalculatorCore/Package.swift; then
     fail "unexpected linked local package dependency in calculator core package"
   fi
-  if rg -n 'type:[[:space:]]*\.dynamic' \
-    Packages/KnittingCalculatorCore/Package.swift; then
-    fail "unexpected dynamic library dependency"
-  fi
+  python3 "$SOURCE_CHECK" package-manifest \
+    Packages/KnittingCalculatorCore/Package.swift \
+    || fail "unexpected dynamic library dependency"
 
   if rg -n -i '\.binaryTarget|\.xcframework\b|\.framework\b' \
     "${dependency_declarations[@]}"; then
@@ -527,6 +536,7 @@ git diff --check -- \
   KnittingCalculatorTests \
   Packages/KnittingCalculatorCore \
   AppStore/Verification/knitting_calculator_release_audit.sh \
+  AppStore/Verification/knitting_calculator_release_source_check.py \
   AppStore/Verification/KnittingCalculatorPhysicalVerification.md
 
 echo "KNITTING CALCULATOR RELEASE AUDIT: STATIC PRODUCT SCOPE PASS"

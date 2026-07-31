@@ -18,6 +18,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 AUDIT_RELATIVE_PATH = Path(
     "AppStore/Verification/knitting_calculator_release_audit.sh"
 )
+SOURCE_CHECK_RELATIVE_PATH = Path(
+    "AppStore/Verification/knitting_calculator_release_source_check.py"
+)
 
 
 class ReleaseAuditFixture:
@@ -51,6 +54,10 @@ class ReleaseAuditFixture:
         audit = self.root / AUDIT_RELATIVE_PATH
         audit.parent.mkdir(parents=True)
         shutil.copy2(REPOSITORY_ROOT / AUDIT_RELATIVE_PATH, audit)
+        shutil.copy2(
+            REPOSITORY_ROOT / SOURCE_CHECK_RELATIVE_PATH,
+            self.root / SOURCE_CHECK_RELATIVE_PATH,
+        )
 
         project_spec = self.root / "KnittingCalculator/project.yml"
         project_spec.write_text(
@@ -274,7 +281,7 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
             + "let paymentQueue = SKPaymentQueue.default()\n",
             encoding="utf-8",
         )
-        self.assert_boundary_failure("commerce dependency")
+        self.assert_boundary_failure("rating StoreKit surface")
 
     def test_rejects_modern_storekit_commerce_in_rating_allowlist(self) -> None:
         source = self.fixture.root / "KnittingCalculator/Model/RatingEligibility.swift"
@@ -283,7 +290,61 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
             + "\nlet subscriptionStore = SubscriptionStoreView(groupID: \"fixture\")\n",
             encoding="utf-8",
         )
-        self.assert_boundary_failure("commerce dependency")
+        self.assert_boundary_failure("rating StoreKit surface")
+
+    def test_rejects_external_purchase_storekit_surface_in_rating_allowlist(
+        self,
+    ) -> None:
+        source = self.fixture.root / "KnittingCalculator/Model/RatingEligibility.swift"
+        source.write_text(
+            source.read_text(encoding="utf-8")
+            + "\nimport struct StoreKit.ExternalPurchaseLink\n"
+            + "let externalPurchaseLink: ExternalPurchaseLink? = nil\n",
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("rating StoreKit surface")
+
+    def test_rejects_advanced_commerce_storekit_surface_in_rating_allowlist(
+        self,
+    ) -> None:
+        source = self.fixture.root / "KnittingCalculator/Model/RatingEligibility.swift"
+        source.write_text(
+            source.read_text(encoding="utf-8")
+            + "\nimport struct StoreKit.AdvancedCommerceProduct\n"
+            + "let advancedCommerceProduct: AdvancedCommerceProduct? = nil\n",
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("rating StoreKit surface")
+
+    def test_ignores_storekit_vocabulary_in_comments_and_strings(self) -> None:
+        source = self.fixture.root / "KnittingCalculator/Model/RatingEligibility.swift"
+        source.write_text(
+            source.read_text(encoding="utf-8").replace(
+                'as? String ?? "0"',
+                'as? String ?? "AppStore.sync ExternalPurchaseLink"',
+                1,
+            )
+            + "\n"
+            + "// import struct StoreKit.AdvancedCommerceProduct\n"
+            + "/* SubscriptionStoreView and Product are documentation only. */\n",
+            encoding="utf-8",
+        )
+
+        result = self.fixture.run("--static-only")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_storekit_surface_inside_string_interpolation(self) -> None:
+        source = self.fixture.root / "KnittingCalculator/Model/RatingEligibility.swift"
+        source.write_text(
+            source.read_text(encoding="utf-8").replace(
+                '"0"',
+                '"\\(ExternalPurchaseLink.self)"',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("rating StoreKit surface")
 
     def test_rejects_analytics_in_linked_production_source(self) -> None:
         source = (
@@ -379,6 +440,23 @@ let package = Package(
         )
         self.assert_boundary_failure("linked local package dependency")
 
+    def test_rejects_additional_package_product_in_generated_project(self) -> None:
+        project = self.fixture.root / "KnittingCalculator.xcodeproj/project.pbxproj"
+        project.write_text(
+            project.read_text(encoding="utf-8").replace(
+                "/* End XCSwiftPackageProductDependency section */",
+                """\
+		FIXTURE /* SecondaryProduct */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SecondaryProduct;
+		};
+/* End XCSwiftPackageProductDependency section */""",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("package product dependency")
+
     def test_rejects_nested_local_package_dependency(self) -> None:
         package = self.fixture.root / "Packages/KnittingCalculatorCore/Package.swift"
         package.write_text(
@@ -442,6 +520,22 @@ let package = Package(
                 ".library(\n"
                 "            name: \"KnittingCalculatorCore\",\n"
                 "            type: .dynamic,",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("dynamic library dependency")
+
+    def test_rejects_multiline_dynamic_library_product(self) -> None:
+        package = self.fixture.root / "Packages/KnittingCalculatorCore/Package.swift"
+        package.write_text(
+            package.read_text(encoding="utf-8").replace(
+                ".library(\n"
+                "            name: \"KnittingCalculatorCore\",",
+                ".library(\n"
+                "            name: \"KnittingCalculatorCore\",\n"
+                "            type:\n"
+                "                .dynamic,",
                 1,
             ),
             encoding="utf-8",

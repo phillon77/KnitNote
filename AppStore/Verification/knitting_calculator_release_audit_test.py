@@ -151,12 +151,19 @@ exit 0
         bundle: str = "com.phillon.KnittingCalculator",
         version: str = "1.0.0",
         build: str = "2",
+        artifact_app_store_id: str = "6795877892",
     ) -> Path:
         archive = self.root / "Fixture.xcarchive"
         if archive.exists():
             shutil.rmtree(archive)
         app = archive / "Products/Applications/KnittingCalculator.app"
-        self._write_app_bundle(app, bundle=bundle, version=version, build=build)
+        self._write_app_bundle(
+            app,
+            bundle=bundle,
+            version=version,
+            build=build,
+            artifact_app_store_id=artifact_app_store_id,
+        )
         return archive
 
     def write_ipa(
@@ -165,12 +172,19 @@ exit 0
         bundle: str = "com.phillon.KnittingCalculator",
         version: str = "1.0.0",
         build: str = "2",
+        artifact_app_store_id: str = "6795877892",
     ) -> Path:
         payload_root = self.root / "ipa-source"
         if payload_root.exists():
             shutil.rmtree(payload_root)
         app = payload_root / "Payload/KnittingCalculator.app"
-        self._write_app_bundle(app, bundle=bundle, version=version, build=build)
+        self._write_app_bundle(
+            app,
+            bundle=bundle,
+            version=version,
+            build=build,
+            artifact_app_store_id=artifact_app_store_id,
+        )
         ipa = self.root / "Fixture.ipa"
         ipa.unlink(missing_ok=True)
         with zipfile.ZipFile(ipa, "w") as archive:
@@ -185,6 +199,7 @@ exit 0
         bundle: str,
         version: str,
         build: str,
+        artifact_app_store_id: str,
     ) -> None:
         app.mkdir(parents=True)
         with (app / "Info.plist").open("wb") as stream:
@@ -193,9 +208,20 @@ exit 0
                     "CFBundleIdentifier": bundle,
                     "CFBundleShortVersionString": version,
                     "CFBundleVersion": build,
+                    "CFBundleExecutable": "KnittingCalculator",
                 },
                 stream,
             )
+        executable = app / "KnittingCalculator"
+        executable.write_bytes(
+            b"\x00fixture-binary\x00"
+            + (
+                "https://apps.apple.com/app/id"
+                + artifact_app_store_id
+            ).encode("ascii")
+            + b"\x00"
+        )
+        executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
         shutil.copy2(
             self.root / "KnittingCalculator/PrivacyInfo.xcprivacy",
             app / "PrivacyInfo.xcprivacy",
@@ -240,6 +266,25 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
         source.write_text("import StoreKit\n", encoding="utf-8")
         self.assert_boundary_failure("commerce dependency")
 
+    def test_rejects_legacy_storekit_commerce_in_rating_allowlist(self) -> None:
+        source = self.fixture.root / "KnittingCalculator/Model/RatingEligibility.swift"
+        source.write_text(
+            source.read_text(encoding="utf-8")
+            + "\nlet productsRequest: SKProductsRequest? = nil\n"
+            + "let paymentQueue = SKPaymentQueue.default()\n",
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("commerce dependency")
+
+    def test_rejects_modern_storekit_commerce_in_rating_allowlist(self) -> None:
+        source = self.fixture.root / "KnittingCalculator/Model/RatingEligibility.swift"
+        source.write_text(
+            source.read_text(encoding="utf-8")
+            + "\nlet subscriptionStore = SubscriptionStoreView(groupID: \"fixture\")\n",
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("commerce dependency")
+
     def test_rejects_analytics_in_linked_production_source(self) -> None:
         source = (
             self.fixture.root
@@ -278,6 +323,74 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assert_boundary_failure("dynamic package dependency")
+
+    def test_rejects_additional_linked_local_package(self) -> None:
+        package_root = self.fixture.root / "Packages/LocalSDK"
+        (package_root / "Sources/LocalSDK").mkdir(parents=True)
+        (package_root / "Package.swift").write_text(
+            """// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(
+    name: "LocalSDK",
+    products: [.library(name: "LocalSDK", targets: ["LocalSDK"])],
+    targets: [.target(name: "LocalSDK")]
+)
+""",
+            encoding="utf-8",
+        )
+        (package_root / "Sources/LocalSDK/LocalSDK.swift").write_text(
+            "import Foundation\nlet session = URLSession.shared\n",
+            encoding="utf-8",
+        )
+        project = self.fixture.root / "KnittingCalculator/project.yml"
+        source = project.read_text(encoding="utf-8")
+        source = source.replace(
+            "packages:\n",
+            "packages:\n"
+            "  LocalSDK:\n"
+            "    path: Packages/LocalSDK\n",
+            1,
+        )
+        source = source.replace(
+            "    dependencies:\n"
+            "      - package: KnittingCalculatorCore\n",
+            "    dependencies:\n"
+            "      - package: KnittingCalculatorCore\n"
+            "      - package: LocalSDK\n",
+            1,
+        )
+        project.write_text(source, encoding="utf-8")
+        self.assert_boundary_failure("linked local package dependency")
+
+    def test_rejects_additional_local_package_in_generated_project(self) -> None:
+        project = self.fixture.root / "KnittingCalculator.xcodeproj/project.pbxproj"
+        project.write_text(
+            project.read_text(encoding="utf-8").replace(
+                "/* End XCLocalSwiftPackageReference section */",
+                """\
+		FIXTURE /* XCLocalSwiftPackageReference "Packages/LocalSDK" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/LocalSDK;
+		};
+/* End XCLocalSwiftPackageReference section */""",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("linked local package dependency")
+
+    def test_rejects_nested_local_package_dependency(self) -> None:
+        package = self.fixture.root / "Packages/KnittingCalculatorCore/Package.swift"
+        package.write_text(
+            package.read_text(encoding="utf-8").replace(
+                "    products: [",
+                "    dependencies: [.package(path: \"../LocalSDK\")],\n"
+                "    products: [",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("linked local package dependency")
 
     def test_rejects_remote_package_in_generated_project(self) -> None:
         project = self.fixture.root / "KnittingCalculator.xcodeproj/project.pbxproj"
@@ -320,6 +433,21 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
         )
         self.assert_boundary_failure("binary framework dependency")
 
+    def test_rejects_dynamic_library_product(self) -> None:
+        package = self.fixture.root / "Packages/KnittingCalculatorCore/Package.swift"
+        package.write_text(
+            package.read_text(encoding="utf-8").replace(
+                ".library(\n"
+                "            name: \"KnittingCalculatorCore\",",
+                ".library(\n"
+                "            name: \"KnittingCalculatorCore\",\n"
+                "            type: .dynamic,",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        self.assert_boundary_failure("dynamic library dependency")
+
     def test_archive_rejects_wrong_identity_and_app_store_id(self) -> None:
         cases = (
             (
@@ -336,15 +464,10 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertIn(expected_message, result.stderr)
 
-        source = self.fixture.root / "KnittingCalculator/Model/CalculatorShareText.swift"
-        source.write_text(
-            source.read_text(encoding="utf-8").replace("6795877892", "6790000000"),
-            encoding="utf-8",
-        )
-        archive = self.fixture.write_archive()
+        archive = self.fixture.write_archive(artifact_app_store_id="6790000000")
         result = self.fixture.run("--archive", str(archive))
         self.assertNotEqual(result.returncode, 0, result.stdout)
-        self.assertIn("App Store ID is not 6795877892", result.stderr)
+        self.assertIn("artifact App Store ID is not 6795877892", result.stderr)
 
     def test_ipa_rejects_wrong_identity_and_app_store_id(self) -> None:
         cases = (
@@ -362,15 +485,10 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertIn(expected_message, result.stderr)
 
-        source = self.fixture.root / "KnittingCalculator/Model/CalculatorShareText.swift"
-        source.write_text(
-            source.read_text(encoding="utf-8").replace("6795877892", "6790000000"),
-            encoding="utf-8",
-        )
-        ipa = self.fixture.write_ipa()
+        ipa = self.fixture.write_ipa(artifact_app_store_id="6790000000")
         result = self.fixture.run("--ipa", str(ipa))
         self.assertNotEqual(result.returncode, 0, result.stdout)
-        self.assertIn("App Store ID is not 6795877892", result.stderr)
+        self.assertIn("artifact App Store ID is not 6795877892", result.stderr)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ EXPECTED_TEAM_IDENTIFIER="9CFPAUL5N5"
 PROJECT_SPEC="KnittingCalculator/project.yml"
 PROJECT_FILE="KnittingCalculator.xcodeproj"
 APP_STORE_URL="https://apps.apple.com/app/id${EXPECTED_APP_STORE_ID}"
+KNITNOTE_APP_STORE_URL="https://apps.apple.com/app/id6793023054"
 STATIC_ONLY=0
 ARCHIVE=""
 IPA=""
@@ -97,6 +98,20 @@ verify_production_dependency_boundaries() {
   [[ -z "$unexpected_storekit_files" ]] \
     || fail "unexpected commerce dependency: $unexpected_storekit_files"
 
+  local rating_source="KnittingCalculator/Model/RatingEligibility.swift"
+  if rg -n \
+    '\bSK[A-Z][A-Za-z0-9_]*\b|\b(Product|Transaction|SubscriptionStoreView|ProductView|StoreView|AppTransaction|PurchaseAction|Storefront|StoreKitError|VerificationResult)\b' \
+    "$rating_source"; then
+    fail "unexpected commerce dependency in rating request source"
+  fi
+  local rating_app_store_calls
+  rating_app_store_calls="$(
+    rg -o --no-filename '\bAppStore\.[A-Za-z0-9_]+' "$rating_source" \
+      | sort -u || true
+  )"
+  [[ "$rating_app_store_calls" == "AppStore.requestReview" ]] \
+    || fail "rating request source may use only AppStore.requestReview"
+
   if rg -n -i \
     '\b(RevenueCat|Adapty|Paddle|Product\.products|Transaction\.(all|currentEntitlements|latest|updates)|AppStore\.sync|purchase\(|subscription)\b' \
     "${production_sources[@]}" --glob '*.swift'; then
@@ -132,6 +147,53 @@ verify_production_dependency_boundaries() {
     'XCRemoteSwiftPackageReference|repositoryURL[[:space:]]*=|^[[:space:]]*url:|\.package\([[:space:]]*url:|"kind"[[:space:]]*:[[:space:]]*"remoteSourceControl"|"location"[[:space:]]*:[[:space:]]*"https?://' \
     "${dependency_declarations[@]}"; then
     fail "unexpected dynamic package dependency"
+  fi
+
+  local package_spec_json
+  package_spec_json="$(
+    mktemp "${TMPDIR:-/tmp}/knitting-calculator-package-spec.XXXXXX"
+  )"
+  TEMP_FILES+=("$package_spec_json")
+  xcodegen dump \
+    --spec "$PROJECT_SPEC" \
+    --project-root "$ROOT" \
+    --type parsed-json >"$package_spec_json"
+  jq -e '
+    (.packages | keys) == ["KnittingCalculatorCore"]
+    and .packages.KnittingCalculatorCore.path
+      == "Packages/KnittingCalculatorCore"
+    and (
+      [.targets.KnittingCalculator.dependencies[] | .package? // empty]
+      | sort
+    ) == ["KnittingCalculatorCore"]
+    and (
+      [.targets.KnittingCalculatorTests.dependencies[] | .package? // empty]
+      | sort
+    ) == ["KnittingCalculatorCore"]
+  ' "$package_spec_json" >/dev/null \
+    || fail "unexpected linked local package dependency"
+
+  local generated_local_package_paths
+  generated_local_package_paths="$(
+    awk '
+      /Begin XCLocalSwiftPackageReference section/ { inside = 1; next }
+      /End XCLocalSwiftPackageReference section/ { inside = 0 }
+      inside && /relativePath = / {
+        sub(/^.*relativePath = /, "")
+        sub(/;.*$/, "")
+        print
+      }
+    ' "$PROJECT_FILE/project.pbxproj" | sort
+  )"
+  [[ "$generated_local_package_paths" == "Packages/KnittingCalculatorCore" ]] \
+    || fail "unexpected linked local package dependency in generated project"
+
+  if rg -n '\.package\(' Packages/KnittingCalculatorCore/Package.swift; then
+    fail "unexpected linked local package dependency in calculator core package"
+  fi
+  if rg -n 'type:[[:space:]]*\.dynamic' \
+    Packages/KnittingCalculatorCore/Package.swift; then
+    fail "unexpected dynamic library dependency"
   fi
 
   if rg -n -i '\.binaryTarget|\.xcframework\b|\.framework\b' \
@@ -345,6 +407,36 @@ verify_archive_no_permission_descriptions() {
     || fail "archive declares prohibited camera, photo, or file-access capability"
 }
 
+verify_artifact_app_store_identity() {
+  local app="$1"
+  local info="$app/Info.plist"
+  local executable_name
+  local executable
+  local artifact_app_store_urls
+  executable_name="$(
+    plist_value "$info" CFBundleExecutable 2>/dev/null
+  )" || fail "artifact is missing CFBundleExecutable"
+  executable="$app/$executable_name"
+  require_file "$executable"
+
+  rg -a -q "$APP_STORE_URL([^0-9A-Za-z]|$)" "$executable" \
+    || fail "artifact App Store ID is not $EXPECTED_APP_STORE_ID"
+  artifact_app_store_urls="$(
+    rg -a -o --no-filename 'https://apps\.apple\.com/app/id[0-9]+' \
+      "$executable" | sort -u || true
+  )"
+  local url
+  while IFS= read -r url; do
+    case "$url" in
+      "$APP_STORE_URL"|"$KNITNOTE_APP_STORE_URL")
+        ;;
+      *)
+        fail "artifact contains an unapproved App Store URL: $url"
+        ;;
+    esac
+  done <<<"$artifact_app_store_urls"
+}
+
 verify_app_bundle() {
   local app="$1"
   local info="$app/Info.plist"
@@ -358,6 +450,7 @@ verify_app_bundle() {
     || fail "archive marketing version is not $EXPECTED_VERSION"
   [[ "$(plist_value "$info" CFBundleVersion)" == "$EXPECTED_BUILD" ]] \
     || fail "archive build number is not $EXPECTED_BUILD"
+  verify_artifact_app_store_identity "$app"
 
   require_file "$resources/PrivacyInfo.xcprivacy"
   plutil -lint "$resources/PrivacyInfo.xcprivacy" >/dev/null \

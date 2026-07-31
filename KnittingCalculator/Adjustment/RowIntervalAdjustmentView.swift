@@ -80,6 +80,7 @@ struct RowIntervalAdjustmentView: View {
     @State private var detailsExpanded: Bool
 #if DEBUG
     private let initialScrollTarget: String?
+    private let initialScrollAnchor: UnitPoint
 #endif
 
 #if DEBUG
@@ -87,11 +88,13 @@ struct RowIntervalAdjustmentView: View {
         preferences: CalculatorPreferencesStore,
         initiallyExpandsDetails: Bool = false,
         initialScrollTarget: String? = nil,
+        initialScrollAnchor: UnitPoint = .top,
         onShareSnapshotChange: @escaping (RowIntervalShareSnapshot?) -> Void = { _ in }
     ) {
         self.preferences = preferences
         _detailsExpanded = State(initialValue: initiallyExpandsDetails)
         self.initialScrollTarget = initialScrollTarget
+        self.initialScrollAnchor = initialScrollAnchor
         self.onShareSnapshotChange = onShareSnapshotChange
     }
 #else
@@ -114,7 +117,10 @@ struct RowIntervalAdjustmentView: View {
                     .task(id: initialScrollTarget) {
                         guard let initialScrollTarget else { return }
                         await Task.yield()
-                        proxy.scrollTo(initialScrollTarget, anchor: .bottom)
+                        proxy.scrollTo(
+                            initialScrollTarget,
+                            anchor: initialScrollAnchor
+                        )
                     }
             }
 #else

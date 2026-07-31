@@ -14,6 +14,7 @@ struct AdjustmentCalculatorScreen: View {
     let expandsRowDetails: Bool
 #if DEBUG
     private let initialScrollTarget: String?
+    private let initialScrollAnchor: UnitPoint
 #endif
     @State private var mode: AdjustmentMode
     @State private var showsHelp = false
@@ -23,11 +24,13 @@ struct AdjustmentCalculatorScreen: View {
         initialMode: AdjustmentMode = .oneRow,
         expandsRowDetails: Bool = false,
         initialScrollTarget: String? = nil,
+        initialScrollAnchor: UnitPoint = .top,
         onOneRowShareSnapshotChange: @escaping (OneRowShareSnapshot?) -> Void = { _ in },
         onRowIntervalShareSnapshotChange: @escaping (RowIntervalShareSnapshot?) -> Void = { _ in }
     ) {
         self.expandsRowDetails = expandsRowDetails
         self.initialScrollTarget = initialScrollTarget
+        self.initialScrollAnchor = initialScrollAnchor
         _mode = State(initialValue: initialMode)
         self.onOneRowShareSnapshotChange = onOneRowShareSnapshotChange
         self.onRowIntervalShareSnapshotChange = onRowIntervalShareSnapshotChange
@@ -77,6 +80,7 @@ struct AdjustmentCalculatorScreen: View {
                     preferences: preferences,
                     initiallyExpandsDetails: expandsRowDetails,
                     initialScrollTarget: initialScrollTarget,
+                    initialScrollAnchor: initialScrollAnchor,
                     onShareSnapshotChange: onRowIntervalShareSnapshotChange
                 )
 #else

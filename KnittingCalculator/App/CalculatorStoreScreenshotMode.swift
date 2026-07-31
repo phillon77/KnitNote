@@ -1,6 +1,7 @@
 #if DEBUG
 import Foundation
 import KnittingCalculatorCore
+import SwiftUI
 
 enum CalculatorStoreScreenshotScene: String, CaseIterable {
     case home, gauge, adjustment, privacy, promotion, privacyPromotion
@@ -15,6 +16,7 @@ enum CalculatorStoreScreenshotScene: String, CaseIterable {
             .init(
                 destination: .adjustment,
                 scrollTarget: .resultActions,
+                scrollAnchor: .center,
                 adjustmentMode: .acrossRows,
                 expandsAdjustmentRowDetails: true
             )
@@ -51,17 +53,20 @@ enum CalculatorStoreScreenshotScrollTarget: String, Equatable {
 struct CalculatorStoreScreenshotPresentation: Equatable {
     let destination: CalculatorStoreScreenshotDestination
     let scrollTarget: CalculatorStoreScreenshotScrollTarget
+    let scrollAnchor: UnitPoint
     let adjustmentMode: AdjustmentMode
     let expandsAdjustmentRowDetails: Bool
 
     init(
         destination: CalculatorStoreScreenshotDestination,
         scrollTarget: CalculatorStoreScreenshotScrollTarget = .top,
+        scrollAnchor: UnitPoint = .top,
         adjustmentMode: AdjustmentMode = .oneRow,
         expandsAdjustmentRowDetails: Bool = false
     ) {
         self.destination = destination
         self.scrollTarget = scrollTarget
+        self.scrollAnchor = scrollAnchor
         self.adjustmentMode = adjustmentMode
         self.expandsAdjustmentRowDetails = expandsAdjustmentRowDetails
     }

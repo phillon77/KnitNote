@@ -110,6 +110,7 @@ struct CalculatorStoreScreenshotModeTests {
         #expect(CalculatorStoreScreenshotScene.adjustment.presentation == .init(
             destination: .adjustment,
             scrollTarget: .resultActions,
+            scrollAnchor: .center,
             adjustmentMode: .acrossRows,
             expandsAdjustmentRowDetails: true
         ))
@@ -140,6 +141,7 @@ struct CalculatorStoreScreenshotModeTests {
         #expect(presentation.adjustmentMode == .acrossRows)
         #expect(presentation.expandsAdjustmentRowDetails)
         #expect(presentation.scrollTarget.rawValue == "resultActions")
+        #expect(presentation.scrollAnchor == .center)
     }
 
     @Test @MainActor

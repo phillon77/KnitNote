@@ -14,8 +14,8 @@
 - No App Store Connect record, upload, submit, Git remote, merge, or push action
   was performed.
 
-The interrupted Task 12 source was imported from
-`/Users/longzhenzhong/Documents/Codex/2026-07-28/app/knitting-calculator`.
+The interrupted Task 12 source was imported from a prior local calculator
+worktree.
 The two untracked files were byte-identical before Task 4 edits (`cmp` exit 0);
 the two tracked test deltas were merged into the newer independent-project
 contracts instead of replacing them.
@@ -76,7 +76,7 @@ Result: `** ARCHIVE SUCCEEDED **`.
 | Required resources | PASS | `Assets.car`, `PrivacyInfo.xcprivacy`, and `en` / `zh-Hant` `Localizable.strings` plus `InfoPlist.strings` are present. |
 | Prohibited app capabilities | PASS | No app group, iCloud, push, camera, photo, document, or file-browser declaration. |
 | Signature integrity in the normal Keychain context | PASS | `codesign --verify --deep --strict --verbose=2` reported valid on disk and satisfied its designated requirement. |
-| Distribution signing | BLOCKED | Xcode selected `Apple Development: lzz.1999@gmail.com (6VTQJ4MR59)` and wildcard profile `bb3d61d1-4aa7-4ef9-ab1b-712da0f32a20`. The decoded profile has `application-identifier=9CFPAUL5N5.*`, `get-task-allow=true`, no `beta-reports-active`, and a `ProvisionedDevices` list. Its leaf identity is not Apple Distribution. |
+| Distribution signing | BLOCKED | Xcode selected Apple Development signing and a wildcard team profile. The decoded profile has `application-identifier=9CFPAUL5N5.*`, `get-task-allow=true`, no `beta-reports-active`, and a `ProvisionedDevices` list. Its leaf identity is not Apple Distribution. |
 | Restricted/sandbox trust check | BLOCKED | A separate restricted-context strict verification reported `CSSMERR_TP_NOT_TRUSTED`; no release claim relies on that context passing. |
 
 Archive artifact SHA-256:
@@ -140,14 +140,12 @@ App Store signing completed locally on 2026-07-29:
   `720dcb242f6bd56d0e216a860a5e23e5b80113fecfe2cc45be0b9585e74286a0`
 - provisioning profile:
   `iOS Team Store Provisioning Profile: com.phillon.KnittingCalculator`
-- profile UUID: `9c823f5b-ce62-47cd-9b51-5fa7a7152e5c`
 - profile expiration: 2027-07-17
 - application identifier:
   `9CFPAUL5N5.com.phillon.KnittingCalculator`
 - entitlements: `get-task-allow=false`, `beta-reports-active=true`
 - profile contains neither `ProvisionedDevices` nor `ProvisionsAllDevices`
-- leaf signer:
-  `Apple Distribution: Chen Chung Lung (9CFPAUL5N5)`
+- leaf signer: Apple Distribution, Team `9CFPAUL5N5`
 - strict `codesign` verification: pass
 
 Final IPA command:
@@ -176,7 +174,7 @@ App Store Connect upload completed on 2026-07-29 at 20:06 Asia/Taipei:
 - internal group: `編織計算器內部測試`
 - automatic distribution: disabled
 - group build: `1.0.0 (1)`, Ready to Test
-- internal tester: `lzz.1999@gmail.com` (`LonPhil`), Invited
+- internal tester: one invited internal tester
 - no external group was created
 - the build was not submitted for beta review, App Review, or release
 
@@ -188,27 +186,23 @@ App Store Connect upload completed on 2026-07-29 at 20:06 Asia/Taipei:
 - Branch: `codex/knitting-calculator-independent-project`
 - Project/scheme: `KnittingCalculator.xcodeproj` / `KnittingCalculator`
 - Bundle/version: `com.phillon.KnittingCalculator`, `1.0.0 (1)`
-- iPhone: iPhone 17 Pro Max, iOS 26.5.2 (23F84),
-  UDID `00008150-00042D6A3612401C`, CoreDevice
-  `30C68657-A038-5548-A1C6-F9280C02D5FB`
-- iPad: iPad Air (5th generation), iPadOS 26.5.2 (23F84),
-  UDID `00008103-001934E41128A01E`, CoreDevice
-  `39B75EBF-8028-5713-87AC-A3BDBF985270`
+- iPhone: iPhone 17 Pro Max, iOS 26.5.2 (23F84)
+- iPad: iPad Air (5th generation), iPadOS 26.5.2 (23F84)
 
 Both devices were discovered as available, paired, and connected by USB using
-`xcrun xcdevice list` and `xcrun devicectl list devices`.
+Xcode command-line device discovery.
 
 ### Machine-verifiable gate
 
 | Check | Status | Evidence |
 | --- | --- | --- |
-| iPhone signed Debug build from the independent project | PASS | `xcodebuild -project KnittingCalculator.xcodeproj -scheme KnittingCalculator -configuration Debug -destination 'id=00008150-00042D6A3612401C' -derivedDataPath /tmp/KnittingCalculatorPhysical-iPhone build` ended with `** BUILD SUCCEEDED **`. |
+| iPhone signed Debug build from the independent project | PASS | The build targeted the connected physical iPhone and ended with `** BUILD SUCCEEDED **`. |
 | iPhone signature integrity | PASS | `codesign --verify --deep --strict --verbose=2` reported valid on disk and satisfied the designated requirement. |
-| iPhone install identity | PASS | `devicectl device install app` returned bundle ID `com.phillon.KnittingCalculator` and installation path `/private/var/containers/Bundle/Application/1846104F-B859-4B3F-B610-E076E45B4E0C/KnittingCalculator.app/`. A subsequent app query reported name `Knitting Calculator`, version/build `1.0.0 (1)`, and `Developer App=true`. |
-| iPhone launch and process identity | PASS | `devicectl device process launch` reported launch of `com.phillon.KnittingCalculator`. A fresh process query found `/private/var/containers/Bundle/Application/1846104F-B859-4B3F-B610-E076E45B4E0C/KnittingCalculator.app/KnittingCalculator` running as PID `15500`. |
-| iPad signed Debug build from the independent project | PASS | `xcodebuild -project KnittingCalculator.xcodeproj -scheme KnittingCalculator -configuration Debug -destination 'id=00008103-001934E41128A01E' -derivedDataPath /tmp/KnittingCalculatorPhysical-iPad build` ended with `** BUILD SUCCEEDED **`. |
+| iPhone install identity | PASS | `devicectl device install app` returned bundle ID `com.phillon.KnittingCalculator`. A subsequent app query reported name `Knitting Calculator`, version/build `1.0.0 (1)`, and `Developer App=true`. |
+| iPhone launch and process identity | PASS | `devicectl device process launch` reported launch of `com.phillon.KnittingCalculator`. A fresh process query found the expected App executable running. |
+| iPad signed Debug build from the independent project | PASS | The build targeted the connected physical iPad and ended with `** BUILD SUCCEEDED **`. |
 | iPad signature integrity | PASS | `codesign --verify --deep --strict --verbose=2` reported valid on disk and satisfied the designated requirement. |
-| iPad install/launch gate | PASS | After the user unlocked the device, `devicectl` installed bundle `com.phillon.KnittingCalculator` at `/private/var/containers/Bundle/Application/91316361-BBDA-4B52-A757-92F5915AC998/KnittingCalculator.app/` and launched it successfully. The app query reported `1.0.0 (1)` and the process query found the expected executable running as PID `2083`. |
+| iPad install/launch gate | PASS | After the user unlocked the device, `devicectl` installed and launched bundle `com.phillon.KnittingCalculator`. The app query reported `1.0.0 (1)` and the process query found the expected executable running. |
 
 Build artifacts:
 
@@ -302,7 +296,7 @@ edge-case rows below have passed.
 ### TestFlight installation and core user acceptance — 2026-07-29
 
 - Internal group: `編織計算器內部測試`
-- Internal tester: `lzz.1999@gmail.com` (`LonPhil`)
+- Internal tester: one invited internal tester
 - Tested build: `1.0.0 (1)`
 - App Store Connect status after acceptance: `Installed 1.0.0 (1)`
 - App Store Connect device: iPhone 17 Pro Max, iOS 26.5.2
@@ -350,3 +344,85 @@ pre-existing KnitNote keyword-duplication audit, not a calculator test. Under
 the human-approved Plan B, that unrelated failure remains an explicitly
 accepted concern and KnitNote metadata/audit stays unchanged. The
 calculator-specific static release audit passed.
+
+## Build 2 pre-upload physical smoke handoff — 2026-07-31
+
+- Source:
+  `d73fbd1781773acf089e7e0d235c94a813807311`
+- Expected bundle/version/build:
+  `com.phillon.KnittingCalculator`, `1.0.0 (2)`
+- Physical artifact: Development-signed Release App built from the clean
+  detached source above.
+- The separately exported Apple Distribution IPA was not installed on either
+  device.
+
+| Device | OS | Machine preparation | Observed result | User acceptance |
+| --- | --- | --- | --- | --- |
+| iPhone 17 Pro Max | iOS 26.6 (23G71) | INSTALLED | The verified Development-signed `1.0.0 (2)` App installed successfully. The fresh Build 2 observations below cover exact version, full-screen launch, gauge, single-row, and across-row cases. | PASS — user-approved narrowed Build 2 source/layout scope |
+| iPad Air (5th generation) | iPadOS 26.5.2 (23F84) | INSTALLED | The first attempt was blocked while the iPad required unlocking. After the user unlocked it, installation succeeded and the user verified exact version and full-screen launch. | PASS — user-approved narrowed Build 2 source/layout scope |
+
+### Build 2 iPhone user observations
+
+- Device: iPhone 17 Pro Max
+- OS: iOS 26.6 (23G71)
+- Source:
+  `d73fbd1781773acf089e7e0d235c94a813807311`
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Settings/About reports `1.0.0 (2)` | PASS | User-observed result on the installed Development-signed Build 2 App. |
+| Launch is full-screen with no half-screen clipping | PASS | User-observed result on the installed Development-signed Build 2 App. |
+| Gauge: 10 cm / 20 stitches / 25 cm produces 50 stitches | PASS | User-observed calculation result on the installed Development-signed Build 2 App. |
+| Single-row adjustment: current 50, target 62, preserve 1 stitch on each side | PASS | User observed an increase of 12 with no clipping on the installed Development-signed Build 2 App. |
+| Across-row adjustment: 20 rows / 6 stitches / increase / single side | PASS | User observed final row 20, 3–4 row intervals, and no overlap or clipping on the installed Development-signed Build 2 App. |
+
+These PASS results are limited to the displayed version, launch/full-screen
+presentation, and three representative calculations above.
+
+### Build 2 iPad user observations
+
+- Device: iPad Air (5th generation)
+- OS: iPadOS 26.5.2 (23F84)
+- Source:
+  `d73fbd1781773acf089e7e0d235c94a813807311`
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Settings/About reports `1.0.0 (2)` | PASS | User-observed result on the installed Development-signed Build 2 App. |
+| Launch is full-screen with no half-screen clipping | PASS | User-observed result on the installed Development-signed Build 2 App. |
+
+### User-approved physical scope ruling
+
+The user correctly identified that the calculator's full regression had
+already passed before this repeated physical checklist was proposed. The
+post-lock Task 5 changes from `c1b09f5` to the final `BUILD_SOURCE_SHA` are
+DEBUG-only screenshot scroll behavior plus screenshot manifest/tool evidence.
+The Task 5 report explicitly records that the production hierarchy and Release
+initializers were unchanged by the scroll adjustment, followed by renewed
+focused tests, static audit, and an unsigned Release build.
+
+The existing dated 2026-07-29 physical evidence already records PASS for:
+
+- iPhone portrait/landscape rotation;
+- background/foreground and termination/reopen persistence;
+- the installed KnitNote link;
+- no unexpected permission prompts;
+- the broader calculator functional matrix.
+
+Those results remain supporting prior Build 1/TestFlight evidence. They are
+not re-labeled as fresh observations of Build 2 or source
+`d73fbd1781773acf089e7e0d235c94a813807311`.
+
+Under the user's narrowed scope, fresh Build 2 physical evidence requires:
+
+- exact `1.0.0 (2)` and full-screen launch on both devices;
+- one representative iPhone gauge case;
+- one representative iPhone single-row case;
+- one representative iPhone across-row case.
+
+Every fresh row above passed. Task 6 physical source/layout smoke is therefore
+PASS under this user-approved narrowed scope.
+
+The Development installation and user observations prove only the exact-source
+layout path. They do not claim that the separately exported Apple Distribution
+IPA ran on either physical device.

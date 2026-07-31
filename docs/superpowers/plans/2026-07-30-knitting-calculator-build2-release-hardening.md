@@ -356,6 +356,11 @@ Record the resulting SHA as `BUILD_SOURCE_SHA`. No production source, project se
 ### Task 5: Generate and visually accept the replacement 18-screenshot package
 
 **Files:**
+- Modify if required by visual QA:
+  `KnittingCalculator/App/CalculatorStoreScreenshotMode.swift`,
+  `KnittingCalculator/App/CalculatorStoreScreenshotRootView.swift`,
+  `KnittingCalculator/Adjustment/AdjustmentCalculatorScreen.swift`, and
+  covering screenshot-mode tests
 - Replace tracked outputs: `AppStore/KnittingCalculator/Screenshots/Generated/en/{iphone,ipad}/*.png`
 - Replace tracked outputs: `AppStore/KnittingCalculator/Screenshots/Generated/zh-Hant/{iphone,ipad}/*.png`
 - Produce local-only contact sheets: `AppStore/KnittingCalculator/Screenshots/Generated/{en,zh-Hant}/contact-sheet.png`
@@ -370,6 +375,13 @@ xcodebuild -project KnittingCalculator.xcodeproj -scheme KnittingCalculator \
   -configuration Debug -sdk iphonesimulator \
   -derivedDataPath /tmp/KnittingCalculatorBuild2Screenshots build
 ```
+
+If full-resolution QA shows naturally clipped screenshot content, do not
+accept it or edit pixels. Add a failing render/presentation test, then make the
+smallest DEBUG-only semantic scroll-anchor change that moves the existing real
+Release content into a fully visible position. Re-run Task 1 focused tests,
+Task 4 focused release gates, and a Release build; commit that correction and
+replace `BUILD_SOURCE_SHA` before recapturing all 18 frames.
 
 **Step 2: Capture both locales on the exact manifest environment**
 

@@ -12,9 +12,27 @@ struct AdjustmentCalculatorScreen: View {
     let onOneRowShareSnapshotChange: (OneRowShareSnapshot?) -> Void
     let onRowIntervalShareSnapshotChange: (RowIntervalShareSnapshot?) -> Void
     let expandsRowDetails: Bool
+#if DEBUG
+    private let initialScrollTarget: String?
+#endif
     @State private var mode: AdjustmentMode
     @State private var showsHelp = false
 
+#if DEBUG
+    init(
+        initialMode: AdjustmentMode = .oneRow,
+        expandsRowDetails: Bool = false,
+        initialScrollTarget: String? = nil,
+        onOneRowShareSnapshotChange: @escaping (OneRowShareSnapshot?) -> Void = { _ in },
+        onRowIntervalShareSnapshotChange: @escaping (RowIntervalShareSnapshot?) -> Void = { _ in }
+    ) {
+        self.expandsRowDetails = expandsRowDetails
+        self.initialScrollTarget = initialScrollTarget
+        _mode = State(initialValue: initialMode)
+        self.onOneRowShareSnapshotChange = onOneRowShareSnapshotChange
+        self.onRowIntervalShareSnapshotChange = onRowIntervalShareSnapshotChange
+    }
+#else
     init(
         initialMode: AdjustmentMode = .oneRow,
         expandsRowDetails: Bool = false,
@@ -26,6 +44,7 @@ struct AdjustmentCalculatorScreen: View {
         self.onOneRowShareSnapshotChange = onOneRowShareSnapshotChange
         self.onRowIntervalShareSnapshotChange = onRowIntervalShareSnapshotChange
     }
+#endif
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,11 +72,20 @@ struct AdjustmentCalculatorScreen: View {
                     onShareSnapshotChange: onOneRowShareSnapshotChange
                 )
             case .acrossRows:
+#if DEBUG
+                RowIntervalAdjustmentView(
+                    preferences: preferences,
+                    initiallyExpandsDetails: expandsRowDetails,
+                    initialScrollTarget: initialScrollTarget,
+                    onShareSnapshotChange: onRowIntervalShareSnapshotChange
+                )
+#else
                 RowIntervalAdjustmentView(
                     preferences: preferences,
                     initiallyExpandsDetails: expandsRowDetails,
                     onShareSnapshotChange: onRowIntervalShareSnapshotChange
                 )
+#endif
             }
         }
         .navigationTitle("calculator.adjustment.title")

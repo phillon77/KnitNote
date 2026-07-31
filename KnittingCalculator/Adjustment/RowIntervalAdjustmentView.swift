@@ -78,7 +78,23 @@ struct RowIntervalAdjustmentView: View {
     @State private var lastCountedSnapshot: RowIntervalShareSnapshot?
     @State private var hadValidResult = false
     @State private var detailsExpanded: Bool
+#if DEBUG
+    private let initialScrollTarget: String?
+#endif
 
+#if DEBUG
+    init(
+        preferences: CalculatorPreferencesStore,
+        initiallyExpandsDetails: Bool = false,
+        initialScrollTarget: String? = nil,
+        onShareSnapshotChange: @escaping (RowIntervalShareSnapshot?) -> Void = { _ in }
+    ) {
+        self.preferences = preferences
+        _detailsExpanded = State(initialValue: initiallyExpandsDetails)
+        self.initialScrollTarget = initialScrollTarget
+        self.onShareSnapshotChange = onShareSnapshotChange
+    }
+#else
     init(
         preferences: CalculatorPreferencesStore,
         initiallyExpandsDetails: Bool = false,
@@ -88,8 +104,41 @@ struct RowIntervalAdjustmentView: View {
         _detailsExpanded = State(initialValue: initiallyExpandsDetails)
         self.onShareSnapshotChange = onShareSnapshotChange
     }
+#endif
 
     var body: some View {
+        Group {
+#if DEBUG
+            ScrollViewReader { proxy in
+                scrollableContent
+                    .task(id: initialScrollTarget) {
+                        guard let initialScrollTarget else { return }
+                        await Task.yield()
+                        proxy.scrollTo(initialScrollTarget, anchor: .bottom)
+                    }
+            }
+#else
+            scrollableContent
+#endif
+        }
+        .onAppear {
+            onShareSnapshotChange(shareSnapshot)
+        }
+        .onChange(of: shareSnapshot) { _, newValue in
+            onShareSnapshotChange(newValue)
+            guard let newValue else { return }
+            hadValidResult = true
+            guard newValue != lastCountedSnapshot else { return }
+            lastCountedSnapshot = newValue
+            preferences.recordValidCalculation()
+        }
+        .onDisappear {
+            guard hadValidResult else { return }
+            ratingRequestContext.considerRequest(using: ratingCoordinator)
+        }
+    }
+
+    private var scrollableContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 GroupBox {
@@ -143,21 +192,6 @@ struct RowIntervalAdjustmentView: View {
             .padding()
             .frame(maxWidth: 680, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .onAppear {
-            onShareSnapshotChange(shareSnapshot)
-        }
-        .onChange(of: shareSnapshot) { _, newValue in
-            onShareSnapshotChange(newValue)
-            guard let newValue else { return }
-            hadValidResult = true
-            guard newValue != lastCountedSnapshot else { return }
-            lastCountedSnapshot = newValue
-            preferences.recordValidCalculation()
-        }
-        .onDisappear {
-            guard hadValidResult else { return }
-            ratingRequestContext.considerRequest(using: ratingCoordinator)
         }
     }
 
@@ -253,10 +287,18 @@ struct RowIntervalAdjustmentView: View {
             stepsView(result)
 
             if let shareSnapshot {
+#if DEBUG
                 CalculatorResultActions(
                     text: CalculatorShareText.rowInterval(shareSnapshot, locale: locale),
                     onSuccessfulAction: {}
                 )
+                .id(CalculatorStoreScreenshotScrollTarget.resultActions.rawValue)
+#else
+                CalculatorResultActions(
+                    text: CalculatorShareText.rowInterval(shareSnapshot, locale: locale),
+                    onSuccessfulAction: {}
+                )
+#endif
             }
         }
         .padding()

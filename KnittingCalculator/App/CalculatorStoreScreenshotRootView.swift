@@ -25,7 +25,8 @@ struct CalculatorStoreScreenshotRootView: View {
                 NavigationStack {
                     AdjustmentCalculatorScreen(
                         initialMode: presentation.adjustmentMode,
-                        expandsRowDetails: presentation.expandsAdjustmentRowDetails
+                        expandsRowDetails: presentation.expandsAdjustmentRowDetails,
+                        initialScrollTarget: presentation.scrollTarget.rawValue
                     )
                 }
             case .settings:

@@ -109,7 +109,7 @@ struct CalculatorStoreScreenshotModeTests {
         ))
         #expect(CalculatorStoreScreenshotScene.adjustment.presentation == .init(
             destination: .adjustment,
-            scrollTarget: .top,
+            scrollTarget: .resultActions,
             adjustmentMode: .acrossRows,
             expandsAdjustmentRowDetails: true
         ))
@@ -131,6 +131,15 @@ struct CalculatorStoreScreenshotModeTests {
             adjustmentMode: .oneRow,
             expandsAdjustmentRowDetails: false
         ))
+    }
+
+    @Test func adjustmentScreenshotTargetsTheRealResultActionRegion() {
+        let presentation = CalculatorStoreScreenshotScene.adjustment.presentation
+
+        #expect(presentation.destination == .adjustment)
+        #expect(presentation.adjustmentMode == .acrossRows)
+        #expect(presentation.expandsAdjustmentRowDetails)
+        #expect(presentation.scrollTarget.rawValue == "resultActions")
     }
 
     @Test @MainActor

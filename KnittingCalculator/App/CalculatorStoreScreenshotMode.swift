@@ -14,7 +14,7 @@ enum CalculatorStoreScreenshotScene: String, CaseIterable {
         case .adjustment:
             .init(
                 destination: .adjustment,
-                scrollTarget: .top,
+                scrollTarget: .resultActions,
                 adjustmentMode: .acrossRows,
                 expandsAdjustmentRowDetails: true
             )
@@ -45,6 +45,7 @@ enum CalculatorStoreScreenshotScrollTarget: String, Equatable {
     case top
     case privacy
     case promotion
+    case resultActions
 }
 
 struct CalculatorStoreScreenshotPresentation: Equatable {

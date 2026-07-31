@@ -8,12 +8,12 @@
     "cropSystemDate": true
   },
   "frames": [
-    {"locale":"zh-Hant","platform":"iphone","scene":"home","device":"iPhone","width":1284,"height":2778,"headline":"編織尺寸，一算就懂","subheadline":"免費・離線・不需帳號","filename":"01-home.png"},
+    {"locale":"zh-Hant","platform":"iphone","scene":"home","device":"iPhone","width":1284,"height":2778,"headline":"編織尺寸，一算就懂","subheadline":"免費、離線、不需帳號","filename":"01-home.png"},
     {"locale":"zh-Hant","platform":"iphone","scene":"gauge","device":"iPhone","width":1284,"height":2778,"headline":"密度、針數、排數","subheadline":"輸入樣本，立即換算尺寸","filename":"02-gauge.png"},
     {"locale":"zh-Hant","platform":"iphone","scene":"adjustment","device":"iPhone","width":1284,"height":2778,"headline":"平均安排加針減針","subheadline":"單行或跨排都能算","filename":"03-adjustment.png"},
     {"locale":"zh-Hant","platform":"iphone","scene":"privacy","device":"iPhone","width":1284,"height":2778,"headline":"不登入，也不追蹤","subheadline":"草稿只留在你的裝置","filename":"04-privacy.png"},
     {"locale":"zh-Hant","platform":"iphone","scene":"promotion","device":"iPhone","width":1284,"height":2778,"headline":"想記錄完整作品？","subheadline":"認識獨立 App：KnitNote","filename":"05-knitnote.png"},
-    {"locale":"zh-Hant","platform":"ipad","scene":"home","device":"iPad","width":2064,"height":2752,"headline":"編織尺寸，一算就懂","subheadline":"免費・離線・不需帳號","filename":"01-home.png"},
+    {"locale":"zh-Hant","platform":"ipad","scene":"home","device":"iPad","width":2064,"height":2752,"headline":"編織尺寸，一算就懂","subheadline":"免費、離線、不需帳號","filename":"01-home.png"},
     {"locale":"zh-Hant","platform":"ipad","scene":"gauge","device":"iPad","width":2064,"height":2752,"headline":"密度、針數、排數","subheadline":"輸入樣本，立即換算尺寸","filename":"02-gauge.png"},
     {"locale":"zh-Hant","platform":"ipad","scene":"adjustment","device":"iPad","width":2064,"height":2752,"headline":"平均安排加針減針","subheadline":"單行或跨排都能算","filename":"03-adjustment.png"},
     {"locale":"zh-Hant","platform":"ipad","scene":"privacyPromotion","device":"iPad","width":2064,"height":2752,"headline":"不登入，也不追蹤","subheadline":"編織計算器可獨立使用，也能認識 KnitNote","filename":"04-privacy-knitnote.png"},

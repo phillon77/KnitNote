@@ -17,6 +17,7 @@ from PIL import Image
 VALIDATOR_PATH = Path(__file__).with_name("validate.py")
 COMPOSITOR_PATH = Path(__file__).with_name("compose.py")
 CAPTURE_PATH = Path(__file__).with_name("capture.sh")
+MANIFEST_PATH = Path(__file__).with_name("manifest.json")
 if str(COMPOSITOR_PATH.parent) not in sys.path:
     sys.path.insert(0, str(COMPOSITOR_PATH.parent))
 spec = importlib.util.spec_from_file_location("calculator_screenshot_validate", VALIDATOR_PATH)
@@ -133,6 +134,15 @@ class ScreenshotToolsTests(unittest.TestCase):
     def test_valid_manifest_accepts_exact_bilingual_scope(self):
         frames = self.make_valid_frames()
         validate.validate_manifest(frames)
+
+    def test_traditional_chinese_home_subtitle_uses_supported_separators(self):
+        frames = validate.load_manifest(MANIFEST_PATH)
+        home_subtitles = {
+            frame["subheadline"]
+            for frame in frames
+            if frame["locale"] == "zh-Hant" and frame["scene"] == "home"
+        }
+        self.assertEqual(home_subtitles, {"免費、離線、不需帳號"})
 
     def test_manifest_rejects_wrong_locale_platform_count(self):
         frames = self.make_valid_frames()

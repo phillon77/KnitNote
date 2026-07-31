@@ -2,19 +2,23 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Show every yarn used by a project immediately before its journal and let users create yarn records by privately scanning one or two label photos with confirmed, structured autofill.
+**Goal:** First repair the Mac Settings and Create Project layouts, then show every yarn used by a project immediately before its journal and let users create yarn records by privately scanning one or two label photos with confirmed, structured autofill.
 
-**Architecture:** Keep `StoredYarn.linkedProjectIDs` as the only relationship source and expose an inverse project query through `JSONProjectStore`. Extend `StoredYarn` with optional normalized label fields and up to two managed label-photo filenames. A pure parser in `KnitNoteCore` converts OCR observations into reviewable candidates; an iOS Vision adapter produces observations, and the existing yarn editor remains the only final save path.
+**Architecture:** Repair Mac-only layout constraints without changing the iPhone/iPad UI. Keep `StoredYarn.linkedProjectIDs` as the only relationship source and expose an inverse project query through `JSONProjectStore`. Extend `StoredYarn` with optional normalized label fields and up to two managed label-photo filenames. A pure parser in `KnitNoteCore` converts OCR observations into reviewable candidates; a shared iOS/macOS Vision adapter produces observations, platform image pickers normalize input into App-managed temporary files, and the existing yarn editor remains the only final save path.
 
 **Tech Stack:** Swift 6, SwiftUI, Vision, PhotosUI, AVFoundation/UIKit camera wrapper, Foundation, Swift Testing, XcodeGen
 
 **Approved Design:** `docs/superpowers/specs/2026-07-29-knitnote-1.3-yarn-workflow-design.md`
 
-**Milestones:** Tasks 4–5 deliver and review the project/yarn relationship milestone. Tasks 1–3 and 6–8 deliver and review the label-scanning milestone. Task 9 is the shared 1.3 release gate. Task numbering follows code dependencies; neither milestone authorizes a release by itself.
+**Milestones:** Task 0 delivers and reviews the Mac P0 layout repair before yarn work begins. Tasks 4–5 deliver and review the project/yarn relationship milestone. Tasks 1–3 and 6–8 deliver and review the label-scanning milestone. Task 9 is the shared 1.3 release gate. Task numbering follows code dependencies; no milestone authorizes a release by itself.
 
 ## Global Constraints
 
 - Deployment targets remain iOS 18.0, macOS 15.0, and watchOS 11.0.
+- Complete and accept Task 0 before starting the yarn implementation tasks.
+- Mac Settings content is centered with at least 24 pt horizontal margins and a maximum content width of 720 pt.
+- Mac Create Project has a 520 pt minimum width, 620 pt ideal width, and 560 pt minimum height; photo actions fall back vertically when horizontal space is insufficient.
+- Mac-only layout changes must not alter the existing iPhone/iPad layouts.
 - Project detail order is `photo → patterns → notes → counters → used yarn → journal`.
 - One project can link multiple yarns and one yarn can link multiple projects.
 - Unlinking never deletes a yarn or any yarn photo.
@@ -29,7 +33,90 @@
 - Traditional Chinese and English localization and VoiceOver coverage are required.
 - New backup data must remain backward-compatible with archive versions 1–10.
 - Preserve user-owned untracked `.superpowers/brainstorm/`, `KnitNote 5.xcodeproj/`, and `KnitNote 6.xcodeproj/`.
-- Do not change the release version/build until Tasks 1–9 pass review and the user explicitly authorizes release preparation.
+- Do not change the release version/build until Tasks 0–9 pass review and the user explicitly authorizes release preparation.
+
+---
+
+### Task 0: Repair Mac Settings and Create Project Layouts
+
+**Files:**
+- Modify: `KnitNote/Settings/SettingsView.swift`
+- Modify: `KnitNote/Projects/CreateProjectView.swift`
+- Modify: `KnitNote/Projects/ProjectPhotoPicker.swift`
+- Test: `Tests/KnitNoteCoreTests/MacFormLayoutContractTests.swift`
+- Test: `Tests/KnitNoteAppTests/MacFormLayoutSmokeTests.swift`
+
+**Interfaces:**
+- Produces: centered Mac Settings content and a resizable, unclipped Create Project form.
+- Preserves: current iPhone/iPad Settings and Create Project behavior.
+
+- [ ] **Step 1: Write failing Mac layout contracts**
+
+Add source contracts that require the Mac Settings branch to use at least 24 pt horizontal padding and a 720 pt maximum content width. Require the Mac Create Project branch to declare a 520 pt minimum width, 620 pt ideal width, and 560 pt minimum height. Require the photo action group to use `ViewThatFits` with both horizontal and vertical layouts.
+
+```swift
+@Test func macSettingsUsesCenteredBoundedContent() throws {
+    let source = try source(named: "SettingsView.swift")
+    #expect(source.contains("#if os(macOS)"))
+    #expect(source.contains("maxWidth: 720"))
+    #expect(source.contains(".padding(.horizontal, 24)"))
+}
+
+@Test func macCreateProjectHasUsableMinimumSize() throws {
+    let source = try source(named: "CreateProjectView.swift")
+    #expect(source.contains("minWidth: 520"))
+    #expect(source.contains("idealWidth: 620"))
+    #expect(source.contains("minHeight: 560"))
+}
+
+@Test func projectPhotoActionsAdaptToNarrowWidth() throws {
+    let source = try source(named: "ProjectPhotoPicker.swift")
+    #expect(source.contains("ViewThatFits"))
+    #expect(source.contains("HStack"))
+    #expect(source.contains("VStack"))
+}
+```
+
+- [ ] **Step 2: Run and verify failure**
+
+Run: `swift test --filter MacFormLayoutContractTests`
+
+Run: `xcodebuild test -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath .derived-data/mac-form-red CODE_SIGNING_ALLOWED=NO -only-testing:KnitNoteAppTests/MacFormLayoutSmokeTests`
+
+Expected: FAIL because the Mac constraints and adaptive photo-action layout are not implemented.
+
+- [ ] **Step 3: Center and bound Mac Settings**
+
+Use a Mac-only container that fills the available width, centers the form, keeps at least 24 pt horizontal margins, and limits readable content to 720 pt. Preserve the current navigation, controls, localization, and iOS/iPadOS layout code.
+
+- [ ] **Step 4: Make Mac Create Project resizable and complete**
+
+Apply the Mac-only 520/620/560 frame contract. Ensure every localized label, input, validation message, and action remains visible at the minimum window size. Do not add fixed sizing to iPhone or iPad.
+
+- [ ] **Step 5: Adapt the project photo actions**
+
+Use `ViewThatFits` so photo actions remain horizontal when they fit and change to a vertical stack when they do not. Preserve camera/photo availability rules per platform and keep the visual order equal to the keyboard focus order.
+
+- [ ] **Step 6: Run focused tests and cross-platform build checks**
+
+Run: `swift test --filter MacFormLayoutContractTests`
+
+Run: `xcodebuild test -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath .derived-data/mac-form-green CODE_SIGNING_ALLOWED=NO -only-testing:KnitNoteAppTests/MacFormLayoutSmokeTests`
+
+Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS Simulator' -derivedDataPath .derived-data/mac-form-ios-regression CODE_SIGNING_ALLOWED=NO build`
+
+Expected: focused tests pass and both Mac tests and iOS build succeed.
+
+- [ ] **Step 7: Perform visual and accessibility acceptance**
+
+On Mac, verify Settings and Create Project in Traditional Chinese and English at minimum, default, and enlarged window sizes. Verify labels do not clip, photo actions adapt, Return/Escape behavior is correct, keyboard focus follows visual order, and VoiceOver reads labels and actions. On iPhone and iPad, verify Settings and Create Project have no visual or interaction regression. Record screenshots and exact commit/device/OS evidence.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add KnitNote/Settings/SettingsView.swift KnitNote/Projects/CreateProjectView.swift KnitNote/Projects/ProjectPhotoPicker.swift Tests/KnitNoteCoreTests/MacFormLayoutContractTests.swift Tests/KnitNoteAppTests/MacFormLayoutSmokeTests.swift
+git commit -m "fix: repair Mac project and settings layouts"
+```
 
 ---
 
@@ -453,17 +540,19 @@ protocol YarnLabelRecognitionService: Sendable {
 
 Session accepts one or two images, runs recognition off the main actor, preserves source indices, checks cancellation, and passes combined observations to the parser.
 
-- [ ] **Step 3: Implement Vision adapter**
+- [ ] **Step 3: Implement shared iOS/macOS Vision adapter**
 
-Use `VNRecognizeTextRequest` with `.accurate`, language correction, recognition languages `zh-Hant` and `en-US` when supported, and candidate confidence. Convert bounding boxes to the core normalized representation. Invalid image data returns `.invalidImage`; no observations returns a valid empty parse result.
+Use `VNRecognizeTextRequest` with `.accurate`, language correction, and candidate confidence. At runtime query supported recognition languages on iOS and macOS, prioritize `zh-Hant` and `en-US`, and safely fall back to the available list instead of failing on an unsupported language. Convert bounding boxes to the core normalized representation. Invalid image data returns `.invalidImage`; no observations returns a valid empty parse result.
 
-- [ ] **Step 4: Run session tests and iOS compile**
+- [ ] **Step 4: Run session tests and iOS/macOS compiles**
 
 Run: `swift test --filter YarnLabelScanSessionTests`
 
 Run: `xcodegen generate && xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS Simulator' -derivedDataPath .derived-data/yarn-vision CODE_SIGNING_ALLOWED=NO build`
 
-Expected: PASS and `BUILD SUCCEEDED`.
+Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=macOS' -derivedDataPath .derived-data/yarn-vision-mac CODE_SIGNING_ALLOWED=NO build`
+
+Expected: PASS and both builds report `BUILD SUCCEEDED`.
 
 - [ ] **Step 5: Commit**
 
@@ -480,6 +569,7 @@ git commit -m "feat: recognize yarn labels with vision"
 - Create: `KnitNote/Yarn/YarnLabelScanView.swift`
 - Create: `KnitNote/Yarn/YarnLabelCandidateReviewView.swift`
 - Create: `KnitNote/Yarn/YarnLabelScanLauncher.swift`
+- Create: `KnitNote/Yarn/MacYarnLabelFileImporter.swift`
 - Create: `Sources/KnitNoteCore/Yarn/YarnLabelDraftSeed.swift`
 - Modify: `KnitNote/Yarn/YarnLibraryView.swift:55-66`
 - Modify: `KnitNote/Yarn/CreateYarnView.swift`
@@ -517,7 +607,9 @@ git commit -m "feat: recognize yarn labels with vision"
 
 - [ ] **Step 2: Implement entry chooser**
 
-The yarn-library plus button presents two large, simple actions: scan label or add manually. Manual path opens the unchanged editor. Scan path offers camera and photo library. `EditYarnView` exposes the same reusable `YarnLabelScanLauncher`, initialized with any existing first/second label images. On macOS, hide camera and offer photo-file selection while preserving manual entry.
+The yarn-library plus button presents two large, simple actions: scan label or add manually. Manual path opens the unchanged editor. Scan path offers camera and photo library. `EditYarnView` exposes the same reusable `YarnLabelScanLauncher`, initialized with any existing first/second label images. On macOS, hide camera and offer Photos or Finder selection while preserving manual entry.
+
+`MacYarnLabelFileImporter` accepts JPEG, PNG, and HEIC. It starts security-scoped access only long enough to copy the selected item into an App-controlled transient area, then stops access. Do not persist an external file path or security-scoped bookmark. Cancellation, an inaccessible file, an iCloud item that is not downloaded, and an unsupported format each produce a localized, recoverable state without changing the yarn draft.
 
 - [ ] **Step 3: Implement one/two-image scan flow**
 
@@ -535,13 +627,15 @@ Add weight grams, length meters, fiber content, needle range, and hook range. Us
 
 Add localized camera purpose copy covering projects, journals, and yarn labels. Permission denial offers Settings and Photo Library. Empty OCR proceeds to blank editor with retained label photo. Cancellation cleans transient state.
 
-- [ ] **Step 7: Run UI contracts and iPhone/iPad builds**
+- [ ] **Step 7: Run UI contracts and iOS/macOS builds**
 
 Run: `swift test --filter YarnLabel`
 
 Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS Simulator' -derivedDataPath .derived-data/yarn-scan-ui CODE_SIGNING_ALLOWED=NO build`
 
-Expected: PASS and `BUILD SUCCEEDED`.
+Run: `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=macOS' -derivedDataPath .derived-data/yarn-scan-ui-mac CODE_SIGNING_ALLOWED=NO build`
+
+Expected: PASS and both builds report `BUILD SUCCEEDED`.
 
 - [ ] **Step 8: Commit**
 
@@ -576,6 +670,8 @@ Build a version-11 archive with two label images and assert export contains both
 - [ ] **Step 2: Extend backup validation**
 
 Include only referenced managed label photos. Enforce existing per-file and total package limits, reject symlinks/path traversal/duplicate paths/invalid images, and stage restore atomically with archive validation before replacing live data.
+
+On Mac, export and import through user-selected Downloads or iCloud Drive locations using security-scoped access only for the active operation. Copy the package into an App-controlled staging directory before validation, stop external access after the copy, and never retain an external path or bookmark. A cloud item that is not downloaded must produce a recoverable error without changing live data.
 
 - [ ] **Step 3: Reconcile and delete orphan label photos**
 
@@ -655,7 +751,22 @@ Verify camera scan, photo-library scan, Traditional Chinese label, English label
 
 Use the same candidate through TestFlight to re-run the commercial regression matrix: new seven-day trial user, expired trial, verified Lifetime Unlock owner, legacy paid owner, StoreKit temporarily unavailable, reinstall/restore purchase, Share Extension import, paired Watch entitlement sync, and Watch reconnection. A green local StoreKit configuration run is not accepted as TestFlight evidence.
 
-- [ ] **Step 5: Run diff and review gates**
+- [ ] **Step 5: Perform physical Mac acceptance**
+
+Using the same immutable candidate, verify:
+
+- Settings and Create Project in Traditional Chinese and English at minimum, default, and enlarged window sizes.
+- Complete labels and aligned controls at the 520 pt Create Project minimum width.
+- Horizontal-to-vertical photo-action fallback, keyboard focus order, Return/Escape behavior, and VoiceOver.
+- New and existing yarn flows using Photos and Finder JPEG, PNG, and HEIC input.
+- Finder cancellation, denied/inaccessible files, iCloud items not downloaded, unsupported formats, and retry.
+- Traditional Chinese, English, mixed, blurred, and no-text OCR with user confirmation before save.
+- Backup export/import through Downloads and iCloud Drive, including an unavailable cloud item and no partial live-data replacement.
+- Project/yarn linking, unlinking, completed-project read-only history, saved label images, and persistence after relaunch.
+
+Record exact commit SHA, version, build, Mac model, macOS version, window-size matrix, and pass/fail evidence. Mac Release compilation or automated tests do not replace this acceptance.
+
+- [ ] **Step 6: Run diff and review gates**
 
 Run: `git diff --check main...HEAD`
 
@@ -663,17 +774,17 @@ Run: `git status --short && git diff --stat main...HEAD`
 
 Run: `git rev-parse --show-toplevel && git branch --show-current && git rev-parse HEAD && git rev-parse origin/main`
 
-Confirm the intended repository/worktree, expected feature branch, no unrelated tracked changes, and preservation of user-owned untracked paths. Use `superpowers:requesting-code-review` for specification compliance and then code quality. Fix confirmed findings with tests and repeat Steps 3–5.
+Confirm the intended repository/worktree, expected feature branch, no unrelated tracked changes, and preservation of user-owned untracked paths. Use `superpowers:requesting-code-review` for specification compliance and then code quality. Fix confirmed findings with tests and repeat Steps 3–6.
 
-- [ ] **Step 6: Commit verification documentation**
+- [ ] **Step 7: Commit verification documentation**
 
 ```bash
 git add KnitNote/Localization KnitNote/PrivacyInfo.xcprivacy AppStore/AppStoreSubmission.md Tests/KnitNoteCoreTests
 git commit -m "test: verify yarn scanning release"
 ```
 
-- [ ] **Step 7: Stop for integration choice**
+- [ ] **Step 8: Stop for integration choice**
 
 Use `superpowers:finishing-a-development-branch`. Do not merge, push, create a PR, alter version/build, archive, upload, change App Store price/IAP/metadata, submit, or release without explicit user authorization.
 
-After an authorized merge, create one immutable release-candidate commit and repeat Steps 3–5 against that exact commit. Before submission, verify the selected App Store Connect build, free App price, non-consumable Lifetime Unlock IAP, localized metadata, screenshots, and review notes all describe the same candidate. After submission, record archive path, commit SHA, version/build, selected build, IAP, price, storefront state, and submission ID; push/tag the submitted source so it can be reconstructed.
+After an authorized merge, create one immutable release-candidate commit and repeat Steps 3–6 against that exact commit. Before submission, verify the selected App Store Connect build, free App price, non-consumable Lifetime Unlock IAP, localized metadata, screenshots, and review notes all describe the same candidate. After submission, record archive path, commit SHA, version/build, selected build, IAP, price, storefront state, and submission ID; push/tag the submitted source so it can be reconstructed.

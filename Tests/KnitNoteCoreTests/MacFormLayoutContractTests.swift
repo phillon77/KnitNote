@@ -59,6 +59,26 @@ import Testing
         #expect(createProject.lowerBound < locale.lowerBound)
     }
 
+    @Test func macCreateProjectSheetConfiguresAResizableWindow() throws {
+        let source = try source(named: "ProjectsView.swift")
+        let sheet = try #require(source.range(of: ".sheet(isPresented: $showingCreate"))
+        let createProject = try #require(
+            source.range(of: "CreateProjectView(onRequestUnlock:", range: sheet.upperBound..<source.endIndex)
+        )
+        let configurator = try #require(
+            source.range(
+                of: ".background(MacProjectSheetWindowConfigurator())",
+                range: createProject.upperBound..<source.endIndex
+            )
+        )
+
+        #expect(source.contains("#if os(macOS)"))
+        #expect(source.contains("NSViewRepresentable"))
+        #expect(source.contains("window.styleMask.insert(.resizable)"))
+        #expect(source.contains("NSSize(width: 520, height: 560)"))
+        #expect(createProject.lowerBound < configurator.lowerBound)
+    }
+
     @Test func projectPhotoActionsAdaptToNarrowWidth() throws {
         let source = try source(named: "ProjectPhotoPicker.swift")
         let macBranch = try #require(source.range(of: "#if os(macOS)"))

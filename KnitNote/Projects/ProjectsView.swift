@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct ProjectsView: View {
     @Environment(\.locale) private var locale
@@ -79,6 +82,9 @@ struct ProjectsView: View {
                     pendingUnlockAfterCreate = true
                 })
                 .environment(\.locale, locale)
+#if os(macOS)
+                .background(MacProjectSheetWindowConfigurator())
+#endif
                 .onAppear {
                     onCreateSheetPresentationChanged(true)
                 }
@@ -103,3 +109,28 @@ struct ProjectsView: View {
         showingCreate = true
     }
 }
+
+#if os(macOS)
+private struct MacProjectSheetWindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> MacProjectSheetWindowConfigurationView {
+        MacProjectSheetWindowConfigurationView()
+    }
+
+    func updateNSView(_ nsView: MacProjectSheetWindowConfigurationView, context: Context) {
+        nsView.configureWindow()
+    }
+}
+
+private final class MacProjectSheetWindowConfigurationView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        configureWindow()
+    }
+
+    func configureWindow() {
+        guard let window else { return }
+        window.styleMask.insert(.resizable)
+        window.minSize = NSSize(width: 520, height: 560)
+    }
+}
+#endif

@@ -99,13 +99,15 @@ import Testing
 
         let horizontalActions = try #require(macSource.range(of: "HStack {"))
         let horizontalEligibility = try #require(
-            macSource.range(of: ".frame(minWidth: 560)", range: horizontalActions.upperBound..<macSource.endIndex)
+            macSource.range(of: ".frame(minWidth: 480)", range: horizontalActions.upperBound..<macSource.endIndex)
         )
         let verticalActions = try #require(
             macSource.range(of: "VStack(alignment: .leading, spacing: 8)")
         )
-        #expect(520 < 560)
-        #expect(560 < 620)
+        // A 520-point sheet leaves roughly 430 points inside the Form section,
+        // while the 620-point ideal sheet leaves roughly 530 points.
+        #expect(430 < 480)
+        #expect(480 < 530)
         #expect(horizontalActions.lowerBound < horizontalEligibility.lowerBound)
         #expect(horizontalEligibility.lowerBound < verticalActions.lowerBound)
 

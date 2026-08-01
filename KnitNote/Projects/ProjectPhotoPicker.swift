@@ -28,6 +28,7 @@ struct ProjectPhotoPicker: View {
                     Spacer()
                     macRemovePhotoAction
                 }
+                .frame(minWidth: 560)
 
                 VStack(alignment: .leading, spacing: 8) {
                     macPhotoSelectionAction

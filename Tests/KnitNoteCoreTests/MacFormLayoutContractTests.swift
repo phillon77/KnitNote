@@ -97,6 +97,18 @@ import Testing
         #expect(macSource.contains("VStack"))
         #expect(!nonMacSource.contains("ViewThatFits"))
 
+        let horizontalActions = try #require(macSource.range(of: "HStack {"))
+        let horizontalEligibility = try #require(
+            macSource.range(of: ".frame(minWidth: 560)", range: horizontalActions.upperBound..<macSource.endIndex)
+        )
+        let verticalActions = try #require(
+            macSource.range(of: "VStack(alignment: .leading, spacing: 8)")
+        )
+        #expect(520 < 560)
+        #expect(560 < 620)
+        #expect(horizontalActions.lowerBound < horizontalEligibility.lowerBound)
+        #expect(horizontalEligibility.lowerBound < verticalActions.lowerBound)
+
         let photoPicker = try #require(nonMacSource.range(of: "PhotosPicker(selection: $pickerItem"))
         let camera = try #require(nonMacSource.range(of: "UIImagePickerController.isSourceTypeAvailable"))
         let spacer = try #require(nonMacSource.range(of: "Spacer()"))

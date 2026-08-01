@@ -38,7 +38,13 @@ struct CreateProjectView: View {
                 )) { Button("common.ok") {} } message: { Text(errorMessage ?? "") }
         }
 #if os(macOS)
-        .frame(minWidth: 520, idealWidth: 620, minHeight: 560)
+        .frame(
+            minWidth: 520,
+            idealWidth: 620,
+            maxWidth: .infinity,
+            minHeight: 560,
+            maxHeight: .infinity
+        )
 #else
         .frame(minWidth: 340, minHeight: 420)
 #endif

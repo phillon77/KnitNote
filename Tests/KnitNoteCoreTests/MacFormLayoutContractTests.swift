@@ -32,9 +32,17 @@ import Testing
 
     @Test func macCreateProjectHasUsableMinimumSize() throws {
         let source = try source(named: "CreateProjectView.swift")
-        #expect(source.contains("minWidth: 520"))
-        #expect(source.contains("idealWidth: 620"))
-        #expect(source.contains("minHeight: 560"))
+        let macBranch = try #require(source.range(of: "#if os(macOS)"))
+        let nonMacBranch = try #require(
+            source.range(of: "#else", range: macBranch.upperBound..<source.endIndex)
+        )
+        let macSource = String(source[macBranch.lowerBound..<nonMacBranch.lowerBound])
+
+        #expect(macSource.contains("minWidth: 520"))
+        #expect(macSource.contains("idealWidth: 620"))
+        #expect(macSource.contains("maxWidth: .infinity"))
+        #expect(macSource.contains("minHeight: 560"))
+        #expect(macSource.contains("maxHeight: .infinity"))
     }
 
     @Test func createProjectSheetPropagatesTheCurrentLocale() throws {

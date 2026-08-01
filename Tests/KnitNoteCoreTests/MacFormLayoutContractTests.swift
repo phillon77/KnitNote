@@ -59,24 +59,28 @@ import Testing
         #expect(createProject.lowerBound < locale.lowerBound)
     }
 
-    @Test func macCreateProjectSheetConfiguresAResizableWindow() throws {
+    @Test func macCreateProjectSheetUsesFittedPresentationSizing() throws {
         let source = try source(named: "ProjectsView.swift")
         let sheet = try #require(source.range(of: ".sheet(isPresented: $showingCreate"))
         let createProject = try #require(
             source.range(of: "CreateProjectView(onRequestUnlock:", range: sheet.upperBound..<source.endIndex)
         )
-        let configurator = try #require(
-            source.range(
-                of: ".background(MacProjectSheetWindowConfigurator())",
-                range: createProject.upperBound..<source.endIndex
-            )
+        let macBranch = try #require(
+            source.range(of: "#if os(macOS)", range: createProject.upperBound..<source.endIndex)
         )
+        let macEnd = try #require(
+            source.range(of: "#endif", range: macBranch.upperBound..<source.endIndex)
+        )
+        let macSource = String(source[macBranch.lowerBound..<macEnd.lowerBound])
+        let beforeMacBranch = String(source[source.startIndex..<macBranch.lowerBound])
+        let afterMacBranch = String(source[macEnd.upperBound..<source.endIndex])
+        let fittedSizing = try #require(macSource.range(of: ".presentationSizing(.fitted)"))
 
-        #expect(source.contains("#if os(macOS)"))
-        #expect(source.contains("NSViewRepresentable"))
-        #expect(source.contains("window.styleMask.insert(.resizable)"))
-        #expect(source.contains("NSSize(width: 520, height: 560)"))
-        #expect(createProject.lowerBound < configurator.lowerBound)
+        #expect(createProject.lowerBound < macBranch.lowerBound)
+        #expect(!beforeMacBranch.contains(".presentationSizing(.fitted)"))
+        #expect(!afterMacBranch.contains(".presentationSizing(.fitted)"))
+        #expect(!source.contains("MacProjectSheetWindowConfigurator"))
+        #expect(fittedSizing.lowerBound < macSource.endIndex)
     }
 
     @Test func projectPhotoActionsAdaptToNarrowWidth() throws {

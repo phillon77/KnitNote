@@ -7,6 +7,7 @@ struct SettingsView: View {
         NavigationStack {
 #if os(macOS)
             settingsForm
+                .frame(maxWidth: .infinity)
                 .frame(maxWidth: 720)
                 .padding(.horizontal, 24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

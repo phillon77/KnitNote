@@ -4,9 +4,21 @@ import Testing
 @Suite struct MacFormLayoutContractTests {
     @Test func macSettingsUsesCenteredBoundedContent() throws {
         let source = try source(named: "SettingsView.swift")
-        #expect(source.contains("#if os(macOS)"))
-        #expect(source.contains("maxWidth: 720"))
-        #expect(source.contains(".padding(.horizontal, 24)"))
+        let macBranch = try #require(source.range(of: "#if os(macOS)"))
+        let nonMacBranch = try #require(
+            source.range(of: "#else", range: macBranch.upperBound..<source.endIndex)
+        )
+        let macEnd = try #require(
+            source.range(of: "#endif", range: nonMacBranch.upperBound..<source.endIndex)
+        )
+        let macSource = String(source[macBranch.lowerBound..<nonMacBranch.lowerBound])
+        let nonMacSource = String(source[nonMacBranch.upperBound..<macEnd.lowerBound])
+
+        let shrinkableFrame = try #require(macSource.range(of: ".frame(maxWidth: .infinity)"))
+        let boundedFrame = try #require(macSource.range(of: ".frame(maxWidth: 720)"))
+        #expect(shrinkableFrame.lowerBound < boundedFrame.lowerBound)
+        #expect(macSource.contains(".padding(.horizontal, 24)"))
+        #expect(nonMacSource.trimmingCharacters(in: .whitespacesAndNewlines) == "settingsForm")
     }
 
     @Test func macCreateProjectHasUsableMinimumSize() throws {

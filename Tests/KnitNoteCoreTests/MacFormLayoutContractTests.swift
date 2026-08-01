@@ -37,6 +37,20 @@ import Testing
         #expect(source.contains("minHeight: 560"))
     }
 
+    @Test func createProjectSheetPropagatesTheCurrentLocale() throws {
+        let source = try source(named: "ProjectsView.swift")
+        let sheet = try #require(source.range(of: ".sheet(isPresented: $showingCreate"))
+        let createProject = try #require(
+            source.range(of: "CreateProjectView(onRequestUnlock:", range: sheet.upperBound..<source.endIndex)
+        )
+        let locale = try #require(
+            source.range(of: ".environment(\\.locale, locale)", range: createProject.upperBound..<source.endIndex)
+        )
+
+        #expect(source.contains("@Environment(\\.locale) private var locale"))
+        #expect(createProject.lowerBound < locale.lowerBound)
+    }
+
     @Test func projectPhotoActionsAdaptToNarrowWidth() throws {
         let source = try source(named: "ProjectPhotoPicker.swift")
         let macBranch = try #require(source.range(of: "#if os(macOS)"))

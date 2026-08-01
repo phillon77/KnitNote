@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ProjectsView: View {
+    @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     @State private var showingCreate = false
@@ -77,6 +78,7 @@ struct ProjectsView: View {
                 CreateProjectView(onRequestUnlock: {
                     pendingUnlockAfterCreate = true
                 })
+                .environment(\.locale, locale)
                 .onAppear {
                     onCreateSheetPresentationChanged(true)
                 }

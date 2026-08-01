@@ -32,7 +32,7 @@ import Testing
 
     @Test func macCreateProjectHasUsableMinimumSize() throws {
         let source = try source(named: "CreateProjectView.swift")
-        let macBranch = try #require(source.range(of: "#if os(macOS)"))
+        let macBranch = try #require(source.range(of: "#if os(macOS)\n        .frame("))
         let nonMacBranch = try #require(
             source.range(of: "#else", range: macBranch.upperBound..<source.endIndex)
         )
@@ -43,6 +43,22 @@ import Testing
         #expect(macSource.contains("maxWidth: .infinity"))
         #expect(macSource.contains("minHeight: 560"))
         #expect(macSource.contains("maxHeight: .infinity"))
+    }
+
+    @Test func macCreateProjectUsesSingleColumnContentInsteadOfForm() throws {
+        let source = try source(named: "CreateProjectView.swift")
+        let macBranch = try #require(source.range(of: "#if os(macOS)"))
+        let nonMacBranch = try #require(
+            source.range(of: "#else", range: macBranch.upperBound..<source.endIndex)
+        )
+        let macSource = String(source[macBranch.lowerBound..<nonMacBranch.lowerBound])
+        let nonMacSource = String(source[nonMacBranch.upperBound...])
+
+        #expect(macSource.contains("ScrollView"))
+        #expect(macSource.contains("VStack(alignment: .leading, spacing: 20)"))
+        #expect(macSource.contains(".frame(maxWidth: 720)"))
+        #expect(!macSource.contains("Form"))
+        #expect(nonMacSource.contains("Form"))
     }
 
     @Test func createProjectSheetPropagatesTheCurrentLocale() throws {

@@ -10,19 +10,43 @@ struct CreateProjectView: View {
     @State private var errorMessage: String?
     let onRequestUnlock: () -> Void
 
+#if os(macOS)
+    private var macProjectContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("project.name")
+                    .font(.headline)
+                TextField("project.name", text: $name)
+
+                Text("project.photo.optional")
+                    .font(.headline)
+                projectPhotoPicker
+            }
+            .frame(maxWidth: 720)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+#else
+    private var projectForm: some View {
+        Form {
+            Section { TextField("project.name", text: $name) }
+            Section("project.photo.optional") { projectPhotoPicker }
+        }
+    }
+#endif
+
+    private var projectContent: some View {
+#if os(macOS)
+        macProjectContent
+#else
+        projectForm
+#endif
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section { TextField("project.name", text: $name) }
-                Section("project.photo.optional") {
-                    ProjectPhotoPicker(
-                        existingURL: nil,
-                        selectedData: $selectedPhotoData,
-                        removesExistingPhoto: $removesPhoto,
-                        isLoading: $isPhotoLoading
-                    )
-                }
-            }
+            projectContent
                 .scrollContentBackground(.hidden)
                 .background(WatercolorBackground())
                 .navigationTitle("project.create")
@@ -49,6 +73,15 @@ struct CreateProjectView: View {
         .frame(minWidth: 340, minHeight: 420)
 #endif
         .tint(WatercolorTheme.actionBerry)
+    }
+
+    private var projectPhotoPicker: some View {
+        ProjectPhotoPicker(
+            existingURL: nil,
+            selectedData: $selectedPhotoData,
+            removesExistingPhoto: $removesPhoto,
+            isLoading: $isPhotoLoading
+        )
     }
 
     private func create() {

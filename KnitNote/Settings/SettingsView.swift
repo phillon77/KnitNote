@@ -6,11 +6,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
 #if os(macOS)
-            settingsForm
-                .frame(maxWidth: .infinity)
-                .frame(maxWidth: 720)
-                .padding(.horizontal, 24)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            GeometryReader { proxy in
+                settingsForm
+                    .frame(width: min(max(proxy.size.width - 48, 0), 720))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .background(WatercolorBackground())
 #else
             settingsForm
 #endif

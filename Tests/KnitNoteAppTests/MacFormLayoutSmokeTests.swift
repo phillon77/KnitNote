@@ -9,7 +9,8 @@ import Testing
         let photoPicker = try source(named: "ProjectPhotoPicker.swift", in: "Projects")
 
         #expect(settings.contains("#if os(macOS)"))
-        #expect(settings.contains("maxWidth: 720"))
+        #expect(settings.contains("GeometryReader { proxy in"))
+        #expect(settings.contains("min(max(proxy.size.width - 48, 0), 720)"))
         #expect(project.contains("minWidth: 520"))
         #expect(project.contains("idealWidth: 620"))
         #expect(project.contains("minHeight: 560"))

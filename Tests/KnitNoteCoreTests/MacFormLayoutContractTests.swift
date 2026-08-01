@@ -14,10 +14,19 @@ import Testing
         let macSource = String(source[macBranch.lowerBound..<nonMacBranch.lowerBound])
         let nonMacSource = String(source[nonMacBranch.upperBound..<macEnd.lowerBound])
 
-        let shrinkableFrame = try #require(macSource.range(of: ".frame(maxWidth: .infinity)"))
-        let boundedFrame = try #require(macSource.range(of: ".frame(maxWidth: 720)"))
-        #expect(shrinkableFrame.lowerBound < boundedFrame.lowerBound)
-        #expect(macSource.contains(".padding(.horizontal, 24)"))
+        let geometry = try #require(macSource.range(of: "GeometryReader { proxy in"))
+        let availableWidth = try #require(
+            macSource.range(of: "min(max(proxy.size.width - 48, 0), 720)")
+        )
+        let explicitWidth = try #require(
+            macSource.range(of: ".frame(width: min(max(proxy.size.width - 48, 0), 720))")
+        )
+        let centeredFrame = try #require(
+            macSource.range(of: ".frame(maxWidth: .infinity, maxHeight: .infinity)")
+        )
+        #expect(geometry.lowerBound < availableWidth.lowerBound)
+        #expect(geometry.lowerBound < explicitWidth.lowerBound)
+        #expect(explicitWidth.lowerBound < centeredFrame.lowerBound)
         #expect(nonMacSource.trimmingCharacters(in: .whitespacesAndNewlines) == "settingsForm")
     }
 

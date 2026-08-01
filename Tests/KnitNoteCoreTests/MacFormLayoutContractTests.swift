@@ -18,9 +18,25 @@ import Testing
 
     @Test func projectPhotoActionsAdaptToNarrowWidth() throws {
         let source = try source(named: "ProjectPhotoPicker.swift")
-        #expect(source.contains("ViewThatFits"))
-        #expect(source.contains("HStack"))
-        #expect(source.contains("VStack"))
+        let macBranch = try #require(source.range(of: "#if os(macOS)"))
+        let nonMacBranch = try #require(
+            source.range(of: "#else", range: macBranch.upperBound..<source.endIndex)
+        )
+        let macSource = String(source[macBranch.lowerBound..<nonMacBranch.lowerBound])
+        let nonMacSource = String(source[nonMacBranch.upperBound...])
+
+        #expect(macSource.contains("ViewThatFits"))
+        #expect(macSource.contains("HStack"))
+        #expect(macSource.contains("VStack"))
+        #expect(!nonMacSource.contains("ViewThatFits"))
+
+        let photoPicker = try #require(nonMacSource.range(of: "PhotosPicker(selection: $pickerItem"))
+        let camera = try #require(nonMacSource.range(of: "UIImagePickerController.isSourceTypeAvailable"))
+        let spacer = try #require(nonMacSource.range(of: "Spacer()"))
+        let remove = try #require(nonMacSource.range(of: "Button(role: .destructive)"))
+        #expect(photoPicker.lowerBound < camera.lowerBound)
+        #expect(camera.lowerBound < spacer.lowerBound)
+        #expect(spacer.lowerBound < remove.lowerBound)
     }
 
     private func source(named name: String) throws -> String {

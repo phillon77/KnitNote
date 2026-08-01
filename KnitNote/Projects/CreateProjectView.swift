@@ -37,7 +37,11 @@ struct CreateProjectView: View {
                     get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
                 )) { Button("common.ok") {} } message: { Text(errorMessage ?? "") }
         }
+#if os(macOS)
+        .frame(minWidth: 520, idealWidth: 620, minHeight: 560)
+#else
         .frame(minWidth: 340, minHeight: 420)
+#endif
         .tint(WatercolorTheme.actionBerry)
     }
 

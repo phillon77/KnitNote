@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A42000000000000000000004 /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000003 /* CreateProjectPresentation.swift */; };
+		A42000000000000000000006 /* MacFormLayoutSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000005 /* MacFormLayoutSmokeTests.swift */; };
 		A42000000000000000000002 /* CreateProjectPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000001 /* CreateProjectPresentationTests.swift */; };
 		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
@@ -301,6 +302,7 @@
 
 /* Begin PBXFileReference section */
 		A42000000000000000000003 /* CreateProjectPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentation.swift; sourceTree = "<group>"; };
+		A42000000000000000000005 /* MacFormLayoutSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFormLayoutSmokeTests.swift; sourceTree = "<group>"; };
 		A42000000000000000000001 /* CreateProjectPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentationTests.swift; sourceTree = "<group>"; };
 		02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoFileService.swift; sourceTree = "<group>"; };
 		0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxPublicationReceiptService.swift; sourceTree = "<group>"; };
@@ -615,6 +617,7 @@
 			isa = PBXGroup;
 			children = (
 				A42000000000000000000001 /* CreateProjectPresentationTests.swift */,
+				A42000000000000000000005 /* MacFormLayoutSmokeTests.swift */,
 				6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */,
 				453B830DB1C1E2A3A3954A38 /* KeychainTrialStoreTests.swift */,
 				C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */,
@@ -1337,6 +1340,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A42000000000000000000002 /* CreateProjectPresentationTests.swift in Sources */,
+				A42000000000000000000006 /* MacFormLayoutSmokeTests.swift in Sources */,
 				A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */,
 				CA1626EA32C6EE7500EB03A4 /* KeychainTrialStoreTests.swift in Sources */,
 				8956E5751DCE92829E2B803E /* StoreKitPurchaseServiceLifecycleTests.swift in Sources */,

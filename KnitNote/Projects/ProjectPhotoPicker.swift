@@ -21,43 +21,18 @@ struct ProjectPhotoPicker: View {
             .frame(height: 190)
             .clipShape(.rect(cornerRadius: 18))
 
-            HStack {
-                if hasPhoto {
-                    PhotosPicker(selection: $pickerItem, matching: .images) {
-                        Label("project.photo.replace", systemImage: "photo.on.rectangle")
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    PhotosPicker(selection: $pickerItem, matching: .images) {
-                        Label("project.photo.choose", systemImage: "photo.on.rectangle")
-                    }
-                    .buttonStyle(.bordered)
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    photoSelectionAction
+                    cameraAction
+                    Spacer(minLength: 0)
+                    removePhotoAction
                 }
 
-#if os(iOS)
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button {
-                        invalidatePendingLoad()
-                        showingCamera = true
-                    } label: {
-                        Label("project.photo.take", systemImage: "camera")
-                    }
-                    .buttonStyle(.bordered)
-                }
-#endif
-
-                Spacer()
-                if hasPhoto {
-                    Button(role: .destructive) {
-                        invalidatePendingLoad()
-                        pickerItem = nil
-                        selectedData = nil
-                        removesExistingPhoto = true
-                    } label: {
-                        Label("project.photo.remove", systemImage: "trash")
-                    }
-                    .labelStyle(.iconOnly)
-                    .accessibilityLabel(Text("project.photo.remove"))
+                VStack(alignment: .leading, spacing: 8) {
+                    photoSelectionAction
+                    cameraAction
+                    removePhotoAction
                 }
             }
         }
@@ -102,6 +77,52 @@ struct ProjectPhotoPicker: View {
 
     private var hasPhoto: Bool {
         selectedData != nil || (!removesExistingPhoto && existingURL != nil)
+    }
+
+    @ViewBuilder
+    private var photoSelectionAction: some View {
+        if hasPhoto {
+            PhotosPicker(selection: $pickerItem, matching: .images) {
+                Label("project.photo.replace", systemImage: "photo.on.rectangle")
+            }
+            .buttonStyle(.bordered)
+        } else {
+            PhotosPicker(selection: $pickerItem, matching: .images) {
+                Label("project.photo.choose", systemImage: "photo.on.rectangle")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    private var cameraAction: some View {
+#if os(iOS)
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            Button {
+                invalidatePendingLoad()
+                showingCamera = true
+            } label: {
+                Label("project.photo.take", systemImage: "camera")
+            }
+            .buttonStyle(.bordered)
+        }
+#endif
+    }
+
+    @ViewBuilder
+    private var removePhotoAction: some View {
+        if hasPhoto {
+            Button(role: .destructive) {
+                invalidatePendingLoad()
+                pickerItem = nil
+                selectedData = nil
+                removesExistingPhoto = true
+            } label: {
+                Label("project.photo.remove", systemImage: "trash")
+            }
+            .labelStyle(.iconOnly)
+            .accessibilityLabel(Text("project.photo.remove"))
+        }
     }
 
     private func invalidatePendingLoad() {

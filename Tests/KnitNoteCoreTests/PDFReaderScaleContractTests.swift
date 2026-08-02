@@ -30,6 +30,8 @@ import Testing
         #expect(capture.contains("scaleCaptureTask?.cancel()"))
         #expect(capture.contains("scaleCaptureGate.observe"))
         #expect(capture.contains("scaleCaptureGate.settle"))
+        #expect(capture.contains("discardPendingScaleCapture()"))
+        #expect(capture.contains("liveScale: settledScale"))
         #expect(capture.contains("state.pdfWidthScaleRatio"))
     }
 

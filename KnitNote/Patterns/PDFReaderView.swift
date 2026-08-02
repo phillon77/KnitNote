@@ -288,6 +288,12 @@ extension PDFReaderView {
             commitScaleRatio(ratio)
         }
 
+        private func discardPendingScaleCapture() {
+            scaleCaptureTask?.cancel()
+            scaleCaptureTask = nil
+            scaleCaptureGate.discardPendingObservation(context: scaleCaptureContext)
+        }
+
         private func scheduleUserScaleCapture(from view: PDFView) {
             guard restoreGate.canSample, !isApplyingSavedScale,
                   let signature = scaleSignature(for: view, mode: latestScaleMode),
@@ -300,6 +306,7 @@ extension PDFReaderView {
             if let lastAppliedScale,
                lastAppliedScale.signature == signature,
                scalesMatch(observedScale, lastAppliedScale.scaleFactor) {
+                discardPendingScaleCapture()
                 return
             }
 
@@ -312,19 +319,22 @@ extension PDFReaderView {
             ) else { return }
             scaleCaptureTask = Task { @MainActor [weak self, weak view] in
                 try? await Task.sleep(for: .milliseconds(120))
-                guard !Task.isCancelled, let self, let view,
-                      self.restoreGate.canSample, !self.isApplyingSavedScale,
-                      self.scaleCaptureContext == context,
-                      let settledSignature = self.scaleSignature(for: view, mode: self.latestScaleMode),
-                      settledSignature == signature,
-                      settledSignature == self.lastScaleSignature
-                else { return }
+                guard !Task.isCancelled, let self, let view else { return }
 
                 let settledScale = Double(view.scaleFactor)
-                guard self.scalesMatch(settledScale, observedScale),
-                      let ratio = self.scaleCaptureGate.settle(revision: revision, context: context)
+                let settledRatio = self.scaleCaptureGate.settle(
+                    revision: revision,
+                    context: self.scaleCaptureContext,
+                    liveScale: settledScale
+                )
+                guard self.restoreGate.canSample, !self.isApplyingSavedScale,
+                      let settledSignature = self.scaleSignature(for: view, mode: self.latestScaleMode),
+                      settledSignature == signature,
+                      settledSignature == self.lastScaleSignature,
+                      let settledRatio
                 else { return }
-                self.commitScaleRatio(ratio)
+
+                self.commitScaleRatio(settledRatio)
                 self.publishViewport(from: view)
             }
         }

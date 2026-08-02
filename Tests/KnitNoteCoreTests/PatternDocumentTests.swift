@@ -28,7 +28,7 @@ import Testing
     let revision = try #require(observedRevision)
 
     #expect(gate.flush(context: 7) == 1.6)
-    #expect(gate.settle(revision: revision, context: 7) == nil)
+    #expect(gate.settle(revision: revision, context: 7, liveScale: 1.92) == nil)
 }
 
 @Test func newerPDFScaleObservationSupersedesStaleDelayedCallback() throws {
@@ -46,8 +46,8 @@ import Testing
     )
     let latestRevision = try #require(observedLatestRevision)
 
-    #expect(gate.settle(revision: staleRevision, context: 11) == nil)
-    #expect(gate.settle(revision: latestRevision, context: 11) == 1.6)
+    #expect(gate.settle(revision: staleRevision, context: 11, liveScale: 1.2) == nil)
+    #expect(gate.settle(revision: latestRevision, context: 11, liveScale: 1.6) == 1.6)
 }
 
 @Test func changedPDFScaleContextDiscardsOldPendingObservation() throws {
@@ -59,8 +59,38 @@ import Testing
     )
     let staleRevision = try #require(observedStaleRevision)
 
-    #expect(gate.flush(context: 20) == nil)
-    #expect(gate.settle(revision: staleRevision, context: 19) == nil)
+    #expect(gate.settle(revision: staleRevision, context: 20, liveScale: 1.5) == nil)
+    #expect(gate.flush(context: 19) == nil)
+}
+
+@Test func ignoredProgrammaticTargetScaleClearsEarlierPendingUserWidth() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedRevision = gate.observe(
+        currentScale: 1.5,
+        fitWidthScale: 1.0,
+        context: 23
+    )
+    _ = try #require(observedRevision)
+
+    let latestVisibleScale = 1.0
+    let programmaticTarget = 1.0
+    #expect(latestVisibleScale == programmaticTarget)
+    gate.discardPendingObservation(context: 23)
+
+    #expect(gate.flush(context: 23) == nil)
+}
+
+@Test func liveScaleMismatchSettlementConsumesPendingUserWidth() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedRevision = gate.observe(
+        currentScale: 1.5,
+        fitWidthScale: 1.0,
+        context: 29
+    )
+    let revision = try #require(observedRevision)
+
+    #expect(gate.settle(revision: revision, context: 29, liveScale: 1.0) == nil)
+    #expect(gate.flush(context: 29) == nil)
 }
 
 @Test func pdfWidthRatioIsSharedAcrossPagesWithoutChangingPageDetails() {

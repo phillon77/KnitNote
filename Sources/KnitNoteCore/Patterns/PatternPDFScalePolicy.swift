@@ -57,15 +57,25 @@ public struct PatternPDFScaleCaptureGate: Sendable {
         return nextRevision
     }
 
-    public mutating func settle(revision: UInt64, context: UInt64) -> Double? {
+    public mutating func settle(
+        revision: UInt64,
+        context: UInt64,
+        liveScale: Double
+    ) -> Double? {
         guard let pendingObservation,
-              pendingObservation.revision == revision,
-              pendingObservation.context == context else { return nil }
+              pendingObservation.revision == revision else { return nil }
         self.pendingObservation = nil
+        guard pendingObservation.context == context,
+              scalesMatch(liveScale, pendingObservation.currentScale) else { return nil }
         return PatternPDFScalePolicy.ratio(
             currentScale: pendingObservation.currentScale,
             fitWidthScale: pendingObservation.fitWidthScale
         )
+    }
+
+    public mutating func discardPendingObservation(context: UInt64) {
+        guard pendingObservation?.context == context else { return }
+        invalidate()
     }
 
     public mutating func flush(context: UInt64) -> Double? {
@@ -81,5 +91,10 @@ public struct PatternPDFScaleCaptureGate: Sendable {
     public mutating func invalidate() {
         nextRevision &+= 1
         pendingObservation = nil
+    }
+
+    private func scalesMatch(_ lhs: Double, _ rhs: Double) -> Bool {
+        guard lhs.isFinite, rhs.isFinite else { return false }
+        return abs(lhs - rhs) <= max(0.0001, max(abs(lhs), abs(rhs)) * 0.001)
     }
 }

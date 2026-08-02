@@ -1387,6 +1387,27 @@ final class PatternLibraryDeletionTransaction {
         }.value
     }
 
+    public func patternPDFPageThumbnailURL(
+        assetID: UUID,
+        pageIndex: Int
+    ) async -> URL? {
+        guard !Task.isCancelled,
+              let asset = patternAssets.first(where: { $0.id == assetID }),
+              asset.kind == .pdf,
+              let pageCount = asset.pageCount,
+              pageIndex >= 0,
+              pageIndex < pageCount,
+              let sourceURL = try? requiredPatternFileService().assetURL(asset)
+        else { return nil }
+        let service = patternThumbnailService
+        let thumbnailURL = await Task.detached(priority: .utility) { () -> URL? in
+            guard !Task.isCancelled else { return nil }
+            return try? service.thumbnailURL(asset: asset, sourceURL: sourceURL, pageIndex: pageIndex)
+        }.value
+        guard !Task.isCancelled else { return nil }
+        return thumbnailURL
+    }
+
     @discardableResult
     public func updatePatternState(
         usageID: UUID,

@@ -2,6 +2,50 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
+@MainActor @Test func storeReturnsVersionedURLForRequestedPDFPageThumbnail() async throws {
+    let harness = try PatternImportHarness()
+    let sourceURL = harness.sourceRoot.appendingPathComponent("ThreePages.pdf")
+    try makeTestPatternPDF(at: sourceURL, pageCount: 3)
+    _ = try await harness.importURL(sourceURL)
+    let asset = try #require(harness.store.patternAssets.first)
+
+    let thumbnailURL = try #require(
+        await harness.store.patternPDFPageThumbnailURL(assetID: asset.id, pageIndex: 1)
+    )
+    let expectedURL = try harness.thumbnailService.thumbnailURL(
+        asset: asset,
+        sourceURL: try harness.assetURLFor(source: sourceURL),
+        pageIndex: 1
+    )
+
+    #expect(FileManager.default.fileExists(atPath: thumbnailURL.path))
+    #expect(thumbnailURL == expectedURL)
+}
+
+@MainActor @Test func storeDoesNotPublishInvalidOrCancelledPageThumbnailRequests() async throws {
+    let harness = try PatternImportHarness()
+    let pdfURL = harness.sourceRoot.appendingPathComponent("ThreePages.pdf")
+    try makeTestPatternPDF(at: pdfURL, pageCount: 3)
+    _ = try await harness.importURL(pdfURL)
+    let pdfAsset = try #require(harness.store.patternAssets.first)
+    let imageURL = try harness.writeFile(
+        named: "SinglePixel.png",
+        bytes: try #require(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL6aAAAAABJRU5ErkJggg=="))
+    )
+    _ = try await harness.importURL(imageURL)
+    let imageAsset = try #require(harness.store.patternAssets.first { $0.kind == .image })
+
+    #expect(await harness.store.patternPDFPageThumbnailURL(assetID: imageAsset.id, pageIndex: 0) == nil)
+    #expect(await harness.store.patternPDFPageThumbnailURL(assetID: pdfAsset.id, pageIndex: -1) == nil)
+    #expect(await harness.store.patternPDFPageThumbnailURL(assetID: pdfAsset.id, pageIndex: 3) == nil)
+
+    let cancelledRequest = Task { @MainActor in
+        await harness.store.patternPDFPageThumbnailURL(assetID: pdfAsset.id, pageIndex: 0)
+    }
+    cancelledRequest.cancel()
+    #expect(await cancelledRequest.value == nil)
+}
+
 @Test func usageRestoresItsIndependentReadingState() throws {
     let patternID = UUID()
     let projectID = UUID()

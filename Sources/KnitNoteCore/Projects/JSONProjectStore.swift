@@ -1368,6 +1368,28 @@ final class PatternLibraryDeletionTransaction {
         try persist(projects: projects, yarns: yarns, patterns: staged)
     }
 
+    @discardableResult
+    public func setPatternPrefersOriginalColorsInDarkMode(
+        id: UUID,
+        prefersOriginalColors: Bool,
+        expectedDataGeneration: UInt64
+    ) throws -> UInt64 {
+        try ensureArchiveAvailable()
+        guard dataGeneration == expectedDataGeneration else {
+            throw ProjectStoreError.staleDataGeneration
+        }
+        guard let index = patterns.firstIndex(where: { $0.id == id }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        guard patterns[index].prefersOriginalColorsInDarkMode != prefersOriginalColors else {
+            return dataGeneration
+        }
+        var staged = patterns
+        staged[index].prefersOriginalColorsInDarkMode = prefersOriginalColors
+        try persist(projects: projects, yarns: yarns, patterns: staged)
+        return dataGeneration
+    }
+
     public func markPatternOpened(id: UUID, at date: Date = .now) throws {
         try requireAccess(.recordPatternBrowsing)
         try ensureArchiveAvailable()

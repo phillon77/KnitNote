@@ -83,6 +83,97 @@ private final class PatternLibraryIOThreadRecorder: @unchecked Sendable {
     }
 }
 
+@MainActor @Test
+func patternOriginalColorPreferencePersistsAndIsSharedAcrossUsages() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndTwoProjects()
+    _ = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    _ = try harness.store.linkPattern(
+        patternID: harness.patternID,
+        to: try #require(harness.secondProjectID)
+    )
+    let usagesBefore = harness.store.patternUsages
+    let generation = harness.store.dataGeneration
+
+    let next = try harness.store.setPatternPrefersOriginalColorsInDarkMode(
+        id: harness.patternID,
+        prefersOriginalColors: true,
+        expectedDataGeneration: generation
+    )
+
+    #expect(next > generation)
+    #expect(harness.store.patterns.first { $0.id == harness.patternID }?
+        .prefersOriginalColorsInDarkMode == true)
+    #expect(harness.store.patternUsages == usagesBefore)
+    #expect(usagesBefore.count == 2)
+    #expect(try harness.reopenedStore().patterns.first { $0.id == harness.patternID }?
+        .prefersOriginalColorsInDarkMode == true)
+}
+
+@MainActor @Test
+func missingOrStalePatternAppearanceMutationPublishesNothing() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let before = harness.store.patterns
+    let generation = harness.store.dataGeneration
+
+    #expect(throws: PatternLibraryMutationError.patternNotFound) {
+        _ = try harness.store.setPatternPrefersOriginalColorsInDarkMode(
+            id: UUID(),
+            prefersOriginalColors: true,
+            expectedDataGeneration: generation
+        )
+    }
+    #expect(throws: ProjectStoreError.staleDataGeneration) {
+        _ = try harness.store.setPatternPrefersOriginalColorsInDarkMode(
+            id: harness.patternID,
+            prefersOriginalColors: true,
+            expectedDataGeneration: generation &+ 1
+        )
+    }
+    #expect(harness.store.patterns == before)
+    #expect(harness.store.dataGeneration == generation)
+}
+
+@MainActor @Test
+func failedPatternAppearanceWriteLeavesMemoryAndDiskUnchanged() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject(
+        failingArchiveWrites: true
+    )
+    let before = harness.store.patterns
+    let archiveBefore = try Data(contentsOf: harness.archiveURL)
+    harness.archiveWriteGate?.shouldFail = true
+
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        _ = try harness.store.setPatternPrefersOriginalColorsInDarkMode(
+            id: harness.patternID,
+            prefersOriginalColors: true,
+            expectedDataGeneration: harness.store.dataGeneration
+        )
+    }
+    #expect(harness.store.patterns == before)
+    #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+}
+
+@MainActor @Test
+func patternAppearancePreferenceBypassesMutationAuthorization() throws {
+    var authorizedMutations: [FeatureMutation] = []
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject(
+        authorizeMutation: { mutation in
+            authorizedMutations.append(mutation)
+            return .requiresUnlock
+        }
+    )
+
+    _ = try harness.store.setPatternPrefersOriginalColorsInDarkMode(
+        id: harness.patternID,
+        prefersOriginalColors: true,
+        expectedDataGeneration: harness.store.dataGeneration
+    )
+
+    #expect(harness.store.patterns.first { $0.id == harness.patternID }?
+        .prefersOriginalColorsInDarkMode == true)
+    #expect(authorizedMutations.isEmpty)
+}
+
 @MainActor @Test func writeThenThrowManifestFailureLeavesNothingForFreshRecovery() async throws {
     let harness = try PatternImportHarness(inboxWrite: { data, url in
         try data.write(to: url, options: .atomic)
@@ -802,7 +893,8 @@ final class PatternLibraryStoreHarness {
         completed: Bool,
         secondProject: Bool,
         sharedAsset: Bool,
-        failingArchiveWrites: Bool
+        failingArchiveWrites: Bool,
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
     ) throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PatternLibraryStoreHarness-\(UUID().uuidString)", isDirectory: true)
@@ -862,7 +954,8 @@ final class PatternLibraryStoreHarness {
             archiveWrite: { data, destination in
                 if gate?.shouldFail == true { throw ProjectStoreError.persistenceFailed }
                 try data.write(to: destination, options: .atomic)
-            }
+            },
+            authorizeMutation: authorizeMutation
         )
     }
 
@@ -871,13 +964,15 @@ final class PatternLibraryStoreHarness {
     static func onePatternAndProject(
         completed: Bool = false,
         sharedAsset: Bool = false,
-        failingArchiveWrites: Bool = false
+        failingArchiveWrites: Bool = false,
+        authorizeMutation: @escaping MutationAuthorizer = { _ in .allow }
     ) throws -> PatternLibraryStoreHarness {
         try .init(
             completed: completed,
             secondProject: false,
             sharedAsset: sharedAsset,
-            failingArchiveWrites: failingArchiveWrites
+            failingArchiveWrites: failingArchiveWrites,
+            authorizeMutation: authorizeMutation
         )
     }
 

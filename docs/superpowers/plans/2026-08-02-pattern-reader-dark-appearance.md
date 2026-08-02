@@ -346,6 +346,7 @@ git commit -m "feat: persist pattern night appearance preference"
 ### Task 3: Observe Actual System Appearance Inside the Light App Shell
 
 **Files:**
+- Create: `Sources/KnitNoteCore/Patterns/PatternSystemAppearanceObservation.swift`
 - Create: `KnitNote/Patterns/PatternSystemAppearanceMonitor.swift`
 - Create: `Tests/KnitNoteCoreTests/PatternSystemAppearanceContractTests.swift`
 - Modify: `KnitNote.xcodeproj/project.pbxproj`
@@ -353,28 +354,21 @@ git commit -m "feat: persist pattern night appearance preference"
 
 **Interfaces:**
 - Consumes: `PatternSystemAppearance` from Task 1.
+- Produces: platform-neutral interface-style mapping, foreground-scene selection, style-change filtering, and an injectable observation lifecycle in KnitNoteCore.
 - Produces: `@MainActor final class PatternSystemAppearanceMonitor: ObservableObject` with `@Published private(set) var appearance`, plus `start()`, `refresh()`, and `stop()`.
 
-- [ ] **Step 1: Write failing source and membership contracts**
+- [ ] **Step 1: Write failing behavior and membership contracts**
 
-Create `PatternSystemAppearanceContractTests.swift` that reads `PatternSystemAppearanceMonitor.swift` and asserts all of these structural boundaries:
+Create `PatternSystemAppearanceContractTests.swift` against real KnitNoteCore APIs. Do not read or search app source text. Cover these observable behaviors:
 
-```swift
-#expect(source.contains("@Published private(set) var appearance"))
-#expect(source.contains("func start()"))
-#expect(source.contains("func refresh()"))
-#expect(source.contains("func stop()"))
-#expect(source.contains("UIApplication.didBecomeActiveNotification"))
-#expect(source.contains("connectedScenes"))
-#expect(source.contains("screen.traitCollection.userInterfaceStyle"))
-#expect(source.contains("PatternSystemAppearanceChangeProbe"))
-#expect(source.contains("traitCollectionDidChange"))
-#expect(source.contains("NSApp.observe(\\.effectiveAppearance"))
-#expect(!source.contains("Calendar"))
-#expect(!source.contains("Date()"))
-```
+- `.unspecified`, `.light`, and `.dark` map to `.unresolved`, `.light`, and `.dark`.
+- The first foreground-active scene wins over an earlier inactive scene.
+- With no foreground-active scene, the first scene is used; no scenes resolve to `.unresolved`.
+- `start()` publishes the injected resolver result and an installed signal publishes the next result.
+- Repeated `start()` refreshes without installing twice; repeated `stop()` removes once; a retained signal cannot refresh after stop; a later start installs again.
+- The probe filter emits only when the platform-neutral interface style changes.
 
-Extend the membership test so `PatternSystemAppearanceMonitor.swift` belongs only to the `KnitNote` app target.
+Extend the membership test so `PatternSystemAppearanceObservation.swift` and `PatternSystemAppearanceMonitor.swift` belong only to the `KnitNote` app target and never Watch or Share.
 
 - [ ] **Step 2: Run contracts and verify RED**
 
@@ -385,68 +379,33 @@ swift test --filter PatternSystemAppearanceContractTests
 swift test --filter Task8XcodeProjectMembershipTests
 ```
 
-Expected: contracts fail because the monitor file and membership do not exist.
+Expected: behavior tests fail because the resolver/scene/lifecycle APIs do not exist; membership fails before the new Core seam is registered in the KnitNote target.
 
-- [ ] **Step 3: Implement the monitor with an injectable resolver**
+- [ ] **Step 3: Implement the platform-neutral behavior seam**
 
-Create an app-only file with conditional imports:
+Create `PatternSystemAppearanceObservation.swift` in KnitNoteCore with:
 
-```swift
-import Combine
-import SwiftUI
+- `PatternSystemInterfaceStyle`, `PatternSystemAppearanceScene`, and pure `PatternSystemAppearanceResolver` mapping/selection/filtering.
+- `@MainActor PatternSystemAppearanceObservation`, injected with a resolver, observer installer/remover, and publisher closure.
+- Idempotent observer installation/removal and a lifecycle guard that ignores stale observer signals after stop.
 
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
+Run `swift test --filter PatternSystemAppearanceContractTests` and verify all behavior tests pass before wiring UIKit/AppKit.
 
-@MainActor
-final class PatternSystemAppearanceMonitor: ObservableObject {
-    typealias Resolver = @MainActor () -> PatternSystemAppearance
+- [ ] **Step 4: Implement thin platform adapters**
 
-    @Published private(set) var appearance: PatternSystemAppearance = .unresolved
-    private let resolve: Resolver
-    private var notificationTokens: [NSObjectProtocol] = []
-#if os(macOS)
-    private var appearanceObservation: NSKeyValueObservation?
-#endif
-
-    init(resolve: @escaping Resolver = PatternSystemAppearanceMonitor.resolveSystemAppearance) {
-        self.resolve = resolve
-    }
-
-    func start() {
-        guard notificationTokens.isEmpty else { refresh(); return }
-        refresh()
-        // install platform observers once
-    }
-
-    func refresh() {
-        appearance = resolve()
-    }
-
-    func stop() {
-        notificationTokens.forEach(NotificationCenter.default.removeObserver)
-        notificationTokens.removeAll()
-#if os(macOS)
-        appearanceObservation = nil
-#endif
-    }
-}
-```
+Create the app-only `PatternSystemAppearanceMonitor` with conditional UIKit/AppKit imports. It owns `@Published private(set) var appearance`, delegates `start()`, `refresh()`, and `stop()` to the tested Core lifecycle, and supplies only platform adapters:
 
 Platform resolution rules:
 
-- iOS/iPadOS: choose the foreground-active `UIWindowScene`, fall back to the first connected window scene, then map `scene.screen.traitCollection.userInterfaceStyle` (`.dark` → `.dark`, `.light` → `.light`, otherwise `.unresolved`). Refresh on `UIApplication.didBecomeActiveNotification` and `UIApplication.willEnterForegroundNotification`.
+- iOS/iPadOS: convert connected `UIWindowScene` values into the tested Core scene representation using `scene.screen.traitCollection.userInterfaceStyle` and foreground-active state. Refresh on `UIApplication.didBecomeActiveNotification` and `UIApplication.willEnterForegroundNotification`.
 - macOS: map `NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])`; observe `NSApp.effectiveAppearance` using KVO and call `refresh()` on change.
 - Never infer appearance from clock time, screen brightness, or stored user preference.
 
-On iOS/iPadOS, also implement `PatternSystemAppearanceChangeProbe` in this file as a small `UIViewRepresentable`. Its internal `UIView` subclass overrides `traitCollectionDidChange(_:)` and invokes an `onChange` closure only when `userInterfaceStyle` changes. Mount the probe behind the reader in Task 4 and have that closure call `systemAppearance.refresh()`. The probe is only a foreground change signal; the monitor must still resolve the actual connected screen rather than trusting the app shell's inherited `colorScheme`.
+On iOS/iPadOS, implement `PatternSystemAppearanceChangeProbe` as a small `UIViewRepresentable`. Register `UITraitUserInterfaceStyle` changes with `registerForTraitChanges` and route previous/current styles through the tested Core filter before invoking `onChange`. The current iOS deployment target is 18.0, so no deprecated `traitCollectionDidChange(_:)` fallback is needed; if support later drops below iOS 17, add only an availability-scoped legacy fallback. The probe remains only a change signal: the monitor still resolves the actual connected screen rather than trusting the light app shell's inherited `colorScheme`.
 
-- [ ] **Step 4: Register app-only project membership and verify builds**
+- [ ] **Step 5: Register app-only project membership and verify builds**
 
-Add the file to the Patterns group and the `KnitNote` Sources phase only.
+Add both files to their respective Patterns groups and the `KnitNote` Sources phase only.
 
 Run:
 
@@ -463,12 +422,13 @@ xcodebuild -project KnitNote.xcodeproj -scheme KnitNote \
   CODE_SIGNING_ALLOWED=NO build -quiet
 ```
 
-Expected: contracts and both platform builds pass.
+Expected: six behavior tests, membership, and both platform builds pass. The iOS build must contain no warning from `PatternSystemAppearanceChangeProbe`.
 
-- [ ] **Step 5: Commit Task 3**
+- [ ] **Step 6: Commit Task 3**
 
 ```bash
-git add KnitNote/Patterns/PatternSystemAppearanceMonitor.swift \
+git add Sources/KnitNoteCore/Patterns/PatternSystemAppearanceObservation.swift \
+  KnitNote/Patterns/PatternSystemAppearanceMonitor.swift \
   Tests/KnitNoteCoreTests/PatternSystemAppearanceContractTests.swift \
   Tests/KnitNoteCoreTests/Task8XcodeProjectMembershipTests.swift \
   KnitNote.xcodeproj/project.pbxproj
@@ -480,10 +440,11 @@ git commit -m "feat: observe system appearance for pattern reader"
 ### Task 4: Add Document-Only Night Rendering, Toolbar Control, and Localization
 
 **Files:**
+- Create: `Sources/KnitNoteCore/Patterns/PatternReaderAppearancePresentation.swift`
 - Modify: `KnitNote/Patterns/PatternReaderView.swift`
 - Create: `KnitNote/Patterns/PatternNightRenderingModifier.swift`
 - Modify: `KnitNote/Localization/Localizable.xcstrings`
-- Create: `Tests/KnitNoteCoreTests/PatternReaderDarkAppearanceContractTests.swift`
+- Create: `Tests/KnitNoteCoreTests/PatternReaderAppearancePresentationTests.swift`
 - Modify: `Tests/KnitNoteCoreTests/LocalizationContractTests.swift`
 - Modify: `KnitNote.xcodeproj/project.pbxproj`
 - Modify: `Tests/KnitNoteCoreTests/Task8XcodeProjectMembershipTests.swift`
@@ -492,25 +453,16 @@ git commit -m "feat: observe system appearance for pattern reader"
 - Consumes: Task 1 policy/preference, Task 2 Store mutation, and Task 3 monitor.
 - Produces: reader-only automatic dark chrome, document-only night transformation, localized accessible original/night toggle, and Store-coordinated persistence without a reader reload.
 
-- [ ] **Step 1: Write failing reader-boundary contracts**
+- [ ] **Step 1: Write failing reader-appearance behavior tests**
 
-Create `PatternReaderDarkAppearanceContractTests.swift`. Read `PatternReaderView.swift` and `PatternNightRenderingModifier.swift`, then assert:
+Create a small pure `PatternReaderAppearancePresentation` seam and write tests before its implementation. Do not read or search `PatternReaderView.swift` or modifier source. Verify observable decisions for unresolved/light/dark appearance with original-color preference on and off:
 
-```swift
-#expect(reader.contains("@StateObject private var systemAppearance"))
-#expect(reader.contains("PatternReaderAppearancePolicy.usesNightRendering"))
-#expect(reader.contains(".preferredColorScheme(readerPreferredColorScheme)"))
-#expect(reader.contains("store.setPatternPrefersOriginalColorsInDarkMode("))
-#expect(reader.contains("revisionCoordinator.confirmMutation(generation:"))
-#expect(reader.contains("systemAppearance.start()"))
-#expect(reader.contains("systemAppearance.stop()"))
-#expect(reader.contains("PatternSystemAppearanceChangeProbe"))
-#expect(reader.contains("systemAppearance.refresh()"))
-#expect(modifier.contains("content.colorInvert()"))
-#expect(modifier.contains(".hueRotation(.degrees(180))"))
-```
+- whether night rendering is active;
+- reader chrome light/dark choice;
+- next toggle intent (show original or restore night);
+- dark/light accessibility-hint selection.
 
-Extract the `readerCanvas` source section and assert the modifier occurs directly on both `PDFReaderView` and `ImageReaderView`, before `HighlightOverlay` and `PatternMarkupOverlay`. Assert the outer reader canvas does not receive `colorInvert` or `hueRotation`.
+Continue using the existing behavior tests for Store persistence, revision coordination, appearance observation lifecycle, PDF viewport, and highlight geometry. Verify UIKit/AppKit integration by warning-free platform builds and the Task 5 physical matrix. Document-only modifier placement is a visual/interaction acceptance boundary, not a source-text contract.
 
 Add localization expectations:
 
@@ -540,11 +492,11 @@ private let requiredPatternAppearanceTranslations = [
 Run:
 
 ```bash
-swift test --filter PatternReaderDarkAppearanceContractTests
+swift test --filter PatternReaderAppearancePresentationTests
 swift test --filter LocalizationContractTests
 ```
 
-Expected: contracts fail because the modifier, monitor integration, toolbar action, and strings do not exist.
+Expected: the presentation behavior tests fail because the pure seam does not exist, and localization checks fail because the strings do not exist.
 
 - [ ] **Step 3: Implement the document-only modifier**
 
@@ -650,9 +602,10 @@ Add the four exact keys and translations from Step 1 to `Localizable.xcstrings`.
 Run:
 
 ```bash
-swift test --filter PatternReaderDarkAppearanceContractTests
 swift test --filter PatternReaderAppearanceTests
+swift test --filter PatternReaderAppearancePresentationTests
 swift test --filter PatternReaderRevisionCoordinatorTests
+swift test --filter PatternSystemAppearanceContractTests
 swift test --filter PDFReaderScaleContractTests
 swift test --filter HighlightOverlayContractTests
 swift test --filter LocalizationContractTests
@@ -661,13 +614,16 @@ swift test --filter Task8XcodeProjectMembershipTests
 
 Expected: all focused suites pass.
 
+Also run the iOS Simulator and macOS `KnitNote` builds used in Task 3. These builds plus Task 5 device acceptance replace source-grep assertions for monitor mounting, document-transform scope, toolbar wiring, and platform availability.
+
 - [ ] **Step 8: Commit Task 4**
 
 ```bash
-git add KnitNote/Patterns/PatternReaderView.swift \
+git add Sources/KnitNoteCore/Patterns/PatternReaderAppearancePresentation.swift \
+  KnitNote/Patterns/PatternReaderView.swift \
   KnitNote/Patterns/PatternNightRenderingModifier.swift \
   KnitNote/Localization/Localizable.xcstrings \
-  Tests/KnitNoteCoreTests/PatternReaderDarkAppearanceContractTests.swift \
+  Tests/KnitNoteCoreTests/PatternReaderAppearancePresentationTests.swift \
   Tests/KnitNoteCoreTests/LocalizationContractTests.swift \
   Tests/KnitNoteCoreTests/Task8XcodeProjectMembershipTests.swift \
   KnitNote.xcodeproj/project.pbxproj

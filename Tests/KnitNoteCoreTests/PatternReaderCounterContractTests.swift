@@ -257,6 +257,24 @@ import Testing
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
         #expect(reader.contains("_ = saveBrowsingState()"))
 
+        let done = try #require(sourceSection(
+            reader,
+            from: "Button(\"common.ok\") {",
+            to: "ToolbarItem(placement: .primaryAction)"
+        ))
+        let doneFlush = try #require(done.range(of: "pdfNavigator.flushPendingScaleCapture()"))
+        let donePersistence = try #require(done.range(of: "saveMarkup(page: state.pageIndex)"))
+        #expect(doneFlush.lowerBound < donePersistence.lowerBound)
+
+        let disappearance = try #require(sourceSection(
+            reader,
+            from: ".onDisappear {",
+            to: ".onChange(of: state.pageIndex)"
+        ))
+        let disappearanceFlush = try #require(disappearance.range(of: "pdfNavigator.flushPendingScaleCapture()"))
+        let disappearancePersistence = try #require(disappearance.range(of: "saveMarkup(page: state.pageIndex)"))
+        #expect(disappearanceFlush.lowerBound < disappearancePersistence.lowerBound)
+
         let pageChange = try #require(sourceSection(
             reader,
             from: ".onChange(of: state.pageIndex)",
@@ -267,11 +285,22 @@ import Testing
         let clearedTransition = try #require(pageChange.range(of: "pendingPageTransition = nil"))
         let loadedMarkup = try #require(pageChange.range(of: "loadMarkup(page: newPage"))
         let persistedBrowsing = try #require(pageChange.range(of: "saveBrowsingState()"))
+        let pageChangeFlush = try #require(pageChange.range(of: "pdfNavigator.flushPendingScaleCapture()"))
 
+        #expect(pageChangeFlush.lowerBound < persistedBrowsing.lowerBound)
         #expect(revisionGuard.lowerBound < persistedBrowsing.lowerBound)
         #expect(markupGuard.lowerBound < persistedBrowsing.lowerBound)
         #expect(clearedTransition.lowerBound < persistedBrowsing.lowerBound)
         #expect(loadedMarkup.lowerBound < persistedBrowsing.lowerBound)
+
+        let sceneChange = try #require(sourceSection(
+            reader,
+            from: ".onChange(of: scenePhase)",
+            to: "    }\n\n    @ViewBuilder"
+        ))
+        let sceneFlush = try #require(sceneChange.range(of: "pdfNavigator.flushPendingScaleCapture()"))
+        let scenePersistence = try #require(sceneChange.range(of: "saveMarkup(page: state.pageIndex)"))
+        #expect(sceneFlush.lowerBound < scenePersistence.lowerBound)
     }
 
     @Test func legacyReaderStillOffersItsMissingFileRecoveryAction() throws {

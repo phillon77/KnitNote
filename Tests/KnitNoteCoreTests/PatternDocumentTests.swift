@@ -18,6 +18,51 @@ import Testing
     #expect(PatternPDFScalePolicy.absoluteScale(ratio: -1.0, fitWidthScale: 0.8, allowed: 0.25...2.0) == 0.8)
 }
 
+@Test func pendingPDFScaleCaptureFlushesUserWidthBeforeDebounceSettles() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedRevision = gate.observe(
+        currentScale: 1.92,
+        fitWidthScale: 1.2,
+        context: 7
+    )
+    let revision = try #require(observedRevision)
+
+    #expect(gate.flush(context: 7) == 1.6)
+    #expect(gate.settle(revision: revision, context: 7) == nil)
+}
+
+@Test func newerPDFScaleObservationSupersedesStaleDelayedCallback() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedStaleRevision = gate.observe(
+        currentScale: 1.2,
+        fitWidthScale: 1.0,
+        context: 11
+    )
+    let staleRevision = try #require(observedStaleRevision)
+    let observedLatestRevision = gate.observe(
+        currentScale: 1.6,
+        fitWidthScale: 1.0,
+        context: 11
+    )
+    let latestRevision = try #require(observedLatestRevision)
+
+    #expect(gate.settle(revision: staleRevision, context: 11) == nil)
+    #expect(gate.settle(revision: latestRevision, context: 11) == 1.6)
+}
+
+@Test func changedPDFScaleContextDiscardsOldPendingObservation() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedStaleRevision = gate.observe(
+        currentScale: 1.5,
+        fitWidthScale: 1.0,
+        context: 19
+    )
+    let staleRevision = try #require(observedStaleRevision)
+
+    #expect(gate.flush(context: 20) == nil)
+    #expect(gate.settle(revision: staleRevision, context: 19) == nil)
+}
+
 @Test func pdfWidthRatioIsSharedAcrossPagesWithoutChangingPageDetails() {
     var state = PatternReadingState(
         pageIndex: 0,

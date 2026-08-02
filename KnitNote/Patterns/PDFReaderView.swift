@@ -4,16 +4,27 @@ import SwiftUI
 @MainActor final class PDFPageNavigator: ObservableObject {
     private weak var view: PDFView?
     private var request: ((Int) -> Void)?
+    private var flushPendingScaleCaptureAction: (() -> Void)?
 
-    func attach(_ view: PDFView, request: @escaping (Int) -> Void) {
+    func attach(
+        _ view: PDFView,
+        request: @escaping (Int) -> Void,
+        flushPendingScaleCapture: @escaping () -> Void
+    ) {
         self.view = view
         self.request = request
+        flushPendingScaleCaptureAction = flushPendingScaleCapture
+    }
+
+    func flushPendingScaleCapture() {
+        flushPendingScaleCaptureAction?()
     }
 
     func go(to pageIndex: Int) {
         guard let view, let document = view.document, document.pageCount > 0 else { return }
         let target = min(document.pageCount - 1, max(0, pageIndex))
         guard let page = document.page(at: target) else { return }
+        flushPendingScaleCapture()
         request?(target)
         view.go(to: page)
     }
@@ -110,7 +121,8 @@ extension PDFReaderView {
         private var lastScaleSignature: ScaleSignature?
         private var isApplyingSavedScale = false
         private var scaleCaptureTask: Task<Void, Never>?
-        private var scaleCaptureRevision: UInt64 = 0
+        private var scaleCaptureGate = PatternPDFScaleCaptureGate()
+        private var scaleCaptureContext: UInt64 = 0
         private var lastAppliedScale: (signature: ScaleSignature, scaleFactor: Double)?
         private var lastPublishedViewport: PatternPDFViewportState?
 
@@ -126,7 +138,11 @@ extension PDFReaderView {
             }
             view.document=doc; self.view=view
             installScrollObservation(in: view)
-            navigator.attach(view) { [weak self] target in self?.pageRequestGate.request(target) }
+            navigator.attach(
+                view,
+                request: { [weak self] target in self?.pageRequestGate.request(target) },
+                flushPendingScaleCapture: { [weak self] in self?.flushPendingScaleCapture() }
+            )
             let loadedPageCount = doc.pageCount
             Task { @MainActor [weak self] in self?.pageCount = loadedPageCount }
             NotificationCenter.default.addObserver(self, selector:#selector(changed(_:)), name:.PDFViewPageChanged, object:view)
@@ -210,7 +226,9 @@ extension PDFReaderView {
                 pageIndex: document.index(for: page)
             )
             guard signature != lastScaleSignature else { return }
-            invalidatePendingScaleCapture()
+            flushPendingScaleCapture()
+            scaleCaptureGate.invalidate()
+            scaleCaptureContext &+= 1
             isApplyingSavedScale = true
             defer { isApplyingSavedScale = false }
 
@@ -263,17 +281,18 @@ extension PDFReaderView {
             )
         }
 
-        private func invalidatePendingScaleCapture() {
-            scaleCaptureRevision &+= 1
+        private func flushPendingScaleCapture() {
             scaleCaptureTask?.cancel()
             scaleCaptureTask = nil
+            guard let ratio = scaleCaptureGate.flush(context: scaleCaptureContext) else { return }
+            commitScaleRatio(ratio)
         }
 
         private func scheduleUserScaleCapture(from view: PDFView) {
             guard restoreGate.canSample, !isApplyingSavedScale,
                   let signature = scaleSignature(for: view, mode: latestScaleMode),
                   signature == lastScaleSignature,
-                  fitWidthBaseline(for: view, mode: latestScaleMode) != nil
+                  let baseline = fitWidthBaseline(for: view, mode: latestScaleMode)
             else { return }
 
             let observedScale = Double(view.scaleFactor)
@@ -285,13 +304,17 @@ extension PDFReaderView {
             }
 
             scaleCaptureTask?.cancel()
-            scaleCaptureRevision &+= 1
-            let revision = scaleCaptureRevision
+            let context = scaleCaptureContext
+            guard let revision = scaleCaptureGate.observe(
+                currentScale: observedScale,
+                fitWidthScale: baseline,
+                context: context
+            ) else { return }
             scaleCaptureTask = Task { @MainActor [weak self, weak view] in
                 try? await Task.sleep(for: .milliseconds(120))
                 guard !Task.isCancelled, let self, let view,
                       self.restoreGate.canSample, !self.isApplyingSavedScale,
-                      self.scaleCaptureRevision == revision,
+                      self.scaleCaptureContext == context,
                       let settledSignature = self.scaleSignature(for: view, mode: self.latestScaleMode),
                       settledSignature == signature,
                       settledSignature == self.lastScaleSignature
@@ -299,20 +322,19 @@ extension PDFReaderView {
 
                 let settledScale = Double(view.scaleFactor)
                 guard self.scalesMatch(settledScale, observedScale),
-                      let baseline = self.fitWidthBaseline(for: view, mode: self.latestScaleMode)
+                      let ratio = self.scaleCaptureGate.settle(revision: revision, context: context)
                 else { return }
-
-                let ratio = PatternPDFScalePolicy.ratio(
-                    currentScale: settledScale,
-                    fitWidthScale: baseline
-                )
-                guard !self.scalesMatch(ratio, self.state.pdfWidthScaleRatio) else { return }
-                var updatedState = self.state
-                updatedState.pdfWidthScaleRatio = ratio
-                self.state = updatedState
-                self.lastAppliedScale = nil
+                self.commitScaleRatio(ratio)
                 self.publishViewport(from: view)
             }
+        }
+
+        private func commitScaleRatio(_ ratio: Double) {
+            guard !scalesMatch(ratio, state.pdfWidthScaleRatio) else { return }
+            var updatedState = state
+            updatedState.pdfWidthScaleRatio = ratio
+            state = updatedState
+            lastAppliedScale = nil
         }
 
         private func scalesMatch(_ lhs: Double, _ rhs: Double) -> Bool {

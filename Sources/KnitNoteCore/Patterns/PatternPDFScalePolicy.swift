@@ -25,3 +25,61 @@ public enum PatternPDFScalePolicy: Sendable {
         return min(upper, max(lower, candidate.isFinite && candidate > 0 ? candidate : cleanFit))
     }
 }
+
+public struct PatternPDFScaleCaptureGate: Sendable {
+    private struct PendingObservation: Sendable {
+        let revision: UInt64
+        let context: UInt64
+        let currentScale: Double
+        let fitWidthScale: Double
+    }
+
+    private var nextRevision: UInt64 = 0
+    private var pendingObservation: PendingObservation?
+
+    public init() {}
+
+    @discardableResult
+    public mutating func observe(
+        currentScale: Double,
+        fitWidthScale: Double,
+        context: UInt64
+    ) -> UInt64? {
+        guard currentScale.isFinite, currentScale > 0,
+              fitWidthScale.isFinite, fitWidthScale > 0 else { return nil }
+        nextRevision &+= 1
+        pendingObservation = PendingObservation(
+            revision: nextRevision,
+            context: context,
+            currentScale: currentScale,
+            fitWidthScale: fitWidthScale
+        )
+        return nextRevision
+    }
+
+    public mutating func settle(revision: UInt64, context: UInt64) -> Double? {
+        guard let pendingObservation,
+              pendingObservation.revision == revision,
+              pendingObservation.context == context else { return nil }
+        self.pendingObservation = nil
+        return PatternPDFScalePolicy.ratio(
+            currentScale: pendingObservation.currentScale,
+            fitWidthScale: pendingObservation.fitWidthScale
+        )
+    }
+
+    public mutating func flush(context: UInt64) -> Double? {
+        guard let pendingObservation else { return nil }
+        self.pendingObservation = nil
+        guard pendingObservation.context == context else { return nil }
+        return PatternPDFScalePolicy.ratio(
+            currentScale: pendingObservation.currentScale,
+            fitWidthScale: pendingObservation.fitWidthScale
+        )
+    }
+
+    public mutating func invalidate() {
+        nextRevision &+= 1
+        pendingObservation = nil
+    }
+}

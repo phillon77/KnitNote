@@ -21,11 +21,29 @@ import Testing
 
         #expect(application.contains("isApplyingSavedScale = true"))
         #expect(application.contains("defer { isApplyingSavedScale = false }"))
-        #expect(application.contains("invalidatePendingScaleCapture()"))
+        let flush = try #require(application.range(of: "flushPendingScaleCapture()"))
+        let invalidate = try #require(application.range(of: "scaleCaptureGate.invalidate()"))
+        let programmaticApplication = try #require(application.range(of: "isApplyingSavedScale = true"))
+        #expect(flush.lowerBound < invalidate.lowerBound)
+        #expect(invalidate.lowerBound < programmaticApplication.lowerBound)
         #expect(capture.contains("guard restoreGate.canSample, !isApplyingSavedScale"))
         #expect(capture.contains("scaleCaptureTask?.cancel()"))
-        #expect(capture.contains("PatternPDFScalePolicy.ratio"))
+        #expect(capture.contains("scaleCaptureGate.observe"))
+        #expect(capture.contains("scaleCaptureGate.settle"))
         #expect(capture.contains("state.pdfWidthScaleRatio"))
+    }
+
+    @Test func navigatorFlushesPendingWidthBeforeRequestingOrDisplayingAnotherPage() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let navigation = try #require(
+            pdf.slice(from: "func go(to pageIndex: Int)", to: "}\n\n#if os(macOS)")
+        )
+        let flush = try #require(navigation.range(of: "flushPendingScaleCapture()"))
+        let request = try #require(navigation.range(of: "request?(target)"))
+        let display = try #require(navigation.range(of: "view.go(to: page)"))
+
+        #expect(flush.lowerBound < request.lowerBound)
+        #expect(flush.lowerBound < display.lowerBound)
     }
 
     @Test func viewportAndSavedWidthUseTheSameModeSpecificBaseline() throws {

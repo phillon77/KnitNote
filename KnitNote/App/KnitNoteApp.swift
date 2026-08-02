@@ -1,5 +1,41 @@
 import SwiftUI
 
+private struct MacMinimumWindowContentSizeModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+#if os(macOS)
+        content.frame(
+            minWidth: CGFloat(KnitNoteMacWindowSizingPolicy.minimumWidth),
+            minHeight: CGFloat(KnitNoteMacWindowSizingPolicy.minimumHeight)
+        )
+#else
+        content
+#endif
+    }
+}
+
+private extension View {
+    func knitNoteMacMinimumWindowContentSize() -> some View {
+        modifier(MacMinimumWindowContentSizeModifier())
+    }
+}
+
+private extension Scene {
+    @SceneBuilder
+    func knitNoteMacWindowSizing() -> some Scene {
+#if os(macOS)
+        self
+            .defaultSize(
+                width: CGFloat(KnitNoteMacWindowSizingPolicy.defaultWidth),
+                height: CGFloat(KnitNoteMacWindowSizingPolicy.defaultHeight)
+            )
+            .windowResizability(.contentMinSize)
+#else
+        self
+#endif
+    }
+}
+
 @main
 struct KnitNoteApp: App {
     @StateObject private var entitlementCoordinator: EntitlementCoordinator
@@ -106,9 +142,11 @@ struct KnitNoteApp: App {
                 .environmentObject(patternInboxProcessor)
                 .environmentObject(patternBackupReminderPresenter)
                 .preferredColorScheme(.light)
+                .knitNoteMacMinimumWindowContentSize()
                 .task {
                     await entitlementCoordinator.prepare()
                 }
         }
+        .knitNoteMacWindowSizing()
     }
 }

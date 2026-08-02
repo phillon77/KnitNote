@@ -20,6 +20,7 @@
 		065C3AC0BD242A4650F3550E /* PhoneWatchSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4CD7459BFFD6F5954AE7FDE /* PhoneWatchSyncCoordinator.swift */; };
 		06CD1A2B0DEEB8D74433C66A /* EntitlementProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */; };
 		0759B471D6CC3E86D64C59DF /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
+		0A04D52A852FA20B96057FD1 /* PatternNightRenderingModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5EA4C77BEE26A13CC4C1BED /* PatternNightRenderingModifier.swift */; };
 		0C5577C16097062613E39E51 /* PatternLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */; };
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
 		0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
@@ -99,6 +100,7 @@
 		5EA20C3D3320BC32E7DFF536 /* UnlockSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10731080016109C7138AA562 /* UnlockSheet.swift */; };
 		5F02E0D2504C03AE8EE35626 /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
 		5F9F4B1350C5BC0C49B1D558 /* PatternProjectUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */; };
+		5FB882AF8AD9018DE49EFAB4 /* PatternReaderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574023FAFE21D43916E576AB /* PatternReaderAppearance.swift */; };
 		60032BFAD716CA8A37E245E7 /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
 		6007144FFB9445FE542F6513 /* YarnLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EC830D0E81ACA58737B2E3 /* YarnLibraryView.swift */; };
 		61333EB179CA9A4FE0954015 /* UnlockPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */; };
@@ -126,6 +128,7 @@
 		720A2AF4E587AD7956FCD39E /* PatternPageThumbnailPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE40BDDBFA4B660D0A7F517 /* PatternPageThumbnailPresentation.swift */; };
 		7268B20D129F4E40432255B5 /* ProjectJournalEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD7EFB82C9BFC4FF9F2EE78 /* ProjectJournalEntryDetailView.swift */; };
 		74876C768CC7C9A9FB5066A9 /* YarnCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF42C26BEFE47601ED68433 /* YarnCard.swift */; };
+		756DFC5C87BDBBD1BBB7DC8A /* PatternReaderAppearancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4859E3F2F774092ADB9A1DE6 /* PatternReaderAppearancePresentation.swift */; };
 		7656DEB167A5633003EF3883 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		774C92AA4520877CB17C1614 /* EditProjectJournalEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */; };
 		78966754DAA0A483BE039268 /* EntitlementSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA07321152D08FECE09EB46 /* EntitlementSnapshot.swift */; };
@@ -135,6 +138,7 @@
 		7B36CD7A8A59039791A1D325 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
 		7B36E26D9F79A7562DE98D45 /* PatternPageThumbnailPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE40BDDBFA4B660D0A7F517 /* PatternPageThumbnailPresentation.swift */; };
 		7D2FA87014230E204F1EEAF2 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 8D2E722BF22B736D8CA30A55 /* Localizable.xcstrings */; };
+		8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */; };
 		80AC78B0116DADEF95D8C444 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
 		816E08F2B937791F0F1FF8C7 /* AtomicWatchSyncFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B50375391FAE4E84A86BCF /* AtomicWatchSyncFile.swift */; };
 		81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5F160074737C554D783176A /* LaunchScreen.storyboard */; platformFilters = (ios, ); };
@@ -148,6 +152,7 @@
 		8AC28A12A7BFBEE2063DDC88 /* ProjectPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */; };
 		8BBD7873D7A9CA835165532C /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
 		8C0468FCCEE775937D1FE093 /* EntitlementProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */; };
+		8C13FFAEC2ED6934046EE606 /* KnitNoteMacWindowSizingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */; };
 		8CA13A56A854A68D4802C14C /* PatternImportResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699B5C3006C3742CA7B8416A /* PatternImportResultView.swift */; };
 		8D0F39BD34FDE02B7DFC6A64 /* WatchSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5DB47B23228E4B96BA800B /* WatchSyncCoordinator.swift */; };
 		8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
@@ -162,6 +167,7 @@
 		99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		9A4065300F7AEBA87D9E0778 /* EntitlementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */; };
 		A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */; };
+		A3501AABE6EF17E8770ECEDE /* PatternSystemAppearanceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */; };
 		A4B18C855C5E8E2E9A5F1421 /* FeatureAccessPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560C63535489050C1E0E523E /* FeatureAccessPolicy.swift */; };
 		A4FC998617515EDEE746AAD5 /* ProjectCountersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */; };
 		A5BE1A19B9C35CAB890C30BD /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
@@ -183,6 +189,7 @@
 		B6416630292A021B3D6F3B87 /* YarnPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */; };
 		B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */; };
 		BAFAF8C2E97A15BD42353132 /* PatternInboxProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */; };
+		BC5C3B53D64CF73C1A5AB71D /* PatternSystemAppearanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */; };
 		BCA2F5D135FB115F9E282FF7 /* RowNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE75A4BC6F25D9138B684ADF /* RowNote.swift */; };
 		BCABCE9445D746253F48F7D2 /* PatternReaderContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10455BC3195B85049B3524D /* PatternReaderContext.swift */; };
 		BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */; };
@@ -216,11 +223,6 @@
 		D56C0BDFF30C510581164CC1 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */; platformFilters = (ios, ); };
 		D5EF0DF13872B22FE216EDBD /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
 		D70477783D80381ABCF01AFF /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };
-		E1A1EACE2026080200000001 /* PatternReaderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000002 /* PatternReaderAppearance.swift */; };
-		E1A1EACE2026080200000011 /* PatternSystemAppearanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000012 /* PatternSystemAppearanceMonitor.swift */; };
-		E1A1EACE2026080200000021 /* PatternSystemAppearanceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000022 /* PatternSystemAppearanceObservation.swift */; };
-		E1A1EACE2026080200000031 /* PatternReaderAppearancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000032 /* PatternReaderAppearancePresentation.swift */; };
-		E1A1EACE2026080200000041 /* PatternNightRenderingModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000042 /* PatternNightRenderingModifier.swift */; };
 		D7C50FBBD069D5EC77A91446 /* ShareImportController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C474D58BBB238B47B244C7CA /* ShareImportController.swift */; };
 		D8C39A1514196D426E41EA7E /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07AC936135E44C341839B236 /* ProjectDetailView.swift */; };
 		D9AF7E5D37109091A4968B09 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
@@ -232,6 +234,7 @@
 		DD86888BF9949C6FC0E5597D /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
 		E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };
 		E027E8ADB3D1D51F88D2E861 /* WatchSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */; };
+		E5430D5CFA26B9B6ABFCD630 /* PatternReaderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574023FAFE21D43916E576AB /* PatternReaderAppearance.swift */; };
 		E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */; };
 		E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
 		E6CEF9520B8FF5240924A1BE /* PatternThumbnailFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */; };
@@ -248,6 +251,7 @@
 		F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		F1A9E3015D8D2FE61E35D6E8 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
 		F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
+		F1D4ABD513EAC331F5609A3C /* PatternReaderAppearancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4859E3F2F774092ADB9A1DE6 /* PatternReaderAppearancePresentation.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
 		F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */; };
 		F552B7A386FC24C299A70B8F /* PatternInboxProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38994FA8D2614768D26F2CD3 /* PatternInboxProcessing.swift */; };
@@ -258,6 +262,7 @@
 		F88B0DA6E2D5A7B55286CC20 /* WatchSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4C9A44F8AF4A5A552A63AC /* WatchSyncModels.swift */; };
 		F88E0C44F56AF747CE0AA935 /* YarnPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F0D9377602621B5C978D56F /* YarnPhotoPicker.swift */; };
 		F8B6F5B3E7CD575E89A1A500 /* LegacyPaidVersionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E465B08D730079FCDD3CC5C4 /* LegacyPaidVersionPolicy.swift */; };
+		F90D8CDB8A38DDDD7DA5601A /* PatternSystemAppearanceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */; };
 		F955085CF2424974282DDA25 /* PatternLibrarySort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E8F5BF383F8F3346F45D520 /* PatternLibrarySort.swift */; };
 		FDD10510A53A1E0DE226355B /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
 		FE26C3A4479579A031F1D330 /* KnitNoteBackupExportPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */; };
@@ -382,6 +387,7 @@
 		459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternsView.swift; sourceTree = "<group>"; };
 		45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageReaderView.swift; sourceTree = "<group>"; };
 		46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatercolorThemePolicy.swift; sourceTree = "<group>"; };
+		4859E3F2F774092ADB9A1DE6 /* PatternReaderAppearancePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderAppearancePresentation.swift; sourceTree = "<group>"; };
 		49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentationTests.swift; sourceTree = "<group>"; };
 		493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryMigrator.swift; sourceTree = "<group>"; };
 		4A55940F5FE8FDFB7A951862 /* PatternLibraryImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryImportPresentation.swift; sourceTree = "<group>"; };
@@ -391,6 +397,7 @@
 		50AA2B4D946DB9585CF69A39 /* TrialRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrialRecord.swift; sourceTree = "<group>"; };
 		557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoFileService.swift; sourceTree = "<group>"; };
 		560C63535489050C1E0E523E /* FeatureAccessPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureAccessPolicy.swift; sourceTree = "<group>"; };
+		574023FAFE21D43916E576AB /* PatternReaderAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderAppearance.swift; sourceTree = "<group>"; };
 		58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchOptimisticState.swift; sourceTree = "<group>"; };
 		599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectJournalEntryView.swift; sourceTree = "<group>"; };
@@ -398,6 +405,7 @@
 		5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStore.swift; sourceTree = "<group>"; };
 		600A5A211EF6682DED675574 /* EditCounterNameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditCounterNameView.swift; sourceTree = "<group>"; };
 		6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupFileService.swift; sourceTree = "<group>"; };
+		6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceObservation.swift; sourceTree = "<group>"; };
 		6494124F909E997E16F5BB08 /* ShareImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportView.swift; sourceTree = "<group>"; };
 		67146022BE86DEA48F100C13 /* KnitNoteShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KnitNoteShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		67B197FE70BCFA63ECA25D5C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -408,11 +416,6 @@
 		6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupService.swift; sourceTree = "<group>"; };
 		6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentCalculator.swift; sourceTree = "<group>"; };
 		6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderLayoutPolicy.swift; sourceTree = "<group>"; };
-		E1A1EACE2026080200000002 /* PatternReaderAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderAppearance.swift; sourceTree = "<group>"; };
-		E1A1EACE2026080200000012 /* PatternSystemAppearanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceMonitor.swift; sourceTree = "<group>"; };
-		E1A1EACE2026080200000022 /* PatternSystemAppearanceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceObservation.swift; sourceTree = "<group>"; };
-		E1A1EACE2026080200000032 /* PatternReaderAppearancePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderAppearancePresentation.swift; sourceTree = "<group>"; };
-		E1A1EACE2026080200000042 /* PatternNightRenderingModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternNightRenderingModifier.swift; sourceTree = "<group>"; };
 		6E8F5BF383F8F3346F45D520 /* PatternLibrarySort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibrarySort.swift; sourceTree = "<group>"; };
 		6F0D9377602621B5C978D56F /* YarnPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoPicker.swift; sourceTree = "<group>"; };
 		70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupOverlay.swift; sourceTree = "<group>"; };
@@ -440,6 +443,7 @@
 		8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxProcessor.swift; sourceTree = "<group>"; };
 		8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentInputParser.swift; sourceTree = "<group>"; };
 		90CE1C0101996F572112D739 /* PatternReaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderControls.swift; sourceTree = "<group>"; };
+		9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceMonitor.swift; sourceTree = "<group>"; };
 		926C002CC977A56CD9D4B192 /* WatchConnectivityEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityEnvelope.swift; sourceTree = "<group>"; };
 		94A3A973C57BA3A256E78283 /* LanguageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettings.swift; sourceTree = "<group>"; };
 		95A239FE17FD6D0CE80537CE /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
@@ -460,9 +464,11 @@
 		A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteApp.swift; sourceTree = "<group>"; };
 		A3E3D0A9F82E317FB6A4B8FC /* PendingPatternSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingPatternSelectionView.swift; sourceTree = "<group>"; };
 		A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A5EA4C77BEE26A13CC4C1BED /* PatternNightRenderingModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternNightRenderingModifier.swift; sourceTree = "<group>"; };
 		A91B85F52C8261698AC46384 /* KnitNote-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KnitNote-macOS.entitlements"; sourceTree = "<group>"; };
 		AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilder.swift; sourceTree = "<group>"; };
 		AB51A2457EA062265F81BF42 /* ProjectCoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCoverView.swift; sourceTree = "<group>"; };
+		ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteMacWindowSizingPolicy.swift; sourceTree = "<group>"; };
 		AD315B2053510F599375477E /* PatternDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternDetailView.swift; sourceTree = "<group>"; };
 		AE2721C6AB54E5F271947F0E /* ProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
 		AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementResolver.swift; sourceTree = "<group>"; };
@@ -536,11 +542,11 @@
 				27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */,
 				70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */,
 				2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */,
-				E1A1EACE2026080200000042 /* PatternNightRenderingModifier.swift */,
+				A5EA4C77BEE26A13CC4C1BED /* PatternNightRenderingModifier.swift */,
 				F53D585B218A692CD1F48A73 /* PatternPageThumbnailStrip.swift */,
 				90CE1C0101996F572112D739 /* PatternReaderControls.swift */,
 				3C207C026A98D9C668822C9A /* PatternReaderView.swift */,
-				E1A1EACE2026080200000012 /* PatternSystemAppearanceMonitor.swift */,
+				9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */,
 				F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */,
 				A3E3D0A9F82E317FB6A4B8FC /* PendingPatternSelectionView.swift */,
 				459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */,
@@ -557,10 +563,19 @@
 			path = Localization;
 			sourceTree = "<group>";
 		};
+		0A7C946B8D714308DC9BFDC0 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 		0ADFE4B616722EE6405BBCB7 /* KnitNoteCore */ = {
 			isa = PBXGroup;
 			children = (
 				121DC898B51C86C11B40705C /* KnitNoteCore.swift */,
+				0A7C946B8D714308DC9BFDC0 /* App */,
 				96EA599FAEBF5EAECB21EC72 /* Backup */,
 				FC1D51A444F323A1A8388B2D /* Calculators */,
 				4949BE0E6E803BAC3DC22BD8 /* Demo */,
@@ -762,14 +777,14 @@
 				D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */,
 				09EC1CADA36E1BA0B45FF3D2 /* PatternPDFViewportState.swift */,
 				E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */,
-				E1A1EACE2026080200000002 /* PatternReaderAppearance.swift */,
-				E1A1EACE2026080200000032 /* PatternReaderAppearancePresentation.swift */,
-				E1A1EACE2026080200000022 /* PatternSystemAppearanceObservation.swift */,
+				574023FAFE21D43916E576AB /* PatternReaderAppearance.swift */,
+				4859E3F2F774092ADB9A1DE6 /* PatternReaderAppearancePresentation.swift */,
 				D10455BC3195B85049B3524D /* PatternReaderContext.swift */,
 				6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */,
 				9CA1BE41B85956FD576EF65C /* PatternShareImportPresentation.swift */,
 				B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */,
 				2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */,
+				6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */,
 				FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */,
 				C05CEE6F88AA591A17AA4C99 /* ProjectPatternImportPresentation.swift */,
 				0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */,
@@ -1199,6 +1214,7 @@
 				21AE8142598C234C733C0A24 /* KnitNoteBackupManifest.swift in Sources */,
 				6C1465A6FA4F7D7B674D34CA /* KnitNoteBackupService.swift in Sources */,
 				66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */,
+				8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */,
 				C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */,
 				8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */,
 				DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */,
@@ -1229,17 +1245,15 @@
 				F7BFE7FD7E58B7487B0D7018 /* PatternMarkupFileService.swift in Sources */,
 				1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */,
 				2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */,
+				0A04D52A852FA20B96057FD1 /* PatternNightRenderingModifier.swift in Sources */,
 				F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */,
 				E72856F6A60E6F1BD63F0DC7 /* PatternPDFViewportState.swift in Sources */,
 				6DDEF9F28BBBDA29D89EA2A1 /* PatternPageThumbnailPolicy.swift in Sources */,
 				720A2AF4E587AD7956FCD39E /* PatternPageThumbnailPresentation.swift in Sources */,
 				4BC4D29028D25D6F8F2DE4FF /* PatternPageThumbnailStrip.swift in Sources */,
 				85F28B8AEE9E9F34BB860351 /* PatternProjectUsage.swift in Sources */,
-				E1A1EACE2026080200000001 /* PatternReaderAppearance.swift in Sources */,
-				E1A1EACE2026080200000031 /* PatternReaderAppearancePresentation.swift in Sources */,
-				E1A1EACE2026080200000041 /* PatternNightRenderingModifier.swift in Sources */,
-				E1A1EACE2026080200000011 /* PatternSystemAppearanceMonitor.swift in Sources */,
-				E1A1EACE2026080200000021 /* PatternSystemAppearanceObservation.swift in Sources */,
+				E5430D5CFA26B9B6ABFCD630 /* PatternReaderAppearance.swift in Sources */,
+				F1D4ABD513EAC331F5609A3C /* PatternReaderAppearancePresentation.swift in Sources */,
 				BCABCE9445D746253F48F7D2 /* PatternReaderContext.swift in Sources */,
 				F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */,
 				E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */,
@@ -1247,6 +1261,8 @@
 				CDB6094E4EEE474D448635A4 /* PatternShareImportPresentation.swift in Sources */,
 				3FCB7818FD9E10CF8F9FD2E4 /* PatternShareInboxEnqueuer.swift in Sources */,
 				45CEBD6E4B176EEF1424F7C2 /* PatternStorageLocations.swift in Sources */,
+				BC5C3B53D64CF73C1A5AB71D /* PatternSystemAppearanceMonitor.swift in Sources */,
+				F90D8CDB8A38DDDD7DA5601A /* PatternSystemAppearanceObservation.swift in Sources */,
 				E6CEF9520B8FF5240924A1BE /* PatternThumbnailFileService.swift in Sources */,
 				AD117B5159C333DC6EB90B7C /* PendingPatternSelectionView.swift in Sources */,
 				2DD65ED0D2A50114ED195600 /* PhoneWatchSession.swift in Sources */,
@@ -1329,6 +1345,7 @@
 				C45C69DFC567B4F3A2041002 /* KnitNoteBackupManifest.swift in Sources */,
 				3D2E218C2F45088DCE0EB1FD /* KnitNoteBackupService.swift in Sources */,
 				6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */,
+				8C13FFAEC2ED6934046EE606 /* KnitNoteMacWindowSizingPolicy.swift in Sources */,
 				BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */,
 				12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */,
 				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
@@ -1349,8 +1366,11 @@
 				FFD485B0C62243EAB74CCCF0 /* PatternPageThumbnailPolicy.swift in Sources */,
 				7B36E26D9F79A7562DE98D45 /* PatternPageThumbnailPresentation.swift in Sources */,
 				5F9F4B1350C5BC0C49B1D558 /* PatternProjectUsage.swift in Sources */,
+				5FB882AF8AD9018DE49EFAB4 /* PatternReaderAppearance.swift in Sources */,
+				756DFC5C87BDBBD1BBB7DC8A /* PatternReaderAppearancePresentation.swift in Sources */,
 				D70477783D80381ABCF01AFF /* PatternReaderLayoutPolicy.swift in Sources */,
 				D5EF0DF13872B22FE216EDBD /* PatternStorageLocations.swift in Sources */,
+				A3501AABE6EF17E8770ECEDE /* PatternSystemAppearanceObservation.swift in Sources */,
 				5DE73E33FECB15961D48E385 /* PatternThumbnailFileService.swift in Sources */,
 				BF2BD6977779AC88E600D271 /* PreparedWatchCommand.swift in Sources */,
 				1AFA6889382728256AB9F0A1 /* ProcessedWatchCommandLedger.swift in Sources */,

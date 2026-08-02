@@ -61,6 +61,17 @@ import Testing
         #expect(!pdf.contains("scroll.delegate ="))
     }
 
+    @Test func iOSObservesEveryNestedPDFScrollLayerInsteadOfOnlyThePagingContainer() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+
+        #expect(pdf.contains(
+            "private var contentOffsetObservations: [ObjectIdentifier: NSKeyValueObservation] = [:]"
+        ))
+        #expect(pdf.contains("for scroll in findScrollViews(in: view)"))
+        #expect(pdf.contains("private func findScrollViews(in root: UIView) -> [UIScrollView]"))
+        #expect(!pdf.contains("private weak var observedScrollView: UIScrollView?"))
+    }
+
     @Test func fallbackTimerDoesNotPublishViewport() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
         let sample = try #require(pdf.slice(from: "private func sample", to: "deinit"))

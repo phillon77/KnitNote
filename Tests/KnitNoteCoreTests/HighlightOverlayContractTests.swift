@@ -33,6 +33,22 @@ import Testing
         #expect(vertical.components(separatedBy: "centerInset: centerInset").count - 1 == 2)
     }
 
+    @Test func oversizedPDFPageUsesVisibleDrawingExtentButKeepsFullPageCoordinates() throws {
+        let source = try highlightSource()
+        let horizontal = try #require(horizontalBandSource(from: source))
+        let vertical = try #require(verticalBandSource(from: source))
+
+        #expect(source.contains("PatternHighlightGeometry.visibleDrawingRect"))
+        #expect(horizontal.contains("visibleRect.width"))
+        #expect(horizontal.contains("x: visibleRect.midX"))
+        #expect(horizontal.contains("origin: rect.minY"))
+        #expect(horizontal.contains("length: rect.height"))
+        #expect(vertical.contains("visibleRect.height"))
+        #expect(vertical.contains("y: visibleRect.midY"))
+        #expect(vertical.contains("origin: rect.minX"))
+        #expect(vertical.contains("length: rect.width"))
+    }
+
     @Test func editingControlsCommitPositionsOnlyAfterEachDragEnds() throws {
         let source = try highlightSource()
         let horizontal = try #require(horizontalBandSource(from: source))

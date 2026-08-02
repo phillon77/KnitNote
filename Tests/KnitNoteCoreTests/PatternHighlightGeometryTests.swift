@@ -154,4 +154,16 @@ import Testing
             centerInset: inset
         ) == pageFrame.maxX)
     }
+
+    @Test func oversizedZoomedPageDrawsOnlyItsVisibleCanvasIntersection() {
+        let pageFrame = CGRect(x: -900, y: -240, width: 1_200, height: 1_600)
+        let canvas = CGSize(width: 700, height: 900)
+
+        #expect(
+            PatternHighlightGeometry.visibleDrawingRect(
+                contentRect: pageFrame,
+                canvasSize: canvas
+            ) == CGRect(x: 0, y: 0, width: 300, height: 900)
+        )
+    }
 }

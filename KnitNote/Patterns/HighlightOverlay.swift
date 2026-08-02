@@ -14,13 +14,17 @@ struct HighlightOverlay: View {
                 contentRect,
                 canvasSize: proxy.size
             )
+            let visibleRect = PatternHighlightGeometry.visibleDrawingRect(
+                contentRect: rect,
+                canvasSize: proxy.size
+            )
             let centerInset = PatternHighlightGeometry.centerInset(contentRect: contentRect)
             ZStack {
                 if mode == .horizontal || mode == .cross {
-                    horizontalBand(in: rect, centerInset: centerInset)
+                    horizontalBand(in: rect, visibleRect: visibleRect, centerInset: centerInset)
                 }
                 if mode == .vertical || mode == .cross {
-                    verticalBand(in: rect, centerInset: centerInset)
+                    verticalBand(in: rect, visibleRect: visibleRect, centerInset: centerInset)
                 }
             }
             .coordinateSpace(name: coordinateSpaceName)
@@ -28,23 +32,27 @@ struct HighlightOverlay: View {
         .allowsHitTesting(true)
     }
 
-    private func horizontalBand(in rect: CGRect, centerInset: CGFloat) -> some View {
+    private func horizontalBand(
+        in rect: CGRect,
+        visibleRect: CGRect,
+        centerInset: CGFloat
+    ) -> some View {
         ZStack(alignment: .trailing) {
             RoundedRectangle(cornerRadius: 4)
                 .fill(.yellow.opacity(0.32))
-                .frame(width: rect.width)
+                .frame(width: visibleRect.width)
                 .frame(height: PatternHighlightMetrics.horizontalVisibleThickness)
             Color.clear
                 .contentShape(Rectangle())
-                .frame(width: rect.width)
+                .frame(width: visibleRect.width)
                 .frame(height: PatternHighlightMetrics.minimumDragThickness)
         }
         .frame(
-            width: rect.width,
+            width: visibleRect.width,
             height: PatternHighlightMetrics.minimumDragThickness
         )
         .position(
-            x: rect.midX,
+            x: visibleRect.midX,
             y: PatternHighlightGeometry.coordinate(
                 normalized: horizontalPosition,
                 origin: rect.minY,
@@ -74,19 +82,23 @@ struct HighlightOverlay: View {
         }
     }
 
-    private func verticalBand(in rect: CGRect, centerInset: CGFloat) -> some View {
+    private func verticalBand(
+        in rect: CGRect,
+        visibleRect: CGRect,
+        centerInset: CGFloat
+    ) -> some View {
         ZStack {
             Rectangle().fill(.pink)
                 .frame(width: PatternHighlightMetrics.verticalVisibleThickness)
-                .frame(height: rect.height)
+                .frame(height: visibleRect.height)
             Color.clear
                 .contentShape(Rectangle())
                 .frame(width: PatternHighlightMetrics.minimumDragThickness)
-                .frame(height: rect.height)
+                .frame(height: visibleRect.height)
         }
         .frame(
             width: PatternHighlightMetrics.minimumDragThickness,
-            height: rect.height
+            height: visibleRect.height
         )
         .position(
             x: PatternHighlightGeometry.coordinate(
@@ -95,7 +107,7 @@ struct HighlightOverlay: View {
                 length: rect.width,
                 centerInset: centerInset
             ),
-            y: rect.midY
+            y: visibleRect.midY
         )
         .gesture(
             DragGesture(coordinateSpace: .named(coordinateSpaceName))

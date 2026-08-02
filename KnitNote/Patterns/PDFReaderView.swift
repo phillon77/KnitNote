@@ -98,8 +98,7 @@ extension PDFReaderView {
         private weak var observedScrollView: NSScrollView?
         nonisolated(unsafe) private var boundsObservation: NSObjectProtocol?
 #else
-        private weak var observedScrollView: UIScrollView?
-        nonisolated(unsafe) private var contentOffsetObservation: NSKeyValueObservation?
+        nonisolated(unsafe) private var contentOffsetObservations: [ObjectIdentifier: NSKeyValueObservation] = [:]
 #endif
         private struct ScaleSignature: Equatable {
             let mode: PatternPDFScaleMode
@@ -245,7 +244,6 @@ extension PDFReaderView {
                 fitWidthScaleFactor: view.scaleFactorForSizeToFit,
                 isUserInteracting: isUserInteracting
             )
-
             guard viewportPublicationGate.accept(candidate) else { return }
             lastPublishedViewport = candidate
             Task { @MainActor [weak self] in
@@ -277,16 +275,24 @@ extension PDFReaderView {
                 }
             }
 #else
-            guard let scroll = findScrollView(in: view), scroll !== observedScrollView else { return }
-            contentOffsetObservation?.invalidate()
-            observedScrollView = scroll
-            contentOffsetObservation = scroll.observe(\.contentOffset, options: [.new]) { [weak self, weak view, weak scroll] _, _ in
-                Task { @MainActor [weak self, weak view, weak scroll] in
-                    guard let self, let view, let scroll else { return }
-                    self.publishViewport(
-                        from: view,
-                        isUserInteracting: scroll.isDragging || scroll.isDecelerating || scroll.isZooming
-                    )
+            let currentScrollIDs = Set(findScrollViews(in: view).map(ObjectIdentifier.init))
+            let staleScrollIDs = contentOffsetObservations.keys.filter { !currentScrollIDs.contains($0) }
+            for identifier in staleScrollIDs {
+                contentOffsetObservations.removeValue(forKey: identifier)?.invalidate()
+            }
+
+            for scroll in findScrollViews(in: view) {
+                let identifier = ObjectIdentifier(scroll)
+                guard contentOffsetObservations[identifier] == nil else { continue }
+                contentOffsetObservations[identifier] = scroll.observe(\.contentOffset, options: [.new]) { [weak self, weak view, weak scroll] _, _ in
+                    Task { @MainActor [weak self, weak view, weak scroll] in
+                        guard let self, let view, let scroll else { return }
+                        self.installScrollObservation(in: view)
+                        self.publishViewport(
+                            from: view,
+                            isUserInteracting: scroll.isDragging || scroll.isDecelerating || scroll.isZooming
+                        )
+                    }
                 }
             }
 #endif
@@ -301,12 +307,12 @@ extension PDFReaderView {
             return nil
         }
 #else
-        private func findScrollView(in root: UIView) -> UIScrollView? {
-            if let scroll = root as? UIScrollView { return scroll }
-            for subview in root.subviews {
-                if let scroll = findScrollView(in: subview) { return scroll }
+        private func findScrollViews(in root: UIView) -> [UIScrollView] {
+            var result = root.subviews.flatMap(findScrollViews(in:))
+            if let scroll = root as? UIScrollView {
+                result.insert(scroll, at: 0)
             }
-            return nil
+            return result
         }
 #endif
 
@@ -335,7 +341,9 @@ extension PDFReaderView {
                 NotificationCenter.default.removeObserver(boundsObservation)
             }
 #else
-            contentOffsetObservation?.invalidate()
+            for observation in contentOffsetObservations.values {
+                observation.invalidate()
+            }
 #endif
             NotificationCenter.default.removeObserver(self)
         }

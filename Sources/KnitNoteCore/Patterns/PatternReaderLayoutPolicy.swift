@@ -54,6 +54,22 @@ public enum PatternHighlightGeometry {
             : 0
     }
 
+    public static func visibleDrawingRect(
+        contentRect: CGRect,
+        canvasSize: CGSize
+    ) -> CGRect {
+        guard let contentRect = validContentRect(contentRect),
+              canvasSize.width.isFinite,
+              canvasSize.height.isFinite,
+              canvasSize.width > 0,
+              canvasSize.height > 0
+        else { return .zero }
+
+        let canvasRect = CGRect(origin: .zero, size: canvasSize)
+        let intersection = contentRect.intersection(canvasRect)
+        return validContentRect(intersection) ?? .zero
+    }
+
     public static func coordinate(
         normalized: Double,
         origin: CGFloat,

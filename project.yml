@@ -93,13 +93,17 @@ targets:
         buildPhase: resources
       - path: Sources/KnitNoteCore
         excludes:
+          - App/KnitNoteMacWindowSizingPolicy.swift
           - Launch/LaunchExperienceCoordinator.swift
           - Patterns/PatternLibraryImportPresentation.swift
           - Patterns/PatternInboxProcessing.swift
           - Patterns/PatternLibraryIndex.swift
+          - Patterns/PatternReaderAppearance.swift
+          - Patterns/PatternReaderAppearancePresentation.swift
           - Patterns/PatternReaderContext.swift
           - Patterns/PatternShareInboxEnqueuer.swift
           - Patterns/PatternShareImportPresentation.swift
+          - Patterns/PatternSystemAppearanceObservation.swift
           - Patterns/ProjectPatternImportPresentation.swift
           - Patterns/ProjectPatternLinkIndex.swift
     settings:

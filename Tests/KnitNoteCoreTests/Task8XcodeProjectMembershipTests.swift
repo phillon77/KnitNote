@@ -60,6 +60,7 @@ import Testing
         #expect(required.isSubset(of: appSources))
         #expect(watchSharedCore.isSubset(of: watchSources))
         #expect(appOnly.isDisjoint(with: watchSources))
+        #expect(!watchSources.contains("KnitNoteMacWindowSizingPolicy.swift"))
         #expect(!shareSources.contains("PatternSystemAppearanceMonitor.swift"))
         #expect(!shareSources.contains("PatternSystemAppearanceObservation.swift"))
         #expect(appSourceList.count == appSources.count)

@@ -7,6 +7,91 @@ import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Suite struct PatternThumbnailFileServiceTests {
+    @Test func pageThumbnailRendersTheRequestedPDFPageAndUsesVersionedCacheKeys() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let pdfURL = root.appendingPathComponent("three-pages.pdf")
+        try makeSolidColorPDF(
+            at: pdfURL,
+            colors: [
+                RGB(red: 255, green: 0, blue: 0),
+                RGB(red: 0, green: 255, blue: 0),
+                RGB(red: 0, green: 0, blue: 255)
+            ]
+        )
+        let service = PatternThumbnailFileService(
+            directory: root.appendingPathComponent("cache"),
+            maxPixelSize: 240
+        )
+        let assetID = UUID()
+        let pdfAsset = asset(
+            id: assetID,
+            sha256: String(repeating: "a", count: 64),
+            kind: .pdf,
+            filename: "three-pages.pdf",
+            pageCount: 3
+        )
+
+        let first = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 0)
+        let second = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 1)
+        let third = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 2)
+        let reused = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 0)
+        let updatedAsset = asset(
+            id: assetID,
+            sha256: String(repeating: "b", count: 64),
+            kind: .pdf,
+            filename: "three-pages.pdf",
+            pageCount: 3
+        )
+        let updated = try service.thumbnailURL(asset: updatedAsset, sourceURL: pdfURL, pageIndex: 0)
+
+        let firstColor = try centerRGB(first)
+        let secondColor = try centerRGB(second)
+        let thirdColor = try centerRGB(third)
+
+        #expect(first != second)
+        #expect(second != third)
+        #expect(firstColor != secondColor)
+        #expect(secondColor != thirdColor)
+        #expect(firstColor.red > firstColor.green && firstColor.red > firstColor.blue)
+        #expect(secondColor.green > secondColor.red && secondColor.green > secondColor.blue)
+        #expect(thirdColor.blue > thirdColor.red && thirdColor.blue > thirdColor.green)
+        #expect(first == service.cachedPageURL(asset: pdfAsset, pageIndex: 0))
+        #expect(reused == first)
+        #expect(updated != first)
+        #expect(service.cachedPageURL(asset: pdfAsset, pageIndex: 1) != first)
+    }
+
+    @Test func deletingAnAssetRemovesItsCoverAndAllPageThumbnails() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let pdfURL = root.appendingPathComponent("three-pages.pdf")
+        try makeSolidColorPDF(
+            at: pdfURL,
+            colors: [
+                RGB(red: 255, green: 0, blue: 0),
+                RGB(red: 0, green: 255, blue: 0),
+                RGB(red: 0, green: 0, blue: 255)
+            ]
+        )
+        let service = PatternThumbnailFileService(directory: root.appendingPathComponent("cache"))
+        let pattern = asset(
+            sha256: String(repeating: "c", count: 64),
+            kind: .pdf,
+            filename: "three-pages.pdf",
+            pageCount: 3
+        )
+
+        let cover = try service.thumbnailURL(asset: pattern, sourceURL: pdfURL)
+        let firstPage = try service.thumbnailURL(asset: pattern, sourceURL: pdfURL, pageIndex: 0)
+        let lastPage = try service.thumbnailURL(asset: pattern, sourceURL: pdfURL, pageIndex: 2)
+        try service.delete(assetID: pattern.id)
+
+        #expect(!FileManager.default.fileExists(atPath: cover.path))
+        #expect(!FileManager.default.fileExists(atPath: firstPage.path))
+        #expect(!FileManager.default.fileExists(atPath: lastPage.path))
+    }
+
     @Test func rendersPDFPageOneAndImagePatternsAsBoundedJPEG() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let sources = root.appendingPathComponent("sources")
@@ -194,6 +279,24 @@ import UniformTypeIdentifiers
         context.closePDF()
     }
 
+    private func makeSolidColorPDF(at url: URL, colors: [RGB]) throws {
+        var box = CGRect(x: 0, y: 0, width: 240, height: 180)
+        let consumer = try #require(CGDataConsumer(url: url as CFURL))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &box, nil))
+        for color in colors {
+            context.beginPDFPage(nil)
+            context.setFillColor(CGColor(
+                red: CGFloat(color.red) / 255,
+                green: CGFloat(color.green) / 255,
+                blue: CGFloat(color.blue) / 255,
+                alpha: 1
+            ))
+            context.fill(box)
+            context.endPDFPage()
+        }
+        context.closePDF()
+    }
+
     private func makeRotatedPDF(
         at url: URL,
         size: CGSize,
@@ -298,6 +401,24 @@ import UniformTypeIdentifiers
         )
     }
 
+    private func centerRGB(_ url: URL) throws -> RGB {
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let context = try #require(CGContext(
+            data: nil,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: image.width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let bytes = try #require(context.data?.assumingMemoryBound(to: UInt8.self))
+        let offset = ((image.height / 2) * image.width + image.width / 2) * 4
+        return RGB(red: bytes[offset], green: bytes[offset + 1], blue: bytes[offset + 2])
+    }
+
     private func cornerColors(_ url: URL) throws -> [[UInt8]] {
         let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
         let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
@@ -332,14 +453,26 @@ import UniformTypeIdentifiers
         zip(lhs, rhs).allSatisfy { abs(Int($0) - Int($1)) <= tolerance }
     }
 
-    private func asset(kind: PatternKind, filename: String) -> PatternAsset {
+    private func asset(
+        id: UUID = UUID(),
+        sha256: String = "test-hash-\(UUID().uuidString)",
+        kind: PatternKind,
+        filename: String,
+        pageCount: Int? = nil
+    ) -> PatternAsset {
         PatternAsset(
-            id: UUID(),
-            sha256: "test-hash-\(UUID().uuidString)",
+            id: id,
+            sha256: sha256,
             kind: kind,
             storedFilename: filename,
             byteCount: 0,
-            pageCount: kind == .pdf ? 1 : nil
+            pageCount: pageCount ?? (kind == .pdf ? 1 : nil)
         )
+    }
+
+    private struct RGB: Equatable {
+        let red: UInt8
+        let green: UInt8
+        let blue: UInt8
     }
 }

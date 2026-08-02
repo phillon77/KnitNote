@@ -45,17 +45,61 @@ public struct PatternThumbnailFileService: Sendable {
         return destination
     }
 
+    public func thumbnailURL(
+        asset: PatternAsset,
+        sourceURL: URL,
+        pageIndex: Int
+    ) throws -> URL {
+        guard asset.kind == .pdf, pageIndex >= 0 else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
+        lock.value.lock()
+        defer { lock.value.unlock() }
+        let destination = cachedPageURL(asset: asset, pageIndex: pageIndex)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            return destination
+        }
+        let image = try renderPDFPage(sourceURL, pageIndex: pageIndex)
+        let data = try encodeJPEG(image)
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: destination, options: .atomic)
+        return destination
+    }
+
     public func cachedURL(assetID: UUID) -> URL {
         directory
             .appendingPathComponent("\(assetID.uuidString).jpg")
     }
 
+    public func cachedPageURL(asset: PatternAsset, pageIndex: Int) -> URL {
+        let safeSHA = asset.sha256.allSatisfy(\.isHexDigit) && !asset.sha256.isEmpty
+            ? asset.sha256
+            : "unknown"
+        return directory.appendingPathComponent(
+            "\(asset.id.uuidString)-\(safeSHA)-page-\(max(0, pageIndex)).jpg"
+        )
+    }
+
     public func delete(assetID: UUID) throws {
         lock.value.lock()
         defer { lock.value.unlock() }
-        let url = cachedURL(assetID: assetID)
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
-        try FileManager.default.removeItem(at: url)
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        let coverURL = cachedURL(assetID: assetID)
+        if FileManager.default.fileExists(atPath: coverURL.path) {
+            try FileManager.default.removeItem(at: coverURL)
+        }
+        let pagePrefix = "\(assetID.uuidString)-"
+        for url in try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ) where url.lastPathComponent.hasPrefix(pagePrefix)
+            && url.lastPathComponent.contains("-page-")
+            && url.pathExtension == "jpg" {
+            try FileManager.default.removeItem(at: url)
+        }
     }
 
     public func deleteAll() throws {
@@ -82,8 +126,12 @@ public struct PatternThumbnailFileService: Sendable {
     }
 
     private func renderPDFPageOne(_ url: URL) throws -> CGImage {
+        try renderPDFPage(url, pageIndex: 0)
+    }
+
+    private func renderPDFPage(_ url: URL, pageIndex: Int) throws -> CGImage {
         guard let document = CGPDFDocument(url as CFURL),
-              let page = document.page(at: 1) else {
+              let page = document.page(at: pageIndex + 1) else {
             throw PatternThumbnailFileError.unreadableSource
         }
         let mediaBox = page.getBoxRect(.mediaBox)

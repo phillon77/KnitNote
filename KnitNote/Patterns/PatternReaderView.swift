@@ -80,6 +80,7 @@ struct PatternReaderView: View {
     @State private var pendingPageTransition: PatternReaderPageTransition?
     @State private var managingCounter: ProjectCounter?
     @StateObject private var pdfNavigator = PDFPageNavigator()
+    @StateObject private var systemAppearance = PatternSystemAppearanceMonitor()
     private let counterRailSafeAreaWidth: CGFloat = 64
     private let onStoreScreenshotReady: @MainActor () -> Void
 
@@ -284,6 +285,47 @@ struct PatternReaderView: View {
 #endif
     }
 
+    private var storedPattern: StoredPattern? {
+        store.patterns.first { $0.id == context.patternID }
+    }
+
+    private var prefersOriginalColorsInDarkMode: Bool {
+        storedPattern?.prefersOriginalColorsInDarkMode ?? false
+    }
+
+    private var appearancePresentation: PatternReaderAppearancePresentation {
+        PatternReaderAppearancePresentation(
+            systemAppearance: systemAppearance.appearance,
+            prefersOriginalColorsInDarkMode: prefersOriginalColorsInDarkMode
+        )
+    }
+
+    private var usesNightRendering: Bool {
+        appearancePresentation.usesNightRendering
+    }
+
+    private var readerPreferredColorScheme: ColorScheme {
+        appearancePresentation.readerChrome == .dark ? .dark : .light
+    }
+
+    private var appearanceToggleTitle: LocalizedStringKey {
+        appearancePresentation.toggleIntent == .showOriginalColors
+            ? "patterns.appearance.showOriginal"
+            : "patterns.appearance.useNight"
+    }
+
+    private var appearanceToggleIcon: String {
+        appearancePresentation.toggleIntent == .showOriginalColors
+            ? "sun.max"
+            : "moon.stars"
+    }
+
+    private var appearanceToggleAccessibilityHint: LocalizedStringKey {
+        appearancePresentation.accessibilityHint == .darkAppearance
+            ? "patterns.appearance.darkHint"
+            : "patterns.appearance.lightHint"
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -373,6 +415,12 @@ struct PatternReaderView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
+                    Button(action: toggleOriginalColorsInDarkMode) {
+                        Label(appearanceToggleTitle, systemImage: appearanceToggleIcon)
+                    }
+                    .accessibilityHint(Text(appearanceToggleAccessibilityHint))
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Toggle("patterns.highlight", isOn: highlightEnabledBinding)
                         .disabled(!(context.canWrite || context.canRequestUnlock))
                 }
@@ -453,8 +501,22 @@ struct PatternReaderView: View {
                 Button("common.cancel", role: .cancel) {}
             }
         }
+#if os(iOS)
+        .background(alignment: .topLeading) {
+            PatternSystemAppearanceChangeProbe {
+                systemAppearance.refresh()
+            }
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+#endif
+        .preferredColorScheme(readerPreferredColorScheme)
         .tint(WatercolorTheme.actionBerry)
         .interactiveDismissDisabled()
+        .onAppear {
+            systemAppearance.start()
+        }
         .task(id: readerContextIdentity) {
             reloadReader(for: readerContextIdentity)
         }
@@ -466,6 +528,7 @@ struct PatternReaderView: View {
             handleStoreGenerationChange(generation)
         }
         .onDisappear {
+            systemAppearance.stop()
             pdfNavigator.captureCurrentPosition()
             pdfNavigator.flushPendingScaleCapture()
             guard canvasIsActive, readerSession.canPersist else { return }
@@ -494,11 +557,13 @@ struct PatternReaderView: View {
             _ = saveBrowsingState()
         }
         .onChange(of: scenePhase) { _, phase in
-            guard canvasIsActive, readerSession.canPersist else { return }
             if phase == .active {
+                systemAppearance.refresh()
+                guard canvasIsActive, readerSession.canPersist else { return }
                 pdfNavigator.restoreAfterForeground()
                 return
             }
+            guard canvasIsActive, readerSession.canPersist else { return }
             guard phase == .inactive else { return }
             pdfNavigator.prepareForInactivity()
             pdfNavigator.flushPendingScaleCapture()
@@ -523,9 +588,11 @@ struct PatternReaderView: View {
                         viewport: $pdfViewport,
                         onReady: onStoreScreenshotReady
                     )
+                    .patternNightRendering(active: usesNightRendering)
                     .allowsHitTesting(!markupMode)
                 } else {
                     ImageReaderView(url: content.url, state: canvasState, loadError: $loadError)
+                        .patternNightRendering(active: usesNightRendering)
                         .allowsHitTesting(!markupMode)
                 }
                 if state.highlightEnabled {
@@ -643,6 +710,21 @@ struct PatternReaderView: View {
         guard !Task.isCancelled,
               identity == readerContextIdentity,
               hydrated else { return }
+    }
+
+    private func toggleOriginalColorsInDarkMode() {
+        guard let expectedDataGeneration else { return }
+        do {
+            let nextGeneration = try store.setPatternPrefersOriginalColorsInDarkMode(
+                id: context.patternID,
+                prefersOriginalColors: !prefersOriginalColorsInDarkMode,
+                expectedDataGeneration: expectedDataGeneration
+            )
+            self.expectedDataGeneration = nextGeneration
+            revisionCoordinator.confirmMutation(generation: nextGeneration)
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 
     private func handleStoreGenerationChange(_ generation: UInt64) {

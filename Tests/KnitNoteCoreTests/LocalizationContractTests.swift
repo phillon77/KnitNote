@@ -102,6 +102,25 @@ import Testing
         ],
     ]
 
+    private let requiredPatternAppearanceTranslations = [
+        "patterns.appearance.showOriginal": [
+            "en": "Show Original Colors",
+            "zh-Hant": "顯示原色",
+        ],
+        "patterns.appearance.useNight": [
+            "en": "Use Night Appearance",
+            "zh-Hant": "使用夜間顯示",
+        ],
+        "patterns.appearance.darkHint": [
+            "en": "Changes this pattern only.",
+            "zh-Hant": "只變更這份織圖。",
+        ],
+        "patterns.appearance.lightHint": [
+            "en": "This choice is used automatically in Dark Mode.",
+            "zh-Hant": "此選擇會在深色模式中自動套用。",
+        ],
+    ]
+
     private let task13PatternPrefixes = [
         "patterns.library.",
         "patterns.detail.",
@@ -355,6 +374,18 @@ import Testing
         let strings = try catalogStrings()
 
         for (key, expectedTranslations) in requiredReaderTranslations {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
+    @Test func patternAppearanceControlsUseTheApprovedManualBilingualCopy() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredPatternAppearanceTranslations {
+            let entry = try #require(strings[key] as? [String: Any])
+            #expect(entry["extractionState"] as? String == "manual")
             for (language, expectedValue) in expectedTranslations {
                 #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }

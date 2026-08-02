@@ -4775,6 +4775,74 @@
         }
       }
     },
+    "patterns.appearance.darkHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes this pattern only."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只變更這份織圖。"
+          }
+        }
+      }
+    },
+    "patterns.appearance.lightHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This choice is used automatically in Dark Mode."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此選擇會在深色模式中自動套用。"
+          }
+        }
+      }
+    },
+    "patterns.appearance.showOriginal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Original Colors"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示原色"
+          }
+        }
+      }
+    },
+    "patterns.appearance.useNight" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Night Appearance"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用夜間顯示"
+          }
+        }
+      }
+    },
     "patterns.reader.chooseContext.message" : {
       "localizations" : {
         "en" : {

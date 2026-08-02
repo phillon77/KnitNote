@@ -304,6 +304,18 @@ struct PatternReaderView: View {
                                 height: proxy.size.height
                             )
                             VStack(spacing: 0) {
+                                if PatternPageThumbnailPolicy.shouldShow(
+                                    kind: content.kind,
+                                    pageCount: pageCount,
+                                    markupMode: markupMode
+                                ) {
+                                    PatternPageThumbnailStrip(
+                                        assetID: content.assetID,
+                                        pageCount: pageCount,
+                                        selectedPage: state.pageIndex,
+                                        onSelect: navigatePDF(to:)
+                                    )
+                                }
                                 readerCanvas(content: content, layout: layout)
                                 if content.kind == .pdf,
                                    pageCount > 0,
@@ -764,11 +776,17 @@ struct PatternReaderView: View {
         }
     }
 
-    private func navigatePDF(by delta: Int) {
-        guard pageCount > 0 else { return }
-        let target = min(pageCount - 1, max(0, state.pageIndex + delta))
-        guard target != state.pageIndex else { return }
+    private func navigatePDF(to requestedPage: Int) {
+        guard let target = PatternReaderPageTarget.resolve(
+            requested: requestedPage,
+            current: state.pageIndex,
+            pageCount: pageCount
+        ) else { return }
         pdfNavigator.go(to: target)
+    }
+
+    private func navigatePDF(by delta: Int) {
+        navigatePDF(to: state.pageIndex + delta)
     }
 
     @discardableResult

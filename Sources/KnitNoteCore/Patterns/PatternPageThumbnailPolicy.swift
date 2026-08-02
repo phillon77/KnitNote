@@ -8,3 +8,11 @@ public enum PatternPageThumbnailPolicy {
         return Array(max(0, currentPage - 1)...min(pageCount - 1, currentPage + 1))
     }
 }
+
+public enum PatternReaderPageTarget {
+    public static func resolve(requested: Int, current: Int, pageCount: Int) -> Int? {
+        guard pageCount > 0 else { return nil }
+        let target = min(pageCount - 1, max(0, requested))
+        return target == current ? nil : target
+    }
+}

@@ -60,4 +60,26 @@ import Testing
         #expect(latestTransition.targetPageIndex == 4)
         #expect(latestTransition.rollbackState == initialState)
     }
+
+    @Test func rapidThumbnailSelectionsKeepTheOriginalRollbackPage() {
+        let initialState = PatternReadingState(pageIndex: 1, pageNote: "original page")
+        var firstThumbnailState = initialState
+        firstThumbnailState.transitionToPDFPage(4)
+        let firstTransition = try! #require(
+            PatternReaderPageTransition(previousState: initialState, proposedState: firstThumbnailState)
+        )
+
+        var latestThumbnailState = firstThumbnailState
+        latestThumbnailState.transitionToPDFPage(7)
+        let latestTransition = try! #require(
+            PatternReaderPageTransition(
+                previousState: firstTransition.rollbackState,
+                proposedState: latestThumbnailState
+            )
+        )
+
+        #expect(latestTransition.rollbackPageIndex == 1)
+        #expect(latestTransition.targetPageIndex == 7)
+        #expect(latestTransition.rollbackState == initialState)
+    }
 }

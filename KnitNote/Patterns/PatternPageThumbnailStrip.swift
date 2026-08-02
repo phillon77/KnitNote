@@ -87,6 +87,7 @@ struct PatternPageThumbnailStrip: View {
 
 private struct PatternPageThumbnailCell: View {
     @EnvironmentObject private var store: JSONProjectStore
+    @Environment(\.locale) private var locale
 
     let assetID: UUID
     let item: PatternPageThumbnailPresentation
@@ -123,9 +124,7 @@ private struct PatternPageThumbnailCell: View {
         }
         .contentShape(.rect)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            Text("Page \(item.accessibilityArguments[0]) of \(item.accessibilityArguments[1])")
-        )
+        .accessibilityLabel(Text(verbatim: accessibilityLabel))
         .accessibilityAddTraits(item.isSelected ? .isSelected : [])
         .task(id: request) {
             await loadThumbnail(for: request)
@@ -154,6 +153,23 @@ private struct PatternPageThumbnailCell: View {
             pageIndex: item.pageIndex,
             generation: store.dataGeneration
         )
+    }
+
+    private var accessibilityLabel: String {
+        let format = String(
+            localized: "patterns.reader.thumbnail.accessibility.format",
+            locale: locale
+        )
+        let pageLabel = String(
+            format: format,
+            locale: locale,
+            Int64(item.accessibilityArguments[0]),
+            Int64(item.accessibilityArguments[1])
+        )
+        guard item.isSelected else { return pageLabel }
+        return pageLabel
+            + String(localized: ", ", locale: locale)
+            + String(localized: "patterns.reader.thumbnail.current", locale: locale)
     }
 
     private func loadThumbnail(for request: PatternPageThumbnailRequest) async {

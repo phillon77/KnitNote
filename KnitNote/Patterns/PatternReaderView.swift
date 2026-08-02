@@ -475,11 +475,11 @@ struct PatternReaderView: View {
         .onChange(of: scenePhase) { _, phase in
             guard canvasIsActive, readerSession.canPersist else { return }
             if phase == .active {
-                pdfNavigator.restoreCurrentPosition()
+                pdfNavigator.restoreAfterForeground()
                 return
             }
             guard phase == .inactive else { return }
-            pdfNavigator.captureCurrentPosition()
+            pdfNavigator.prepareForInactivity()
             pdfNavigator.flushPendingScaleCapture()
             guard context.canWrite else { return }
             guard saveMarkup(page: state.pageIndex) else { return }

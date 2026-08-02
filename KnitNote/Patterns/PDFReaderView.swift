@@ -7,19 +7,28 @@ import SwiftUI
     private var flushPendingScaleCaptureAction: (() -> Void)?
     private var captureCurrentPositionAction: (() -> Void)?
     private var restoreCurrentPositionAction: (() -> Void)?
+    private var prepareForInactivityAction: (() -> Void)?
+    private var restoreAfterForegroundAction: (() -> Void)?
+    private var cancelForegroundRestoreAction: (() -> Void)?
 
     func attach(
         _ view: PDFView,
         request: @escaping (Int) -> Void,
         flushPendingScaleCapture: @escaping () -> Void,
         captureCurrentPosition: @escaping () -> Void,
-        restoreCurrentPosition: @escaping () -> Void
+        restoreCurrentPosition: @escaping () -> Void,
+        prepareForInactivity: @escaping () -> Void,
+        restoreAfterForeground: @escaping () -> Void,
+        cancelForegroundRestore: @escaping () -> Void
     ) {
         self.view = view
         self.request = request
         flushPendingScaleCaptureAction = flushPendingScaleCapture
         captureCurrentPositionAction = captureCurrentPosition
         restoreCurrentPositionAction = restoreCurrentPosition
+        prepareForInactivityAction = prepareForInactivity
+        restoreAfterForegroundAction = restoreAfterForeground
+        cancelForegroundRestoreAction = cancelForegroundRestore
     }
 
     func flushPendingScaleCapture() {
@@ -34,10 +43,19 @@ import SwiftUI
         restoreCurrentPositionAction?()
     }
 
+    func prepareForInactivity() {
+        prepareForInactivityAction?()
+    }
+
+    func restoreAfterForeground() {
+        restoreAfterForegroundAction?()
+    }
+
     func go(to pageIndex: Int) {
         guard let view, let document = view.document, document.pageCount > 0 else { return }
         let target = min(document.pageCount - 1, max(0, pageIndex))
         guard let page = document.page(at: target) else { return }
+        cancelForegroundRestoreAction?()
         captureCurrentPosition()
         flushPendingScaleCapture()
         request?(target)
@@ -138,6 +156,8 @@ extension PDFReaderView {
         private var scaleCaptureTask: Task<Void, Never>?
         private var positionRestoreTask: Task<Void, Never>?
         private var isApplyingSavedPosition = false
+        private var foregroundPositionSnapshot: PatternReadingState?
+        private var isPositionSamplingSuspended = false
         private var positionRestoreRevision: UInt64 = 0
         private var scaleCaptureGate = PatternPDFScaleCaptureGate()
         private var scaleCaptureContext: UInt64 = 0
@@ -161,7 +181,10 @@ extension PDFReaderView {
                 request: { [weak self] target in self?.pageRequestGate.request(target) },
                 flushPendingScaleCapture: { [weak self] in self?.flushPendingScaleCapture() },
                 captureCurrentPosition: { [weak self] in self?.captureCurrentPosition() },
-                restoreCurrentPosition: { [weak self] in self?.scheduleCurrentPositionRestore() }
+                restoreCurrentPosition: { [weak self] in self?.scheduleCurrentPositionRestore() },
+                prepareForInactivity: { [weak self] in self?.prepareForInactivity() },
+                restoreAfterForeground: { [weak self] in self?.scheduleForegroundPositionRestore() },
+                cancelForegroundRestore: { [weak self] in self?.cancelForegroundPositionRestore() }
             )
             let loadedPageCount = doc.pageCount
             Task { @MainActor [weak self] in self?.pageCount = loadedPageCount }
@@ -314,7 +337,7 @@ extension PDFReaderView {
         }
 
         private func captureCurrentPosition() {
-            guard restoreGate.canSample, !isApplyingSavedPosition,
+            guard restoreGate.canSample, !isApplyingSavedPosition, !isPositionSamplingSuspended,
                   let view,
                   let document = view.document,
                   let page = view.currentPage
@@ -348,24 +371,68 @@ extension PDFReaderView {
             state = updatedState
         }
 
-        private func scheduleCurrentPositionRestore() {
+        private func prepareForInactivity() {
+            if !isPositionSamplingSuspended {
+                captureCurrentPosition()
+                foregroundPositionSnapshot = state
+            }
+            positionRestoreTask?.cancel()
+            positionRestoreTask = nil
+            positionRestoreRevision &+= 1
+            isApplyingSavedPosition = false
+            isPositionSamplingSuspended = true
+        }
+
+        private func scheduleForegroundPositionRestore() {
+            let savedState = foregroundPositionSnapshot ?? state
+#if os(macOS)
+            foregroundPositionSnapshot = nil
+            isPositionSamplingSuspended = false
+            scheduleCurrentPositionRestore(savedState: savedState, settleAfterForeground: false)
+#else
+            scheduleCurrentPositionRestore(savedState: savedState, settleAfterForeground: true)
+#endif
+        }
+
+        private func cancelForegroundPositionRestore() {
+            guard isPositionSamplingSuspended || foregroundPositionSnapshot != nil else { return }
+            positionRestoreTask?.cancel()
+            positionRestoreTask = nil
+            positionRestoreRevision &+= 1
+            foregroundPositionSnapshot = nil
+            isPositionSamplingSuspended = false
+            isApplyingSavedPosition = false
+        }
+
+        private func scheduleCurrentPositionRestore(
+            savedState: PatternReadingState? = nil,
+            settleAfterForeground: Bool = false
+        ) {
+            guard settleAfterForeground || !isPositionSamplingSuspended else { return }
             positionRestoreTask?.cancel()
             positionRestoreRevision &+= 1
             let revision = positionRestoreRevision
-            let savedState = state
+            let savedState = savedState ?? state
+            let delays = settleAfterForeground
+                ? [Duration.zero, .milliseconds(40), .milliseconds(120), .milliseconds(250)]
+                : [Duration.zero, .milliseconds(20), .milliseconds(20), .milliseconds(20), .milliseconds(20)]
             isApplyingSavedPosition = true
             positionRestoreTask = Task { @MainActor [weak self, weak view] in
                 guard let self, let view else { return }
                 defer {
                     if self.positionRestoreRevision == revision {
                         self.isApplyingSavedPosition = false
+                        if settleAfterForeground {
+                            self.foregroundPositionSnapshot = nil
+                            self.isPositionSamplingSuspended = false
+                        }
                     }
                 }
-                for attempt in 0..<5 {
-                    if attempt == 0 {
+                for delay in delays {
+                    if delay == .zero {
                         await Task.yield()
                     } else {
-                        try? await Task.sleep(for: .milliseconds(20))
+                        try? await Task.sleep(for: delay)
                     }
                     guard !Task.isCancelled,
                           self.positionRestoreRevision == revision else { return }
@@ -376,7 +443,7 @@ extension PDFReaderView {
 #endif
                     if self.restorePosition(savedState, in: view) {
                         self.publishViewport(from: view)
-                        return
+                        if !settleAfterForeground { return }
                     }
                 }
             }
@@ -537,6 +604,9 @@ extension PDFReaderView {
                     Task { @MainActor [weak self, weak view, weak scroll] in
                         guard let self, let view, let scroll else { return }
                         self.installScrollObservation(in: view)
+                        if scroll.isDragging || scroll.isDecelerating || scroll.isZooming {
+                            self.cancelForegroundPositionRestore()
+                        }
                         if scroll === self.contentScrollView(in: view) {
                             self.captureCurrentPosition()
                         }
@@ -603,10 +673,22 @@ extension PDFReaderView {
         }
 #endif
 
+        private func cancelForegroundRestoreIfPageChanged(in view: PDFView) {
+            guard isPositionSamplingSuspended,
+                  let snapshot = foregroundPositionSnapshot,
+                  let page = view.currentPage,
+                  let document = view.document
+            else { return }
+            let visiblePage = document.index(for: page)
+            guard visiblePage != snapshot.pageIndex else { return }
+            cancelForegroundPositionRestore()
+        }
+
         @objc private func changed(_ note: Notification) {
             guard let view = note.object as? PDFView else { return }
             installScrollObservation(in: view)
             if note.name == .PDFViewPageChanged {
+                cancelForegroundRestoreIfPageChanged(in: view)
                 lastScaleSignature = nil
                 applyScaleMode(latestScaleMode, to: view)
                 sample(view)

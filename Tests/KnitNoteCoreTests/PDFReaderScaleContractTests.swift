@@ -77,10 +77,96 @@ import Testing
 
         #expect(pdf.contains("private var isApplyingSavedPosition = false"))
         #expect(capture.contains("!isApplyingSavedPosition"))
-        #expect(schedule.contains("let savedState = state"))
+        #expect(schedule.contains("let savedState = savedState ?? state"))
         #expect(schedule.contains("isApplyingSavedPosition = true"))
         #expect(schedule.contains("restorePosition(savedState, in: view)"))
         #expect(!schedule.contains("restorePosition(self.state, in: view)"))
+    }
+
+    @Test func appInactivityFreezesTheLastStablePDFPositionUntilForegroundRestoreFinishes() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let capture = try #require(
+            pdf.slice(from: "private func captureCurrentPosition", to: "private func scheduleCurrentPositionRestore")
+        )
+        let inactivity = try #require(
+            pdf.slice(from: "private func prepareForInactivity", to: "private func scheduleForegroundPositionRestore")
+        )
+        let foreground = try #require(
+            pdf.slice(from: "private func scheduleForegroundPositionRestore", to: "private func scheduleCurrentPositionRestore")
+        )
+
+        #expect(pdf.contains("private var foregroundPositionSnapshot: PatternReadingState?"))
+        #expect(pdf.contains("private var isPositionSamplingSuspended = false"))
+        #expect(capture.contains("!isPositionSamplingSuspended"))
+        #expect(inactivity.contains("captureCurrentPosition()"))
+        #expect(inactivity.contains("foregroundPositionSnapshot = state"))
+        #expect(inactivity.contains("isPositionSamplingSuspended = true"))
+        #expect(foreground.contains("let savedState = foregroundPositionSnapshot ?? state"))
+        #expect(foreground.contains("settleAfterForeground: true"))
+    }
+
+    @Test func foregroundRestoreReappliesTheFrozenPositionAcrossDelayedPDFKitLayout() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let schedule = try #require(
+            pdf.slice(from: "private func scheduleCurrentPositionRestore", to: "private func restorePosition")
+        )
+
+        #expect(schedule.contains("settleAfterForeground: Bool = false"))
+        #expect(schedule.contains("let delays = settleAfterForeground"))
+        #expect(schedule.contains("restorePosition(savedState, in: view)"))
+        #expect(schedule.contains("foregroundPositionSnapshot = nil"))
+        #expect(schedule.contains("isPositionSamplingSuspended = false"))
+    }
+
+    @Test func foregroundRestoreYieldsImmediatelyToExplicitPageNavigation() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let navigation = try #require(
+            pdf.slice(from: "func go(to pageIndex: Int)", to: "}\n\n#if os(macOS)")
+        )
+        let cancellation = try #require(navigation.range(of: "cancelForegroundRestoreAction?()"))
+        let capture = try #require(navigation.range(of: "captureCurrentPosition()"))
+        let display = try #require(navigation.range(of: "view.go(to: page)"))
+
+        #expect(cancellation.lowerBound < capture.lowerBound)
+        #expect(cancellation.lowerBound < display.lowerBound)
+        #expect(pdf.contains("cancelForegroundRestore: { [weak self] in self?.cancelForegroundPositionRestore() }"))
+    }
+
+    @Test func foregroundRestoreYieldsToAnIOSUserScrollGesture() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let observation = try #require(
+            pdf.slice(from: "private func installScrollObservation", to: "#if os(macOS)\n        private func findScrollView")
+        )
+
+        #expect(observation.contains("scroll.isDragging || scroll.isDecelerating || scroll.isZooming"))
+        #expect(observation.contains("cancelForegroundPositionRestore()"))
+        #expect(observation.contains("captureCurrentPosition()"))
+        #expect(pdf.contains("private func cancelForegroundPositionRestore()"))
+    }
+
+    @Test func delayedForegroundSettlingIsIOSOnly() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let foreground = try #require(
+            pdf.slice(from: "private func scheduleForegroundPositionRestore", to: "private func scheduleCurrentPositionRestore")
+        )
+
+        #expect(foreground.contains("#if os(macOS)"))
+        #expect(foreground.contains("settleAfterForeground: false"))
+        #expect(foreground.contains("#else"))
+        #expect(foreground.contains("settleAfterForeground: true"))
+    }
+
+    @Test func nativePDFKitPageSwipeCancelsForegroundRestoreBeforeRestoringTheNewPage() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let changed = try #require(
+            pdf.slice(from: "@objc private func changed", to: "private func sample")
+        )
+        let cancellation = try #require(changed.range(of: "cancelForegroundRestoreIfPageChanged(in: view)"))
+        let restore = try #require(changed.range(of: "scheduleCurrentPositionRestore()"))
+
+        #expect(cancellation.lowerBound < restore.lowerBound)
+        #expect(pdf.contains("private func cancelForegroundRestoreIfPageChanged(in view: PDFView)"))
+        #expect(pdf.contains("visiblePage != snapshot.pageIndex"))
     }
 
     @Test func viewportAndSavedWidthUseTheSameModeSpecificBaseline() throws {

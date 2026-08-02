@@ -174,6 +174,12 @@ struct ProjectDetailView: View {
             }
             .sheet(isPresented: $showingPatterns) {
                 ProjectPatternsView(projectID: projectID)
+#if os(macOS)
+                    .frame(
+                        minWidth: CGFloat(KnitNoteMacWindowSizingPolicy.minimumWidth),
+                        minHeight: CGFloat(KnitNoteMacWindowSizingPolicy.minimumHeight)
+                    )
+#endif
             }
             .sheet(isPresented: $showingJournalEditor) {
                 EditProjectJournalEntryView(projectID: projectID)

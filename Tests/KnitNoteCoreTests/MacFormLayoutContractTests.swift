@@ -148,6 +148,24 @@ import Testing
         #expect(macSource.contains("KnitNoteMacWindowSizingPolicy.minimumHeight"))
     }
 
+    @Test func macProjectPatternsSheetUsesTheApprovedMinimumSize() throws {
+        let source = try source(named: "ProjectDetailView.swift")
+        let sheet = try #require(source.range(of: ".sheet(isPresented: $showingPatterns)"))
+        let projectPatterns = try #require(
+            source.range(of: "ProjectPatternsView(projectID: projectID)", range: sheet.upperBound..<source.endIndex)
+        )
+        let macBranch = try #require(
+            source.range(of: "#if os(macOS)", range: projectPatterns.upperBound..<source.endIndex)
+        )
+        let macEnd = try #require(
+            source.range(of: "#endif", range: macBranch.upperBound..<source.endIndex)
+        )
+        let macSource = String(source[macBranch.lowerBound..<macEnd.lowerBound])
+
+        #expect(macSource.contains("KnitNoteMacWindowSizingPolicy.minimumWidth"))
+        #expect(macSource.contains("KnitNoteMacWindowSizingPolicy.minimumHeight"))
+    }
+
     private func source(named name: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

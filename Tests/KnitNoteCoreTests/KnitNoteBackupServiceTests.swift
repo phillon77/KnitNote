@@ -5,6 +5,93 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct KnitNoteBackupServiceTests {
+    @MainActor @Test func formatTwoSchemaTenPatternLibraryRestoresAndMigratesWithoutDataLoss() throws {
+        let package = try BackupFixture.schemaTenPatternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let packagedArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: package.url.appendingPathComponent("Data/projects-v1.json"))
+        )
+        let packagedUsage = try #require(packagedArchive.patternUsages.first)
+        let packagedAsset = try #require(packagedArchive.patternAssets.first)
+        let packagedAssetData = try Data(
+            contentsOf: package.url.appendingPathComponent(
+                "Data/Patterns/Assets/\(packagedAsset.storedFilename)"
+            )
+        )
+        let packagedMarkup = try Data(
+            contentsOf: package.url.appendingPathComponent("Data/\(package.markupRelativePath)")
+        )
+
+        let preview = try package.service.inspectPackage(at: package.url)
+        #expect(preview.patternCount == 1)
+
+        let restoredLive = package.cleanupRoot.appendingPathComponent("RestoredKnitNote")
+        let restoreService = KnitNoteBackupService(
+            liveRoot: restoredLive,
+            workRoot: package.cleanupRoot.appendingPathComponent("RestoreWork")
+        )
+        let staged = try restoreService.stagePackage(at: package.url)
+        let stagedArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: staged.root.appendingPathComponent("Data/projects-v1.json"))
+        )
+        #expect(stagedArchive.version == 10)
+
+        let installation = try restoreService.install(staged)
+        restoreService.commit(installation)
+        let installedArchiveURL = restoredLive.appendingPathComponent("projects-v1.json")
+        #expect(try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: installedArchiveURL)
+        ).version == 10)
+
+        let restoredStore = JSONProjectStore(url: installedArchiveURL)
+        let migratedArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: installedArchiveURL)
+        )
+        let restoredUsage = try #require(restoredStore.patternUsages.first)
+
+        #expect(restoredStore.loadError == nil)
+        #expect(migratedArchive.version == ProjectArchive.currentVersion)
+        #expect(restoredStore.projects == packagedArchive.projects)
+        #expect(restoredStore.yarns == packagedArchive.yarns)
+        #expect(restoredStore.patternAssets == packagedArchive.patternAssets)
+        #expect(restoredStore.patterns == packagedArchive.patterns)
+        #expect(restoredStore.patternUsages == packagedArchive.patternUsages)
+        #expect(restoredUsage.readingState.pdfWidthScaleRatio == 1.0)
+        #expect(restoredUsage.readingState.pageStates[2]?.note == "Cable repeat")
+        #expect(try Data(
+            contentsOf: restoredLive.appendingPathComponent(
+                "Patterns/Assets/\(packagedAsset.storedFilename)"
+            )
+        ) == packagedAssetData)
+        #expect(try Data(
+            contentsOf: restoredLive.appendingPathComponent(package.markupRelativePath)
+        ) == packagedMarkup)
+        #expect(restoredUsage.id == packagedUsage.id)
+    }
+
+    @Test func schemaNineBackupStillRejectsPatternLibraryCollections() throws {
+        let package = try BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        try package.rewriteArchive { archive in
+            ProjectArchive(
+                version: 9,
+                projects: archive.projects,
+                yarns: archive.yarns,
+                patternAssets: archive.patternAssets,
+                patterns: archive.patterns,
+                patternUsages: archive.patternUsages
+            )
+        }
+
+        #expect(throws: KnitNoteBackupError.invalidArchive) {
+            _ = try package.service.inspectPackage(at: package.url)
+        }
+    }
+
     @Test func formatTwoExportListsExactSchemaTenPatternFilesAndIntegrity() throws {
         let (service, live, root) = try makeServiceFixture()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -509,6 +596,13 @@ import Testing
         #expect(ProjectArchive.isSupported(version: ProjectArchive.currentVersion))
         #expect(!ProjectArchive.isSupported(version: 0))
         #expect(!ProjectArchive.isSupported(version: ProjectArchive.currentVersion + 1))
+    }
+
+    @Test func patternLibrarySupportIsBoundedByIntroducedAndCurrentVersions() {
+        #expect(!ProjectArchive.supportsPatternLibrary(version: 9))
+        #expect(ProjectArchive.supportsPatternLibrary(version: 10))
+        #expect(ProjectArchive.supportsPatternLibrary(version: 11))
+        #expect(!ProjectArchive.supportsPatternLibrary(version: 12))
     }
 
     @Test func supportedLegacyProjectArchiveIsAcceptedDuringInspection() throws {
@@ -2176,6 +2270,33 @@ private enum BackupFixture {
         )
     }
 
+    static func schemaTenPatternLibraryPackage() throws -> Package {
+        let (service, live, root) = try makeServiceFixture()
+        let complete = try writePatternLibraryArchive(
+            to: live,
+            archiveVersion: 10,
+            omitPDFWidthScaleRatio: true,
+            includeLinkedYarn: true
+        )
+        let packageURL = try service.createPackage(
+            appVersion: "1.2.0",
+            now: .init(timeIntervalSince1970: 20)
+        )
+        let assetPath = try #require(
+            complete.referencedRelativePaths.first { $0.hasPrefix("Patterns/Assets/") }
+        )
+        let markupPath = try #require(
+            complete.referencedRelativePaths.first { $0.hasPrefix("Patterns/UsageMarkup/") }
+        )
+        return Package(
+            service: service,
+            url: packageURL,
+            cleanupRoot: root,
+            firstRelativePath: assetPath,
+            markupRelativePath: markupPath
+        )
+    }
+
     static func package(projectPhotoFilename filename: String) throws -> Package {
         let package = try completePackage()
         try FileManager.default.removeItem(at: package.firstReferencedFile)
@@ -2291,12 +2412,23 @@ private enum BackupFixture {
         return CompleteArchive(referencedRelativePaths: files.map(\.0) + [patternPath])
     }
 
-    static func writePatternLibraryArchive(to live: URL) throws -> CompleteArchive {
+    static func writePatternLibraryArchive(
+        to live: URL,
+        archiveVersion: Int = ProjectArchive.currentVersion,
+        omitPDFWidthScaleRatio: Bool = false,
+        includeLinkedYarn: Bool = false
+    ) throws -> CompleteArchive {
         let project = try StoredProject(name: "Pattern project")
+        var yarns: [StoredYarn] = []
+        if includeLinkedYarn {
+            var yarn = try StoredYarn(name: "Pattern yarn")
+            yarn.setLinkedProjectIDs([project.id])
+            yarns = [yarn]
+        }
         let assetID = UUID()
         let patternID = UUID()
         let usageID = UUID()
-        let assetBytes = Data("shared-original-pattern".utf8)
+        let assetBytes = try patternPDFData()
         let storedFilename = "\(assetID.uuidString).pdf"
         let asset = PatternAsset(
             id: assetID,
@@ -2343,8 +2475,9 @@ private enum BackupFixture {
             readingState: readingState
         )
         let archive = ProjectArchive(
-            version: ProjectArchive.currentVersion,
+            version: archiveVersion,
             projects: [project],
+            yarns: yarns,
             patternAssets: [asset],
             patterns: [pattern],
             patternUsages: [usage]
@@ -2360,7 +2493,10 @@ private enum BackupFixture {
             ),
         ])
         let files: [(String, Data)] = [
-            (archivePath, try JSONEncoder().encode(archive)),
+            (archivePath, try encodedArchive(
+                archive,
+                omittingPDFWidthScaleRatio: omitPDFWidthScaleRatio
+            )),
             (assetPath, assetBytes),
             (markupPath, try JSONEncoder().encode(markup)),
         ]
@@ -2373,6 +2509,41 @@ private enum BackupFixture {
             try data.write(to: destination, options: .atomic)
         }
         return CompleteArchive(referencedRelativePaths: files.map(\.0))
+    }
+
+    private static func patternPDFData() throws -> Data {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "BackupPattern-\(UUID().uuidString).pdf"
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+        var mediaBox = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let consumer = try #require(CGDataConsumer(url: url as CFURL))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
+        for _ in 0..<5 {
+            context.beginPDFPage(nil)
+            context.endPDFPage()
+        }
+        context.closePDF()
+        return try Data(contentsOf: url)
+    }
+
+    private static func encodedArchive(
+        _ archive: ProjectArchive,
+        omittingPDFWidthScaleRatio: Bool
+    ) throws -> Data {
+        let encoded = try JSONEncoder().encode(archive)
+        guard omittingPDFWidthScaleRatio else { return encoded }
+        var object = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        var usages = try #require(object["patternUsages"] as? [[String: Any]])
+        var usage = try #require(usages.first)
+        var readingState = try #require(usage["readingState"] as? [String: Any])
+        readingState.removeValue(forKey: "pdfWidthScaleRatio")
+        usage["readingState"] = readingState
+        usages[0] = usage
+        object["patternUsages"] = usages
+        return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 
     static func writeExcludedPatternArtifacts(to live: URL) throws {

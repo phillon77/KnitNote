@@ -1831,7 +1831,7 @@ public struct KnitNoteBackupService: Sendable {
     }
 
     private func patternCount(in archive: ProjectArchive) -> Int {
-        archive.version == ProjectArchive.currentVersion
+        ProjectArchive.supportsPatternLibrary(version: archive.version)
             ? archive.patterns.count
             : archive.projects.reduce(0) { $0 + $1.patterns.count }
     }
@@ -2105,7 +2105,7 @@ public struct KnitNoteBackupService: Sendable {
         guard archive.yarns.allSatisfy({ $0.linkedProjectIDs.isSubset(of: projectIDs) }) else {
             throw KnitNoteBackupError.invalidYarnProjectLinks
         }
-        if archive.version == ProjectArchive.currentVersion {
+        if ProjectArchive.supportsPatternLibrary(version: archive.version) {
             do {
                 _ = try PatternLibrarySnapshot(
                     assets: archive.patternAssets,
@@ -2186,7 +2186,7 @@ public struct KnitNoteBackupService: Sendable {
                 knownMarkupOwners.insert(owner)
             }
         }
-        if archive.version == ProjectArchive.currentVersion {
+        if ProjectArchive.supportsPatternLibrary(version: archive.version) {
             allowedDirectories.insert("Patterns/Assets")
             allowedDirectories.insert("Patterns/UsageMarkup")
             for usage in archive.patternUsages {
@@ -2212,7 +2212,7 @@ public struct KnitNoteBackupService: Sendable {
                 throw KnitNoteBackupError.missingReferencedFile(relativePath)
             }
         }
-        if archive.version == ProjectArchive.currentVersion {
+        if ProjectArchive.supportsPatternLibrary(version: archive.version) {
             for asset in archive.patternAssets {
                 let relativePath = "Patterns/Assets/\(asset.storedFilename)"
                 let file = dataRoot.appendingPathComponent(relativePath)

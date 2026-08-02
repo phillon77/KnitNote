@@ -45,7 +45,8 @@ public struct PatternLibraryMigrator: Sendable {
         archive: ProjectArchive,
         liveRoot: URL
     ) throws -> MigratedPatternLibrary {
-        guard (ProjectArchive.minimumSupportedVersion...9).contains(archive.version) else {
+        guard ProjectArchive.isSupported(version: archive.version),
+              archive.version < ProjectArchive.currentVersion else {
             throw PatternLibraryMigrationError.unsupportedArchiveVersion
         }
 

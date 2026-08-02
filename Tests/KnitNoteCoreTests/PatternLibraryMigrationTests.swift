@@ -507,6 +507,38 @@ import UniformTypeIdentifiers
     #expect(try Data(contentsOf: fixture.archiveURL) == onceMigrated)
 }
 
+@MainActor @Test func schemaTenPatternLibraryUpgradesWithoutLosingStateOrFiles() throws {
+    let fixture = try SchemaTenPatternLibraryFixture.make()
+    defer { try? FileManager.default.removeItem(at: fixture.liveRoot) }
+
+    let store = JSONProjectStore(url: fixture.archiveURL)
+    let installed = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: fixture.archiveURL)
+    )
+    let restoredUsage = try #require(store.patternUsages.first)
+
+    #expect(store.loadError == nil)
+    #expect(installed.version == ProjectArchive.currentVersion)
+    #expect(store.projects == [fixture.project])
+    #expect(store.yarns == [fixture.yarn])
+    #expect(store.patternAssets == [fixture.asset])
+    #expect(store.patterns == [fixture.pattern])
+    #expect(store.patternUsages == [fixture.usage])
+    #expect(restoredUsage.readingState.pdfWidthScaleRatio == 1.0)
+    #expect(restoredUsage.readingState.pageIndex == 2)
+    #expect(restoredUsage.readingState.zoomScale == 2.25)
+    #expect(restoredUsage.readingState.highlightEnabled)
+    #expect(restoredUsage.readingState.highlightMode == .cross)
+    #expect(restoredUsage.readingState.pageStates[2] == .init(
+        horizontalPosition: 0.4,
+        verticalPosition: 0.7,
+        note: "Cable repeat"
+    ))
+    #expect(try Data(contentsOf: fixture.assetURL) == fixture.assetData)
+    #expect(try Data(contentsOf: fixture.markupURL) == fixture.markupData)
+}
+
 @MainActor @Test func storeRejectsCurrentArchiveWhenReferencedAssetIsMissing() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let migrated = JSONProjectStore(url: fixture.archiveURL)
@@ -715,6 +747,144 @@ private struct LegacyPatternFixture {
             legacyMarkupURL: try #require(firstMarkupURL),
             legacyMarkupData: try Data(contentsOf: try #require(firstMarkupURL))
         )
+    }
+}
+
+private struct SchemaTenPatternLibraryFixture {
+    let liveRoot: URL
+    let archiveURL: URL
+    let project: StoredProject
+    let yarn: StoredYarn
+    let asset: PatternAsset
+    let pattern: StoredPattern
+    let usage: PatternProjectUsage
+    let assetURL: URL
+    let assetData: Data
+    let markupURL: URL
+    let markupData: Data
+
+    static func make() throws -> SchemaTenPatternLibraryFixture {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "SchemaTenPatternLibrary-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let project = try StoredProject(name: "Schema 10 cardigan")
+        var yarn = try StoredYarn(name: "Schema 10 merino")
+        yarn.setLinkedProjectIDs([project.id])
+
+        let assetID = UUID()
+        let assetURL = root.appendingPathComponent(
+            "Patterns/Assets/\(assetID.uuidString).pdf"
+        )
+        try FileManager.default.createDirectory(
+            at: assetURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try makeTestPatternPDF(at: assetURL, pageCount: 3)
+        let assetData = try Data(contentsOf: assetURL)
+        let asset = PatternAsset(
+            id: assetID,
+            sha256: SHA256.hash(data: assetData)
+                .map { String(format: "%02x", $0) }
+                .joined(),
+            kind: .pdf,
+            storedFilename: assetURL.lastPathComponent,
+            byteCount: Int64(assetData.count),
+            pageCount: 3
+        )
+        let pattern = StoredPattern(
+            assetID: asset.id,
+            displayName: "Schema 10 cables",
+            note: "Designer note",
+            createdAt: .init(timeIntervalSince1970: 1_000),
+            lastOpenedAt: .init(timeIntervalSince1970: 2_000)
+        )
+        let readingState = PatternReadingState(
+            pageIndex: 2,
+            zoomScale: 2.25,
+            offsetX: 0.35,
+            offsetY: 0.65,
+            highlightEnabled: true,
+            highlightPosition: 0.4,
+            highlightMode: .cross,
+            verticalHighlightPosition: 0.7,
+            pageNote: "Cable repeat",
+            pageStates: [
+                2: .init(
+                    horizontalPosition: 0.4,
+                    verticalPosition: 0.7,
+                    note: "Cable repeat"
+                ),
+            ]
+        )
+        let usage = PatternProjectUsage(
+            patternID: pattern.id,
+            projectID: project.id,
+            linkedAt: .init(timeIntervalSince1970: 3_000),
+            sortOrder: 4,
+            readingState: readingState
+        )
+        let archive = ProjectArchive(
+            version: 10,
+            projects: [project],
+            yarns: [yarn],
+            patternAssets: [asset],
+            patterns: [pattern],
+            patternUsages: [usage]
+        )
+        let archiveURL = root.appendingPathComponent("projects-v1.json")
+        try encodedArchiveWithoutPDFWidthRatio(archive).write(
+            to: archiveURL,
+            options: .atomic
+        )
+
+        let markupURL = root.appendingPathComponent(
+            "Patterns/UsageMarkup/\(usage.id.uuidString)/2.json"
+        )
+        try FileManager.default.createDirectory(
+            at: markupURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let markupData = try JSONEncoder().encode(PatternMarkupDocument(strokes: [
+            .init(
+                points: [.init(x: 0.2, y: 0.3), .init(x: 0.4, y: 0.5)],
+                color: .red,
+                width: 0.006
+            ),
+        ]))
+        try markupData.write(to: markupURL, options: .atomic)
+
+        return SchemaTenPatternLibraryFixture(
+            liveRoot: root,
+            archiveURL: archiveURL,
+            project: project,
+            yarn: yarn,
+            asset: asset,
+            pattern: pattern,
+            usage: usage,
+            assetURL: assetURL,
+            assetData: assetData,
+            markupURL: markupURL,
+            markupData: markupData
+        )
+    }
+
+    private static func encodedArchiveWithoutPDFWidthRatio(
+        _ archive: ProjectArchive
+    ) throws -> Data {
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(archive)) as? [String: Any]
+        )
+        var usages = try #require(object["patternUsages"] as? [[String: Any]])
+        var usage = try #require(usages.first)
+        var readingState = try #require(usage["readingState"] as? [String: Any])
+        readingState.removeValue(forKey: "pdfWidthScaleRatio")
+        usage["readingState"] = readingState
+        usages[0] = usage
+        object["patternUsages"] = usages
+        return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 }
 

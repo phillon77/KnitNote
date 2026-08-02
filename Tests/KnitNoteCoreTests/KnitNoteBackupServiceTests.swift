@@ -501,10 +501,11 @@ import Testing
     }
 
     @Test func projectArchiveDeclaresSharedCurrentAndSupportedLegacyVersions() {
-        #expect(ProjectArchive.currentVersion == 10)
+        #expect(ProjectArchive.currentVersion == 11)
         #expect(ProjectArchive.minimumSupportedVersion == 1)
-        #expect(ProjectArchive.isSupported(version: 1))
-        #expect(ProjectArchive.isSupported(version: 8))
+        for version in 1...10 {
+            #expect(ProjectArchive.isSupported(version: version))
+        }
         #expect(ProjectArchive.isSupported(version: ProjectArchive.currentVersion))
         #expect(!ProjectArchive.isSupported(version: 0))
         #expect(!ProjectArchive.isSupported(version: ProjectArchive.currentVersion + 1))

@@ -22,6 +22,7 @@
 		064665149A05CC8E272CA59B /* ImageReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */; };
 		065C3AC0BD242A4650F3550E /* PhoneWatchSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4CD7459BFFD6F5954AE7FDE /* PhoneWatchSyncCoordinator.swift */; };
 		06CD1A2B0DEEB8D74433C66A /* EntitlementProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */; };
+		0759B471D6CC3E86D64C59DF /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		0C5577C16097062613E39E51 /* PatternLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */; };
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
 		0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
@@ -160,6 +161,7 @@
 		9A4065300F7AEBA87D9E0778 /* EntitlementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */; };
 		A4B18C855C5E8E2E9A5F1421 /* FeatureAccessPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560C63535489050C1E0E523E /* FeatureAccessPolicy.swift */; };
 		A4FC998617515EDEE746AAD5 /* ProjectCountersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */; };
+		A5BE1A19B9C35CAB890C30BD /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		A8121B8CC33DEC5E639C59CA /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2721C6AB54E5F271947F0E /* ProjectListView.swift */; };
 		A8A416D949E6DE618CF881E8 /* EntitlementProjectionWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF86FAD0384C737E658266E3 /* EntitlementProjectionWriter.swift */; };
 		A8EFB5CB1EF4319452A430B3 /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
@@ -233,6 +235,7 @@
 		EC34F97C1EBEF741F560F2F4 /* PatternInboxPublicationReceiptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */; };
 		EFCF881CA8E318B938F4E3B7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */; };
 		F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
+		F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		F1A9E3015D8D2FE61E35D6E8 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
 		F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
@@ -465,6 +468,7 @@
 		CF86FAD0384C737E658266E3 /* EntitlementProjectionWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementProjectionWriter.swift; sourceTree = "<group>"; };
 		D10455BC3195B85049B3524D /* PatternReaderContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderContext.swift; sourceTree = "<group>"; };
 		D157077494138E6450BAC49F /* GaugeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculator.swift; sourceTree = "<group>"; };
+		D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPDFScalePolicy.swift; sourceTree = "<group>"; };
 		DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaintingOverlayRegion.swift; sourceTree = "<group>"; };
 		E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntry.swift; sourceTree = "<group>"; };
 		E465B08D730079FCDD3CC5C4 /* LegacyPaidVersionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPaidVersionPolicy.swift; sourceTree = "<group>"; };
@@ -731,6 +735,7 @@
 				493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */,
 				4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */,
 				6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */,
+				D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */,
 				E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */,
 				F13000000000000000000001 /* PatternPDFViewportState.swift */,
 				D10455BC3195B85049B3524D /* PatternReaderContext.swift */,
@@ -1107,6 +1112,7 @@
 				4A353C0DE7DF32510250A6D2 /* PatternInboxItem.swift in Sources */,
 				8BBD7873D7A9CA835165532C /* PatternMarkup.swift in Sources */,
 				44ECDB6FE17DB38EBCE188B2 /* PatternMarkupFileService.swift in Sources */,
+				0759B471D6CC3E86D64C59DF /* PatternPDFScalePolicy.swift in Sources */,
 				CCD519063886D57AA8BFAC77 /* PatternShareImportPresentation.swift in Sources */,
 				80AC78B0116DADEF95D8C444 /* PatternShareInboxEnqueuer.swift in Sources */,
 				DD86888BF9949C6FC0E5597D /* PatternStorageLocations.swift in Sources */,
@@ -1196,6 +1202,7 @@
 				F7BFE7FD7E58B7487B0D7018 /* PatternMarkupFileService.swift in Sources */,
 				1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */,
 				2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */,
+				F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */,
 				85F28B8AEE9E9F34BB860351 /* PatternProjectUsage.swift in Sources */,
 				F13000000000000000000002 /* PatternPDFViewportState.swift in Sources */,
 				BCABCE9445D746253F48F7D2 /* PatternReaderContext.swift in Sources */,
@@ -1302,6 +1309,7 @@
 				565387B340966E6FE0BA8C03 /* PatternLibraryMigrator.swift in Sources */,
 				5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */,
 				CE0C9AB59E4E7FB73A73A1C1 /* PatternMarkupFileService.swift in Sources */,
+				A5BE1A19B9C35CAB890C30BD /* PatternPDFScalePolicy.swift in Sources */,
 				5F9F4B1350C5BC0C49B1D558 /* PatternProjectUsage.swift in Sources */,
 				D70477783D80381ABCF01AFF /* PatternReaderLayoutPolicy.swift in Sources */,
 				D5EF0DF13872B22FE216EDBD /* PatternStorageLocations.swift in Sources */,

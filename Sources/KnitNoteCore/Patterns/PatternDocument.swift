@@ -55,6 +55,7 @@ public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
 
 public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     public var pageIndex: Int
+    public var pdfWidthScaleRatio: Double
     public var zoomScale: Double
     public var offsetX: Double
     public var offsetY: Double
@@ -64,13 +65,59 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     public var verticalHighlightPosition: Double
     public var pageNote: String
     public var pageStates: [Int: PatternPageState]
-    public init(pageIndex: Int = 0, zoomScale: Double = 1, offsetX: Double = 0, offsetY: Double = 0, highlightEnabled: Bool = false, highlightPosition: Double = 0.5, highlightMode: HighlightMode = .horizontal, verticalHighlightPosition: Double = 0.5, pageNote: String = "", pageStates: [Int: PatternPageState] = [:]) {
-        self.pageIndex = max(0, pageIndex); self.zoomScale = max(0.1, zoomScale)
+    public init(pageIndex: Int = 0, pdfWidthScaleRatio: Double = PatternPDFScalePolicy.defaultRatio, zoomScale: Double = 1, offsetX: Double = 0, offsetY: Double = 0, highlightEnabled: Bool = false, highlightPosition: Double = 0.5, highlightMode: HighlightMode = .horizontal, verticalHighlightPosition: Double = 0.5, pageNote: String = "", pageStates: [Int: PatternPageState] = [:]) {
+        self.pageIndex = max(0, pageIndex); self.pdfWidthScaleRatio = PatternPDFScalePolicy.normalizedRatio(pdfWidthScaleRatio); self.zoomScale = max(0.1, zoomScale)
         self.offsetX = min(1, max(0, offsetX)); self.offsetY = min(1, max(0, offsetY)); self.highlightEnabled = highlightEnabled
         self.highlightPosition = min(1, max(0, highlightPosition)); self.highlightMode = highlightMode
         self.verticalHighlightPosition = min(1, max(0, verticalHighlightPosition))
         self.pageNote = pageNote
         self.pageStates = pageStates
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case pageIndex
+        case pdfWidthScaleRatio
+        case zoomScale
+        case offsetX
+        case offsetY
+        case highlightEnabled
+        case highlightPosition
+        case highlightMode
+        case verticalHighlightPosition
+        case pageNote
+        case pageStates
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        pageIndex = max(0, try container.decodeIfPresent(Int.self, forKey: .pageIndex) ?? 0)
+        pdfWidthScaleRatio = PatternPDFScalePolicy.normalizedRatio(
+            try container.decodeIfPresent(Double.self, forKey: .pdfWidthScaleRatio) ?? PatternPDFScalePolicy.defaultRatio
+        )
+        zoomScale = max(0.1, try container.decodeIfPresent(Double.self, forKey: .zoomScale) ?? 1)
+        offsetX = min(1, max(0, try container.decodeIfPresent(Double.self, forKey: .offsetX) ?? 0))
+        offsetY = min(1, max(0, try container.decodeIfPresent(Double.self, forKey: .offsetY) ?? 0))
+        highlightEnabled = try container.decodeIfPresent(Bool.self, forKey: .highlightEnabled) ?? false
+        highlightPosition = min(1, max(0, try container.decodeIfPresent(Double.self, forKey: .highlightPosition) ?? 0.5))
+        highlightMode = try container.decodeIfPresent(HighlightMode.self, forKey: .highlightMode) ?? .horizontal
+        verticalHighlightPosition = min(1, max(0, try container.decodeIfPresent(Double.self, forKey: .verticalHighlightPosition) ?? 0.5))
+        pageNote = try container.decodeIfPresent(String.self, forKey: .pageNote) ?? ""
+        pageStates = try container.decodeIfPresent([Int: PatternPageState].self, forKey: .pageStates) ?? [:]
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(pageIndex, forKey: .pageIndex)
+        try container.encode(PatternPDFScalePolicy.normalizedRatio(pdfWidthScaleRatio), forKey: .pdfWidthScaleRatio)
+        try container.encode(zoomScale, forKey: .zoomScale)
+        try container.encode(offsetX, forKey: .offsetX)
+        try container.encode(offsetY, forKey: .offsetY)
+        try container.encode(highlightEnabled, forKey: .highlightEnabled)
+        try container.encode(highlightPosition, forKey: .highlightPosition)
+        try container.encode(highlightMode, forKey: .highlightMode)
+        try container.encode(verticalHighlightPosition, forKey: .verticalHighlightPosition)
+        try container.encode(pageNote, forKey: .pageNote)
+        try container.encode(pageStates, forKey: .pageStates)
     }
 
     public func pdfRestorePageIndex(pageCount: Int) -> Int {
@@ -130,17 +177,20 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
 
 public struct PatternBrowsingState: Equatable, Hashable, Sendable {
     public let pageIndex: Int
+    public let pdfWidthScaleRatio: Double
     public let zoomScale: Double
     public let offsetX: Double
     public let offsetY: Double
 
     public init(
         pageIndex: Int,
+        pdfWidthScaleRatio: Double = PatternPDFScalePolicy.defaultRatio,
         zoomScale: Double,
         offsetX: Double,
         offsetY: Double
     ) {
         self.pageIndex = max(0, pageIndex)
+        self.pdfWidthScaleRatio = PatternPDFScalePolicy.normalizedRatio(pdfWidthScaleRatio)
         self.zoomScale = max(0.1, zoomScale)
         self.offsetX = min(1, max(0, offsetX))
         self.offsetY = min(1, max(0, offsetY))
@@ -149,6 +199,7 @@ public struct PatternBrowsingState: Equatable, Hashable, Sendable {
     public init(readingState: PatternReadingState) {
         self.init(
             pageIndex: readingState.pageIndex,
+            pdfWidthScaleRatio: readingState.pdfWidthScaleRatio,
             zoomScale: readingState.zoomScale,
             offsetX: readingState.offsetX,
             offsetY: readingState.offsetY
@@ -163,6 +214,7 @@ public extension PatternReadingState {
 
     mutating func applyBrowsingState(_ browsingState: PatternBrowsingState) {
         pageIndex = browsingState.pageIndex
+        pdfWidthScaleRatio = browsingState.pdfWidthScaleRatio
         zoomScale = browsingState.zoomScale
         offsetX = browsingState.offsetX
         offsetY = browsingState.offsetY

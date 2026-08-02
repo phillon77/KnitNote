@@ -90,6 +90,47 @@ import Testing
         #expect(reopenedSession.readingState?.pageStates[7]?.note == "sleeve repeat")
     }
 
+    @Test func twoProjectUsagesKeepIndependentPDFWidthRatios() {
+        let patternID = UUID()
+        let first = PatternProjectUsage(
+            patternID: patternID,
+            projectID: UUID(),
+            sortOrder: 0,
+            readingState: .init(pdfWidthScaleRatio: 1.25)
+        )
+        let second = PatternProjectUsage(
+            patternID: patternID,
+            projectID: UUID(),
+            sortOrder: 1,
+            readingState: .init(pdfWidthScaleRatio: 2.0)
+        )
+
+        #expect(first.readingState.pdfWidthScaleRatio == 1.25)
+        #expect(second.readingState.pdfWidthScaleRatio == 2.0)
+    }
+
+    @Test func browsingStateRestoresSharedPDFWidthRatio() {
+        var state = PatternReadingState(pdfWidthScaleRatio: 1.4)
+        let browsingState = PatternBrowsingState(readingState: state)
+
+        state.pdfWidthScaleRatio = 2.0
+        state.applyBrowsingState(browsingState)
+
+        #expect(state.pdfWidthScaleRatio == 1.4)
+    }
+
+    @Test func usageUpdateNormalizesInvalidPDFWidthRatio() {
+        var usage = PatternProjectUsage(
+            patternID: UUID(),
+            projectID: UUID(),
+            sortOrder: 0
+        )
+
+        usage.updatePDFWidthScaleRatio(-1)
+
+        #expect(usage.readingState.pdfWidthScaleRatio == 1.0)
+    }
+
     private func projectContext() -> PatternReaderContext {
         .project(patternID: UUID(), usageID: UUID(), projectID: UUID(), projectIsCompleted: false)
     }
@@ -97,6 +138,7 @@ import Testing
     private func richReadingState() -> PatternReadingState {
         .init(
             pageIndex: 4,
+            pdfWidthScaleRatio: 1.75,
             zoomScale: 2.25,
             offsetX: 0.15,
             offsetY: 0.8,

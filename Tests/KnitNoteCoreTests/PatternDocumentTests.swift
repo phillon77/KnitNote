@@ -2,6 +2,112 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
+@Test func pdfScalePolicyConvertsBetweenFitWidthRatioAndAbsoluteScale() {
+    #expect(PatternPDFScalePolicy.ratio(currentScale: 1.8, fitWidthScale: 1.2) == 1.5)
+    #expect(PatternPDFScalePolicy.absoluteScale(
+        ratio: 1.5,
+        fitWidthScale: 0.9,
+        allowed: 0.5...3.0
+    ) == 1.35)
+}
+
+@Test func pdfScalePolicyFallsBackAndClampsAtPDFKitLimits() {
+    #expect(PatternPDFScalePolicy.ratio(currentScale: .infinity, fitWidthScale: 1.0) == 1.0)
+    #expect(PatternPDFScalePolicy.ratio(currentScale: 2.0, fitWidthScale: 0.0) == 1.0)
+    #expect(PatternPDFScalePolicy.absoluteScale(ratio: 8.0, fitWidthScale: 0.5, allowed: 0.25...2.0) == 2.0)
+    #expect(PatternPDFScalePolicy.absoluteScale(ratio: -1.0, fitWidthScale: 0.8, allowed: 0.25...2.0) == 0.8)
+}
+
+@Test func pdfWidthRatioIsSharedAcrossPagesWithoutChangingPageDetails() {
+    var state = PatternReadingState(
+        pageIndex: 0,
+        pdfWidthScaleRatio: 1.6,
+        highlightPosition: 0.2,
+        pageNote: "body",
+        pageStates: [1: .init(horizontalPosition: 0.8, verticalPosition: 0.3, note: "sleeve")]
+    )
+
+    state.transitionToPDFPage(1)
+
+    #expect(state.pdfWidthScaleRatio == 1.6)
+    #expect(state.pageNote == "sleeve")
+    #expect(state.highlightPosition == 0.8)
+}
+
+@Test(arguments: [
+    ("legacy", nil),
+    ("zero", "0"),
+    ("negative", "-1"),
+    ("nan", "\"NaN\""),
+    ("infinity", "\"Infinity\""),
+]) func decodingMissingOrInvalidPDFWidthRatioUsesDefault(
+    _: String,
+    ratioJSON: String?
+) throws {
+    var fields = [
+        "\"pageIndex\": 3",
+        "\"zoomScale\": 2.5",
+        "\"offsetX\": 0.2",
+        "\"offsetY\": 0.8",
+        "\"highlightEnabled\": true",
+        "\"highlightPosition\": 0.3",
+        "\"highlightMode\": \"cross\"",
+        "\"verticalHighlightPosition\": 0.7",
+        "\"pageNote\": \"neck shaping\"",
+        "\"pageStates\": {\"3\": {\"horizontalPosition\": 0.3, \"verticalPosition\": 0.7, \"note\": \"neck shaping\"}}",
+    ]
+    if let ratioJSON {
+        fields.append("\"pdfWidthScaleRatio\": \(ratioJSON)")
+    }
+    let fixture = "{\(fields.joined(separator: ","))}"
+    let decoder = JSONDecoder()
+    decoder.nonConformingFloatDecodingStrategy = .convertFromString(
+        positiveInfinity: "Infinity",
+        negativeInfinity: "-Infinity",
+        nan: "NaN"
+    )
+
+    let decoded = try decoder.decode(PatternReadingState.self, from: Data(fixture.utf8))
+
+    #expect(decoded.pdfWidthScaleRatio == 1.0)
+}
+
+@Test func richReadingStateRoundTripsPDFWidthRatioAndExistingPageDetails() throws {
+    let expected = PatternReadingState(
+        pageIndex: 4,
+        pdfWidthScaleRatio: 1.75,
+        zoomScale: 2.25,
+        offsetX: 0.15,
+        offsetY: 0.8,
+        highlightEnabled: true,
+        highlightPosition: 0.31,
+        highlightMode: .cross,
+        verticalHighlightPosition: 0.72,
+        pageNote: "neck shaping",
+        pageStates: [
+            4: .init(horizontalPosition: 0.31, verticalPosition: 0.72, note: "neck shaping"),
+            7: .init(horizontalPosition: 0.63, verticalPosition: 0.19, note: "sleeve repeat"),
+        ]
+    )
+
+    let decoded = try JSONDecoder().decode(
+        PatternReadingState.self,
+        from: JSONEncoder().encode(expected)
+    )
+
+    #expect(decoded.pdfWidthScaleRatio == 1.75)
+    #expect(decoded.pageIndex == 4)
+    #expect(decoded.zoomScale == 2.25)
+    #expect(decoded.offsetX == 0.15)
+    #expect(decoded.offsetY == 0.8)
+    #expect(decoded.highlightEnabled)
+    #expect(decoded.highlightPosition == 0.31)
+    #expect(decoded.highlightMode == .cross)
+    #expect(decoded.verticalHighlightPosition == 0.72)
+    #expect(decoded.pageNote == "neck shaping")
+    #expect(decoded.pageStates == expected.pageStates)
+}
+
 @Test func everyIOSDeviceUsesFullScreenPatternPresentation() {
     #expect(patternReaderPresentation(isPad: true) == .fullScreen)
     #expect(patternReaderPresentation(isPad: false) == .fullScreen)

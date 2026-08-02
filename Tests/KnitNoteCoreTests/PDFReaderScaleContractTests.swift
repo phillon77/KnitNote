@@ -18,55 +18,78 @@ import Testing
         #expect(!method.contains("state.pageNote"))
     }
 
-    @Test func readerReportsTheCurrentDisplayedPageFrame() throws {
+    @Test func readerReportsTheCurrentDisplayedPageFrameInItsViewport() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
-        #expect(pdf.contains("@Binding var pageFrame: CGRect?"))
+        #expect(pdf.contains("@Binding var viewport: PatternPDFViewportState"))
         #expect(pdf.contains("view.convert(page.bounds(for: view.displayBox), from: page)"))
-        #expect(pdf.contains("publishPageFrame"))
+        #expect(pdf.contains("publishViewport"))
     }
 
     @Test func macOSFlipsOnlyThePublishedFrameWhileIOSKeepsTheRawConversion() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
         let method = try #require(
-            pdf.slice(from: "private func publishPageFrame", to: "@objc private func changed")
+            pdf.slice(from: "private func publishViewport", to: "@objc private func changed")
         )
 
         #expect(method.contains("#if os(macOS)"))
         #expect(method.contains("PatternPDFPageFrameGeometry.flippedFrame(converted, in: view.bounds)"))
-        #expect(method.contains("#else\n            let platformFrame = converted\n#endif"))
+        #expect(method.contains("#else"))
+        #expect(method.contains("let platformFrame = converted"))
     }
 
     @Test func readerIgnoresStaleAsynchronousPageFrameWrites() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
-        let method = try #require(pdf.slice(from: "private func publishPageFrame", to: "@objc private func changed"))
+        let method = try #require(pdf.slice(from: "private func publishViewport", to: "@objc private func changed"))
 
-        #expect(method.contains("guard let self, self.lastPublishedPageFrame == nil else { return }"))
-        #expect(method.contains("guard let self, self.lastPublishedPageFrame == candidate else { return }"))
+        #expect(method.contains("guard let self, self.lastPublishedViewport == candidate else { return }"))
     }
 
-    @Test func readerProvidesDefaultPageFrameBindingForExistingCallSites() throws {
+    @Test func readerProvidesDefaultViewportBindingForExistingCallSites() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
-        #expect(pdf.contains("pageFrame: Binding<CGRect?> = .constant(nil)"))
+        #expect(pdf.contains("viewport: Binding<PatternPDFViewportState> = .constant(PatternPDFViewportState())"))
+    }
+
+    @Test func readerPublishesOneViewportFromPageScaleLayoutAndScrollEvents() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+
+        #expect(pdf.contains("@Binding var viewport: PatternPDFViewportState"))
+        #expect(pdf.contains("private func publishViewport(from view: PDFView"))
+        #expect(pdf.contains("viewportPublicationGate.accept(candidate)"))
+        #expect(pdf.contains("installScrollObservation(in: view)"))
+        #expect(pdf.contains("contentOffsetObservation"))
+        #expect(pdf.contains("NSView.boundsDidChangeNotification"))
+        #expect(!pdf.contains("scroll.delegate ="))
+    }
+
+    @Test func fallbackTimerDoesNotPublishViewport() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let sample = try #require(pdf.slice(from: "private func sample", to: "deinit"))
+        #expect(!sample.contains("publishViewport"))
+        #expect(!sample.contains("pageFrame"))
     }
 
     @Test func everyPlatformUpdateRefreshesTheCoordinatorStateBindingBeforeUpdateWork() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
 
         #expect(pdf.contains(
-            "func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }"
+            "func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, viewport: $viewport, scaleMode: scaleMode) }"
         ))
         #expect(pdf.contains(
-            "func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }"
+            "func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, viewport: $viewport, scaleMode: scaleMode) }"
         ))
 
         let method = try #require(pdf.slice(from: "        func update(\n", to: "        private func scheduleRestore"))
         let bindingRefresh = try #require(method.range(of: "_state = state"))
+        let viewportBindingRefresh = try #require(method.range(of: "_viewport = viewport"))
         let scaleModeUpdate = try #require(method.range(of: "latestScaleMode = scaleMode"))
         let restoreOrScaleWork = try #require(method.range(of: "if restoreGate.beginRestoring()"))
 
         #expect(method.contains("state: Binding<PatternReadingState>"))
+        #expect(method.contains("viewport: Binding<PatternPDFViewportState>"))
         #expect(bindingRefresh.lowerBound < scaleModeUpdate.lowerBound)
         #expect(bindingRefresh.lowerBound < restoreOrScaleWork.lowerBound)
+        #expect(viewportBindingRefresh.lowerBound < scaleModeUpdate.lowerBound)
+        #expect(viewportBindingRefresh.lowerBound < restoreOrScaleWork.lowerBound)
     }
 
     private func source(_ path: String) throws -> String {

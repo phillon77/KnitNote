@@ -21,7 +21,7 @@ import SwiftUI
 
 #if os(macOS)
 struct PDFReaderView: NSViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var pageFrame: CGRect?; let onReady: @MainActor () -> Void
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var viewport: PatternPDFViewportState; let onReady: @MainActor () -> Void
 
     init(
         url: URL,
@@ -30,7 +30,7 @@ struct PDFReaderView: NSViewRepresentable {
         state: Binding<PatternReadingState>,
         pageCount: Binding<Int>,
         loadError: Binding<Bool>,
-        pageFrame: Binding<CGRect?> = .constant(nil),
+        viewport: Binding<PatternPDFViewportState> = .constant(PatternPDFViewportState()),
         onReady: @escaping @MainActor () -> Void
     ) {
         self.url = url
@@ -39,18 +39,18 @@ struct PDFReaderView: NSViewRepresentable {
         _state = state
         _pageCount = pageCount
         _loadError = loadError
-        _pageFrame = pageFrame
+        _viewport = viewport
         self.onReady = onReady
     }
 
     func makeNSView(context: Context) -> PDFView { makeView(context: context) }
-    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }
+    func updateNSView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, viewport: $viewport, scaleMode: scaleMode) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, viewport: $viewport, navigator: navigator, onReady: onReady) }
     private func makeView(context: Context) -> PDFView { context.coordinator.make(url: url) }
 }
 #else
 struct PDFReaderView: UIViewRepresentable {
-    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var pageFrame: CGRect?; let onReady: @MainActor () -> Void
+    let url: URL; let navigator: PDFPageNavigator; let scaleMode: PatternPDFScaleMode; @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var loadError: Bool; @Binding var viewport: PatternPDFViewportState; let onReady: @MainActor () -> Void
 
     init(
         url: URL,
@@ -59,7 +59,7 @@ struct PDFReaderView: UIViewRepresentable {
         state: Binding<PatternReadingState>,
         pageCount: Binding<Int>,
         loadError: Binding<Bool>,
-        pageFrame: Binding<CGRect?> = .constant(nil),
+        viewport: Binding<PatternPDFViewportState> = .constant(PatternPDFViewportState()),
         onReady: @escaping @MainActor () -> Void
     ) {
         self.url = url
@@ -68,19 +68,39 @@ struct PDFReaderView: UIViewRepresentable {
         _state = state
         _pageCount = pageCount
         _loadError = loadError
-        _pageFrame = pageFrame
+        _viewport = viewport
         self.onReady = onReady
     }
 
     func makeUIView(context: Context) -> PDFView { context.coordinator.make(url: url) }
-    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, scaleMode: scaleMode) }
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, pageFrame: $pageFrame, navigator: navigator, onReady: onReady) }
+    func updateUIView(_ view: PDFView, context: Context) { context.coordinator.update(view, state: $state, viewport: $viewport, scaleMode: scaleMode) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: $state, pageCount: $pageCount, error: $loadError, viewport: $viewport, navigator: navigator, onReady: onReady) }
 }
 #endif
 
 extension PDFReaderView {
     @MainActor final class Coordinator: NSObject, @unchecked Sendable {
-        @Binding var state: PatternReadingState; @Binding var pageCount: Int; @Binding var error: Bool; @Binding private var pageFrame: CGRect?; private let initialState: PatternReadingState; private let navigator: PDFPageNavigator; private let onReady: @MainActor () -> Void; private var restoreGate = PatternReadingRestoreGate(); private var pageRequestGate = PatternPDFPageRequestGate(); private var restoreAttempts = 0; private var reportedReady = false; private weak var view: PDFView?; nonisolated(unsafe) private var timer: Timer?
+        @Binding var state: PatternReadingState
+        @Binding var pageCount: Int
+        @Binding var error: Bool
+        @Binding private var viewport: PatternPDFViewportState
+        private let initialState: PatternReadingState
+        private let navigator: PDFPageNavigator
+        private let onReady: @MainActor () -> Void
+        private var restoreGate = PatternReadingRestoreGate()
+        private var pageRequestGate = PatternPDFPageRequestGate()
+        private var viewportPublicationGate = PatternPDFViewportPublicationGate()
+        private var restoreAttempts = 0
+        private var reportedReady = false
+        private weak var view: PDFView?
+        nonisolated(unsafe) private var timer: Timer?
+#if os(macOS)
+        private weak var observedScrollView: NSScrollView?
+        nonisolated(unsafe) private var boundsObservation: NSObjectProtocol?
+#else
+        private weak var observedScrollView: UIScrollView?
+        nonisolated(unsafe) private var contentOffsetObservation: NSKeyValueObservation?
+#endif
         private struct ScaleSignature: Equatable {
             let mode: PatternPDFScaleMode
             let size: CGSize
@@ -89,9 +109,9 @@ extension PDFReaderView {
 
         private var latestScaleMode = PatternPDFScaleMode.automatic
         private var lastScaleSignature: ScaleSignature?
-        private var lastPublishedPageFrame: CGRect?
+        private var lastPublishedViewport: PatternPDFViewportState?
 
-        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, pageFrame: Binding<CGRect?>, navigator: PDFPageNavigator, onReady: @escaping @MainActor () -> Void) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; _pageFrame=pageFrame; self.navigator=navigator; self.onReady=onReady }
+        init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, viewport: Binding<PatternPDFViewportState>, navigator: PDFPageNavigator, onReady: @escaping @MainActor () -> Void) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; _viewport=viewport; self.navigator=navigator; self.onReady=onReady }
         func make(url: URL) -> PDFView {
             let view=PDFView(); view.autoScales=true; view.displayMode = .singlePage; view.displayDirection = .horizontal
 #if !os(macOS)
@@ -102,6 +122,7 @@ extension PDFReaderView {
                 return view
             }
             view.document=doc; self.view=view
+            installScrollObservation(in: view)
             navigator.attach(view) { [weak self] target in self?.pageRequestGate.request(target) }
             let loadedPageCount = doc.pageCount
             Task { @MainActor [weak self] in self?.pageCount = loadedPageCount }
@@ -115,10 +136,13 @@ extension PDFReaderView {
         func update(
             _ view: PDFView,
             state: Binding<PatternReadingState>,
+            viewport: Binding<PatternPDFViewportState>,
             scaleMode: PatternPDFScaleMode
         ) {
             _state = state
+            _viewport = viewport
             latestScaleMode = scaleMode
+            installScrollObservation(in: view)
             if restoreGate.beginRestoring() {
                 scheduleRestore(view)
             } else if restoreGate.canSample {
@@ -142,6 +166,7 @@ extension PDFReaderView {
 #else
             view.layoutIfNeeded()
 #endif
+            installScrollObservation(in: view)
             view.autoScales=true
             view.go(to: page)
             Task { @MainActor [weak self, weak view] in
@@ -153,7 +178,8 @@ extension PDFReaderView {
                     self.state.offsetY=0
                     self.restoreGate.didRestore()
                     self.applyScaleMode(self.latestScaleMode, to: view)
-                    self.publishPageFrame(from: view)
+                    self.installScrollObservation(in: view)
+                    self.publishViewport(from: view)
                     if !self.reportedReady {
                         self.reportedReady = true
                         self.onReady()
@@ -168,12 +194,13 @@ extension PDFReaderView {
             guard let page = view.currentPage,
                   let document = view.document
             else { return }
-            defer { publishPageFrame(from: view) }
+            defer { publishViewport(from: view) }
 #if os(macOS)
             view.layoutSubtreeIfNeeded()
 #else
             view.layoutIfNeeded()
 #endif
+            installScrollObservation(in: view)
             let signature = ScaleSignature(
                 mode: mode,
                 size: view.bounds.size,
@@ -198,48 +225,99 @@ extension PDFReaderView {
             }
         }
 
-        private func publishPageFrame(from view: PDFView) {
-            guard let page = view.currentPage else {
-                if lastPublishedPageFrame != nil {
-                    lastPublishedPageFrame = nil
-                    Task { @MainActor [weak self] in
-                        guard let self, self.lastPublishedPageFrame == nil else { return }
-                        self.pageFrame = nil
-                    }
-                }
-                return
-            }
-
-            let converted = view.convert(page.bounds(for: view.displayBox), from: page)
+        private func publishViewport(from view: PDFView, isUserInteracting: Bool = false) {
+            let page = view.currentPage
+            let pageIndex = page.flatMap { view.document?.index(for: $0) } ?? 0
+            let platformFrame: CGRect? = {
+                guard let page else { return nil }
+                let converted = view.convert(page.bounds(for: view.displayBox), from: page)
 #if os(macOS)
-            let platformFrame = PatternPDFPageFrameGeometry.flippedFrame(converted, in: view.bounds)
+                let platformFrame = PatternPDFPageFrameGeometry.flippedFrame(converted, in: view.bounds)
 #else
-            let platformFrame = converted
+                let platformFrame = converted
 #endif
-            let candidate: CGRect? = platformFrame.origin.x.isFinite
-                && platformFrame.origin.y.isFinite
-                && platformFrame.width.isFinite
-                && platformFrame.height.isFinite
-                && platformFrame.width > 0
-                && platformFrame.height > 0
-                ? platformFrame
-                : nil
+                return platformFrame
+            }()
+            let candidate = PatternPDFViewportState(
+                pageIndex: pageIndex,
+                pageFrame: platformFrame,
+                scaleFactor: view.scaleFactor,
+                fitWidthScaleFactor: view.scaleFactorForSizeToFit,
+                isUserInteracting: isUserInteracting
+            )
 
-            guard candidate != lastPublishedPageFrame else { return }
-            lastPublishedPageFrame = candidate
+            guard viewportPublicationGate.accept(candidate) else { return }
+            lastPublishedViewport = candidate
             Task { @MainActor [weak self] in
-                guard let self, self.lastPublishedPageFrame == candidate else { return }
-                self.pageFrame = candidate
+                guard let self, self.lastPublishedViewport == candidate else { return }
+                self.viewport = candidate
             }
         }
 
+        private func installScrollObservation(in view: PDFView) {
+#if os(macOS)
+            guard let scroll = findScrollView(in: view), scroll !== observedScrollView else { return }
+            if let boundsObservation {
+                NotificationCenter.default.removeObserver(boundsObservation)
+            }
+            observedScrollView = scroll
+            let clipView = scroll.contentView
+            clipView.postsBoundsChangedNotifications = true
+            boundsObservation = NotificationCenter.default.addObserver(
+                forName: NSView.boundsDidChangeNotification,
+                object: clipView,
+                queue: .main
+            ) { [weak self, weak view, weak scroll] _ in
+                Task { @MainActor [weak self, weak view, weak scroll] in
+                    guard let self, let view, let scroll else { return }
+                    self.publishViewport(
+                        from: view,
+                        isUserInteracting: scroll.inLiveResize || scroll.contentView.inLiveResize
+                    )
+                }
+            }
+#else
+            guard let scroll = findScrollView(in: view), scroll !== observedScrollView else { return }
+            contentOffsetObservation?.invalidate()
+            observedScrollView = scroll
+            contentOffsetObservation = scroll.observe(\.contentOffset, options: [.new]) { [weak self, weak view, weak scroll] _, _ in
+                Task { @MainActor [weak self, weak view, weak scroll] in
+                    guard let self, let view, let scroll else { return }
+                    self.publishViewport(
+                        from: view,
+                        isUserInteracting: scroll.isDragging || scroll.isDecelerating || scroll.isZooming
+                    )
+                }
+            }
+#endif
+        }
+
+#if os(macOS)
+        private func findScrollView(in root: NSView) -> NSScrollView? {
+            if let scroll = root as? NSScrollView { return scroll }
+            for subview in root.subviews {
+                if let scroll = findScrollView(in: subview) { return scroll }
+            }
+            return nil
+        }
+#else
+        private func findScrollView(in root: UIView) -> UIScrollView? {
+            if let scroll = root as? UIScrollView { return scroll }
+            for subview in root.subviews {
+                if let scroll = findScrollView(in: subview) { return scroll }
+            }
+            return nil
+        }
+#endif
+
         @objc private func changed(_ note: Notification) {
             guard let view = note.object as? PDFView else { return }
+            installScrollObservation(in: view)
             if note.name == .PDFViewPageChanged {
                 lastScaleSignature = nil
                 applyScaleMode(latestScaleMode, to: view)
             }
-            publishPageFrame(from: view)
+            publishViewport(from: view)
             sample(view)
         }
         private func sample(_ source: PDFView? = nil) {
@@ -250,6 +328,16 @@ extension PDFReaderView {
             guard synchronizedState.synchronizeVisiblePDFPage(visiblePage) else { return }
             state = synchronizedState
         }
-        deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
+        deinit {
+            timer?.invalidate()
+#if os(macOS)
+            if let boundsObservation {
+                NotificationCenter.default.removeObserver(boundsObservation)
+            }
+#else
+            contentOffsetObservation?.invalidate()
+#endif
+            NotificationCenter.default.removeObserver(self)
+        }
     }
 }

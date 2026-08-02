@@ -38,9 +38,9 @@ import Testing
 
     @Test func pdfReaderFrameFeedsTheHighlightWithoutChangingImageBehavior() throws {
         let source = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
-        #expect(source.contains("@State private var pdfPageFrame: CGRect?"))
-        #expect(source.contains("pageFrame: $pdfPageFrame"))
-        #expect(source.contains("content.kind == .pdf ? pdfPageFrame : nil"))
+        #expect(source.contains("@State private var pdfViewport = PatternPDFViewportState()"))
+        #expect(source.contains("viewport: $pdfViewport"))
+        #expect(source.contains("content.kind == .pdf ? pdfViewport.pageFrame : nil"))
     }
 
     @Test func liveCanvasCallbacksSynchronizeBothCrossHighlightCoordinatesBeforeSessionAcceptance() throws {

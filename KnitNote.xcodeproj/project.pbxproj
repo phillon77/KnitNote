@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F13000000000000000000002 /* PatternPDFViewportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F13000000000000000000001 /* PatternPDFViewportState.swift */; };
 		A42000000000000000000004 /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000003 /* CreateProjectPresentation.swift */; };
 		A42000000000000000000006 /* MacFormLayoutSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000005 /* MacFormLayoutSmokeTests.swift */; };
 		A42000000000000000000002 /* CreateProjectPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42000000000000000000001 /* CreateProjectPresentationTests.swift */; };
@@ -301,6 +302,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F13000000000000000000001 /* PatternPDFViewportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPDFViewportState.swift; sourceTree = "<group>"; };
 		A42000000000000000000003 /* CreateProjectPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentation.swift; sourceTree = "<group>"; };
 		A42000000000000000000005 /* MacFormLayoutSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFormLayoutSmokeTests.swift; sourceTree = "<group>"; };
 		A42000000000000000000001 /* CreateProjectPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentationTests.swift; sourceTree = "<group>"; };
@@ -730,6 +732,7 @@
 				4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */,
 				6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */,
 				E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */,
+				F13000000000000000000001 /* PatternPDFViewportState.swift */,
 				D10455BC3195B85049B3524D /* PatternReaderContext.swift */,
 				6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */,
 				9CA1BE41B85956FD576EF65C /* PatternShareImportPresentation.swift */,
@@ -1194,6 +1197,7 @@
 				1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */,
 				2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */,
 				85F28B8AEE9E9F34BB860351 /* PatternProjectUsage.swift in Sources */,
+				F13000000000000000000002 /* PatternPDFViewportState.swift in Sources */,
 				BCABCE9445D746253F48F7D2 /* PatternReaderContext.swift in Sources */,
 				F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */,
 				E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */,

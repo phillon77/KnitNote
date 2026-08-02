@@ -62,7 +62,7 @@ struct PatternReaderView: View {
     @State private var handledPageIndex: Int?
     @State private var loadError = false
     @State private var pageCount = 0
-    @State private var pdfPageFrame: CGRect?
+    @State private var pdfViewport = PatternPDFViewportState()
     @State private var saveError: String?
     @State private var showingPageNote = false
     @State private var originalPageNote = ""
@@ -486,7 +486,7 @@ struct PatternReaderView: View {
                         state: canvasState,
                         pageCount: $pageCount,
                         loadError: $loadError,
-                        pageFrame: $pdfPageFrame,
+                        viewport: $pdfViewport,
                         onReady: onStoreScreenshotReady
                     )
                     .allowsHitTesting(!markupMode)
@@ -499,7 +499,7 @@ struct PatternReaderView: View {
                         mode: state.highlightMode,
                         horizontalPosition: horizontalHighlightBinding,
                         verticalPosition: verticalHighlightBinding,
-                        contentRect: content.kind == .pdf ? pdfPageFrame : nil,
+                        contentRect: content.kind == .pdf ? pdfViewport.pageFrame : nil,
                         onPositionCommit: commitHighlightPositionEdit
                     )
                     .allowsHitTesting(
@@ -552,7 +552,7 @@ struct PatternReaderView: View {
         handledPageIndex = nil
         pendingPageTransition = nil
         pageCount = 0
-        pdfPageFrame = nil
+        pdfViewport = PatternPDFViewportState()
         loadError = false
         saveError = nil
         managingCounter = nil

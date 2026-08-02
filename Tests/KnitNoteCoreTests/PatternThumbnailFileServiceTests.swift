@@ -35,7 +35,6 @@ import UniformTypeIdentifiers
         let first = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 0)
         let second = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 1)
         let third = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 2)
-        let reused = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 0)
         let updatedAsset = asset(
             id: assetID,
             sha256: String(repeating: "b", count: 64),
@@ -48,6 +47,8 @@ import UniformTypeIdentifiers
         let firstColor = try centerRGB(first)
         let secondColor = try centerRGB(second)
         let thirdColor = try centerRGB(third)
+        try FileManager.default.removeItem(at: pdfURL)
+        let reused = try service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 0)
 
         #expect(first != second)
         #expect(second != third)
@@ -58,6 +59,7 @@ import UniformTypeIdentifiers
         #expect(thirdColor.blue > thirdColor.red && thirdColor.blue > thirdColor.green)
         #expect(first == service.cachedPageURL(asset: pdfAsset, pageIndex: 0))
         #expect(reused == first)
+        #expect(try centerRGB(reused) == firstColor)
         #expect(updated != first)
         #expect(service.cachedPageURL(asset: pdfAsset, pageIndex: 1) != first)
     }

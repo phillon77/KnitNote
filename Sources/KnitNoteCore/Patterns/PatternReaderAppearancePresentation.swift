@@ -1,14 +1,15 @@
 public struct PatternNightRenderingConfiguration: Equatable, Sendable {
-    public enum ContentIdentity: Equatable, Sendable {
-        case document
+    public enum PageSurfaceColor: Equatable, Sendable {
+        case white
     }
 
-    public let contentIdentity: ContentIdentity = .document
-    public let colorInvertIsEnabled: Bool
+    public let pageSurfaceColor: PageSurfaceColor = .white
+    public let pageSurfaceOpacity: Double = 1
+    public let differenceOverlayOpacity: Double
     public let hueRotationDegrees: Double
 
     public init(isActive: Bool) {
-        colorInvertIsEnabled = isActive
+        differenceOverlayOpacity = isActive ? 1 : 0
         hueRotationDegrees = isActive ? 180 : 0
     }
 }

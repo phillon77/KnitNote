@@ -4,12 +4,17 @@ struct PatternNightRenderingModifier: ViewModifier {
     let configuration: PatternNightRenderingConfiguration
 
     func body(content: Content) -> some View {
-        content
-            .colorEffect(
-                ShaderLibrary.patternNightColorInvert(),
-                isEnabled: configuration.colorInvertIsEnabled
-            )
-            .hueRotation(.degrees(configuration.hueRotationDegrees))
+        ZStack {
+            Color.white
+                .opacity(configuration.pageSurfaceOpacity)
+            content
+            Color.white
+                .blendMode(.difference)
+                .opacity(configuration.differenceOverlayOpacity)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .hueRotation(.degrees(configuration.hueRotationDegrees))
     }
 }
 

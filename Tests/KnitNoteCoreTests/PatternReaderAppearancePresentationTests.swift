@@ -2,15 +2,17 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct PatternReaderAppearancePresentationTests {
-    @Test func renderingConfigurationChangesEffectsWithoutChangingContentIdentity() {
+    @Test func renderingConfigurationUsesOpaqueWhitePageSurfaceAndParameterizedEffects() {
         let original = PatternNightRenderingConfiguration(isActive: false)
         let night = PatternNightRenderingConfiguration(isActive: true)
 
-        #expect(original.contentIdentity == .document)
-        #expect(night.contentIdentity == original.contentIdentity)
-        #expect(!original.colorInvertIsEnabled)
+        #expect(original.pageSurfaceColor == .white)
+        #expect(original.pageSurfaceOpacity == 1)
+        #expect(original.differenceOverlayOpacity == 0)
         #expect(original.hueRotationDegrees == 0)
-        #expect(night.colorInvertIsEnabled)
+        #expect(night.pageSurfaceColor == .white)
+        #expect(night.pageSurfaceOpacity == 1)
+        #expect(night.differenceOverlayOpacity == 1)
         #expect(night.hueRotationDegrees == 180)
     }
 

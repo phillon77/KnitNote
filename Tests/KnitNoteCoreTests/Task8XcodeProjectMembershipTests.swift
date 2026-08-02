@@ -23,7 +23,6 @@ import Testing
             "PatternLibraryMigrator.swift",
             "PatternLibraryRow.swift",
             "PatternLibrarySort.swift",
-            "PatternNightRendering.metal",
             "PatternProjectUsage.swift",
             "PatternReaderAppearance.swift",
             "PatternReaderAppearancePresentation.swift",

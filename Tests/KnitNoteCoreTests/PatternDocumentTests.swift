@@ -350,6 +350,24 @@ import Testing
     #expect(bottom.pdfRestorePageIndex(pageCount: 8) == 2)
 }
 
+@Test func pdfAnchorCaptureUpdatesOnlyTheCurrentPagePosition() {
+    var state = PatternReadingState(
+        pageIndex: 2,
+        pdfWidthScaleRatio: 1.6,
+        offsetX: 0,
+        offsetY: 0,
+        highlightPosition: 0.3
+    )
+
+    state.setPDFAnchor(pageIndex: 2, offsetX: 0.25, offsetY: 0.75)
+
+    #expect(state.pageIndex == 2)
+    #expect(state.offsetX == 0.25)
+    #expect(state.offsetY == 0.75)
+    #expect(state.pdfWidthScaleRatio == 1.6)
+    #expect(state.highlightPosition == 0.3)
+}
+
 @Test func discretePDFPageMovementClampsAndClearsOffsets() {
     var state=PatternReadingState(pageIndex:1,offsetX:0.4,offsetY:0.7,highlightPosition:0.2,verticalHighlightPosition:0.8,pageNote:"page two")
     state.movePDFPage(by:1,pageCount:3)

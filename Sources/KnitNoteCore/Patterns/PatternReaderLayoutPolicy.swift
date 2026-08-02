@@ -126,3 +126,26 @@ public enum PatternPDFPageFrameGeometry {
         return result
     }
 }
+
+public enum PatternPDFPageAnchorGeometry {
+    public static func normalizedAnchor(for point: CGPoint, in pageBounds: CGRect) -> CGPoint {
+        guard pageBounds.width.isFinite,
+              pageBounds.height.isFinite,
+              pageBounds.width > 0,
+              pageBounds.height > 0
+        else { return CGPoint(x: 0, y: 0) }
+        return CGPoint(
+            x: min(1, max(0, (point.x - pageBounds.minX) / pageBounds.width)),
+            y: min(1, max(0, (point.y - pageBounds.minY) / pageBounds.height))
+        )
+    }
+
+    public static func pagePoint(offsetX: Double, offsetY: Double, in pageBounds: CGRect) -> CGPoint {
+        let x = min(1, max(0, offsetX))
+        let y = min(1, max(0, offsetY))
+        return CGPoint(
+            x: pageBounds.minX + pageBounds.width * x,
+            y: pageBounds.minY + pageBounds.height * y
+        )
+    }
+}

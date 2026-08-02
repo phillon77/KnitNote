@@ -3,6 +3,37 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct PatternPDFPageFrameGeometryTests {
+    @Test func pageAnchorRoundTripsTheVisiblePDFDestination() {
+        let pageBounds = CGRect(x: 10, y: 20, width: 400, height: 800)
+        let destination = CGPoint(x: 110, y: 620)
+
+        let anchor = PatternPDFPageAnchorGeometry.normalizedAnchor(
+            for: destination,
+            in: pageBounds
+        )
+        let restoredDestination = PatternPDFPageAnchorGeometry.pagePoint(
+            offsetX: anchor.x,
+            offsetY: anchor.y,
+            in: pageBounds
+        )
+
+        #expect(anchor.x == 0.25)
+        #expect(anchor.y == 0.75)
+        #expect(restoredDestination == destination)
+    }
+
+    @Test func pageAnchorClampsPointsOutsideThePDFPage() {
+        let pageBounds = CGRect(x: 10, y: 20, width: 400, height: 800)
+
+        let anchor = PatternPDFPageAnchorGeometry.normalizedAnchor(
+            for: CGPoint(x: -50, y: 900),
+            in: pageBounds
+        )
+
+        #expect(anchor.x == 0)
+        #expect(anchor.y == 1)
+    }
+
     @Test func unflippedFrameUsesScrolledBoundsOriginWhenConvertingToFlippedCoordinates() {
         let bounds = CGRect(x: 0, y: 100, width: 500, height: 492)
         let appKitFrame = CGRect(x: 25, y: 9.5, width: 450, height: 792)

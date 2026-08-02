@@ -5,19 +5,33 @@ import SwiftUI
     private weak var view: PDFView?
     private var request: ((Int) -> Void)?
     private var flushPendingScaleCaptureAction: (() -> Void)?
+    private var captureCurrentPositionAction: (() -> Void)?
+    private var restoreCurrentPositionAction: (() -> Void)?
 
     func attach(
         _ view: PDFView,
         request: @escaping (Int) -> Void,
-        flushPendingScaleCapture: @escaping () -> Void
+        flushPendingScaleCapture: @escaping () -> Void,
+        captureCurrentPosition: @escaping () -> Void,
+        restoreCurrentPosition: @escaping () -> Void
     ) {
         self.view = view
         self.request = request
         flushPendingScaleCaptureAction = flushPendingScaleCapture
+        captureCurrentPositionAction = captureCurrentPosition
+        restoreCurrentPositionAction = restoreCurrentPosition
     }
 
     func flushPendingScaleCapture() {
         flushPendingScaleCaptureAction?()
+    }
+
+    func captureCurrentPosition() {
+        captureCurrentPositionAction?()
+    }
+
+    func restoreCurrentPosition() {
+        restoreCurrentPositionAction?()
     }
 
     func go(to pageIndex: Int) {
@@ -121,6 +135,7 @@ extension PDFReaderView {
         private var lastScaleSignature: ScaleSignature?
         private var isApplyingSavedScale = false
         private var scaleCaptureTask: Task<Void, Never>?
+        private var positionRestoreTask: Task<Void, Never>?
         private var scaleCaptureGate = PatternPDFScaleCaptureGate()
         private var scaleCaptureContext: UInt64 = 0
         private var lastAppliedScale: (signature: ScaleSignature, scaleFactor: Double)?
@@ -141,7 +156,9 @@ extension PDFReaderView {
             navigator.attach(
                 view,
                 request: { [weak self] target in self?.pageRequestGate.request(target) },
-                flushPendingScaleCapture: { [weak self] in self?.flushPendingScaleCapture() }
+                flushPendingScaleCapture: { [weak self] in self?.flushPendingScaleCapture() },
+                captureCurrentPosition: { [weak self] in self?.captureCurrentPosition() },
+                restoreCurrentPosition: { [weak self] in self?.scheduleCurrentPositionRestore() }
             )
             let loadedPageCount = doc.pageCount
             Task { @MainActor [weak self] in self?.pageCount = loadedPageCount }
@@ -193,10 +210,9 @@ extension PDFReaderView {
                 guard let self, let view, let doc=view.document else { return }
                 let current=view.currentPage.flatMap{doc.index(for:$0)}
                 if current == self.initialState.pdfRestorePageIndex(pageCount:doc.pageCount) {
-                    self.state.offsetX=0
-                    self.state.offsetY=0
                     self.restoreGate.didRestore()
                     self.applyScaleMode(self.latestScaleMode, to: view)
+                    self.restorePosition(self.initialState, in: view)
                     self.installScrollObservation(in: view)
                     self.publishViewport(from: view)
                     if !self.reportedReady {
@@ -292,6 +308,59 @@ extension PDFReaderView {
             scaleCaptureTask?.cancel()
             scaleCaptureTask = nil
             scaleCaptureGate.discardPendingObservation(context: scaleCaptureContext)
+        }
+
+        private func captureCurrentPosition() {
+            guard restoreGate.canSample,
+                  let view,
+                  let document = view.document,
+                  let destination = view.currentDestination,
+                  let page = destination.page
+            else { return }
+            let pageIndex = document.index(for: page)
+            guard pageIndex == state.pageIndex else { return }
+            let pageBounds = page.bounds(for: view.displayBox)
+            let anchor = PatternPDFPageAnchorGeometry.normalizedAnchor(
+                for: destination.point,
+                in: pageBounds
+            )
+            var updatedState = state
+            updatedState.setPDFAnchor(
+                pageIndex: pageIndex,
+                offsetX: Double(anchor.x),
+                offsetY: Double(anchor.y)
+            )
+            guard updatedState != state else { return }
+            state = updatedState
+        }
+
+        private func scheduleCurrentPositionRestore() {
+            positionRestoreTask?.cancel()
+            positionRestoreTask = Task { @MainActor [weak self, weak view] in
+                await Task.yield()
+                guard !Task.isCancelled, let self, let view else { return }
+#if os(macOS)
+                view.layoutSubtreeIfNeeded()
+#else
+                view.layoutIfNeeded()
+#endif
+                self.restorePosition(self.state, in: view)
+                self.publishViewport(from: view)
+            }
+        }
+
+        private func restorePosition(_ savedState: PatternReadingState, in view: PDFView) {
+            guard let document = view.document,
+                  document.pageCount > 0,
+                  let page = document.page(at: savedState.pdfRestorePageIndex(pageCount: document.pageCount))
+            else { return }
+            let pageBounds = page.bounds(for: view.displayBox)
+            let point = PatternPDFPageAnchorGeometry.pagePoint(
+                offsetX: savedState.offsetX,
+                offsetY: savedState.offsetY,
+                in: pageBounds
+            )
+            view.go(to: PDFDestination(page: page, at: point))
         }
 
         private func scheduleUserScaleCapture(from view: PDFView) {
@@ -469,6 +538,7 @@ extension PDFReaderView {
         }
         deinit {
             timer?.invalidate()
+            positionRestoreTask?.cancel()
 #if os(macOS)
             if let boundsObservation {
                 NotificationCenter.default.removeObserver(boundsObservation)

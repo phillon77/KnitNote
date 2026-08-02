@@ -125,6 +125,12 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
         return min(pageIndex, pageCount - 1)
     }
 
+    public mutating func setPDFAnchor(pageIndex: Int, offsetX: Double, offsetY: Double) {
+        self.pageIndex = max(0, pageIndex)
+        self.offsetX = min(1, max(0, offsetX))
+        self.offsetY = min(1, max(0, offsetY))
+    }
+
     public mutating func movePDFPage(by delta: Int, pageCount: Int) {
         guard pageCount > 0 else { return }
         let target = min(pageCount - 1, max(0, pageIndex + delta))

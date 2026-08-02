@@ -344,6 +344,7 @@ struct PatternReaderView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common.ok") {
+                        pdfNavigator.captureCurrentPosition()
                         pdfNavigator.flushPendingScaleCapture()
                         if saveMarkup(page: state.pageIndex), saveBrowsingState() {
                             dismiss()
@@ -444,6 +445,7 @@ struct PatternReaderView: View {
             handleStoreGenerationChange(generation)
         }
         .onDisappear {
+            pdfNavigator.captureCurrentPosition()
             pdfNavigator.flushPendingScaleCapture()
             guard canvasIsActive, readerSession.canPersist else { return }
             guard context.canWrite else { return }
@@ -471,7 +473,13 @@ struct PatternReaderView: View {
             _ = saveBrowsingState()
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase != .active, canvasIsActive, readerSession.canPersist else { return }
+            guard canvasIsActive, readerSession.canPersist else { return }
+            if phase == .active {
+                pdfNavigator.restoreCurrentPosition()
+                return
+            }
+            guard phase == .inactive else { return }
+            pdfNavigator.captureCurrentPosition()
             pdfNavigator.flushPendingScaleCapture()
             guard context.canWrite else { return }
             guard saveMarkup(page: state.pageIndex) else { return }

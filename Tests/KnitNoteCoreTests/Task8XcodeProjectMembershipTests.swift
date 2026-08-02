@@ -24,6 +24,7 @@ import Testing
             "PatternLibraryRow.swift",
             "PatternLibrarySort.swift",
             "PatternProjectUsage.swift",
+            "PatternReaderAppearance.swift",
             "PatternReaderContext.swift",
             "PatternShareImportPresentation.swift",
             "PatternShareInboxEnqueuer.swift",
@@ -60,6 +61,7 @@ import Testing
         #expect(!shareSources.contains("JSONProjectStore.swift"))
         #expect(!shareSources.contains("PatternInboxPublicationReceiptService.swift"))
         #expect(!shareSources.contains("PatternInboxProcessing.swift"))
+        #expect(!shareSources.contains("PatternReaderAppearance.swift"))
     }
 }
 

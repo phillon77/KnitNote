@@ -12,6 +12,7 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
     public var note: String?
     public let createdAt: Date
     public var lastOpenedAt: Date?
+    public var prefersOriginalColorsInDarkMode: Bool
 
     public init(
         id: UUID = UUID(),
@@ -19,7 +20,8 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
         displayName: String,
         note: String? = nil,
         createdAt: Date = .now,
-        lastOpenedAt: Date? = nil
+        lastOpenedAt: Date? = nil,
+        prefersOriginalColorsInDarkMode: Bool = false
     ) {
         self.id = id
         self.assetID = assetID
@@ -27,6 +29,40 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
         self.note = note
         self.createdAt = createdAt
         self.lastOpenedAt = lastOpenedAt
+        self.prefersOriginalColorsInDarkMode = prefersOriginalColorsInDarkMode
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, assetID, displayName, note, createdAt, lastOpenedAt
+        case prefersOriginalColorsInDarkMode
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        assetID = try container.decode(UUID.self, forKey: .assetID)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        lastOpenedAt = try container.decodeIfPresent(Date.self, forKey: .lastOpenedAt)
+        prefersOriginalColorsInDarkMode = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .prefersOriginalColorsInDarkMode
+        ) ?? false
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(assetID, forKey: .assetID)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(lastOpenedAt, forKey: .lastOpenedAt)
+        try container.encode(
+            prefersOriginalColorsInDarkMode,
+            forKey: .prefersOriginalColorsInDarkMode
+        )
     }
 }
 

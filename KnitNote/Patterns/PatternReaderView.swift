@@ -465,6 +465,7 @@ struct PatternReaderView: View {
             }
             pendingPageTransition = nil
             loadMarkup(page: newPage, readerGeneration: readerSession.generation)
+            _ = saveBrowsingState()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, canvasIsActive, readerSession.canPersist else { return }

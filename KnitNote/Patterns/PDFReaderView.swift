@@ -108,6 +108,10 @@ extension PDFReaderView {
 
         private var latestScaleMode = PatternPDFScaleMode.automatic
         private var lastScaleSignature: ScaleSignature?
+        private var isApplyingSavedScale = false
+        private var scaleCaptureTask: Task<Void, Never>?
+        private var scaleCaptureRevision: UInt64 = 0
+        private var lastAppliedScale: (signature: ScaleSignature, scaleFactor: Double)?
         private var lastPublishedViewport: PatternPDFViewportState?
 
         init(state: Binding<PatternReadingState>, pageCount: Binding<Int>, error: Binding<Bool>, viewport: Binding<PatternPDFViewportState>, navigator: PDFPageNavigator, onReady: @escaping @MainActor () -> Void) { _state=state; initialState=state.wrappedValue; _pageCount=pageCount; _error=error; _viewport=viewport; self.navigator=navigator; self.onReady=onReady }
@@ -206,22 +210,114 @@ extension PDFReaderView {
                 pageIndex: document.index(for: page)
             )
             guard signature != lastScaleSignature else { return }
-            lastScaleSignature = signature
+            invalidatePendingScaleCapture()
+            isApplyingSavedScale = true
+            defer { isApplyingSavedScale = false }
 
             switch mode {
             case .automatic:
                 view.autoScales = true
             case .fitWidth:
-                let pageWidth = page.bounds(for: view.displayBox).width
-                let availableWidth = max(1, view.bounds.width - 16)
-                guard pageWidth > 0 else { return }
-                let widthScale = availableWidth / pageWidth
-                let sizeToFit = view.scaleFactorForSizeToFit
                 view.autoScales = false
-                view.minScaleFactor = min(sizeToFit, widthScale)
-                view.maxScaleFactor = max(widthScale * 4, widthScale)
-                view.scaleFactor = widthScale
             }
+
+            guard let baseline = fitWidthBaseline(for: view, mode: mode) else { return }
+            let baselineScale = CGFloat(baseline)
+            let sizeToFit = view.scaleFactorForSizeToFit
+            view.autoScales = false
+            view.minScaleFactor = min(sizeToFit, baselineScale)
+            view.maxScaleFactor = max(baselineScale * 4, baselineScale)
+
+            let absoluteScale = PatternPDFScalePolicy.absoluteScale(
+                ratio: state.pdfWidthScaleRatio,
+                fitWidthScale: baseline,
+                allowed: Double(view.minScaleFactor)...Double(view.maxScaleFactor)
+            )
+            lastScaleSignature = signature
+            lastAppliedScale = (signature, absoluteScale)
+            view.scaleFactor = CGFloat(absoluteScale)
+        }
+
+        private func fitWidthBaseline(for view: PDFView, mode: PatternPDFScaleMode) -> Double? {
+            let baseline: CGFloat
+            switch mode {
+            case .automatic:
+                baseline = view.scaleFactorForSizeToFit
+            case .fitWidth:
+                guard let page = view.currentPage else { return nil }
+                let pageWidth = page.bounds(for: view.displayBox).width
+                guard pageWidth.isFinite, pageWidth > 0 else { return nil }
+                baseline = max(1, view.bounds.width - 16) / pageWidth
+            }
+            guard baseline.isFinite, baseline > 0 else { return nil }
+            return Double(baseline)
+        }
+
+        private func scaleSignature(for view: PDFView, mode: PatternPDFScaleMode) -> ScaleSignature? {
+            guard let page = view.currentPage,
+                  let document = view.document else { return nil }
+            return ScaleSignature(
+                mode: mode,
+                size: view.bounds.size,
+                pageIndex: document.index(for: page)
+            )
+        }
+
+        private func invalidatePendingScaleCapture() {
+            scaleCaptureRevision &+= 1
+            scaleCaptureTask?.cancel()
+            scaleCaptureTask = nil
+        }
+
+        private func scheduleUserScaleCapture(from view: PDFView) {
+            guard restoreGate.canSample, !isApplyingSavedScale,
+                  let signature = scaleSignature(for: view, mode: latestScaleMode),
+                  signature == lastScaleSignature,
+                  fitWidthBaseline(for: view, mode: latestScaleMode) != nil
+            else { return }
+
+            let observedScale = Double(view.scaleFactor)
+            guard observedScale.isFinite, observedScale > 0 else { return }
+            if let lastAppliedScale,
+               lastAppliedScale.signature == signature,
+               scalesMatch(observedScale, lastAppliedScale.scaleFactor) {
+                return
+            }
+
+            scaleCaptureTask?.cancel()
+            scaleCaptureRevision &+= 1
+            let revision = scaleCaptureRevision
+            scaleCaptureTask = Task { @MainActor [weak self, weak view] in
+                try? await Task.sleep(for: .milliseconds(120))
+                guard !Task.isCancelled, let self, let view,
+                      self.restoreGate.canSample, !self.isApplyingSavedScale,
+                      self.scaleCaptureRevision == revision,
+                      let settledSignature = self.scaleSignature(for: view, mode: self.latestScaleMode),
+                      settledSignature == signature,
+                      settledSignature == self.lastScaleSignature
+                else { return }
+
+                let settledScale = Double(view.scaleFactor)
+                guard self.scalesMatch(settledScale, observedScale),
+                      let baseline = self.fitWidthBaseline(for: view, mode: self.latestScaleMode)
+                else { return }
+
+                let ratio = PatternPDFScalePolicy.ratio(
+                    currentScale: settledScale,
+                    fitWidthScale: baseline
+                )
+                guard !self.scalesMatch(ratio, self.state.pdfWidthScaleRatio) else { return }
+                var updatedState = self.state
+                updatedState.pdfWidthScaleRatio = ratio
+                self.state = updatedState
+                self.lastAppliedScale = nil
+                self.publishViewport(from: view)
+            }
+        }
+
+        private func scalesMatch(_ lhs: Double, _ rhs: Double) -> Bool {
+            guard lhs.isFinite, rhs.isFinite else { return false }
+            return abs(lhs - rhs) <= max(0.0001, max(abs(lhs), abs(rhs)) * 0.001)
         }
 
         private func publishViewport(from view: PDFView, isUserInteracting: Bool = false) {
@@ -241,7 +337,10 @@ extension PDFReaderView {
                 pageIndex: pageIndex,
                 pageFrame: platformFrame,
                 scaleFactor: view.scaleFactor,
-                fitWidthScaleFactor: view.scaleFactorForSizeToFit,
+                fitWidthScaleFactor: CGFloat(
+                    fitWidthBaseline(for: view, mode: latestScaleMode)
+                        ?? PatternPDFScalePolicy.defaultRatio
+                ),
                 isUserInteracting: isUserInteracting
             )
             guard viewportPublicationGate.accept(candidate) else { return }
@@ -322,6 +421,8 @@ extension PDFReaderView {
             if note.name == .PDFViewPageChanged {
                 lastScaleSignature = nil
                 applyScaleMode(latestScaleMode, to: view)
+            } else if note.name == .PDFViewScaleChanged {
+                scheduleUserScaleCapture(from: view)
             }
             publishViewport(from: view)
             sample(view)

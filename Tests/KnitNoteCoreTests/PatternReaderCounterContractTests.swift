@@ -253,6 +253,27 @@ import Testing
         #expect(detail.contains("entitlementCoordinator.allowsAutomaticReaderPersistence"))
     }
 
+    @Test func normalReaderExitAndSuccessfulPageChangePersistBrowsingState() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        #expect(reader.contains("_ = saveBrowsingState()"))
+
+        let pageChange = try #require(sourceSection(
+            reader,
+            from: ".onChange(of: state.pageIndex)",
+            to: ".onChange(of: scenePhase)"
+        ))
+        let revisionGuard = try #require(pageChange.range(of: "revisionCoordinator.canChangePage"))
+        let markupGuard = try #require(pageChange.range(of: "saveMarkup(page: transition.rollbackPageIndex)"))
+        let clearedTransition = try #require(pageChange.range(of: "pendingPageTransition = nil"))
+        let loadedMarkup = try #require(pageChange.range(of: "loadMarkup(page: newPage"))
+        let persistedBrowsing = try #require(pageChange.range(of: "saveBrowsingState()"))
+
+        #expect(revisionGuard.lowerBound < persistedBrowsing.lowerBound)
+        #expect(markupGuard.lowerBound < persistedBrowsing.lowerBound)
+        #expect(clearedTransition.lowerBound < persistedBrowsing.lowerBound)
+        #expect(loadedMarkup.lowerBound < persistedBrowsing.lowerBound)
+    }
+
     @Test func legacyReaderStillOffersItsMissingFileRecoveryAction() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 

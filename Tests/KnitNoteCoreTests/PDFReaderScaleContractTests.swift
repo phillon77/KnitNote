@@ -2,6 +2,59 @@ import Foundation
 import Testing
 
 @Suite struct PDFReaderScaleContractTests {
+    @Test func pdfReaderRestoresSavedWidthInsteadOfResettingEveryPageToFitWidth() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+
+        #expect(pdf.contains("PatternPDFScalePolicy.absoluteScale"))
+        #expect(pdf.contains("state.pdfWidthScaleRatio"))
+        #expect(pdf.contains("isApplyingSavedScale"))
+    }
+
+    @Test func programmaticScaleEventsCannotOverwriteASettledUserWidth() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let application = try #require(
+            pdf.slice(from: "private func applyScaleMode", to: "private func publishViewport")
+        )
+        let capture = try #require(
+            pdf.slice(from: "private func scheduleUserScaleCapture", to: "private func publishViewport")
+        )
+
+        #expect(application.contains("isApplyingSavedScale = true"))
+        #expect(application.contains("defer { isApplyingSavedScale = false }"))
+        #expect(application.contains("invalidatePendingScaleCapture()"))
+        #expect(capture.contains("guard restoreGate.canSample, !isApplyingSavedScale"))
+        #expect(capture.contains("scaleCaptureTask?.cancel()"))
+        #expect(capture.contains("PatternPDFScalePolicy.ratio"))
+        #expect(capture.contains("state.pdfWidthScaleRatio"))
+    }
+
+    @Test func viewportAndSavedWidthUseTheSameModeSpecificBaseline() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let application = try #require(
+            pdf.slice(from: "private func applyScaleMode", to: "private func scheduleUserScaleCapture")
+        )
+        let publication = try #require(
+            pdf.slice(from: "private func publishViewport", to: "private func installScrollObservation")
+        )
+
+        #expect(pdf.contains("private func fitWidthBaseline(for view: PDFView, mode: PatternPDFScaleMode)"))
+        #expect(application.contains("fitWidthBaseline(for: view, mode: mode)"))
+        #expect(publication.contains("fitWidthBaseline(for: view, mode: latestScaleMode)"))
+        #expect(!publication.contains("fitWidthScaleFactor: view.scaleFactorForSizeToFit"))
+    }
+
+    @Test func visiblePageSynchronizationKeepsTheSharedWidthAndLegacyOffsetReset() throws {
+        let document = try source("Sources/KnitNoteCore/Patterns/PatternDocument.swift")
+        let synchronization = try #require(
+            document.slice(from: "public mutating func synchronizeVisiblePDFPage", to: "public mutating func saveCurrentPage")
+        )
+
+        #expect(!synchronization.contains("zoomScale = 1"))
+        #expect(synchronization.contains("offsetX = 0"))
+        #expect(synchronization.contains("offsetY = 0"))
+        #expect(!synchronization.contains("pdfWidthScaleRatio"))
+    }
+
     @Test func readerPassesAdaptiveScaleModeIntoPDFKit() throws {
         let reader = try source("KnitNote/Patterns/PatternReaderView.swift")
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")

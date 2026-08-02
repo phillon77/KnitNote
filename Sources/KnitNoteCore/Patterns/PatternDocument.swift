@@ -148,7 +148,6 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     public mutating func synchronizeVisiblePDFPage(_ target: Int) -> Bool {
         var updated = self
         updated.transitionToPDFPage(target)
-        updated.zoomScale = 1
         updated.offsetX = 0
         updated.offsetY = 0
         guard updated != self else { return false }

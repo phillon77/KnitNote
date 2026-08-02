@@ -162,8 +162,7 @@ import Testing
         )
         let macSource = String(source[macBranch.lowerBound..<macEnd.lowerBound])
 
-        #expect(macSource.contains("KnitNoteMacWindowSizingPolicy.minimumWidth"))
-        #expect(macSource.contains("KnitNoteMacWindowSizingPolicy.minimumHeight"))
+        #expect(macSource.contains(".frame(\n                        minWidth: CGFloat(KnitNoteMacWindowSizingPolicy.minimumWidth),\n                        minHeight: CGFloat(KnitNoteMacWindowSizingPolicy.minimumHeight)\n                    )"))
     }
 
     private func source(named name: String) throws -> String {

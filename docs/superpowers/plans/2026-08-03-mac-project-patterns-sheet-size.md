@@ -26,7 +26,7 @@
 - Modify: `KnitNote/Projects/ProjectDetailView.swift`
 
 **Interfaces:**
-- Consumes: `KnitNoteMacWindowSizingPolicy.minimumWidth: Int` and `KnitNoteMacWindowSizingPolicy.minimumHeight: Int`.
+- Consumes: `KnitNoteMacWindowSizingPolicy.minimumWidth: Double` and `KnitNoteMacWindowSizingPolicy.minimumHeight: Double`.
 - Produces: a Mac-only minimum frame on the `ProjectPatternsView(projectID:)` sheet content.
 
 - [ ] **Step 1: Write the failing sheet-sizing contract test**

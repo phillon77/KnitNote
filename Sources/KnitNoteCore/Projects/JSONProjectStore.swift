@@ -1414,10 +1414,15 @@ final class PatternLibraryDeletionTransaction {
         else { return nil }
         let capturedGeneration = dataGeneration
         let generateThumbnailURL = patternPDFPageThumbnailURLGenerator
-        let thumbnailURL = await Task.detached(priority: .utility) { () -> URL? in
+        let renderingTask = Task.detached(priority: .utility) { () -> URL? in
             guard !Task.isCancelled else { return nil }
             return generateThumbnailURL(asset, sourceURL, pageIndex)
-        }.value
+        }
+        let thumbnailURL = await withTaskCancellationHandler {
+            await renderingTask.value
+        } onCancel: {
+            renderingTask.cancel()
+        }
         guard !Task.isCancelled, dataGeneration == capturedGeneration else { return nil }
         return thumbnailURL
     }

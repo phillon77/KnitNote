@@ -99,6 +99,60 @@ import Testing
     #expect(await request.value == nil)
 }
 
+@MainActor @Test func cancellingStoreRequestCancelsStartedDetachedPageThumbnailRender() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PageThumbnailCancellation-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let archiveURL = root.appendingPathComponent("projects-v1.json")
+    let fileService = PatternFileService(root: root.appendingPathComponent("Patterns", isDirectory: true))
+    let assetID = UUID()
+    let sourceURL = fileService.assetsRoot.appendingPathComponent("\(assetID.uuidString).pdf")
+    try FileManager.default.createDirectory(at: fileService.assetsRoot, withIntermediateDirectories: true)
+    try makeTestPatternPDF(at: sourceURL, pageCount: 3)
+    let metadata = try fileService.inspect(sourceURL)
+    let asset = PatternAsset(
+        id: assetID,
+        sha256: metadata.sha256,
+        kind: metadata.kind,
+        storedFilename: sourceURL.lastPathComponent,
+        byteCount: metadata.byteCount,
+        pageCount: metadata.pageCount
+    )
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [],
+        patternAssets: [asset]
+    )).write(to: archiveURL, options: .atomic)
+    let blocker = PageThumbnailRenderBlocker()
+    let staleCacheURL = root.appendingPathComponent("stale-page.jpg")
+    let store = JSONProjectStore(
+        url: archiveURL,
+        patternFileService: fileService,
+        patternPDFPageThumbnailURLGenerator: { _, _, _ in
+            blocker.blockOnce()
+            guard !Task.isCancelled else { return nil }
+            try? Data("stale".utf8).write(to: staleCacheURL, options: .atomic)
+            return staleCacheURL
+        },
+        backupService: KnitNoteBackupService(
+            liveRoot: root,
+            workRoot: root.appendingPathComponent("BackupWork", isDirectory: true)
+        )
+    )
+    defer { blocker.resume() }
+
+    let request = Task { @MainActor in
+        await store.patternPDFPageThumbnailURL(assetID: asset.id, pageIndex: 1)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    request.cancel()
+    blocker.resume()
+
+    #expect(await request.value == nil)
+    #expect(!FileManager.default.fileExists(atPath: staleCacheURL.path))
+}
+
 @Test func usageRestoresItsIndependentReadingState() throws {
     let patternID = UUID()
     let projectID = UUID()

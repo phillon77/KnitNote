@@ -1,4 +1,5 @@
 import CoreGraphics
+import Dispatch
 import Foundation
 import ImageIO
 import PDFKit
@@ -62,6 +63,46 @@ import UniformTypeIdentifiers
         #expect(try centerRGB(reused) == firstColor)
         #expect(updated != first)
         #expect(service.cachedPageURL(asset: pdfAsset, pageIndex: 1) != first)
+    }
+
+    @Test func cancellationAfterPageRenderDoesNotWriteThePageCache() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let pdfURL = root.appendingPathComponent("three-pages.pdf")
+        try makeSolidColorPDF(
+            at: pdfURL,
+            colors: [
+                RGB(red: 255, green: 0, blue: 0),
+                RGB(red: 0, green: 255, blue: 0),
+                RGB(red: 0, green: 0, blue: 255)
+            ]
+        )
+        let blocker = PageThumbnailServiceRenderBlocker()
+        let service = PatternThumbnailFileService(
+            directory: root.appendingPathComponent("cache"),
+            maxPixelSize: 240,
+            afterPageRender: { blocker.block() }
+        )
+        let pdfAsset = asset(
+            sha256: String(repeating: "d", count: 64),
+            kind: .pdf,
+            filename: "three-pages.pdf",
+            pageCount: 3
+        )
+        let cachedURL = service.cachedPageURL(asset: pdfAsset, pageIndex: 1)
+        defer { blocker.resume() }
+
+        let request = Task.detached {
+            try? service.thumbnailURL(asset: pdfAsset, sourceURL: pdfURL, pageIndex: 1)
+        }
+        #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+        request.cancel()
+        blocker.resume()
+
+        #expect(await request.value == nil)
+        #expect(!FileManager.default.fileExists(atPath: cachedURL.path))
     }
 
     @Test func deletingAnAssetRemovesItsCoverAndAllPageThumbnails() throws {
@@ -476,5 +517,23 @@ import UniformTypeIdentifiers
         let red: UInt8
         let green: UInt8
         let blue: UInt8
+    }
+}
+
+private final class PageThumbnailServiceRenderBlocker: @unchecked Sendable {
+    private let blocked = DispatchSemaphore(value: 0)
+    private let continuation = DispatchSemaphore(value: 0)
+
+    func block() {
+        blocked.signal()
+        continuation.wait()
+    }
+
+    func waitUntilBlocked() -> Bool {
+        blocked.wait(timeout: .now() + 10) == .success
+    }
+
+    func resume() {
+        continuation.signal()
     }
 }

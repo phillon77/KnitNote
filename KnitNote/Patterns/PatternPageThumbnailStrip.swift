@@ -11,6 +11,7 @@ struct PatternPageThumbnailStrip: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let assetID: UUID
+    let assetRevision: String
     let pageCount: Int
     let selectedPage: Int
     let onSelect: (Int) -> Void
@@ -20,10 +21,16 @@ struct PatternPageThumbnailStrip: View {
             platform: platform,
             usesAccessibilitySizes: dynamicTypeSize.isAccessibilitySize
         )
+        let assetIdentity = PatternPageThumbnailAssetIdentity(
+            assetID: assetID,
+            assetRevision: assetRevision,
+            pageCount: pageCount
+        )
+        let preloadIdentity = assetIdentity.preload(selectedPage: selectedPage)
 
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                LazyHStack(spacing: 8) {
+                LazyHStack(spacing: layout.itemSpacing) {
                     ForEach(0..<max(0, pageCount), id: \.self) { pageIndex in
                         let item = PatternPageThumbnailPresentation(
                             pageIndex: pageIndex,
@@ -40,9 +47,9 @@ struct PatternPageThumbnailStrip: View {
                             }
                         } label: {
                             PatternPageThumbnailCell(
-                                assetID: assetID,
+                                request: assetIdentity.request(pageIndex: pageIndex),
                                 item: item,
-                                minimumHitTarget: layout.minimumHitTarget
+                                layout: layout
                             )
                         }
                         .buttonStyle(.plain)
@@ -52,7 +59,7 @@ struct PatternPageThumbnailStrip: View {
                 .padding(.horizontal, 8)
             }
             .scrollIndicators(.hidden)
-            .frame(minHeight: layout.stripHeight)
+            .frame(height: layout.stripHeight)
             .onAppear {
                 proxy.scrollTo(selectedPage, anchor: .center)
             }
@@ -61,14 +68,14 @@ struct PatternPageThumbnailStrip: View {
                     proxy.scrollTo(pageIndex, anchor: .center)
                 }
             }
-            .task(id: selectedPage) {
+            .task(id: preloadIdentity) {
                 for pageIndex in PatternPageThumbnailPolicy.preloadIndices(
-                    pageCount: pageCount,
-                    currentPage: selectedPage
+                    pageCount: preloadIdentity.asset.pageCount,
+                    currentPage: preloadIdentity.selectedPage
                 ) {
                     guard !Task.isCancelled else { return }
                     _ = await store.patternPDFPageThumbnailURL(
-                        assetID: assetID,
+                        assetID: preloadIdentity.asset.assetID,
                         pageIndex: pageIndex
                     )
                 }
@@ -89,27 +96,30 @@ private struct PatternPageThumbnailCell: View {
     @EnvironmentObject private var store: JSONProjectStore
     @Environment(\.locale) private var locale
 
-    let assetID: UUID
+    let request: PatternPageThumbnailRequestIdentity
     let item: PatternPageThumbnailPresentation
-    let minimumHitTarget: Double
+    let layout: PatternPageThumbnailLayoutPolicy
 
     @State private var loadedThumbnail: LoadedPatternPageThumbnail?
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        VStack(spacing: 2) {
             thumbnail
-
+                .frame(
+                    width: layout.thumbnailWidth,
+                    height: layout.thumbnailHeight
+                )
             Text(item.pageNumber, format: .number)
                 .font(.caption2.bold().monospacedDigit())
                 .foregroundStyle(WatercolorTheme.ink)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .frame(
-            width: minimumHitTarget,
-            height: minimumHitTarget
+            minWidth: layout.minimumHitTarget,
+            idealWidth: layout.thumbnailWidth,
+            maxWidth: layout.thumbnailWidth,
+            minHeight: layout.minimumHitTarget
         )
         .background(WatercolorTheme.softWhite.opacity(0.9))
         .clipShape(.rect(cornerRadius: 7, style: .continuous))
@@ -137,7 +147,7 @@ private struct PatternPageThumbnailCell: View {
            loadedThumbnail.request == request {
             loadedThumbnail.image
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
                 .accessibilityHidden(true)
         } else {
             Image(systemName: "doc.richtext")
@@ -145,14 +155,6 @@ private struct PatternPageThumbnailCell: View {
                 .foregroundStyle(WatercolorTheme.actionBerry)
                 .accessibilityHidden(true)
         }
-    }
-
-    private var request: PatternPageThumbnailRequest {
-        PatternPageThumbnailRequest(
-            assetID: assetID,
-            pageIndex: item.pageIndex,
-            generation: store.dataGeneration
-        )
     }
 
     private var accessibilityLabel: String {
@@ -172,13 +174,13 @@ private struct PatternPageThumbnailCell: View {
             + String(localized: "patterns.reader.thumbnail.current", locale: locale)
     }
 
-    private func loadThumbnail(for request: PatternPageThumbnailRequest) async {
+    private func loadThumbnail(for request: PatternPageThumbnailRequestIdentity) async {
         guard request == self.request else { return }
         loadedThumbnail = nil
 
         guard !Task.isCancelled,
               let url = await store.patternPDFPageThumbnailURL(
-                  assetID: request.assetID,
+                  assetID: request.asset.assetID,
                   pageIndex: request.pageIndex
               ),
               !Task.isCancelled
@@ -213,13 +215,7 @@ private struct PatternPageThumbnailCell: View {
     }
 }
 
-private struct PatternPageThumbnailRequest: Hashable {
-    let assetID: UUID
-    let pageIndex: Int
-    let generation: UInt64
-}
-
 private struct LoadedPatternPageThumbnail {
-    let request: PatternPageThumbnailRequest
+    let request: PatternPageThumbnailRequestIdentity
     let image: Image
 }

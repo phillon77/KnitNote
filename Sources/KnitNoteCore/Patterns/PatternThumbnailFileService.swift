@@ -13,10 +13,24 @@ public struct PatternThumbnailFileService: Sendable {
     public let directory: URL
     public let maxPixelSize: Int
     private let lock = PatternThumbnailFileLock()
+    private let afterPageRender: @Sendable () -> Void
 
     public init(directory: URL, maxPixelSize: Int = 800) {
+        self.init(
+            directory: directory,
+            maxPixelSize: maxPixelSize,
+            afterPageRender: {}
+        )
+    }
+
+    init(
+        directory: URL,
+        maxPixelSize: Int = 800,
+        afterPageRender: @escaping @Sendable () -> Void
+    ) {
         self.directory = directory
         self.maxPixelSize = max(1, maxPixelSize)
+        self.afterPageRender = afterPageRender
     }
 
     public func thumbnailURL(
@@ -55,16 +69,20 @@ public struct PatternThumbnailFileService: Sendable {
         }
         lock.value.lock()
         defer { lock.value.unlock() }
+        try Task.checkCancellation()
         let destination = cachedPageURL(asset: asset, pageIndex: pageIndex)
         if FileManager.default.fileExists(atPath: destination.path) {
             return destination
         }
         let image = try renderPDFPage(sourceURL, pageIndex: pageIndex)
+        afterPageRender()
+        try Task.checkCancellation()
         let data = try encodeJPEG(image)
         try FileManager.default.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
+        try Task.checkCancellation()
         try data.write(to: destination, options: .atomic)
         return destination
     }

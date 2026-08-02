@@ -46,6 +46,7 @@ private struct PatternReaderContent {
     let displayName: String
     let kind: PatternKind
     let assetID: UUID
+    let assetRevision: String
     let url: URL
 }
 
@@ -250,7 +251,13 @@ struct PatternReaderView: View {
                   let url = try? store.patternAssetURL(patternID: pattern.id) else {
                 return nil
             }
-            return .init(displayName: pattern.displayName, kind: asset.kind, assetID: asset.id, url: url)
+            return .init(
+                displayName: pattern.displayName,
+                kind: asset.kind,
+                assetID: asset.id,
+                assetRevision: asset.sha256,
+                url: url
+            )
         case let .legacy(projectID, patternID):
             guard let pattern = store.project(id: projectID)?.patterns.first(where: { $0.id == patternID }) else {
                 return nil
@@ -259,6 +266,7 @@ struct PatternReaderView: View {
                 displayName: pattern.displayName,
                 kind: pattern.kind,
                 assetID: pattern.id,
+                assetRevision: pattern.storedFilename,
                 url: store.patternURL(projectID: projectID, pattern: pattern)
             )
         }
@@ -311,6 +319,7 @@ struct PatternReaderView: View {
                                 ) {
                                     PatternPageThumbnailStrip(
                                         assetID: content.assetID,
+                                        assetRevision: content.assetRevision,
                                         pageCount: pageCount,
                                         selectedPage: state.pageIndex,
                                         onSelect: navigatePDF(to:)

@@ -54,6 +54,22 @@ public enum PatternHighlightGeometry {
             : 0
     }
 
+    public static func visibleDrawingRect(
+        contentRect: CGRect,
+        canvasSize: CGSize
+    ) -> CGRect {
+        guard let contentRect = validContentRect(contentRect),
+              canvasSize.width.isFinite,
+              canvasSize.height.isFinite,
+              canvasSize.width > 0,
+              canvasSize.height > 0
+        else { return .zero }
+
+        let canvasRect = CGRect(origin: .zero, size: canvasSize)
+        let intersection = contentRect.intersection(canvasRect)
+        return validContentRect(intersection) ?? .zero
+    }
+
     public static func coordinate(
         normalized: Double,
         origin: CGFloat,
@@ -108,5 +124,85 @@ public enum PatternPDFPageFrameGeometry {
         var result = frame
         result.origin.y = bounds.maxY - frame.maxY
         return result
+    }
+}
+
+public enum PatternPDFPageAnchorGeometry {
+    public static func normalizedAnchor(for point: CGPoint, in pageBounds: CGRect) -> CGPoint {
+        guard pageBounds.width.isFinite,
+              pageBounds.height.isFinite,
+              pageBounds.width > 0,
+              pageBounds.height > 0
+        else { return CGPoint(x: 0, y: 0) }
+        return CGPoint(
+            x: min(1, max(0, (point.x - pageBounds.minX) / pageBounds.width)),
+            y: min(1, max(0, (point.y - pageBounds.minY) / pageBounds.height))
+        )
+    }
+
+    public static func pagePoint(offsetX: Double, offsetY: Double, in pageBounds: CGRect) -> CGPoint {
+        let x = min(1, max(0, offsetX))
+        let y = min(1, max(0, offsetY))
+        return CGPoint(
+            x: pageBounds.minX + pageBounds.width * x,
+            y: pageBounds.minY + pageBounds.height * y
+        )
+    }
+}
+
+public enum PatternPDFScrollAnchorGeometry {
+    public static func normalizedAnchor(
+        for contentOffset: CGPoint,
+        minimum: CGPoint,
+        maximum: CGPoint
+    ) -> CGPoint {
+        CGPoint(
+            x: normalized(value: contentOffset.x, minimum: minimum.x, maximum: maximum.x),
+            y: normalized(value: contentOffset.y, minimum: minimum.y, maximum: maximum.y)
+        )
+    }
+
+    public static func contentOffset(
+        anchorX: Double,
+        anchorY: Double,
+        minimum: CGPoint,
+        maximum: CGPoint
+    ) -> CGPoint {
+        CGPoint(
+            x: interpolated(anchor: anchorX, minimum: minimum.x, maximum: maximum.x),
+            y: interpolated(anchor: anchorY, minimum: minimum.y, maximum: maximum.y)
+        )
+    }
+
+    private static func normalized(value: CGFloat, minimum: CGFloat, maximum: CGFloat) -> CGFloat {
+        let range = maximum - minimum
+        guard value.isFinite, minimum.isFinite, maximum.isFinite, range > 0 else { return 0 }
+        return min(1, max(0, (value - minimum) / range))
+    }
+
+    private static func interpolated(anchor: Double, minimum: CGFloat, maximum: CGFloat) -> CGFloat {
+        let range = maximum - minimum
+        guard minimum.isFinite, maximum.isFinite, range > 0 else { return minimum.isFinite ? minimum : 0 }
+        return minimum + range * CGFloat(min(1, max(0, anchor)))
+    }
+}
+
+public enum PatternPDFViewportAnchorGeometry {
+    public static func verticalContentOffset(
+        currentContentOffsetY: CGFloat,
+        targetYInViewport: CGFloat,
+        viewportBounds: CGRect,
+        minimumY: CGFloat,
+        maximumY: CGFloat
+    ) -> CGFloat {
+        guard currentContentOffsetY.isFinite,
+              targetYInViewport.isFinite,
+              viewportBounds.midY.isFinite,
+              minimumY.isFinite,
+              maximumY.isFinite,
+              maximumY >= minimumY
+        else { return currentContentOffsetY.isFinite ? currentContentOffsetY : 0 }
+        let candidate = currentContentOffsetY + targetYInViewport - viewportBounds.midY
+        return min(maximumY, max(minimumY, candidate))
     }
 }

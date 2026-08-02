@@ -132,6 +132,7 @@ targets:
         buildPhase: resources
       - path: Sources/KnitNoteCore/Patterns/PatternAsset.swift
       - path: Sources/KnitNoteCore/Patterns/PatternDocument.swift
+      - path: Sources/KnitNoteCore/Patterns/PatternPDFScalePolicy.swift
       - path: Sources/KnitNoteCore/Patterns/PatternFileService.swift
       - path: Sources/KnitNoteCore/Patterns/PatternInboxFileService.swift
       - path: Sources/KnitNoteCore/Patterns/PatternInboxItem.swift

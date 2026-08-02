@@ -38,9 +38,9 @@ import Testing
 
     @Test func pdfReaderFrameFeedsTheHighlightWithoutChangingImageBehavior() throws {
         let source = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
-        #expect(source.contains("@State private var pdfPageFrame: CGRect?"))
-        #expect(source.contains("pageFrame: $pdfPageFrame"))
-        #expect(source.contains("content.kind == .pdf ? pdfPageFrame : nil"))
+        #expect(source.contains("@State private var pdfViewport = PatternPDFViewportState()"))
+        #expect(source.contains("viewport: $pdfViewport"))
+        #expect(source.contains("content.kind == .pdf ? pdfViewport.pageFrame : nil"))
     }
 
     @Test func liveCanvasCallbacksSynchronizeBothCrossHighlightCoordinatesBeforeSessionAcceptance() throws {
@@ -251,6 +251,56 @@ import Testing
         #expect(store.contains("state: PatternBrowsingState"))
         #expect(markOpened.contains("requireAccess(.recordPatternBrowsing)"))
         #expect(detail.contains("entitlementCoordinator.allowsAutomaticReaderPersistence"))
+    }
+
+    @Test func normalReaderExitAndSuccessfulPageChangePersistBrowsingState() throws {
+        let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        #expect(reader.contains("_ = saveBrowsingState()"))
+
+        let done = try #require(sourceSection(
+            reader,
+            from: "Button(\"common.ok\") {",
+            to: "ToolbarItem(placement: .primaryAction)"
+        ))
+        let doneFlush = try #require(done.range(of: "pdfNavigator.flushPendingScaleCapture()"))
+        let donePersistence = try #require(done.range(of: "saveMarkup(page: state.pageIndex)"))
+        #expect(doneFlush.lowerBound < donePersistence.lowerBound)
+
+        let disappearance = try #require(sourceSection(
+            reader,
+            from: ".onDisappear {",
+            to: ".onChange(of: state.pageIndex)"
+        ))
+        let disappearanceFlush = try #require(disappearance.range(of: "pdfNavigator.flushPendingScaleCapture()"))
+        let disappearancePersistence = try #require(disappearance.range(of: "saveMarkup(page: state.pageIndex)"))
+        #expect(disappearanceFlush.lowerBound < disappearancePersistence.lowerBound)
+
+        let pageChange = try #require(sourceSection(
+            reader,
+            from: ".onChange(of: state.pageIndex)",
+            to: ".onChange(of: scenePhase)"
+        ))
+        let revisionGuard = try #require(pageChange.range(of: "revisionCoordinator.canChangePage"))
+        let markupGuard = try #require(pageChange.range(of: "saveMarkup(page: transition.rollbackPageIndex)"))
+        let clearedTransition = try #require(pageChange.range(of: "pendingPageTransition = nil"))
+        let loadedMarkup = try #require(pageChange.range(of: "loadMarkup(page: newPage"))
+        let persistedBrowsing = try #require(pageChange.range(of: "saveBrowsingState()"))
+        let pageChangeFlush = try #require(pageChange.range(of: "pdfNavigator.flushPendingScaleCapture()"))
+
+        #expect(pageChangeFlush.lowerBound < persistedBrowsing.lowerBound)
+        #expect(revisionGuard.lowerBound < persistedBrowsing.lowerBound)
+        #expect(markupGuard.lowerBound < persistedBrowsing.lowerBound)
+        #expect(clearedTransition.lowerBound < persistedBrowsing.lowerBound)
+        #expect(loadedMarkup.lowerBound < persistedBrowsing.lowerBound)
+
+        let sceneChange = try #require(sourceSection(
+            reader,
+            from: ".onChange(of: scenePhase)",
+            to: "    }\n\n    @ViewBuilder"
+        ))
+        let sceneFlush = try #require(sceneChange.range(of: "pdfNavigator.flushPendingScaleCapture()"))
+        let scenePersistence = try #require(sceneChange.range(of: "saveMarkup(page: state.pageIndex)"))
+        #expect(sceneFlush.lowerBound < scenePersistence.lowerBound)
     }
 
     @Test func legacyReaderStillOffersItsMissingFileRecoveryAction() throws {

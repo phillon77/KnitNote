@@ -3,11 +3,16 @@ import CryptoKit
 import Foundation
 
 public struct ProjectArchive: Codable, Sendable {
-    public static let currentVersion = 10
+    public static let currentVersion = 11
     public static let minimumSupportedVersion = 1
+    public static let patternLibraryIntroducedVersion = 10
 
     public static func isSupported(version: Int) -> Bool {
         (minimumSupportedVersion...currentVersion).contains(version)
+    }
+
+    public static func supportsPatternLibrary(version: Int) -> Bool {
+        isSupported(version: version) && version >= patternLibraryIntroducedVersion
     }
 
     public let version: Int

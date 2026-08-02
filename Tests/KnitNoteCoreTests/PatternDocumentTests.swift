@@ -2,6 +2,187 @@ import Foundation
 import Testing
 @testable import KnitNoteCore
 
+@Test func pdfScalePolicyConvertsBetweenFitWidthRatioAndAbsoluteScale() {
+    #expect(PatternPDFScalePolicy.ratio(currentScale: 1.8, fitWidthScale: 1.2) == 1.5)
+    #expect(PatternPDFScalePolicy.absoluteScale(
+        ratio: 1.5,
+        fitWidthScale: 0.9,
+        allowed: 0.5...3.0
+    ) == 1.35)
+}
+
+@Test func pdfScalePolicyFallsBackAndClampsAtPDFKitLimits() {
+    #expect(PatternPDFScalePolicy.ratio(currentScale: .infinity, fitWidthScale: 1.0) == 1.0)
+    #expect(PatternPDFScalePolicy.ratio(currentScale: 2.0, fitWidthScale: 0.0) == 1.0)
+    #expect(PatternPDFScalePolicy.absoluteScale(ratio: 8.0, fitWidthScale: 0.5, allowed: 0.25...2.0) == 2.0)
+    #expect(PatternPDFScalePolicy.absoluteScale(ratio: -1.0, fitWidthScale: 0.8, allowed: 0.25...2.0) == 0.8)
+}
+
+@Test func pendingPDFScaleCaptureFlushesUserWidthBeforeDebounceSettles() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedRevision = gate.observe(
+        currentScale: 1.92,
+        fitWidthScale: 1.2,
+        context: 7
+    )
+    let revision = try #require(observedRevision)
+
+    #expect(gate.flush(context: 7) == 1.6)
+    #expect(gate.settle(revision: revision, context: 7, liveScale: 1.92) == nil)
+}
+
+@Test func newerPDFScaleObservationSupersedesStaleDelayedCallback() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedStaleRevision = gate.observe(
+        currentScale: 1.2,
+        fitWidthScale: 1.0,
+        context: 11
+    )
+    let staleRevision = try #require(observedStaleRevision)
+    let observedLatestRevision = gate.observe(
+        currentScale: 1.6,
+        fitWidthScale: 1.0,
+        context: 11
+    )
+    let latestRevision = try #require(observedLatestRevision)
+
+    #expect(gate.settle(revision: staleRevision, context: 11, liveScale: 1.2) == nil)
+    #expect(gate.settle(revision: latestRevision, context: 11, liveScale: 1.6) == 1.6)
+}
+
+@Test func changedPDFScaleContextDiscardsOldPendingObservation() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedStaleRevision = gate.observe(
+        currentScale: 1.5,
+        fitWidthScale: 1.0,
+        context: 19
+    )
+    let staleRevision = try #require(observedStaleRevision)
+
+    #expect(gate.settle(revision: staleRevision, context: 20, liveScale: 1.5) == nil)
+    #expect(gate.flush(context: 19) == nil)
+}
+
+@Test func ignoredProgrammaticTargetScaleClearsEarlierPendingUserWidth() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedRevision = gate.observe(
+        currentScale: 1.5,
+        fitWidthScale: 1.0,
+        context: 23
+    )
+    _ = try #require(observedRevision)
+
+    let latestVisibleScale = 1.0
+    let programmaticTarget = 1.0
+    #expect(latestVisibleScale == programmaticTarget)
+    gate.discardPendingObservation(context: 23)
+
+    #expect(gate.flush(context: 23) == nil)
+}
+
+@Test func liveScaleMismatchSettlementConsumesPendingUserWidth() throws {
+    var gate = PatternPDFScaleCaptureGate()
+    let observedRevision = gate.observe(
+        currentScale: 1.5,
+        fitWidthScale: 1.0,
+        context: 29
+    )
+    let revision = try #require(observedRevision)
+
+    #expect(gate.settle(revision: revision, context: 29, liveScale: 1.0) == nil)
+    #expect(gate.flush(context: 29) == nil)
+}
+
+@Test func pdfWidthRatioIsSharedAcrossPagesWithoutChangingPageDetails() {
+    var state = PatternReadingState(
+        pageIndex: 0,
+        pdfWidthScaleRatio: 1.6,
+        highlightPosition: 0.2,
+        pageNote: "body",
+        pageStates: [1: .init(horizontalPosition: 0.8, verticalPosition: 0.3, note: "sleeve")]
+    )
+
+    state.transitionToPDFPage(1)
+
+    #expect(state.pdfWidthScaleRatio == 1.6)
+    #expect(state.pageNote == "sleeve")
+    #expect(state.highlightPosition == 0.8)
+}
+
+@Test(arguments: [
+    ("legacy", nil),
+    ("zero", "0"),
+    ("negative", "-1"),
+    ("nan", "\"NaN\""),
+    ("infinity", "\"Infinity\""),
+]) func decodingMissingOrInvalidPDFWidthRatioUsesDefault(
+    _: String,
+    ratioJSON: String?
+) throws {
+    var fields = [
+        "\"pageIndex\": 3",
+        "\"zoomScale\": 2.5",
+        "\"offsetX\": 0.2",
+        "\"offsetY\": 0.8",
+        "\"highlightEnabled\": true",
+        "\"highlightPosition\": 0.3",
+        "\"highlightMode\": \"cross\"",
+        "\"verticalHighlightPosition\": 0.7",
+        "\"pageNote\": \"neck shaping\"",
+        "\"pageStates\": {\"3\": {\"horizontalPosition\": 0.3, \"verticalPosition\": 0.7, \"note\": \"neck shaping\"}}",
+    ]
+    if let ratioJSON {
+        fields.append("\"pdfWidthScaleRatio\": \(ratioJSON)")
+    }
+    let fixture = "{\(fields.joined(separator: ","))}"
+    let decoder = JSONDecoder()
+    decoder.nonConformingFloatDecodingStrategy = .convertFromString(
+        positiveInfinity: "Infinity",
+        negativeInfinity: "-Infinity",
+        nan: "NaN"
+    )
+
+    let decoded = try decoder.decode(PatternReadingState.self, from: Data(fixture.utf8))
+
+    #expect(decoded.pdfWidthScaleRatio == 1.0)
+}
+
+@Test func richReadingStateRoundTripsPDFWidthRatioAndExistingPageDetails() throws {
+    let expected = PatternReadingState(
+        pageIndex: 4,
+        pdfWidthScaleRatio: 1.75,
+        zoomScale: 2.25,
+        offsetX: 0.15,
+        offsetY: 0.8,
+        highlightEnabled: true,
+        highlightPosition: 0.31,
+        highlightMode: .cross,
+        verticalHighlightPosition: 0.72,
+        pageNote: "neck shaping",
+        pageStates: [
+            4: .init(horizontalPosition: 0.31, verticalPosition: 0.72, note: "neck shaping"),
+            7: .init(horizontalPosition: 0.63, verticalPosition: 0.19, note: "sleeve repeat"),
+        ]
+    )
+
+    let decoded = try JSONDecoder().decode(
+        PatternReadingState.self,
+        from: JSONEncoder().encode(expected)
+    )
+
+    #expect(decoded.pdfWidthScaleRatio == 1.75)
+    #expect(decoded.pageIndex == 4)
+    #expect(decoded.zoomScale == 2.25)
+    #expect(decoded.offsetX == 0.15)
+    #expect(decoded.offsetY == 0.8)
+    #expect(decoded.highlightEnabled)
+    #expect(decoded.highlightPosition == 0.31)
+    #expect(decoded.highlightMode == .cross)
+    #expect(decoded.verticalHighlightPosition == 0.72)
+    #expect(decoded.pageNote == "neck shaping")
+    #expect(decoded.pageStates == expected.pageStates)
+}
+
 @Test func everyIOSDeviceUsesFullScreenPatternPresentation() {
     #expect(patternReaderPresentation(isPad: true) == .fullScreen)
     #expect(patternReaderPresentation(isPad: false) == .fullScreen)
@@ -169,7 +350,25 @@ import Testing
     #expect(bottom.pdfRestorePageIndex(pageCount: 8) == 2)
 }
 
-@Test func discretePDFPageMovementClampsAndClearsOffsets() {
+@Test func pdfAnchorCaptureUpdatesOnlyTheCurrentPagePosition() {
+    var state = PatternReadingState(
+        pageIndex: 2,
+        pdfWidthScaleRatio: 1.6,
+        offsetX: 0,
+        offsetY: 0,
+        highlightPosition: 0.3
+    )
+
+    state.setPDFAnchor(pageIndex: 2, offsetX: 0.25, offsetY: 0.75)
+
+    #expect(state.pageIndex == 2)
+    #expect(state.offsetX == 0.25)
+    #expect(state.offsetY == 0.75)
+    #expect(state.pdfWidthScaleRatio == 1.6)
+    #expect(state.highlightPosition == 0.3)
+}
+
+@Test func discretePDFPageMovementClampsAndRestoresPerPageOffsets() {
     var state=PatternReadingState(pageIndex:1,offsetX:0.4,offsetY:0.7,highlightPosition:0.2,verticalHighlightPosition:0.8,pageNote:"page two")
     state.movePDFPage(by:1,pageCount:3)
     #expect(state.pageIndex == 2)
@@ -185,9 +384,23 @@ import Testing
     #expect(state.pageIndex == 0)
     state.movePDFPage(by:1,pageCount:3)
     #expect(state.pageIndex == 1)
+    #expect(state.offsetX == 0.4)
+    #expect(state.offsetY == 0.7)
     #expect(state.highlightPosition == 0.2)
     #expect(state.verticalHighlightPosition == 0.8)
     #expect(state.pageNote == "page two")
+}
+
+@Test func legacyPageStateWithoutOffsetsDecodesAtTheTopOfThePage() throws {
+    let data = Data(#"{"horizontalPosition":0.2,"verticalPosition":0.8,"note":"row"}"#.utf8)
+
+    let decoded = try JSONDecoder().decode(PatternPageState.self, from: data)
+
+    #expect(decoded.offsetX == 0)
+    #expect(decoded.offsetY == 0)
+    #expect(decoded.horizontalPosition == 0.2)
+    #expect(decoded.verticalPosition == 0.8)
+    #expect(decoded.note == "row")
 }
 
 @Test func synchronizingAnUnchangedVisiblePDFPageDoesNotMutateReaderState() {

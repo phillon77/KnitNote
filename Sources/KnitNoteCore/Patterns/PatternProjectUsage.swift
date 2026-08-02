@@ -45,4 +45,12 @@ public struct PatternProjectUsage: Identifiable, Codable, Hashable, Sendable {
         readingState.applyBrowsingState(state)
         _ = now
     }
+
+    public mutating func updatePDFWidthScaleRatio(
+        _ ratio: Double,
+        now: Date = .now
+    ) {
+        readingState.pdfWidthScaleRatio = PatternPDFScalePolicy.normalizedRatio(ratio)
+        _ = now
+    }
 }

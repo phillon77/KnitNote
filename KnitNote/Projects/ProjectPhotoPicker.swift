@@ -21,6 +21,21 @@ struct ProjectPhotoPicker: View {
             .frame(height: 190)
             .clipShape(.rect(cornerRadius: 18))
 
+#if os(macOS)
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    macPhotoSelectionAction
+                    Spacer()
+                    macRemovePhotoAction
+                }
+                .frame(minWidth: 480)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    macPhotoSelectionAction
+                    macRemovePhotoAction
+                }
+            }
+#else
             HStack {
                 if hasPhoto {
                     PhotosPicker(selection: $pickerItem, matching: .images) {
@@ -60,6 +75,7 @@ struct ProjectPhotoPicker: View {
                     .accessibilityLabel(Text("project.photo.remove"))
                 }
             }
+#endif
         }
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
@@ -103,6 +119,39 @@ struct ProjectPhotoPicker: View {
     private var hasPhoto: Bool {
         selectedData != nil || (!removesExistingPhoto && existingURL != nil)
     }
+
+#if os(macOS)
+    @ViewBuilder
+    private var macPhotoSelectionAction: some View {
+        if hasPhoto {
+            PhotosPicker(selection: $pickerItem, matching: .images) {
+                Label("project.photo.replace", systemImage: "photo.on.rectangle")
+            }
+            .buttonStyle(.bordered)
+        } else {
+            PhotosPicker(selection: $pickerItem, matching: .images) {
+                Label("project.photo.choose", systemImage: "photo.on.rectangle")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    private var macRemovePhotoAction: some View {
+        if hasPhoto {
+            Button(role: .destructive) {
+                invalidatePendingLoad()
+                pickerItem = nil
+                selectedData = nil
+                removesExistingPhoto = true
+            } label: {
+                Label("project.photo.remove", systemImage: "trash")
+            }
+            .labelStyle(.iconOnly)
+            .accessibilityLabel(Text("project.photo.remove"))
+        }
+    }
+#endif
 
     private func invalidatePendingLoad() {
         selectionRevision = UUID()

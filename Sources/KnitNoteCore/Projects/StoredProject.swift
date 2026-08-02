@@ -178,6 +178,16 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         legacyPatternDocuments[index].zoomScale = state.zoomScale
         legacyPatternDocuments[index].contentOffsetX = state.offsetX
         legacyPatternDocuments[index].contentOffsetY = state.offsetY
+        for (pageIndex, position) in state.pageOffsets {
+            let existing = legacyPatternDocuments[index].pageStates[pageIndex] ?? PatternPageState()
+            legacyPatternDocuments[index].pageStates[pageIndex] = PatternPageState(
+                horizontalPosition: existing.horizontalPosition,
+                verticalPosition: existing.verticalPosition,
+                offsetX: position.offsetX,
+                offsetY: position.offsetY,
+                note: existing.note
+            )
+        }
         _ = now
     }
 

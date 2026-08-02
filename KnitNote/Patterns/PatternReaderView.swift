@@ -62,7 +62,7 @@ struct PatternReaderView: View {
     @State private var handledPageIndex: Int?
     @State private var loadError = false
     @State private var pageCount = 0
-    @State private var pdfPageFrame: CGRect?
+    @State private var pdfViewport = PatternPDFViewportState()
     @State private var saveError: String?
     @State private var showingPageNote = false
     @State private var originalPageNote = ""
@@ -344,6 +344,8 @@ struct PatternReaderView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common.ok") {
+                        pdfNavigator.captureCurrentPosition()
+                        pdfNavigator.flushPendingScaleCapture()
                         if saveMarkup(page: state.pageIndex), saveBrowsingState() {
                             dismiss()
                         }
@@ -443,12 +445,15 @@ struct PatternReaderView: View {
             handleStoreGenerationChange(generation)
         }
         .onDisappear {
+            pdfNavigator.captureCurrentPosition()
+            pdfNavigator.flushPendingScaleCapture()
             guard canvasIsActive, readerSession.canPersist else { return }
             guard context.canWrite else { return }
             guard saveMarkup(page: state.pageIndex) else { return }
             _ = saveBrowsingState()
         }
         .onChange(of: state.pageIndex) { _, newPage in
+            pdfNavigator.flushPendingScaleCapture()
             guard canvasIsActive, readerSession.canAcceptCanvasCallbacks else { return }
             guard handledPageIndex != newPage else { return }
             guard let transition = pendingPageTransition,
@@ -465,9 +470,17 @@ struct PatternReaderView: View {
             }
             pendingPageTransition = nil
             loadMarkup(page: newPage, readerGeneration: readerSession.generation)
+            _ = saveBrowsingState()
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase != .active, canvasIsActive, readerSession.canPersist else { return }
+            guard canvasIsActive, readerSession.canPersist else { return }
+            if phase == .active {
+                pdfNavigator.restoreAfterForeground()
+                return
+            }
+            guard phase == .inactive else { return }
+            pdfNavigator.prepareForInactivity()
+            pdfNavigator.flushPendingScaleCapture()
             guard context.canWrite else { return }
             guard saveMarkup(page: state.pageIndex) else { return }
             _ = saveBrowsingState()
@@ -486,7 +499,7 @@ struct PatternReaderView: View {
                         state: canvasState,
                         pageCount: $pageCount,
                         loadError: $loadError,
-                        pageFrame: $pdfPageFrame,
+                        viewport: $pdfViewport,
                         onReady: onStoreScreenshotReady
                     )
                     .allowsHitTesting(!markupMode)
@@ -499,7 +512,7 @@ struct PatternReaderView: View {
                         mode: state.highlightMode,
                         horizontalPosition: horizontalHighlightBinding,
                         verticalPosition: verticalHighlightBinding,
-                        contentRect: content.kind == .pdf ? pdfPageFrame : nil,
+                        contentRect: content.kind == .pdf ? pdfViewport.pageFrame : nil,
                         onPositionCommit: commitHighlightPositionEdit
                     )
                     .allowsHitTesting(
@@ -552,7 +565,7 @@ struct PatternReaderView: View {
         handledPageIndex = nil
         pendingPageTransition = nil
         pageCount = 0
-        pdfPageFrame = nil
+        pdfViewport = PatternPDFViewportState()
         loadError = false
         saveError = nil
         managingCounter = nil

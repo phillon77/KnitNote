@@ -23,7 +23,13 @@ private struct PatternReaderPresentationModifier<Item: Identifiable, Reader: Vie
             content.sheet(item: $item, content: reader)
         }
 #else
-        content.sheet(item: $item, content: reader)
+        content.sheet(item: $item) { item in
+            reader(item)
+                .frame(
+                    minWidth: CGFloat(KnitNoteMacWindowSizingPolicy.minimumWidth),
+                    minHeight: CGFloat(KnitNoteMacWindowSizingPolicy.minimumHeight)
+                )
+        }
 #endif
     }
 }

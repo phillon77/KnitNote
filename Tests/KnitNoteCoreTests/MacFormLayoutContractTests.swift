@@ -136,12 +136,24 @@ import Testing
         #expect(spacer.lowerBound < remove.lowerBound)
     }
 
+    @Test func macPatternReaderSheetUsesTheApprovedMinimumSize() throws {
+        let source = try source(named: "PatternReaderView.swift")
+        let macBranch = try #require(source.range(of: "#else\n        content.sheet(item: $item"))
+        let macEnd = try #require(
+            source.range(of: "#endif", range: macBranch.upperBound..<source.endIndex)
+        )
+        let macSource = String(source[macBranch.lowerBound..<macEnd.lowerBound])
+
+        #expect(macSource.contains("KnitNoteMacWindowSizingPolicy.minimumWidth"))
+        #expect(macSource.contains("KnitNoteMacWindowSizingPolicy.minimumHeight"))
+    }
+
     private func source(named name: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let directories = ["KnitNote/Settings", "KnitNote/Projects"]
+        let directories = ["KnitNote/Settings", "KnitNote/Projects", "KnitNote/Patterns"]
         let path = try #require(
             directories.map { root.appendingPathComponent($0).appendingPathComponent(name) }
                 .first(where: { FileManager.default.fileExists(atPath: $0.path) })

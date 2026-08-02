@@ -7,6 +7,7 @@ enum YarnOperationFailure: String {
     case linkedProjectsChanged = "yarn.error.linkedProjectsChanged"
     case saveRetry = "yarn.error.saveRetry"
     case deleteFailed = "yarn.error.deleteFailed.message"
+    case completedProjectLink = "yarn.error.completedProjectLink"
 
     static func saving(_ error: any Error) -> Self {
         if error is YarnPhotoFileError {
@@ -26,6 +27,10 @@ enum YarnOperationFailure: String {
     }
 
     static func deleting(_ error: any Error) -> Self {
+        if let linkError = error as? ProjectYarnLinkError,
+           linkError == .projectCompleted {
+            return .completedProjectLink
+        }
         if let storeError = error as? ProjectStoreError,
            storeError == .unreadableArchive || storeError == .archiveUnavailable {
             return .archiveUnavailable

@@ -74,6 +74,12 @@ public enum ProjectStoreError: Error, Equatable, Sendable {
     case accessRestricted
 }
 
+public enum ProjectYarnLinkError: Error, Equatable, Sendable {
+    case projectNotFound
+    case yarnNotFound
+    case projectCompleted
+}
+
 public typealias MutationAuthorizer = @MainActor (FeatureMutation) -> FeatureAccessDecision
 public typealias MutationSuccessCommitter = @MainActor (FeatureMutation) -> FeatureAccessDecision
 
@@ -1756,6 +1762,11 @@ final class PatternLibraryDeletionTransaction {
     public func addYarn(_ yarn: StoredYarn, photoData: Data?) throws {
         try requireAccess(.createYarn)
         var yarn = yarn
+        try validateYarnProjectChange(
+            from: [],
+            to: yarn.linkedProjectIDs,
+            missingProjectError: ProjectStoreError.invalidYarnProjectLinks
+        )
         var newFilename: String?
         do {
             if let photoData {
@@ -1775,6 +1786,11 @@ final class PatternLibraryDeletionTransaction {
     public func updateYarn(_ yarn: StoredYarn, photoChange: YarnPhotoChange) throws {
         try requireAccess(.editYarn)
         guard let index = yarns.firstIndex(where: { $0.id == yarn.id }) else { return }
+        try validateYarnProjectChange(
+            from: yarns[index].linkedProjectIDs,
+            to: yarn.linkedProjectIDs,
+            missingProjectError: ProjectStoreError.invalidYarnProjectLinks
+        )
         let oldFilename = yarns[index].photoFilename
         var updated = yarn
         var newFilename: String?
@@ -1802,17 +1818,72 @@ final class PatternLibraryDeletionTransaction {
     }
     public func deleteYarn(id: UUID) throws {
         try requireAccess(.deleteYarn)
-        let filename = yarns.first(where: { $0.id == id })?.photoFilename
+        guard let yarn = yarns.first(where: { $0.id == id }) else { return }
+        let projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+        guard yarn.linkedProjectIDs.allSatisfy({ projectsByID[$0]?.isCompleted != true }) else {
+            throw ProjectYarnLinkError.projectCompleted
+        }
+        let filename = yarn.photoFilename
         try persist(projects: projects, yarns: yarns.filter { $0.id != id })
         if let filename { try? yarnPhotoService.delete(filename: filename) }
     }
     public func yarn(id: UUID) -> StoredYarn? { yarns.first { $0.id == id } }
+    public func yarns(linkedTo projectID: UUID) -> [StoredYarn] {
+        yarns.filter { $0.linkedProjectIDs.contains(projectID) }
+    }
+
+    public func setProjectYarns(projectID: UUID, yarnIDs: Set<UUID>) throws {
+        try requireAccess(.linkYarn)
+        guard let project = project(id: projectID) else {
+            throw ProjectYarnLinkError.projectNotFound
+        }
+        guard !project.isCompleted else {
+            throw ProjectYarnLinkError.projectCompleted
+        }
+        guard yarnIDs.isSubset(of: Set(yarns.map(\.id))) else {
+            throw ProjectYarnLinkError.yarnNotFound
+        }
+
+        let now = Date.now
+        var staged = yarns
+        for index in staged.indices {
+            var linkedProjectIDs = staged[index].linkedProjectIDs
+            if yarnIDs.contains(staged[index].id) {
+                linkedProjectIDs.insert(projectID)
+            } else {
+                linkedProjectIDs.remove(projectID)
+            }
+            staged[index].setLinkedProjectIDs(linkedProjectIDs, now: now)
+        }
+        try persist(projects: projects, yarns: staged)
+    }
+
     public func setYarnProjects(yarnID: UUID, projectIDs: Set<UUID>) throws {
         try requireAccess(.linkYarn)
         guard let index = yarns.firstIndex(where: { $0.id == yarnID }) else { return }
+        try validateYarnProjectChange(
+            from: yarns[index].linkedProjectIDs,
+            to: projectIDs,
+            missingProjectError: ProjectYarnLinkError.projectNotFound
+        )
         var staged = yarns
         staged[index].setLinkedProjectIDs(projectIDs)
         try persist(projects: projects, yarns: staged)
+    }
+
+    private func validateYarnProjectChange(
+        from originalProjectIDs: Set<UUID>,
+        to requestedProjectIDs: Set<UUID>,
+        missingProjectError: any Error
+    ) throws {
+        let projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+        guard requestedProjectIDs.allSatisfy({ projectsByID[$0] != nil }) else {
+            throw missingProjectError
+        }
+        let changedProjectIDs = originalProjectIDs.symmetricDifference(requestedProjectIDs)
+        guard changedProjectIDs.allSatisfy({ projectsByID[$0]?.isCompleted != true }) else {
+            throw ProjectYarnLinkError.projectCompleted
+        }
     }
     public func photoURL(for project: StoredProject) -> URL? { project.photoFilename.map(photoService.url(filename:)) }
     public func projectCoverURL(for project: StoredProject) async -> URL? {

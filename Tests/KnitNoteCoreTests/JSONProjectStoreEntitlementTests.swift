@@ -1176,6 +1176,12 @@ import UniformTypeIdentifiers
                 projectIDs: [fixture.projectID]
             )
         }),
+        (.linkYarn, {
+            try $0.setProjectYarns(
+                projectID: fixture.projectID,
+                yarnIDs: [fixture.yarnID]
+            )
+        }),
     ]
 
     for (mutation, operation) in operations {

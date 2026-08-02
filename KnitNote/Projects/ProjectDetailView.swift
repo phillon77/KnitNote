@@ -98,6 +98,13 @@ struct ProjectDetailView: View {
                         }
 
                         WatercolorCard {
+                            ProjectYarnSection(
+                                projectID: projectID,
+                                isEditable: !project.isCompleted
+                            )
+                        }
+
+                        WatercolorCard {
                             ProjectJournalSection(
                                 project: project,
                                 thumbnailURL: store.journalThumbnailURL(for:),

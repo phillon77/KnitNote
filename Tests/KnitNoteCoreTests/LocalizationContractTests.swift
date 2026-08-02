@@ -72,8 +72,22 @@ import Testing
         "yarn.error.saveRetry",
         "yarn.error.deleteFailed.title",
         "yarn.error.deleteFailed.message",
+        "yarn.error.completedProjectLink",
         "yarn.error.loadFailed.title",
         "yarn.error.loadFailed.message",
+        "project.yarn.choose",
+        "project.yarn.completed.readOnly",
+        "project.yarn.error.projectUnavailable",
+        "project.yarn.error.saveRetry",
+        "project.yarn.error.yarnUnavailable",
+        "project.yarn.empty",
+        "project.yarn.libraryEmpty.message",
+        "project.yarn.libraryEmpty.title",
+        "project.yarn.manage",
+        "project.yarn.title",
+        "project.yarn.unlink.action",
+        "project.yarn.unlink.message",
+        "project.yarn.unlink.title",
     ]
 
     private let requiredKeys = [

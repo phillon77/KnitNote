@@ -11,6 +11,7 @@ struct EditYarnView: View {
     @State private var isPhotoLoading = false
     @State private var errorMessage: YarnOperationFailure?
     @State private var didLoadYarn = false
+    @State private var initialLinkedProjectIDs: Set<UUID> = []
 
     var body: some View {
         NavigationStack {
@@ -49,6 +50,7 @@ struct EditYarnView: View {
         .onAppear {
             guard !didLoadYarn, let yarn else { return }
             draft = YarnEditorDraft(yarn: yarn, locale: locale)
+            initialLinkedProjectIDs = yarn.linkedProjectIDs
             didLoadYarn = true
         }
     }
@@ -78,7 +80,13 @@ struct EditYarnView: View {
         do {
             let currentProjectIDs = Set(store.projects.map(\.id))
             draft.linkedProjectIDs.formIntersection(currentProjectIDs)
-            let updated = try draft.applying(to: yarn, locale: locale)
+            var mergedDraft = draft
+            mergedDraft.linkedProjectIDs = YarnLinkSelectionMerge.merged(
+                initial: initialLinkedProjectIDs,
+                edited: draft.linkedProjectIDs,
+                current: yarn.linkedProjectIDs
+            )
+            let updated = try mergedDraft.applying(to: yarn, locale: locale)
             try store.updateYarn(updated, photoChange: photoChange)
             dismiss()
         } catch {

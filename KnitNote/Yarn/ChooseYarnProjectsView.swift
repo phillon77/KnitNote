@@ -29,6 +29,8 @@ struct ChooseYarnProjectsView: View {
                 .contentShape(.rect)
             }
             .accessibilityAddTraits(selectedProjectIDs.contains(project.id) ? .isSelected : [])
+            .accessibilityHint(project.isCompleted ? Text("project.yarn.completed.readOnly") : Text(""))
+            .disabled(project.isCompleted)
         }
         .navigationTitle("yarn.linkedProjects")
         .tint(WatercolorTheme.actionBerry)

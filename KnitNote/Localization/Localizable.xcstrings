@@ -5390,6 +5390,214 @@
         }
       }
     },
+    "project.yarn.choose" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Yarn"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇使用毛線"
+          }
+        }
+      }
+    },
+    "project.yarn.completed.readOnly" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yarn links for completed projects are read-only."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已完成作品的毛線連結只能查看。"
+          }
+        }
+      }
+    },
+    "project.yarn.error.projectUnavailable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This project is no longer available."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這件作品已不存在。"
+          }
+        }
+      }
+    },
+    "project.yarn.error.saveRetry" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The yarn links couldn’t be saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存毛線連結，請再試一次。"
+          }
+        }
+      }
+    },
+    "project.yarn.error.yarnUnavailable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A selected yarn is no longer available. Review your selection and try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其中一款毛線已不存在，請檢查選擇後再試一次。"
+          }
+        }
+      }
+    },
+    "project.yarn.empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No yarn recorded"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未記錄使用毛線"
+          }
+        }
+      }
+    },
+    "project.yarn.libraryEmpty.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add yarn to the Yarn Library first."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先到毛線庫新增毛線。"
+          }
+        }
+      }
+    },
+    "project.yarn.libraryEmpty.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Yarn Yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毛線庫還沒有毛線"
+          }
+        }
+      }
+    },
+    "project.yarn.manage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理"
+          }
+        }
+      }
+    },
+    "project.yarn.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used Yarn"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用毛線"
+          }
+        }
+      }
+    },
+    "project.yarn.unlink.action" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlink"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解除連結"
+          }
+        }
+      }
+    },
+    "project.yarn.unlink.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This only removes the link. The yarn remains in your Yarn Library."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這只會解除作品連結，毛線仍會保留在毛線庫。"
+          }
+        }
+      }
+    },
+    "project.yarn.unlink.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlink This Yarn?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解除這款毛線的連結？"
+          }
+        }
+      }
+    },
     "project.tool.notes" : {
       "localizations" : {
         "en" : {
@@ -6238,6 +6446,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法刪除毛線"
+          }
+        }
+      }
+    },
+    "yarn.error.completedProjectLink" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This yarn is linked to a completed project and can’t be deleted."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這款毛線已連結已完成的作品，無法刪除。"
           }
         }
       }

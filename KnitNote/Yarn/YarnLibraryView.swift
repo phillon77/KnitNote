@@ -41,6 +41,12 @@ struct YarnLibraryView: View {
                                         pendingDeletion = yarn
                                         showingDeleteConfirmation = true
                                     }
+                                    .disabled(hasCompletedProjectLink(yarn))
+                                    .accessibilityHint(
+                                        hasCompletedProjectLink(yarn)
+                                            ? Text("yarn.error.completedProjectLink")
+                                            : Text("")
+                                    )
                                 }
                             }
                         }
@@ -77,9 +83,13 @@ struct YarnLibraryView: View {
                 }
             }
             .alert("yarn.error.deleteFailed.title", isPresented: deleteFailureIsPresented) {
-                Button("common.retry") { deletePendingYarn() }
-                Button("common.cancel", role: .cancel) {
-                    pendingDeletion = nil
+                if deleteFailure == .completedProjectLink {
+                    Button("common.ok") { pendingDeletion = nil }
+                } else {
+                    Button("common.retry") { deletePendingYarn() }
+                    Button("common.cancel", role: .cancel) {
+                        pendingDeletion = nil
+                    }
                 }
             } message: {
                 Text(LocalizedStringKey(
@@ -104,6 +114,12 @@ struct YarnLibraryView: View {
             deleteFailure = nil
         } catch {
             deleteFailure = .deleting(error)
+        }
+    }
+
+    private func hasCompletedProjectLink(_ yarn: StoredYarn) -> Bool {
+        store.projects.contains {
+            $0.isCompleted && yarn.linkedProjectIDs.contains($0.id)
         }
     }
 }

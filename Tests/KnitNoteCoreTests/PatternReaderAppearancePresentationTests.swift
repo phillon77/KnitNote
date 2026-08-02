@@ -2,6 +2,18 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct PatternReaderAppearancePresentationTests {
+    @Test func renderingConfigurationChangesEffectsWithoutChangingContentIdentity() {
+        let original = PatternNightRenderingConfiguration(isActive: false)
+        let night = PatternNightRenderingConfiguration(isActive: true)
+
+        #expect(original.contentIdentity == .document)
+        #expect(night.contentIdentity == original.contentIdentity)
+        #expect(!original.colorInvertIsEnabled)
+        #expect(original.hueRotationDegrees == 0)
+        #expect(night.colorInvertIsEnabled)
+        #expect(night.hueRotationDegrees == 180)
+    }
+
     @Test func unresolvedAppearanceUsesOriginalDocumentAndLightReaderPresentation() {
         let presentation = PatternReaderAppearancePresentation(
             systemAppearance: .unresolved,

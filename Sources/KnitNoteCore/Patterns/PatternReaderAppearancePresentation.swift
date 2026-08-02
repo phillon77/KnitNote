@@ -1,3 +1,18 @@
+public struct PatternNightRenderingConfiguration: Equatable, Sendable {
+    public enum ContentIdentity: Equatable, Sendable {
+        case document
+    }
+
+    public let contentIdentity: ContentIdentity = .document
+    public let colorInvertIsEnabled: Bool
+    public let hueRotationDegrees: Double
+
+    public init(isActive: Bool) {
+        colorInvertIsEnabled = isActive
+        hueRotationDegrees = isActive ? 180 : 0
+    }
+}
+
 public struct PatternReaderAppearancePresentation: Equatable, Sendable {
     public enum ReaderChrome: Equatable, Sendable {
         case light

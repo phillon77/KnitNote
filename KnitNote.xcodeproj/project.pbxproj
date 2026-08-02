@@ -221,6 +221,7 @@
 		E1A1EACE2026080200000021 /* PatternSystemAppearanceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000022 /* PatternSystemAppearanceObservation.swift */; };
 		E1A1EACE2026080200000031 /* PatternReaderAppearancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000032 /* PatternReaderAppearancePresentation.swift */; };
 		E1A1EACE2026080200000041 /* PatternNightRenderingModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000042 /* PatternNightRenderingModifier.swift */; };
+		E1A1EACE2026080200000051 /* PatternNightRendering.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1A1EACE2026080200000052 /* PatternNightRendering.metal */; };
 		D7C50FBBD069D5EC77A91446 /* ShareImportController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C474D58BBB238B47B244C7CA /* ShareImportController.swift */; };
 		D8C39A1514196D426E41EA7E /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07AC936135E44C341839B236 /* ProjectDetailView.swift */; };
 		D9AF7E5D37109091A4968B09 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
@@ -413,6 +414,7 @@
 		E1A1EACE2026080200000022 /* PatternSystemAppearanceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceObservation.swift; sourceTree = "<group>"; };
 		E1A1EACE2026080200000032 /* PatternReaderAppearancePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderAppearancePresentation.swift; sourceTree = "<group>"; };
 		E1A1EACE2026080200000042 /* PatternNightRenderingModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternNightRenderingModifier.swift; sourceTree = "<group>"; };
+		E1A1EACE2026080200000052 /* PatternNightRendering.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = PatternNightRendering.metal; sourceTree = "<group>"; };
 		6E8F5BF383F8F3346F45D520 /* PatternLibrarySort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibrarySort.swift; sourceTree = "<group>"; };
 		6F0D9377602621B5C978D56F /* YarnPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoPicker.swift; sourceTree = "<group>"; };
 		70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupOverlay.swift; sourceTree = "<group>"; };
@@ -536,6 +538,7 @@
 				27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */,
 				70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */,
 				2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */,
+				E1A1EACE2026080200000052 /* PatternNightRendering.metal */,
 				E1A1EACE2026080200000042 /* PatternNightRenderingModifier.swift */,
 				F53D585B218A692CD1F48A73 /* PatternPageThumbnailStrip.swift */,
 				90CE1C0101996F572112D739 /* PatternReaderControls.swift */,
@@ -1237,6 +1240,7 @@
 				85F28B8AEE9E9F34BB860351 /* PatternProjectUsage.swift in Sources */,
 				E1A1EACE2026080200000001 /* PatternReaderAppearance.swift in Sources */,
 				E1A1EACE2026080200000031 /* PatternReaderAppearancePresentation.swift in Sources */,
+				E1A1EACE2026080200000051 /* PatternNightRendering.metal in Sources */,
 				E1A1EACE2026080200000041 /* PatternNightRenderingModifier.swift in Sources */,
 				E1A1EACE2026080200000011 /* PatternSystemAppearanceMonitor.swift in Sources */,
 				E1A1EACE2026080200000021 /* PatternSystemAppearanceObservation.swift in Sources */,

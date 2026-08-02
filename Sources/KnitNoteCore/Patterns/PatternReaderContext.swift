@@ -306,11 +306,11 @@ public struct PatternReaderRevisionCoordinator: Equatable, Sendable {
     }
 
     public mutating func observeStoreGeneration(_ generation: UInt64, canWrite: Bool) -> Decision {
+        guard generation != expectedDataGeneration else { return .none }
         guard canWrite else {
             phase = .needsReload
             return .reloadReadOnly
         }
-        guard generation != expectedDataGeneration else { return .none }
         if hasDirtyMarkup {
             phase = .conflict
             return .conflict

@@ -26,6 +26,18 @@ import Testing
         #expect(coordinator.phase == .ready)
     }
 
+    @Test func confirmedReadOnlySelfMutationDoesNotReloadButExternalRevisionStillDoes() {
+        var selfMutation = PatternReaderRevisionCoordinator(expectedDataGeneration: 4)
+        selfMutation.confirmMutation(generation: 5)
+
+        #expect(selfMutation.observeStoreGeneration(5, canWrite: false) == .none)
+        #expect(selfMutation.phase == .ready)
+
+        var externalMutation = PatternReaderRevisionCoordinator(expectedDataGeneration: 4)
+        #expect(externalMutation.observeStoreGeneration(5, canWrite: false) == .reloadReadOnly)
+        #expect(externalMutation.phase == .needsReload)
+    }
+
     @Test func unlinkOrCompletionForcesImmediateReadOnlyReloadEvenWithDirtyMarkup() {
         var coordinator = PatternReaderRevisionCoordinator(expectedDataGeneration: 4)
         coordinator.setMarkupDirty(true)

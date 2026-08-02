@@ -489,7 +489,7 @@ import UniformTypeIdentifiers
     #expect(store.patternAssets.count == 1)
     #expect(store.patterns.count == 1)
     #expect(store.patternUsages.map(\.id) == fixture.legacyPatternIDs)
-    #expect(installed.version == 10)
+    #expect(installed.version == ProjectArchive.currentVersion)
     #expect(installed.projects.allSatisfy { $0.patterns.isEmpty })
 }
 

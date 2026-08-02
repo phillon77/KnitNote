@@ -41,11 +41,46 @@ import Testing
             pdf.slice(from: "func go(to pageIndex: Int)", to: "}\n\n#if os(macOS)")
         )
         let flush = try #require(navigation.range(of: "flushPendingScaleCapture()"))
+        let capture = try #require(navigation.range(of: "captureCurrentPosition()"))
         let request = try #require(navigation.range(of: "request?(target)"))
         let display = try #require(navigation.range(of: "view.go(to: page)"))
 
         #expect(flush.lowerBound < request.lowerBound)
+        #expect(capture.lowerBound < request.lowerBound)
         #expect(flush.lowerBound < display.lowerBound)
+    }
+
+    @Test func iOSPositionPersistenceUsesTheActualPDFContentScrollLayer() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let capture = try #require(
+            pdf.slice(from: "private func captureCurrentPosition", to: "private func scheduleCurrentPositionRestore")
+        )
+        let restore = try #require(
+            pdf.slice(from: "private func restorePosition", to: "private func scheduleUserScaleCapture")
+        )
+
+        #expect(capture.contains("contentScrollView(in: view)"))
+        #expect(capture.contains("PatternPDFScrollAnchorGeometry.normalizedAnchor"))
+        #expect(restore.contains("PatternPDFScrollAnchorGeometry.contentOffset"))
+        #expect(restore.contains("setContentOffset"))
+        #expect(pdf.contains("private func contentScrollView(in view: PDFView) -> UIScrollView?"))
+    }
+
+    @Test func programmaticPositionRestoreCannotOverwriteItsSavedAnchor() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let capture = try #require(
+            pdf.slice(from: "private func captureCurrentPosition", to: "private func scheduleCurrentPositionRestore")
+        )
+        let schedule = try #require(
+            pdf.slice(from: "private func scheduleCurrentPositionRestore", to: "private func restorePosition")
+        )
+
+        #expect(pdf.contains("private var isApplyingSavedPosition = false"))
+        #expect(capture.contains("!isApplyingSavedPosition"))
+        #expect(schedule.contains("let savedState = state"))
+        #expect(schedule.contains("isApplyingSavedPosition = true"))
+        #expect(schedule.contains("restorePosition(savedState, in: view)"))
+        #expect(!schedule.contains("restorePosition(self.state, in: view)"))
     }
 
     @Test func viewportAndSavedWidthUseTheSameModeSpecificBaseline() throws {
@@ -63,15 +98,15 @@ import Testing
         #expect(!publication.contains("fitWidthScaleFactor: view.scaleFactorForSizeToFit"))
     }
 
-    @Test func visiblePageSynchronizationKeepsTheSharedWidthAndLegacyOffsetReset() throws {
+    @Test func visiblePageSynchronizationKeepsTheSharedWidthAndPerPageOffsets() throws {
         let document = try source("Sources/KnitNoteCore/Patterns/PatternDocument.swift")
         let synchronization = try #require(
             document.slice(from: "public mutating func synchronizeVisiblePDFPage", to: "public mutating func saveCurrentPage")
         )
 
         #expect(!synchronization.contains("zoomScale = 1"))
-        #expect(synchronization.contains("offsetX = 0"))
-        #expect(synchronization.contains("offsetY = 0"))
+        #expect(!synchronization.contains("offsetX = 0"))
+        #expect(!synchronization.contains("offsetY = 0"))
         #expect(!synchronization.contains("pdfWidthScaleRatio"))
     }
 

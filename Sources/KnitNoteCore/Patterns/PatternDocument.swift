@@ -6,12 +6,41 @@ public func patternReaderPresentation(isPad: Bool) -> PatternReaderPresentation 
 public struct PatternPageState: Codable, Hashable, Sendable {
     public var horizontalPosition: Double
     public var verticalPosition: Double
+    public var offsetX: Double
+    public var offsetY: Double
     public var note: String?
-    public init(horizontalPosition: Double = 0.5, verticalPosition: Double = 0.5, note: String? = nil) {
+    public init(
+        horizontalPosition: Double = 0.5,
+        verticalPosition: Double = 0.5,
+        offsetX: Double = 0,
+        offsetY: Double = 0,
+        note: String? = nil
+    ) {
         self.horizontalPosition = min(1, max(0, horizontalPosition))
         self.verticalPosition = min(1, max(0, verticalPosition))
+        self.offsetX = min(1, max(0, offsetX))
+        self.offsetY = min(1, max(0, offsetY))
         let clean = note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         self.note = clean.isEmpty ? nil : clean
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case horizontalPosition
+        case verticalPosition
+        case offsetX
+        case offsetY
+        case note
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            horizontalPosition: try container.decodeIfPresent(Double.self, forKey: .horizontalPosition) ?? 0.5,
+            verticalPosition: try container.decodeIfPresent(Double.self, forKey: .verticalPosition) ?? 0.5,
+            offsetX: try container.decodeIfPresent(Double.self, forKey: .offsetX) ?? 0,
+            offsetY: try container.decodeIfPresent(Double.self, forKey: .offsetY) ?? 0,
+            note: try container.decodeIfPresent(String.self, forKey: .note)
+        )
     }
 }
 public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
@@ -49,7 +78,15 @@ public struct PatternDocument: Identifiable, Codable, Hashable, Sendable {
         let existing = pageStates[cleanPageIndex]
         let horizontal = existing?.horizontalPosition ?? (cleanPageIndex == self.pageIndex ? highlightPosition : 0.5)
         let vertical = existing?.verticalPosition ?? (cleanPageIndex == self.pageIndex ? verticalHighlightPosition : 0.5)
-        pageStates[cleanPageIndex] = PatternPageState(horizontalPosition: horizontal, verticalPosition: vertical, note: text)
+        let offsetX = existing?.offsetX ?? (cleanPageIndex == self.pageIndex ? contentOffsetX : 0)
+        let offsetY = existing?.offsetY ?? (cleanPageIndex == self.pageIndex ? contentOffsetY : 0)
+        pageStates[cleanPageIndex] = PatternPageState(
+            horizontalPosition: horizontal,
+            verticalPosition: vertical,
+            offsetX: offsetX,
+            offsetY: offsetY,
+            note: text
+        )
     }
 }
 
@@ -129,6 +166,7 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
         self.pageIndex = max(0, pageIndex)
         self.offsetX = min(1, max(0, offsetX))
         self.offsetY = min(1, max(0, offsetY))
+        saveCurrentPage()
     }
 
     public mutating func movePDFPage(by delta: Int, pageCount: Int) {
@@ -136,8 +174,6 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
         let target = min(pageCount - 1, max(0, pageIndex + delta))
         guard target != pageIndex else { return }
         saveCurrentPage()
-        offsetX = 0
-        offsetY = 0
         loadPage(target)
     }
 
@@ -145,8 +181,6 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
         let cleanTarget = max(0, target)
         guard cleanTarget != pageIndex else { return }
         saveCurrentPage()
-        offsetX = 0
-        offsetY = 0
         loadPage(cleanTarget)
     }
 
@@ -154,15 +188,19 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     public mutating func synchronizeVisiblePDFPage(_ target: Int) -> Bool {
         var updated = self
         updated.transitionToPDFPage(target)
-        updated.offsetX = 0
-        updated.offsetY = 0
         guard updated != self else { return false }
         self = updated
         return true
     }
 
     public mutating func saveCurrentPage() {
-        pageStates[pageIndex] = PatternPageState(horizontalPosition: highlightPosition, verticalPosition: verticalHighlightPosition, note: pageNote)
+        pageStates[pageIndex] = PatternPageState(
+            horizontalPosition: highlightPosition,
+            verticalPosition: verticalHighlightPosition,
+            offsetX: offsetX,
+            offsetY: offsetY,
+            note: pageNote
+        )
         pageNote = pageStates[pageIndex]?.note ?? ""
     }
 
@@ -174,9 +212,21 @@ public struct PatternReadingState: Codable, Equatable, Hashable, Sendable {
     public mutating func loadPage(_ index: Int) {
         pageIndex = max(0, index)
         let saved = pageStates[pageIndex] ?? PatternPageState()
+        offsetX = saved.offsetX
+        offsetY = saved.offsetY
         highlightPosition = saved.horizontalPosition
         verticalHighlightPosition = saved.verticalPosition
         pageNote = saved.note ?? ""
+    }
+}
+
+public struct PatternPageReadingPosition: Equatable, Hashable, Sendable {
+    public let offsetX: Double
+    public let offsetY: Double
+
+    public init(offsetX: Double = 0, offsetY: Double = 0) {
+        self.offsetX = min(1, max(0, offsetX))
+        self.offsetY = min(1, max(0, offsetY))
     }
 }
 
@@ -186,19 +236,22 @@ public struct PatternBrowsingState: Equatable, Hashable, Sendable {
     public let zoomScale: Double
     public let offsetX: Double
     public let offsetY: Double
+    public let pageOffsets: [Int: PatternPageReadingPosition]
 
     public init(
         pageIndex: Int,
         pdfWidthScaleRatio: Double = PatternPDFScalePolicy.defaultRatio,
         zoomScale: Double,
         offsetX: Double,
-        offsetY: Double
+        offsetY: Double,
+        pageOffsets: [Int: PatternPageReadingPosition] = [:]
     ) {
         self.pageIndex = max(0, pageIndex)
         self.pdfWidthScaleRatio = PatternPDFScalePolicy.normalizedRatio(pdfWidthScaleRatio)
         self.zoomScale = max(0.1, zoomScale)
         self.offsetX = min(1, max(0, offsetX))
         self.offsetY = min(1, max(0, offsetY))
+        self.pageOffsets = pageOffsets
     }
 
     public init(readingState: PatternReadingState) {
@@ -207,7 +260,10 @@ public struct PatternBrowsingState: Equatable, Hashable, Sendable {
             pdfWidthScaleRatio: readingState.pdfWidthScaleRatio,
             zoomScale: readingState.zoomScale,
             offsetX: readingState.offsetX,
-            offsetY: readingState.offsetY
+            offsetY: readingState.offsetY,
+            pageOffsets: readingState.pageStates.mapValues {
+                PatternPageReadingPosition(offsetX: $0.offsetX, offsetY: $0.offsetY)
+            }
         )
     }
 }
@@ -223,6 +279,16 @@ public extension PatternReadingState {
         zoomScale = browsingState.zoomScale
         offsetX = browsingState.offsetX
         offsetY = browsingState.offsetY
+        for (pageIndex, position) in browsingState.pageOffsets {
+            let existing = pageStates[pageIndex] ?? PatternPageState()
+            pageStates[pageIndex] = PatternPageState(
+                horizontalPosition: existing.horizontalPosition,
+                verticalPosition: existing.verticalPosition,
+                offsetX: position.offsetX,
+                offsetY: position.offsetY,
+                note: existing.note
+            )
+        }
     }
 
     func projectedForDisplay() -> PatternReadingState {

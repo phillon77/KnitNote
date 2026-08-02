@@ -34,6 +34,37 @@ import Testing
         #expect(anchor.y == 1)
     }
 
+    @Test func scrollAnchorRoundTripsTheActualContentOffset() {
+        let minimum = CGPoint(x: -12, y: -20)
+        let maximum = CGPoint(x: 488, y: 980)
+        let contentOffset = CGPoint(x: 113, y: 730)
+
+        let anchor = PatternPDFScrollAnchorGeometry.normalizedAnchor(
+            for: contentOffset,
+            minimum: minimum,
+            maximum: maximum
+        )
+        let restored = PatternPDFScrollAnchorGeometry.contentOffset(
+            anchorX: anchor.x,
+            anchorY: anchor.y,
+            minimum: minimum,
+            maximum: maximum
+        )
+
+        #expect(anchor == CGPoint(x: 0.25, y: 0.75))
+        #expect(restored == contentOffset)
+    }
+
+    @Test func scrollAnchorClampsOverscrollAndHandlesAnUnscrollableAxis() {
+        let anchor = PatternPDFScrollAnchorGeometry.normalizedAnchor(
+            for: CGPoint(x: 80, y: 900),
+            minimum: CGPoint(x: 20, y: 100),
+            maximum: CGPoint(x: 20, y: 500)
+        )
+
+        #expect(anchor == CGPoint(x: 0, y: 1))
+    }
+
     @Test func unflippedFrameUsesScrolledBoundsOriginWhenConvertingToFlippedCoordinates() {
         let bounds = CGRect(x: 0, y: 100, width: 500, height: 492)
         let appKitFrame = CGRect(x: 25, y: 9.5, width: 450, height: 792)

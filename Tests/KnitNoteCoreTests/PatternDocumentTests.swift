@@ -368,7 +368,7 @@ import Testing
     #expect(state.highlightPosition == 0.3)
 }
 
-@Test func discretePDFPageMovementClampsAndClearsOffsets() {
+@Test func discretePDFPageMovementClampsAndRestoresPerPageOffsets() {
     var state=PatternReadingState(pageIndex:1,offsetX:0.4,offsetY:0.7,highlightPosition:0.2,verticalHighlightPosition:0.8,pageNote:"page two")
     state.movePDFPage(by:1,pageCount:3)
     #expect(state.pageIndex == 2)
@@ -384,9 +384,23 @@ import Testing
     #expect(state.pageIndex == 0)
     state.movePDFPage(by:1,pageCount:3)
     #expect(state.pageIndex == 1)
+    #expect(state.offsetX == 0.4)
+    #expect(state.offsetY == 0.7)
     #expect(state.highlightPosition == 0.2)
     #expect(state.verticalHighlightPosition == 0.8)
     #expect(state.pageNote == "page two")
+}
+
+@Test func legacyPageStateWithoutOffsetsDecodesAtTheTopOfThePage() throws {
+    let data = Data(#"{"horizontalPosition":0.2,"verticalPosition":0.8,"note":"row"}"#.utf8)
+
+    let decoded = try JSONDecoder().decode(PatternPageState.self, from: data)
+
+    #expect(decoded.offsetX == 0)
+    #expect(decoded.offsetY == 0)
+    #expect(decoded.horizontalPosition == 0.2)
+    #expect(decoded.verticalPosition == 0.8)
+    #expect(decoded.note == "row")
 }
 
 @Test func synchronizingAnUnchangedVisiblePDFPageDoesNotMutateReaderState() {

@@ -38,6 +38,7 @@ import SwiftUI
         guard let view, let document = view.document, document.pageCount > 0 else { return }
         let target = min(document.pageCount - 1, max(0, pageIndex))
         guard let page = document.page(at: target) else { return }
+        captureCurrentPosition()
         flushPendingScaleCapture()
         request?(target)
         view.go(to: page)
@@ -136,6 +137,8 @@ extension PDFReaderView {
         private var isApplyingSavedScale = false
         private var scaleCaptureTask: Task<Void, Never>?
         private var positionRestoreTask: Task<Void, Never>?
+        private var isApplyingSavedPosition = false
+        private var positionRestoreRevision: UInt64 = 0
         private var scaleCaptureGate = PatternPDFScaleCaptureGate()
         private var scaleCaptureContext: UInt64 = 0
         private var lastAppliedScale: (signature: ScaleSignature, scaleFactor: Double)?
@@ -212,7 +215,7 @@ extension PDFReaderView {
                 if current == self.initialState.pdfRestorePageIndex(pageCount:doc.pageCount) {
                     self.restoreGate.didRestore()
                     self.applyScaleMode(self.latestScaleMode, to: view)
-                    self.restorePosition(self.initialState, in: view)
+                    self.scheduleCurrentPositionRestore()
                     self.installScrollObservation(in: view)
                     self.publishViewport(from: view)
                     if !self.reportedReady {
@@ -311,19 +314,30 @@ extension PDFReaderView {
         }
 
         private func captureCurrentPosition() {
-            guard restoreGate.canSample,
+            guard restoreGate.canSample, !isApplyingSavedPosition,
                   let view,
                   let document = view.document,
-                  let destination = view.currentDestination,
-                  let page = destination.page
+                  let page = view.currentPage
             else { return }
             let pageIndex = document.index(for: page)
             guard pageIndex == state.pageIndex else { return }
+#if os(macOS)
+            guard let destination = view.currentDestination,
+                  destination.page === page else { return }
             let pageBounds = page.bounds(for: view.displayBox)
             let anchor = PatternPDFPageAnchorGeometry.normalizedAnchor(
                 for: destination.point,
                 in: pageBounds
             )
+#else
+            guard let scroll = contentScrollView(in: view) else { return }
+            let range = scrollOffsetRange(for: scroll)
+            let anchor = PatternPDFScrollAnchorGeometry.normalizedAnchor(
+                for: scroll.contentOffset,
+                minimum: range.minimum,
+                maximum: range.maximum
+            )
+#endif
             var updatedState = state
             updatedState.setPDFAnchor(
                 pageIndex: pageIndex,
@@ -336,24 +350,45 @@ extension PDFReaderView {
 
         private func scheduleCurrentPositionRestore() {
             positionRestoreTask?.cancel()
+            positionRestoreRevision &+= 1
+            let revision = positionRestoreRevision
+            let savedState = state
+            isApplyingSavedPosition = true
             positionRestoreTask = Task { @MainActor [weak self, weak view] in
-                await Task.yield()
-                guard !Task.isCancelled, let self, let view else { return }
+                guard let self, let view else { return }
+                defer {
+                    if self.positionRestoreRevision == revision {
+                        self.isApplyingSavedPosition = false
+                    }
+                }
+                for attempt in 0..<5 {
+                    if attempt == 0 {
+                        await Task.yield()
+                    } else {
+                        try? await Task.sleep(for: .milliseconds(20))
+                    }
+                    guard !Task.isCancelled,
+                          self.positionRestoreRevision == revision else { return }
 #if os(macOS)
-                view.layoutSubtreeIfNeeded()
+                    view.layoutSubtreeIfNeeded()
 #else
-                view.layoutIfNeeded()
+                    view.layoutIfNeeded()
 #endif
-                self.restorePosition(self.state, in: view)
-                self.publishViewport(from: view)
+                    if self.restorePosition(savedState, in: view) {
+                        self.publishViewport(from: view)
+                        return
+                    }
+                }
             }
         }
 
-        private func restorePosition(_ savedState: PatternReadingState, in view: PDFView) {
+        @discardableResult
+        private func restorePosition(_ savedState: PatternReadingState, in view: PDFView) -> Bool {
             guard let document = view.document,
                   document.pageCount > 0,
                   let page = document.page(at: savedState.pdfRestorePageIndex(pageCount: document.pageCount))
-            else { return }
+            else { return false }
+#if os(macOS)
             let pageBounds = page.bounds(for: view.displayBox)
             let point = PatternPDFPageAnchorGeometry.pagePoint(
                 offsetX: savedState.offsetX,
@@ -361,6 +396,20 @@ extension PDFReaderView {
                 in: pageBounds
             )
             view.go(to: PDFDestination(page: page, at: point))
+            return true
+#else
+            guard view.currentPage === page,
+                  let scroll = contentScrollView(in: view) else { return false }
+            let range = scrollOffsetRange(for: scroll)
+            let contentOffset = PatternPDFScrollAnchorGeometry.contentOffset(
+                anchorX: savedState.offsetX,
+                anchorY: savedState.offsetY,
+                minimum: range.minimum,
+                maximum: range.maximum
+            )
+            scroll.setContentOffset(contentOffset, animated: false)
+            return true
+#endif
         }
 
         private func scheduleUserScaleCapture(from view: PDFView) {
@@ -488,6 +537,9 @@ extension PDFReaderView {
                     Task { @MainActor [weak self, weak view, weak scroll] in
                         guard let self, let view, let scroll else { return }
                         self.installScrollObservation(in: view)
+                        if scroll === self.contentScrollView(in: view) {
+                            self.captureCurrentPosition()
+                        }
                         self.publishViewport(
                             from: view,
                             isUserInteracting: scroll.isDragging || scroll.isDecelerating || scroll.isZooming
@@ -507,6 +559,41 @@ extension PDFReaderView {
             return nil
         }
 #else
+        private func contentScrollView(in view: PDFView) -> UIScrollView? {
+            findScrollViews(in: view)
+                .filter { scroll in
+                    guard !scroll.isHidden,
+                          scroll.alpha > 0,
+                          scroll.bounds.width > 0,
+                          scroll.bounds.height > 0 else { return false }
+                    let range = scrollOffsetRange(for: scroll)
+                    guard range.maximum.y - range.minimum.y > 1 else { return false }
+                    let frame = scroll.convert(scroll.bounds, to: view)
+                    return !frame.intersection(view.bounds).isNull
+                }
+                .max { lhs, rhs in
+                    visibleArea(of: lhs, in: view) < visibleArea(of: rhs, in: view)
+                }
+        }
+
+        private func scrollOffsetRange(for scroll: UIScrollView) -> (minimum: CGPoint, maximum: CGPoint) {
+            let inset = scroll.adjustedContentInset
+            let minimum = CGPoint(x: -inset.left, y: -inset.top)
+            return (
+                minimum,
+                CGPoint(
+                    x: max(minimum.x, scroll.contentSize.width - scroll.bounds.width + inset.right),
+                    y: max(minimum.y, scroll.contentSize.height - scroll.bounds.height + inset.bottom)
+                )
+            )
+        }
+
+        private func visibleArea(of scroll: UIScrollView, in view: PDFView) -> CGFloat {
+            let intersection = scroll.convert(scroll.bounds, to: view).intersection(view.bounds)
+            guard !intersection.isNull else { return 0 }
+            return intersection.width * intersection.height
+        }
+
         private func findScrollViews(in root: UIView) -> [UIScrollView] {
             var result = root.subviews.flatMap(findScrollViews(in:))
             if let scroll = root as? UIScrollView {
@@ -522,11 +609,15 @@ extension PDFReaderView {
             if note.name == .PDFViewPageChanged {
                 lastScaleSignature = nil
                 applyScaleMode(latestScaleMode, to: view)
+                sample(view)
+                scheduleCurrentPositionRestore()
             } else if note.name == .PDFViewScaleChanged {
                 scheduleUserScaleCapture(from: view)
             }
             publishViewport(from: view)
-            sample(view)
+            if note.name != .PDFViewPageChanged {
+                sample(view)
+            }
         }
         private func sample(_ source: PDFView? = nil) {
             guard restoreGate.canSample, let view=source ?? view else { return }

@@ -461,6 +461,7 @@ final class PatternLibraryDeletionTransaction {
     private var patternPublicationReceiptService: PatternInboxPublicationReceiptService?
     private let patternMarkupFileService: PatternMarkupFileService
     private let patternThumbnailService: PatternThumbnailFileService
+    private let patternPDFPageThumbnailURLGenerator: @Sendable (PatternAsset, URL, Int) -> URL?
     private let backupService: KnitNoteBackupService
     private let archiveWrite: @Sendable (Data, URL) throws -> Void
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
@@ -513,6 +514,7 @@ final class PatternLibraryDeletionTransaction {
         patternPublicationReceiptService: PatternInboxPublicationReceiptService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil,
+        patternPDFPageThumbnailURLGenerator: (@Sendable (PatternAsset, URL, Int) -> URL?)? = nil,
         backupService: KnitNoteBackupService,
         initialLoadError: ProjectStoreError? = nil,
         patternStorageLocationsProvider: (() throws -> PatternStorageLocations)? = nil,
@@ -548,12 +550,23 @@ final class PatternLibraryDeletionTransaction {
             root: self.patternFileService?.root ?? fallbackPatternRoot
         )
         let liveRoot = url.deletingLastPathComponent()
-        self.patternThumbnailService = patternThumbnailService ?? PatternThumbnailFileService(
+        let resolvedPatternThumbnailService = patternThumbnailService ?? PatternThumbnailFileService(
             directory: liveRoot.deletingLastPathComponent().appendingPathComponent(
                 ".KnitNote-PatternThumbnailCache",
                 isDirectory: true
             )
         )
+        self.patternThumbnailService = resolvedPatternThumbnailService
+        self.patternPDFPageThumbnailURLGenerator = patternPDFPageThumbnailURLGenerator ?? {
+            asset,
+            sourceURL,
+            pageIndex in
+            try? resolvedPatternThumbnailService.thumbnailURL(
+                asset: asset,
+                sourceURL: sourceURL,
+                pageIndex: pageIndex
+            )
+        }
         self.backupService = backupService
         self.archiveWrite = archiveWrite
         self.authorizeMutation = authorizeMutation
@@ -1399,12 +1412,13 @@ final class PatternLibraryDeletionTransaction {
               pageIndex < pageCount,
               let sourceURL = try? requiredPatternFileService().assetURL(asset)
         else { return nil }
-        let service = patternThumbnailService
+        let capturedGeneration = dataGeneration
+        let generateThumbnailURL = patternPDFPageThumbnailURLGenerator
         let thumbnailURL = await Task.detached(priority: .utility) { () -> URL? in
             guard !Task.isCancelled else { return nil }
-            return try? service.thumbnailURL(asset: asset, sourceURL: sourceURL, pageIndex: pageIndex)
+            return generateThumbnailURL(asset, sourceURL, pageIndex)
         }.value
-        guard !Task.isCancelled else { return nil }
+        guard !Task.isCancelled, dataGeneration == capturedGeneration else { return nil }
         return thumbnailURL
     }
 

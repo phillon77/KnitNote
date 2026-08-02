@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 import Testing
 @testable import KnitNoteCore
@@ -44,6 +45,58 @@ import Testing
     }
     cancelledRequest.cancel()
     #expect(await cancelledRequest.value == nil)
+}
+
+@MainActor @Test func storeSuppressesPageThumbnailWhenGenerationChangesDuringRendering() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PageThumbnailGeneration-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let archiveURL = root.appendingPathComponent("projects-v1.json")
+    let fileService = PatternFileService(root: root.appendingPathComponent("Patterns", isDirectory: true))
+    let assetID = UUID()
+    let sourceURL = fileService.assetsRoot.appendingPathComponent("\(assetID.uuidString).pdf")
+    try FileManager.default.createDirectory(at: fileService.assetsRoot, withIntermediateDirectories: true)
+    try makeTestPatternPDF(at: sourceURL, pageCount: 3)
+    let metadata = try fileService.inspect(sourceURL)
+    let asset = PatternAsset(
+        id: assetID,
+        sha256: metadata.sha256,
+        kind: metadata.kind,
+        storedFilename: sourceURL.lastPathComponent,
+        byteCount: metadata.byteCount,
+        pageCount: metadata.pageCount
+    )
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [],
+        patternAssets: [asset]
+    )).write(to: archiveURL, options: .atomic)
+    let blocker = PageThumbnailRenderBlocker()
+    let store = JSONProjectStore(
+        url: archiveURL,
+        patternFileService: fileService,
+        patternPDFPageThumbnailURLGenerator: { _, sourceURL, _ in
+            blocker.blockOnce()
+            return sourceURL
+        },
+        backupService: KnitNoteBackupService(
+            liveRoot: root,
+            workRoot: root.appendingPathComponent("BackupWork", isDirectory: true)
+        )
+    )
+    defer { blocker.resume() }
+    let generationBeforeRequest = store.dataGeneration
+
+    let request = Task { @MainActor in
+        await store.patternPDFPageThumbnailURL(assetID: asset.id, pageIndex: 1)
+    }
+    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+
+    try store.reloadFromDisk()
+    #expect(store.dataGeneration > generationBeforeRequest)
+    blocker.resume()
+
+    #expect(await request.value == nil)
 }
 
 @Test func usageRestoresItsIndependentReadingState() throws {
@@ -284,4 +337,31 @@ private func invalidSnapshotCases() -> [InvalidSnapshotCase] {
             expectedError: .missingPattern
         )
     ]
+}
+
+private final class PageThumbnailRenderBlocker: @unchecked Sendable {
+    private let blocked = DispatchSemaphore(value: 0)
+    private let continuation = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var hasBlocked = false
+
+    func blockOnce() {
+        lock.lock()
+        guard !hasBlocked else {
+            lock.unlock()
+            return
+        }
+        hasBlocked = true
+        lock.unlock()
+        blocked.signal()
+        continuation.wait()
+    }
+
+    func waitUntilBlocked() -> Bool {
+        blocked.wait(timeout: .now() + 10) == .success
+    }
+
+    func resume() {
+        continuation.signal()
+    }
 }

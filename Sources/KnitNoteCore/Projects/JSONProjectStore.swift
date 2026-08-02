@@ -1412,7 +1412,6 @@ final class PatternLibraryDeletionTransaction {
               pageIndex < pageCount,
               let sourceURL = try? requiredPatternFileService().assetURL(asset)
         else { return nil }
-        let capturedGeneration = dataGeneration
         let generateThumbnailURL = patternPDFPageThumbnailURLGenerator
         let renderingTask = Task.detached(priority: .utility) { () -> URL? in
             guard !Task.isCancelled else { return nil }
@@ -1423,7 +1422,12 @@ final class PatternLibraryDeletionTransaction {
         } onCancel: {
             renderingTask.cancel()
         }
-        guard !Task.isCancelled, dataGeneration == capturedGeneration else { return nil }
+        guard !Task.isCancelled,
+              let currentAsset = patternAssets.first(where: { $0.id == asset.id }),
+              currentAsset.sha256 == asset.sha256,
+              currentAsset.kind == asset.kind,
+              currentAsset.pageCount == asset.pageCount
+        else { return nil }
         return thumbnailURL
     }
 

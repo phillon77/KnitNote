@@ -47,54 +47,62 @@ import Testing
     #expect(await cancelledRequest.value == nil)
 }
 
-@MainActor @Test func storeSuppressesPageThumbnailWhenGenerationChangesDuringRendering() async throws {
-    let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("PageThumbnailGeneration-\(UUID().uuidString)", isDirectory: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let archiveURL = root.appendingPathComponent("projects-v1.json")
-    let fileService = PatternFileService(root: root.appendingPathComponent("Patterns", isDirectory: true))
-    let assetID = UUID()
-    let sourceURL = fileService.assetsRoot.appendingPathComponent("\(assetID.uuidString).pdf")
-    try FileManager.default.createDirectory(at: fileService.assetsRoot, withIntermediateDirectories: true)
-    try makeTestPatternPDF(at: sourceURL, pageCount: 3)
-    let metadata = try fileService.inspect(sourceURL)
-    let asset = PatternAsset(
-        id: assetID,
-        sha256: metadata.sha256,
-        kind: metadata.kind,
-        storedFilename: sourceURL.lastPathComponent,
-        byteCount: metadata.byteCount,
-        pageCount: metadata.pageCount
-    )
-    try JSONEncoder().encode(ProjectArchive(
-        version: ProjectArchive.currentVersion,
-        projects: [],
-        patternAssets: [asset]
-    )).write(to: archiveURL, options: .atomic)
-    let blocker = PageThumbnailRenderBlocker()
-    let store = JSONProjectStore(
-        url: archiveURL,
-        patternFileService: fileService,
-        patternPDFPageThumbnailURLGenerator: { _, sourceURL, _ in
-            blocker.blockOnce()
-            return sourceURL
-        },
-        backupService: KnitNoteBackupService(
-            liveRoot: root,
-            workRoot: root.appendingPathComponent("BackupWork", isDirectory: true)
-        )
-    )
-    defer { blocker.resume() }
-    let generationBeforeRequest = store.dataGeneration
+@MainActor @Test func storePublishesPageThumbnailWhenOnlyGlobalGenerationChanges() async throws {
+    let harness = try PageThumbnailStalenessHarness()
+    defer { harness.cleanup() }
+    let generationBeforeRequest = harness.store.dataGeneration
 
     let request = Task { @MainActor in
-        await store.patternPDFPageThumbnailURL(assetID: asset.id, pageIndex: 1)
+        await harness.store.patternPDFPageThumbnailURL(assetID: harness.asset.id, pageIndex: 1)
     }
-    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+    #expect(await Task.detached { harness.blocker.waitUntilBlocked() }.value)
 
-    try store.reloadFromDisk()
-    #expect(store.dataGeneration > generationBeforeRequest)
-    blocker.resume()
+    try harness.store.reloadFromDisk()
+    #expect(harness.store.dataGeneration > generationBeforeRequest)
+    harness.blocker.resume()
+
+    #expect(await request.value == harness.sourceURL)
+}
+
+@MainActor @Test func storeSuppressesPageThumbnailWhenAssetRevisionChangesDuringRendering() async throws {
+    let harness = try PageThumbnailStalenessHarness()
+    defer { harness.cleanup() }
+
+    let request = Task { @MainActor in
+        await harness.store.patternPDFPageThumbnailURL(assetID: harness.asset.id, pageIndex: 1)
+    }
+    #expect(await Task.detached { harness.blocker.waitUntilBlocked() }.value)
+
+    try FileManager.default.removeItem(at: harness.sourceURL)
+    try makeTestPatternPDF(at: harness.sourceURL, pageCount: 4)
+    let revisedMetadata = try harness.fileService.inspect(harness.sourceURL)
+    let revisedAsset = PatternAsset(
+        id: harness.asset.id,
+        sha256: revisedMetadata.sha256,
+        kind: revisedMetadata.kind,
+        storedFilename: harness.asset.storedFilename,
+        byteCount: revisedMetadata.byteCount,
+        pageCount: revisedMetadata.pageCount
+    )
+    try harness.writeArchive(assets: [revisedAsset])
+    try harness.store.reloadFromDisk()
+    harness.blocker.resume()
+
+    #expect(await request.value == nil)
+}
+
+@MainActor @Test func storeSuppressesPageThumbnailWhenAssetIsDeletedDuringRendering() async throws {
+    let harness = try PageThumbnailStalenessHarness()
+    defer { harness.cleanup() }
+
+    let request = Task { @MainActor in
+        await harness.store.patternPDFPageThumbnailURL(assetID: harness.asset.id, pageIndex: 1)
+    }
+    #expect(await Task.detached { harness.blocker.waitUntilBlocked() }.value)
+
+    try harness.writeArchive(assets: [])
+    try harness.store.reloadFromDisk()
+    harness.blocker.resume()
 
     #expect(await request.value == nil)
 }
@@ -417,5 +425,72 @@ private final class PageThumbnailRenderBlocker: @unchecked Sendable {
 
     func resume() {
         continuation.signal()
+    }
+}
+
+@MainActor
+private final class PageThumbnailStalenessHarness {
+    let root: URL
+    let archiveURL: URL
+    let fileService: PatternFileService
+    let sourceURL: URL
+    let asset: PatternAsset
+    let blocker: PageThumbnailRenderBlocker
+    let store: JSONProjectStore
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PageThumbnailStaleness-\(UUID().uuidString)", isDirectory: true)
+        archiveURL = root.appendingPathComponent("projects-v1.json")
+        fileService = PatternFileService(
+            root: root.appendingPathComponent("Patterns", isDirectory: true)
+        )
+        let assetID = UUID()
+        sourceURL = fileService.assetsRoot.appendingPathComponent("\(assetID.uuidString).pdf")
+        try FileManager.default.createDirectory(
+            at: fileService.assetsRoot,
+            withIntermediateDirectories: true
+        )
+        try makeTestPatternPDF(at: sourceURL, pageCount: 3)
+        let metadata = try fileService.inspect(sourceURL)
+        asset = PatternAsset(
+            id: assetID,
+            sha256: metadata.sha256,
+            kind: metadata.kind,
+            storedFilename: sourceURL.lastPathComponent,
+            byteCount: metadata.byteCount,
+            pageCount: metadata.pageCount
+        )
+        blocker = PageThumbnailRenderBlocker()
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [],
+            patternAssets: [asset]
+        )).write(to: archiveURL, options: .atomic)
+        store = JSONProjectStore(
+            url: archiveURL,
+            patternFileService: fileService,
+            patternPDFPageThumbnailURLGenerator: { [blocker] _, sourceURL, _ in
+                blocker.blockOnce()
+                return sourceURL
+            },
+            backupService: KnitNoteBackupService(
+                liveRoot: root,
+                workRoot: root.appendingPathComponent("BackupWork", isDirectory: true)
+            )
+        )
+    }
+
+    func writeArchive(assets: [PatternAsset]) throws {
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [],
+            patternAssets: assets
+        )).write(to: archiveURL, options: .atomic)
+    }
+
+    func cleanup() {
+        blocker.resume()
+        try? FileManager.default.removeItem(at: root)
     }
 }

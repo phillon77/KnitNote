@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import KnitNoteCore
 
@@ -8,12 +9,21 @@ import Testing
 
         #expect(original.pageSurfaceColor == .white)
         #expect(original.pageSurfaceOpacity == 1)
-        #expect(original.differenceOverlayOpacity == 0)
+        #expect(original.contrastAmount == 1)
         #expect(original.hueRotationDegrees == 0)
         #expect(night.pageSurfaceColor == .white)
         #expect(night.pageSurfaceOpacity == 1)
-        #expect(night.differenceOverlayOpacity == 1)
+        #expect(night.contrastAmount == -1)
         #expect(night.hueRotationDegrees == 180)
+    }
+
+    @Test func renderingModifierUsesParameterizedContrastWithoutDifferenceOverlay() throws {
+        let source = try readRepositoryFile(
+            "KnitNote/Patterns/PatternNightRenderingModifier.swift"
+        )
+
+        #expect(source.contains(".contrast(configuration.contrastAmount)"))
+        #expect(!source.contains(".blendMode(.difference)"))
     }
 
     @Test func unresolvedAppearanceUsesOriginalDocumentAndLightReaderPresentation() {

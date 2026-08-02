@@ -8,12 +8,8 @@ struct PatternNightRenderingModifier: ViewModifier {
             Color.white
                 .opacity(configuration.pageSurfaceOpacity)
             content
-            Color.white
-                .blendMode(.difference)
-                .opacity(configuration.differenceOverlayOpacity)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
         }
+        .contrast(configuration.contrastAmount)
         .hueRotation(.degrees(configuration.hueRotationDegrees))
     }
 }

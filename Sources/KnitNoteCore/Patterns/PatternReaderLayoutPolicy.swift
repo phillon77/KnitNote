@@ -186,3 +186,23 @@ public enum PatternPDFScrollAnchorGeometry {
         return minimum + range * CGFloat(min(1, max(0, anchor)))
     }
 }
+
+public enum PatternPDFViewportAnchorGeometry {
+    public static func verticalContentOffset(
+        currentContentOffsetY: CGFloat,
+        targetYInViewport: CGFloat,
+        viewportBounds: CGRect,
+        minimumY: CGFloat,
+        maximumY: CGFloat
+    ) -> CGFloat {
+        guard currentContentOffsetY.isFinite,
+              targetYInViewport.isFinite,
+              viewportBounds.midY.isFinite,
+              minimumY.isFinite,
+              maximumY.isFinite,
+              maximumY >= minimumY
+        else { return currentContentOffsetY.isFinite ? currentContentOffsetY : 0 }
+        let candidate = currentContentOffsetY + targetYInViewport - viewportBounds.midY
+        return min(maximumY, max(minimumY, candidate))
+    }
+}

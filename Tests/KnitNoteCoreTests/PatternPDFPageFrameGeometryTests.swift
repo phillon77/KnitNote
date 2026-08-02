@@ -65,6 +65,30 @@ import Testing
         #expect(anchor == CGPoint(x: 0, y: 1))
     }
 
+    @Test func verticalViewportAnchorKeepsTheSamePDFLineAtTheVisibleCenter() {
+        let restored = PatternPDFViewportAnchorGeometry.verticalContentOffset(
+            currentContentOffsetY: 220,
+            targetYInViewport: 410,
+            viewportBounds: CGRect(x: 0, y: 0, width: 700, height: 500),
+            minimumY: -20,
+            maximumY: 980
+        )
+
+        #expect(restored == 380)
+    }
+
+    @Test func verticalViewportAnchorClampsAtTheScrollableEdges() {
+        let restored = PatternPDFViewportAnchorGeometry.verticalContentOffset(
+            currentContentOffsetY: 900,
+            targetYInViewport: 700,
+            viewportBounds: CGRect(x: 0, y: 0, width: 700, height: 500),
+            minimumY: -20,
+            maximumY: 980
+        )
+
+        #expect(restored == 980)
+    }
+
     @Test func unflippedFrameUsesScrolledBoundsOriginWhenConvertingToFlippedCoordinates() {
         let bounds = CGRect(x: 0, y: 100, width: 500, height: 492)
         let appKitFrame = CGRect(x: 25, y: 9.5, width: 450, height: 792)

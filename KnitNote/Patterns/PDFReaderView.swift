@@ -157,7 +157,9 @@ extension PDFReaderView {
         private var positionRestoreTask: Task<Void, Never>?
         private var isApplyingSavedPosition = false
         private var foregroundPositionSnapshot: PatternReadingState?
+        private var foregroundVisiblePageVerticalAnchor: (pageIndex: Int, offsetY: Double)?
         private var isPositionSamplingSuspended = false
+        private var visiblePageVerticalAnchor: (pageIndex: Int, offsetY: Double)?
         private var positionRestoreRevision: UInt64 = 0
         private var scaleCaptureGate = PatternPDFScaleCaptureGate()
         private var scaleCaptureContext: UInt64 = 0
@@ -267,6 +269,12 @@ extension PDFReaderView {
                 size: view.bounds.size,
                 pageIndex: document.index(for: page)
             )
+            let previousSignature = lastScaleSignature
+            let rotationAnchor = previousSignature.flatMap { previous in
+                previous.pageIndex == signature.pageIndex && previous.size != signature.size
+                    ? visiblePageVerticalAnchor
+                    : nil
+            }
             guard signature != lastScaleSignature else { return }
             flushPendingScaleCapture()
             scaleCaptureGate.invalidate()
@@ -296,6 +304,11 @@ extension PDFReaderView {
             lastScaleSignature = signature
             lastAppliedScale = (signature, absoluteScale)
             view.scaleFactor = CGFloat(absoluteScale)
+#if !os(macOS)
+            if let rotationAnchor {
+                scheduleRotationPositionRestore(rotationAnchor)
+            }
+#endif
         }
 
         private func fitWidthBaseline(for view: PDFView, mode: PatternPDFScaleMode) -> Double? {
@@ -360,6 +373,7 @@ extension PDFReaderView {
                 minimum: range.minimum,
                 maximum: range.maximum
             )
+            refreshVisiblePageVerticalAnchor(in: view, page: page, pageIndex: pageIndex, scroll: scroll)
 #endif
             var updatedState = state
             updatedState.setPDFAnchor(
@@ -375,6 +389,9 @@ extension PDFReaderView {
             if !isPositionSamplingSuspended {
                 captureCurrentPosition()
                 foregroundPositionSnapshot = state
+                foregroundVisiblePageVerticalAnchor = isApplyingSavedPosition
+                    ? visiblePageVerticalAnchor
+                    : nil
             }
             positionRestoreTask?.cancel()
             positionRestoreTask = nil
@@ -385,28 +402,36 @@ extension PDFReaderView {
 
         private func scheduleForegroundPositionRestore() {
             let savedState = foregroundPositionSnapshot ?? state
+            let savedVisiblePageVerticalAnchor = foregroundVisiblePageVerticalAnchor
 #if os(macOS)
             foregroundPositionSnapshot = nil
+            foregroundVisiblePageVerticalAnchor = nil
             isPositionSamplingSuspended = false
             scheduleCurrentPositionRestore(savedState: savedState, settleAfterForeground: false)
 #else
-            scheduleCurrentPositionRestore(savedState: savedState, settleAfterForeground: true)
+            scheduleCurrentPositionRestore(
+                savedState: savedState,
+                settleAfterForeground: true,
+                visiblePageVerticalAnchor: savedVisiblePageVerticalAnchor
+            )
 #endif
         }
 
         private func cancelForegroundPositionRestore() {
-            guard isPositionSamplingSuspended || foregroundPositionSnapshot != nil else { return }
+            guard isApplyingSavedPosition || isPositionSamplingSuspended || foregroundPositionSnapshot != nil else { return }
             positionRestoreTask?.cancel()
             positionRestoreTask = nil
             positionRestoreRevision &+= 1
             foregroundPositionSnapshot = nil
+            foregroundVisiblePageVerticalAnchor = nil
             isPositionSamplingSuspended = false
             isApplyingSavedPosition = false
         }
 
         private func scheduleCurrentPositionRestore(
             savedState: PatternReadingState? = nil,
-            settleAfterForeground: Bool = false
+            settleAfterForeground: Bool = false,
+            visiblePageVerticalAnchor: (pageIndex: Int, offsetY: Double)? = nil
         ) {
             guard settleAfterForeground || !isPositionSamplingSuspended else { return }
             positionRestoreTask?.cancel()
@@ -424,6 +449,7 @@ extension PDFReaderView {
                         self.isApplyingSavedPosition = false
                         if settleAfterForeground {
                             self.foregroundPositionSnapshot = nil
+                            self.foregroundVisiblePageVerticalAnchor = nil
                             self.isPositionSamplingSuspended = false
                         }
                     }
@@ -442,6 +468,9 @@ extension PDFReaderView {
                     view.layoutIfNeeded()
 #endif
                     if self.restorePosition(savedState, in: view) {
+                        if let visiblePageVerticalAnchor {
+                            _ = self.restoreRotationPosition(visiblePageVerticalAnchor, in: view)
+                        }
                         self.publishViewport(from: view)
                         if !settleAfterForeground { return }
                     }
@@ -475,9 +504,114 @@ extension PDFReaderView {
                 maximum: range.maximum
             )
             scroll.setContentOffset(contentOffset, animated: false)
+            refreshVisiblePageVerticalAnchor(
+                in: view,
+                page: page,
+                pageIndex: savedState.pdfRestorePageIndex(pageCount: document.pageCount),
+                scroll: scroll
+            )
             return true
 #endif
         }
+
+        private func scheduleRotationPositionRestore(_ snapshot: (pageIndex: Int, offsetY: Double)) {
+            let completesForegroundRestore = isPositionSamplingSuspended
+            positionRestoreTask?.cancel()
+            positionRestoreRevision &+= 1
+            let revision = positionRestoreRevision
+            let delays = [Duration.zero, .milliseconds(40), .milliseconds(120), .milliseconds(250)]
+            isApplyingSavedPosition = true
+            positionRestoreTask = Task { @MainActor [weak self, weak view] in
+                guard let self, let view else { return }
+                defer {
+                    if self.positionRestoreRevision == revision {
+                        self.isApplyingSavedPosition = false
+                        if completesForegroundRestore {
+                            self.foregroundPositionSnapshot = nil
+                            self.foregroundVisiblePageVerticalAnchor = nil
+                            self.isPositionSamplingSuspended = false
+                        }
+                    }
+                }
+                for delay in delays {
+                    if delay == .zero {
+                        await Task.yield()
+                    } else {
+                        try? await Task.sleep(for: delay)
+                    }
+                    guard !Task.isCancelled,
+                          self.positionRestoreRevision == revision else { return }
+#if os(macOS)
+                    view.layoutSubtreeIfNeeded()
+#else
+                    view.layoutIfNeeded()
+#endif
+                    if self.restoreRotationPosition(snapshot, in: view) {
+                        self.publishViewport(from: view)
+                    }
+                }
+            }
+        }
+
+        @discardableResult
+        private func restoreRotationPosition(
+            _ snapshot: (pageIndex: Int, offsetY: Double),
+            in view: PDFView
+        ) -> Bool {
+#if os(macOS)
+            return false
+#else
+            guard let document = view.document,
+                  let page = document.page(at: snapshot.pageIndex),
+                  view.currentPage === page,
+                  let scroll = contentScrollView(in: view)
+            else { return false }
+            let pageBounds = page.bounds(for: view.displayBox)
+            let pagePoint = PatternPDFPageAnchorGeometry.pagePoint(
+                offsetX: 0.5,
+                offsetY: snapshot.offsetY,
+                in: pageBounds
+            )
+            let targetPoint = view.convert(pagePoint, from: page)
+            let visibleFrame = scroll.convert(scroll.bounds, to: view)
+            let range = scrollOffsetRange(for: scroll)
+            let restoredY = PatternPDFViewportAnchorGeometry.verticalContentOffset(
+                currentContentOffsetY: scroll.contentOffset.y,
+                targetYInViewport: targetPoint.y,
+                viewportBounds: visibleFrame,
+                minimumY: range.minimum.y,
+                maximumY: range.maximum.y
+            )
+            scroll.setContentOffset(
+                CGPoint(x: scroll.contentOffset.x, y: restoredY),
+                animated: false
+            )
+            visiblePageVerticalAnchor = snapshot
+            return true
+#endif
+        }
+
+#if !os(macOS)
+        private func refreshVisiblePageVerticalAnchor(
+            in view: PDFView,
+            page: PDFPage,
+            pageIndex: Int,
+            scroll: UIScrollView
+        ) {
+            guard lastScaleSignature?.size == view.bounds.size else { return }
+            let visibleFrame = scroll.convert(scroll.bounds, to: view)
+            guard !visibleFrame.isNull, visibleFrame.height > 0 else { return }
+            let pagePoint = view.convert(
+                CGPoint(x: visibleFrame.midX, y: visibleFrame.midY),
+                to: page
+            )
+            let anchor = PatternPDFPageAnchorGeometry.normalizedAnchor(
+                for: pagePoint,
+                in: page.bounds(for: view.displayBox)
+            )
+            visiblePageVerticalAnchor = (pageIndex: pageIndex, offsetY: Double(anchor.y))
+        }
+#endif
 
         private func scheduleUserScaleCapture(from view: PDFView) {
             guard restoreGate.canSample, !isApplyingSavedScale,

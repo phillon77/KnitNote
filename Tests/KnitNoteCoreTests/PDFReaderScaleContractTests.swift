@@ -169,6 +169,63 @@ import Testing
         #expect(pdf.contains("visiblePage != snapshot.pageIndex"))
     }
 
+    @Test func iOSRotationRestoresTheSameVisiblePDFLineWithoutChangingSavedWidthOrHighlight() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let scale = try #require(
+            pdf.slice(from: "private func applyScaleMode", to: "private func fitWidthBaseline")
+        )
+        let rotation = try #require(
+            pdf.slice(from: "private func scheduleRotationPositionRestore", to: "private func restoreRotationPosition")
+        )
+        let restore = try #require(
+            pdf.slice(from: "private func restoreRotationPosition", to: "private func scheduleUserScaleCapture")
+        )
+
+        #expect(pdf.contains("private var visiblePageVerticalAnchor"))
+        #expect(scale.contains("previous.size != signature.size"))
+        #expect(scale.contains("scheduleRotationPositionRestore"))
+        #expect(rotation.contains("isApplyingSavedPosition = true"))
+        #expect(restore.contains("PatternPDFViewportAnchorGeometry.verticalContentOffset"))
+        #expect(restore.contains("scroll.setContentOffset"))
+        #expect(!restore.contains("pdfWidthScaleRatio ="))
+        #expect(!restore.contains("highlight"))
+    }
+
+    @Test func rotationAnchorSurvivesAnAppSwitchDuringPDFKitSettling() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let inactivity = try #require(
+            pdf.slice(from: "private func prepareForInactivity", to: "private func scheduleForegroundPositionRestore")
+        )
+        let foreground = try #require(
+            pdf.slice(from: "private func scheduleForegroundPositionRestore", to: "private func cancelForegroundPositionRestore")
+        )
+        let schedule = try #require(
+            pdf.slice(from: "private func scheduleCurrentPositionRestore", to: "private func restorePosition")
+        )
+
+        #expect(pdf.contains("private var foregroundVisiblePageVerticalAnchor"))
+        #expect(inactivity.contains("foregroundVisiblePageVerticalAnchor = isApplyingSavedPosition"))
+        #expect(inactivity.contains("? visiblePageVerticalAnchor"))
+        #expect(foreground.contains("let savedVisiblePageVerticalAnchor = foregroundVisiblePageVerticalAnchor"))
+        #expect(foreground.contains("visiblePageVerticalAnchor: savedVisiblePageVerticalAnchor"))
+        #expect(schedule.contains("if let visiblePageVerticalAnchor"))
+        #expect(schedule.contains("restoreRotationPosition(visiblePageVerticalAnchor, in: view)"))
+        #expect(schedule.contains("foregroundVisiblePageVerticalAnchor = nil"))
+    }
+
+    @Test func rotationDuringForegroundSettlingCompletesForegroundCleanup() throws {
+        let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
+        let rotation = try #require(
+            pdf.slice(from: "private func scheduleRotationPositionRestore", to: "private func restoreRotationPosition")
+        )
+
+        #expect(rotation.contains("let completesForegroundRestore = isPositionSamplingSuspended"))
+        #expect(rotation.contains("if completesForegroundRestore"))
+        #expect(rotation.contains("foregroundPositionSnapshot = nil"))
+        #expect(rotation.contains("foregroundVisiblePageVerticalAnchor = nil"))
+        #expect(rotation.contains("isPositionSamplingSuspended = false"))
+    }
+
     @Test func viewportAndSavedWidthUseTheSameModeSpecificBaseline() throws {
         let pdf = try source("KnitNote/Patterns/PDFReaderView.swift")
         let application = try #require(

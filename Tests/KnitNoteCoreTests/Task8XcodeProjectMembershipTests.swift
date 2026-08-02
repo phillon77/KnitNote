@@ -26,6 +26,7 @@ import Testing
             "PatternProjectUsage.swift",
             "PatternReaderAppearance.swift",
             "PatternReaderContext.swift",
+            "PatternSystemAppearanceMonitor.swift",
             "PatternShareImportPresentation.swift",
             "PatternShareInboxEnqueuer.swift",
             "PatternStorageLocations.swift",
@@ -56,6 +57,7 @@ import Testing
         #expect(required.isSubset(of: appSources))
         #expect(watchSharedCore.isSubset(of: watchSources))
         #expect(appOnly.isDisjoint(with: watchSources))
+        #expect(!shareSources.contains("PatternSystemAppearanceMonitor.swift"))
         #expect(appSourceList.count == appSources.count)
         #expect(watchSourceList.count == watchSources.count)
         #expect(!shareSources.contains("JSONProjectStore.swift"))

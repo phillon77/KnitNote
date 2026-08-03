@@ -15,35 +15,100 @@ struct EditYarnView: View {
     @State private var scannedLabelPhotos: [Data]?
     @State private var retainedLabelPhotoFilenames: [String] = []
 
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
+#if os(macOS)
+    private var macYarnContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                WatercolorCard {
                     YarnLabelScanLauncher { output in
                         draft.apply(output.seed, locale: locale)
                         scannedLabelPhotos = output.labelPhotos
                     } label: {
                         Label("yarn.scan.action", systemImage: "viewfinder")
                     }
+                    .accessibilityIdentifier("macYarnEditor.scan")
+                    .macEditYarnLayoutFrame("macYarnEditor.scan")
                 }
-                YarnEditorFields(draft: $draft)
+
+                MacYarnEditorFields(draft: $draft)
+
                 if !labelPhotoItems.isEmpty {
-                    Section("yarn.labelPhotos") {
-                        YarnLabelPhotoGallery(items: labelPhotoItems) { index in
-                            removeLabelPhoto(at: index)
+                    WatercolorCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("yarn.labelPhotos")
+                                .font(.headline)
+                            YarnLabelPhotoGallery(items: labelPhotoItems) { index in
+                                removeLabelPhoto(at: index)
+                            }
+                            .accessibilityIdentifier("macYarnEditor.labelPhotos")
+                            .macEditYarnLayoutFrame("macYarnEditor.labelPhotos")
                         }
                     }
                 }
-                Section("yarn.photo") {
-                    YarnPhotoPicker(
-                        existingURL: yarn.flatMap(store.photoURL(for:)),
-                        selectedData: $selectedPhotoData,
-                        removesExistingPhoto: $removesExistingPhoto,
-                        isLoading: $isPhotoLoading
-                    )
+
+                WatercolorCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("yarn.photo")
+                            .font(.headline)
+                        YarnPhotoPicker(
+                            existingURL: yarn.flatMap(store.photoURL(for:)),
+                            selectedData: $selectedPhotoData,
+                            removesExistingPhoto: $removesExistingPhoto,
+                            isLoading: $isPhotoLoading
+                        )
+                        .accessibilityIdentifier("macYarnEditor.photo")
+                        .macEditYarnLayoutFrame("macYarnEditor.photo")
+                    }
                 }
             }
-            .scrollContentBackground(.hidden)
+            .frame(maxWidth: 560)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+#else
+    private var yarnForm: some View {
+        Form {
+            Section {
+                YarnLabelScanLauncher { output in
+                    draft.apply(output.seed, locale: locale)
+                    scannedLabelPhotos = output.labelPhotos
+                } label: {
+                    Label("yarn.scan.action", systemImage: "viewfinder")
+                }
+            }
+            YarnEditorFields(draft: $draft)
+            if !labelPhotoItems.isEmpty {
+                Section("yarn.labelPhotos") {
+                    YarnLabelPhotoGallery(items: labelPhotoItems) { index in
+                        removeLabelPhoto(at: index)
+                    }
+                }
+            }
+            Section("yarn.photo") {
+                YarnPhotoPicker(
+                    existingURL: yarn.flatMap(store.photoURL(for:)),
+                    selectedData: $selectedPhotoData,
+                    removesExistingPhoto: $removesExistingPhoto,
+                    isLoading: $isPhotoLoading
+                )
+            }
+        }
+    }
+#endif
+
+    private var yarnContent: some View {
+#if os(macOS)
+        macYarnContent
+#else
+        yarnForm
+#endif
+    }
+
+    var body: some View {
+        NavigationStack {
+            yarnContent
+                .scrollContentBackground(.hidden)
             .background(WatercolorBackground())
             .navigationTitle("yarn.edit")
             .toolbar {
@@ -62,7 +127,17 @@ struct EditYarnView: View {
                 Text(LocalizedStringKey(errorMessage?.rawValue ?? YarnOperationFailure.saveRetry.rawValue))
             }
         }
+#if os(macOS)
+        .frame(
+            minWidth: 520,
+            idealWidth: 620,
+            minHeight: 560,
+            maxHeight: .infinity
+        )
+        .presentationSizing(.fitted)
+#else
         .frame(minWidth: 340, minHeight: 520)
+#endif
         .tint(WatercolorTheme.actionBerry)
         .onAppear {
             guard !didLoadYarn, let yarn else { return }
@@ -148,3 +223,22 @@ struct EditYarnView: View {
         }
     }
 }
+
+#if os(macOS)
+private extension View {
+    func macEditYarnLayoutFrame(_ identifier: String) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: MacYarnEditorFieldFramePreferenceKey.self,
+                    value: [
+                        identifier: proxy.frame(
+                            in: .named(MacYarnEditorFieldFramePreferenceKey.coordinateSpaceName)
+                        ),
+                    ]
+                )
+            }
+        }
+    }
+}
+#endif

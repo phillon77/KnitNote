@@ -109,6 +109,8 @@ struct MacYarnEditorFields: View {
                             Text(draft.linkedProjectIDs.count, format: .number)
                         }
                     }
+                    .accessibilityIdentifier("macYarnEditor.linkedProjects")
+                    .macYarnEditorLayoutFrame("macYarnEditor.linkedProjects")
                 }
             }
         }

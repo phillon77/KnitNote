@@ -68,6 +68,18 @@ import Testing
         }
     }
 
+    @Test func submissionSeparatesVersion13AutomationFromPhysicalAcceptance() throws {
+        let text = try sourceText("AppStore/AppStoreSubmission.md")
+
+        #expect(text.contains("## 1.3 development verification"))
+        #expect(text.contains("feat/knitnote-1.3-project-yarn"))
+        #expect(text.contains("Automated verification: `PASS`"))
+        #expect(text.contains("Physical iPhone/iPad acceptance: `INCOMPLETE`"))
+        #expect(text.contains("Physical Mac acceptance: `INCOMPLETE`"))
+        #expect(text.contains("TestFlight commercial matrix: `INCOMPLETE`"))
+        #expect(text.contains("not a release candidate"))
+    }
+
     @Test func releaseAuditUsesRepairVersionAndHistoricalVerificationStaysLabeled() throws {
         let audit = try sourceText("AppStore/Verification/release_audit.sh")
         let verification = try sourceText(

@@ -1,6 +1,6 @@
 # KnitNote App Store 提交與商業狀態
 
-最後更新：2026-07-31（Asia/Taipei）
+最後更新：2026-08-03（Asia/Taipei）
 
 ## App identity
 
@@ -71,6 +71,19 @@
 - TestFlight 證據不能代替重新上架後的公開版本下載與跨平台驗收。
 - 公開 iOS／macOS 的完整 free-download → seven-day trial → purchase →
   relaunch → restore 流程，必須在 checklist 中留下候選版本專屬證據。
+
+## 1.3 development verification
+
+- Branch: `feat/knitnote-1.3-project-yarn`
+- Automated verification: `PASS`
+- Physical iPhone/iPad acceptance: `INCOMPLETE`
+- Physical Mac acceptance: `INCOMPLETE`
+- TestFlight commercial matrix: `INCOMPLETE`
+
+The 1.3 development branch has passed its automated tests, static release audit,
+and unsigned Release builds for iOS, macOS, watchOS, and the Share extension.
+It is not a release candidate until the physical-device and TestFlight gates
+above are completed against one immutable Git commit.
 
 ## Historical records
 

@@ -4977,6 +4977,12 @@
         }
       }
     },
+    "patterns.reader.thumbnail.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Double-tap to open this page." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "點兩下即可前往這一頁。" } }
+      }
+    },
     "patterns.relink" : {
       "localizations" : {
         "en" : {
@@ -5554,6 +5560,12 @@
             "value" : "使用毛線"
           }
         }
+      }
+    },
+    "project.yarn.toggle.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Double-tap to link or unlink this project." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "點兩下即可連結或解除這件作品。" } }
       }
     },
     "project.yarn.unlink.action" : {
@@ -6960,6 +6972,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove Label Photo" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "移除標籤照片" } }
+      }
+    },
+    "yarn.scan.image.remove.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Removes this photo before recognition." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "辨識前移除這張照片。" } }
       }
     },
     "yarn.scan.images.empty" : {

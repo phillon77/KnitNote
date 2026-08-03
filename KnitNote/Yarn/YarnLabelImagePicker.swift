@@ -42,6 +42,7 @@ struct YarnLabelImagePicker: View {
                                     .foregroundStyle(.white, .black.opacity(0.6))
                             }
                             .accessibilityLabel(Text("yarn.scan.image.remove"))
+                            .accessibilityHint(Text("yarn.scan.image.remove.hint"))
                             .padding(8)
                         }
                     }

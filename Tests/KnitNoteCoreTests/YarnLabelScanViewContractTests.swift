@@ -41,6 +41,14 @@ import Testing
         #expect(picker.contains(".photosPicker("))
     }
 
+    @Test func scanAndLabelPhotoControlsExposeVoiceOverHints() throws {
+        let launcher = try source("YarnLabelScanLauncher.swift")
+        let picker = try source("YarnLabelImagePicker.swift")
+
+        #expect(launcher.contains(".accessibilityHint(Text(\"yarn.scan.action.hint\"))"))
+        #expect(picker.contains(".accessibilityHint(Text(\"yarn.scan.image.remove.hint\"))"))
+    }
+
     private func source(_ name: String) throws -> String {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()

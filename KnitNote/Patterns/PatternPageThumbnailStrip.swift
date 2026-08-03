@@ -135,6 +135,7 @@ private struct PatternPageThumbnailCell: View {
         .contentShape(.rect)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: accessibilityLabel))
+        .accessibilityHint(Text("patterns.reader.thumbnail.hint"))
         .accessibilityAddTraits(item.isSelected ? .isSelected : [])
         .task(id: request) {
             await loadThumbnail(for: request)

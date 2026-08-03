@@ -40,6 +40,7 @@ struct ProjectYarnViewContractTests {
 
         #expect(source.contains(".disabled(project.isCompleted)"))
         #expect(source.contains("project.yarn.completed.readOnly"))
+        #expect(source.contains("project.yarn.toggle.hint"))
     }
 
     @Test func yarnLibraryCannotDeleteCompletedProjectHistory() throws {

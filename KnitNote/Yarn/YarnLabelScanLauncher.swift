@@ -13,6 +13,7 @@ struct YarnLabelScanLauncher<Label: View>: View {
 
     var body: some View {
         Button { showingScan = true } label: { label() }
+            .accessibilityHint(Text("yarn.scan.action.hint"))
             .sheet(isPresented: $showingScan, onDismiss: publishPendingOutput) {
                 YarnLabelScanView { output in
                     pendingOutput = output

@@ -107,4 +107,19 @@ import Testing
         #expect(first.preload(selectedPage: 2) != second.preload(selectedPage: 2))
         #expect(first.preload(selectedPage: 2) != first.preload(selectedPage: 3))
     }
+
+    @Test func thumbnailControlUsesLocalizedHintAndSelectedAccessibilityTrait() throws {
+        let root = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appending(path: "KnitNote/Patterns/PatternPageThumbnailStrip.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("patterns.reader.thumbnail.hint"))
+        #expect(source.contains(".accessibilityAddTraits(item.isSelected ? .isSelected : [])"))
+        #expect(source.contains("lineWidth: item.isSelected ? 3 : 1"))
+    }
 }

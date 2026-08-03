@@ -32,6 +32,7 @@
 		0FCF6F4C5C2D193C026D0737 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		0FFD14D844495F2E62249E5D /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
+		130F9F8B595AA39A521A4FD6 /* MacYarnEditorAccessibilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */; };
 		145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */; };
 		14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
 		1A75459733F6F0B98DFB463F /* ProjectJournalSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BBADB1223BF69225A1DF48C /* ProjectJournalSection.swift */; };
@@ -313,6 +314,13 @@
 			remoteGlobalIDString = 9B4EA7B6C652C4B322863FF2;
 			remoteInfo = KnitNoteShare;
 		};
+		995333E950849E888F3D7CA5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3D817B8651440BF1170DB4F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ABFEFD40E9C4B3B0EB287FB5;
+			remoteInfo = KnitNote;
+		};
 		D1E418E8FC5D5FF76C91CBA1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C3D817B8651440BF1170DB4F /* Project object */;
@@ -446,6 +454,7 @@
 		6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementCoordinatorTests.swift; sourceTree = "<group>"; };
 		699B5C3006C3742CA7B8416A /* PatternImportResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternImportResultView.swift; sourceTree = "<group>"; };
 		6A809FA0EA2975C2A10383B6 /* RowIntervalAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentView.swift; sourceTree = "<group>"; };
+		6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnEditorAccessibilityUITests.swift; sourceTree = "<group>"; };
 		6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupService.swift; sourceTree = "<group>"; };
 		6C5BFE725AAAEE35A72A5778 /* ProjectYarnSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectYarnSection.swift; sourceTree = "<group>"; };
 		6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentCalculator.swift; sourceTree = "<group>"; };
@@ -477,6 +486,7 @@
 		87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalPreviewLoader.swift; sourceTree = "<group>"; };
 		87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupSettingsSection.swift; sourceTree = "<group>"; };
 		87F8A59940BD2F1CA4BFD2E3 /* EvenStitchAdjustmentCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentCalculatorView.swift; sourceTree = "<group>"; };
+		8828E79C51F974FA9A312FD1 /* KnitNoteMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KnitNoteMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A88F2F1F316B39D9094EB46 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		8CEC6756D753A4BB41008CF0 /* PhoneWatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSession.swift; sourceTree = "<group>"; };
 		8D23316ABF1FB39513935883 /* KnitNoteAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KnitNoteAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -912,6 +922,7 @@
 			children = (
 				14B46C9D90D2250C063CBEB9 /* KnitNote.app */,
 				8D23316ABF1FB39513935883 /* KnitNoteAppTests.xctest */,
+				8828E79C51F974FA9A312FD1 /* KnitNoteMacUITests.xctest */,
 				67146022BE86DEA48F100C13 /* KnitNoteShare.appex */,
 				1112E674E478840A2286F6BA /* KnitNoteWatch.app */,
 			);
@@ -989,6 +1000,7 @@
 				75215C9D724CD12DF1595F4E /* KnitNote */,
 				491A1A35F59A29BF49F08ADE /* KnitNoteAppTests */,
 				0ADFE4B616722EE6405BBCB7 /* KnitNoteCore */,
+				F3DF2D14907F79846E260ED2 /* KnitNoteMacUITests */,
 				C68BA2AF68B2E50206F56088 /* KnitNoteShare */,
 				A2875FC623ACA3B0597786CF /* KnitNoteWatch */,
 				1151CD600D403B6BC5316E7A /* Frameworks */,
@@ -1039,6 +1051,15 @@
 				10731080016109C7138AA562 /* UnlockSheet.swift */,
 			);
 			path = Entitlements;
+			sourceTree = "<group>";
+		};
+		F3DF2D14907F79846E260ED2 /* KnitNoteMacUITests */ = {
+			isa = PBXGroup;
+			children = (
+				6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */,
+			);
+			name = KnitNoteMacUITests;
+			path = Tests/KnitNoteMacUITests;
 			sourceTree = "<group>";
 		};
 		FC1D51A444F323A1A8388B2D /* Calculators */ = {
@@ -1114,6 +1135,24 @@
 			productReference = 14B46C9D90D2250C063CBEB9 /* KnitNote.app */;
 			productType = "com.apple.product-type.application";
 		};
+		C8E9D1500947215FD79A50C1 /* KnitNoteMacUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FB4441FE349F5332488C6499 /* Build configuration list for PBXNativeTarget "KnitNoteMacUITests" */;
+			buildPhases = (
+				068C5CE0C32AAB60DF46E03F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A71B0E762568FF1516B74E13 /* PBXTargetDependency */,
+			);
+			name = KnitNoteMacUITests;
+			packageProductDependencies = (
+			);
+			productName = KnitNoteMacUITests;
+			productReference = 8828E79C51F974FA9A312FD1 /* KnitNoteMacUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		D3702212370914BD0EFFE039 /* KnitNoteWatch */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 48D15CAE91A1ED02AEAF6568 /* Build configuration list for PBXNativeTarget "KnitNoteWatch" */;
@@ -1150,6 +1189,10 @@
 					ABFEFD40E9C4B3B0EB287FB5 = {
 						DevelopmentTeam = 9CFPAUL5N5;
 					};
+					C8E9D1500947215FD79A50C1 = {
+						DevelopmentTeam = 9CFPAUL5N5;
+						TestTargetID = ABFEFD40E9C4B3B0EB287FB5;
+					};
 					D3702212370914BD0EFFE039 = {
 						DevelopmentTeam = 9CFPAUL5N5;
 					};
@@ -1172,6 +1215,7 @@
 			targets = (
 				ABFEFD40E9C4B3B0EB287FB5 /* KnitNote */,
 				2F177E7B2E9AB286CC828850 /* KnitNoteAppTests */,
+				C8E9D1500947215FD79A50C1 /* KnitNoteMacUITests */,
 				9B4EA7B6C652C4B322863FF2 /* KnitNoteShare */,
 				D3702212370914BD0EFFE039 /* KnitNoteWatch */,
 			);
@@ -1213,6 +1257,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		068C5CE0C32AAB60DF46E03F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				130F9F8B595AA39A521A4FD6 /* MacYarnEditorAccessibilityUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0A24C7A881A9D360B3F40D37 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1532,6 +1584,11 @@
 			target = 9B4EA7B6C652C4B322863FF2 /* KnitNoteShare */;
 			targetProxy = 4CE7BEE72FDCD12C2E61FC62 /* PBXContainerItemProxy */;
 		};
+		A71B0E762568FF1516B74E13 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ABFEFD40E9C4B3B0EB287FB5 /* KnitNote */;
+			targetProxy = 995333E950849E888F3D7CA5 /* PBXContainerItemProxy */;
+		};
 		FA589DF542C334EE7BD88FAF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = ABFEFD40E9C4B3B0EB287FB5 /* KnitNote */;
@@ -1540,6 +1597,23 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		03268B88E117669EE382C064 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNoteMacUITests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = KnitNote;
+			};
+			name = Debug;
+		};
 		23FB596AB0C7EC57AFC23628 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1741,6 +1815,23 @@
 			};
 			name = Release;
 		};
+		D5B951C9705A6373D5FECD64 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNoteMacUITests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = KnitNote;
+			};
+			name = Release;
+		};
 		E2486F10996EEDF5A8B428BF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1865,6 +1956,15 @@
 			buildConfigurations = (
 				6FCF8DAFE45F27BA77A4FF46 /* Debug */,
 				2E61DD4D3E0E6F8C6A873902 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FB4441FE349F5332488C6499 /* Build configuration list for PBXNativeTarget "KnitNoteMacUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				03268B88E117669EE382C064 /* Debug */,
+				D5B951C9705A6373D5FECD64 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

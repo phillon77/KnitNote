@@ -50,6 +50,17 @@
                ReferencedContainer = "container:KnitNote.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "C8E9D1500947215FD79A50C1"
+               BuildableName = "KnitNoteMacUITests.xctest"
+               BlueprintName = "KnitNoteMacUITests"
+               ReferencedContainer = "container:KnitNote.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

@@ -169,6 +169,18 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/KnitNote.app/Contents/MacOS/KnitNote
         BUNDLE_LOADER: $(TEST_HOST)
+  KnitNoteMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: Tests/KnitNoteMacUITests
+    dependencies:
+      - target: KnitNote
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNoteMacUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: KnitNote
 schemes:
   KnitNote:
     build:
@@ -177,6 +189,7 @@ schemes:
     test:
       targets:
         - KnitNoteAppTests
+        - KnitNoteMacUITests
     run:
       config: Debug
       storeKitConfiguration: KnitNote/StoreKit/KnitNote.storekit

@@ -53,14 +53,18 @@ struct MacYarnEditorFields: View {
                         lower: $draft.needleLowerMM.text,
                         upper: $draft.needleUpperMM.text,
                         lowerIdentifier: "macYarnEditor.needleLower",
-                        upperIdentifier: "macYarnEditor.needleUpper"
+                        upperIdentifier: "macYarnEditor.needleUpper",
+                        lowerAccessibilityKey: "yarn.recommendedNeedleMM.lower.accessibility",
+                        upperAccessibilityKey: "yarn.recommendedNeedleMM.upper.accessibility"
                     )
                     metricRangeFields(
                         "yarn.recommendedHookMM",
                         lower: $draft.hookLowerMM.text,
                         upper: $draft.hookUpperMM.text,
                         lowerIdentifier: "macYarnEditor.hookLower",
-                        upperIdentifier: "macYarnEditor.hookUpper"
+                        upperIdentifier: "macYarnEditor.hookUpper",
+                        lowerAccessibilityKey: "yarn.recommendedHookMM.lower.accessibility",
+                        upperAccessibilityKey: "yarn.recommendedHookMM.upper.accessibility"
                     )
                 }
             }
@@ -164,7 +168,9 @@ struct MacYarnEditorFields: View {
         lower: Binding<String>,
         upper: Binding<String>,
         lowerIdentifier: String,
-        upperIdentifier: String
+        upperIdentifier: String,
+        lowerAccessibilityKey: LocalizedStringKey,
+        upperAccessibilityKey: LocalizedStringKey
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(titleKey)
@@ -172,11 +178,13 @@ struct MacYarnEditorFields: View {
             HStack(spacing: 10) {
                 TextField("yarn.range.lower", text: lower)
                     .accessibilityIdentifier(lowerIdentifier)
+                    .accessibilityLabel(Text(lowerAccessibilityKey))
                     .macYarnEditorLayoutFrame(lowerIdentifier)
                 Text("–")
                     .foregroundStyle(.secondary)
                 TextField("yarn.range.upper", text: upper)
                     .accessibilityIdentifier(upperIdentifier)
+                    .accessibilityLabel(Text(upperAccessibilityKey))
                     .macYarnEditorLayoutFrame(upperIdentifier)
                 Text("mm")
                     .foregroundStyle(.secondary)

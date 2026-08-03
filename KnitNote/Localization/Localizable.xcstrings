@@ -6968,10 +6968,34 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議鉤針" } }
       }
     },
+    "yarn.recommendedHookMM.lower.accessibility" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Crochet Hook, From" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議鉤針，最小" } }
+      }
+    },
+    "yarn.recommendedHookMM.upper.accessibility" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Crochet Hook, To" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議鉤針，最大" } }
+      }
+    },
     "yarn.recommendedNeedleMM" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Knitting Needle" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議棒針" } }
+      }
+    },
+    "yarn.recommendedNeedleMM.lower.accessibility" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knitting Needle, From" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議棒針，最小" } }
+      }
+    },
+    "yarn.recommendedNeedleMM.upper.accessibility" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knitting Needle, To" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議棒針，最大" } }
       }
     },
     "yarn.scan.action" : {

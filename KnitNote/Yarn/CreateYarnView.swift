@@ -24,20 +24,58 @@ struct CreateYarnView: View {
         _labelPhotos = State(initialValue: Array(labelPhotos.prefix(2)))
     }
 
-    var body: some View {
-        NavigationStack {
-            Form {
-                YarnEditorFields(draft: $draft)
-                Section("yarn.photo") {
-                    YarnPhotoPicker(
-                        existingURL: nil,
-                        selectedData: $selectedPhotoData,
-                        removesExistingPhoto: $removesExistingPhoto,
-                        isLoading: $isPhotoLoading
-                    )
+#if os(macOS)
+    private var macYarnContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                MacYarnEditorFields(draft: $draft)
+
+                WatercolorCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("yarn.photo")
+                            .font(.headline)
+                        YarnPhotoPicker(
+                            existingURL: nil,
+                            selectedData: $selectedPhotoData,
+                            removesExistingPhoto: $removesExistingPhoto,
+                            isLoading: $isPhotoLoading
+                        )
+                    }
                 }
             }
-            .scrollContentBackground(.hidden)
+            .frame(maxWidth: 560)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+#else
+    private var yarnForm: some View {
+        Form {
+            YarnEditorFields(draft: $draft)
+            Section("yarn.photo") {
+                YarnPhotoPicker(
+                    existingURL: nil,
+                    selectedData: $selectedPhotoData,
+                    removesExistingPhoto: $removesExistingPhoto,
+                    isLoading: $isPhotoLoading
+                )
+            }
+        }
+    }
+#endif
+
+    private var yarnContent: some View {
+#if os(macOS)
+        macYarnContent
+#else
+        yarnForm
+#endif
+    }
+
+    var body: some View {
+        NavigationStack {
+            yarnContent
+                .scrollContentBackground(.hidden)
             .background(WatercolorBackground())
             .navigationTitle("yarn.create")
             .toolbar {
@@ -56,7 +94,17 @@ struct CreateYarnView: View {
                 Text(LocalizedStringKey(errorMessage?.rawValue ?? YarnOperationFailure.saveRetry.rawValue))
             }
         }
+#if os(macOS)
+        .frame(
+            minWidth: 520,
+            idealWidth: 620,
+            minHeight: 560,
+            maxHeight: .infinity
+        )
+        .presentationSizing(.fitted)
+#else
         .frame(minWidth: 340, minHeight: 520)
+#endif
         .tint(WatercolorTheme.actionBerry)
         .onAppear {
             guard !didApplySeed, let seed else { return }

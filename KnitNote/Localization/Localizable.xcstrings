@@ -6842,6 +6842,54 @@
         }
       }
     },
+    "yarn.section.basic" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Basic Details"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基本資料"
+          }
+        }
+      }
+    },
+    "yarn.section.inventory" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inventory"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "庫存"
+          }
+        }
+      }
+    },
+    "yarn.section.storage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage & Notes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收納與筆記"
+          }
+        }
+      }
+    },
     "yarn.addManually" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Manually" } },

@@ -123,6 +123,15 @@ import Testing
         "yarn.scan.review.message",
         "yarn.scan.review.title",
         "yarn.scan.title",
+        "yarn.section.basic",
+        "yarn.section.inventory",
+        "yarn.section.storage",
+    ]
+
+    private let requiredYarnSectionTranslations = [
+        "yarn.section.basic": ["en": "Basic Details", "zh-Hant": "基本資料"],
+        "yarn.section.inventory": ["en": "Inventory", "zh-Hant": "庫存"],
+        "yarn.section.storage": ["en": "Storage & Notes", "zh-Hant": "收納與筆記"],
     ]
 
     private let requiredKeys = [
@@ -427,6 +436,16 @@ import Testing
                 let translation = try #require(translations[language] as? [String: Any])
                 let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
                 #expect(!(try #require(stringUnit["value"] as? String)).isEmpty)
+            }
+        }
+    }
+
+    @Test func yarnEditorSectionTitlesUseApprovedBilingualCopy() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredYarnSectionTranslations {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }
         }
     }

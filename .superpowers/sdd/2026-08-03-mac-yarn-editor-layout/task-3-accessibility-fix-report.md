@@ -43,9 +43,10 @@ An earlier in-process AppKit accessibility-tree experiment could not observe
 the hosted controls reliably and was removed.  It is not used as coverage;
 the shipped check is the external UI-runner test above.
 
-TDD first exposed the missing fixture label photo, then an empty macOS AX
-label for `brand`. The affected text fields and `linkedProjects` now set
-explicit localized labels, asserted through the external runner.
+TDD first exposed the missing fixture label photo, then empty macOS AX labels
+for `brand` and the label-photo gallery. The affected text fields,
+`linkedProjects`, and gallery now set explicit localized labels, asserted
+through the external runner.
 
 ## Additional checks
 

@@ -52,6 +52,7 @@ final class MacYarnEditorAccessibilityUITests: XCTestCase {
         assertEditYarnControls(
             in: app,
             scanLabel: "Scan Yarn Label",
+            labelPhotosLabel: "Yarn Label Photos",
             photoImageLabel: "Yarn photo",
             photoButtonLabel: "Replace Photo"
         )
@@ -68,6 +69,7 @@ final class MacYarnEditorAccessibilityUITests: XCTestCase {
         assertEditYarnControls(
             in: app,
             scanLabel: "掃描毛線標籤",
+            labelPhotosLabel: "毛線標籤照片",
             photoImageLabel: "毛線照片",
             photoButtonLabel: "更換照片"
         )
@@ -142,6 +144,7 @@ final class MacYarnEditorAccessibilityUITests: XCTestCase {
     private func assertEditYarnControls(
         in app: XCUIApplication,
         scanLabel: String,
+        labelPhotosLabel: String,
         photoImageLabel: String,
         photoButtonLabel: String
     ) {
@@ -153,6 +156,7 @@ final class MacYarnEditorAccessibilityUITests: XCTestCase {
         let labelPhotos = app.descendants(matching: .any)["macYarnEditor.labelPhotos"]
         XCTAssertTrue(labelPhotos.waitForExistence(timeout: 5), "macYarnEditor.labelPhotos")
         XCTAssertFalse(labelPhotos.frame.isEmpty, "macYarnEditor.labelPhotos")
+        XCTAssertEqual(labelPhotos.label, labelPhotosLabel, "macYarnEditor.labelPhotos")
 
         let photo = app.images["macYarnEditor.photo"]
         XCTAssertTrue(photo.waitForExistence(timeout: 5), "macYarnEditor.photo")

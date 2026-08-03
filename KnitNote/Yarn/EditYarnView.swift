@@ -41,6 +41,7 @@ struct EditYarnView: View {
                                 removeLabelPhoto(at: index)
                             }
                             .accessibilityIdentifier("macYarnEditor.labelPhotos")
+                            .accessibilityLabel(Text("yarn.labelPhotos"))
                             .macEditYarnLayoutFrame("macYarnEditor.labelPhotos")
                         }
                     }

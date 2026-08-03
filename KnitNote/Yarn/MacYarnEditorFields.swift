@@ -47,6 +47,7 @@ struct MacYarnEditorFields: View {
                         .lineLimit(2...5)
                         .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("macYarnEditor.fiberContent")
+                        .accessibilityLabel(Text("yarn.fiberContent"))
                         .macYarnEditorLayoutFrame("macYarnEditor.fiberContent")
                     metricRangeFields(
                         "yarn.recommendedNeedleMM",
@@ -99,6 +100,7 @@ struct MacYarnEditorFields: View {
                         .lineLimit(3...8)
                         .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("macYarnEditor.notes")
+                        .accessibilityLabel(Text("yarn.notes"))
                         .macYarnEditorLayoutFrame("macYarnEditor.notes")
                 }
             }

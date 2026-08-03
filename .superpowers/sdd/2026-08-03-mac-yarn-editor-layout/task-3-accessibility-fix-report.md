@@ -6,7 +6,10 @@ Added distinct, localized accessibility labels to the four macOS yarn range
 fields and verified them through an external macOS XCTest UI runner.
 
 The runner now also protects the requested Create/Edit contract: Create checks
-`name`, `brand`, both needle inputs, both hook inputs, and `linkedProjects`;
+all 18 planned elements: `name`, `brand`, `series`, `color`, `colorCode`,
+`dyeLot`, `ballWeightGrams`, `lengthMeters`, `fiberContent`, both needle
+inputs, both hook inputs, `remainingBalls`, `remainingGrams`,
+`storageLocation`, `notes`, and `linkedProjects`;
 Edit checks `scan`, `labelPhotos`, and the photo image/replacement action.
 
 | Identifier | English label | Traditional Chinese label |
@@ -28,7 +31,7 @@ and a non-empty frame. The focused result bundle reports four passing tests
 ```
 xcodebuild test -project KnitNote.xcodeproj -scheme KnitNote \
   -destination 'platform=macOS' \
-  -derivedDataPath /tmp/KnitNoteMacYarnAccessibilityFullFinal \
+  -derivedDataPath /tmp/KnitNoteMacYarnAllFieldsFinal \
   -only-testing:KnitNoteMacUITests/MacYarnEditorAccessibilityUITests
 ```
 
@@ -44,9 +47,9 @@ the hosted controls reliably and was removed.  It is not used as coverage;
 the shipped check is the external UI-runner test above.
 
 TDD first exposed the missing fixture label photo, then empty macOS AX labels
-for `brand` and the label-photo gallery. The affected text fields,
-`linkedProjects`, and gallery now set explicit localized labels, asserted
-through the external runner.
+for `brand`, `fiberContent`, and the label-photo gallery. The affected text
+fields, `linkedProjects`, and gallery now set explicit localized labels,
+asserted through the external runner.
 
 ## Additional checks
 

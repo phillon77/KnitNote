@@ -12,10 +12,21 @@ final class MacYarnEditorAccessibilityUITests: XCTestCase {
             expectedLabels: [
                 "macYarnEditor.name": "Name",
                 "macYarnEditor.brand": "Brand",
+                "macYarnEditor.series": "Series",
+                "macYarnEditor.color": "Color",
+                "macYarnEditor.colorCode": "Color Code",
+                "macYarnEditor.dyeLot": "Dye Lot",
+                "macYarnEditor.ballWeightGrams": "Ball Weight (g)",
+                "macYarnEditor.lengthMeters": "Length (m)",
+                "macYarnEditor.fiberContent": "Fiber Content",
                 "macYarnEditor.needleLower": "Knitting Needle, From",
                 "macYarnEditor.needleUpper": "Knitting Needle, To",
                 "macYarnEditor.hookLower": "Crochet Hook, From",
                 "macYarnEditor.hookUpper": "Crochet Hook, To",
+                "macYarnEditor.remainingBalls": "Remaining Balls",
+                "macYarnEditor.remainingGrams": "Remaining Grams",
+                "macYarnEditor.storageLocation": "Storage Location",
+                "macYarnEditor.notes": "Notes",
                 "macYarnEditor.linkedProjects": "Linked Projects",
             ]
         )
@@ -32,10 +43,21 @@ final class MacYarnEditorAccessibilityUITests: XCTestCase {
             expectedLabels: [
                 "macYarnEditor.name": "名稱",
                 "macYarnEditor.brand": "品牌",
+                "macYarnEditor.series": "系列",
+                "macYarnEditor.color": "顏色",
+                "macYarnEditor.colorCode": "色號",
+                "macYarnEditor.dyeLot": "染缸批號",
+                "macYarnEditor.ballWeightGrams": "每球重量（克）",
+                "macYarnEditor.lengthMeters": "每球長度（公尺）",
+                "macYarnEditor.fiberContent": "纖維成分",
                 "macYarnEditor.needleLower": "建議棒針，最小",
                 "macYarnEditor.needleUpper": "建議棒針，最大",
                 "macYarnEditor.hookLower": "建議鉤針，最小",
                 "macYarnEditor.hookUpper": "建議鉤針，最大",
+                "macYarnEditor.remainingBalls": "剩餘毛線球",
+                "macYarnEditor.remainingGrams": "剩餘公克",
+                "macYarnEditor.storageLocation": "收納位置",
+                "macYarnEditor.notes": "備註",
                 "macYarnEditor.linkedProjects": "關聯作品",
             ]
         )

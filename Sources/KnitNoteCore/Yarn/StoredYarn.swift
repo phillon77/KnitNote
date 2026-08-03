@@ -3,6 +3,42 @@ import Foundation
 public enum YarnValidationError: Error, Equatable, Sendable {
     case emptyName
     case negativeInventory
+    case invalidMetricRange
+    case negativeLabelMeasurement
+    case invalidLabelPhotoFilenames
+}
+
+public struct YarnMetricRange: Codable, Equatable, Sendable {
+    public let lower: Decimal
+    public let upper: Decimal
+
+    private enum CodingKeys: String, CodingKey {
+        case lower
+        case upper
+    }
+
+    public init(lower: Decimal, upper: Decimal) throws {
+        guard lower.isFinite, upper.isFinite, lower >= 0, upper >= lower else {
+            throw YarnValidationError.invalidMetricRange
+        }
+        self.lower = lower
+        self.upper = upper
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let lower = try values.decode(Decimal.self, forKey: .lower)
+        let upper = try values.decode(Decimal.self, forKey: .upper)
+        do {
+            try self.init(lower: lower, upper: upper)
+        } catch {
+            throw DecodingError.dataCorruptedError(
+                forKey: .upper,
+                in: values,
+                debugDescription: "A yarn metric range must be finite, nonnegative, and ascending."
+            )
+        }
+    }
 }
 
 public enum YarnDecimalInput: Equatable, Sendable {
@@ -98,6 +134,12 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
     public private(set) var color: String?
     public private(set) var colorCode: String?
     public private(set) var dyeLot: String?
+    public private(set) var ballWeightGrams: Decimal?
+    public private(set) var lengthMeters: Decimal?
+    public private(set) var fiberContent: String?
+    public private(set) var recommendedNeedleMM: YarnMetricRange?
+    public private(set) var recommendedHookMM: YarnMetricRange?
+    public private(set) var labelPhotoFilenames: [String]
     public private(set) var remainingBalls: Decimal?
     public private(set) var remainingGrams: Decimal?
     public private(set) var storageLocation: String?
@@ -115,6 +157,12 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         case color
         case colorCode
         case dyeLot
+        case ballWeightGrams
+        case lengthMeters
+        case fiberContent
+        case recommendedNeedleMM
+        case recommendedHookMM
+        case labelPhotoFilenames
         case remainingBalls
         case remainingGrams
         case storageLocation
@@ -136,6 +184,12 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         color = nil
         colorCode = nil
         dyeLot = nil
+        ballWeightGrams = nil
+        lengthMeters = nil
+        fiberContent = nil
+        recommendedNeedleMM = nil
+        recommendedHookMM = nil
+        labelPhotoFilenames = []
         remainingBalls = nil
         remainingGrams = nil
         storageLocation = nil
@@ -164,6 +218,21 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         color = Self.normalized(try values.decodeIfPresent(String.self, forKey: .color))
         colorCode = Self.normalized(try values.decodeIfPresent(String.self, forKey: .colorCode))
         dyeLot = Self.normalized(try values.decodeIfPresent(String.self, forKey: .dyeLot))
+        ballWeightGrams = try values.decodeIfPresent(Decimal.self, forKey: .ballWeightGrams)
+        lengthMeters = try values.decodeIfPresent(Decimal.self, forKey: .lengthMeters)
+        fiberContent = Self.normalized(try values.decodeIfPresent(String.self, forKey: .fiberContent))
+        recommendedNeedleMM = try values.decodeIfPresent(
+            YarnMetricRange.self,
+            forKey: .recommendedNeedleMM
+        )
+        recommendedHookMM = try values.decodeIfPresent(
+            YarnMetricRange.self,
+            forKey: .recommendedHookMM
+        )
+        labelPhotoFilenames = try values.decodeIfPresent(
+            [String].self,
+            forKey: .labelPhotoFilenames
+        ) ?? []
         remainingBalls = try values.decodeIfPresent(Decimal.self, forKey: .remainingBalls)
         remainingGrams = try values.decodeIfPresent(Decimal.self, forKey: .remainingGrams)
 
@@ -179,6 +248,27 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
                 forKey: .remainingGrams,
                 in: values,
                 debugDescription: "Yarn inventory cannot be negative."
+            )
+        }
+        if ballWeightGrams.map({ !$0.isFinite || $0 < 0 }) == true {
+            throw DecodingError.dataCorruptedError(
+                forKey: .ballWeightGrams,
+                in: values,
+                debugDescription: "A yarn label weight must be finite and nonnegative."
+            )
+        }
+        if lengthMeters.map({ !$0.isFinite || $0 < 0 }) == true {
+            throw DecodingError.dataCorruptedError(
+                forKey: .lengthMeters,
+                in: values,
+                debugDescription: "A yarn label length must be finite and nonnegative."
+            )
+        }
+        guard Self.areValidLabelPhotoFilenames(labelPhotoFilenames, yarnID: id) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .labelPhotoFilenames,
+                in: values,
+                debugDescription: "Yarn label photos must be managed files owned by this yarn."
             )
         }
 
@@ -245,6 +335,42 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         updatedAt = now
     }
 
+    public mutating func updateLabelDetails(
+        ballWeightGrams: Decimal?,
+        lengthMeters: Decimal?,
+        fiberContent: String?,
+        recommendedNeedleMM: YarnMetricRange?,
+        recommendedHookMM: YarnMetricRange?,
+        now: Date = .now
+    ) throws {
+        guard ballWeightGrams.map({ $0.isFinite && $0 >= 0 }) != false,
+              lengthMeters.map({ $0.isFinite && $0 >= 0 }) != false else {
+            throw YarnValidationError.negativeLabelMeasurement
+        }
+        let fiberContent = Self.normalized(fiberContent)
+        guard self.ballWeightGrams != ballWeightGrams || self.lengthMeters != lengthMeters ||
+                self.fiberContent != fiberContent ||
+                self.recommendedNeedleMM != recommendedNeedleMM ||
+                self.recommendedHookMM != recommendedHookMM else {
+            return
+        }
+        self.ballWeightGrams = ballWeightGrams
+        self.lengthMeters = lengthMeters
+        self.fiberContent = fiberContent
+        self.recommendedNeedleMM = recommendedNeedleMM
+        self.recommendedHookMM = recommendedHookMM
+        updatedAt = now
+    }
+
+    mutating func setLabelPhotoFilenames(_ filenames: [String], now: Date = .now) throws {
+        guard Self.areValidLabelPhotoFilenames(filenames, yarnID: id) else {
+            throw YarnValidationError.invalidLabelPhotoFilenames
+        }
+        guard labelPhotoFilenames != filenames else { return }
+        labelPhotoFilenames = filenames
+        updatedAt = now
+    }
+
     public mutating func setPhotoFilename(_ filename: String?, now: Date = .now) {
         let filename = Self.normalized(filename)
         guard photoFilename != filename else { return }
@@ -262,5 +388,27 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func isManagedLabelPhotoFilename(_ filename: String, yarnID: UUID) -> Bool {
+        guard filename.hasSuffix(".jpg") else { return false }
+        let stem = String(filename.dropLast(4))
+        let prefix = "\(yarnID.uuidString)-label-"
+        guard stem.hasPrefix(prefix) else { return false }
+        let remainder = String(stem.dropFirst(prefix.count))
+        guard let separator = remainder.firstIndex(of: "-") else { return false }
+        let ordinal = remainder[..<separator]
+        let imageID = remainder[remainder.index(after: separator)...]
+        return (ordinal == "1" || ordinal == "2") && UUID(uuidString: String(imageID)) != nil
+    }
+
+    private static func areValidLabelPhotoFilenames(_ filenames: [String], yarnID: UUID) -> Bool {
+        guard filenames.count <= 2, Set(filenames).count == filenames.count else { return false }
+        let prefix = "\(yarnID.uuidString)-label-"
+        let ordinals = filenames.compactMap { filename -> Character? in
+            guard isManagedLabelPhotoFilename(filename, yarnID: yarnID) else { return nil }
+            return filename.dropFirst(prefix.count).first
+        }
+        return ordinals.count == filenames.count && Set(ordinals).count == ordinals.count
     }
 }

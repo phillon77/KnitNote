@@ -131,6 +131,30 @@ public struct YarnLabelPhotoFileService: Sendable {
         }
     }
 
+    func reconcile(referencedFilenames: Set<String>) throws {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        let candidates = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        )
+        for candidate in candidates {
+            let filename = candidate.lastPathComponent
+            guard !referencedFilenames.contains(filename),
+                  Self.isManagedFilename(filename) else {
+                continue
+            }
+            let values = try candidate.resourceValues(forKeys: [
+                .isRegularFileKey,
+                .isSymbolicLinkKey,
+            ])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else {
+                continue
+            }
+            try FileManager.default.removeItem(at: candidate)
+        }
+    }
+
     private func normalizedJPEG(_ data: Data) throws -> Data {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],

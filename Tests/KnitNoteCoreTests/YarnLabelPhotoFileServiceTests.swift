@@ -107,6 +107,32 @@ import UniformTypeIdentifiers
         #expect(service.url(filename: "/tmp/outside.jpg") == nil)
         #expect(service.url(filename: "label.jpg") == nil)
     }
+
+    @Test func reconciliationDeletesOnlyUnreferencedManagedLabelPhotos() throws {
+        let directory = labelTemporaryDirectory()
+        let service = YarnLabelPhotoFileService(directory: directory)
+        let yarnID = UUID()
+        let retained = try service.prepare(
+            data: try labelFixtureJPEG(width: 80, height: 40),
+            yarnID: yarnID,
+            ordinal: 1
+        )
+        let orphan = try service.prepare(
+            data: try labelFixtureJPEG(width: 80, height: 40),
+            yarnID: yarnID,
+            ordinal: 2
+        )
+        try service.publish(retained)
+        try service.publish(orphan)
+        let unrelatedURL = directory.appendingPathComponent("keep-me.txt")
+        try Data("not managed by YarnLabelPhotoFileService".utf8).write(to: unrelatedURL)
+
+        try service.reconcile(referencedFilenames: [retained.filename])
+
+        #expect(FileManager.default.fileExists(atPath: try #require(service.url(filename: retained.filename)).path))
+        #expect(!FileManager.default.fileExists(atPath: try #require(service.url(filename: orphan.filename)).path))
+        #expect(FileManager.default.fileExists(atPath: unrelatedURL.path))
+    }
 }
 
 private func labelTemporaryDirectory() -> URL {

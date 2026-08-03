@@ -41,6 +41,10 @@ struct SettingsView: View {
                 }
             }
 
+            Section("settings.storage") {
+                YarnLabelStorageRow()
+            }
+
             BackupSettingsSection()
         }
         .scrollContentBackground(.hidden)

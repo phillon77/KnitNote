@@ -1,6 +1,8 @@
 import CryptoKit
 import Foundation
 import Darwin
+import ImageIO
+import UniformTypeIdentifiers
 
 typealias KnitNoteBackupResourceMetadata = (
     isRegularFile: Bool?,
@@ -2065,7 +2067,8 @@ public struct KnitNoteBackupService: Sendable {
         let children = try contents(of: dataRoot)
         var hasArchive = false
         let directoryNames: Set<String> = [
-            "ProjectPhotos", "YarnPhotos", "ProjectJournalPhotos", "Patterns",
+            "ProjectPhotos", "YarnPhotos", "YarnLabelPhotos",
+            "ProjectJournalPhotos", "Patterns",
         ]
         for child in children {
             try rejectHiddenOrSymbolic(child)
@@ -2166,6 +2169,11 @@ public struct KnitNoteBackupService: Sendable {
                     throw KnitNoteBackupError.unsafePackageEntry
                 }
             }
+            guard yarn.labelPhotoFilenames.allSatisfy({
+                StoredYarn.isManagedLabelPhotoFilename($0, yarnID: yarn.id)
+            }) else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
         }
     }
 
@@ -2173,7 +2181,8 @@ public struct KnitNoteBackupService: Sendable {
         var allowedFiles = referencedMediaPaths(in: archive)
         allowedFiles.insert("projects-v1.json")
         var allowedDirectories: Set<String> = [
-            "ProjectPhotos", "YarnPhotos", "ProjectJournalPhotos", "Patterns",
+            "ProjectPhotos", "YarnPhotos", "YarnLabelPhotos",
+            "ProjectJournalPhotos", "Patterns",
         ]
         var knownMarkupOwners: Set<String> = []
         for project in archive.projects {
@@ -2210,6 +2219,14 @@ public struct KnitNoteBackupService: Sendable {
         for relativePath in allowedFiles where relativePath != "projects-v1.json" {
             guard foundFiles.contains(relativePath) else {
                 throw KnitNoteBackupError.missingReferencedFile(relativePath)
+            }
+        }
+        for yarn in archive.yarns {
+            for filename in yarn.labelPhotoFilenames {
+                let file = dataRoot.appendingPathComponent("YarnLabelPhotos/\(filename)")
+                guard isValidYarnLabelImage(at: file) else {
+                    throw KnitNoteBackupError.invalidArchive
+                }
             }
         }
         if ProjectArchive.supportsPatternLibrary(version: archive.version) {
@@ -2312,11 +2329,32 @@ public struct KnitNoteBackupService: Sendable {
             if let filename = yarn.photoFilename {
                 paths.insert("YarnPhotos/\(filename)")
             }
+            for filename in yarn.labelPhotoFilenames {
+                paths.insert("YarnLabelPhotos/\(filename)")
+            }
         }
         for asset in archive.patternAssets {
             paths.insert("Patterns/Assets/\(asset.storedFilename)")
         }
         return paths
+    }
+
+    private func isValidYarnLabelImage(at url: URL) -> Bool {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetCount(source) == 1,
+              let type = CGImageSourceGetType(source),
+              UTType(type as String)?.conforms(to: .jpeg) == true,
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0,
+              height > 0,
+              width <= 80_000_000 / height,
+              CGImageSourceCreateImageAtIndex(source, 0, nil) != nil else {
+            return false
+        }
+        return true
     }
 
     private func isOwnedPhotoFilename(_ filename: String, ownerID: UUID) -> Bool {

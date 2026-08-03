@@ -63,6 +63,64 @@ struct JSONProjectStoreYarnLabelTests {
         ))
     }
 
+    @Test func removingOneExistingLabelPhotoPreservesTheOtherAndConfirmedText() throws {
+        let fixture = makeFixture()
+        var yarn = try StoredYarn(name: "Cashmere")
+        try yarn.updateLabelDetails(
+            ballWeightGrams: 50,
+            lengthMeters: 125,
+            fiberContent: "100% Cashmere",
+            recommendedNeedleMM: nil,
+            recommendedHookMM: nil
+        )
+        try fixture.store.addYarn(
+            yarn,
+            photoData: nil,
+            labelPhotos: [try fixtureJPEG(red: 0.2), try fixtureJPEG(red: 0.6)]
+        )
+        let saved = try #require(fixture.store.yarn(id: yarn.id))
+        let removed = saved.labelPhotoFilenames[0]
+        let retained = saved.labelPhotoFilenames[1]
+
+        try fixture.store.updateYarn(
+            saved,
+            photoChange: .unchanged,
+            labelPhotoChange: .retainExisting([retained])
+        )
+
+        let updated = try #require(fixture.store.yarn(id: yarn.id))
+        #expect(updated.labelPhotoFilenames == [retained])
+        #expect(updated.ballWeightGrams == 50)
+        #expect(updated.lengthMeters == 125)
+        #expect(updated.fiberContent == "100% Cashmere")
+        #expect(!FileManager.default.fileExists(
+            atPath: try #require(fixture.labelService.url(filename: removed)).path
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: try #require(fixture.labelService.url(filename: retained)).path
+        ))
+    }
+
+    @Test func labelPhotoURLKeepsFilenameIdentityWhenAnotherFileIsMissing() throws {
+        let fixture = makeFixture()
+        let yarn = try StoredYarn(name: "Mohair")
+        try fixture.store.addYarn(
+            yarn,
+            photoData: nil,
+            labelPhotos: [try fixtureJPEG(red: 0.2), try fixtureJPEG(red: 0.8)]
+        )
+        let saved = try #require(fixture.store.yarn(id: yarn.id))
+        let missing = saved.labelPhotoFilenames[0]
+        let retained = saved.labelPhotoFilenames[1]
+        try fixture.labelService.delete(filename: missing)
+
+        #expect(fixture.store.labelPhotoURL(filename: missing) == nil)
+        #expect(
+            fixture.store.labelPhotoURL(filename: retained)
+                == fixture.labelService.url(filename: retained)
+        )
+    }
+
     @Test func persistenceFailureRollsBackPublishedLabelPhotosAndYarn() throws {
         let fixture = makeFixture(archiveWrite: { _, _ in throw FixtureError.writeFailed })
         let yarn = try StoredYarn(name: "Silk")
@@ -110,6 +168,35 @@ struct JSONProjectStoreYarnLabelTests {
         #expect(fixture.store.yarn(id: yarn.id) == nil)
         #expect(!FileManager.default.fileExists(
             atPath: fixture.labelService.url(filename: filename)?.path ?? ""
+        ))
+    }
+
+    @Test func trustedReloadRemovesUnreferencedManagedLabelPhotos() throws {
+        let fixture = makeFixture()
+        let yarn = try StoredYarn(name: "Wool")
+        try fixture.store.addYarn(
+            yarn,
+            photoData: nil,
+            labelPhotos: [try fixtureJPEG(red: 0.3)]
+        )
+        let retained = try #require(fixture.store.yarn(id: yarn.id)?.labelPhotoFilenames.first)
+        let orphan = try fixture.labelService.prepare(
+            data: try fixtureJPEG(red: 0.8),
+            yarnID: yarn.id,
+            ordinal: 2
+        )
+        try fixture.labelService.publish(orphan)
+
+        _ = JSONProjectStore(
+            url: fixture.archiveURL,
+            yarnLabelPhotoService: fixture.labelService
+        )
+
+        #expect(FileManager.default.fileExists(
+            atPath: try #require(fixture.labelService.url(filename: retained)).path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: try #require(fixture.labelService.url(filename: orphan.filename)).path
         ))
     }
 }

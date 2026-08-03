@@ -13,6 +13,7 @@ struct EditYarnView: View {
     @State private var didLoadYarn = false
     @State private var initialLinkedProjectIDs: Set<UUID> = []
     @State private var scannedLabelPhotos: [Data]?
+    @State private var retainedLabelPhotoFilenames: [String] = []
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,13 @@ struct EditYarnView: View {
                     }
                 }
                 YarnEditorFields(draft: $draft)
+                if !labelPhotoItems.isEmpty {
+                    Section("yarn.labelPhotos") {
+                        YarnLabelPhotoGallery(items: labelPhotoItems) { index in
+                            removeLabelPhoto(at: index)
+                        }
+                    }
+                }
                 Section("yarn.photo") {
                     YarnPhotoPicker(
                         existingURL: yarn.flatMap(store.photoURL(for:)),
@@ -60,6 +68,7 @@ struct EditYarnView: View {
             guard !didLoadYarn, let yarn else { return }
             draft = YarnEditorDraft(yarn: yarn, locale: locale)
             initialLinkedProjectIDs = yarn.linkedProjectIDs
+            retainedLabelPhotoFilenames = yarn.labelPhotoFilenames
             didLoadYarn = true
         }
     }
@@ -73,6 +82,27 @@ struct EditYarnView: View {
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )
+    }
+
+    private var labelPhotoItems: [YarnLabelPhotoItem] {
+        if let scannedLabelPhotos {
+            return scannedLabelPhotos.enumerated().map {
+                YarnLabelPhotoItem.selected($0.element, index: $0.offset)
+            }
+        }
+        return retainedLabelPhotoFilenames.compactMap { filename in
+            store.labelPhotoURL(filename: filename).map(YarnLabelPhotoItem.stored)
+        }
+    }
+
+    private func removeLabelPhoto(at index: Int) {
+        if scannedLabelPhotos != nil {
+            guard scannedLabelPhotos?.indices.contains(index) == true else { return }
+            scannedLabelPhotos?.remove(at: index)
+        } else {
+            guard retainedLabelPhotoFilenames.indices.contains(index) else { return }
+            retainedLabelPhotoFilenames.remove(at: index)
+        }
     }
 
     private func save() {
@@ -102,6 +132,8 @@ struct EditYarnView: View {
                     first: scannedLabelPhotos.first,
                     second: scannedLabelPhotos.dropFirst().first
                 )
+            } else if retainedLabelPhotoFilenames != yarn.labelPhotoFilenames {
+                labelPhotoChange = .retainExisting(retainedLabelPhotoFilenames)
             } else {
                 labelPhotoChange = .unchanged
             }

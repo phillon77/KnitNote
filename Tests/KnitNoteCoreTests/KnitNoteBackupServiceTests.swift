@@ -1,10 +1,103 @@
 import CoreGraphics
 import CryptoKit
 import Foundation
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Suite struct KnitNoteBackupServiceTests {
+    @Test func versionElevenBackupRoundTripsYarnLabelFieldsAndTwoPhotos() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = try StoredProject(name: "Label backup")
+        var yarn = try StoredYarn(name: "Belle")
+        yarn.setLinkedProjectIDs([project.id])
+        try yarn.updateLabelDetails(
+            ballWeightGrams: 50,
+            lengthMeters: 120,
+            fiberContent: "53% Cotton, 33% Viscose, 14% Linen",
+            recommendedNeedleMM: try YarnMetricRange(lower: 4, upper: 4.5),
+            recommendedHookMM: try YarnMetricRange(lower: 3.5, upper: 4)
+        )
+        let firstFilename = "\(yarn.id.uuidString)-label-1-\(UUID().uuidString).jpg"
+        let secondFilename = "\(yarn.id.uuidString)-label-2-\(UUID().uuidString).jpg"
+        try yarn.setLabelPhotoFilenames([firstFilename, secondFilename])
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [project],
+            yarns: [yarn]
+        )
+        try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
+        try JSONEncoder().encode(archive).write(
+            to: live.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+        let labelDirectory = live.appendingPathComponent("YarnLabelPhotos", isDirectory: true)
+        try FileManager.default.createDirectory(at: labelDirectory, withIntermediateDirectories: true)
+        let firstData = try BackupFixture.jpegData(red: 0.2)
+        let secondData = try BackupFixture.jpegData(red: 0.8)
+        try firstData.write(to: labelDirectory.appendingPathComponent(firstFilename))
+        try secondData.write(to: labelDirectory.appendingPathComponent(secondFilename))
+
+        let package = try service.createPackage(appVersion: "1.3.0")
+        let preview = try service.inspectPackage(at: package)
+        let packagedLabelRoot = package.appendingPathComponent("Data/YarnLabelPhotos")
+        #expect(preview.yarnCount == 1)
+        #expect(try Data(contentsOf: packagedLabelRoot.appendingPathComponent(firstFilename)) == firstData)
+        #expect(try Data(contentsOf: packagedLabelRoot.appendingPathComponent(secondFilename)) == secondData)
+
+        let restoredLive = root.appendingPathComponent("RestoredKnitNote", isDirectory: true)
+        let restoreService = KnitNoteBackupService(
+            liveRoot: restoredLive,
+            workRoot: root.appendingPathComponent("RestoreWork", isDirectory: true)
+        )
+        let staged = try restoreService.stagePackage(at: package)
+        let installation = try restoreService.install(staged)
+        restoreService.commit(installation)
+        let restoredArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: restoredLive.appendingPathComponent("projects-v1.json"))
+        )
+        let restoredYarn = try #require(restoredArchive.yarns.first)
+
+        #expect(restoredYarn.ballWeightGrams == 50)
+        #expect(restoredYarn.lengthMeters == 120)
+        #expect(restoredYarn.fiberContent == "53% Cotton, 33% Viscose, 14% Linen")
+        #expect(restoredYarn.labelPhotoFilenames == [firstFilename, secondFilename])
+        #expect(try Data(
+            contentsOf: restoredLive.appendingPathComponent("YarnLabelPhotos/\(firstFilename)")
+        ) == firstData)
+        #expect(try Data(
+            contentsOf: restoredLive.appendingPathComponent("YarnLabelPhotos/\(secondFilename)")
+        ) == secondData)
+    }
+
+    @Test func versionElevenBackupRejectsInvalidReferencedYarnLabelImage() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var yarn = try StoredYarn(name: "Invalid label")
+        let filename = "\(yarn.id.uuidString)-label-1-\(UUID().uuidString).jpg"
+        try yarn.setLabelPhotoFilenames([filename])
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [],
+            yarns: [yarn]
+        )
+        try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
+        try JSONEncoder().encode(archive).write(
+            to: live.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+        let labelDirectory = live.appendingPathComponent("YarnLabelPhotos", isDirectory: true)
+        try FileManager.default.createDirectory(at: labelDirectory, withIntermediateDirectories: true)
+        try Data("not an image".utf8).write(to: labelDirectory.appendingPathComponent(filename))
+
+        #expect(throws: KnitNoteBackupError.invalidArchive) {
+            try service.createPackage(appVersion: "1.3.0")
+        }
+    }
+
     @MainActor @Test func formatTwoSchemaTenPatternLibraryRestoresAndMigratesWithoutDataLoss() throws {
         let package = try BackupFixture.schemaTenPatternLibraryPackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
@@ -2410,6 +2503,32 @@ private enum BackupFixture {
         context.endPDFPage()
         context.closePDF()
         return CompleteArchive(referencedRelativePaths: files.map(\.0) + [patternPath])
+    }
+
+    static func jpegData(red: CGFloat) throws -> Data {
+        let colorSpace = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        let context = try #require(CGContext(
+            data: nil,
+            width: 20,
+            height: 20,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: red, green: 0.3, blue: 0.5, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+        let image = try #require(context.makeImage())
+        let output = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(
+            output,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        return output as Data
     }
 
     static func writePatternLibraryArchive(

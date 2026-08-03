@@ -1964,6 +1964,12 @@
         }
       }
     },
+    "common.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "載入中" } }
+      }
+    },
     "common.ok" : {
       "localizations" : {
         "en" : {
@@ -5842,6 +5848,12 @@
         }
       }
     },
+    "settings.storage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存空間" } }
+      }
+    },
     "unlock.accessibility.dismiss" : {
       "localizations" : {
         "en" : {
@@ -6846,6 +6858,30 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Label Details" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "標籤資料" } }
+      }
+    },
+    "yarn.labelPhoto.accessibility %lld" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Yarn label photo %lld" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "毛線標籤照片 %lld" } }
+      }
+    },
+    "yarn.labelPhoto.remove" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove Photo" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "移除照片" } }
+      }
+    },
+    "yarn.labelPhotos" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Yarn Label Photos" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "毛線標籤照片" } }
+      }
+    },
+    "yarn.labelPhotos.storage.unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unavailable" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法取得" } }
       }
     },
     "yarn.lengthMeters" : {

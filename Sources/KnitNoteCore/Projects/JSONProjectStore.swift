@@ -67,7 +67,12 @@ public enum ProjectPhotoChange: Sendable {
 public enum YarnLabelPhotoChange: Sendable {
     case unchanged
     case replace(first: Data?, second: Data?)
+    case retainExisting([String])
     case removeAll
+}
+
+public extension Notification.Name {
+    static let yarnLabelPhotosDidChange = Notification.Name("yarnLabelPhotosDidChange")
 }
 
 public enum ProjectStoreError: Error, Equatable, Sendable {
@@ -768,6 +773,7 @@ final class PatternLibraryDeletionTransaction {
             service.commit(installation)
         }.value
         try? patternThumbnailService.deleteAll()
+        notifyYarnLabelPhotosDidChange()
         projectCoverGeneration &+= 1
     }
     public func add(name: String) throws { try add(name: name, photoData: nil) }
@@ -1811,6 +1817,9 @@ final class PatternLibraryDeletionTransaction {
             publishedLabelFilenames = try publishLabelPhotos(preparedLabels)
             try yarn.setLabelPhotoFilenames(publishedLabelFilenames)
             try persist(projects: projects, yarns: yarns + [yarn])
+            if !publishedLabelFilenames.isEmpty {
+                notifyYarnLabelPhotosDidChange()
+            }
         } catch {
             if let newFilename { try? yarnPhotoService.delete(filename: newFilename) }
             rollbackLabelPhotos(
@@ -1870,6 +1879,11 @@ final class PatternLibraryDeletionTransaction {
                 preparedLabels = try prepareLabelPhotos(labelPhotos, yarnID: yarn.id)
                 publishedLabelFilenames = try publishLabelPhotos(preparedLabels)
                 try updated.setLabelPhotoFilenames(publishedLabelFilenames)
+            case let .retainExisting(filenames):
+                guard Set(filenames).isSubset(of: Set(oldLabelFilenames)) else {
+                    throw YarnLabelPhotoFileError.invalidFilename
+                }
+                try updated.setLabelPhotoFilenames(filenames)
             case .removeAll:
                 try updated.setLabelPhotoFilenames([])
             }
@@ -1890,6 +1904,9 @@ final class PatternLibraryDeletionTransaction {
         for filename in oldLabelFilenames where !updated.labelPhotoFilenames.contains(filename) {
             try? yarnLabelPhotoService.delete(filename: filename)
         }
+        if oldLabelFilenames != updated.labelPhotoFilenames {
+            notifyYarnLabelPhotosDidChange()
+        }
     }
     public func deleteYarn(id: UUID) throws {
         try requireAccess(.deleteYarn)
@@ -1905,8 +1922,30 @@ final class PatternLibraryDeletionTransaction {
         for labelFilename in labelFilenames {
             try? yarnLabelPhotoService.delete(filename: labelFilename)
         }
+        if !labelFilenames.isEmpty {
+            notifyYarnLabelPhotosDidChange()
+        }
     }
     public func yarn(id: UUID) -> StoredYarn? { yarns.first { $0.id == id } }
+    public func labelPhotoURL(filename: String) -> URL? {
+        guard let url = yarnLabelPhotoService.url(filename: filename),
+              FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return url
+    }
+
+    public func labelPhotoURLs(for yarn: StoredYarn) -> [URL] {
+        yarn.labelPhotoFilenames.compactMap(labelPhotoURL(filename:))
+    }
+
+    public func yarnLabelPhotoStorageBytes() async throws -> Int64 {
+        let service = yarnLabelPhotoService
+        return try await Task.detached(priority: .utility) {
+            try service.totalStorageBytes()
+        }.value
+    }
+
     public func yarns(linkedTo projectID: UUID) -> [StoredYarn] {
         yarns.filter { $0.linkedProjectIDs.contains(projectID) }
     }
@@ -2158,6 +2197,7 @@ final class PatternLibraryDeletionTransaction {
         dataGeneration &+= 1
         loadError = nil
         reconcileYarnPhotos()
+        reconcileYarnLabelPhotos()
         reconcileJournalPhotos()
     }
 
@@ -2520,6 +2560,7 @@ final class PatternLibraryDeletionTransaction {
             patternUsages = usages
             dataGeneration &+= 1
             reconcileYarnPhotos()
+            reconcileYarnLabelPhotos()
             reconcileJournalPhotos()
         } catch let error as ProjectStoreError {
             throw error
@@ -2532,6 +2573,16 @@ final class PatternLibraryDeletionTransaction {
         try? yarnPhotoService.reconcile(
             referencedFilenames: Set(yarns.compactMap(\.photoFilename))
         )
+    }
+
+    private func reconcileYarnLabelPhotos() {
+        try? yarnLabelPhotoService.reconcile(
+            referencedFilenames: Set(yarns.flatMap(\.labelPhotoFilenames))
+        )
+    }
+
+    private func notifyYarnLabelPhotosDidChange() {
+        NotificationCenter.default.post(name: .yarnLabelPhotosDidChange, object: nil)
     }
 
     private func reconcileJournalPhotos() {

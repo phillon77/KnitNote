@@ -60,7 +60,7 @@
 - A verified legacy paid owner keeps permanent access; temporary StoreKit
   unavailability must not demote that entitlement to a trial.
 - KnitNote requires no account and performs no tracking.
-- The current project archive format uses schema 10.
+- The current project archive format uses schema 11.
 - The complete backup format uses manifest 2.
 - The Share extension target is `KnitNoteShare`.
 
@@ -74,16 +74,19 @@
 
 ## 1.3 development verification
 
-- Branch: `feat/knitnote-1.3-project-yarn`
+- Branch: `release/knitnote-1.3`
+- Candidate: `1.3.0` / Build `1`
 - Automated verification: `PASS`
-- Physical iPhone/iPad acceptance: `INCOMPLETE`
-- Physical Mac acceptance: `INCOMPLETE`
+- Physical iPhone/iPad core acceptance: `PASS`
+- Physical Mac core acceptance: `PASS`
+- Extended physical edge-case matrix: `INCOMPLETE`
 - TestFlight commercial matrix: `INCOMPLETE`
 
-The 1.3 development branch has passed its automated tests, static release audit,
-and unsigned Release builds for iOS, macOS, watchOS, and the Share extension.
-It is not a release candidate until the physical-device and TestFlight gates
-above are completed against one immutable Git commit.
+The 1.3 candidate has passed its automated checks and the completed core
+physical acceptance paths for iPhone, iPad, and Mac. The remaining edge-case
+and TestFlight commercial checks must be completed against one immutable Git
+commit. This candidate is not approved for public release until every remaining
+gate is complete.
 
 ## Historical records
 

@@ -9,10 +9,10 @@ import Testing
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch"))
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share"))
         #expect(
-            yaml.components(separatedBy: "MARKETING_VERSION: 1.2.1").count == 4
+            yaml.components(separatedBy: "MARKETING_VERSION: 1.3.0").count == 4
         )
         #expect(
-            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 4").count == 4
+            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 1").count == 4
         )
         #expect(yaml.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
     }
@@ -53,7 +53,7 @@ import Testing
 
         #expect(text.contains("公開版本：iOS／macOS `1.2.1`"))
         #expect(text.contains("legacy paid owner"))
-        #expect(text.contains("schema 10"))
+        #expect(text.contains("schema 11"))
         #expect(text.contains("manifest 2"))
         #expect(text.contains("KnitNoteShare"))
         for heading in [
@@ -72,12 +72,14 @@ import Testing
         let text = try sourceText("AppStore/AppStoreSubmission.md")
 
         #expect(text.contains("## 1.3 development verification"))
-        #expect(text.contains("feat/knitnote-1.3-project-yarn"))
+        #expect(text.contains("release/knitnote-1.3"))
+        #expect(text.contains("Candidate: `1.3.0` / Build `1`"))
         #expect(text.contains("Automated verification: `PASS`"))
-        #expect(text.contains("Physical iPhone/iPad acceptance: `INCOMPLETE`"))
-        #expect(text.contains("Physical Mac acceptance: `INCOMPLETE`"))
+        #expect(text.contains("Physical iPhone/iPad core acceptance: `PASS`"))
+        #expect(text.contains("Physical Mac core acceptance: `PASS`"))
+        #expect(text.contains("Extended physical edge-case matrix: `INCOMPLETE`"))
         #expect(text.contains("TestFlight commercial matrix: `INCOMPLETE`"))
-        #expect(text.contains("not a release candidate"))
+        #expect(text.contains("not approved for public release"))
     }
 
     @Test func releaseAuditUsesRepairVersionAndHistoricalVerificationStaysLabeled() throws {
@@ -86,7 +88,7 @@ import Testing
             "AppStore/Verification/PatternLibraryVerification.md"
         )
 
-        #expect(audit.contains(#"EXPECTED_VERSION="1.2.1""#))
+        #expect(audit.contains(#"EXPECTED_VERSION="1.3.0""#))
         #expect(verification.contains("Candidate: `1.2.0` / Build `3`"))
         #expect(verification.contains("does not verify the pending `1.2.1`"))
     }
@@ -271,10 +273,10 @@ import Testing
         #expect(text?.contains("RELEASE AUDIT: PASS") == true)
     }
 
-    @Test func staticReleaseAuditPinsBuildFourAndChecksEveryStringCatalog() throws {
+    @Test func staticReleaseAuditPinsBuildOneAndChecksEveryStringCatalog() throws {
         let script = try sourceText("AppStore/Verification/release_audit.sh")
 
-        #expect(script.contains("EXPECTED_BUILD=\"4\""))
+        #expect(script.contains("EXPECTED_BUILD=\"1\""))
         #expect(script.contains("def localization_is_complete"))
         for catalog in [
             "KnitNote/Localization/Localizable.xcstrings",

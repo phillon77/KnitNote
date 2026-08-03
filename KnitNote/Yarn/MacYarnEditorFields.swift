@@ -114,6 +114,7 @@ struct MacYarnEditorFields: View {
                         }
                     }
                     .accessibilityIdentifier("macYarnEditor.linkedProjects")
+                    .accessibilityLabel(Text("yarn.linkedProjects"))
                     .macYarnEditorLayoutFrame("macYarnEditor.linkedProjects")
                 }
             }
@@ -133,6 +134,7 @@ struct MacYarnEditorFields: View {
         TextField(titleKey, text: text)
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier(identifier)
+            .accessibilityLabel(Text(titleKey))
             .macYarnEditorLayoutFrame(identifier)
     }
 
@@ -144,6 +146,7 @@ struct MacYarnEditorFields: View {
         TextField(titleKey, text: text)
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier(identifier)
+            .accessibilityLabel(Text(titleKey))
             .macYarnEditorLayoutFrame(identifier)
     }
 

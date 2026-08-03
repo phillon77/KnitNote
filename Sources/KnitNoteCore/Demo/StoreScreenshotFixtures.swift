@@ -208,6 +208,9 @@ public enum StoreScreenshotFixtures {
             if let filename = yarn.photoFilename {
                 files["YarnPhotos/\(filename)"] = swatch
             }
+            for filename in yarn.labelPhotoFilenames {
+                files["YarnLabelPhotos/\(filename)"] = swatch
+            }
         }
         return StoreScreenshotFixturePackage(archive: archive, files: files)
     }
@@ -252,6 +255,14 @@ public enum StoreScreenshotFixtures {
                 "\(id.uuidString)-\(photoToken.uuidString).jpg",
                 now: fixedDate
             )
+            if index == 0 {
+                let labelPhotoToken = UUID(
+                    uuidString: "52000000-0000-4000-8000-000000000001"
+                )!
+                try yarn.setLabelPhotoFilenames([
+                    "\(id.uuidString)-label-1-\(labelPhotoToken.uuidString).jpg",
+                ], now: fixedDate)
+            }
             return yarn
         }
     }

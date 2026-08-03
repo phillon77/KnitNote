@@ -112,6 +112,7 @@
 		61333EB179CA9A4FE0954015 /* UnlockPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */; };
 		62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		625C39A0B9A33D2FADACCA3E /* WatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */; };
+		6495C02F7B77E988D6CF3330 /* YarnLabelDraftSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */; };
 		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600A5A211EF6682DED675574 /* EditCounterNameView.swift */; };
 		66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
@@ -241,6 +242,7 @@
 		DA95835CF1FE8ED5122062AF /* ProjectPatternsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */; };
 		DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
 		DC39760B7C07407210A12CF0 /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
+		DD0AFCAC33475322E97533FF /* YarnLabelDraftSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */; };
 		DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		DD86888BF9949C6FC0E5597D /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
 		E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };
@@ -492,6 +494,7 @@
 		AE2721C6AB54E5F271947F0E /* ProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
 		AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementResolver.swift; sourceTree = "<group>"; };
 		AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateYarnView.swift; sourceTree = "<group>"; };
+		B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelDraftSeed.swift; sourceTree = "<group>"; };
 		B4CD7459BFFD6F5954AE7FDE /* PhoneWatchSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSyncCoordinator.swift; sourceTree = "<group>"; };
 		B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternShareInboxEnqueuer.swift; sourceTree = "<group>"; };
 		BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchAnimationView.swift; sourceTree = "<group>"; };
@@ -653,6 +656,7 @@
 			isa = PBXGroup;
 			children = (
 				2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */,
+				B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */,
 				00EBACED64349D218A8F4356 /* YarnLabelFieldParser.swift */,
 				EF29A3759BFD3D7AEB014EBA /* YarnLabelObservation.swift */,
 				7BB782ACB4ABF1B570514779 /* YarnLabelPhotoFileService.swift */,
@@ -1349,6 +1353,7 @@
 				6AF16B60E9057AC4B2FD2EDE /* YarnDetailView.swift in Sources */,
 				01969CEC3E446A5A02192151 /* YarnEditorFields.swift in Sources */,
 				D1DE59CB01C60B48B3511FAA /* YarnInventoryText.swift in Sources */,
+				6495C02F7B77E988D6CF3330 /* YarnLabelDraftSeed.swift in Sources */,
 				1DFD2F3B8A3AB77D87CD368B /* YarnLabelFieldParser.swift in Sources */,
 				0BE67293D9F6BDB34C11427A /* YarnLabelObservation.swift in Sources */,
 				5A7759A00647453C2602EC20 /* YarnLabelPhotoFileService.swift in Sources */,
@@ -1435,6 +1440,7 @@
 				8D0F39BD34FDE02B7DFC6A64 /* WatchSyncCoordinator.swift in Sources */,
 				F88B0DA6E2D5A7B55286CC20 /* WatchSyncModels.swift in Sources */,
 				C42138FBF27EB5F5C43060FA /* WatercolorThemePolicy.swift in Sources */,
+				DD0AFCAC33475322E97533FF /* YarnLabelDraftSeed.swift in Sources */,
 				95E455B94A36C1FE305417D0 /* YarnLabelFieldParser.swift in Sources */,
 				0067BD647A5C8F1074C2BF40 /* YarnLabelObservation.swift in Sources */,
 				C29E7AF89EB9E51D94A9F190 /* YarnLabelPhotoFileService.swift in Sources */,

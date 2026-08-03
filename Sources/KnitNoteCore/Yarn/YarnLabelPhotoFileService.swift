@@ -1,5 +1,4 @@
 import CoreGraphics
-import CoreImage
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -168,20 +167,24 @@ public struct YarnLabelPhotoFileService: Sendable {
     }
 
     private func encodeJPEG(_ image: CGImage, quality: Double) throws -> Data {
-        let context = CIContext(options: [.cacheIntermediates: false])
-        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
-        guard let output = context.jpegRepresentation(
-            of: CIImage(cgImage: image),
-            colorSpace: colorSpace,
-            options: [
-                CIImageRepresentationOption(
-                    rawValue: kCGImageDestinationLossyCompressionQuality as String
-                ): quality,
-            ]
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
         ) else {
             throw YarnLabelPhotoFileError.encodingFailed
         }
-        return try Self.removingJPEGMetadata(from: output)
+        CGImageDestinationAddImage(
+            destination,
+            image,
+            [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
+        )
+        guard CGImageDestinationFinalize(destination) else {
+            throw YarnLabelPhotoFileError.encodingFailed
+        }
+        return try Self.removingJPEGMetadata(from: output as Data)
     }
 
     private static func removingJPEGMetadata(from data: Data) throws -> Data {

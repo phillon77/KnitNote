@@ -156,7 +156,9 @@ struct YarnDetailView: View {
                 }
             }
             .sheet(isPresented: $showingEdit) {
-                EditYarnView(yarnID: yarnID)
+                YarnSheetLocaleBridge(locale: locale) {
+                    EditYarnView(yarnID: yarnID)
+                }
             }
         }
     }

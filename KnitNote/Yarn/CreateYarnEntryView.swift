@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CreateYarnEntryView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @State private var creationSeed: YarnLabelDraftSeed?
     @State private var labelPhotos: [Data] = []
     @State private var showingEditor = false
@@ -45,8 +46,10 @@ struct CreateYarnEntryView: View {
                 }
             }
             .sheet(isPresented: $showingEditor) {
-                CreateYarnView(seed: creationSeed, labelPhotos: labelPhotos) {
-                    dismiss()
+                YarnSheetLocaleBridge(locale: locale) {
+                    CreateYarnView(seed: creationSeed, labelPhotos: labelPhotos) {
+                        dismiss()
+                    }
                 }
             }
         }

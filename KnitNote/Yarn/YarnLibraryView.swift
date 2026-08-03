@@ -2,6 +2,7 @@ import SwiftUI
 
 struct YarnLibraryView: View {
     @EnvironmentObject private var store: JSONProjectStore
+    @Environment(\.locale) private var locale
     @State private var showingCreate = false
     @State private var editingYarn: StoredYarn?
     @State private var pendingDeletion: StoredYarn?
@@ -65,10 +66,14 @@ struct YarnLibraryView: View {
                 }
             }
             .sheet(isPresented: $showingCreate) {
-                CreateYarnEntryView()
+                YarnSheetLocaleBridge(locale: locale) {
+                    CreateYarnEntryView()
+                }
             }
             .sheet(item: $editingYarn) { yarn in
-                EditYarnView(yarnID: yarn.id)
+                YarnSheetLocaleBridge(locale: locale) {
+                    EditYarnView(yarnID: yarn.id)
+                }
             }
             .confirmationDialog(
                 "yarn.delete.confirm",

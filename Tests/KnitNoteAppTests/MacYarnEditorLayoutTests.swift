@@ -103,6 +103,28 @@ import Testing
         }
     }
 
+    @Test func yarnSheetLocaleBridgeDeliversInjectedEnglishLocaleToChildContent() throws {
+        let probe = LocaleProbe()
+        let root = YarnSheetLocaleBridge(locale: Locale(identifier: "en")) {
+            LocaleProbeView(probe: probe)
+        }
+        .environment(\.locale, Locale(identifier: "zh-Hant"))
+        let host = NSHostingView(rootView: AnyView(root))
+        let window = NSWindow(
+            contentRect: NSRect(x: -10_000, y: -10_000, width: 520, height: 560),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        WindowRetainer.shared.windows.append(window)
+        window.orderFrontRegardless()
+
+        waitForLocaleProbe(probe, in: host)
+
+        #expect(probe.localeIdentifier == "en")
+    }
+
     private func renderCreateYarn(width: CGFloat) -> RenderedCreateYarn {
         let storeURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacYarnEditorLayout-\(UUID().uuidString).json")
@@ -140,6 +162,15 @@ import Testing
             host.layoutSubtreeIfNeeded()
             RunLoop.current.run(until: Date().addingTimeInterval(0.01))
         } while !required.isSubset(of: Set(collector.frames.keys)) && Date() < deadline
+    }
+
+    private func waitForLocaleProbe(_ probe: LocaleProbe, in host: NSHostingView<AnyView>) {
+        let deadline = Date().addingTimeInterval(1)
+        repeat {
+            host.window?.layoutIfNeeded()
+            host.layoutSubtreeIfNeeded()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        } while probe.localeIdentifier == nil && Date() < deadline
     }
 
     private func renderEditYarn(store: JSONProjectStore, yarnID: UUID) -> RenderedCreateYarn {
@@ -193,6 +224,20 @@ import Testing
 
     private final class FrameCollector {
         var frames: [String: NSRect] = [:]
+    }
+
+    private final class LocaleProbe {
+        var localeIdentifier: String?
+    }
+
+    private struct LocaleProbeView: View {
+        @Environment(\.locale) private var locale
+        let probe: LocaleProbe
+
+        var body: some View {
+            Color.clear
+                .onAppear { probe.localeIdentifier = locale.identifier }
+        }
     }
 
     @MainActor private final class WindowRetainer {

@@ -25,7 +25,7 @@ targets:
               - knitnote
         LSApplicationCategoryType: public.app-category.lifestyle
         UILaunchStoryboardName: LaunchScreen
-        NSCameraUsageDescription: Take photos for your knitting projects and journal entries.
+        NSCameraUsageDescription: Take photos for knitting projects, journal entries, and yarn labels.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown

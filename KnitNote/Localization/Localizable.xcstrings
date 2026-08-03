@@ -6818,6 +6818,186 @@
         }
       }
     },
+    "yarn.addManually" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Manually" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "手動新增" } }
+      }
+    },
+    "yarn.addManually.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter yarn information yourself" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自行輸入毛線資料" } }
+      }
+    },
+    "yarn.ballWeightGrams" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ball Weight (g)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每球重量（克）" } }
+      }
+    },
+    "yarn.fiberContent" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fiber Content" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "纖維成分" } }
+      }
+    },
+    "yarn.label.details" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Label Details" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "標籤資料" } }
+      }
+    },
+    "yarn.lengthMeters" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Length (m)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每球長度（公尺）" } }
+      }
+    },
+    "yarn.range.lower" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "From" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最小" } }
+      }
+    },
+    "yarn.range.upper" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "To" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最大" } }
+      }
+    },
+    "yarn.recommendedHookMM" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Crochet Hook" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議鉤針" } }
+      }
+    },
+    "yarn.recommendedNeedleMM" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Knitting Needle" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建議棒針" } }
+      }
+    },
+    "yarn.scan.action" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Scan Yarn Label" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "掃描毛線標籤" } }
+      }
+    },
+    "yarn.scan.action.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use one or two label photos, then confirm the recognized details" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用一至兩張標籤照片，再確認辨識資料" } }
+      }
+    },
+    "yarn.scan.camera" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "相機" } }
+      }
+    },
+    "yarn.scan.camera.denied" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera Access Is Off" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "相機權限未開啟" } }
+      }
+    },
+    "yarn.scan.failed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The label could not be recognized." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法辨識這張標籤。" } }
+      }
+    },
+    "yarn.scan.finder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose from Finder" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從 Finder 選取" } }
+      }
+    },
+    "yarn.scan.image.error" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The image could not be opened. Try another photo." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法開啟圖片，請改用另一張照片。" } }
+      }
+    },
+    "yarn.scan.image.remove" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove Label Photo" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "移除標籤照片" } }
+      }
+    },
+    "yarn.scan.images.empty" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Label Photos" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加入標籤照片" } }
+      }
+    },
+    "yarn.scan.images.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose one or two clear photos of the yarn label." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇一至兩張清楚的毛線標籤照片。" } }
+      }
+    },
+    "yarn.scan.leaveBlank" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Leave Blank" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "留空" } }
+      }
+    },
+    "yarn.scan.needsConfirmation" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Needs confirmation" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "需要確認" } }
+      }
+    },
+    "yarn.scan.openSettings" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Settings" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開啟設定" } }
+      }
+    },
+    "yarn.scan.photoLibrary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Photo Library" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "照片圖庫" } }
+      }
+    },
+    "yarn.scan.recognize" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recognize" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開始辨識" } }
+      }
+    },
+    "yarn.scan.recognizing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recognizing Label…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在辨識標籤⋯" } }
+      }
+    },
+    "yarn.scan.review.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose the value shown on the yarn label, or leave it blank." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇標籤上的正確資料，或保持空白。" } }
+      }
+    },
+    "yarn.scan.review.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Recognized Details" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認辨識資料" } }
+      }
+    },
+    "yarn.scan.review.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Review Label" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檢查標籤" } }
+      }
+    },
+    "yarn.scan.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Scan Yarn Label" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "掃描毛線標籤" } }
+      }
+    },
     "yarn.storageLocation" : {
       "localizations" : {
         "en" : {

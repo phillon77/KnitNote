@@ -34,13 +34,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Take photos for your knitting projects and journal entries."
+            "value" : "Take photos for knitting projects, journal entries, and yarn labels."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拍攝照片加入你的編織作品與編織日記。"
+            "value" : "拍攝照片加入你的編織作品、編織日記與毛線標籤。"
           }
         }
       }

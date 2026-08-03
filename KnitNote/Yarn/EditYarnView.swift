@@ -12,10 +12,19 @@ struct EditYarnView: View {
     @State private var errorMessage: YarnOperationFailure?
     @State private var didLoadYarn = false
     @State private var initialLinkedProjectIDs: Set<UUID> = []
+    @State private var scannedLabelPhotos: [Data]?
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    YarnLabelScanLauncher { output in
+                        draft.apply(output.seed, locale: locale)
+                        scannedLabelPhotos = output.labelPhotos
+                    } label: {
+                        Label("yarn.scan.action", systemImage: "viewfinder")
+                    }
+                }
                 YarnEditorFields(draft: $draft)
                 Section("yarn.photo") {
                     YarnPhotoPicker(
@@ -87,7 +96,20 @@ struct EditYarnView: View {
                 current: yarn.linkedProjectIDs
             )
             let updated = try mergedDraft.applying(to: yarn, locale: locale)
-            try store.updateYarn(updated, photoChange: photoChange)
+            let labelPhotoChange: YarnLabelPhotoChange
+            if let scannedLabelPhotos {
+                labelPhotoChange = .replace(
+                    first: scannedLabelPhotos.first,
+                    second: scannedLabelPhotos.dropFirst().first
+                )
+            } else {
+                labelPhotoChange = .unchanged
+            }
+            try store.updateYarn(
+                updated,
+                photoChange: photoChange,
+                labelPhotoChange: labelPhotoChange
+            )
             dismiss()
         } catch {
             errorMessage = .saving(error)

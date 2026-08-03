@@ -65,7 +65,7 @@ struct YarnLibraryView: View {
                 }
             }
             .sheet(isPresented: $showingCreate) {
-                CreateYarnView()
+                CreateYarnEntryView()
             }
             .sheet(item: $editingYarn) { yarn in
                 EditYarnView(yarnID: yarn.id)

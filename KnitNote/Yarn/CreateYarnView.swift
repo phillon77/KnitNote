@@ -9,6 +9,20 @@ struct CreateYarnView: View {
     @State private var removesExistingPhoto = false
     @State private var isPhotoLoading = false
     @State private var errorMessage: YarnOperationFailure?
+    @State private var labelPhotos: [Data]
+    @State private var didApplySeed = false
+    private let seed: YarnLabelDraftSeed?
+    private let onSaved: (() -> Void)?
+
+    init(
+        seed: YarnLabelDraftSeed? = nil,
+        labelPhotos: [Data] = [],
+        onSaved: (() -> Void)? = nil
+    ) {
+        self.seed = seed
+        self.onSaved = onSaved
+        _labelPhotos = State(initialValue: Array(labelPhotos.prefix(2)))
+    }
 
     var body: some View {
         NavigationStack {
@@ -44,6 +58,11 @@ struct CreateYarnView: View {
         }
         .frame(minWidth: 340, minHeight: 520)
         .tint(WatercolorTheme.actionBerry)
+        .onAppear {
+            guard !didApplySeed, let seed else { return }
+            draft.apply(seed, locale: locale)
+            didApplySeed = true
+        }
     }
 
     private var errorIsPresented: Binding<Bool> {
@@ -58,8 +77,13 @@ struct CreateYarnView: View {
             let currentProjectIDs = Set(store.projects.map(\.id))
             draft.linkedProjectIDs.formIntersection(currentProjectIDs)
             let yarn = try draft.makeYarn(locale: locale)
-            try store.addYarn(yarn, photoData: selectedPhotoData)
+            try store.addYarn(
+                yarn,
+                photoData: selectedPhotoData,
+                labelPhotos: Array(labelPhotos.prefix(2))
+            )
             dismiss()
+            onSaved?()
         } catch {
             errorMessage = .saving(error)
         }

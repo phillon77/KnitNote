@@ -538,7 +538,7 @@ import Testing
         }
     }
 
-    @Test func cameraPurposeDescriptionMentionsProjectsAndJournalEntriesInBothLanguages() throws {
+    @Test func cameraPurposeDescriptionMentionsProjectsJournalEntriesAndYarnLabels() throws {
         let catalogURL = repositoryRoot.appending(
             path: "KnitNote/Localization/InfoPlist.xcstrings"
         )
@@ -550,11 +550,11 @@ import Testing
 
         #expect(
             try infoPlistLocalizedValue("en", localizations: localizations)
-                == "Take photos for your knitting projects and journal entries."
+                == "Take photos for knitting projects, journal entries, and yarn labels."
         )
         #expect(
             try infoPlistLocalizedValue("zh-Hant", localizations: localizations)
-                == "拍攝照片加入你的編織作品與編織日記。"
+                == "拍攝照片加入你的編織作品、編織日記與毛線標籤。"
         )
     }
 

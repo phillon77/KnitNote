@@ -64,6 +64,12 @@ public enum ProjectPhotoChange: Sendable {
     case remove
 }
 
+public enum YarnLabelPhotoChange: Sendable {
+    case unchanged
+    case replace(first: Data?, second: Data?)
+    case removeAll
+}
+
 public enum ProjectStoreError: Error, Equatable, Sendable {
     case unreadableArchive
     case archiveUnavailable
@@ -461,6 +467,7 @@ final class PatternLibraryDeletionTransaction {
     private var url: URL
     private let photoService: ProjectPhotoFileService
     private let yarnPhotoService: YarnPhotoFileService
+    private let yarnLabelPhotoService: YarnLabelPhotoFileService
     private let journalPhotoService: ProjectJournalPhotoFileService
     private var patternFileService: PatternFileService?
     private var patternInboxFileService: PatternInboxFileService?
@@ -480,6 +487,7 @@ final class PatternLibraryDeletionTransaction {
         url: URL,
         photoService: ProjectPhotoFileService? = nil,
         yarnPhotoService: YarnPhotoFileService? = nil,
+        yarnLabelPhotoService: YarnLabelPhotoFileService? = nil,
         journalPhotoService: ProjectJournalPhotoFileService? = nil,
         patternFileService: PatternFileService? = nil,
         patternInboxFileService: PatternInboxFileService? = nil,
@@ -498,6 +506,7 @@ final class PatternLibraryDeletionTransaction {
             url: url,
             photoService: photoService,
             yarnPhotoService: yarnPhotoService,
+            yarnLabelPhotoService: yarnLabelPhotoService,
             journalPhotoService: journalPhotoService,
             patternFileService: patternFileService,
             patternInboxFileService: patternInboxFileService,
@@ -514,6 +523,7 @@ final class PatternLibraryDeletionTransaction {
         url: URL,
         photoService: ProjectPhotoFileService? = nil,
         yarnPhotoService: YarnPhotoFileService? = nil,
+        yarnLabelPhotoService: YarnLabelPhotoFileService? = nil,
         journalPhotoService: ProjectJournalPhotoFileService? = nil,
         patternFileService: PatternFileService? = nil,
         patternInboxFileService: PatternInboxFileService? = nil,
@@ -536,6 +546,12 @@ final class PatternLibraryDeletionTransaction {
         )
         self.yarnPhotoService = yarnPhotoService ?? YarnPhotoFileService(
             directory: url.deletingLastPathComponent().appendingPathComponent("YarnPhotos", isDirectory: true)
+        )
+        self.yarnLabelPhotoService = yarnLabelPhotoService ?? YarnLabelPhotoFileService(
+            directory: url.deletingLastPathComponent().appendingPathComponent(
+                "YarnLabelPhotos",
+                isDirectory: true
+            )
         )
         self.journalPhotoService = journalPhotoService ?? ProjectJournalPhotoFileService(
             directory: url.deletingLastPathComponent().appendingPathComponent("ProjectJournalPhotos", isDirectory: true)
@@ -1760,7 +1776,17 @@ final class PatternLibraryDeletionTransaction {
         try addYarn(yarn, photoData: nil)
     }
     public func addYarn(_ yarn: StoredYarn, photoData: Data?) throws {
+        try addYarn(yarn, photoData: photoData, labelPhotos: [])
+    }
+    public func addYarn(
+        _ yarn: StoredYarn,
+        photoData: Data?,
+        labelPhotos: [Data]
+    ) throws {
         try requireAccess(.createYarn)
+        guard labelPhotos.count <= 2 else {
+            throw YarnLabelPhotoFileError.invalidOrdinal
+        }
         var yarn = yarn
         try validateYarnProjectChange(
             from: [],
@@ -1768,15 +1794,29 @@ final class PatternLibraryDeletionTransaction {
             missingProjectError: ProjectStoreError.invalidYarnProjectLinks
         )
         var newFilename: String?
+        var preparedLabels: [PreparedYarnLabelPhoto] = []
+        var publishedLabelFilenames: [String] = []
         do {
-            if let photoData {
+            if photoData != nil || !labelPhotos.isEmpty {
                 try ensureArchiveAvailable()
+            }
+            if let photoData {
                 newFilename = try yarnPhotoService.save(data: photoData, yarnID: yarn.id)
                 yarn.setPhotoFilename(newFilename)
             }
+            preparedLabels = try prepareLabelPhotos(
+                labelPhotos.enumerated().map { ($0.element, $0.offset + 1) },
+                yarnID: yarn.id
+            )
+            publishedLabelFilenames = try publishLabelPhotos(preparedLabels)
+            try yarn.setLabelPhotoFilenames(publishedLabelFilenames)
             try persist(projects: projects, yarns: yarns + [yarn])
         } catch {
             if let newFilename { try? yarnPhotoService.delete(filename: newFilename) }
+            rollbackLabelPhotos(
+                prepared: preparedLabels,
+                publishedFilenames: publishedLabelFilenames
+            )
             throw error
         }
     }
@@ -1784,6 +1824,17 @@ final class PatternLibraryDeletionTransaction {
         try updateYarn(yarn, photoChange: .unchanged)
     }
     public func updateYarn(_ yarn: StoredYarn, photoChange: YarnPhotoChange) throws {
+        try updateYarn(
+            yarn,
+            photoChange: photoChange,
+            labelPhotoChange: .unchanged
+        )
+    }
+    public func updateYarn(
+        _ yarn: StoredYarn,
+        photoChange: YarnPhotoChange,
+        labelPhotoChange: YarnLabelPhotoChange
+    ) throws {
         try requireAccess(.editYarn)
         guard let index = yarns.firstIndex(where: { $0.id == yarn.id }) else { return }
         try validateYarnProjectChange(
@@ -1792,8 +1843,11 @@ final class PatternLibraryDeletionTransaction {
             missingProjectError: ProjectStoreError.invalidYarnProjectLinks
         )
         let oldFilename = yarns[index].photoFilename
+        let oldLabelFilenames = yarns[index].labelPhotoFilenames
         var updated = yarn
         var newFilename: String?
+        var preparedLabels: [PreparedYarnLabelPhoto] = []
+        var publishedLabelFilenames: [String] = []
         do {
             switch photoChange {
             case .unchanged:
@@ -1805,15 +1859,36 @@ final class PatternLibraryDeletionTransaction {
             case .remove:
                 updated.setPhotoFilename(nil)
             }
+            switch labelPhotoChange {
+            case .unchanged:
+                try updated.setLabelPhotoFilenames(oldLabelFilenames, now: updated.updatedAt)
+            case let .replace(first, second):
+                try ensureArchiveAvailable()
+                var labelPhotos: [(Data, Int)] = []
+                if let first { labelPhotos.append((first, 1)) }
+                if let second { labelPhotos.append((second, 2)) }
+                preparedLabels = try prepareLabelPhotos(labelPhotos, yarnID: yarn.id)
+                publishedLabelFilenames = try publishLabelPhotos(preparedLabels)
+                try updated.setLabelPhotoFilenames(publishedLabelFilenames)
+            case .removeAll:
+                try updated.setLabelPhotoFilenames([])
+            }
             var staged = yarns
             staged[index] = updated
             try persist(projects: projects, yarns: staged)
         } catch {
             if let newFilename { try? yarnPhotoService.delete(filename: newFilename) }
+            rollbackLabelPhotos(
+                prepared: preparedLabels,
+                publishedFilenames: publishedLabelFilenames
+            )
             throw error
         }
         if let oldFilename, oldFilename != updated.photoFilename {
             try? yarnPhotoService.delete(filename: oldFilename)
+        }
+        for filename in oldLabelFilenames where !updated.labelPhotoFilenames.contains(filename) {
+            try? yarnLabelPhotoService.delete(filename: filename)
         }
     }
     public func deleteYarn(id: UUID) throws {
@@ -1824,8 +1899,12 @@ final class PatternLibraryDeletionTransaction {
             throw ProjectYarnLinkError.projectCompleted
         }
         let filename = yarn.photoFilename
+        let labelFilenames = yarn.labelPhotoFilenames
         try persist(projects: projects, yarns: yarns.filter { $0.id != id })
         if let filename { try? yarnPhotoService.delete(filename: filename) }
+        for labelFilename in labelFilenames {
+            try? yarnLabelPhotoService.delete(filename: labelFilename)
+        }
     }
     public func yarn(id: UUID) -> StoredYarn? { yarns.first { $0.id == id } }
     public func yarns(linkedTo projectID: UUID) -> [StoredYarn] {
@@ -1918,6 +1997,56 @@ final class PatternLibraryDeletionTransaction {
     public func journalThumbnailURL(for entry: ProjectJournalEntry) -> URL? {
         journalPhotoService.url(filename: entry.thumbnailFilename)
     }
+
+    private func prepareLabelPhotos(
+        _ photos: [(data: Data, ordinal: Int)],
+        yarnID: UUID
+    ) throws -> [PreparedYarnLabelPhoto] {
+        var prepared: [PreparedYarnLabelPhoto] = []
+        do {
+            for photo in photos {
+                prepared.append(try yarnLabelPhotoService.prepare(
+                    data: photo.data,
+                    yarnID: yarnID,
+                    ordinal: photo.ordinal
+                ))
+            }
+            return prepared
+        } catch {
+            for item in prepared { try? yarnLabelPhotoService.rollback(item) }
+            throw error
+        }
+    }
+
+    private func publishLabelPhotos(
+        _ prepared: [PreparedYarnLabelPhoto]
+    ) throws -> [String] {
+        var publishedFilenames: [String] = []
+        do {
+            for item in prepared {
+                try yarnLabelPhotoService.publish(item)
+                publishedFilenames.append(item.filename)
+            }
+            return publishedFilenames
+        } catch {
+            rollbackLabelPhotos(
+                prepared: prepared,
+                publishedFilenames: publishedFilenames
+            )
+            throw error
+        }
+    }
+
+    private func rollbackLabelPhotos(
+        prepared: [PreparedYarnLabelPhoto],
+        publishedFilenames: [String]
+    ) {
+        for item in prepared { try? yarnLabelPhotoService.rollback(item) }
+        for filename in publishedFilenames {
+            try? yarnLabelPhotoService.delete(filename: filename)
+        }
+    }
+
     private func watchAcknowledgement(
         for commandID: UUID,
         rejection: WatchCommandRejection?,

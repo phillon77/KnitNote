@@ -236,6 +236,21 @@ import Testing
         ],
     ]
 
+    private let requiredPatternCalculatorTranslations = [
+        "patterns.calculator.title": ["en": "Calculator", "zh-Hant": "計算機"],
+        "patterns.calculator.hint": ["en": "Opens a calculator without leaving the pattern", "zh-Hant": "不離開織圖即可開啟計算機"],
+        "patterns.calculator.clear": ["en": "All Clear", "zh-Hant": "全部清除"],
+        "patterns.calculator.result": ["en": "Result", "zh-Hant": "結果"],
+        "patterns.calculator.error": ["en": "Error", "zh-Hant": "錯誤"],
+        "patterns.calculator.add": ["en": "Add", "zh-Hant": "加"],
+        "patterns.calculator.subtract": ["en": "Subtract", "zh-Hant": "減"],
+        "patterns.calculator.multiply": ["en": "Multiply", "zh-Hant": "乘"],
+        "patterns.calculator.divide": ["en": "Divide", "zh-Hant": "除"],
+        "patterns.calculator.equals": ["en": "Equals", "zh-Hant": "等於"],
+        "patterns.calculator.percent": ["en": "Percent", "zh-Hant": "百分比"],
+        "patterns.calculator.toggleSign": ["en": "Change Sign", "zh-Hant": "切換正負號"],
+    ]
+
     private let task13PatternPrefixes = [
         "patterns.library.",
         "patterns.detail.",
@@ -525,6 +540,16 @@ import Testing
                 let value = try localizedValue(key, language: language, strings: strings)
                 #expect(value == expectedValue)
                 #expect(value != key)
+            }
+        }
+    }
+
+    @Test func patternCalculatorUsesApprovedEnglishAndTraditionalChineseCopy() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredPatternCalculatorTranslations {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }
         }
     }

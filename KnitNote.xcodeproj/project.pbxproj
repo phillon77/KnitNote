@@ -36,6 +36,7 @@
 		130F9F8B595AA39A521A4FD6 /* MacYarnEditorAccessibilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */; };
 		145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */; };
 		14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
+		1A56068D290B7469F89B1A3B /* PatternCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */; };
 		1A75459733F6F0B98DFB463F /* ProjectJournalSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BBADB1223BF69225A1DF48C /* ProjectJournalSection.swift */; };
 		1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871B5DE057BA40B90AB5123D /* AddYouTubePatternView.swift */; };
 		1AFA6889382728256AB9F0A1 /* ProcessedWatchCommandLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373195B93B12AF80760B1A6D /* ProcessedWatchCommandLedger.swift */; };
@@ -166,6 +167,7 @@
 		7B36CD7A8A59039791A1D325 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
 		7B36E26D9F79A7562DE98D45 /* PatternPageThumbnailPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE40BDDBFA4B660D0A7F517 /* PatternPageThumbnailPresentation.swift */; };
 		7D2FA87014230E204F1EEAF2 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 8D2E722BF22B736D8CA30A55 /* Localizable.xcstrings */; };
+		7F14E1E0F9D246A1EA1B30BA /* PatternCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678690B366F62DE0AA40CE8B /* PatternCalculatorView.swift */; };
 		8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */; };
 		80AC78B0116DADEF95D8C444 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
 		816E08F2B937791F0F1FF8C7 /* AtomicWatchSyncFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B50375391FAE4E84A86BCF /* AtomicWatchSyncFile.swift */; };
@@ -233,6 +235,7 @@
 		C3E90DEDFB9803CEBE02190B /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
 		C42138FBF27EB5F5C43060FA /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
 		C45C69DFC567B4F3A2041002 /* KnitNoteBackupManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2B7038D08F6C6E76229D7F /* KnitNoteBackupManifest.swift */; };
+		C6F35F62D51BCBF7FCFB6788 /* PatternCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */; };
 		C6F5370860BE4170E5E5CC60 /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B41E39467311A8A58E19259 /* StoreKitPurchaseService.swift */; };
 		C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */; };
 		C7BF96AE5045BF9D87381D4F /* ProjectYarnSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5BFE725AAAEE35A72A5778 /* ProjectYarnSection.swift */; };
@@ -462,6 +465,7 @@
 		6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceObservation.swift; sourceTree = "<group>"; };
 		6494124F909E997E16F5BB08 /* ShareImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportView.swift; sourceTree = "<group>"; };
 		67146022BE86DEA48F100C13 /* KnitNoteShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KnitNoteShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		678690B366F62DE0AA40CE8B /* PatternCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternCalculatorView.swift; sourceTree = "<group>"; };
 		67B197FE70BCFA63ECA25D5C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternFileService.swift; sourceTree = "<group>"; };
 		6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -554,6 +558,7 @@
 		C0745F3B3D12949F7D145FAD /* YarnLabelCandidateReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelCandidateReviewView.swift; sourceTree = "<group>"; };
 		C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseServiceLifecycleTests.swift; sourceTree = "<group>"; };
 		C27CD7D290EB0C1B3F7A706C /* WatchSyncCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncCache.swift; sourceTree = "<group>"; };
+		C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternCalculator.swift; sourceTree = "<group>"; };
 		C474D58BBB238B47B244C7CA /* ShareImportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportController.swift; sourceTree = "<group>"; };
 		C65533430112873329E49422 /* WatchCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCounterView.swift; sourceTree = "<group>"; };
 		C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -613,6 +618,7 @@
 				84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */,
 				9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */,
 				45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */,
+				678690B366F62DE0AA40CE8B /* PatternCalculatorView.swift */,
 				AD315B2053510F599375477E /* PatternDetailView.swift */,
 				699B5C3006C3742CA7B8416A /* PatternImportResultView.swift */,
 				8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */,
@@ -1092,6 +1098,7 @@
 				EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */,
 				8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */,
 				D157077494138E6450BAC49F /* GaugeCalculator.swift */,
+				C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */,
 				6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */,
 			);
 			path = Calculators;
@@ -1381,6 +1388,8 @@
 				6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */,
 				D9D96422EAA83DBC4E03A060 /* PaintingOverlayRegion.swift in Sources */,
 				3B842E0FB36DB51CB0FE2B31 /* PatternAsset.swift in Sources */,
+				1A56068D290B7469F89B1A3B /* PatternCalculator.swift in Sources */,
+				7F14E1E0F9D246A1EA1B30BA /* PatternCalculatorView.swift in Sources */,
 				2A9099D8D970DB14FDCE8E4E /* PatternDetailView.swift in Sources */,
 				E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */,
 				99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */,
@@ -1528,6 +1537,7 @@
 				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,
 				F8B6F5B3E7CD575E89A1A500 /* LegacyPaidVersionPolicy.swift in Sources */,
 				14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */,
+				C6F35F62D51BCBF7FCFB6788 /* PatternCalculator.swift in Sources */,
 				20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */,
 				DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */,
 				518EE6D9A86074D7015BA1A9 /* PatternImportCoordinator.swift in Sources */,

@@ -6,6 +6,7 @@ import Testing
     @Test(arguments: [
         "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         "https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=31",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123",
         "https://youtu.be/dQw4w9WgXcQ?si=abc",
         "https://www.youtube.com/shorts/dQw4w9WgXcQ",
         "https://www.youtube.com/live/dQw4w9WgXcQ?feature=share",

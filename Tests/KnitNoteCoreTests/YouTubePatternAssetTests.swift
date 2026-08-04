@@ -117,6 +117,52 @@ import Testing
     }
 }
 
+@Test func youtubeAssetsRejectCachedThumbnails() throws {
+    let root = temporaryYouTubeAssetDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let thumbnailService = PatternThumbnailFileService(directory: root.appendingPathComponent("thumbnails"))
+    let asset = PatternAsset(
+        id: UUID(),
+        sha256: String(repeating: "0", count: 64),
+        kind: .youtube,
+        storedFilename: "sidecar.youtube",
+        byteCount: 0,
+        pageCount: nil
+    )
+    let cachedThumbnail = thumbnailService.cachedURL(assetID: asset.id)
+    try FileManager.default.createDirectory(at: cachedThumbnail.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("stale-thumbnail".utf8).write(to: cachedThumbnail, options: .atomic)
+
+    #expect(throws: PatternThumbnailFileError.unreadableSource) {
+        _ = try thumbnailService.thumbnailURL(asset: asset, sourceURL: root.appendingPathComponent("ignored.png"))
+    }
+}
+
+@Test func youtubeMetadataRejectsNonYouTubeAssetKinds() throws {
+    let root = temporaryYouTubeAssetDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let service = PatternFileService(root: root)
+    let data = try JSONEncoder().encode(
+        YouTubePatternMetadata(link: try YouTubePatternLink(videoID: "dQw4w9WgXcQ"))
+    )
+    let id = UUID()
+    let imageAsset = PatternAsset(
+        id: id,
+        sha256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
+        kind: .image,
+        storedFilename: "\(id.uuidString).png",
+        byteCount: Int64(data.count),
+        pageCount: nil
+    )
+    let url = try service.assetURL(imageAsset)
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try data.write(to: url, options: .atomic)
+
+    #expect(throws: PatternFileError.invalidContent) {
+        _ = try service.youtubeMetadata(for: imageAsset)
+    }
+}
+
 private func temporaryYouTubeAssetDirectory() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("KnitNoteYouTubeAssets-\(UUID().uuidString)", isDirectory: true)

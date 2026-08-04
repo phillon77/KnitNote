@@ -37,6 +37,9 @@ public struct PatternThumbnailFileService: Sendable {
         asset: PatternAsset,
         sourceURL: URL
     ) throws -> URL {
+        guard asset.kind != .youtube else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
         lock.value.lock()
         defer { lock.value.unlock() }
         let destination = cachedURL(assetID: asset.id)

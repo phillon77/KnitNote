@@ -1,7 +1,7 @@
 # KnitNote 1.3.1 YouTube 織圖連結設計
 
 日期：2026-08-04  
-狀態：使用者已確認設計，等待書面規格審閱
+狀態：書面規格已審閱核准，實作計畫已完成
 
 ## 目標
 
@@ -70,7 +70,7 @@ YouTube `PatternAsset` 的 `storedFilename` 指向小型 JSON 側寫檔，而不
 - YouTube video ID。
 - 正規網址 `https://www.youtube.com/watch?v=<videoID>`。
 
-`sha256` 為正規網址 UTF-8 資料的 SHA-256，作為現有重複偵測與完整性邊界。`byteCount` 是側寫檔實際大小，`pageCount` 固定為 `nil`。
+`sha256` 為使用固定鍵值順序編碼後的 JSON 側寫檔資料 SHA-256，同時作為現有重複偵測與檔案完整性邊界。因為側寫檔只含固定版本、video ID 與正規網址，同一影片會產生同一內容雜湊。`byteCount` 是側寫檔實際大小，`pageCount` 固定為 `nil`。
 
 `PatternProjectUsage.readingState` 對 YouTube 類型維持預設值且不使用。YouTube 項目不具有頁碼、縮放、高亮、頁面筆記或手寫標記。
 

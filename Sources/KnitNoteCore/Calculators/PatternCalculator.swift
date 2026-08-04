@@ -163,7 +163,7 @@ public struct PatternCalculatorState: Equatable, Sendable {
             fail()
             return
         }
-        isStartingNewEntry = true
+        isStartingNewEntry = pendingOperation == nil
     }
 
     private mutating func fail() {

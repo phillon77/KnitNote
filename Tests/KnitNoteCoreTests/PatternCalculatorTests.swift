@@ -65,6 +65,12 @@ import Testing
         #expect(result(of: [.digit(1), .digit(0), .operation(.add), .digit(1), .digit(0), .equals, .percent]) == "0.2")
     }
 
+    @Test func percentPreservesAnEnteredRightOperandForPendingArithmetic() {
+        #expect(result(of: [
+            .digit(5), .digit(0), .operation(.add), .digit(1), .digit(0), .percent, .equals,
+        ]) == "50.1")
+    }
+
     @Test func equalsWithoutACompletePendingOperationKeepsTheDisplay() {
         #expect(result(of: [.digit(4), .equals]) == "4")
         #expect(result(of: [.digit(4), .operation(.add), .equals]) == "4")
@@ -95,6 +101,17 @@ import Testing
         #expect(result(of: [
             .digit(1), .operation(.divide), .digit(3), .operation(.multiply), .digit(3), .equals,
         ]) == "0.999999999999")
+    }
+
+    @Test func clearRecoversDirectlyFromErrorWhileOtherKeysKeepTheError() {
+        var state = stateAfter([.digit(8), .operation(.divide), .digit(0), .equals])
+        #expect(state.display == .error(.invalidResult))
+
+        state.press(.decimal)
+        #expect(state.display == .error(.invalidResult))
+
+        state.press(.clear)
+        #expect(state == PatternCalculatorState())
     }
 
     private func result(of keys: [PatternCalculatorKey]) -> String {

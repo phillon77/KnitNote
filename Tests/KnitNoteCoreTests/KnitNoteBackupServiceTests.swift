@@ -225,6 +225,96 @@ import UniformTypeIdentifiers
         })
     }
 
+    @Test func versionTwelveYouTubeBackupRoundTripsTwoUsagesWithoutCachedMedia() throws {
+        let fixture = try BackupFixture.youtubePackage()
+        defer { try? FileManager.default.removeItem(at: fixture.cleanupRoot) }
+
+        let manifest = try fixture.manifest
+        let packagedPaths = Set(try BackupFixture.relativeFilePaths(
+            below: fixture.url.appendingPathComponent("Data", isDirectory: true)
+        ))
+        let sidecarPath = "Patterns/Assets/\(fixture.asset.storedFilename)"
+
+        #expect(manifest.formatVersion == 2)
+        #expect(manifest.files.contains { $0.relativePath == sidecarPath })
+        #expect(packagedPaths.contains(sidecarPath))
+        #expect(!packagedPaths.contains { path in
+            path.contains("PatternThumbnailCache")
+                || path.hasSuffix(".jpg")
+                || path.hasSuffix(".jpeg")
+                || path.hasSuffix(".mp4")
+                || path.hasSuffix(".mov")
+        })
+
+        let restoredLive = fixture.cleanupRoot.appendingPathComponent("RestoredKnitNote")
+        try BackupFixture.writeDisposableArchive(to: restoredLive)
+        let restoreService = KnitNoteBackupService(
+            liveRoot: restoredLive,
+            workRoot: fixture.cleanupRoot.appendingPathComponent("RestoreWork")
+        )
+        let staged = try restoreService.stagePackage(at: fixture.url)
+        let installation = try restoreService.install(staged)
+        restoreService.commit(installation)
+
+        let restoredArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: restoredLive.appendingPathComponent("projects-v1.json"))
+        )
+        let restoredPattern = try #require(restoredArchive.patterns.first)
+        let restoredUsages = restoredArchive.patternUsages.sorted { $0.projectID.uuidString < $1.projectID.uuidString }
+        let expectedUsages = fixture.archive.patternUsages.sorted { $0.projectID.uuidString < $1.projectID.uuidString }
+        let restoredAsset = try #require(restoredArchive.patternAssets.first)
+
+        #expect(restoredPattern.displayName == "Custom cable tutorial")
+        #expect(restoredPattern.note == "Use the sleeve section twice")
+        #expect(restoredUsages == expectedUsages)
+        #expect(restoredUsages.map(\.projectID) == fixture.projectIDs.sorted { $0.uuidString < $1.uuidString })
+        #expect(restoredUsages.contains { !$0.isActive && $0.unlinkedAt != nil })
+        #expect(try YouTubePatternMetadata(
+            link: try YouTubePatternLink(videoID: "dQw4w9WgXcQ")
+        ).validated().canonicalURL == fixture.link.canonicalURL)
+        #expect(restoredAsset == fixture.asset)
+        #expect(try JSONDecoder().decode(
+            YouTubePatternMetadata.self,
+            from: Data(contentsOf: restoredLive.appendingPathComponent(sidecarPath))
+        ).validated() == fixture.link)
+        #expect(!FileManager.default.fileExists(
+            atPath: restoredLive.appendingPathComponent("PatternThumbnailCache/\(fixture.asset.id.uuidString).jpg").path
+        ))
+        #expect(throws: PatternThumbnailFileError.unreadableSource) {
+            _ = try PatternThumbnailFileService(
+                directory: fixture.cleanupRoot.appendingPathComponent("RestoredCache")
+            ).thumbnailURL(
+                asset: restoredAsset,
+                sourceURL: restoredLive.appendingPathComponent(sidecarPath)
+            )
+        }
+    }
+
+    @Test func versionTwelveYouTubeBackupRejectsInvalidSidecarsBeforeReplacingLiveData() throws {
+        for mutation in YouTubeSidecarBackupMutation.allCases {
+            let fixture = try BackupFixture.youtubePackage()
+            defer { try? FileManager.default.removeItem(at: fixture.cleanupRoot) }
+            try fixture.mutateYouTubeSidecar(mutation)
+
+            let restoredLive = fixture.cleanupRoot.appendingPathComponent("RestoredKnitNote")
+            try BackupFixture.writeDisposableArchive(to: restoredLive)
+            let restoreService = KnitNoteBackupService(
+                liveRoot: restoredLive,
+                workRoot: fixture.cleanupRoot.appendingPathComponent("RestoreWork")
+            )
+
+            #expect(throws: KnitNoteBackupError.self) {
+                _ = try restoreService.stagePackage(at: fixture.url)
+            }
+            let liveArchive = try JSONDecoder().decode(
+                ProjectArchive.self,
+                from: Data(contentsOf: restoredLive.appendingPathComponent("projects-v1.json"))
+            )
+            #expect(liveArchive.projects.map(\.name) == ["Disposable"])
+        }
+    }
+
     @Test func formatTwoInspectionRejectsSameSizeContentTampering() throws {
         let package = try BackupFixture.patternLibraryPackage()
         defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
@@ -2122,6 +2212,15 @@ import UniformTypeIdentifiers
     }
 }
 
+private enum YouTubeSidecarBackupMutation: CaseIterable, Sendable {
+    case missing
+    case tampered
+    case oversized
+    case symlinked
+    case schemaInvalid
+
+}
+
 private struct BackupInstallFixture {
     struct InjectedFailure: Error {}
 
@@ -2323,6 +2422,119 @@ private enum BackupFixture {
         }
     }
 
+    struct YouTubePackage {
+        let service: KnitNoteBackupService
+        let url: URL
+        let cleanupRoot: URL
+        let archive: ProjectArchive
+        let asset: PatternAsset
+        let link: YouTubePatternLink
+        let projectIDs: [UUID]
+
+        var manifest: KnitNoteBackupManifest {
+            get throws {
+                try JSONDecoder().decode(
+                    KnitNoteBackupManifest.self,
+                    from: Data(contentsOf: url.appendingPathComponent("manifest.json"))
+                )
+            }
+        }
+
+        func rewriteManifest(
+            _ transform: (KnitNoteBackupManifest) throws -> KnitNoteBackupManifest
+        ) throws {
+            let manifestURL = url.appendingPathComponent("manifest.json")
+            let manifest = try JSONDecoder().decode(
+                KnitNoteBackupManifest.self,
+                from: Data(contentsOf: manifestURL)
+            )
+            try JSONEncoder().encode(try transform(manifest)).write(
+                to: manifestURL,
+                options: .atomic
+            )
+        }
+
+        func rewriteArchive(
+            _ transform: (ProjectArchive) throws -> ProjectArchive
+        ) throws {
+            let archiveURL = url.appendingPathComponent("Data/projects-v1.json")
+            let archive = try JSONDecoder().decode(
+                ProjectArchive.self,
+                from: Data(contentsOf: archiveURL)
+            )
+            try JSONEncoder().encode(try transform(archive)).write(
+                to: archiveURL,
+                options: .atomic
+            )
+        }
+
+        func mutateYouTubeSidecar(_ mutation: YouTubeSidecarBackupMutation) throws {
+            let relativePath = "Patterns/Assets/\(asset.storedFilename)"
+            let sidecar = url.appendingPathComponent("Data/\(relativePath)")
+            switch mutation {
+            case .missing:
+                try FileManager.default.removeItem(at: sidecar)
+            case .tampered:
+                let original = try Data(contentsOf: sidecar)
+                try Data(repeating: 0x5A, count: original.count).write(to: sidecar, options: .atomic)
+            case .oversized:
+                let handle = try FileHandle(forWritingTo: sidecar)
+                defer { try? handle.close() }
+                try handle.truncate(atOffset: UInt64(KnitNoteBackupLimits.maximumFileBytes + 1))
+            case .symlinked:
+                let target = cleanupRoot.appendingPathComponent("youtube-sidecar-target")
+                try Data("target".utf8).write(to: target, options: .atomic)
+                try FileManager.default.removeItem(at: sidecar)
+                try FileManager.default.createSymbolicLink(at: sidecar, withDestinationURL: target)
+            case .schemaInvalid:
+                let invalid = Data(#"{"version":1,"videoID":"dQw4w9WgXcQ","canonicalURL":"https:\/\/www.youtube.com\/watch?v=abcdefghijk"}"#.utf8)
+                try invalid.write(to: sidecar, options: .atomic)
+                try rewriteArchive { archive in
+                    let assets = archive.patternAssets.map { asset in
+                        guard asset.id == self.asset.id else { return asset }
+                        return PatternAsset(
+                            id: asset.id,
+                            sha256: sha256(invalid),
+                            kind: .youtube,
+                            storedFilename: asset.storedFilename,
+                            byteCount: Int64(invalid.count),
+                            pageCount: nil
+                        )
+                    }
+                    return ProjectArchive(
+                        version: archive.version,
+                        projects: archive.projects,
+                        yarns: archive.yarns,
+                        patternAssets: assets,
+                        patterns: archive.patterns,
+                        patternUsages: archive.patternUsages
+                    )
+                }
+                let archiveData = try Data(
+                    contentsOf: url.appendingPathComponent("Data/projects-v1.json")
+                )
+                try rewriteManifest { manifest in
+                    let files = manifest.files.map { file in
+                        if file.relativePath == "projects-v1.json" {
+                            return KnitNoteBackupManifestFile(
+                                relativePath: file.relativePath,
+                                byteCount: Int64(archiveData.count),
+                                sha256: sha256(archiveData)
+                            )
+                        }
+                        guard file.relativePath == relativePath else { return file }
+                        return KnitNoteBackupManifestFile(
+                            relativePath: file.relativePath,
+                            byteCount: Int64(invalid.count),
+                            sha256: sha256(invalid)
+                        )
+                    }
+                    return manifest.replacing(files: files)
+                }
+            }
+        }
+    }
+
     static func completePackage() throws -> Package {
         let (service, live, root) = try makeServiceFixture()
         let complete = try writeCompleteArchive(to: live)
@@ -2361,6 +2573,90 @@ private enum BackupFixture {
             cleanupRoot: root,
             firstRelativePath: assetPath,
             markupRelativePath: markupPath
+        )
+    }
+
+    static func youtubePackage() throws -> YouTubePackage {
+        let (service, live, root) = try makeServiceFixture()
+        let firstProject = try StoredProject(name: "Cable cardigan")
+        let secondProject = try StoredProject(name: "Cable vest")
+        let assetID = UUID()
+        let patternID = UUID()
+        let link = try YouTubePatternLink(videoID: "dQw4w9WgXcQ")
+        let metadataData = try JSONEncoder().encode(YouTubePatternMetadata(link: link))
+        let asset = PatternAsset(
+            id: assetID,
+            sha256: sha256(metadataData),
+            kind: .youtube,
+            storedFilename: "\(assetID.uuidString).youtube",
+            byteCount: Int64(metadataData.count),
+            pageCount: nil
+        )
+        let pattern = StoredPattern(
+            id: patternID,
+            assetID: assetID,
+            displayName: "Custom cable tutorial",
+            note: "Use the sleeve section twice",
+            createdAt: .init(timeIntervalSince1970: 42)
+        )
+        let firstUsage = PatternProjectUsage(
+            patternID: patternID,
+            projectID: firstProject.id,
+            isActive: true,
+            linkedAt: .init(timeIntervalSince1970: 43),
+            sortOrder: 1
+        )
+        let secondUsage = PatternProjectUsage(
+            patternID: patternID,
+            projectID: secondProject.id,
+            isActive: false,
+            linkedAt: .init(timeIntervalSince1970: 44),
+            unlinkedAt: .init(timeIntervalSince1970: 45),
+            sortOrder: 2
+        )
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [firstProject, secondProject],
+            patternAssets: [asset],
+            patterns: [pattern],
+            patternUsages: [firstUsage, secondUsage]
+        )
+        try JSONEncoder().encode(archive).write(
+            to: live.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+        let sidecar = live.appendingPathComponent("Patterns/Assets/\(asset.storedFilename)")
+        try FileManager.default.createDirectory(
+            at: sidecar.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try metadataData.write(to: sidecar, options: .atomic)
+        let cache = live.appendingPathComponent("PatternThumbnailCache/\(assetID.uuidString).jpg")
+        try FileManager.default.createDirectory(
+            at: cache.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("generated thumbnail".utf8).write(to: cache, options: .atomic)
+
+        return YouTubePackage(
+            service: service,
+            url: try service.createPackage(appVersion: "1.3.1"),
+            cleanupRoot: root,
+            archive: archive,
+            asset: asset,
+            link: link,
+            projectIDs: [firstProject.id, secondProject.id]
+        )
+    }
+
+    static func writeDisposableArchive(to root: URL) throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [try StoredProject(name: "Disposable")]
+        )).write(
+            to: root.appendingPathComponent("projects-v1.json"),
+            options: .atomic
         )
     }
 

@@ -2238,7 +2238,23 @@ public struct KnitNoteBackupService: Sendable {
                       integrity.sha256 == asset.sha256 else {
                     throw KnitNoteBackupError.integrityMismatch(relativePath)
                 }
+                try validateYouTubeSidecar(asset: asset, at: file)
             }
+        }
+    }
+
+    private func validateYouTubeSidecar(asset: PatternAsset, at file: URL) throws {
+        guard asset.kind == .youtube else { return }
+        guard asset.pageCount == nil,
+              isOwnedAssetFilename(asset.storedFilename, asset: asset) else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        do {
+            let data = try Data(contentsOf: file, options: .mappedIfSafe)
+            let metadata = try JSONDecoder().decode(YouTubePatternMetadata.self, from: data)
+            _ = try metadata.validated()
+        } catch {
+            throw KnitNoteBackupError.invalidArchive
         }
     }
 

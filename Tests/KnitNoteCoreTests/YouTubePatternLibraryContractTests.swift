@@ -32,6 +32,13 @@ import Testing
         #expect(source.contains(".fileImporter("))
     }
 
+    @Test func libraryYouTubeSheetReceivesTheSelectedAppLocale() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+
+        #expect(source.contains("AddYouTubePatternView(targetProjectID: nil)"))
+        #expect(source.contains(".environment(\\.locale, locale)"))
+    }
+
     @Test func youtubeRowsUseTheYoutubeDescriptionWithoutFileMetadata() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryRow.swift")
 

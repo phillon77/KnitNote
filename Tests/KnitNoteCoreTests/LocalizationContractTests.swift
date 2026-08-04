@@ -192,6 +192,7 @@ import Testing
     ]
 
     private let requiredYouTubeTranslations = [
+        "common.add": ["en": "Add", "zh-Hant": "新增"],
         "patterns.youtube.add": ["en": "Add YouTube Link", "zh-Hant": "加入 YouTube 連結"],
         "patterns.youtube.url": ["en": "YouTube URL", "zh-Hant": "YouTube 網址"],
         "patterns.youtube.readMetadata": ["en": "Read Video Info", "zh-Hant": "讀取影片資料"],

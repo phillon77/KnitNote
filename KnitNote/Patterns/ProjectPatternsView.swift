@@ -64,6 +64,7 @@ struct ProjectPatternsView: View {
             }
             .sheet(isPresented: $showingYouTubeImporter) {
                 AddYouTubePatternView(targetProjectID: projectID)
+                    .environment(\.locale, locale)
             }
             .patternReaderPresentation(item: $selectedPattern) { selection in
                 PatternReaderView(context: .project(

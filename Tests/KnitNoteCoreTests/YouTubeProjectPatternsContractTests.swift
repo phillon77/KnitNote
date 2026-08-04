@@ -10,6 +10,13 @@ import Testing
         #expect(source.contains("AddYouTubePatternView(targetProjectID: projectID)"))
     }
 
+    @Test func projectYouTubeSheetReceivesTheSelectedAppLocale() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
+
+        #expect(source.contains("AddYouTubePatternView(targetProjectID: projectID)"))
+        #expect(source.contains(".environment(\\.locale, locale)"))
+    }
+
     @Test func projectYouTubeRowsOpenExternallyWithoutCreatingAReaderSelection() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
 

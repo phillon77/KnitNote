@@ -99,6 +99,7 @@ struct PatternLibraryView: View {
                 AddYouTubePatternView(targetProjectID: nil) { patternID, resolution in
                     acceptYouTubeAddResult(patternID: patternID, resolution: resolution)
                 }
+                .environment(\.locale, locale)
             }
             .sheet(item: $pendingSelection) { selection in
                 chooseDuplicate(for: selection)

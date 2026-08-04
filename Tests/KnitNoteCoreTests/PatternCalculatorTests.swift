@@ -2,6 +2,14 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct PatternCalculatorTests {
+    @Test func onlyAnActualPendingOperationReceivesTheSelectionHighlight() {
+        #expect(!PatternCalculatorButtonHighlight.isActive(buttonOperation: nil, pendingOperation: nil))
+        #expect(!PatternCalculatorButtonHighlight.isActive(buttonOperation: .add, pendingOperation: nil))
+        #expect(!PatternCalculatorButtonHighlight.isActive(buttonOperation: nil, pendingOperation: .add))
+        #expect(PatternCalculatorButtonHighlight.isActive(buttonOperation: .add, pendingOperation: .add))
+        #expect(!PatternCalculatorButtonHighlight.isActive(buttonOperation: .subtract, pendingOperation: .add))
+    }
+
     @Test func addsSubtractsMultipliesAndDividesDecimals() {
         #expect(result(of: [.digit(1), .digit(2), .operation(.add), .digit(3), .equals]) == "15")
         #expect(result(of: [.digit(9), .operation(.subtract), .digit(4), .equals]) == "5")

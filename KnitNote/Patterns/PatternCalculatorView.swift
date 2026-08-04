@@ -67,13 +67,13 @@ struct PatternCalculatorView: View {
                                     .frame(maxWidth: .infinity, minHeight: 44)
                             }
                             .buttonStyle(.plain)
-                            .background(button.background(isPending: button.operation == state.pendingOperationForDisplay))
+                            .background(button.background(isPending: button.isPending(for: state.pendingOperationForDisplay)))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 12)
                                     .stroke(
-                                        button.operation == state.pendingOperationForDisplay ? WatercolorTheme.actionBerry : .clear,
-                                        lineWidth: button.operation == state.pendingOperationForDisplay ? 3 : 0
+                                        button.isPending(for: state.pendingOperationForDisplay) ? WatercolorTheme.actionBerry : .clear,
+                                        lineWidth: button.isPending(for: state.pendingOperationForDisplay) ? 3 : 0
                                     )
                             }
                             .gridCellColumns(button.columnSpan)
@@ -145,6 +145,13 @@ private struct PatternCalculatorButton: Identifiable {
             return nil
         }
         return operation
+    }
+
+    func isPending(for pendingOperation: PatternCalculatorOperation?) -> Bool {
+        PatternCalculatorButtonHighlight.isActive(
+            buttonOperation: operation,
+            pendingOperation: pendingOperation
+        )
     }
 
     static func digit(_ value: Int, columnSpan: Int = 1) -> Self {

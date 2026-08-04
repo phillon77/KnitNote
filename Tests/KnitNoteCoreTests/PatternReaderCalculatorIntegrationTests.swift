@@ -11,9 +11,9 @@ import Testing
         #expect(source.contains(".accessibilityHint(Text(\"patterns.calculator.hint\"))"))
         #expect(source.contains("PatternCalculatorView(state: $calculatorState)"))
         #expect(source.contains(".presentationCompactAdaptation(.sheet)"))
-        #expect(source.contains(".presentationDetents(calculatorPresentationDetents)"))
-        #expect(source.contains("verticalSizeClass == .compact ? [.large] : [.medium]"))
-        #expect(!source.contains(".presentationDetents([.medium])"))
+        #expect(source.contains(".presentationDetents([.medium, .large])"))
+        #expect(!source.contains("verticalSizeClass"))
+        #expect(!source.contains("calculatorPresentationDetents"))
     }
 
     @Test func calculatorIsNotWrittenIntoReaderOrStoreState() throws {

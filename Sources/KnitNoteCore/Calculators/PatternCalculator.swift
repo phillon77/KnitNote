@@ -4,6 +4,16 @@ public enum PatternCalculatorOperation: Equatable, Sendable {
     case add, subtract, multiply, divide
 }
 
+public enum PatternCalculatorButtonHighlight {
+    public static func isActive(
+        buttonOperation: PatternCalculatorOperation?,
+        pendingOperation: PatternCalculatorOperation?
+    ) -> Bool {
+        guard let buttonOperation, let pendingOperation else { return false }
+        return buttonOperation == pendingOperation
+    }
+}
+
 public enum PatternCalculatorError: Equatable, Sendable {
     case invalidResult
 }

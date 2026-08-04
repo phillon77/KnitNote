@@ -47,7 +47,7 @@ struct ProjectPatternsView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         ForEach(ProjectPatternAddAction.allCases) { action in
-                            Button(action.localizationKey, systemImage: action.systemImageName) {
+                            Button(LocalizedStringKey(action.localizationKey), systemImage: action.systemImageName) {
                                 performAddAction(action)
                             }
                         }

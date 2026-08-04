@@ -13,6 +13,13 @@ import Testing
         #expect(source.contains("AddYouTubePatternView(targetProjectID: projectID)"))
     }
 
+    @Test func projectPatternAddMenuLocalizesDynamicActionKeys() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
+
+        #expect(source.contains("LocalizedStringKey(action.localizationKey)"))
+        #expect(!source.contains("Button(action.localizationKey, systemImage:"))
+    }
+
     @Test func projectSwipeConfirmsUnlinkWithoutDeletingTheLibraryPattern() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
 

@@ -109,9 +109,14 @@ struct ProjectPatternsView: View {
     private func projectPatternRow(
         _ selection: ProjectPatternReaderSelection
     ) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+        let thumbnailLayout = PatternListThumbnailLayout.resolve(for: selection.asset.kind)
+
+        return HStack(alignment: .top, spacing: 14) {
             PatternThumbnailView(patternID: selection.pattern.id)
-                .frame(width: 76, height: 96)
+                .frame(
+                    width: CGFloat(thumbnailLayout.width),
+                    height: CGFloat(thumbnailLayout.height)
+                )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(selection.pattern.displayName)
@@ -126,7 +131,11 @@ struct ProjectPatternsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: CGFloat(thumbnailLayout.minimumRowHeight),
+            alignment: .leading
+        )
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(

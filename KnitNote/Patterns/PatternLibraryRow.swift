@@ -11,9 +11,14 @@ struct PatternLibraryRow: View {
     let asset: PatternAsset
 
     var body: some View {
+        let thumbnailLayout = PatternListThumbnailLayout.resolve(for: asset.kind)
+
         HStack(alignment: .top, spacing: 14) {
             PatternThumbnailView(patternID: model.patternID)
-                .frame(width: 76, height: 96)
+                .frame(
+                    width: CGFloat(thumbnailLayout.width),
+                    height: CGFloat(thumbnailLayout.height)
+                )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(model.name)
@@ -36,7 +41,11 @@ struct PatternLibraryRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: CGFloat(thumbnailLayout.minimumRowHeight),
+            alignment: .leading
+        )
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(

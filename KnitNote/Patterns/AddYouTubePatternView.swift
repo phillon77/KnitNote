@@ -25,34 +25,23 @@ struct AddYouTubePatternView: View {
         ))
     }
 
+    @ViewBuilder
     var body: some View {
+        #if os(macOS)
+        navigationContent
+            .frame(
+                minWidth: CGFloat(MacYouTubeImportLayout.minimumWidth),
+                idealWidth: CGFloat(MacYouTubeImportLayout.idealWidth),
+                minHeight: CGFloat(MacYouTubeImportLayout.minimumHeight)
+            )
+        #else
+        navigationContent
+        #endif
+    }
+
+    private var navigationContent: some View {
         NavigationStack {
-            Form {
-                Section("patterns.youtube.link") {
-                    youtubeURLField
-                    Button("patterns.youtube.readMetadata") {
-                        coordinator.readMetadata(using: metadataFetcher)
-                    }
-                    .disabled(
-                        coordinator.urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || coordinator.isAdding
-                    )
-                }
-
-                Section("patterns.youtube.details") {
-                    thumbnail
-                    TextField("patterns.youtube.title", text: $coordinator.title)
-                        .accessibilityLabel(Text("patterns.youtube.title"))
-                    fallbackMessage
-                }
-
-                if let addErrorKey = coordinator.addErrorKey {
-                    Section {
-                        Text(LocalizedStringKey(addErrorKey))
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
+            platformContent
             .navigationTitle("patterns.youtube.add")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -74,6 +63,89 @@ struct AddYouTubePatternView: View {
     }
 
     @ViewBuilder
+    private var platformContent: some View {
+        #if os(macOS)
+        macYouTubeContent
+        #else
+        youtubeForm
+        #endif
+    }
+
+    #if os(macOS)
+    private var macYouTubeContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("patterns.youtube.link")
+                    .font(.headline)
+
+                youtubeURLField
+
+                readMetadataButton
+
+                Divider()
+
+                Text("patterns.youtube.details")
+                    .font(.headline)
+
+                thumbnail
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                TextField("patterns.youtube.title", text: $coordinator.title)
+                    .accessibilityLabel(Text("patterns.youtube.title"))
+
+                fallbackMessage
+                addErrorMessage
+            }
+            .frame(maxWidth: CGFloat(MacYouTubeImportLayout.contentMaximumWidth))
+            .padding(CGFloat(MacYouTubeImportLayout.outerPadding))
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .background(WatercolorBackground())
+    }
+    #else
+    private var youtubeForm: some View {
+        Form {
+            Section("patterns.youtube.link") {
+                youtubeURLField
+                readMetadataButton
+            }
+
+            Section("patterns.youtube.details") {
+                thumbnail
+                TextField("patterns.youtube.title", text: $coordinator.title)
+                    .accessibilityLabel(Text("patterns.youtube.title"))
+                fallbackMessage
+            }
+
+            if let addErrorKey = coordinator.addErrorKey {
+                Section {
+                    Text(LocalizedStringKey(addErrorKey))
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+    }
+    #endif
+
+    private var readMetadataButton: some View {
+        Button("patterns.youtube.readMetadata") {
+            coordinator.readMetadata(using: metadataFetcher)
+        }
+        .disabled(
+            coordinator.urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || coordinator.isAdding
+        )
+    }
+
+    @ViewBuilder
+    private var addErrorMessage: some View {
+        if let addErrorKey = coordinator.addErrorKey {
+            Text(LocalizedStringKey(addErrorKey))
+                .foregroundStyle(.red)
+        }
+    }
+
+    @ViewBuilder
     private var thumbnail: some View {
         if case let .loaded(thumbnailData) = coordinator.fetchState,
            let thumbnailData,
@@ -81,8 +153,7 @@ struct AddYouTubePatternView: View {
             Image(platformImage: image)
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: 140)
-                .frame(maxWidth: .infinity)
+                .modifier(YouTubePreviewFrameModifier())
                 .accessibilityLabel(Text("patterns.youtube.accessibility.thumbnail"))
         } else {
             defaultThumbnail
@@ -90,10 +161,13 @@ struct AddYouTubePatternView: View {
     }
 
     private var defaultThumbnail: some View {
-        Image(systemName: "play.rectangle.fill")
-            .font(.system(size: 42))
-            .foregroundStyle(WatercolorTheme.actionBerry)
-            .frame(maxWidth: .infinity, minHeight: 76)
+        ZStack {
+            WatercolorTheme.softWhite.opacity(0.9)
+            Image(systemName: "play.rectangle.fill")
+                .font(.system(size: 42))
+                .foregroundStyle(WatercolorTheme.actionBerry)
+        }
+            .modifier(YouTubePreviewFrameModifier())
             .accessibilityLabel(Text("patterns.youtube.accessibility.thumbnail"))
     }
 
@@ -162,6 +236,21 @@ struct AddYouTubePatternView: View {
         NSImage(data: data)
     }
     #endif
+}
+
+private struct YouTubePreviewFrameModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+            .aspectRatio(MacYouTubeImportLayout.previewAspectRatio, contentMode: .fit)
+            .frame(maxWidth: CGFloat(MacYouTubeImportLayout.previewMaximumWidth))
+        #else
+        content
+            .frame(maxHeight: 140)
+            .frame(maxWidth: .infinity)
+        #endif
+    }
 }
 
 private extension Image {

@@ -253,6 +253,8 @@ import Testing
     ]
 
     private let requiredSettingsAboutTranslations = [
+        "settings.general": ["en": "General", "zh-Hant": "一般"],
+        "settings.data": ["en": "Data", "zh-Hant": "資料"],
         "settings.about": ["en": "About", "zh-Hant": "關於"],
         "settings.version": ["en": "Version", "zh-Hant": "版本"],
         "settings.version.format": ["en": "%1$@ (Build %2$@)", "zh-Hant": "%1$@（Build %2$@）"],

@@ -36,6 +36,7 @@
 		130F9F8B595AA39A521A4FD6 /* MacYarnEditorAccessibilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */; };
 		145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */; };
 		14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
+		18E4747ED4FD05E6224D19BF /* MacSettingsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */; };
 		1A56068D290B7469F89B1A3B /* PatternCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */; };
 		1A75459733F6F0B98DFB463F /* ProjectJournalSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BBADB1223BF69225A1DF48C /* ProjectJournalSection.swift */; };
 		1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871B5DE057BA40B90AB5123D /* AddYouTubePatternView.swift */; };
@@ -51,6 +52,7 @@
 		1DFD2F3B8A3AB77D87CD368B /* YarnLabelFieldParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EBACED64349D218A8F4356 /* YarnLabelFieldParser.swift */; };
 		1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A7154999ACF3839D188F1E /* PatternMarkupOverlay.swift */; };
 		201F35F0C5E2A08E33303092 /* PatternInboxFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FF7B32F41BD1F635DAA9CD1 /* PatternInboxFileService.swift */; };
+		2078A5E9C82CBBCC3EB0CDFB /* MacYouTubeImportLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866708F683B2B9E8ADA3D3E5 /* MacYouTubeImportLayout.swift */; };
 		20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
 		2117BE8DBD549F7B8C10181C /* CameraCapturePhotoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */; };
 		214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */; };
@@ -90,6 +92,7 @@
 		3D2E218C2F45088DCE0EB1FD /* KnitNoteBackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */; };
 		3DF82E72F81800C8080884A3 /* YarnPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */; };
 		3E7CEF8EC102142A85B96F53 /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A239FE17FD6D0CE80537CE /* PurchaseService.swift */; };
+		3EAC275D13EBAED2889D123E /* MacSettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D84BCA926B22F3BC532D2C /* MacSettingsComponents.swift */; };
 		3FCB7818FD9E10CF8F9FD2E4 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
 		44ECDB6FE17DB38EBCE188B2 /* PatternMarkupFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */; };
 		45CEBD6E4B176EEF1424F7C2 /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
@@ -112,6 +115,7 @@
 		5536B07A38E71EE08FCBEFB8 /* WatercolorSurfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1587DA4ECD08A93EFE0BB89A /* WatercolorSurfaces.swift */; };
 		55604F7E1350796B6B0EB59F /* TrialRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50AA2B4D946DB9585CF69A39 /* TrialRecord.swift */; };
 		565387B340966E6FE0BA8C03 /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */; };
+		56C6DE4938D3681093F295B8 /* PatternListThumbnailLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98B102AE0A743E9DD32BE2F /* PatternListThumbnailLayout.swift */; };
 		57027A881A62D015E3538D3C /* ChoosePatternProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */; };
 		57736CDDC618972A5516C3AF /* ChooseProjectYarnsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95621B1B43D280EDA70A3589 /* ChooseProjectYarnsView.swift */; };
 		585606C343A35128411BC2E1 /* EditProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B159464A91F0F008CBAD167 /* EditProjectView.swift */; };
@@ -169,6 +173,7 @@
 		7B36E26D9F79A7562DE98D45 /* PatternPageThumbnailPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE40BDDBFA4B660D0A7F517 /* PatternPageThumbnailPresentation.swift */; };
 		7D2FA87014230E204F1EEAF2 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 8D2E722BF22B736D8CA30A55 /* Localizable.xcstrings */; };
 		7F14E1E0F9D246A1EA1B30BA /* PatternCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678690B366F62DE0AA40CE8B /* PatternCalculatorView.swift */; };
+		7F7B568C98FE122977CAA5D9 /* MacSettingsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */; };
 		8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */; };
 		80AC78B0116DADEF95D8C444 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
 		816E08F2B937791F0F1FF8C7 /* AtomicWatchSyncFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B50375391FAE4E84A86BCF /* AtomicWatchSyncFile.swift */; };
@@ -198,6 +203,7 @@
 		997DEDA5DBCE086E364F52E3 /* BackupSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */; };
 		99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		9A4065300F7AEBA87D9E0778 /* EntitlementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */; };
+		9EA4FA60DF752696354AF18A /* PatternListThumbnailLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98B102AE0A743E9DD32BE2F /* PatternListThumbnailLayout.swift */; };
 		A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */; };
 		A4B18C855C5E8E2E9A5F1421 /* FeatureAccessPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560C63535489050C1E0E523E /* FeatureAccessPolicy.swift */; };
 		A4FC998617515EDEE746AAD5 /* ProjectCountersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */; };
@@ -220,6 +226,7 @@
 		B5AC3E001C410E584B6CB2DE /* StoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E519BC9B336EF9AA75CC7DA /* StoreScreenshotMode.swift */; };
 		B5E86840D34A58A4FD8E57C0 /* PatternLibraryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DEB55BFC29EE9E020BD06A /* PatternLibraryIndex.swift */; };
 		B6416630292A021B3D6F3B87 /* YarnPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */; };
+		B6A40A41F72CF5AC9054CC78 /* MacYouTubeImportLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866708F683B2B9E8ADA3D3E5 /* MacYouTubeImportLayout.swift */; };
 		B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */; };
 		BAFAF8C2E97A15BD42353132 /* PatternInboxProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */; };
 		BC5C3B53D64CF73C1A5AB71D /* PatternSystemAppearanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */; };
@@ -398,6 +405,7 @@
 		1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSession.swift; sourceTree = "<group>"; };
 		1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternProjectView.swift; sourceTree = "<group>"; };
 		1E3AEB2A7F20F40D8B6D410F /* MacYarnLabelFileImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnLabelFileImporterTests.swift; sourceTree = "<group>"; };
+		2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsLayout.swift; sourceTree = "<group>"; };
 		2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupExportPackage.swift; sourceTree = "<group>"; };
 		260C2E24AB236712E5FE22CC /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
 		272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockPresentation.swift; sourceTree = "<group>"; };
@@ -501,6 +509,7 @@
 		82BBD75C7FBA7ED0E8B4A90E /* YarnLinkSelectionMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLinkSelectionMerge.swift; sourceTree = "<group>"; };
 		8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredPattern.swift; sourceTree = "<group>"; };
 		84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPatternPageNoteView.swift; sourceTree = "<group>"; };
+		866708F683B2B9E8ADA3D3E5 /* MacYouTubeImportLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYouTubeImportLayout.swift; sourceTree = "<group>"; };
 		87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalPreviewLoader.swift; sourceTree = "<group>"; };
 		871B5DE057BA40B90AB5123D /* AddYouTubePatternView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddYouTubePatternView.swift; sourceTree = "<group>"; };
 		87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupSettingsSection.swift; sourceTree = "<group>"; };
@@ -548,6 +557,7 @@
 		AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateYarnView.swift; sourceTree = "<group>"; };
 		B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelDraftSeed.swift; sourceTree = "<group>"; };
 		B4CD7459BFFD6F5954AE7FDE /* PhoneWatchSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSyncCoordinator.swift; sourceTree = "<group>"; };
+		B5D84BCA926B22F3BC532D2C /* MacSettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsComponents.swift; sourceTree = "<group>"; };
 		B7FE8FD007E50C3C9377258D /* YarnLabelScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelScanView.swift; sourceTree = "<group>"; };
 		B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternShareInboxEnqueuer.swift; sourceTree = "<group>"; };
 		B9745AF84B9E8AE558F17155 /* YouTubePatternMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePatternMetadata.swift; sourceTree = "<group>"; };
@@ -563,6 +573,7 @@
 		C474D58BBB238B47B244C7CA /* ShareImportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportController.swift; sourceTree = "<group>"; };
 		C65533430112873329E49422 /* WatchCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCounterView.swift; sourceTree = "<group>"; };
 		C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		C98B102AE0A743E9DD32BE2F /* PatternListThumbnailLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternListThumbnailLayout.swift; sourceTree = "<group>"; };
 		C9C17AF6B6756E61DCAE3970 /* KnitNote-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KnitNote-iOS.entitlements"; sourceTree = "<group>"; };
 		C9DEB55BFC29EE9E020BD06A /* PatternLibraryIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryIndex.swift; sourceTree = "<group>"; };
 		CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternAsset.swift; sourceTree = "<group>"; };
@@ -673,6 +684,7 @@
 				8D4DBBB5F086B5F2BE0A2692 /* Patterns */,
 				ADC03985307A33CF231A2728 /* Projects */,
 				8BD3900E36112649B3129656 /* Resources */,
+				EA17A2BEFCC8A2A34BCC9BF2 /* Settings */,
 				D2A26E1A33BD10C640FB127A /* Theme */,
 				983AAB3F985F3C365954FED5 /* WatchSync */,
 				1DE36FE3821C2C812015C7B9 /* Yarn */,
@@ -829,6 +841,7 @@
 			children = (
 				87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */,
 				E9F9AB70EA6020F2BECF5EFD /* KnitNoteBackupDocument.swift */,
+				B5D84BCA926B22F3BC532D2C /* MacSettingsComponents.swift */,
 				3C1FE7F6E3926F76E8684A55 /* SettingsView.swift */,
 				6EE7CD9D14B5AD6AD39521F1 /* YarnLabelStorageRow.swift */,
 			);
@@ -870,6 +883,7 @@
 		8D4DBBB5F086B5F2BE0A2692 /* Patterns */ = {
 			isa = PBXGroup;
 			children = (
+				866708F683B2B9E8ADA3D3E5 /* MacYouTubeImportLayout.swift */,
 				CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */,
 				99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */,
 				68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */,
@@ -881,6 +895,7 @@
 				4A55940F5FE8FDFB7A951862 /* PatternLibraryImportPresentation.swift */,
 				C9DEB55BFC29EE9E020BD06A /* PatternLibraryIndex.swift */,
 				493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */,
+				C98B102AE0A743E9DD32BE2F /* PatternListThumbnailLayout.swift */,
 				4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */,
 				6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */,
 				F3663DE46B0C7E8EF38A0358 /* PatternPageThumbnailPolicy.swift */,
@@ -1083,6 +1098,14 @@
 				10731080016109C7138AA562 /* UnlockSheet.swift */,
 			);
 			path = Entitlements;
+			sourceTree = "<group>";
+		};
+		EA17A2BEFCC8A2A34BCC9BF2 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		F3DF2D14907F79846E260ED2 /* KnitNoteMacUITests */ = {
@@ -1386,8 +1409,11 @@
 				240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */,
 				6DF6D15163C2BE3444CAA666 /* LegacyPaidVersionPolicy.swift in Sources */,
 				6AA7291F406E7FCF8B1382C6 /* LemonEmptyState.swift in Sources */,
+				3EAC275D13EBAED2889D123E /* MacSettingsComponents.swift in Sources */,
+				7F7B568C98FE122977CAA5D9 /* MacSettingsLayout.swift in Sources */,
 				E5741A3297F5579C9D49E6DB /* MacYarnEditorFields.swift in Sources */,
 				754EC51A54C17C1767A7D773 /* MacYarnLabelFileImporter.swift in Sources */,
+				2078A5E9C82CBBCC3EB0CDFB /* MacYouTubeImportLayout.swift in Sources */,
 				6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */,
 				D9D96422EAA83DBC4E03A060 /* PaintingOverlayRegion.swift in Sources */,
 				3B842E0FB36DB51CB0FE2B31 /* PatternAsset.swift in Sources */,
@@ -1409,6 +1435,7 @@
 				1D6542ED8A01393B4BDDB05C /* PatternLibraryRow.swift in Sources */,
 				F955085CF2424974282DDA25 /* PatternLibrarySort.swift in Sources */,
 				0C5577C16097062613E39E51 /* PatternLibraryView.swift in Sources */,
+				56C6DE4938D3681093F295B8 /* PatternListThumbnailLayout.swift in Sources */,
 				FDD10510A53A1E0DE226355B /* PatternMarkup.swift in Sources */,
 				F7BFE7FD7E58B7487B0D7018 /* PatternMarkupFileService.swift in Sources */,
 				1E56D47B1CD24F5E3A18D70C /* PatternMarkupOverlay.swift in Sources */,
@@ -1539,6 +1566,8 @@
 				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
 				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,
 				F8B6F5B3E7CD575E89A1A500 /* LegacyPaidVersionPolicy.swift in Sources */,
+				18E4747ED4FD05E6224D19BF /* MacSettingsLayout.swift in Sources */,
+				B6A40A41F72CF5AC9054CC78 /* MacYouTubeImportLayout.swift in Sources */,
 				14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */,
 				20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */,
 				DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */,
@@ -1547,6 +1576,7 @@
 				0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */,
 				C288C9E81474605727E639DF /* PatternInboxPublicationReceiptService.swift in Sources */,
 				565387B340966E6FE0BA8C03 /* PatternLibraryMigrator.swift in Sources */,
+				9EA4FA60DF752696354AF18A /* PatternListThumbnailLayout.swift in Sources */,
 				5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */,
 				CE0C9AB59E4E7FB73A73A1C1 /* PatternMarkupFileService.swift in Sources */,
 				A5BE1A19B9C35CAB890C30BD /* PatternPDFScalePolicy.swift in Sources */,

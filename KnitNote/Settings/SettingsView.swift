@@ -16,18 +16,103 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
 #if os(macOS)
-            GeometryReader { proxy in
-                settingsForm
-                    .frame(width: min(max(proxy.size.width - 48, 0), 720))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .background(WatercolorBackground())
+            macSettingsContent
 #else
             settingsForm
 #endif
         }
         .tint(WatercolorTheme.actionBerry)
     }
+
+    #if os(macOS)
+    private var macSettingsContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: CGFloat(MacSettingsLayout.sectionSpacing)) {
+                MacSettingsSection(title: "settings.general") {
+                    MacSettingsRow {
+                        HStack(spacing: 16) {
+                            Text("settings.language")
+                            Spacer(minLength: 16)
+                            languagePicker
+                                .labelsHidden()
+                                .frame(width: 210)
+                        }
+                    }
+                }
+
+                MacSettingsSection(title: "calculator.tools.title") {
+                    calculatorLink(
+                        title: "calculator.gauge.title",
+                        systemImage: "ruler",
+                        destination: GaugeCalculatorView()
+                    )
+                    Divider()
+                    calculatorLink(
+                        title: "calculator.adjustment.title",
+                        systemImage: "arrow.up.arrow.down",
+                        destination: EvenStitchAdjustmentCalculatorView()
+                    )
+                }
+
+                MacSettingsSection(title: "settings.data") {
+                    MacSettingsRow {
+                        YarnLabelStorageRow()
+                    }
+                    Divider()
+                    BackupSettingsSection()
+                }
+
+                MacSettingsSection(title: "settings.about") {
+                    MacSettingsRow {
+                        HStack(alignment: .firstTextBaseline, spacing: 16) {
+                            Text("settings.version")
+                            Spacer(minLength: 12)
+                            Text(versionDisplay)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .frame(maxWidth: CGFloat(MacSettingsLayout.contentMaximumWidth))
+            .padding(CGFloat(MacSettingsLayout.outerPadding))
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .background(WatercolorBackground())
+        .navigationTitle("nav.settings")
+    }
+
+    private var languagePicker: some View {
+        Picker("settings.language", selection: $storedLanguage) {
+            Text("language.system").tag(LanguageSelection.system.rawValue)
+            Text("language.traditionalChinese").tag(LanguageSelection.traditionalChinese.rawValue)
+            Text("language.english").tag(LanguageSelection.english.rawValue)
+        }
+    }
+
+    private func calculatorLink<Destination: View>(
+        title: LocalizedStringKey,
+        systemImage: String,
+        destination: Destination
+    ) -> some View {
+        NavigationLink {
+            destination
+        } label: {
+            MacSettingsRow {
+                HStack(spacing: 12) {
+                    Label(title, systemImage: systemImage)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+    #endif
 
     private var settingsForm: some View {
         Form {

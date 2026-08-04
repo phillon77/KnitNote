@@ -14,20 +14,28 @@ import Testing
         let macSource = String(source[macBranch.lowerBound..<nonMacBranch.lowerBound])
         let nonMacSource = String(source[nonMacBranch.upperBound..<macEnd.lowerBound])
 
-        let geometry = try #require(macSource.range(of: "GeometryReader { proxy in"))
-        let availableWidth = try #require(
-            macSource.range(of: "min(max(proxy.size.width - 48, 0), 720)")
-        )
-        let explicitWidth = try #require(
-            macSource.range(of: ".frame(width: min(max(proxy.size.width - 48, 0), 720))")
-        )
-        let centeredFrame = try #require(
-            macSource.range(of: ".frame(maxWidth: .infinity, maxHeight: .infinity)")
-        )
-        #expect(geometry.lowerBound < availableWidth.lowerBound)
-        #expect(geometry.lowerBound < explicitWidth.lowerBound)
-        #expect(explicitWidth.lowerBound < centeredFrame.lowerBound)
+        #expect(macSource.contains("macSettingsContent"))
         #expect(nonMacSource.trimmingCharacters(in: .whitespacesAndNewlines) == "settingsForm")
+
+        let contentStart = try #require(source.range(of: "private var macSettingsContent: some View"))
+        let contentEnd = try #require(
+            source.range(of: "private var languagePicker", range: contentStart.upperBound..<source.endIndex)
+        )
+        let content = String(source[contentStart.lowerBound..<contentEnd.lowerBound])
+
+        #expect(content.contains("ScrollView"))
+        #expect(content.contains("VStack(alignment: .leading, spacing: CGFloat(MacSettingsLayout.sectionSpacing))"))
+        #expect(content.contains("MacSettingsLayout.contentMaximumWidth"))
+        #expect(content.contains("MacSettingsLayout.outerPadding"))
+        #expect(!content.contains("Form"))
+
+        let general = try #require(content.range(of: "MacSettingsSection(title: \"settings.general\")"))
+        let tools = try #require(content.range(of: "MacSettingsSection(title: \"calculator.tools.title\")"))
+        let data = try #require(content.range(of: "MacSettingsSection(title: \"settings.data\")"))
+        let about = try #require(content.range(of: "MacSettingsSection(title: \"settings.about\")"))
+        #expect(general.lowerBound < tools.lowerBound)
+        #expect(tools.lowerBound < data.lowerBound)
+        #expect(data.lowerBound < about.lowerBound)
     }
 
     @Test func macCreateProjectHasUsableMinimumSize() throws {

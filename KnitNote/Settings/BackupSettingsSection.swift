@@ -92,43 +92,69 @@ struct BackupSettingsSection: View {
             }
     }
 
+    @ViewBuilder
     private var backupRows: some View {
-        Section("backup.section") {
-            Button(action: exportBackup) {
-                operationLabel(
-                    titleKey: "backup.export",
-                    systemImage: "square.and.arrow.up",
-                    showsProgress: activeOperation == .exporting,
-                    progressAccessibilityKey: "backup.progress.accessibility"
-                )
-            }
-            .accessibilityLabel("backup.export.accessibility")
-            .disabled(isBusy)
-
-            Button(action: beginImport) {
-                operationLabel(
-                    titleKey: "backup.restore",
-                    systemImage: "square.and.arrow.down",
-                    showsProgress: isRestoreProgressVisible,
-                    progressAccessibilityKey: restoreProgressAccessibilityKey
-                )
-            }
-            .accessibilityLabel("backup.restore.accessibility")
-            .disabled(isBusy)
-
-            HStack {
-                Text("backup.lastSuccessful.label")
-                Spacer()
-                if let date = backupHistory.lastSuccessfulExportAt {
-                    Text(date, format: .dateTime.year().month().day().hour().minute())
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("backup.lastSuccessful.never")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .accessibilityElement(children: .combine)
+        #if os(macOS)
+        VStack(spacing: 0) {
+            exportButton
+                .buttonStyle(.plain)
+            Divider()
+            restoreButton
+                .buttonStyle(.plain)
+            Divider()
+            lastSuccessfulBackupRow
         }
+        #else
+        Section("backup.section") {
+            exportButton
+            restoreButton
+            lastSuccessfulBackupRow
+        }
+        #endif
+    }
+
+    private var exportButton: some View {
+        Button(action: exportBackup) {
+            operationLabel(
+                titleKey: "backup.export",
+                systemImage: "square.and.arrow.up",
+                showsProgress: activeOperation == .exporting,
+                progressAccessibilityKey: "backup.progress.accessibility"
+            )
+        }
+        .accessibilityLabel("backup.export.accessibility")
+        .disabled(isBusy)
+        .frame(minHeight: CGFloat(MacSettingsLayout.minimumRowHeight))
+    }
+
+    private var restoreButton: some View {
+        Button(action: beginImport) {
+            operationLabel(
+                titleKey: "backup.restore",
+                systemImage: "square.and.arrow.down",
+                showsProgress: isRestoreProgressVisible,
+                progressAccessibilityKey: restoreProgressAccessibilityKey
+            )
+        }
+        .accessibilityLabel("backup.restore.accessibility")
+        .disabled(isBusy)
+        .frame(minHeight: CGFloat(MacSettingsLayout.minimumRowHeight))
+    }
+
+    private var lastSuccessfulBackupRow: some View {
+        HStack {
+            Text("backup.lastSuccessful.label")
+            Spacer()
+            if let date = backupHistory.lastSuccessfulExportAt {
+                Text(date, format: .dateTime.year().month().day().hour().minute())
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("backup.lastSuccessful.never")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(minHeight: CGFloat(MacSettingsLayout.minimumRowHeight))
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder private var restoreConfirmationMessage: some View {

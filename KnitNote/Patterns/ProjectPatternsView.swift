@@ -58,6 +58,12 @@ struct ProjectPatternsView: View {
             }
             .sheet(isPresented: $showingLibraryChooser) {
                 ChooseLibraryPatternView(projectID: projectID)
+#if os(macOS)
+                    .frame(
+                        minWidth: CGFloat(KnitNoteMacWindowSizingPolicy.minimumWidth),
+                        minHeight: CGFloat(KnitNoteMacWindowSizingPolicy.minimumHeight)
+                    )
+#endif
             }
             .sheet(isPresented: $showingImporter) {
                 PatternImportResultView(projectID: projectID)

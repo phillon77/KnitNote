@@ -1623,10 +1623,16 @@ final class PatternLibraryDeletionTransaction {
     public func patternThumbnailURL(patternID: UUID) async -> URL? {
         guard loadError == nil,
               let pattern = patterns.first(where: { $0.id == patternID }),
-              let asset = patternAssets.first(where: { $0.id == pattern.assetID }),
-              let sourceURL = try? requiredPatternFileService().assetURL(asset)
+              let asset = patternAssets.first(where: { $0.id == pattern.assetID })
         else { return nil }
         let service = patternThumbnailService
+        if asset.kind == .youtube {
+            let cachedURL = service.cachedURL(assetID: asset.id)
+            return FileManager.default.fileExists(atPath: cachedURL.path) ? cachedURL : nil
+        }
+        guard let sourceURL = try? requiredPatternFileService().assetURL(asset) else {
+            return nil
+        }
         return await Task.detached(priority: .utility) {
             try? service.thumbnailURL(asset: asset, sourceURL: sourceURL)
         }.value

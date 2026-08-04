@@ -61,6 +61,15 @@ public struct PatternBackupReminderCoordinator {
                   return false
               })
         else { return }
+        presentReminder()
+    }
+
+    public mutating func acceptCreatedPattern() {
+        guard !history.hasShownPatternReminder else { return }
+        presentReminder()
+    }
+
+    private mutating func presentReminder() {
         isPresented = true
     }
 

@@ -23,6 +23,11 @@ final class PatternBackupReminderPresenter: ObservableObject {
         publish()
     }
 
+    func acceptCreatedPattern() {
+        coordinator.acceptCreatedPattern()
+        publish()
+    }
+
     func dismiss(openBackupSettings: Bool) {
         coordinator.dismiss(openBackupSettings: openBackupSettings)
         publish()

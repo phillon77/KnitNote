@@ -3,6 +3,7 @@ import SwiftUI
 struct PatternDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     let patternID: UUID
@@ -22,7 +23,7 @@ struct PatternDetailView: View {
                     WatercolorBackground()
                     ScrollView {
                         VStack(spacing: 18) {
-                            responsiveHeader(pattern: pattern)
+                            responsiveHeader(pattern: pattern, asset: asset)
                             informationCard(pattern: pattern, asset: asset)
                             noteCard(pattern: pattern)
                             linkedProjectsCard
@@ -118,15 +119,15 @@ struct PatternDetailView: View {
     }
 
     @ViewBuilder
-    private func responsiveHeader(pattern: StoredPattern) -> some View {
+    private func responsiveHeader(pattern: StoredPattern, asset: PatternAsset) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 22) {
                 thumbnail
-                headerDetails(pattern: pattern)
+                headerDetails(pattern: pattern, asset: asset)
             }
             VStack(spacing: 16) {
                 thumbnail
-                headerDetails(pattern: pattern)
+                headerDetails(pattern: pattern, asset: asset)
             }
         }
     }
@@ -136,15 +137,22 @@ struct PatternDetailView: View {
             .frame(width: 180, height: 220)
     }
 
-    private func headerDetails(pattern: StoredPattern) -> some View {
+    private func headerDetails(pattern: StoredPattern, asset: PatternAsset) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(pattern.displayName)
                 .font(.title2.bold())
                 .foregroundStyle(WatercolorTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("patterns.detail.open", systemImage: "book") {
-                openPattern()
+            Button(
+                asset.kind == .youtube ? "patterns.youtube.open" : "patterns.detail.open",
+                systemImage: asset.kind == .youtube ? "play.rectangle" : "book"
+            ) {
+                if asset.kind == .youtube {
+                    openYouTubePattern()
+                } else {
+                    openPattern()
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(WatercolorTheme.actionBerry)
@@ -165,8 +173,15 @@ struct PatternDetailView: View {
                 detailRow("patterns.detail.fileType") {
                     Text(patternAssetDescription(asset, locale: locale))
                 }
-                detailRow("patterns.detail.fileSize") {
-                    Text(asset.byteCount, format: .byteCount(style: .file))
+                if asset.kind == .youtube {
+                    detailRow("patterns.youtube.link") {
+                        Text(youtubeURLText)
+                            .textSelection(.enabled)
+                    }
+                } else {
+                    detailRow("patterns.detail.fileSize") {
+                        Text(asset.byteCount, format: .byteCount(style: .file))
+                    }
                 }
                 detailRow("patterns.detail.added") {
                     Text(pattern.createdAt, format: .dateTime.year().month().day())
@@ -244,7 +259,8 @@ struct PatternDetailView: View {
                         .patternActionLabelLayout()
                 }
 
-                if let originalURL = try? store.patternAssetURL(patternID: patternID) {
+                if asset?.kind != .youtube,
+                   let originalURL = try? store.patternAssetURL(patternID: patternID) {
                     ShareLink(item: originalURL) {
                         Label("patterns.detail.export", systemImage: "square.and.arrow.up")
                             .patternActionLabelLayout()
@@ -316,6 +332,10 @@ struct PatternDetailView: View {
     }
 
     private func openPattern() {
+        guard asset?.kind != .youtube else {
+            openYouTubePattern()
+            return
+        }
         if activeUsages.isEmpty {
             readerRoute = PatternReaderRoute(
                 context: .readOnly(patternID: patternID)
@@ -336,6 +356,24 @@ struct PatternDetailView: View {
         if entitlementCoordinator.allowsAutomaticReaderPersistence {
             try? store.markPatternOpened(id: patternID)
         }
+    }
+
+    private func openYouTubePattern() {
+        guard let link = try? store.youtubeLink(patternID: patternID) else {
+            errorMessage = String(localized: "patterns.youtube.error.open")
+            return
+        }
+        openURL(link.canonicalURL) { accepted in
+            if accepted {
+                try? store.markPatternOpened(id: patternID)
+            } else {
+                errorMessage = String(localized: "patterns.youtube.error.open")
+            }
+        }
+    }
+
+    private var youtubeURLText: String {
+        (try? store.youtubeLink(patternID: patternID).canonicalURL.absoluteString) ?? ""
     }
 
     private func unlink(projectID: UUID) {

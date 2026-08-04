@@ -105,23 +105,79 @@ struct PatternThumbnailView: View {
         .clipped()
         .accessibilityLabel(Text("patterns.library.thumbnail"))
         .task(id: ThumbnailRequest(patternID: patternID, generation: store.dataGeneration)) {
-            guard let thumbnailURL = await store.patternThumbnailURL(patternID: patternID) else {
+            guard let asset else {
                 loadedImage = nil
                 return
             }
-            let bytes = await Task.detached(priority: .utility) {
-                try? Data(contentsOf: thumbnailURL)
-            }.value
-            guard !Task.isCancelled else { return }
-            loadedImage = bytes.flatMap(decodedImage)
+            if asset.kind == .youtube {
+                await loadYouTubeThumbnail(asset)
+            } else {
+                await loadLocalThumbnail()
+            }
         }
     }
 
     private var fallback: some View {
-        Image(systemName: "doc.richtext")
+        Image(systemName: asset?.kind == .youtube ? "play.rectangle.fill" : "doc.richtext")
             .font(.title2)
             .foregroundStyle(WatercolorTheme.actionBerry)
             .accessibilityHidden(true)
+    }
+
+    private var asset: PatternAsset? {
+        guard let pattern = store.patterns.first(where: { $0.id == patternID }) else {
+            return nil
+        }
+        return store.patternAssets.first { $0.id == pattern.assetID }
+    }
+
+    private func loadLocalThumbnail() async {
+        guard let thumbnailURL = await store.patternThumbnailURL(patternID: patternID) else {
+            loadedImage = nil
+            return
+        }
+        loadedImage = await decodedImage(at: thumbnailURL)
+    }
+
+    private func loadYouTubeThumbnail(_ asset: PatternAsset) async {
+        if let cachedURL = await store.patternThumbnailURL(patternID: patternID) {
+            loadedImage = await decodedImage(at: cachedURL)
+            return
+        }
+        loadedImage = nil
+        guard let link = try? store.youtubeLink(patternID: patternID), !Task.isCancelled else {
+            return
+        }
+        let metadataTask = Task(priority: .utility) { @MainActor in
+            try? await LiveYouTubeLinkMetadataFetcher().fetch(for: link.canonicalURL)
+        }
+        let metadata = await metadataTask.value
+        guard !Task.isCancelled,
+              let thumbnailData = metadata?.thumbnailData else {
+            return
+        }
+        await store.cacheYouTubeThumbnail(thumbnailData, patternID: patternID)
+        guard !Task.isCancelled,
+              isCurrentYouTubeAsset(asset) else {
+            return
+        }
+        guard let cachedURL = await store.patternThumbnailURL(patternID: patternID) else {
+            return
+        }
+        loadedImage = await decodedImage(at: cachedURL)
+    }
+
+    private func isCurrentYouTubeAsset(_ asset: PatternAsset) -> Bool {
+        store.patterns.first(where: { $0.id == patternID })?.assetID == asset.id
+            && store.patternAssets.contains(where: { $0.id == asset.id && $0.kind == .youtube })
+    }
+
+    private func decodedImage(at url: URL) async -> Image? {
+        let bytes = await Task.detached(priority: .utility) {
+            try? Data(contentsOf: url)
+        }.value
+        guard !Task.isCancelled else { return nil }
+        return bytes.flatMap(decodedImage)
     }
 
     private func decodedImage(_ data: Data) -> Image? {
@@ -154,6 +210,6 @@ func patternAssetDescription(_ asset: PatternAsset, locale: Locale) -> String {
     case .image:
         return String(localized: "patterns.library.image", locale: locale)
     case .youtube:
-        return String(localized: "YouTube", locale: locale)
+        return String(localized: "patterns.library.youtube", locale: locale)
     }
 }

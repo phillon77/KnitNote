@@ -4377,6 +4377,22 @@
         }
       }
     },
+    "patterns.library.youtube" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube video"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube 影片"
+          }
+        }
+      }
+    },
     "patterns.library.unused" : {
       "localizations" : {
         "en" : {

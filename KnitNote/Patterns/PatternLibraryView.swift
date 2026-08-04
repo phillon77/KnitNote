@@ -15,6 +15,7 @@ struct PatternLibraryView: View {
     @State private var query = ""
     @State private var sort = PatternLibrarySort.recentlyAdded
     @State private var importing = false
+    @State private var addingYouTubeLink = false
     @State private var pendingSelection: PendingPatternSelection?
     @State private var existingPatternID: UUID?
     @State private var errorMessage: String?
@@ -74,8 +75,13 @@ struct PatternLibraryView: View {
                     }
                     .accessibilityLabel(Text("patterns.library.sort"))
 
-                    Button {
-                        importing = true
+                    Menu {
+                        Button("patterns.import.files", systemImage: "folder") {
+                            importing = true
+                        }
+                        Button("patterns.youtube.add", systemImage: "play.rectangle") {
+                            addingYouTubeLink = true
+                        }
                     } label: {
                         Label("patterns.add", systemImage: "plus")
                             .patternToolbarTextLabelStyle()
@@ -88,6 +94,11 @@ struct PatternLibraryView: View {
                 allowedContentTypes: [.pdf, .png, .jpeg, .heic]
             ) { result in
                 importPattern(result)
+            }
+            .sheet(isPresented: $addingYouTubeLink) {
+                AddYouTubePatternView(targetProjectID: nil) { patternID, resolution in
+                    acceptYouTubeAddResult(patternID: patternID, resolution: resolution)
+                }
             }
             .sheet(item: $pendingSelection) { selection in
                 chooseDuplicate(for: selection)
@@ -195,6 +206,21 @@ struct PatternLibraryView: View {
                 itemID: itemID,
                 candidatePatternIDs: candidatePatternIDs
             )
+        }
+    }
+
+    private func acceptYouTubeAddResult(
+        patternID: UUID,
+        resolution: YouTubePatternAddResult.Resolution
+    ) {
+        switch resolution {
+        case .created:
+            backupReminderPresenter.acceptCreatedPattern()
+            pendingSelection = nil
+            existingPatternID = nil
+        case .existing:
+            pendingSelection = nil
+            existingPatternID = patternID
         }
     }
 

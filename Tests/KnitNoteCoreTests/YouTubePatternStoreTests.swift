@@ -119,6 +119,35 @@ import Testing
         #expect(harness.store.patternUsages.first?.isActive == true)
     }
 
+    @Test func unlinkThenLinkReactivatesTheSameYouTubeUsage() async throws {
+        let harness = try YouTubePatternStoreHarness()
+        let created = try await harness.store.addYouTubePattern(
+            link: try YouTubePatternLink(videoID: "dQw4w9WgXcQ"),
+            title: "Relink through chooser",
+            targetProjectID: harness.firstProjectID
+        )
+        let originalUsage = try #require(harness.store.patternUsages.first)
+
+        try harness.store.unlinkPattern(
+            patternID: created.resolvedPatternID,
+            from: harness.firstProjectID
+        )
+        let unlinkedUsage = try #require(harness.store.patternUsages.first)
+        #expect(unlinkedUsage.id == originalUsage.id)
+        #expect(unlinkedUsage.isActive == false)
+        #expect(unlinkedUsage.unlinkedAt != nil)
+
+        let relinkedUsage = try harness.store.linkPattern(
+            patternID: created.resolvedPatternID,
+            to: harness.firstProjectID
+        )
+
+        #expect(relinkedUsage.id == originalUsage.id)
+        #expect(relinkedUsage.isActive == true)
+        #expect(relinkedUsage.unlinkedAt == nil)
+        #expect(harness.store.patternUsages.count == 1)
+    }
+
     @Test func authorizationDenialLeavesNoSidecarOrArchiveMutation() async throws {
         let harness = try YouTubePatternStoreHarness(authorizeMutation: { _ in .requiresUnlock })
 

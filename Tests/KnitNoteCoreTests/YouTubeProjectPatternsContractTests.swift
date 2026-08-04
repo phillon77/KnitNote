@@ -5,32 +5,31 @@ import Testing
     @Test func projectAddMenuOffersExactlyTheThreeSupportedPatternActions() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
 
-        #expect(source.contains("patterns.linkExisting"))
-        #expect(source.contains("patterns.importNew"))
-        #expect(source.contains("patterns.youtube.add"))
+        #expect(source.contains("ForEach(ProjectPatternAddAction.allCases)"))
+        #expect(source.contains("performAddAction(action)"))
         #expect(source.contains("AddYouTubePatternView(targetProjectID: projectID)"))
     }
 
     @Test func projectYouTubeRowsOpenExternallyWithoutCreatingAReaderSelection() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
 
-        #expect(source.contains("switch selection.asset.kind"))
-        #expect(source.contains("case .youtube:"))
+        #expect(source.contains("projectPatternOpenRoute(for: selection.asset)"))
+        #expect(source.contains("case .externalYouTube:"))
         #expect(source.contains("openYouTube(selection)"))
         #expect(source.contains("openURL(link.canonicalURL)"))
         #expect(source.contains("patterns.youtube.error.open"))
-        #expect(source.contains("case .pdf, .image:"))
+        #expect(source.contains("case .reader:"))
         #expect(source.contains("selectedPattern = selection"))
     }
 
     @Test func choosingLibraryPatternsShowsYouTubeTypeAndDropsBrokenAssetRelationships() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ChooseLibraryPatternView.swift")
 
-        #expect(source.contains("store.patternAssets.first(where: { $0.id == option.pattern.assetID })"))
+        #expect(source.contains("ProjectPatternLinkChoiceIndex("))
+        #expect(source.contains("assets: store.patternAssets"))
         #expect(source.contains("patternAssetDescription(asset, locale: locale)"))
-        #expect(source.contains("Text(patternAssetDescription(asset, locale: locale))"))
-        #expect(source.contains("accessibilityLabel(for: option, asset: asset)"))
-        #expect(source.contains("compactMap"))
+        #expect(source.contains("projectPatternLinkChoiceAccessibilityLabel("))
+        #expect(source.contains("accessibilityLabel(for: selection)"))
     }
 
     @Test func projectUnlinkAndRelinkKeepTheExistingUsageContractForYouTubePatterns() throws {
@@ -38,7 +37,7 @@ import Testing
         let chooserSource = try readRepositoryFile("KnitNote/Patterns/ChooseLibraryPatternView.swift")
 
         #expect(projectSource.contains("store.unlinkPattern(patternID:"))
-        #expect(chooserSource.contains("ProjectPatternLinkIndex("))
+        #expect(chooserSource.contains("ProjectPatternLinkChoiceIndex("))
         #expect(chooserSource.contains("patterns.relink"))
         #expect(chooserSource.contains("store.linkPattern(patternID:"))
     }

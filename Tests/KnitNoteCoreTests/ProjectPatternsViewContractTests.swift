@@ -6,9 +6,8 @@ import Testing
         let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
 
         #expect(source.contains("Menu"))
-        #expect(source.contains("patterns.linkExisting"))
-        #expect(source.contains("patterns.importNew"))
-        #expect(source.contains("patterns.youtube.add"))
+        #expect(source.contains("ForEach(ProjectPatternAddAction.allCases)"))
+        #expect(source.contains("performAddAction(action)"))
         #expect(source.contains("ChooseLibraryPatternView("))
         #expect(source.contains("PatternImportResultView("))
         #expect(source.contains("AddYouTubePatternView(targetProjectID: projectID)"))
@@ -27,7 +26,7 @@ import Testing
     @Test func libraryChooserUsesRealLinkStateAndOffersRelinking() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ChooseLibraryPatternView.swift")
 
-        #expect(source.contains("ProjectPatternLinkIndex("))
+        #expect(source.contains("ProjectPatternLinkChoiceIndex("))
         #expect(source.contains("patterns.relink"))
         #expect(source.contains("store.linkPattern(patternID:"))
         #expect(source.contains(".accessibilityLabel"))

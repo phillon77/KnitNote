@@ -46,14 +46,10 @@ struct ProjectPatternsView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        Button("patterns.linkExisting", systemImage: "link.badge.plus") {
-                            showingLibraryChooser = true
-                        }
-                        Button("patterns.importNew", systemImage: "square.and.arrow.down") {
-                            showingImporter = true
-                        }
-                        Button("patterns.youtube.add", systemImage: "play.rectangle") {
-                            showingYouTubeImporter = true
+                        ForEach(ProjectPatternAddAction.allCases) { action in
+                            Button(action.localizationKey, systemImage: action.systemImageName) {
+                                performAddAction(action)
+                            }
                         }
                     } label: {
                         Label("patterns.add", systemImage: "plus")
@@ -160,11 +156,22 @@ struct ProjectPatternsView: View {
     }
 
     private func open(_ selection: ProjectPatternReaderSelection) {
-        switch selection.asset.kind {
-        case .youtube:
+        switch projectPatternOpenRoute(for: selection.asset) {
+        case .externalYouTube:
             openYouTube(selection)
-        case .pdf, .image:
+        case .reader:
             selectedPattern = selection
+        }
+    }
+
+    private func performAddAction(_ action: ProjectPatternAddAction) {
+        switch action {
+        case .linkExisting:
+            showingLibraryChooser = true
+        case .importFile:
+            showingImporter = true
+        case .addYouTube:
+            showingYouTubeImporter = true
         }
     }
 

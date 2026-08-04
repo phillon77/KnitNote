@@ -103,6 +103,31 @@ public enum PatternLibraryMutationError: Error, Equatable, Sendable {
     case activeLinksExist([UUID])
 }
 
+public enum YouTubePatternStoreError: Error, Equatable, Sendable {
+    case emptyTitle
+}
+
+public struct YouTubePatternAddResult: Equatable, Sendable {
+    public enum Resolution: Equatable, Sendable {
+        case created
+        case existing
+    }
+
+    public let resolution: Resolution
+    public let patternID: UUID
+
+    public init(resolution: Resolution, patternID: UUID) {
+        self.resolution = resolution
+        self.patternID = patternID
+    }
+
+    public var createdPatternID: UUID? {
+        resolution == .created ? patternID : nil
+    }
+
+    public var resolvedPatternID: UUID { patternID }
+}
+
 /// Counter changes issued from a pattern reader are tied to one active usage,
 /// rather than merely to the containing project.
 public enum PatternReaderCounterMutation: Sendable {
@@ -1237,6 +1262,119 @@ final class PatternLibraryDeletionTransaction {
         )
     }
 
+    public func addYouTubePattern(
+        link: YouTubePatternLink,
+        title: String,
+        targetProjectID: UUID? = nil,
+        now: Date = .now
+    ) async throws -> YouTubePatternAddResult {
+        let access = try preflightAccess(.importPattern)
+        return try await withActivePatternTransaction {
+            try addYouTubePattern(
+                link: link,
+                title: title,
+                targetProjectID: targetProjectID,
+                now: now,
+                access: access
+            )
+        }
+    }
+
+    private func addYouTubePattern(
+        link: YouTubePatternLink,
+        title: String,
+        targetProjectID: UUID?,
+        now: Date,
+        access: FeatureAccessDecision
+    ) throws -> YouTubePatternAddResult {
+        try ensureArchiveAvailable()
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            throw YouTubePatternStoreError.emptyTitle
+        }
+        if let targetProjectID, project(id: targetProjectID) == nil {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+
+        let metadata = YouTubePatternMetadata(link: link)
+        let metadataData = try encodedYouTubeMetadata(metadata)
+        let metadataSHA256 = SHA256.hash(data: metadataData)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let files = try requiredPatternFileService()
+        let matchingAssets = patternAssets.filter {
+            $0.kind == .youtube && $0.sha256 == metadataSHA256
+        }
+        if let existingPattern = patterns.first(where: { pattern in
+            matchingAssets.contains(where: { $0.id == pattern.assetID })
+        }) {
+            let usages = try addingUsage(
+                for: existingPattern.id,
+                targetProjectID: targetProjectID,
+                to: patternUsages,
+                now: now
+            )
+            if usages != patternUsages {
+                try commitAccessIfNeeded(access, mutation: .importPattern)
+                try persist(
+                    projects: projects,
+                    yarns: yarns,
+                    patternAssets: patternAssets,
+                    patterns: patterns,
+                    patternUsages: usages
+                )
+            }
+            return YouTubePatternAddResult(resolution: .existing, patternID: existingPattern.id)
+        }
+
+        let reusedAsset = matchingAssets.first
+        let assetID = reusedAsset?.id ?? PatternImportCoordinator().deterministicAssetID(for: metadataSHA256)
+        let proposedAsset = PatternAsset(
+            id: assetID,
+            sha256: metadataSHA256,
+            kind: .youtube,
+            storedFilename: "\(assetID.uuidString).youtube",
+            byteCount: Int64(metadataData.count),
+            pageCount: nil
+        )
+        let sidecarURL = try files.assetURL(proposedAsset)
+        let sidecarAlreadyExisted = FileManager.default.fileExists(atPath: sidecarURL.path)
+        try commitAccessIfNeeded(access, mutation: .importPattern)
+
+        do {
+            let asset: PatternAsset
+            if let reusedAsset {
+                asset = reusedAsset
+            } else {
+                asset = try files.storeYouTubeMetadata(metadata, assetID: assetID)
+            }
+            let pattern = StoredPattern(
+                assetID: asset.id,
+                displayName: trimmedTitle,
+                createdAt: now
+            )
+            let usages = try addingUsage(
+                for: pattern.id,
+                targetProjectID: targetProjectID,
+                to: patternUsages,
+                now: now
+            )
+            try persist(
+                projects: projects,
+                yarns: yarns,
+                patternAssets: reusedAsset == nil ? patternAssets + [asset] : patternAssets,
+                patterns: patterns + [pattern],
+                patternUsages: usages
+            )
+            return YouTubePatternAddResult(resolution: .created, patternID: pattern.id)
+        } catch {
+            if reusedAsset == nil, !sidecarAlreadyExisted {
+                try? files.deleteAsset(proposedAsset)
+            }
+            throw error
+        }
+    }
+
     private func enqueuePatternImport(
         _ source: URL,
         origin: PatternImportOrigin,
@@ -1436,6 +1574,18 @@ final class PatternLibraryDeletionTransaction {
             throw PatternLibraryMutationError.patternNotFound
         }
         return try requiredPatternFileService().assetURL(asset)
+    }
+
+    public func youtubeLink(patternID: UUID) throws -> YouTubePatternLink {
+        try ensureArchiveAvailable()
+        guard let pattern = patterns.first(where: { $0.id == patternID }),
+              let asset = patternAssets.first(where: { $0.id == pattern.assetID }) else {
+            throw PatternLibraryMutationError.patternNotFound
+        }
+        guard asset.kind == .youtube else {
+            throw PatternFileError.invalidContent
+        }
+        return try requiredPatternFileService().youtubeMetadata(for: asset).validated()
     }
 
     public func patternThumbnailURL(patternID: UUID) async -> URL? {
@@ -2494,10 +2644,17 @@ final class PatternLibraryDeletionTransaction {
         return value.isEmpty ? "Pattern" : value
     }
 
+    private func encodedYouTubeMetadata(_ metadata: YouTubePatternMetadata) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(metadata)
+    }
+
     private func addingUsage(
         for patternID: UUID,
         targetProjectID: UUID?,
-        to existingUsages: [PatternProjectUsage]
+        to existingUsages: [PatternProjectUsage],
+        now: Date = .now
     ) throws -> [PatternProjectUsage] {
         guard let targetProjectID else { return existingUsages }
         guard project(id: targetProjectID) != nil else { throw ProjectStoreError.patternNotFound }
@@ -2515,6 +2672,7 @@ final class PatternLibraryDeletionTransaction {
         return existingUsages + [PatternProjectUsage(
             patternID: patternID,
             projectID: targetProjectID,
+            linkedAt: now,
             sortOrder: nextSortOrder
         )]
     }

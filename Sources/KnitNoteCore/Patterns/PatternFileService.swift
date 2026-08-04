@@ -79,6 +79,7 @@ public struct PatternFileService: Sendable {
     public let root: URL
     private let copyFile: @Sendable (URL, URL) throws -> Void
     private let moveFile: @Sendable (URL, URL) throws -> Void
+    private let writeData: @Sendable (Data, URL) throws -> Void
 
     public init(root: URL) {
         self.root = root
@@ -87,6 +88,9 @@ public struct PatternFileService: Sendable {
         }
         moveFile = { source, destination in
             try FileManager.default.moveItem(at: source, to: destination)
+        }
+        writeData = { data, destination in
+            try data.write(to: destination, options: .atomic)
         }
     }
 
@@ -97,11 +101,15 @@ public struct PatternFileService: Sendable {
         },
         moveFile: @escaping @Sendable (URL, URL) throws -> Void = {
             try FileManager.default.moveItem(at: $0, to: $1)
-        }
+        },
+        writeData: (@Sendable (Data, URL) throws -> Void)? = nil
     ) {
         self.root = root
         self.copyFile = copyFile
         self.moveFile = moveFile
+        self.writeData = writeData ?? { data, destination in
+            try data.write(to: destination, options: .atomic)
+        }
     }
 
     public static func live() throws -> PatternFileService {
@@ -232,7 +240,7 @@ public struct PatternFileService: Sendable {
                 throw PatternFileError.invalidContent
             }
         } else {
-            try data.write(to: destination, options: .atomic)
+            try writeData(data, destination)
         }
         return asset
     }

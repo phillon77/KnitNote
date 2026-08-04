@@ -63,9 +63,14 @@ struct ChooseLibraryPatternView: View {
     private func optionRow(_ selection: ProjectPatternLinkChoice) -> some View {
         let option = selection.option
         let asset = selection.asset
+        let thumbnailLayout = PatternListThumbnailLayout.resolve(for: asset.kind)
+
         return HStack(alignment: .top, spacing: 14) {
             PatternThumbnailView(patternID: option.pattern.id)
-                .frame(width: 64, height: 80)
+                .frame(
+                    width: CGFloat(thumbnailLayout.width),
+                    height: CGFloat(thumbnailLayout.height)
+                )
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(option.pattern.displayName)
@@ -83,7 +88,11 @@ struct ChooseLibraryPatternView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: CGFloat(thumbnailLayout.minimumRowHeight),
+            alignment: .leading
+        )
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel(for: selection))

@@ -39,6 +39,16 @@ import Testing
         #expect(source.contains("accessibilityLabel(for: selection)"))
     }
 
+    @Test func choosingLibraryPatternsUsesTheSharedThumbnailLayoutForEveryAssetKind() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/ChooseLibraryPatternView.swift")
+
+        #expect(source.contains("PatternListThumbnailLayout.resolve(for: asset.kind)"))
+        #expect(source.contains("width: CGFloat(thumbnailLayout.width)"))
+        #expect(source.contains("height: CGFloat(thumbnailLayout.height)"))
+        #expect(source.contains("minHeight: CGFloat(thumbnailLayout.minimumRowHeight)"))
+        #expect(!source.contains(".frame(width: 64, height: 80)"))
+    }
+
     @Test func projectUnlinkAndRelinkKeepTheExistingUsageContractForYouTubePatterns() throws {
         let projectSource = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
         let chooserSource = try readRepositoryFile("KnitNote/Patterns/ChooseLibraryPatternView.swift")

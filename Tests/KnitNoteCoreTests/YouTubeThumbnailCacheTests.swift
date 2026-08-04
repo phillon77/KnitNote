@@ -137,6 +137,57 @@ import UniformTypeIdentifiers
             atPath: thumbnailService.cachedURL(assetID: storedPattern.assetID).path
         ))
     }
+
+    @Test @MainActor func deletingThePatternWhileTheThumbnailIsStagedNeverPublishesTheCanonicalCache() async throws {
+        let root = try makeThumbnailCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archiveURL = root.appendingPathComponent("archive.json")
+        let projectID = UUID()
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [try StoredProject(id: projectID, name: "Project")]
+        )).write(to: archiveURL, options: .atomic)
+
+        let thumbnailService = PatternThumbnailFileService(
+            directory: root.appendingPathComponent("thumbnails", isDirectory: true)
+        )
+        let patternsRoot = root.appendingPathComponent("patterns", isDirectory: true)
+        let stageGate = YouTubeThumbnailStageGate()
+        let store = JSONProjectStore(
+            url: archiveURL,
+            patternFileService: PatternFileService(root: patternsRoot),
+            patternInboxFileService: PatternInboxFileService(
+                root: root.appendingPathComponent("PatternInbox", isDirectory: true)
+            ),
+            patternPublicationReceiptService: PatternInboxPublicationReceiptService(root: patternsRoot),
+            patternThumbnailService: thumbnailService,
+            afterYouTubeThumbnailStage: { await stageGate.waitForRelease() },
+            backupService: KnitNoteBackupService(
+                liveRoot: root,
+                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true)
+            )
+        )
+        let added = try await store.addYouTubePattern(
+            link: try YouTubePatternLink(videoID: "abcdefghijk"),
+            title: "Video pattern",
+            targetProjectID: projectID
+        )
+        let assetID = try #require(store.patterns.first(where: { $0.id == added.patternID })?.assetID)
+
+        let cacheTask = Task { await store.cacheYouTubeThumbnail(
+            try! makePNG(width: 8, height: 8),
+            patternID: added.patternID
+        ) }
+        await stageGate.waitUntilStaged()
+        try store.unlinkPattern(patternID: added.patternID, from: projectID)
+        try store.deletePatternPermanently(id: added.patternID)
+        await stageGate.release()
+        await cacheTask.value
+
+        #expect(!FileManager.default.fileExists(
+            atPath: thumbnailService.cachedURL(assetID: assetID).path
+        ))
+    }
 }
 
 private func makeThumbnailCacheRoot() throws -> URL {
@@ -172,4 +223,20 @@ private func makePNG(width: Int, height: Int) throws -> Data {
         throw PatternThumbnailFileError.encodingFailed
     }
     return output as Data
+}
+
+private actor YouTubeThumbnailStageGate {
+    private var didStage = false
+    private var released = false
+
+    func waitUntilStaged() async {
+        while !didStage { await Task.yield() }
+    }
+
+    func waitForRelease() async {
+        didStage = true
+        while !released { await Task.yield() }
+    }
+
+    func release() { released = true }
 }

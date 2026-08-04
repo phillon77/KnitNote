@@ -5,37 +5,24 @@ import UIKit
 import AppKit
 #endif
 
-private enum YouTubeMetadataFetchState: Equatable {
-    case idle
-    case loading
-    case loaded(title: String?, thumbnailData: Data?)
-    case manualEntry(messageKey: String)
-}
-
 struct AddYouTubePatternView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: JSONProjectStore
 
-    let targetProjectID: UUID?
-    private let metadataFetcher: any YouTubeLinkMetadataFetching
+    private let metadataFetcher: any YouTubePatternMetadataFetching
     private let onFinished: (UUID, YouTubePatternAddResult.Resolution) -> Void
-
-    @State private var urlText = ""
-    @State private var title = ""
-    @State private var fetchState: YouTubeMetadataFetchState = .idle
-    @State private var parsedLink: YouTubePatternLink?
-    @State private var metadataTask: Task<Void, Never>?
-    @State private var isAdding = false
-    @State private var addErrorKey: String?
+    @StateObject private var coordinator: YouTubePatternAddCoordinator
 
     init(
         targetProjectID: UUID? = nil,
-        metadataFetcher: any YouTubeLinkMetadataFetching = LiveYouTubeLinkMetadataFetcher(),
+        metadataFetcher: any YouTubePatternMetadataFetching = LiveYouTubeLinkMetadataFetcher(),
         onFinished: @escaping (UUID, YouTubePatternAddResult.Resolution) -> Void = { _, _ in }
     ) {
-        self.targetProjectID = targetProjectID
         self.metadataFetcher = metadataFetcher
         self.onFinished = onFinished
+        _coordinator = StateObject(wrappedValue: YouTubePatternAddCoordinator(
+            targetProjectID: targetProjectID
+        ))
     }
 
     var body: some View {
@@ -43,21 +30,23 @@ struct AddYouTubePatternView: View {
             Form {
                 Section("patterns.youtube.link") {
                     youtubeURLField
-
                     Button("patterns.youtube.readMetadata") {
-                        readMetadata()
+                        coordinator.readMetadata(using: metadataFetcher)
                     }
-                    .disabled(urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAdding)
+                    .disabled(
+                        coordinator.urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || coordinator.isAdding
+                    )
                 }
 
                 Section("patterns.youtube.details") {
                     thumbnail
-                    TextField("patterns.youtube.title", text: $title)
+                    TextField("patterns.youtube.title", text: $coordinator.title)
                         .accessibilityLabel(Text("patterns.youtube.title"))
                     fallbackMessage
                 }
 
-                if let addErrorKey {
+                if let addErrorKey = coordinator.addErrorKey {
                     Section {
                         Text(LocalizedStringKey(addErrorKey))
                             .foregroundStyle(.red)
@@ -68,44 +57,34 @@ struct AddYouTubePatternView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common.cancel") {
-                        cancelMetadataRequest()
+                        coordinator.cancelMetadataRequest()
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("common.add") {
-                        addPattern()
-                    }
-                    .disabled(!addIsEnabled || isAdding)
+                    Button("common.add") { addPattern() }
+                        .disabled(!coordinator.isAddEnabled || coordinator.isAdding)
                 }
             }
         }
         .tint(WatercolorTheme.actionBerry)
-        .onChange(of: urlText) { _, _ in
-            cancelMetadataRequest()
-            parsedLink = nil
-            fetchState = .idle
-        }
         .onDisappear {
-            cancelMetadataRequest()
+            coordinator.cancelMetadataRequest()
         }
     }
 
     @ViewBuilder
     private var thumbnail: some View {
-        switch fetchState {
-        case let .loaded(_, thumbnailData):
-            if let thumbnailData, let image = platformImage(data: thumbnailData) {
-                Image(platformImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 140)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityHidden(true)
-            } else {
-                defaultThumbnail
-            }
-        case .idle, .loading, .manualEntry:
+        if case let .loaded(thumbnailData) = coordinator.fetchState,
+           let thumbnailData,
+           let image = platformImage(data: thumbnailData) {
+            Image(platformImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxHeight: 140)
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+        } else {
             defaultThumbnail
         }
     }
@@ -121,19 +100,19 @@ struct AddYouTubePatternView: View {
     @ViewBuilder
     private var youtubeURLField: some View {
         #if os(iOS)
-        TextField("patterns.youtube.url", text: $urlText)
+        TextField("patterns.youtube.url", text: $coordinator.urlText)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .accessibilityLabel(Text("patterns.youtube.url"))
         #else
-        TextField("patterns.youtube.url", text: $urlText)
+        TextField("patterns.youtube.url", text: $coordinator.urlText)
             .accessibilityLabel(Text("patterns.youtube.url"))
         #endif
     }
 
     @ViewBuilder
     private var fallbackMessage: some View {
-        switch fetchState {
+        switch coordinator.fetchState {
         case .loading:
             HStack(spacing: 8) {
                 ProgressView()
@@ -148,84 +127,23 @@ struct AddYouTubePatternView: View {
         }
     }
 
-    private var canonicalLink: YouTubePatternLink? {
-        if let parsedLink { return parsedLink }
-        guard let url = URL(string: urlText.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return nil
-        }
-        return try? YouTubePatternLink(parsing: url)
-    }
-
-    private var addIsEnabled: Bool {
-        canonicalLink != nil && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func readMetadata() {
-        cancelMetadataRequest()
-        addErrorKey = nil
-        guard let url = URL(string: urlText.trimmingCharacters(in: .whitespacesAndNewlines)),
-              let link = try? YouTubePatternLink(parsing: url) else {
-            parsedLink = nil
-            fetchState = .manualEntry(messageKey: "patterns.youtube.invalidLink")
-            return
-        }
-
-        parsedLink = link
-        fetchState = .loading
-        metadataTask = Task { @MainActor in
-            do {
-                let metadata = try await withYouTubeMetadataTimeout {
-                    try await metadataFetcher.fetch(for: link.canonicalURL)
-                }
-                try Task.checkCancellation()
-                guard parsedLink == link else { return }
-                if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                   let fetchedTitle = metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !fetchedTitle.isEmpty {
-                    title = fetchedTitle
-                }
-                fetchState = .loaded(title: metadata.title, thumbnailData: metadata.thumbnailData)
-            } catch is CancellationError {
-                return
-            } catch {
-                guard parsedLink == link else { return }
-                fetchState = .manualEntry(messageKey: "patterns.youtube.metadataUnavailable")
-            }
-            metadataTask = nil
-        }
-    }
-
-    private func cancelMetadataRequest() {
-        metadataTask?.cancel()
-        metadataTask = nil
-    }
-
     private func addPattern() {
-        guard let link = canonicalLink else { return }
-        isAdding = true
-        addErrorKey = nil
-        let thumbnailData: Data?
-        if case let .loaded(_, data) = fetchState {
-            thumbnailData = data
-        } else {
-            thumbnailData = nil
-        }
         Task { @MainActor in
-            do {
-                let result = try await store.addYouTubePattern(
-                    link: link,
-                    title: title,
-                    targetProjectID: targetProjectID
-                )
-                if let thumbnailData {
-                    await store.cacheYouTubeThumbnail(thumbnailData, patternID: result.patternID)
+            let result = await coordinator.add(
+                add: { link, title, targetProjectID in
+                    try await store.addYouTubePattern(
+                        link: link,
+                        title: title,
+                        targetProjectID: targetProjectID
+                    )
+                },
+                cache: { data, patternID in
+                    await store.cacheYouTubeThumbnail(data, patternID: patternID)
                 }
-                onFinished(result.patternID, result.resolution)
-                dismiss()
-            } catch {
-                addErrorKey = "patterns.youtube.addFailed"
-                isAdding = false
-            }
+            )
+            guard let result else { return }
+            onFinished(result.patternID, result.resolution)
+            dismiss()
         }
     }
 

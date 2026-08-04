@@ -504,6 +504,7 @@ final class PatternLibraryDeletionTransaction {
     private var patternPublicationReceiptService: PatternInboxPublicationReceiptService?
     private let patternMarkupFileService: PatternMarkupFileService
     private let patternThumbnailService: PatternThumbnailFileService
+    private let afterYouTubeThumbnailStage: @Sendable () async -> Void
     private let patternPDFPageThumbnailURLGenerator: @Sendable (PatternAsset, URL, Int) -> URL?
     private let backupService: KnitNoteBackupService
     private let archiveWrite: @Sendable (Data, URL) throws -> Void
@@ -561,6 +562,7 @@ final class PatternLibraryDeletionTransaction {
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil,
         patternPDFPageThumbnailURLGenerator: (@Sendable (PatternAsset, URL, Int) -> URL?)? = nil,
+        afterYouTubeThumbnailStage: @escaping @Sendable () async -> Void = {},
         backupService: KnitNoteBackupService,
         initialLoadError: ProjectStoreError? = nil,
         patternStorageLocationsProvider: (() throws -> PatternStorageLocations)? = nil,
@@ -609,6 +611,7 @@ final class PatternLibraryDeletionTransaction {
             )
         )
         self.patternThumbnailService = resolvedPatternThumbnailService
+        self.afterYouTubeThumbnailStage = afterYouTubeThumbnailStage
         self.patternPDFPageThumbnailURLGenerator = patternPDFPageThumbnailURLGenerator ?? {
             asset,
             sourceURL,
@@ -1598,14 +1601,22 @@ final class PatternLibraryDeletionTransaction {
         }
         let assetID = asset.id
         let service = patternThumbnailService
-        let result = await Task.detached(priority: .utility) {
-            try? service.storeExternalThumbnail(data: data, assetID: assetID)
+        let stagedURL = await Task.detached(priority: .utility) {
+            try? service.stageExternalThumbnail(data: data, assetID: assetID)
         }.value
-        guard result != nil,
+        guard let stagedURL else { return }
+        await afterYouTubeThumbnailStage()
+        guard
               let currentPattern = patterns.first(where: { $0.id == patternID }),
               currentPattern.assetID == assetID,
               patternAssets.contains(where: { $0.id == assetID && $0.kind == .youtube }) else {
+            try? service.discardExternalThumbnailStage(stagedURL)
             return
+        }
+        do {
+            _ = try service.publishExternalThumbnail(stagedURL: stagedURL, assetID: assetID)
+        } catch {
+            try? service.discardExternalThumbnailStage(stagedURL)
         }
     }
 

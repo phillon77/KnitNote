@@ -40,6 +40,7 @@
 		1AFA6889382728256AB9F0A1 /* ProcessedWatchCommandLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373195B93B12AF80760B1A6D /* ProcessedWatchCommandLedger.swift */; };
 		1B1A2101FF71E0949F5ED0C6 /* AtomicWatchSyncFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B50375391FAE4E84A86BCF /* AtomicWatchSyncFile.swift */; };
 		1B1D92121445E45CFD4386A7 /* YarnPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72200A671E5D5C5B6A0E39D2 /* YarnPhotoView.swift */; };
+		1B459B881144FDE7B7BA5F61 /* YouTubePatternAddCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEC91FEB50303032D9924E3 /* YouTubePatternAddCoordinator.swift */; };
 		1BAFFFAC4F250314A9ED8AD4 /* YarnLabelRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2C1C3F85EC883DEF17C822 /* YarnLabelRecognitionService.swift */; };
 		1C19D56E21EAA44821E584C0 /* YarnLabelImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E6961F211EFFD011BEDFE6 /* YarnLabelImagePicker.swift */; };
 		1CB5C82E85693EC431A030B2 /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
@@ -126,6 +127,7 @@
 		61333EB179CA9A4FE0954015 /* UnlockPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */; };
 		62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		625C39A0B9A33D2FADACCA3E /* WatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */; };
+		62BCA7D27A65D36BC9BFDE9A /* YouTubePatternAddCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEC91FEB50303032D9924E3 /* YouTubePatternAddCoordinator.swift */; };
 		6495C02F7B77E988D6CF3330 /* YarnLabelDraftSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */; };
 		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600A5A211EF6682DED675574 /* EditCounterNameView.swift */; };
@@ -569,6 +571,7 @@
 		ED7B4D1F4565A0DCEF4074A5 /* YarnLabelCandidateReviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelCandidateReviewState.swift; sourceTree = "<group>"; };
 		EF29A3759BFD3D7AEB014EBA /* YarnLabelObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelObservation.swift; sourceTree = "<group>"; };
 		EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentCalculator.swift; sourceTree = "<group>"; };
+		EFEC91FEB50303032D9924E3 /* YouTubePatternAddCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePatternAddCoordinator.swift; sourceTree = "<group>"; };
 		F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalPhotoPicker.swift; sourceTree = "<group>"; };
 		F1636706F0E1A52CEA341F56 /* ChooseYarnProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseYarnProjectsView.swift; sourceTree = "<group>"; };
 		F3663DE46B0C7E8EF38A0358 /* PatternPageThumbnailPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPageThumbnailPolicy.swift; sourceTree = "<group>"; };
@@ -886,6 +889,7 @@
 				C05CEE6F88AA591A17AA4C99 /* ProjectPatternImportPresentation.swift */,
 				0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */,
 				8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */,
+				EFEC91FEB50303032D9924E3 /* YouTubePatternAddCoordinator.swift */,
 				70D946E82169D361DB029610 /* YouTubePatternLink.swift */,
 				B9745AF84B9E8AE558F17155 /* YouTubePatternMetadata.swift */,
 			);
@@ -1486,6 +1490,7 @@
 				F88E0C44F56AF747CE0AA935 /* YarnPhotoPicker.swift in Sources */,
 				1B1D92121445E45CFD4386A7 /* YarnPhotoView.swift in Sources */,
 				EABC9AD92D80676113974CC2 /* YouTubeLinkMetadataFetcher.swift in Sources */,
+				62BCA7D27A65D36BC9BFDE9A /* YouTubePatternAddCoordinator.swift in Sources */,
 				A92C9A99466AFDE777967306 /* YouTubePatternLink.swift in Sources */,
 				548D47A478269DAC1221ABEA /* YouTubePatternMetadata.swift in Sources */,
 			);
@@ -1573,6 +1578,7 @@
 				5E2D27976880B229F63FE59C /* YarnLabelScanSession.swift in Sources */,
 				CAD410112A817D39102480B7 /* YarnLinkSelectionMerge.swift in Sources */,
 				3DF82E72F81800C8080884A3 /* YarnPhotoFileService.swift in Sources */,
+				1B459B881144FDE7B7BA5F61 /* YouTubePatternAddCoordinator.swift in Sources */,
 				1D2F815710CCDED6A7961BAE /* YouTubePatternLink.swift in Sources */,
 				30D80336AB43DDD04C2672BE /* YouTubePatternMetadata.swift in Sources */,
 			);

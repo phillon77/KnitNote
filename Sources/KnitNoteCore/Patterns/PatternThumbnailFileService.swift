@@ -104,6 +104,18 @@ public struct PatternThumbnailFileService: Sendable {
     /// first proving it is a bounded image. The cache contains only generated
     /// JPEGs, never the provider's original bytes.
     public func storeExternalThumbnail(data: Data, assetID: UUID) throws -> URL {
+        let stagedURL = try stageExternalThumbnail(data: data, assetID: assetID)
+        do {
+            return try publishExternalThumbnail(stagedURL: stagedURL, assetID: assetID)
+        } catch {
+            try? discardExternalThumbnailStage(stagedURL)
+            throw error
+        }
+    }
+
+    /// Sanitizes remote artwork before it is kept in UI state. Consumers must
+    /// display this generated JPEG rather than provider-owned source bytes.
+    public func sanitizedExternalThumbnailData(_ data: Data) throws -> Data {
         guard !data.isEmpty, data.count <= Self.maximumExternalThumbnailBytes,
               let source = CGImageSourceCreateWithData(data as CFData, nil),
               CGImageSourceGetCount(source) > 0,
@@ -125,10 +137,40 @@ public struct PatternThumbnailFileService: Sendable {
               ) else {
             throw PatternThumbnailFileError.unreadableSource
         }
+        return try encodeJPEG(image)
+    }
+
+    func stageExternalThumbnail(data: Data, assetID: UUID) throws -> URL {
+        let jpeg = try sanitizedExternalThumbnailData(data)
 
         lock.value.lock()
         defer { lock.value.unlock() }
+        let stagingDirectory = externalThumbnailStagingDirectory
+        try FileManager.default.createDirectory(
+            at: stagingDirectory,
+            withIntermediateDirectories: true
+        )
+        guard !isSymbolicLink(directory),
+              !isSymbolicLink(stagingDirectory) else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
+        let destination = stagingDirectory.appendingPathComponent(
+            "\(assetID.uuidString)-\(UUID().uuidString).jpg"
+        )
+        try jpeg.write(to: destination, options: .atomic)
+        return destination
+    }
+
+    func publishExternalThumbnail(stagedURL: URL, assetID: UUID) throws -> URL {
+        lock.value.lock()
+        defer { lock.value.unlock() }
+        let stagingDirectory = externalThumbnailStagingDirectory
         let destination = cachedURL(assetID: assetID)
+        guard stagedURL.deletingLastPathComponent().standardizedFileURL == stagingDirectory.standardizedFileURL,
+              !isSymbolicLink(stagingDirectory),
+              !isSymbolicLink(stagedURL) else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
         try FileManager.default.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -137,9 +179,21 @@ public struct PatternThumbnailFileService: Sendable {
               !isSymbolicLink(destination) else {
             throw PatternThumbnailFileError.unreadableSource
         }
-        let jpeg = try encodeJPEG(image)
+        let jpeg = try Data(contentsOf: stagedURL)
         try jpeg.write(to: destination, options: .atomic)
+        try? FileManager.default.removeItem(at: stagedURL)
         return destination
+    }
+
+    func discardExternalThumbnailStage(_ stagedURL: URL) throws {
+        lock.value.lock()
+        defer { lock.value.unlock() }
+        guard stagedURL.deletingLastPathComponent().standardizedFileURL
+            == externalThumbnailStagingDirectory.standardizedFileURL else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
+        guard FileManager.default.fileExists(atPath: stagedURL.path) else { return }
+        try FileManager.default.removeItem(at: stagedURL)
     }
 
     public func cachedPageURL(asset: PatternAsset, pageIndex: Int) -> URL {
@@ -268,6 +322,10 @@ public struct PatternThumbnailFileService: Sendable {
 
     private func isSymbolicLink(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true
+    }
+
+    private var externalThumbnailStagingDirectory: URL {
+        directory.appendingPathComponent(".ExternalThumbnailStaging", isDirectory: true)
     }
 }
 

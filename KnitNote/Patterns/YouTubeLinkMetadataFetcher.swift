@@ -2,35 +2,19 @@ import Foundation
 import LinkPresentation
 import UniformTypeIdentifiers
 
-struct YouTubeLinkMetadata: Sendable {
-    let title: String?
-    let thumbnailData: Data?
-}
-
 @MainActor
-protocol YouTubeLinkMetadataFetching {
-    func fetch(for url: URL) async throws -> YouTubeLinkMetadata
-}
-
-@MainActor
-final class LiveYouTubeLinkMetadataFetcher: YouTubeLinkMetadataFetching {
-    func fetch(for url: URL) async throws -> YouTubeLinkMetadata {
+final class LiveYouTubeLinkMetadataFetcher: YouTubePatternMetadataFetching {
+    func fetch(for url: URL) async throws -> YouTubePatternPresentationMetadata {
         let providerBox = MetadataProviderBox(provider: LPMetadataProvider())
         return try await withTaskCancellationHandler {
             let metadata = try await providerBox.provider.startFetchingMetadata(for: url)
             let thumbnailData: Data?
             if let imageProvider = metadata.imageProvider {
-                thumbnailData = await withCheckedContinuation { continuation in
-                    imageProvider.loadDataRepresentation(
-                        forTypeIdentifier: UTType.image.identifier
-                    ) { data, _ in
-                        continuation.resume(returning: data)
-                    }
-                }
+                thumbnailData = try await loadImageData(from: imageProvider)
             } else {
                 thumbnailData = nil
             }
-            return YouTubeLinkMetadata(
+            return YouTubePatternPresentationMetadata(
                 title: metadata.title,
                 thumbnailData: thumbnailData
             )
@@ -38,6 +22,29 @@ final class LiveYouTubeLinkMetadataFetcher: YouTubeLinkMetadataFetching {
             Task { @MainActor in
                 providerBox.provider.cancel()
             }
+        }
+    }
+
+    private func loadImageData(from provider: NSItemProvider) async throws -> Data? {
+        let gate = ImageDataLoadGate()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                gate.install(continuation)
+                let progress = provider.loadDataRepresentation(
+                    forTypeIdentifier: UTType.image.identifier
+                ) { data, error in
+                    if let data {
+                        gate.resolve(.success(data))
+                    } else if let error {
+                        gate.resolve(.failure(error))
+                    } else {
+                        gate.resolve(.success(nil))
+                    }
+                }
+                gate.setProgress(progress)
+            }
+        } onCancel: {
+            gate.cancel()
         }
     }
 }
@@ -51,24 +58,48 @@ private final class MetadataProviderBox {
     }
 }
 
-enum YouTubeMetadataFetchError: Error {
-    case timedOut
-}
+private final class ImageDataLoadGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Data?, Error>?
+    private var progress: Progress?
+    private var hasResolved = false
 
-@MainActor
-func withYouTubeMetadataTimeout<T: Sendable>(
-    _ operation: @escaping @MainActor @Sendable () async throws -> T
-) async throws -> T {
-    try await withThrowingTaskGroup(of: T.self) { group in
-        group.addTask {
-            try await operation()
+    func install(_ continuation: CheckedContinuation<Data?, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !hasResolved else {
+            continuation.resume(throwing: CancellationError())
+            return
         }
-        group.addTask {
-            try await Task.sleep(for: .seconds(10))
-            throw YouTubeMetadataFetchError.timedOut
+        self.continuation = continuation
+    }
+
+    func setProgress(_ progress: Progress?) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.progress = progress
+        if hasResolved { progress?.cancel() }
+    }
+
+    func cancel() {
+        resolve(.failure(CancellationError()))
+    }
+
+    func resolve(_ result: Result<Data?, Error>) {
+        lock.lock()
+        guard !hasResolved else {
+            lock.unlock()
+            return
         }
-        let value = try await group.next()!
-        group.cancelAll()
-        return value
+        hasResolved = true
+        progress?.cancel()
+        let continuation = continuation
+        self.continuation = nil
+        lock.unlock()
+
+        switch result {
+        case let .success(data): continuation?.resume(returning: data)
+        case let .failure(error): continuation?.resume(throwing: error)
+        }
     }
 }

@@ -19,10 +19,14 @@ import Testing
         let request = Task { @MainActor in
             await loader.thumbnailURL(patternID: patternID, assetID: assetID)
         }
-        await gate.waitUntilStarted()
+        #expect(await gate.waitUntilStarted(timeout: .seconds(1)))
 
         request.cancel()
-        await gate.waitUntilCancelled()
+        let didCancelMetadataFetch = await gate.waitUntilCancelled(timeout: .seconds(1))
+        #expect(didCancelMetadataFetch)
+        // If cancellation propagation regresses, release the fetch explicitly
+        // so this test reports its failed expectation instead of hanging.
+        await gate.release()
 
         #expect(await request.value == nil)
         #expect(await tracker.cacheCallCount() == 0)
@@ -93,12 +97,16 @@ private actor MetadataFetchGate {
         cancelled = true
     }
 
-    func waitUntilStarted() async {
-        while !started { await Task.yield() }
+    func waitUntilStarted(timeout: Duration) async -> Bool {
+        await waitUntil(timeout: timeout) { started }
     }
 
-    func waitUntilCancelled() async {
-        while !cancelled { await Task.yield() }
+    func waitUntilCancelled(timeout: Duration) async -> Bool {
+        await waitUntil(timeout: timeout) { cancelled }
+    }
+
+    func release() {
+        released = true
     }
 
     func waitForRelease() async throws -> YouTubePatternPresentationMetadata {
@@ -107,6 +115,19 @@ private actor MetadataFetchGate {
             await Task.yield()
         }
         return YouTubePatternPresentationMetadata(title: nil, thumbnailData: nil)
+    }
+
+    private func waitUntil(
+        timeout: Duration,
+        condition: () -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition() {
+            guard clock.now < deadline else { return false }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return true
     }
 }
 

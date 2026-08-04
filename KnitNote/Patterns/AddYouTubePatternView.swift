@@ -83,7 +83,7 @@ struct AddYouTubePatternView: View {
                 .scaledToFit()
                 .frame(maxHeight: 140)
                 .frame(maxWidth: .infinity)
-                .accessibilityHidden(true)
+                .accessibilityLabel(Text("patterns.youtube.accessibility.thumbnail"))
         } else {
             defaultThumbnail
         }
@@ -94,7 +94,7 @@ struct AddYouTubePatternView: View {
             .font(.system(size: 42))
             .foregroundStyle(WatercolorTheme.actionBerry)
             .frame(maxWidth: .infinity, minHeight: 76)
-            .accessibilityHidden(true)
+            .accessibilityLabel(Text("patterns.youtube.accessibility.thumbnail"))
     }
 
     @ViewBuilder
@@ -118,10 +118,16 @@ struct AddYouTubePatternView: View {
                 ProgressView()
                 Text("patterns.youtube.loading")
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("patterns.youtube.status"))
+            .accessibilityValue(Text("patterns.youtube.loading"))
         case let .manualEntry(messageKey):
             Text(LocalizedStringKey(messageKey))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text("patterns.youtube.status"))
+                .accessibilityValue(Text(LocalizedStringKey(messageKey)))
         case .idle, .loaded:
             EmptyView()
         }

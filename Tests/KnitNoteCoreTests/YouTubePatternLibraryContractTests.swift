@@ -40,6 +40,16 @@ import Testing
         #expect(!source.contains("return String(localized: \"YouTube\""))
     }
 
+    @Test func youtubeLibraryRowsGiveVoiceOverTheTitleTypeAndActiveProjectCount() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryRow.swift")
+
+        #expect(source.contains(".accessibilityElement(children: .combine)"))
+        #expect(source.contains("patternRowAccessibilityLabel("))
+        #expect(source.contains("name: model.name"))
+        #expect(source.contains("fileDescription: patternAssetDescription(asset, locale: locale)"))
+        #expect(source.contains("usageDescription: usageDescription"))
+    }
+
     @Test func youtubeThumbnailStartsWithAnImmediateFallbackThenCachesMetadataArtwork() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryRow.swift")
 

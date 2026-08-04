@@ -41,4 +41,13 @@ import Testing
         #expect(chooserSource.contains("patterns.relink"))
         #expect(chooserSource.contains("store.linkPattern(patternID:"))
     }
+
+    @Test func youtubeMetadataProgressAndFallbackRemainVisibleAndExposeAccessibilityValues() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/AddYouTubePatternView.swift")
+
+        #expect(source.contains("Text(\"patterns.youtube.loading\")"))
+        #expect(source.contains(".accessibilityValue(Text(\"patterns.youtube.loading\"))"))
+        #expect(source.contains("Text(LocalizedStringKey(messageKey))"))
+        #expect(source.contains(".accessibilityValue(Text(LocalizedStringKey(messageKey)))"))
+    }
 }

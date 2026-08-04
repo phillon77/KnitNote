@@ -191,6 +191,51 @@ import Testing
         ],
     ]
 
+    private let requiredYouTubeTranslations = [
+        "patterns.youtube.add": ["en": "Add YouTube Link", "zh-Hant": "加入 YouTube 連結"],
+        "patterns.youtube.url": ["en": "YouTube URL", "zh-Hant": "YouTube 網址"],
+        "patterns.youtube.readMetadata": ["en": "Read Video Info", "zh-Hant": "讀取影片資料"],
+        "patterns.youtube.loading": ["en": "Reading video info…", "zh-Hant": "讀取影片資料中…"],
+        "patterns.youtube.title": ["en": "Title", "zh-Hant": "標題"],
+        "patterns.youtube.type": ["en": "YouTube Video", "zh-Hant": "YouTube 影片"],
+        "patterns.youtube.open": ["en": "Open in YouTube", "zh-Hant": "在 YouTube 開啟"],
+        "patterns.youtube.status": ["en": "Video info status", "zh-Hant": "影片資料狀態"],
+        "patterns.youtube.fallback.manualTitle": [
+            "en": "Video info couldn't be loaded. Enter a title to save this link.",
+            "zh-Hant": "無法讀取影片資料。輸入標題後仍可儲存連結。",
+        ],
+        "patterns.youtube.error.invalidURL": [
+            "en": "Enter a valid YouTube link.",
+            "zh-Hant": "請輸入有效的 YouTube 連結。",
+        ],
+        "patterns.youtube.error.metadata": [
+            "en": "Video info couldn't be loaded. Enter a title to save this link.",
+            "zh-Hant": "無法讀取影片資料。輸入標題後仍可儲存連結。",
+        ],
+        "patterns.youtube.error.open": [
+            "en": "Couldn't open YouTube. Please try again.",
+            "zh-Hant": "無法開啟 YouTube，請再試一次。",
+        ],
+        "patterns.youtube.accessibility.thumbnail": [
+            "en": "YouTube video thumbnail",
+            "zh-Hant": "YouTube 影片縮圖",
+        ],
+        "patterns.youtube.link": ["en": "YouTube Link", "zh-Hant": "YouTube 連結"],
+        "patterns.youtube.details": ["en": "Video Details", "zh-Hant": "影片資料"],
+        "patterns.youtube.invalidLink": [
+            "en": "Enter a valid YouTube link.",
+            "zh-Hant": "請輸入有效的 YouTube 連結。",
+        ],
+        "patterns.youtube.metadataUnavailable": [
+            "en": "Video info couldn't be loaded. Enter a title to save this link.",
+            "zh-Hant": "無法讀取影片資料。輸入標題後仍可儲存連結。",
+        ],
+        "patterns.youtube.addFailed": [
+            "en": "Couldn't save the YouTube link. Please try again.",
+            "zh-Hant": "無法儲存 YouTube 連結，請再試一次。",
+        ],
+    ]
+
     private let task13PatternPrefixes = [
         "patterns.library.",
         "patterns.detail.",
@@ -468,6 +513,18 @@ import Testing
             #expect(entry["extractionState"] as? String == "manual")
             for (language, expectedValue) in expectedTranslations {
                 #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
+    @Test func youtubePatternLinksHaveExactEnglishAndTraditionalChineseCopy() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredYouTubeTranslations {
+            for (language, expectedValue) in expectedTranslations {
+                let value = try localizedValue(key, language: language, strings: strings)
+                #expect(value == expectedValue)
+                #expect(value != key)
             }
         }
     }

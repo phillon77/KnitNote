@@ -11,11 +11,13 @@ private struct ProjectPatternReaderSelection: Identifiable {
 struct ProjectPatternsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
 
     @State private var showingLibraryChooser = false
     @State private var showingImporter = false
+    @State private var showingYouTubeImporter = false
     @State private var selectedPattern: ProjectPatternReaderSelection?
     @State private var pendingUnlink: ProjectPatternReaderSelection?
     @State private var errorMessage: String?
@@ -24,7 +26,7 @@ struct ProjectPatternsView: View {
         NavigationStack {
             List(projectPatterns) { selection in
                 Button {
-                    selectedPattern = selection
+                    open(selection)
                 } label: {
                     projectPatternRow(selection)
                 }
@@ -50,6 +52,9 @@ struct ProjectPatternsView: View {
                         Button("patterns.importNew", systemImage: "square.and.arrow.down") {
                             showingImporter = true
                         }
+                        Button("patterns.youtube.add", systemImage: "play.rectangle") {
+                            showingYouTubeImporter = true
+                        }
                     } label: {
                         Label("patterns.add", systemImage: "plus")
                     }
@@ -60,6 +65,9 @@ struct ProjectPatternsView: View {
             }
             .sheet(isPresented: $showingImporter) {
                 PatternImportResultView(projectID: projectID)
+            }
+            .sheet(isPresented: $showingYouTubeImporter) {
+                AddYouTubePatternView(targetProjectID: projectID)
             }
             .patternReaderPresentation(item: $selectedPattern) { selection in
                 PatternReaderView(context: .project(
@@ -149,6 +157,29 @@ struct ProjectPatternsView: View {
 
     private var projectIsCompleted: Bool {
         store.project(id: projectID)?.isCompleted ?? true
+    }
+
+    private func open(_ selection: ProjectPatternReaderSelection) {
+        switch selection.asset.kind {
+        case .youtube:
+            openYouTube(selection)
+        case .pdf, .image:
+            selectedPattern = selection
+        }
+    }
+
+    private func openYouTube(_ selection: ProjectPatternReaderSelection) {
+        guard let link = try? store.youtubeLink(patternID: selection.pattern.id) else {
+            errorMessage = String(localized: "patterns.youtube.error.open")
+            return
+        }
+        openURL(link.canonicalURL) { accepted in
+            if accepted {
+                try? store.markPatternOpened(id: selection.pattern.id)
+            } else {
+                errorMessage = String(localized: "patterns.youtube.error.open")
+            }
+        }
     }
 
     private func unlinkPending() {

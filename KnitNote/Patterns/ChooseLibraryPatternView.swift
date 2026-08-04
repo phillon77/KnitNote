@@ -1,5 +1,12 @@
 import SwiftUI
 
+private struct ProjectPatternLinkOptionWithAsset: Identifiable {
+    let option: ProjectPatternLinkOption
+    let asset: PatternAsset
+
+    var id: UUID { option.id }
+}
+
 struct ChooseLibraryPatternView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
@@ -17,11 +24,11 @@ struct ChooseLibraryPatternView: View {
                         systemImage: "checkmark.circle"
                     )
                 } else {
-                    ForEach(options) { option in
+                    ForEach(options) { selection in
                         Button {
-                            link(option.pattern.id)
+                            link(selection.option.pattern.id)
                         } label: {
-                            optionRow(option)
+                            optionRow(selection.option, asset: selection.asset)
                         }
                         .buttonStyle(.plain)
                     }
@@ -50,16 +57,24 @@ struct ChooseLibraryPatternView: View {
         .tint(WatercolorTheme.actionBerry)
     }
 
-    private var options: [ProjectPatternLinkOption] {
+    private var options: [ProjectPatternLinkOptionWithAsset] {
         ProjectPatternLinkIndex(
             patterns: store.patterns,
             usages: store.patternUsages,
             projectID: projectID,
             locale: locale
-        ).options
+        ).options.compactMap { option in
+            guard let asset = store.patternAssets.first(where: { $0.id == option.pattern.assetID }) else {
+                return nil
+            }
+            return ProjectPatternLinkOptionWithAsset(option: option, asset: asset)
+        }
     }
 
-    private func optionRow(_ option: ProjectPatternLinkOption) -> some View {
+    private func optionRow(
+        _ option: ProjectPatternLinkOption,
+        asset: PatternAsset
+    ) -> some View {
         HStack(alignment: .top, spacing: 14) {
             PatternThumbnailView(patternID: option.pattern.id)
                 .frame(width: 64, height: 80)
@@ -69,6 +84,9 @@ struct ChooseLibraryPatternView: View {
                     .font(.headline)
                     .foregroundStyle(WatercolorTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
+                Text(patternAssetDescription(asset, locale: locale))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 if option.status == .relink {
                     Text("patterns.relink")
                         .font(.caption.bold())
@@ -80,16 +98,20 @@ struct ChooseLibraryPatternView: View {
         .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel(for: option))
+        .accessibilityLabel(accessibilityLabel(for: option, asset: asset))
     }
 
     private func accessibilityLabel(
-        for option: ProjectPatternLinkOption
+        for option: ProjectPatternLinkOption,
+        asset: PatternAsset
     ) -> Text {
+        let baseLabel = Text(option.pattern.displayName)
+            + Text(", ")
+            + Text(patternAssetDescription(asset, locale: locale))
         guard option.status == .relink else {
-            return Text(option.pattern.displayName)
+            return baseLabel
         }
-        return Text(option.pattern.displayName)
+        return baseLabel
             + Text(", ")
             + Text("patterns.relink")
     }

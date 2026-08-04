@@ -2,14 +2,16 @@ import Foundation
 import Testing
 
 @Suite struct ProjectPatternsViewContractTests {
-    @Test func projectPatternAddMenuOffersOnlyLinkAndImport() throws {
+    @Test func projectPatternAddMenuOffersLinkImportAndYouTube() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/ProjectPatternsView.swift")
 
         #expect(source.contains("Menu"))
         #expect(source.contains("patterns.linkExisting"))
         #expect(source.contains("patterns.importNew"))
+        #expect(source.contains("patterns.youtube.add"))
         #expect(source.contains("ChooseLibraryPatternView("))
         #expect(source.contains("PatternImportResultView("))
+        #expect(source.contains("AddYouTubePatternView(targetProjectID: projectID)"))
     }
 
     @Test func projectSwipeConfirmsUnlinkWithoutDeletingTheLibraryPattern() throws {

@@ -134,6 +134,7 @@
 		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600A5A211EF6682DED675574 /* EditCounterNameView.swift */; };
 		66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
+		6786A9F0609EA2C72C5611A4 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB235B6DC453F8BE362501B /* AppVersionInfo.swift */; };
 		68362824FB4BC12615282608 /* PatternReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C207C026A98D9C668822C9A /* PatternReaderView.swift */; };
 		6870AA4039BC7963BE6AAAAF /* PDFReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */; };
 		68C86004C898E272CB86D88A /* YarnLinkSelectionMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BBD75C7FBA7ED0E8B4A90E /* YarnLinkSelectionMerge.swift */; };
@@ -512,6 +513,7 @@
 		8DE7BD9D5FA9BEABF361D4E1 /* PatternImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternImportCoordinator.swift; sourceTree = "<group>"; };
 		8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxProcessor.swift; sourceTree = "<group>"; };
 		8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentInputParser.swift; sourceTree = "<group>"; };
+		8FB235B6DC453F8BE362501B /* AppVersionInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionInfo.swift; sourceTree = "<group>"; };
 		90CE1C0101996F572112D739 /* PatternReaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderControls.swift; sourceTree = "<group>"; };
 		9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceMonitor.swift; sourceTree = "<group>"; };
 		926C002CC977A56CD9D4B192 /* WatchConnectivityEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityEnvelope.swift; sourceTree = "<group>"; };
@@ -651,6 +653,7 @@
 		0A7C946B8D714308DC9BFDC0 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				8FB235B6DC453F8BE362501B /* AppVersionInfo.swift */,
 				ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */,
 			);
 			path = App;
@@ -1328,6 +1331,7 @@
 				1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */,
 				E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */,
 				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
+				6786A9F0609EA2C72C5611A4 /* AppVersionInfo.swift in Sources */,
 				1B1A2101FF71E0949F5ED0C6 /* AtomicWatchSyncFile.swift in Sources */,
 				D25E473555AEF8D28E1F8E76 /* BackupHistory.swift in Sources */,
 				997DEDA5DBCE086E364F52E3 /* BackupSettingsSection.swift in Sources */,

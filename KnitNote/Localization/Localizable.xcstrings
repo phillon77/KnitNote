@@ -6340,6 +6340,22 @@
         }
       }
     },
+    "settings.about" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關於"
+          }
+        }
+      }
+    },
     "settings.language" : {
       "localizations" : {
         "en" : {
@@ -6360,6 +6376,38 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存空間" } }
+      }
+    },
+    "settings.version" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
+    "settings.version.format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (Build %2$@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（Build %2$@）"
+          }
+        }
       }
     },
     "unlock.accessibility.dismiss" : {

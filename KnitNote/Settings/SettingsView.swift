@@ -2,6 +2,15 @@ import SwiftUI
 
 struct SettingsView: View {
     @Binding var storedLanguage: String
+    let versionInfo: AppVersionInfo?
+
+    init(
+        storedLanguage: Binding<String>,
+        versionInfo: AppVersionInfo? = AppVersionInfo.current()
+    ) {
+        _storedLanguage = storedLanguage
+        self.versionInfo = versionInfo
+    }
 
     var body: some View {
         NavigationStack {
@@ -46,9 +55,31 @@ struct SettingsView: View {
             }
 
             BackupSettingsSection()
+
+            Section("settings.about") {
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    Text("settings.version")
+                    Spacer(minLength: 12)
+                    Text(versionDisplay)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
         }
         .scrollContentBackground(.hidden)
         .background(WatercolorBackground())
         .navigationTitle("nav.settings")
+    }
+
+    private var versionDisplay: String {
+        guard let versionInfo else { return "—" }
+        return String(
+            format: String(localized: "settings.version.format"),
+            locale: Locale.current,
+            versionInfo.version,
+            versionInfo.build
+        )
     }
 }

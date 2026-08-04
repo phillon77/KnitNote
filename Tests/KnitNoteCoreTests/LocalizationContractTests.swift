@@ -251,6 +251,12 @@ import Testing
         "patterns.calculator.toggleSign": ["en": "Change Sign", "zh-Hant": "切換正負號"],
     ]
 
+    private let requiredSettingsAboutTranslations = [
+        "settings.about": ["en": "About", "zh-Hant": "關於"],
+        "settings.version": ["en": "Version", "zh-Hant": "版本"],
+        "settings.version.format": ["en": "%1$@ (Build %2$@)", "zh-Hant": "%1$@（Build %2$@）"],
+    ]
+
     private let task13PatternPrefixes = [
         "patterns.library.",
         "patterns.detail.",
@@ -548,6 +554,16 @@ import Testing
         let strings = try catalogStrings()
 
         for (key, expectedTranslations) in requiredPatternCalculatorTranslations {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
+    @Test func settingsAboutUsesApprovedEnglishAndTraditionalChineseCopy() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredSettingsAboutTranslations {
             for (language, expectedValue) in expectedTranslations {
                 #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }

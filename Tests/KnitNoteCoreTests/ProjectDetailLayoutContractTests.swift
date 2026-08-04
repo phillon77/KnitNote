@@ -58,6 +58,21 @@ import Testing
         )
     }
 
+    @Test func projectPatternsSheetReceivesTheSelectedAppLocale() throws {
+        let source = try projectSource()
+        let sheetStart = try #require(
+            source.range(of: ".sheet(isPresented: $showingPatterns)")
+        )
+        let remainingSource = source[sheetStart.lowerBound...]
+        let sheetEnd = remainingSource.dropFirst().range(of: ".sheet")?.lowerBound
+            ?? remainingSource.endIndex
+        let sheetSource = remainingSource[..<sheetEnd]
+
+        #expect(source.contains("@Environment(\\.locale) private var locale"))
+        #expect(sheetSource.contains("ProjectPatternsView(projectID: projectID)"))
+        #expect(sheetSource.contains(".environment(\\.locale, locale)"))
+    }
+
     private func projectSource() throws -> String {
         try source(at: "KnitNote/Projects/ProjectDetailView.swift")
     }

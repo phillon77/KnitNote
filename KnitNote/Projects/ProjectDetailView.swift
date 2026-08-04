@@ -12,6 +12,7 @@ private struct JournalEntryRoute: Identifiable {
 }
 
 struct ProjectDetailView: View {
+    @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
     @State private var showingEdit = false
@@ -181,6 +182,7 @@ struct ProjectDetailView: View {
             }
             .sheet(isPresented: $showingPatterns) {
                 ProjectPatternsView(projectID: projectID)
+                    .environment(\.locale, locale)
 #if os(macOS)
                     .frame(
                         minWidth: CGFloat(KnitNoteMacWindowSizingPolicy.minimumWidth),

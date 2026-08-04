@@ -75,12 +75,10 @@ struct SettingsView: View {
     }
 
     private var versionDisplay: String {
-        guard let versionInfo else { return "—" }
-        return String(
-            format: String(localized: "settings.version.format", locale: locale),
-            locale: locale,
-            versionInfo.version,
-            versionInfo.build
+        AppVersionDisplayFormatter.string(
+            for: versionInfo,
+            bundle: .main,
+            locale: locale
         )
     }
 }

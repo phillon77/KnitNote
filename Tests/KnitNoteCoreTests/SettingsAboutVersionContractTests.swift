@@ -21,12 +21,14 @@ import Testing
         #expect(!source.contains("MARKETING_VERSION"))
     }
 
-    @Test func settingsFormatsVersionWithTheAppSelectedLocaleInsteadOfTheSystemLocale() throws {
+    @Test func settingsUsesTheRuntimeTestedFormatterWithTheAppSelectedLocale() throws {
         let source = try appSource("KnitNote/Settings/SettingsView.swift")
 
         #expect(source.contains("@Environment(\\.locale) private var locale"))
-        #expect(source.contains("String(localized: \"settings.version.format\", locale: locale)"))
-        #expect(source.contains("locale: locale,"))
+        #expect(source.contains("AppVersionDisplayFormatter.string("))
+        #expect(source.contains("bundle: .main,"))
+        #expect(source.contains("locale: locale"))
+        #expect(!source.contains("String(localized: \"settings.version.format\""))
         #expect(!source.contains("Locale.current"))
     }
 

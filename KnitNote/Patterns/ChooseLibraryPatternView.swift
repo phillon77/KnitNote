@@ -63,7 +63,7 @@ struct ChooseLibraryPatternView: View {
     private func optionRow(_ selection: ProjectPatternLinkChoice) -> some View {
         let option = selection.option
         let asset = selection.asset
-        HStack(alignment: .top, spacing: 14) {
+        return HStack(alignment: .top, spacing: 14) {
             PatternThumbnailView(patternID: option.pattern.id)
                 .frame(width: 64, height: 80)
 

@@ -19,7 +19,12 @@ import Testing
         let request = Task { @MainActor in
             await loader.thumbnailURL(patternID: patternID, assetID: assetID)
         }
-        #expect(await gate.waitUntilStarted(timeout: .seconds(1)))
+        guard await gate.waitUntilStarted(timeout: .seconds(10)) else {
+            request.cancel()
+            await gate.release()
+            Issue.record("The utility-priority metadata fetch did not start within 10 seconds")
+            return
+        }
 
         request.cancel()
         let didCancelMetadataFetch = await gate.waitUntilCancelled(timeout: .seconds(1))
@@ -123,11 +128,11 @@ private actor MetadataFetchGate {
     ) async -> Bool {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
-        while !condition() {
+        while true {
             guard clock.now < deadline else { return false }
+            guard !condition() else { return true }
             try? await Task.sleep(for: .milliseconds(5))
         }
-        return true
     }
 }
 

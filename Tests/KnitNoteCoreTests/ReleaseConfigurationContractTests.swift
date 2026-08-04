@@ -9,10 +9,10 @@ import Testing
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch"))
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share"))
         #expect(
-            yaml.components(separatedBy: "MARKETING_VERSION: 1.3.0").count == 4
+            yaml.components(separatedBy: "MARKETING_VERSION: 1.3.1").count == 4
         )
         #expect(
-            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 6").count == 4
+            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 7").count == 4
         )
         #expect(yaml.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
     }
@@ -73,7 +73,7 @@ import Testing
 
         #expect(text.contains("## 1.3 development verification"))
         #expect(text.contains("release/knitnote-1.3"))
-        #expect(text.contains("Candidate: `1.3.0` / Build `6`"))
+        #expect(text.contains("Candidate: `1.3.1` / Build `7`"))
         #expect(text.contains("Automated verification: `PASS`"))
         #expect(text.contains("Physical iPhone/iPad core acceptance: `PASS`"))
         #expect(text.contains("Physical Mac core acceptance: `PASS`"))
@@ -88,7 +88,8 @@ import Testing
             "AppStore/Verification/PatternLibraryVerification.md"
         )
 
-        #expect(audit.contains(#"EXPECTED_VERSION="1.3.0""#))
+        #expect(audit.contains(#"EXPECTED_VERSION="1.3.1""#))
+        #expect(audit.contains(#"EXPECTED_BUILD="7""#))
         #expect(verification.contains("Candidate: `1.2.0` / Build `3`"))
         #expect(verification.contains("does not verify the pending `1.2.1`"))
     }
@@ -273,10 +274,10 @@ import Testing
         #expect(text?.contains("RELEASE AUDIT: PASS") == true)
     }
 
-    @Test func staticReleaseAuditPinsBuildSixAndChecksEveryStringCatalog() throws {
+    @Test func staticReleaseAuditPinsBuildSevenAndChecksEveryStringCatalog() throws {
         let script = try sourceText("AppStore/Verification/release_audit.sh")
 
-        #expect(script.contains("EXPECTED_BUILD=\"6\""))
+        #expect(script.contains("EXPECTED_BUILD=\"7\""))
         #expect(script.contains("def localization_is_complete"))
         for catalog in [
             "KnitNote/Localization/Localizable.xcstrings",

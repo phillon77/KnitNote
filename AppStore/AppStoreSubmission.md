@@ -75,7 +75,7 @@
 ## 1.3 development verification
 
 - Branch: `release/knitnote-1.3`
-- Candidate: `1.3.0` / Build `6`
+- Candidate: `1.3.1` / Build `7`
 - Automated verification: `PASS`
 - Physical iPhone/iPad core acceptance: `PASS`
 - Physical Mac core acceptance: `PASS`

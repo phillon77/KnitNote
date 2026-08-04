@@ -68,18 +68,38 @@ import Testing
         }
     }
 
-    @Test func submissionSeparatesVersion13AutomationFromPhysicalAcceptance() throws {
+    @Test func submissionPreservesVersion130EvidenceAndKeepsVersion131PhysicalGatesOpen() throws {
         let text = try sourceText("AppStore/AppStoreSubmission.md")
+        let historicalSections = text.components(
+            separatedBy: "## 1.3.0 historical verification"
+        )
+        #expect(historicalSections.count == 2)
+        let afterHistoricalHeading = try #require(historicalSections.last)
+        let currentSections = afterHistoricalHeading.components(
+            separatedBy: "## 1.3.1 development verification"
+        )
+        #expect(currentSections.count == 2)
+        let historical = try #require(currentSections.first)
+        let currentAndFollowing = try #require(currentSections.last)
+        let currentSectionsEnd = currentAndFollowing.components(
+            separatedBy: "## Historical records"
+        )
+        #expect(currentSectionsEnd.count == 2)
+        let current = try #require(currentSectionsEnd.first)
 
-        #expect(text.contains("## 1.3 development verification"))
-        #expect(text.contains("release/knitnote-1.3"))
-        #expect(text.contains("Candidate: `1.3.1` / Build `7`"))
-        #expect(text.contains("Automated verification: `PASS`"))
-        #expect(text.contains("Physical iPhone/iPad core acceptance: `PASS`"))
-        #expect(text.contains("Physical Mac core acceptance: `PASS`"))
-        #expect(text.contains("Extended physical edge-case matrix: `INCOMPLETE`"))
-        #expect(text.contains("TestFlight commercial matrix: `INCOMPLETE`"))
-        #expect(text.contains("not approved for public release"))
+        #expect(historical.contains("Branch: `release/knitnote-1.3`"))
+        #expect(historical.contains("Candidate: `1.3.0` / Build `6`"))
+        #expect(historical.contains("Physical iPhone/iPad core acceptance: `PASS`"))
+        #expect(historical.contains("Physical Mac core acceptance: `PASS`"))
+
+        #expect(current.contains("Branch: `feat/knitnote-1.3.1`"))
+        #expect(current.contains("Candidate: `1.3.1` / Build `7`"))
+        #expect(current.contains("Automated verification: `PASS`"))
+        #expect(current.contains("Physical iPhone/iPad core acceptance: `INCOMPLETE`"))
+        #expect(current.contains("Physical Mac core acceptance: `INCOMPLETE`"))
+        #expect(current.contains("Extended physical edge-case matrix: `INCOMPLETE`"))
+        #expect(current.contains("TestFlight commercial matrix: `INCOMPLETE`"))
+        #expect(current.contains("No physical acceptance or public release approval exists yet"))
     }
 
     @Test func releaseAuditUsesRepairVersionAndHistoricalVerificationStaysLabeled() throws {

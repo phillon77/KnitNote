@@ -72,21 +72,32 @@
 - 公開 iOS／macOS 的完整 free-download → seven-day trial → purchase →
   relaunch → restore 流程，必須在 checklist 中留下候選版本專屬證據。
 
-## 1.3 development verification
+## 1.3.0 historical verification
 
 - Branch: `release/knitnote-1.3`
-- Candidate: `1.3.1` / Build `7`
+- Candidate: `1.3.0` / Build `6`
 - Automated verification: `PASS`
 - Physical iPhone/iPad core acceptance: `PASS`
 - Physical Mac core acceptance: `PASS`
 - Extended physical edge-case matrix: `INCOMPLETE`
 - TestFlight commercial matrix: `INCOMPLETE`
 
-The 1.3 candidate has passed its automated checks and the completed core
-physical acceptance paths for iPhone, iPad, and Mac. The remaining edge-case
-and TestFlight commercial checks must be completed against one immutable Git
-commit. This candidate is not approved for public release until every remaining
-gate is complete.
+This evidence belongs only to the historical 1.3.0 Build 6 candidate and must
+not be reused as acceptance evidence for 1.3.1.
+
+## 1.3.1 development verification
+
+- Branch: `feat/knitnote-1.3.1`
+- Candidate: `1.3.1` / Build `7`
+- Automated verification: `PASS`
+- Physical iPhone/iPad core acceptance: `INCOMPLETE`
+- Physical Mac core acceptance: `INCOMPLETE`
+- Extended physical edge-case matrix: `INCOMPLETE`
+- TestFlight commercial matrix: `INCOMPLETE`
+
+No physical acceptance or public release approval exists yet for this 1.3.1
+candidate. Every remaining gate must be completed against one immutable Git
+commit before any public release decision.
 
 ## Historical records
 

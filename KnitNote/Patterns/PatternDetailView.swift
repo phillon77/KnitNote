@@ -4,6 +4,9 @@ struct PatternDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @Environment(\.openURL) private var openURL
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     let patternID: UUID
@@ -120,21 +123,40 @@ struct PatternDetailView: View {
 
     @ViewBuilder
     private func responsiveHeader(pattern: StoredPattern, asset: PatternAsset) -> some View {
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            compactHeader(pattern: pattern, asset: asset)
+        } else {
+            adaptiveWideHeader(pattern: pattern, asset: asset)
+        }
+        #else
+        adaptiveWideHeader(pattern: pattern, asset: asset)
+        #endif
+    }
+
+    private func compactHeader(pattern: StoredPattern, asset: PatternAsset) -> some View {
+        VStack(spacing: 16) {
+            thumbnail(asset: asset)
+            headerDetails(pattern: pattern, asset: asset)
+        }
+    }
+
+    private func adaptiveWideHeader(pattern: StoredPattern, asset: PatternAsset) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 22) {
-                thumbnail
+                thumbnail(asset: asset)
                 headerDetails(pattern: pattern, asset: asset)
             }
             VStack(spacing: 16) {
-                thumbnail
+                thumbnail(asset: asset)
                 headerDetails(pattern: pattern, asset: asset)
             }
         }
     }
 
-    private var thumbnail: some View {
+    private func thumbnail(asset: PatternAsset) -> some View {
         PatternThumbnailView(patternID: patternID)
-            .frame(width: 180, height: 220)
+            .frame(width: 180, height: asset.kind == .youtube ? 101 : 220)
     }
 
     private func headerDetails(pattern: StoredPattern, asset: PatternAsset) -> some View {

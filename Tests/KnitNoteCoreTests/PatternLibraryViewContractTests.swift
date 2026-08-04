@@ -105,6 +105,15 @@ import Testing
         #expect(detail.contains("ScrollView"))
     }
 
+    @Test func youtubeDetailUsesACompactPhoneHeaderAndSixteenByNineArtwork() throws {
+        let detail = try readRepositoryFile("KnitNote/Patterns/PatternDetailView.swift")
+
+        #expect(detail.contains("@Environment(\\.horizontalSizeClass)"))
+        #expect(detail.contains("horizontalSizeClass == .compact"))
+        #expect(detail.contains("compactHeader(pattern: pattern, asset: asset)"))
+        #expect(detail.contains("asset.kind == .youtube ? 101 : 220"))
+    }
+
     @Test func detailUsesAPlatformSafeNavigationTitleStyle() throws {
         let detail = try readRepositoryFile("KnitNote/Patterns/PatternDetailView.swift")
 

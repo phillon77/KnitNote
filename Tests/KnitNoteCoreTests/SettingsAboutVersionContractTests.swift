@@ -21,6 +21,15 @@ import Testing
         #expect(!source.contains("MARKETING_VERSION"))
     }
 
+    @Test func settingsFormatsVersionWithTheAppSelectedLocaleInsteadOfTheSystemLocale() throws {
+        let source = try appSource("KnitNote/Settings/SettingsView.swift")
+
+        #expect(source.contains("@Environment(\\.locale) private var locale"))
+        #expect(source.contains("String(localized: \"settings.version.format\", locale: locale)"))
+        #expect(source.contains("locale: locale,"))
+        #expect(!source.contains("Locale.current"))
+    }
+
     @Test func installedVersionParserStaysOutOfTheWatchTarget() throws {
         let specification = try appSource("project.yml")
         let watchTarget = try #require(

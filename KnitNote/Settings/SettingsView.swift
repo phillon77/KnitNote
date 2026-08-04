@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Binding var storedLanguage: String
+    @Environment(\.locale) private var locale
     let versionInfo: AppVersionInfo?
 
     init(
@@ -76,8 +77,8 @@ struct SettingsView: View {
     private var versionDisplay: String {
         guard let versionInfo else { return "—" }
         return String(
-            format: String(localized: "settings.version.format"),
-            locale: Locale.current,
+            format: String(localized: "settings.version.format", locale: locale),
+            locale: locale,
             versionInfo.version,
             versionInfo.build
         )

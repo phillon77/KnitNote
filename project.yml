@@ -94,6 +94,7 @@ targets:
       - path: Sources/KnitNoteCore
         excludes:
           - App/KnitNoteMacWindowSizingPolicy.swift
+          - Calculators/PatternCalculator.swift
           - Launch/LaunchExperienceCoordinator.swift
           - Patterns/PatternLibraryImportPresentation.swift
           - Patterns/PatternInboxProcessing.swift

@@ -235,7 +235,6 @@
 		C3E90DEDFB9803CEBE02190B /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
 		C42138FBF27EB5F5C43060FA /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
 		C45C69DFC567B4F3A2041002 /* KnitNoteBackupManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2B7038D08F6C6E76229D7F /* KnitNoteBackupManifest.swift */; };
-		C6F35F62D51BCBF7FCFB6788 /* PatternCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */; };
 		C6F5370860BE4170E5E5CC60 /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B41E39467311A8A58E19259 /* StoreKitPurchaseService.swift */; };
 		C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */; };
 		C7BF96AE5045BF9D87381D4F /* ProjectYarnSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5BFE725AAAEE35A72A5778 /* ProjectYarnSection.swift */; };
@@ -1537,7 +1536,6 @@
 				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,
 				F8B6F5B3E7CD575E89A1A500 /* LegacyPaidVersionPolicy.swift in Sources */,
 				14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */,
-				C6F35F62D51BCBF7FCFB6788 /* PatternCalculator.swift in Sources */,
 				20E270A4EDC9F277C3B03321 /* PatternDocument.swift in Sources */,
 				DD4C8D98E06279AA69DCDB1E /* PatternFileService.swift in Sources */,
 				518EE6D9A86074D7015BA1A9 /* PatternImportCoordinator.swift in Sources */,

@@ -69,6 +69,21 @@ import Testing
         #expect(!shareSources.contains("PatternInboxPublicationReceiptService.swift"))
         #expect(!shareSources.contains("PatternInboxProcessing.swift"))
         #expect(!shareSources.contains("PatternReaderAppearance.swift"))
+        #expect(appSources.contains("PatternCalculator.swift"))
+        #expect(!watchSources.contains("PatternCalculator.swift"))
+    }
+
+    @Test func calculatorCoreIsExplicitlyExcludedFromTheWatchTargetSpecification() throws {
+        let specification = try readRepositoryFile("project.yml")
+        let watchTarget = try #require(
+            specification.range(of: "  KnitNoteWatch:")
+                .flatMap { start in
+                    specification.range(of: "  KnitNoteShare:", range: start.upperBound..<specification.endIndex)
+                        .map { specification[start.lowerBound..<$0.lowerBound] }
+                }
+        )
+
+        #expect(watchTarget.contains("- Calculators/PatternCalculator.swift"))
     }
 }
 

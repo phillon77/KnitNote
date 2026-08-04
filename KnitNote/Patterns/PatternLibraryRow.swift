@@ -140,36 +140,28 @@ struct PatternThumbnailView: View {
     }
 
     private func loadYouTubeThumbnail(_ asset: PatternAsset) async {
-        if let cachedURL = await store.patternThumbnailURL(patternID: patternID) {
-            loadedImage = await decodedImage(at: cachedURL)
-            return
-        }
         loadedImage = nil
-        guard let link = try? store.youtubeLink(patternID: patternID), !Task.isCancelled else {
-            return
-        }
-        let metadataTask = Task(priority: .utility) { @MainActor in
-            try? await LiveYouTubeLinkMetadataFetcher().fetch(for: link.canonicalURL)
-        }
-        let metadata = await metadataTask.value
-        guard !Task.isCancelled,
-              let thumbnailData = metadata?.thumbnailData else {
-            return
-        }
-        await store.cacheYouTubeThumbnail(thumbnailData, patternID: patternID)
-        guard !Task.isCancelled,
-              isCurrentYouTubeAsset(asset) else {
-            return
-        }
-        guard let cachedURL = await store.patternThumbnailURL(patternID: patternID) else {
+        let loader = YouTubePatternThumbnailLoader(
+            fetcher: LiveYouTubeLinkMetadataFetcher(),
+            cachedThumbnailURL: { patternID in
+                await store.patternThumbnailURL(patternID: patternID)
+            },
+            linkForPattern: { patternID in
+                try store.youtubeLink(patternID: patternID)
+            },
+            cacheThumbnail: { thumbnailData, patternID in
+                await store.cacheYouTubeThumbnail(thumbnailData, patternID: patternID)
+            },
+            isCurrentYouTubeAsset: { patternID, assetID in
+                store.patterns.first(where: { $0.id == patternID })?.assetID == assetID
+                    && store.patternAssets.contains(where: { $0.id == assetID && $0.kind == .youtube })
+            }
+        )
+        guard let cachedURL = await loader.thumbnailURL(patternID: patternID, assetID: asset.id),
+              !Task.isCancelled else {
             return
         }
         loadedImage = await decodedImage(at: cachedURL)
-    }
-
-    private func isCurrentYouTubeAsset(_ asset: PatternAsset) -> Bool {
-        store.patterns.first(where: { $0.id == patternID })?.assetID == asset.id
-            && store.patternAssets.contains(where: { $0.id == asset.id && $0.kind == .youtube })
     }
 
     private func decodedImage(at url: URL) async -> Image? {

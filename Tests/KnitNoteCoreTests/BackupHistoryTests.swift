@@ -70,6 +70,28 @@ import Testing
         #expect(!relaunched.isPresented)
     }
 
+    @Test func directCreatedPatternBoundaryPresentsOnceAndStaysSuppressedAfterRelaunch() throws {
+        let suiteName = "BackupHistoryTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var coordinator = PatternBackupReminderCoordinator(
+            history: BackupHistory(defaults: defaults)
+        )
+
+        coordinator.acceptCreatedPattern()
+        coordinator.acceptCreatedPattern()
+        #expect(coordinator.isPresented)
+
+        coordinator.dismiss(openBackupSettings: false)
+        #expect(BackupHistory(defaults: defaults).hasShownPatternReminder)
+
+        var relaunched = PatternBackupReminderCoordinator(
+            history: BackupHistory(defaults: defaults)
+        )
+        relaunched.acceptCreatedPattern()
+        #expect(!relaunched.isPresented)
+    }
+
     @Test func reusedPendingCancelledAndFailedImportsNeverScheduleTheReminder() throws {
         let suiteName = "BackupHistoryTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

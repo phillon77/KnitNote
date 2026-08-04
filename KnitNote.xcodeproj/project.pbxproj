@@ -27,6 +27,7 @@
 		0C5577C16097062613E39E51 /* PatternLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */; };
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
 		0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
+		0CE9C1460396F8117ACFAA74 /* YouTubePatternThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */; };
 		0EB4F5AA1F727A8B7EFAF0CA /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */; };
 		0F220D5DEEB9FA643A9CAC70 /* MacYarnEditorLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C9AFA4B7ADBFDEC2DF1FE9 /* MacYarnEditorLayoutTests.swift */; };
 		0FCF6F4C5C2D193C026D0737 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
@@ -262,6 +263,7 @@
 		D9D96422EAA83DBC4E03A060 /* PaintingOverlayRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */; };
 		DA95835CF1FE8ED5122062AF /* ProjectPatternsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459BBDD907A817A4DDFFFF2F /* ProjectPatternsView.swift */; };
 		DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
+		DC0332CD728DB54F87010ADB /* YouTubePatternThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */; };
 		DC39760B7C07407210A12CF0 /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		DCB3DE6356885BDBD65474E6 /* YarnLabelPhotoGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E6CD9B2D2533658CCE89E1C /* YarnLabelPhotoGallery.swift */; };
 		DD0AFCAC33475322E97533FF /* YarnLabelDraftSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */; };
@@ -451,6 +453,7 @@
 		58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchOptimisticState.swift; sourceTree = "<group>"; };
 		58C9AFA4B7ADBFDEC2DF1FE9 /* MacYarnEditorLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnEditorLayoutTests.swift; sourceTree = "<group>"; };
 		599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePatternThumbnailLoader.swift; sourceTree = "<group>"; };
 		5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectJournalEntryView.swift; sourceTree = "<group>"; };
 		5D0CCE222E5B3D6656AA2345 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStore.swift; sourceTree = "<group>"; };
@@ -892,6 +895,7 @@
 				EFEC91FEB50303032D9924E3 /* YouTubePatternAddCoordinator.swift */,
 				70D946E82169D361DB029610 /* YouTubePatternLink.swift */,
 				B9745AF84B9E8AE558F17155 /* YouTubePatternMetadata.swift */,
+				5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */,
 			);
 			path = Patterns;
 			sourceTree = "<group>";
@@ -1493,6 +1497,7 @@
 				62BCA7D27A65D36BC9BFDE9A /* YouTubePatternAddCoordinator.swift in Sources */,
 				A92C9A99466AFDE777967306 /* YouTubePatternLink.swift in Sources */,
 				548D47A478269DAC1221ABEA /* YouTubePatternMetadata.swift in Sources */,
+				DC0332CD728DB54F87010ADB /* YouTubePatternThumbnailLoader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1581,6 +1586,7 @@
 				1B459B881144FDE7B7BA5F61 /* YouTubePatternAddCoordinator.swift in Sources */,
 				1D2F815710CCDED6A7961BAE /* YouTubePatternLink.swift in Sources */,
 				30D80336AB43DDD04C2672BE /* YouTubePatternMetadata.swift in Sources */,
+				0CE9C1460396F8117ACFAA74 /* YouTubePatternThumbnailLoader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

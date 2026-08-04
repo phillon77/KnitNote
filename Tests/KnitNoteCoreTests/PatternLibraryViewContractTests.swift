@@ -62,6 +62,13 @@ import Testing
         #expect(!source.contains("AsyncImage("))
     }
 
+    @Test func youtubeRowsDelegateLazyArtworkToTheCancellationAwareLoader() throws {
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryRow.swift")
+
+        #expect(source.contains("YouTubePatternThumbnailLoader("))
+        #expect(source.contains("await loader.thumbnailURL(patternID: patternID, assetID: asset.id)"))
+    }
+
     @Test func detailShowsMetadataLinksAndGuardedDestructiveAction() throws {
         let source = try readRepositoryFile("KnitNote/Patterns/PatternDetailView.swift")
 

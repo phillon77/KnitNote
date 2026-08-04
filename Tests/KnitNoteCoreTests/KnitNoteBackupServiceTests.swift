@@ -225,9 +225,14 @@ import UniformTypeIdentifiers
         })
     }
 
-    @Test func versionTwelveYouTubeBackupRoundTripsTwoUsagesWithoutCachedMedia() throws {
+    @MainActor @Test func versionTwelveYouTubeBackupRoundTripsTwoUsagesWithoutCachedMedia() async throws {
         let fixture = try BackupFixture.youtubePackage()
         defer { try? FileManager.default.removeItem(at: fixture.cleanupRoot) }
+
+        let sourceStore = JSONProjectStore(
+            url: fixture.live.appendingPathComponent("projects-v1.json")
+        )
+        #expect(await sourceStore.patternThumbnailURL(patternID: fixture.patternID) == fixture.cachedThumbnailURL)
 
         let manifest = try fixture.manifest
         let packagedPaths = Set(try BackupFixture.relativeFilePaths(
@@ -239,18 +244,23 @@ import UniformTypeIdentifiers
         #expect(manifest.files.contains { $0.relativePath == sidecarPath })
         #expect(packagedPaths.contains(sidecarPath))
         #expect(!packagedPaths.contains { path in
-            path.contains("PatternThumbnailCache")
-                || path.hasSuffix(".jpg")
+            path.contains(".KnitNote-PatternThumbnailCache")
+                || path.hasSuffix(fixture.cachedThumbnailURL.lastPathComponent)
                 || path.hasSuffix(".jpeg")
                 || path.hasSuffix(".mp4")
                 || path.hasSuffix(".mov")
         })
+        #expect(!manifest.files.contains { file in
+            file.relativePath.contains(".KnitNote-PatternThumbnailCache")
+                || file.relativePath.hasSuffix(fixture.cachedThumbnailURL.lastPathComponent)
+        })
 
-        let restoredLive = fixture.cleanupRoot.appendingPathComponent("RestoredKnitNote")
+        let restoredLive = fixture.cleanupRoot
+            .appendingPathComponent("RestoredParent/KnitNote")
         try BackupFixture.writeDisposableArchive(to: restoredLive)
         let restoreService = KnitNoteBackupService(
             liveRoot: restoredLive,
-            workRoot: fixture.cleanupRoot.appendingPathComponent("RestoreWork")
+            workRoot: fixture.cleanupRoot.appendingPathComponent("RestoredParent/RestoreWork")
         )
         let staged = try restoreService.stagePackage(at: fixture.url)
         let installation = try restoreService.install(staged)
@@ -278,17 +288,10 @@ import UniformTypeIdentifiers
             YouTubePatternMetadata.self,
             from: Data(contentsOf: restoredLive.appendingPathComponent(sidecarPath))
         ).validated() == fixture.link)
-        #expect(!FileManager.default.fileExists(
-            atPath: restoredLive.appendingPathComponent("PatternThumbnailCache/\(fixture.asset.id.uuidString).jpg").path
-        ))
-        #expect(throws: PatternThumbnailFileError.unreadableSource) {
-            _ = try PatternThumbnailFileService(
-                directory: fixture.cleanupRoot.appendingPathComponent("RestoredCache")
-            ).thumbnailURL(
-                asset: restoredAsset,
-                sourceURL: restoredLive.appendingPathComponent(sidecarPath)
-            )
-        }
+        let restoredStore = JSONProjectStore(
+            url: restoredLive.appendingPathComponent("projects-v1.json")
+        )
+        #expect(await restoredStore.patternThumbnailURL(patternID: restoredPattern.id) == nil)
     }
 
     @Test func versionTwelveYouTubeBackupRejectsInvalidSidecarsBeforeReplacingLiveData() throws {
@@ -2426,10 +2429,13 @@ private enum BackupFixture {
         let service: KnitNoteBackupService
         let url: URL
         let cleanupRoot: URL
+        let live: URL
         let archive: ProjectArchive
         let asset: PatternAsset
         let link: YouTubePatternLink
+        let patternID: UUID
         let projectIDs: [UUID]
+        let cachedThumbnailURL: URL
 
         var manifest: KnitNoteBackupManifest {
             get throws {
@@ -2631,21 +2637,28 @@ private enum BackupFixture {
             withIntermediateDirectories: true
         )
         try metadataData.write(to: sidecar, options: .atomic)
-        let cache = live.appendingPathComponent("PatternThumbnailCache/\(assetID.uuidString).jpg")
-        try FileManager.default.createDirectory(
-            at: cache.deletingLastPathComponent(),
-            withIntermediateDirectories: true
+        let thumbnailService = PatternThumbnailFileService(
+            directory: root.appendingPathComponent(
+                ".KnitNote-PatternThumbnailCache",
+                isDirectory: true
+            )
         )
-        try Data("generated thumbnail".utf8).write(to: cache, options: .atomic)
+        let cachedThumbnailURL = try thumbnailService.storeExternalThumbnail(
+            data: try jpegData(red: 0.4),
+            assetID: assetID
+        )
 
         return YouTubePackage(
             service: service,
             url: try service.createPackage(appVersion: "1.3.1"),
             cleanupRoot: root,
+            live: live,
             archive: archive,
             asset: asset,
             link: link,
-            projectIDs: [firstProject.id, secondProject.id]
+            patternID: patternID,
+            projectIDs: [firstProject.id, secondProject.id],
+            cachedThumbnailURL: cachedThumbnailURL
         )
     }
 

@@ -681,9 +681,9 @@ import UniformTypeIdentifiers
     }
 
     @Test func projectArchiveDeclaresSharedCurrentAndSupportedLegacyVersions() {
-        #expect(ProjectArchive.currentVersion == 11)
+        #expect(ProjectArchive.currentVersion == 12)
         #expect(ProjectArchive.minimumSupportedVersion == 1)
-        for version in 1...10 {
+        for version in 1...11 {
             #expect(ProjectArchive.isSupported(version: version))
         }
         #expect(ProjectArchive.isSupported(version: ProjectArchive.currentVersion))
@@ -695,7 +695,8 @@ import UniformTypeIdentifiers
         #expect(!ProjectArchive.supportsPatternLibrary(version: 9))
         #expect(ProjectArchive.supportsPatternLibrary(version: 10))
         #expect(ProjectArchive.supportsPatternLibrary(version: 11))
-        #expect(!ProjectArchive.supportsPatternLibrary(version: 12))
+        #expect(ProjectArchive.supportsPatternLibrary(version: 12))
+        #expect(!ProjectArchive.supportsPatternLibrary(version: 13))
     }
 
     @Test func supportedLegacyProjectArchiveIsAcceptedDuringInspection() throws {

@@ -1,5 +1,5 @@
 import Foundation
-public enum PatternKind: String, Codable, Sendable { case image, pdf }
+public enum PatternKind: String, Codable, Sendable { case image, pdf, youtube }
 public enum HighlightMode: String, Codable, CaseIterable, Sendable { case horizontal, vertical, cross }
 public enum PatternReaderPresentation: Sendable { case sheet, fullScreen }
 public func patternReaderPresentation(isPad: Bool) -> PatternReaderPresentation { .fullScreen }

@@ -49,6 +49,8 @@ public struct PatternThumbnailFileService: Sendable {
             image = try renderPDFPageOne(sourceURL)
         case .image:
             image = try renderImage(sourceURL)
+        case .youtube:
+            throw PatternThumbnailFileError.unreadableSource
         }
         let data = try encodeJPEG(image)
         try FileManager.default.createDirectory(

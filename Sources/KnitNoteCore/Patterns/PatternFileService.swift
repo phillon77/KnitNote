@@ -206,6 +206,55 @@ public struct PatternFileService: Sendable {
         )
     }
 
+    public func storeYouTubeMetadata(
+        _ metadata: YouTubePatternMetadata,
+        assetID: UUID
+    ) throws -> PatternAsset {
+        _ = try metadata.validated()
+        try validateOwnedAssetTree()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(metadata)
+        let sha256 = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let asset = PatternAsset(
+            id: assetID,
+            sha256: sha256,
+            kind: .youtube,
+            storedFilename: "\(assetID.uuidString).youtube",
+            byteCount: Int64(data.count),
+            pageCount: nil
+        )
+        let destination = try assetURL(asset)
+        let manager = FileManager.default
+        try manager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if manager.fileExists(atPath: destination.path) {
+            guard try youtubeMetadata(for: asset) == metadata else {
+                throw PatternFileError.invalidContent
+            }
+        } else {
+            try data.write(to: destination, options: .atomic)
+        }
+        return asset
+    }
+
+    public func youtubeMetadata(for asset: PatternAsset) throws -> YouTubePatternMetadata {
+        guard asset.kind == .youtube, asset.pageCount == nil else {
+            throw PatternFileError.invalidContent
+        }
+        let url = try assetURL(asset)
+        guard FileManager.default.fileExists(atPath: url.path), try isRegularNonSymlink(url) else {
+            throw PatternFileError.invalidContent
+        }
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        let sha256 = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard Int64(data.count) == asset.byteCount, sha256 == asset.sha256,
+              let metadata = try? JSONDecoder().decode(YouTubePatternMetadata.self, from: data),
+              (try? metadata.validated()) != nil else {
+            throw PatternFileError.invalidContent
+        }
+        return metadata
+    }
+
     func beginImportTransaction(
         item: PatternInboxItem,
         metadata: PatternFileMetadata,
@@ -340,10 +389,11 @@ public struct PatternFileService: Sendable {
         switch kind {
         case .pdf: return ["pdf"]
         case .image: return ["png", "jpg", "jpeg", "heic"]
+        case .youtube: return ["youtube"]
         }
     }
 
-    private var allowedExtensions: Set<String> { ["pdf", "png", "jpg", "jpeg", "heic"] }
+    private var allowedExtensions: Set<String> { ["pdf", "png", "jpg", "jpeg", "heic", "youtube"] }
     private func transactionURL(_ id: UUID) -> URL { assetTransactionsRoot.appendingPathComponent("\(id.uuidString).json") }
     private func candidateURL(_ id: UUID) -> URL { assetCandidatesRoot.appendingPathComponent(id.uuidString) }
     private func journal(itemID: UUID) throws -> PatternAssetImportJournal? {

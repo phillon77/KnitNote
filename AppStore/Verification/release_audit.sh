@@ -74,9 +74,9 @@ for target in KnitNote KnitNoteWatch KnitNoteShare; do
     || fail "$target build is $build, expected $EXPECTED_BUILD"
 done
 
-rg -q 'static let currentVersion = 11' \
+rg -q 'static let currentVersion = 12' \
   Sources/KnitNoteCore/Projects/JSONProjectStore.swift \
-  || fail "project archive schema is not 11"
+  || fail "project archive schema is not 12"
 rg -q 'static let currentFormatVersion = 2' \
   Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift \
   || fail "backup manifest format is not 2"

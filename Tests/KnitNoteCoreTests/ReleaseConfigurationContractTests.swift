@@ -25,7 +25,7 @@ import Testing
             "Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift"
         )
 
-        #expect(projectArchive.contains("static let currentVersion = 11"))
+        #expect(projectArchive.contains("static let currentVersion = 12"))
         #expect(backupManifest.contains("static let currentFormatVersion = 2"))
     }
 

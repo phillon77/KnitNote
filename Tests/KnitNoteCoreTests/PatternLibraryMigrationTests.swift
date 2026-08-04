@@ -539,6 +539,33 @@ import UniformTypeIdentifiers
     #expect(try Data(contentsOf: fixture.markupURL) == fixture.markupData)
 }
 
+@MainActor @Test func schemaElevenPatternLibraryUpgradesWithoutChangingOwnedData() throws {
+    let fixture = try SchemaTenPatternLibraryFixture.make()
+    defer { try? FileManager.default.removeItem(at: fixture.liveRoot) }
+    let legacyArchive = ProjectArchive(
+        version: 11,
+        projects: [fixture.project],
+        yarns: [fixture.yarn],
+        patternAssets: [fixture.asset],
+        patterns: [fixture.pattern],
+        patternUsages: [fixture.usage]
+    )
+    try JSONEncoder().encode(legacyArchive).write(to: fixture.archiveURL, options: .atomic)
+
+    let store = JSONProjectStore(url: fixture.archiveURL)
+    let installed = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: fixture.archiveURL))
+
+    #expect(store.loadError == nil)
+    #expect(installed.version == ProjectArchive.currentVersion)
+    #expect(store.projects == legacyArchive.projects)
+    #expect(store.yarns == legacyArchive.yarns)
+    #expect(store.patternAssets == legacyArchive.patternAssets)
+    #expect(store.patterns == legacyArchive.patterns)
+    #expect(store.patternUsages == legacyArchive.patternUsages)
+    #expect(try Data(contentsOf: fixture.assetURL) == fixture.assetData)
+    #expect(try Data(contentsOf: fixture.markupURL) == fixture.markupData)
+}
+
 @MainActor @Test func storeRejectsCurrentArchiveWhenReferencedAssetIsMissing() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let migrated = JSONProjectStore(url: fixture.archiveURL)
@@ -555,7 +582,7 @@ import UniformTypeIdentifiers
     #expect(reloaded.patternAssets.isEmpty)
 }
 
-@MainActor @Test(arguments: Array(1...9))
+@MainActor @Test(arguments: Array(1...11))
 func everySupportedLegacySchemaMigratesThroughTheStore(version: Int) throws {
     let fixture = try LegacyPatternFixture.onePattern(version: version)
 
@@ -646,13 +673,15 @@ private struct LegacyPatternFixture {
         kind: PatternKind = .pdf
     ) throws -> LegacyPatternFixture {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let fileExtension = kind == .pdf ? "pdf" : "png"
+        let fileExtension = kind == .pdf ? "pdf" : kind == .image ? "png" : "youtube"
         let source = root.appendingPathComponent("source.\(fileExtension)")
         switch kind {
         case .pdf:
             try makeTestPatternPDF(at: source, pageCount: 3)
         case .image:
             try makeTestPatternImage(at: source)
+        case .youtube:
+            throw PatternLibraryMigrationError.invalidLegacyFile
         }
         let sharedBytes = try Data(contentsOf: source)
 

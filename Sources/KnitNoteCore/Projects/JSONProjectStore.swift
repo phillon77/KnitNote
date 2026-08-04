@@ -3,7 +3,7 @@ import CryptoKit
 import Foundation
 
 public struct ProjectArchive: Codable, Sendable {
-    public static let currentVersion = 11
+    public static let currentVersion = 12
     public static let minimumSupportedVersion = 1
     public static let patternLibraryIntroducedVersion = 10
 

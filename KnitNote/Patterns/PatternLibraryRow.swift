@@ -153,5 +153,7 @@ func patternAssetDescription(_ asset: PatternAsset, locale: Locale) -> String {
         )
     case .image:
         return String(localized: "patterns.library.image", locale: locale)
+    case .youtube:
+        return String(localized: "YouTube", locale: locale)
     }
 }

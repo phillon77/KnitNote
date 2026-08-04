@@ -391,6 +391,12 @@ public struct PatternLibraryMigrator: Sendable {
                   CGImageSourceGetCount(image) > 0 else {
                 throw PatternLibraryMigrationError.invalidLegacyFile
             }
+        case .youtube:
+            guard asset.pageCount == nil,
+                  let metadata = try? JSONDecoder().decode(YouTubePatternMetadata.self, from: data),
+                  (try? metadata.validated()) != nil else {
+                throw PatternLibraryMigrationError.invalidLegacyFile
+            }
         }
     }
 
@@ -571,6 +577,8 @@ private struct ValidatedLegacyDocument: Sendable {
                 throw PatternLibraryMigrationError.invalidLegacyFile
             }
             return nil
+        case .youtube:
+            throw PatternLibraryMigrationError.invalidLegacyFile
         }
     }
 }

@@ -2381,6 +2381,8 @@ public struct KnitNoteBackupService: Sendable {
             return url.pathExtension == "pdf"
         case .image:
             return ["png", "jpg", "jpeg", "heic"].contains(url.pathExtension)
+        case .youtube:
+            return url.pathExtension == "youtube"
         }
     }
 
@@ -2398,6 +2400,8 @@ public struct KnitNoteBackupService: Sendable {
             return url.pathExtension == "pdf"
         case .image:
             return ["png", "jpg", "jpeg", "heic"].contains(url.pathExtension)
+        case .youtube:
+            return url.pathExtension == "youtube"
         }
     }
 

@@ -596,10 +596,12 @@ struct PatternReaderView: View {
                     )
                     .patternNightRendering(active: usesNightRendering)
                     .allowsHitTesting(!markupMode)
-                } else {
+                } else if content.kind == .image {
                     ImageReaderView(url: content.url, state: canvasState, loadError: $loadError)
                         .patternNightRendering(active: usesNightRendering)
                         .allowsHitTesting(!markupMode)
+                } else {
+                    Color.clear
                 }
                 if state.highlightEnabled {
                     HighlightOverlay(

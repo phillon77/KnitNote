@@ -1588,6 +1588,27 @@ final class PatternLibraryDeletionTransaction {
         return try requiredPatternFileService().youtubeMetadata(for: asset).validated()
     }
 
+    /// Remote artwork is auxiliary presentation data: the durable YouTube
+    /// pattern is saved first, and a cache failure never rolls it back.
+    public func cacheYouTubeThumbnail(_ data: Data, patternID: UUID) async {
+        guard let pattern = patterns.first(where: { $0.id == patternID }),
+              let asset = patternAssets.first(where: { $0.id == pattern.assetID }),
+              asset.kind == .youtube else {
+            return
+        }
+        let assetID = asset.id
+        let service = patternThumbnailService
+        let result = await Task.detached(priority: .utility) {
+            try? service.storeExternalThumbnail(data: data, assetID: assetID)
+        }.value
+        guard result != nil,
+              let currentPattern = patterns.first(where: { $0.id == patternID }),
+              currentPattern.assetID == assetID,
+              patternAssets.contains(where: { $0.id == assetID && $0.kind == .youtube }) else {
+            return
+        }
+    }
+
     public func patternThumbnailURL(patternID: UUID) async -> URL? {
         guard loadError == nil,
               let pattern = patterns.first(where: { $0.id == patternID }),

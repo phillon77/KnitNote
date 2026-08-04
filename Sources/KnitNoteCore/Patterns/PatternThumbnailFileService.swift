@@ -10,6 +10,9 @@ public enum PatternThumbnailFileError: Error, Equatable, Sendable {
 }
 
 public struct PatternThumbnailFileService: Sendable {
+    public static let maximumExternalThumbnailBytes = 10 * 1_024 * 1_024
+    public static let maximumExternalThumbnailDimension = 4_096
+
     public let directory: URL
     public let maxPixelSize: Int
     private let lock = PatternThumbnailFileLock()
@@ -95,6 +98,48 @@ public struct PatternThumbnailFileService: Sendable {
     public func cachedURL(assetID: UUID) -> URL {
         directory
             .appendingPathComponent("\(assetID.uuidString).jpg")
+    }
+
+    /// Stores metadata artwork fetched from a remote pattern provider after
+    /// first proving it is a bounded image. The cache contains only generated
+    /// JPEGs, never the provider's original bytes.
+    public func storeExternalThumbnail(data: Data, assetID: UUID) throws -> URL {
+        guard !data.isEmpty, data.count <= Self.maximumExternalThumbnailBytes,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) > 0,
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0,
+              height > 0,
+              width <= Self.maximumExternalThumbnailDimension,
+              height <= Self.maximumExternalThumbnailDimension,
+              let image = CGImageSourceCreateThumbnailAtIndex(
+                  source,
+                  0,
+                  [
+                      kCGImageSourceCreateThumbnailFromImageAlways: true,
+                      kCGImageSourceCreateThumbnailWithTransform: true,
+                      kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+                  ] as CFDictionary
+              ) else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
+
+        lock.value.lock()
+        defer { lock.value.unlock() }
+        let destination = cachedURL(assetID: assetID)
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        guard !isSymbolicLink(destination.deletingLastPathComponent()),
+              !isSymbolicLink(destination) else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
+        let jpeg = try encodeJPEG(image)
+        try jpeg.write(to: destination, options: .atomic)
+        return destination
     }
 
     public func cachedPageURL(asset: PatternAsset, pageIndex: Int) -> URL {
@@ -219,6 +264,10 @@ public struct PatternThumbnailFileService: Sendable {
             throw PatternThumbnailFileError.encodingFailed
         }
         return output as Data
+    }
+
+    private func isSymbolicLink(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true
     }
 }
 

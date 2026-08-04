@@ -145,6 +145,8 @@ targets:
       - path: Sources/KnitNoteCore/Patterns/PatternShareInboxEnqueuer.swift
       - path: Sources/KnitNoteCore/Patterns/PatternShareImportPresentation.swift
       - path: Sources/KnitNoteCore/Patterns/PatternStorageLocations.swift
+      - path: Sources/KnitNoteCore/Patterns/YouTubePatternLink.swift
+      - path: Sources/KnitNoteCore/Patterns/YouTubePatternMetadata.swift
       - path: Sources/KnitNoteCore/Entitlements/EntitlementProjection.swift
       - path: Sources/KnitNoteCore/Entitlements/EntitlementSnapshot.swift
     settings:

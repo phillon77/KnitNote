@@ -16,9 +16,16 @@ public struct YouTubePatternLink: Codable, Equatable, Hashable, Sendable {
             charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
         )
         guard videoID.count == 11,
-              videoID.unicodeScalars.allSatisfy({ allowed.contains($0) }),
-              let url = URL(string: "https://www.youtube.com/watch?v=\(videoID)")
+              videoID.unicodeScalars.allSatisfy({ allowed.contains($0) })
         else { throw YouTubePatternLinkError.invalidVideoID }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.youtube.com"
+        components.path = "/watch"
+        components.queryItems = [URLQueryItem(name: "v", value: videoID)]
+        guard let url = components.url else {
+            throw YouTubePatternLinkError.invalidVideoID
+        }
         self.videoID = videoID
         canonicalURL = url
     }

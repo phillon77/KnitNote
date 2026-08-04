@@ -46,6 +46,7 @@ struct PatternCalculatorView: View {
         VStack(spacing: 12) {
             Text(displayText)
                 .font(.system(size: 42, weight: .medium, design: .rounded))
+                .foregroundStyle(WatercolorTheme.ink)
                 .minimumScaleFactor(0.45)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, minHeight: 54, alignment: .trailing)
@@ -62,6 +63,7 @@ struct PatternCalculatorView: View {
                             } label: {
                                 Text(button.label)
                                     .font(.title3.weight(.semibold))
+                                    .foregroundStyle(WatercolorTheme.ink)
                                     .frame(maxWidth: .infinity, minHeight: 44)
                             }
                             .buttonStyle(.plain)
@@ -189,7 +191,7 @@ private struct PatternCalculatorButton: Identifiable {
         case .operation:
             WatercolorTheme.actionBerry.opacity(isPending ? 0.34 : 0.18)
         case .digit, .utility:
-            .white.opacity(0.72)
+            WatercolorTheme.softWhite.opacity(0.88)
         }
     }
 }

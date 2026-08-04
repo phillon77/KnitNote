@@ -59,6 +59,9 @@ private struct PatternReaderContent {
 struct PatternReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+#if os(iOS)
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+#endif
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     private let source: PatternReaderSource
@@ -316,6 +319,14 @@ struct PatternReaderView: View {
         appearancePresentation.readerChrome == .dark ? .dark : .light
     }
 
+    private var calculatorPresentationDetents: Set<PresentationDetent> {
+#if os(iOS)
+        verticalSizeClass == .compact ? [.large] : [.medium]
+#else
+        [.medium]
+#endif
+    }
+
     private var appearanceToggleTitle: LocalizedStringKey {
         appearancePresentation.toggleIntent == .showOriginalColors
             ? "patterns.appearance.showOriginal"
@@ -463,7 +474,7 @@ struct PatternReaderView: View {
                     .popover(isPresented: $showingCalculator, attachmentAnchor: .rect(.bounds)) {
                         PatternCalculatorView(state: $calculatorState)
                             .presentationCompactAdaptation(.sheet)
-                            .presentationDetents([.medium])
+                            .presentationDetents(calculatorPresentationDetents)
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {

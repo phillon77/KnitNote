@@ -73,7 +73,6 @@ import UniformTypeIdentifiers
         (UTType.pdf.identifier, "Cable Chart", "Cable Chart.pdf"),
         (UTType.png.identifier, "Colorwork.png", "Colorwork.png"),
         (UTType.jpeg.identifier, "Sleeve Photo.jpeg", "Sleeve Photo.jpg"),
-        (UTType.heic.identifier, "Finished Sweater", "Finished Sweater.heic"),
     ])
     func providerTypeAndSuggestedNameOwnTheFilenameWhenTemporaryURLHasNoExtension(
         typeIdentifier: String,

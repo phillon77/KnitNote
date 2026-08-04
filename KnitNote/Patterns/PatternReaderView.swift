@@ -72,6 +72,8 @@ struct PatternReaderView: View {
     @State private var pdfViewport = PatternPDFViewportState()
     @State private var saveError: String?
     @State private var showingPageNote = false
+    @State private var calculatorState = PatternCalculatorState()
+    @State private var showingCalculator = false
     @State private var originalPageNote = ""
     @State private var editingPageNoteIndex = 0
     @State private var markupMode = false
@@ -449,6 +451,20 @@ struct PatternReaderView: View {
                         markupMode.toggle()
                     }
                     .disabled(!(context.canWrite || context.canRequestUnlock))
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingCalculator = true
+                    } label: {
+                        Label("patterns.calculator.title", systemImage: "plus.forwardslash.minus")
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityHint(Text("patterns.calculator.hint"))
+                    .popover(isPresented: $showingCalculator, attachmentAnchor: .rect(.bounds)) {
+                        PatternCalculatorView(state: $calculatorState)
+                            .presentationCompactAdaptation(.sheet)
+                            .presentationDetents([.medium])
+                    }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {

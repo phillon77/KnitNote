@@ -55,22 +55,29 @@ import Testing
         coordinator.urlText = "https://youtu.be/abcdefghijk"
         coordinator.title = "Video pattern"
 
-        async let first: YouTubePatternAddResult? = coordinator.add(
+        let first = Task { @MainActor in await coordinator.add(
             add: { link, title, projectID in
-                await probe.recordAdd(link: link, title: title, projectID: projectID)
-                try await Task.sleep(for: .milliseconds(30))
+                await probe.recordFirstAddAndWaitForRelease(
+                    link: link,
+                    title: title,
+                    projectID: projectID
+                )
                 return YouTubePatternAddResult(resolution: .created, patternID: UUID())
             },
             cache: { _, _ in await probe.recordCache() }
-        )
-        async let second: YouTubePatternAddResult? = coordinator.add(
+        ) }
+        await probe.waitUntilFirstAddStarts()
+
+        let second = await coordinator.add(
             add: { _, _, _ in
                 await probe.recordUnexpectedSecondAdd()
                 return YouTubePatternAddResult(resolution: .created, patternID: UUID())
             },
             cache: { _, _ in await probe.recordCache() }
         )
-        _ = await (first, second)
+        #expect(second == nil)
+        await probe.releaseFirstAdd()
+        _ = await first.value
 
         #expect(await probe.events == [.add])
     }
@@ -174,10 +181,25 @@ private enum AddEvent: Equatable { case add, cache, unexpectedSecondAdd }
 
 private actor AddOperationProbe {
     private(set) var events: [AddEvent] = []
+    private var firstAddStarted = false
+    private var firstAddReleased = false
 
     func recordAdd(link: YouTubePatternLink? = nil, title: String? = nil, projectID: UUID? = nil) {
         events.append(.add)
     }
+    func recordFirstAddAndWaitForRelease(
+        link: YouTubePatternLink? = nil,
+        title: String? = nil,
+        projectID: UUID? = nil
+    ) async {
+        events.append(.add)
+        firstAddStarted = true
+        while !firstAddReleased { await Task.yield() }
+    }
+    func waitUntilFirstAddStarts() async {
+        while !firstAddStarted { await Task.yield() }
+    }
+    func releaseFirstAdd() { firstAddReleased = true }
     func recordUnexpectedSecondAdd() { events.append(.unexpectedSecondAdd) }
     func recordCache() { events.append(.cache) }
 }

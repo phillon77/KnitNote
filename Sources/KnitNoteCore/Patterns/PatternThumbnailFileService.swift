@@ -146,6 +146,13 @@ public struct PatternThumbnailFileService: Sendable {
         lock.value.lock()
         defer { lock.value.unlock() }
         let stagingDirectory = externalThumbnailStagingDirectory
+        // Validate both paths before any directory-creation side effect. In
+        // particular, do not let a symlinked cache root create a staging
+        // directory outside the cache root.
+        guard !isSymbolicLink(directory),
+              !isSymbolicLink(stagingDirectory) else {
+            throw PatternThumbnailFileError.unreadableSource
+        }
         try FileManager.default.createDirectory(
             at: stagingDirectory,
             withIntermediateDirectories: true

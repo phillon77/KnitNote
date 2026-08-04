@@ -72,6 +72,9 @@ import UniformTypeIdentifiers
         #expect(!FileManager.default.fileExists(
             atPath: outside.appendingPathComponent("\(assetID.uuidString).jpg").path
         ))
+        #expect(!FileManager.default.fileExists(
+            atPath: outside.appendingPathComponent(".ExternalThumbnailStaging", isDirectory: true).path
+        ))
     }
 
     @Test func acceptedExternalThumbnailIsDownsampledAsJPEGAtTheCacheURL() throws {

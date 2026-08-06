@@ -1453,7 +1453,8 @@ import Testing
         let source = try projectSource(named: "ProjectCounterName")
 
         #expect(source.contains("func projectCounterDisplayName(_ counter: ProjectCounter, locale: Locale)"))
-        #expect(source.contains("String(localized: \"counter.defaultName\", locale: locale)"))
+        #expect(source.contains("LocaleAwareText.format("))
+        #expect(source.contains("\"counter.defaultName\""))
         #expect(source.contains("locale: locale,"))
     }
 

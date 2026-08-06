@@ -7,6 +7,8 @@ final class ShareViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        let locale = LanguageSelectionProjection.live()?.resolvedLocale()
+            ?? LanguageSettings(selection: .system).resolvedLocale()
         let importController = ShareImportController(
             extensionContext: extensionContext
         )
@@ -14,6 +16,7 @@ final class ShareViewController: UIViewController {
 
         let host = UIHostingController(
             rootView: ShareImportView(controller: importController)
+                .environment(\.locale, locale)
         )
         addChild(host)
         host.view.translatesAutoresizingMaskIntoConstraints = false

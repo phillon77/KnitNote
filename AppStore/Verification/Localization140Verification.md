@@ -4,7 +4,7 @@
 
 **STOP — the exact source candidate is KnitNote `1.4.0 (8)`, but release acceptance remains incomplete.**
 
-The project specification, generated Xcode Release settings, source plists, and all six inspected standalone/embedded products agree on `1.4.0 (8)` and the exact six release locales. This removes the earlier version/build blocker. Release acceptance is still blocked because:
+The project specification, generated Xcode Release settings, source plists, and all six inspected standalone/embedded products agree on `1.4.0 (8)` and the exact six release locales. The final review fixes also project the selected language into Share and route Foundation-generated app copy through the live selected locale. This removes the earlier version/build and known runtime-routing blockers. Release acceptance is still blocked because:
 
 - no signed archives were created or audited;
 - no physical-device, visual, accessibility, data-neutrality, or tester acceptance was performed;
@@ -23,7 +23,8 @@ No archive, upload, submission, merge, push, price change, or IAP change was per
 | Supplied source `git archive` SHA-256 | `7f4f593c8aaeaa0dbfd47ca29d54e32a222203f2380c072246eed9bd172a4496` |
 | Original Task 8 verification commit | `2354714c3416433801e14173c0d59f19f51bd9bb` (`test: verify KnitNote 1.4 localization`) |
 | Review-fix commit | `1e77d9a712cb277e7240d15ed4b797e4195d979c` (`fix: harden localization release verification`) |
-| Exact `1.4.0 (8)` source candidate | The commit containing this record, with subject `chore: prepare KnitNote 1.4.0 build 8`; resolve its immutable SHA with `git log -1 --format=%H -- AppStore/Verification/Localization140Verification.md` |
+| Reviewed pre-fix `1.4.0 (8)` commit | `01d1062c74388e75f266664c8d99509db7bdba2f` (`chore: prepare KnitNote 1.4.0 build 8`) — superseded by the final-review fixes |
+| Exact final-review source candidate | The commit containing this record, with subject `fix: honor runtime localization across app surfaces`; resolve its immutable SHA with `git log -1 --format=%H -- AppStore/Verification/Localization140Verification.md` |
 | Candidate branch | `docs/knitnote-1.4-localization` |
 | Marketing version in every candidate build | `1.4.0` |
 | Build number in every candidate build | `8` |
@@ -39,33 +40,46 @@ The exact candidate commit is intentionally not embedded as a literal SHA in its
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Baseline Swift suite at supplied source commit | PASS | 1,269 tests in 117 suites |
-| Final full Swift suite | PASS | 1,287 tests in 119 suites, zero failures |
+| Final full Swift suite | PASS | 1,306 tests in 122 suites, zero failures |
 | App Store metadata checker | PASS | `METADATA CHECK: PASS` |
 | Commercial configuration, offline | PASS | `COMMERCIAL RELEASE CHECK: PASS (offline)` |
-| Static release audit | PASS | `RELEASE AUDIT: PASS` |
+| Static release audit | PASS | `STATIC RELEASE AUDIT: PASS`; this marker deliberately does not imply signed-candidate clearance |
+| Share language projection tests | PASS | 7 tests covering explicit, `.system`, missing/invalid values, production App Group, target membership, main launch/change writes, and Share locale injection |
+| Runtime locale behavior tests | PASS | 4 real-bundle tests covering live semantic-message rerendering, dynamic title formatting, plural variation under a non-system resource language, and locale-aware byte counts |
+| Runtime locale source contracts | PASS | 6 tests using compiler AST inspection plus targeted error/title/toolbar/storage/UIKit overlay contracts |
 | Release candidate identity behavior tests | PASS | 3 tests covering parsed `project.yml`, four resolved Xcode Release setting combinations, generated source plists, and exact six locale declarations |
-| Release-audit localization/identity behavior tests | PASS | 10 tests, including independent rejection of version `1.3.1`, build `7`, an extra `nb` catalog localization, and `nb.lproj`, plus acceptance of `1.4.0 (8)` with optional `Base.lproj` |
+| Release-audit localization/identity behavior tests | PASS | 12 tests, including independent rejection of version `1.3.1`, build `7`, an extra `nb` catalog localization, `nb.lproj`, missing/contradictory/repeated modes, and acceptance of `1.4.0 (8)` with optional `Base.lproj` |
 | Screenshot fixture/tooling tests | PASS | 14 tests, including byte-identical all-six main fixtures, identical all-six Watch fixtures, and sanitized capture-entrypoint environment |
 | Screenshot manifest-only validation | PASS | 84 definitions |
 | Signed archive audit | **NOT RUN** | No archive or signing was authorized; fixture tests do not substitute for a real signed archive |
 
 During the original Task 8 verification, a restricted-sandbox attempt failed before tests because SwiftPM could not write `~/.cache/clang/ModuleCache`; its normal-cache rerun passed. The current candidate-identity run used the explicit scratch path below and did not encounter that environment failure.
 
-The candidate-identity full Swift and static-audit commands were:
+The final-review full Swift and static-audit commands were:
 
 ```sh
-swift test --disable-sandbox --scratch-path /tmp/KnitNoteTask8RC140Full-1e77
+swift test --disable-sandbox --scratch-path /tmp/KnitNote140FinalFix-Full
 AppStore/Verification/release_audit.sh --static-only
 ```
 
 They completed with:
 
 ```text
-Test run with 1287 tests in 119 suites passed
+Test run with 1306 tests in 122 suites passed
 METADATA CHECK: PASS
 COMMERCIAL RELEASE CHECK: PASS (offline)
-RELEASE AUDIT: PASS
+STATIC RELEASE AUDIT: PASS
 ```
+
+## Final review remediation
+
+Independent final review of `01d1062c74388e75f266664c8d99509db7bdba2f` found two Important runtime-language defects and one Minor audit-label ambiguity. Each production change followed a focused failing-test cycle.
+
+The main iOS app now writes only the raw `LanguageSelection` into the production App Group at launch and after every stored selection change. Share compiles the shared selection/settings/projection types, validates the projected value at launch, resolves missing, invalid, and `.system` values from the Share process system preferences, and injects that locale into its SwiftUI root. The six metadata files now describe the corrected main/Watch/Share propagation rather than the superseded system-only Share behavior. Physical verification still requires an app-selected language that deliberately differs from the device language.
+
+Foundation-generated visible and accessibility copy now uses `LocaleAwareText`, which builds a `LocalizedStringResource` with the live locale and bundle. This is required because [Apple documents](https://developer.apple.com/documentation/swift/string/init%28localized%3Aoptions%3Atable%3Abundle%3Alocale%3Acomment%3A%29) that the `locale:` parameter on the older `String(localized:table:bundle:locale:)` overload formats interpolated values but does not select a different resource localization. The runtime boundary preserves String Catalog plural variation through an interpolated-resource path. Semantic alert state remains unlocalized until render time; dynamic page/row titles, markup color labels, byte counts, Watch error copy, calculator/accessibility formats, and similar UI paths follow the current SwiftUI locale. The UIKit camera coordinator receives locale updates and refreshes an already-visible processing overlay's VoiceOver label.
+
+The release audit now requires exactly one explicit mode. `--static-only` can emit only `STATIC RELEASE AUDIT: PASS`; only a successful `--archives DIR` run can emit `RELEASE AUDIT: PASS`. Missing, contradictory, and repeated modes exit 2 before any audit work. Fixture-based archive tests cover the signed-candidate marker contract, but no real signed archive was supplied in this task.
 
 ## Localization source contract
 
@@ -98,10 +112,10 @@ All commands used `Release` and `CODE_SIGNING_ALLOWED=NO` from the clean exact c
 
 | Target | Destination | DerivedData | Build | Identifier | Version/build |
 | --- | --- | --- | --- | --- | --- |
-| KnitNote iOS | `generic/platform=iOS` | `/tmp/KnitNote140Build8-RC-exact-iOS` | PASS | `com.phillon.KnitNote` | `1.4.0 (8)` |
-| KnitNote macOS | `platform=macOS` | `/tmp/KnitNote140Build8-RC-exact-macOS` | PASS | `com.phillon.KnitNote` | `1.4.0 (8)` |
-| KnitNoteWatch | `generic/platform=watchOS` | `/tmp/KnitNote140Build8-RC-exact-Watch` | PASS | `com.phillon.KnitNote.watch` | `1.4.0 (8)` |
-| KnitNoteShare | `generic/platform=iOS` | `/tmp/KnitNote140Build8-RC-exact-Share` | PASS | `com.phillon.KnitNote.share` | `1.4.0 (8)` |
+| KnitNote iOS | `generic/platform=iOS` | `/tmp/KnitNote140FinalFix-exact-iOS` | PASS | `com.phillon.KnitNote` | `1.4.0 (8)` |
+| KnitNote macOS | `platform=macOS` | `/tmp/KnitNote140FinalFix-exact-macOS` | PASS | `com.phillon.KnitNote` | `1.4.0 (8)` |
+| KnitNoteWatch | `generic/platform=watchOS` | `/tmp/KnitNote140FinalFix-exact-Watch` | PASS | `com.phillon.KnitNote.watch` | `1.4.0 (8)` |
+| KnitNoteShare | `generic/platform=iOS` | `/tmp/KnitNote140FinalFix-exact-Share` | PASS | `com.phillon.KnitNote.share` | `1.4.0 (8)` |
 
 Direct inspection covered six independently identified products: standalone iOS, macOS, Watch, and Share plus the Watch and Share products embedded in the iOS app. Every product had:
 
@@ -110,7 +124,7 @@ Direct inspection covered six independently identified products: standalone iOS,
 - `CFBundleLocalizations`: exactly `en`, `zh-Hant`, `zh-Hans`, `de`, `fr`, `ja`;
 - packaged localization directories: exactly `en.lproj`, `zh-Hant.lproj`, `zh-Hans.lproj`, `de.lproj`, `fr.lproj`, `ja.lproj`.
 
-Historical note: the originally supplied `fdb978dd80475a27a5c09510a57f8c53e2876314` source and later `1.3.1 (7)` verification builds are not this candidate. They remain relevant only as earlier rejected/fix-round evidence; none is being promoted to candidate status.
+Historical note: the originally supplied `fdb978dd80475a27a5c09510a57f8c53e2876314` source, later `1.3.1 (7)` verification builds, and pre-fix `01d1062c74388e75f266664c8d99509db7bdba2f` build-8 products are not this candidate. They remain relevant only as earlier rejected/fix-round evidence; none is being promoted to candidate status.
 
 ## Screenshot automation and visual status
 
@@ -141,7 +155,7 @@ Every cell is independently pending. A pass on one device, orientation, process,
 | Apple Watch | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
 | Share Extension | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
 
-No acceptance device was used, so device model, OS version, installed build identity, and exact-candidate installation evidence are all **NOT RECORDED**.
+No acceptance device was used, so device model, OS version, installed build identity, and exact-candidate installation evidence are all **NOT RECORDED**. Share acceptance must include at least one deliberate mismatch case (for example, English system language with Japanese selected in KnitNote) and must separately verify missing/invalid/`.system` projection fallback.
 
 For every matrix cell, all of these flows remain **PENDING / NOT VERIFIED**:
 

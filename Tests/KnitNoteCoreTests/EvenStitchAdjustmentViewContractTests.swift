@@ -26,7 +26,7 @@ struct EvenStitchAdjustmentViewContractTests {
         #expect(rows.contains("result.minimumInterval == result.maximumInterval"))
         #expect(rows.contains("calculator.adjustment.rows.interval.exact.format"))
         #expect(rows.contains("calculator.adjustment.rows.interval.range.format"))
-        #expect(rows.contains("String.localizedStringWithFormat"))
+        #expect(rows.contains("LocaleAwareText.format"))
         #expect(rows.contains(".accessibilityElement(children: .ignore)"))
         #expect(rows.contains("ForEach(adjustment.adjustmentRows.indices, id: \\.self)"))
         #expect(!rows.contains(".joined(separator:"))
@@ -38,7 +38,7 @@ struct EvenStitchAdjustmentViewContractTests {
 
         #expect(sourceContains(
             rows,
-            pattern: #"return\s+String\.localizedStringWithFormat\(\s*format,\s*interval,\s*result\.eventCount\s*\)"#
+            pattern: #"return\s+LocaleAwareText\.format\(key,\s*locale:\s*locale,\s*interval,\s*result\.eventCount\)"#
         ))
     }
 
@@ -166,8 +166,8 @@ struct EvenStitchAdjustmentViewContractTests {
 
         #expect(source.contains("private func intervalRangeText"))
         #expect(source.contains("calculator.adjustment.interval.range.format"))
-        #expect(source.contains("String.localizedStringWithFormat(format, range)"))
-        #expect(!source.contains("String.localizedStringWithFormat(format, minimum, maximum)"))
+        #expect(source.contains("String(format: format, locale: locale, range)"))
+        #expect(!source.contains("String(format: format, locale: locale, minimum, maximum)"))
     }
 
     @Test func stepsUseStructuredLazyRenderingWithoutCopyingTheSequence() throws {

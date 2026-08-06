@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EditPatternPageNoteView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     let pageNumber: Int
     @Binding var text: String
     let onSave: () -> Bool
@@ -12,7 +13,11 @@ struct EditPatternPageNoteView: View {
             TextEditor(text: $text)
                 .padding()
                 .background(WatercolorTheme.softWhite)
-                .navigationTitle(String(format: String(localized: "patterns.pageNote.page"), pageNumber))
+                .navigationTitle(LocaleAwareText.format(
+                    "patterns.pageNote.page",
+                    locale: locale,
+                    pageNumber
+                ))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("common.cancel") {

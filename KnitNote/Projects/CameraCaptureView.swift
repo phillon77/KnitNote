@@ -5,9 +5,10 @@ import UIKit
 
 struct CameraCaptureView: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     let onCapture: (Data) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self, locale: locale) }
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let controller = UIImagePickerController()
@@ -17,7 +18,9 @@ struct CameraCaptureView: UIViewControllerRepresentable {
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
+        context.coordinator.update(parent: self, locale: locale)
+    }
 
     static func dismantleUIViewController(
         _ uiViewController: UIImagePickerController,
@@ -28,11 +31,21 @@ struct CameraCaptureView: UIViewControllerRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let parent: CameraCaptureView
+        private var parent: CameraCaptureView
+        private var locale: Locale
         var encodingTask: Task<Void, Never>?
         private weak var processingOverlay: UIView?
 
-        init(parent: CameraCaptureView) { self.parent = parent }
+        init(parent: CameraCaptureView, locale: Locale) {
+            self.parent = parent
+            self.locale = locale
+        }
+
+        func update(parent: CameraCaptureView, locale: Locale) {
+            self.parent = parent
+            self.locale = locale
+            processingOverlay?.accessibilityLabel = processingAccessibilityLabel
+        }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             cancelEncoding()
@@ -83,7 +96,7 @@ struct CameraCaptureView: UIViewControllerRepresentable {
             let overlay = UIView(frame: picker.view.bounds)
             overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             overlay.backgroundColor = UIColor.black.withAlphaComponent(0.28)
-            overlay.accessibilityLabel = String(localized: "journal.photo.loading")
+            overlay.accessibilityLabel = processingAccessibilityLabel
 
             let indicator = UIActivityIndicatorView(style: .large)
             indicator.color = .white
@@ -96,6 +109,10 @@ struct CameraCaptureView: UIViewControllerRepresentable {
             ])
             picker.view.addSubview(overlay)
             processingOverlay = overlay
+        }
+
+        private var processingAccessibilityLabel: String {
+            LocaleAwareText.string("journal.photo.loading", locale: locale)
         }
 
         private func hideProcessing(in picker: UIImagePickerController) {

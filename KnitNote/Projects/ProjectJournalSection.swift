@@ -123,16 +123,11 @@ private struct ProjectJournalCard: View {
 
     private var accessibilityLabel: Text {
         let date = entry.createdAt.formatted(.dateTime.year().month().day().locale(locale))
-        let format = String(
-            localized: String.LocalizationValue(
-                photoLoadState.cardAccessibilityFormatKey(hasCaption: entry.caption != nil)
-            ),
-            locale: locale
-        )
+        let key = photoLoadState.cardAccessibilityFormatKey(hasCaption: entry.caption != nil)
         if let caption = entry.caption {
-            return Text(verbatim: String(format: format, locale: locale, caption, date))
+            return Text(verbatim: LocaleAwareText.format(key, locale: locale, caption, date))
         } else {
-            return Text(verbatim: String(format: format, locale: locale, date))
+            return Text(verbatim: LocaleAwareText.format(key, locale: locale, date))
         }
     }
 }

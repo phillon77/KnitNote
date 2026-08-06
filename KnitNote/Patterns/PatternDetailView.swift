@@ -17,7 +17,7 @@ struct PatternDetailView: View {
     @State private var showingReadingChooser = false
     @State private var showingDeleteConfirmation = false
     @State private var readerRoute: PatternReaderRoute?
-    @State private var errorMessage: String?
+    @State private var errorMessage: LocalizedMessage?
 
     var body: some View {
         Group {
@@ -110,7 +110,7 @@ struct PatternDetailView: View {
                 ) {
                     Button("common.ok") {}
                 } message: {
-                    Text(errorMessage ?? "")
+                    Text(verbatim: errorMessage?.resolved(locale: locale) ?? "")
                 }
             } else {
                 ContentUnavailableView(
@@ -224,8 +224,8 @@ struct PatternDetailView: View {
                         showingNoteEditor = true
                     }
                 }
-                Text(pattern.note ?? String(
-                    localized: "patterns.detail.note.empty",
+                Text(pattern.note ?? LocaleAwareText.string(
+                    "patterns.detail.note.empty",
                     locale: locale
                 ))
                     .foregroundStyle(pattern.note == nil ? .secondary : .primary)
@@ -382,14 +382,14 @@ struct PatternDetailView: View {
 
     private func openYouTubePattern() {
         guard let link = try? store.youtubeLink(patternID: patternID) else {
-            errorMessage = String(localized: "patterns.youtube.error.open")
+            errorMessage = .key("patterns.youtube.error.open")
             return
         }
         openURL(link.canonicalURL) { accepted in
             if accepted {
                 try? store.markPatternOpened(id: patternID)
             } else {
-                errorMessage = String(localized: "patterns.youtube.error.open")
+                errorMessage = .key("patterns.youtube.error.open")
             }
         }
     }
@@ -417,7 +417,7 @@ struct PatternDetailView: View {
             try mutation()
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = .key("error.saveFailed")
             return false
         }
     }

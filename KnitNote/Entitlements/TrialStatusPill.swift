@@ -16,15 +16,14 @@ struct TrialStatusPill: View {
                     expiresAt: expiresAt
                 )
                 let accessibilityCopy = if remainingDays == 1 {
-                    String(
-                        localized: "unlock.trial.accessibility.one",
+                    LocaleAwareText.string(
+                        "unlock.trial.accessibility.one",
                         locale: locale
                     )
                 } else {
-                    String.localizedStringWithFormat(
-                        String(localized:
-                            "unlock.trial.accessibility.many.format",
-                            locale: locale),
+                    LocaleAwareText.format(
+                        "unlock.trial.accessibility.many.format",
+                        locale: locale,
                         remainingDays
                     )
                 }
@@ -34,10 +33,9 @@ struct TrialStatusPill: View {
                             Text("unlock.trial.active.one")
                         } else {
                             Text(
-                                String.localizedStringWithFormat(
-                                    String(localized:
-                                        "unlock.trial.active.many.format",
-                                        locale: locale),
+                                LocaleAwareText.format(
+                                    "unlock.trial.active.many.format",
+                                    locale: locale,
                                     remainingDays
                                 )
                             )

@@ -7,7 +7,10 @@ import Testing
         let row = try source("KnitNote/Settings/YarnLabelStorageRow.swift")
 
         #expect(settings.contains("YarnLabelStorageRow()"))
-        #expect(row.contains("ByteCountFormatter"))
+        #expect(row.contains("@Environment(\\.locale) private var locale"))
+        #expect(row.contains("case loaded(Int64)"))
+        #expect(row.contains("LocaleAwareText.byteCount(bytes, locale: locale)"))
+        #expect(!row.contains("ByteCountFormatter"))
         #expect(row.contains("ProgressView"))
         #expect(row.contains("yarn.labelPhotos.storage.unavailable"))
         #expect(row.contains(".accessibilityValue"))

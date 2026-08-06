@@ -62,11 +62,12 @@ struct PatternLibraryRow: View {
 
     private var usageDescription: String {
         guard model.activeLinkCount > 0 else {
-            return String(localized: "patterns.library.unused", locale: locale)
+            return LocaleAwareText.string("patterns.library.unused", locale: locale)
         }
-        return String.localizedStringWithFormat(
-            String(localized: "patterns.library.links.format", locale: locale),
-            model.activeLinkCount
+        return LocaleAwareText.interpolated(
+            "patterns.library.links.format",
+            defaultValue: "\(model.activeLinkCount) linked projects",
+            locale: locale
         )
     }
 }
@@ -77,11 +78,8 @@ func patternRowAccessibilityLabel(
     usageDescription: String,
     locale: Locale
 ) -> String {
-    String(
-        format: String(
-            localized: "patterns.library.row.accessibility.format",
-            locale: locale
-        ),
+    LocaleAwareText.format(
+        "patterns.library.row.accessibility.format",
         locale: locale,
         name,
         fileDescription,
@@ -201,16 +199,16 @@ func patternAssetDescription(_ asset: PatternAsset, locale: Locale) -> String {
     switch asset.kind {
     case .pdf:
         guard let pageCount = asset.pageCount else {
-            return String(localized: "patterns.library.pdf", locale: locale)
+            return LocaleAwareText.string("patterns.library.pdf", locale: locale)
         }
-        return String(
-            format: String(localized: "patterns.library.pdf.pages.format", locale: locale),
+        return LocaleAwareText.format(
+            "patterns.library.pdf.pages.format",
             locale: locale,
             pageCount
         )
     case .image:
-        return String(localized: "patterns.library.image", locale: locale)
+        return LocaleAwareText.string("patterns.library.image", locale: locale)
     case .youtube:
-        return String(localized: "patterns.library.youtube", locale: locale)
+        return LocaleAwareText.string("patterns.library.youtube", locale: locale)
     }
 }

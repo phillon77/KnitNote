@@ -154,6 +154,9 @@ targets:
       - path: Sources/KnitNoteCore/Patterns/YouTubePatternMetadata.swift
       - path: Sources/KnitNoteCore/Entitlements/EntitlementProjection.swift
       - path: Sources/KnitNoteCore/Entitlements/EntitlementSnapshot.swift
+      - path: Sources/KnitNoteCore/Localization/AppLanguage.swift
+      - path: Sources/KnitNoteCore/Localization/LanguageSettings.swift
+      - path: Sources/KnitNoteCore/Localization/LanguageSelectionProjection.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share

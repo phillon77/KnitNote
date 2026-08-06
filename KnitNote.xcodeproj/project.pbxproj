@@ -94,6 +94,7 @@
 		3E7CEF8EC102142A85B96F53 /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A239FE17FD6D0CE80537CE /* PurchaseService.swift */; };
 		3EAC275D13EBAED2889D123E /* MacSettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D84BCA926B22F3BC532D2C /* MacSettingsComponents.swift */; };
 		3FCB7818FD9E10CF8F9FD2E4 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
+		41065D99EB31412154FF8E1B /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD5B158A45CBD8018FC499A /* AppLanguage.swift */; };
 		44ECDB6FE17DB38EBCE188B2 /* PatternMarkupFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */; };
 		45127A7B3326589F3A7F3F3E /* SupportedLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9621F401CDF4DD1A0A2B6DA8 /* SupportedLocalization.swift */; };
 		45CEBD6E4B176EEF1424F7C2 /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
@@ -188,9 +189,11 @@
 		8A0D44321A0B878C18C93038 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431158CF5C9EC212EABD87BA /* RootView.swift */; };
 		8AC28A12A7BFBEE2063DDC88 /* ProjectPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */; };
 		8BBD7873D7A9CA835165532C /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
+		8BD7C89C3B99C9855600B5E0 /* LanguageSelectionProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */; };
 		8C0468FCCEE775937D1FE093 /* EntitlementProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */; };
 		8CA13A56A854A68D4802C14C /* PatternImportResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699B5C3006C3742CA7B8416A /* PatternImportResultView.swift */; };
 		8D0F39BD34FDE02B7DFC6A64 /* WatchSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5DB47B23228E4B96BA800B /* WatchSyncCoordinator.swift */; };
+		8E398CA20F165CEC0701CEE4 /* LocaleAwareText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676403AB59AEEED6870627AD /* LocaleAwareText.swift */; };
 		8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
 		8FD1B2AA14E8733CCCF86D56 /* StoreScreenshotRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1B8BEF83041ABE98D2C550 /* StoreScreenshotRootView.swift */; };
 		91D6190C47A2D9A2564F00A8 /* WatchReliableSnapshotFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA26ED7A66F7AB3B45C0A7F /* WatchReliableSnapshotFingerprint.swift */; };
@@ -212,12 +215,14 @@
 		A7191AB7CF91E950BA70EDAB /* YarnLabelScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7FE8FD007E50C3C9377258D /* YarnLabelScanView.swift */; };
 		A8121B8CC33DEC5E639C59CA /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2721C6AB54E5F271947F0E /* ProjectListView.swift */; };
 		A8A416D949E6DE618CF881E8 /* EntitlementProjectionWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF86FAD0384C737E658266E3 /* EntitlementProjectionWriter.swift */; };
+		A8D07699E045BCD2814740AF /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
 		A8EFB5CB1EF4319452A430B3 /* ProjectJournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */; };
 		A8F65FDC2EB37F7CC35B551D /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
 		A92C9A99466AFDE777967306 /* YouTubePatternLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D946E82169D361DB029610 /* YouTubePatternLink.swift */; };
 		A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */; };
 		AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4DC78289ACE6594449E656 /* ChoosePatternReadingContextView.swift */; };
 		ABA3AABF79B56CA98AB86ACD /* WatchStoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */; };
+		ABCCB632DF302437E20E00CE /* LocaleAwareText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676403AB59AEEED6870627AD /* LocaleAwareText.swift */; };
 		AC9BA1F0CAC571AB1EB96FDE /* UnlockPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */; };
 		ACA0E95A588CC169AC43DFC2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089688B5AE3E4E006FA88B07 /* ShareViewController.swift */; };
 		AD117B5159C333DC6EB90B7C /* PendingPatternSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3E3D0A9F82E317FB6A4B8FC /* PendingPatternSelectionView.swift */; };
@@ -233,6 +238,7 @@
 		BC5C3B53D64CF73C1A5AB71D /* PatternSystemAppearanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */; };
 		BCA2F5D135FB115F9E282FF7 /* RowNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE75A4BC6F25D9138B684ADF /* RowNote.swift */; };
 		BCABCE9445D746253F48F7D2 /* PatternReaderContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10455BC3195B85049B3524D /* PatternReaderContext.swift */; };
+		BD22ADF8A183958BC1DC22CE /* LanguageSelectionProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */; };
 		BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */; };
 		BF02EBBAB7F6B2B5A9DACF1F /* ProcessedWatchCommandLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373195B93B12AF80760B1A6D /* ProcessedWatchCommandLedger.swift */; };
 		BF2BD6977779AC88E600D271 /* PreparedWatchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53F8478B3089817AE2FFFA1 /* PreparedWatchCommand.swift */; };
@@ -305,6 +311,7 @@
 		F1D4ABD513EAC331F5609A3C /* PatternReaderAppearancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4859E3F2F774092ADB9A1DE6 /* PatternReaderAppearancePresentation.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
 		F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */; };
+		F40012697E09C797FFBDC304 /* LanguageSelectionProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */; };
 		F552B7A386FC24C299A70B8F /* PatternInboxProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38994FA8D2614768D26F2CD3 /* PatternInboxProcessing.swift */; };
 		F5762AC81F13DAC035F8A98E /* EntitlementCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1884765AC24D9433D3D5CB74 /* EntitlementCoordinator.swift */; };
 		F59CD3994A2771D81C0BED0A /* WatchReliableSnapshotFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA26ED7A66F7AB3B45C0A7F /* WatchReliableSnapshotFingerprint.swift */; };
@@ -475,6 +482,7 @@
 		6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceObservation.swift; sourceTree = "<group>"; };
 		6494124F909E997E16F5BB08 /* ShareImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportView.swift; sourceTree = "<group>"; };
 		67146022BE86DEA48F100C13 /* KnitNoteShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KnitNoteShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		676403AB59AEEED6870627AD /* LocaleAwareText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleAwareText.swift; sourceTree = "<group>"; };
 		678690B366F62DE0AA40CE8B /* PatternCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternCalculatorView.swift; sourceTree = "<group>"; };
 		67B197FE70BCFA63ECA25D5C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternFileService.swift; sourceTree = "<group>"; };
@@ -484,6 +492,7 @@
 		6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnEditorAccessibilityUITests.swift; sourceTree = "<group>"; };
 		6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupService.swift; sourceTree = "<group>"; };
 		6C5BFE725AAAEE35A72A5778 /* ProjectYarnSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectYarnSection.swift; sourceTree = "<group>"; };
+		6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSelectionProjection.swift; sourceTree = "<group>"; };
 		6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentCalculator.swift; sourceTree = "<group>"; };
 		6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderLayoutPolicy.swift; sourceTree = "<group>"; };
 		6E6CD9B2D2533658CCE89E1C /* YarnLabelPhotoGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelPhotoGallery.swift; sourceTree = "<group>"; };
@@ -659,7 +668,9 @@
 			isa = PBXGroup;
 			children = (
 				3CD5B158A45CBD8018FC499A /* AppLanguage.swift */,
+				6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */,
 				94A3A973C57BA3A256E78283 /* LanguageSettings.swift */,
+				676403AB59AEEED6870627AD /* LocaleAwareText.swift */,
 				9621F401CDF4DD1A0A2B6DA8 /* SupportedLocalization.swift */,
 			);
 			path = Localization;
@@ -1333,9 +1344,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41065D99EB31412154FF8E1B /* AppLanguage.swift in Sources */,
 				06CD1A2B0DEEB8D74433C66A /* EntitlementProjection.swift in Sources */,
 				6BB20344265190FF82CD13D6 /* EntitlementProjectionReader.swift in Sources */,
 				78966754DAA0A483BE039268 /* EntitlementSnapshot.swift in Sources */,
+				F40012697E09C797FFBDC304 /* LanguageSelectionProjection.swift in Sources */,
+				A8D07699E045BCD2814740AF /* LanguageSettings.swift in Sources */,
 				60032BFAD716CA8A37E245E7 /* PatternAsset.swift in Sources */,
 				4C27647023ABC97554835EFB /* PatternDocument.swift in Sources */,
 				0FCF6F4C5C2D193C026D0737 /* PatternFileService.swift in Sources */,
@@ -1412,11 +1426,13 @@
 				8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */,
 				C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */,
 				8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */,
+				BD22ADF8A183958BC1DC22CE /* LanguageSelectionProjection.swift in Sources */,
 				DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */,
 				D07094398C60EA09111D098E /* LaunchExperienceCoordinator.swift in Sources */,
 				240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */,
 				6DF6D15163C2BE3444CAA666 /* LegacyPaidVersionPolicy.swift in Sources */,
 				6AA7291F406E7FCF8B1382C6 /* LemonEmptyState.swift in Sources */,
+				8E398CA20F165CEC0701CEE4 /* LocaleAwareText.swift in Sources */,
 				3EAC275D13EBAED2889D123E /* MacSettingsComponents.swift in Sources */,
 				7F7B568C98FE122977CAA5D9 /* MacSettingsLayout.swift in Sources */,
 				E5741A3297F5579C9D49E6DB /* MacYarnEditorFields.swift in Sources */,
@@ -1572,9 +1588,11 @@
 				6E929A5FDD9B904B5A57616C /* KnitNoteCore.swift in Sources */,
 				BE902C18AE5BF8A6ABCE3B8E /* KnitNoteWatchApp.swift in Sources */,
 				12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */,
+				8BD7C89C3B99C9855600B5E0 /* LanguageSelectionProjection.swift in Sources */,
 				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
 				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,
 				F8B6F5B3E7CD575E89A1A500 /* LegacyPaidVersionPolicy.swift in Sources */,
+				ABCCB632DF302437E20E00CE /* LocaleAwareText.swift in Sources */,
 				18E4747ED4FD05E6224D19BF /* MacSettingsLayout.swift in Sources */,
 				B6A40A41F72CF5AC9054CC78 /* MacYouTubeImportLayout.swift in Sources */,
 				14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */,

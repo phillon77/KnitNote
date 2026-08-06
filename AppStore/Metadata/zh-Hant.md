@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4 完整支援英文、繁體中文、簡體中文、德文、法文與日文介面。在設定中選擇的語言會同步至 Apple Watch；分享延伸功能提供六種語言，並依系統語言顯示。
+- What's New: KnitNote 1.4 完整支援英文、繁體中文、簡體中文、德文、法文與日文介面。在設定中選擇的語言會同步至 Apple Watch 與分享延伸功能。
 - Description: |
   把注意力留給手上的毛線。KnitNote 把 Apple Watch 計數、作品進度、六組計數器與 PDF 織圖放在清楚、安靜的畫面裡。
 
@@ -44,7 +44,7 @@
   使用你熟悉的語言
   • 可在設定中選擇英文、繁體中文、簡體中文、德文、法文或日文
   • App 與 Apple Watch 會使用你選擇的語言
-  • 分享畫面提供六種語言，並依分享延伸功能的系統語言顯示
+  • 分享畫面會跟隨 KnitNote 設定中選擇的語言
   • 作品名稱、筆記、日誌與匯入的織圖保持你原本輸入的內容
 
   資料可匯出成完整備份，並由你選擇的備份套件還原。

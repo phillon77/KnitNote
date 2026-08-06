@@ -211,6 +211,24 @@ class MetadataValidationTests(unittest.TestCase):
         )
         self.assertEqual(validate(self.write_metadata(Description=safe_copy)), [])
 
+    def test_share_system_only_language_claims_are_forbidden_in_every_locale(self) -> None:
+        claims = (
+            "The Share extension uses the system language.",
+            "Die Teilen-Erweiterung verwendet die Systemsprache.",
+            "L’extension de partage utilise la langue du système.",
+            "共有画面はシステムの言語で表示されます。",
+            "分享扩展按系统语言显示。",
+            "分享延伸功能依系統語言顯示。",
+        )
+
+        for claim in claims:
+            with self.subTest(claim=claim):
+                path = self.write_metadata(Description=claim)
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: Share system-only language",
+                    validate(path),
+                )
+
     def test_duplicate_keywords_are_compared_with_unicode_normalization(self) -> None:
         path = self.write_metadata(Keywords="tricot,échantillon,e\u0301chantillon")
 

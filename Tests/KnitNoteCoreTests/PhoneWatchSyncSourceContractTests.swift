@@ -40,7 +40,7 @@ import Testing
         let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
 
         #expect(coordinator.contains("private let localize: (String, Locale) -> String"))
-        #expect(coordinator.contains("String(localized: String.LocalizationValue(key), locale: locale)"))
+        #expect(coordinator.contains("LocaleAwareText.string(key, locale: locale)"))
         #expect(coordinator.contains("AppLanguage(rawValue: code) != nil"))
         #expect(coordinator.contains("refreshLocalizedError()"))
     }

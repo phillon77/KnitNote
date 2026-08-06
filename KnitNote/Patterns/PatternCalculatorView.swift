@@ -119,7 +119,7 @@ struct PatternCalculatorView: View {
             let separator = locale.decimalSeparator ?? "."
             return canonical.replacingOccurrences(of: ".", with: separator)
         case .error:
-            return String(localized: "patterns.calculator.error", locale: locale)
+            return LocaleAwareText.string("patterns.calculator.error", locale: locale)
         }
     }
 }

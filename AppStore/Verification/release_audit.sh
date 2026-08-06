@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 ARCHIVES=""
-STATIC_ONLY=0
+MODE=""
 EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja)
 EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja"]'
 PROJECT_FILE="${KNITNOTE_PROJECT_FILE:-KnitNote.xcodeproj/project.pbxproj}"
@@ -15,7 +15,7 @@ WATCH_INFO_PLIST="${KNITNOTE_WATCH_INFO_PLIST:-KnitNoteWatch/Info.plist}"
 SHARE_INFO_PLIST="${KNITNOTE_SHARE_INFO_PLIST:-KnitNoteShare/Info.plist}"
 
 usage() {
-  echo "usage: release_audit.sh [--static-only] [--archives DIR]" >&2
+  echo "usage: release_audit.sh (--static-only | --archives DIR)" >&2
 }
 
 fail() {
@@ -103,11 +103,14 @@ PY
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --static-only)
-      STATIC_ONLY=1
+      [[ -z "$MODE" ]] || { usage; exit 2; }
+      MODE="static"
       shift
       ;;
     --archives)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
+      [[ -z "$MODE" && $# -ge 2 && -n "$2" && "$2" != --* ]] \
+        || { usage; exit 2; }
+      MODE="archives"
       ARCHIVES="$2"
       shift 2
       ;;
@@ -118,7 +121,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$STATIC_ONLY" -eq 0 ]]; then
+[[ -n "$MODE" ]] || { usage; exit 2; }
+
+if [[ "$MODE" == "archives" ]]; then
   swift test --disable-sandbox
 fi
 
@@ -291,4 +296,8 @@ if [[ -n "$ARCHIVES" ]]; then
   verify_signed_app_group "$SHARE"
 fi
 
-echo "RELEASE AUDIT: PASS"
+if [[ "$MODE" == "archives" ]]; then
+  echo "RELEASE AUDIT: PASS"
+else
+  echo "STATIC RELEASE AUDIT: PASS"
+fi

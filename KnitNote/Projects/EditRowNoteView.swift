@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EditRowNoteView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
     let counterID: UUID
@@ -15,7 +16,11 @@ struct EditRowNoteView: View {
                     TextEditor(text: $text)
                         .frame(minHeight: 160)
                 } header: {
-                    Text(verbatim: String(format: String(localized: "notes.row.format"), row))
+                    Text(verbatim: LocaleAwareText.format(
+                        "notes.row.format",
+                        locale: locale,
+                        row
+                    ))
                 }
             }
             .scrollContentBackground(.hidden)

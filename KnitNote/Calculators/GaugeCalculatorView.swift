@@ -150,8 +150,11 @@ struct GaugeCalculatorView: View {
     }
 
     private func recommendationText(_ result: GaugeResult) -> String {
-        let format = String(localized: "calculator.gauge.recommendation.format", locale: locale)
-        return String.localizedStringWithFormat(format, result.recommendedCount)
+        LocaleAwareText.format(
+            "calculator.gauge.recommendation.format",
+            locale: locale,
+            result.recommendedCount
+        )
     }
 
     private func recommendationAccessibilityText(
@@ -160,11 +163,17 @@ struct GaugeCalculatorView: View {
     ) -> String {
         let format = switch recommendation {
         case .stitches:
-            String(localized: "calculator.gauge.stitches.recommendation.format", locale: locale)
+            LocaleAwareText.string(
+                "calculator.gauge.stitches.recommendation.format",
+                locale: locale
+            )
         case .rows:
-            String(localized: "calculator.gauge.rows.recommendation.format", locale: locale)
+            LocaleAwareText.string(
+                "calculator.gauge.rows.recommendation.format",
+                locale: locale
+            )
         }
-        return String.localizedStringWithFormat(format, result.recommendedCount)
+        return String(format: format, locale: locale, result.recommendedCount)
     }
 
     private func densityText(
@@ -173,27 +182,27 @@ struct GaugeCalculatorView: View {
     ) -> String {
         let format = switch (recommendation, unit) {
         case (.stitches, .centimeters):
-            String(
-                localized: "calculator.gauge.stitches.density.centimeters.format",
+            LocaleAwareText.string(
+                "calculator.gauge.stitches.density.centimeters.format",
                 locale: locale
             )
         case (.stitches, .inches):
-            String(
-                localized: "calculator.gauge.stitches.density.inches.format",
+            LocaleAwareText.string(
+                "calculator.gauge.stitches.density.inches.format",
                 locale: locale
             )
         case (.rows, .centimeters):
-            String(
-                localized: "calculator.gauge.rows.density.centimeters.format",
+            LocaleAwareText.string(
+                "calculator.gauge.rows.density.centimeters.format",
                 locale: locale
             )
         case (.rows, .inches):
-            String(
-                localized: "calculator.gauge.rows.density.inches.format",
+            LocaleAwareText.string(
+                "calculator.gauge.rows.density.inches.format",
                 locale: locale
             )
         }
-        return String.localizedStringWithFormat(format, formattedNumber(result.density))
+        return String(format: format, locale: locale, formattedNumber(result.density))
     }
 
     private func gaugeCard(

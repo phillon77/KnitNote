@@ -203,31 +203,31 @@ struct EvenStitchAdjustmentCalculatorView: View {
         let format: String
         switch result.operation {
         case .unchanged:
-            return String(localized: "calculator.adjustment.summary.unchanged", locale: locale)
+            return LocaleAwareText.string("calculator.adjustment.summary.unchanged", locale: locale)
         case .increase:
             if result.adjustmentCount == 1 {
-                return String(
-                    localized: "calculator.adjustment.summary.increase.singular",
+                return LocaleAwareText.string(
+                    "calculator.adjustment.summary.increase.singular",
                     locale: locale
                 )
             }
-            format = String(
-                localized: "calculator.adjustment.summary.increase.format",
+            format = LocaleAwareText.string(
+                "calculator.adjustment.summary.increase.format",
                 locale: locale
             )
         case .decrease:
             if result.adjustmentCount == 1 {
-                return String(
-                    localized: "calculator.adjustment.summary.decrease.singular",
+                return LocaleAwareText.string(
+                    "calculator.adjustment.summary.decrease.singular",
                     locale: locale
                 )
             }
-            format = String(
-                localized: "calculator.adjustment.summary.decrease.format",
+            format = LocaleAwareText.string(
+                "calculator.adjustment.summary.decrease.format",
                 locale: locale
             )
         }
-        return String.localizedStringWithFormat(format, result.adjustmentCount)
+        return String(format: format, locale: locale, result.adjustmentCount)
     }
 
     private func intervalText(_ result: EvenStitchAdjustmentResult) -> String? {
@@ -243,8 +243,8 @@ struct EvenStitchAdjustmentCalculatorView: View {
         if minimum == maximum {
             if minimum == 0 {
                 guard result.operation == .decrease else { return nil }
-                return String(
-                    localized: "calculator.adjustment.interval.decrease.adjacent",
+                return LocaleAwareText.string(
+                    "calculator.adjustment.interval.decrease.adjacent",
                     locale: locale
                 )
             }
@@ -253,7 +253,7 @@ struct EvenStitchAdjustmentCalculatorView: View {
                 let key = result.operation == .increase
                     ? "calculator.adjustment.interval.increase.singular"
                     : "calculator.adjustment.interval.decrease.singular"
-                return String(localized: String.LocalizationValue(key), locale: locale)
+                return LocaleAwareText.string(key, locale: locale)
             }
 
             let key = result.operation == .increase
@@ -265,20 +265,20 @@ struct EvenStitchAdjustmentCalculatorView: View {
         let format: String
         switch result.operation {
         case .increase:
-            format = String(
-                localized: "calculator.adjustment.interval.increase.format",
+            format = LocaleAwareText.string(
+                "calculator.adjustment.interval.increase.format",
                 locale: locale
             )
         case .decrease:
-            format = String(
-                localized: "calculator.adjustment.interval.decrease.format",
+            format = LocaleAwareText.string(
+                "calculator.adjustment.interval.decrease.format",
                 locale: locale
             )
         case .unchanged:
             return nil
         }
         let range = intervalRangeText(minimum: minimum, maximum: maximum)
-        return String.localizedStringWithFormat(format, range)
+        return String(format: format, locale: locale, range)
     }
 
     private func intervalRangeText(minimum: Int, maximum: Int) -> String {
@@ -289,39 +289,44 @@ struct EvenStitchAdjustmentCalculatorView: View {
 
         let minimumText = formatter.string(from: NSNumber(value: minimum)) ?? ""
         let maximumText = formatter.string(from: NSNumber(value: maximum)) ?? ""
-        let format = String(
-            localized: "calculator.adjustment.interval.range.format",
-            locale: locale
+        return LocaleAwareText.format(
+            "calculator.adjustment.interval.range.format",
+            locale: locale,
+            minimumText,
+            maximumText
         )
-        return String.localizedStringWithFormat(format, minimumText, maximumText)
     }
 
     private func accessibilitySummary(_ result: EvenStitchAdjustmentResult) -> String {
         let summary = summaryText(result)
         let interval = intervalText(result)
         let edgeSummary = result.edgeStitches > 0
-            ? String(localized: "calculator.adjustment.edgeSummary", locale: locale)
+            ? LocaleAwareText.string("calculator.adjustment.edgeSummary", locale: locale)
             : nil
 
         switch (interval, edgeSummary) {
         case let (.some(interval), .some(edgeSummary)):
-            let format = String(
-                localized: "calculator.adjustment.accessibility.summary.full.format",
-                locale: locale
+            return LocaleAwareText.format(
+                "calculator.adjustment.accessibility.summary.full.format",
+                locale: locale,
+                summary,
+                interval,
+                edgeSummary
             )
-            return String.localizedStringWithFormat(format, summary, interval, edgeSummary)
         case let (.some(interval), .none):
-            let format = String(
-                localized: "calculator.adjustment.accessibility.summary.interval.format",
-                locale: locale
+            return LocaleAwareText.format(
+                "calculator.adjustment.accessibility.summary.interval.format",
+                locale: locale,
+                summary,
+                interval
             )
-            return String.localizedStringWithFormat(format, summary, interval)
         case let (.none, .some(edgeSummary)):
-            let format = String(
-                localized: "calculator.adjustment.accessibility.summary.edge.format",
-                locale: locale
+            return LocaleAwareText.format(
+                "calculator.adjustment.accessibility.summary.edge.format",
+                locale: locale,
+                summary,
+                edgeSummary
             )
-            return String.localizedStringWithFormat(format, summary, edgeSummary)
         case (.none, .none):
             return summary
         }
@@ -332,21 +337,21 @@ struct EvenStitchAdjustmentCalculatorView: View {
         case .edge(let count):
             return formattedText("calculator.adjustment.step.edge.format", count)
         case .knit(1):
-            return String(localized: "calculator.adjustment.step.knit.singular", locale: locale)
+            return LocaleAwareText.string("calculator.adjustment.step.knit.singular", locale: locale)
         case .knit(let count):
             return formattedText("calculator.adjustment.step.knit.format", count)
         case .increaseOne:
-            return String(localized: "calculator.adjustment.step.increaseOne", locale: locale)
+            return LocaleAwareText.string("calculator.adjustment.step.increaseOne", locale: locale)
         case .decreaseOne:
-            return String(localized: "calculator.adjustment.step.decreaseOne", locale: locale)
+            return LocaleAwareText.string("calculator.adjustment.step.decreaseOne", locale: locale)
         }
     }
 
     private func failureText(_ failure: EvenStitchAdjustmentFailure) -> String {
         switch failure {
         case .invalidCounts:
-            return String(
-                localized: "calculator.adjustment.failure.invalidCounts",
+            return LocaleAwareText.string(
+                "calculator.adjustment.failure.invalidCounts",
                 locale: locale
             )
         case .exceedsSupportedLimit:
@@ -355,20 +360,19 @@ struct EvenStitchAdjustmentCalculatorView: View {
                 EvenStitchAdjustmentCalculator.maximumSupportedStitches
             )
         case .cannotPreserveEdges:
-            return String(
-                localized: "calculator.adjustment.failure.cannotPreserveEdges",
+            return LocaleAwareText.string(
+                "calculator.adjustment.failure.cannotPreserveEdges",
                 locale: locale
             )
         case .requiresMultipleRows:
-            return String(
-                localized: "calculator.adjustment.failure.requiresMultipleRows",
+            return LocaleAwareText.string(
+                "calculator.adjustment.failure.requiresMultipleRows",
                 locale: locale
             )
         }
     }
 
     private func formattedText(_ key: String, _ value: Int) -> String {
-        let format = String(localized: String.LocalizationValue(key), locale: locale)
-        return String.localizedStringWithFormat(format, value)
+        LocaleAwareText.format(key, locale: locale, value)
     }
 }

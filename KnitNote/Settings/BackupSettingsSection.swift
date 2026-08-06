@@ -357,16 +357,18 @@ struct BackupSettingsSection: View {
     }
 
     private func projectCountText(_ count: Int) -> String {
-        String.localizedStringWithFormat(
-            String(localized: "backup.preview.projects", locale: locale),
-            count
+        LocaleAwareText.interpolated(
+            "backup.preview.projects",
+            defaultValue: "\(count) projects",
+            locale: locale
         )
     }
 
     private func yarnCountText(_ count: Int) -> String {
-        String.localizedStringWithFormat(
-            String(localized: "backup.preview.yarns", locale: locale),
-            count
+        LocaleAwareText.interpolated(
+            "backup.preview.yarns",
+            defaultValue: "\(count) yarns",
+            locale: locale
         )
     }
 }

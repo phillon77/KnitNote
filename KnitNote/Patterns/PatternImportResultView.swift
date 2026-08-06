@@ -162,8 +162,8 @@ struct PatternImportResultView: View {
 
     private func importCameraData(_ data: Data) {
         startOperation {
-            let name = String(
-                localized: "patterns.import.cameraName",
+            let name = LocaleAwareText.string(
+                "patterns.import.cameraName",
                 locale: locale
             )
             let url = try await ProjectPatternCameraTemporaryFile.write(

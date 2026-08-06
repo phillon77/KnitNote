@@ -33,7 +33,7 @@ final class WatchSyncCoordinator: ObservableObject {
         applicationSupportRoot: URL? = nil,
         now: @escaping () -> Date = { .now },
         localize: @escaping (String, Locale) -> String = { key, locale in
-            String(localized: String.LocalizationValue(key), locale: locale)
+            LocaleAwareText.string(key, locale: locale)
         }
     ) {
         self.transport = transport ?? WatchSession()

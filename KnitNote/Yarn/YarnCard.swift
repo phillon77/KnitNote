@@ -39,10 +39,10 @@ struct YarnCard: View {
         let separator = locale.identifier.hasPrefix("zh") ? "，" : ", "
         let punctuation = locale.identifier.hasPrefix("zh") ? "：" : ": "
         let color = yarn.color.map {
-            "\(separator)\(String(localized: "yarn.color", locale: locale))\(punctuation)\($0)"
+            "\(separator)\(LocaleAwareText.string("yarn.color", locale: locale))\(punctuation)\($0)"
         } ?? ""
         let inventory = YarnInventoryText.description(for: yarn, locale: locale).map { separator + $0 } ?? ""
-        let format = String(localized: "yarn.accessibility.card", locale: locale)
+        let format = LocaleAwareText.string("yarn.accessibility.card", locale: locale)
         return Text(verbatim: String(format: format, locale: locale, yarn.name, color, inventory))
     }
 }

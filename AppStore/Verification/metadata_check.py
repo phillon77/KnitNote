@@ -94,6 +94,20 @@ FORBIDDEN_PATTERNS = (
             r"市集|商城|市場平台|市场平台|マーケットプレイス"
         ),
     ),
+    (
+        "Share system-only language",
+        re.compile(
+            r"(?:share[ -]+extension|sharing[ -]+screens?).{0,120}"
+            r"uses?.{0,40}system[ -]+(?:language|locale)|"
+            r"(?:teilen-erweiterung|ansichten[ -]+zum[ -]+teilen).{0,120}"
+            r"verwend(?:et|en).{0,30}systemsprache|"
+            r"(?:extension[ -]+de[ -]+partage|écrans?[ -]+de[ -]+partage).{0,120}"
+            r"utilise(?:nt)?.{0,30}langue[ -]+du[ -]+système|"
+            r"共有画面.{0,80}システムの言語で表示|"
+            r"(?:分享扩展|分享界面).{0,80}(?:按|使用).{0,30}系统语言.{0,20}显示|"
+            r"(?:分享延伸功能|分享畫面).{0,80}依.{0,30}系統語言.{0,20}顯示"
+        ),
+    ),
 )
 EXPECTED_LOCALES = (
     "en-US.md",

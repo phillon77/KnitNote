@@ -1,8 +1,8 @@
 import Foundation
 
 func projectCounterDisplayName(_ counter: ProjectCounter, locale: Locale) -> String {
-    counter.customName ?? String(
-        format: String(localized: "counter.defaultName", locale: locale),
+    counter.customName ?? LocaleAwareText.format(
+        "counter.defaultName",
         locale: locale,
         counter.defaultOrdinal
     )
@@ -24,17 +24,17 @@ func counterActionAccessibilityLabel(
 ) -> String {
     let format = switch action {
     case .collapse:
-        String(localized: "counter.accessibility.collapse", locale: locale)
+        LocaleAwareText.string("counter.accessibility.collapse", locale: locale)
     case .decrement:
-        String(localized: "counter.accessibility.decrement", locale: locale)
+        LocaleAwareText.string("counter.accessibility.decrement", locale: locale)
     case .expand:
-        String(localized: "counter.accessibility.expand", locale: locale)
+        LocaleAwareText.string("counter.accessibility.expand", locale: locale)
     case .increment:
-        String(localized: "counter.accessibility.increment", locale: locale)
+        LocaleAwareText.string("counter.accessibility.increment", locale: locale)
     case .note:
-        String(localized: "counter.accessibility.note", locale: locale)
+        LocaleAwareText.string("counter.accessibility.note", locale: locale)
     case .rename:
-        String(localized: "counter.accessibility.rename", locale: locale)
+        LocaleAwareText.string("counter.accessibility.rename", locale: locale)
     }
     return CounterAccessibilityPolicy.actionLabel(
         format: format,

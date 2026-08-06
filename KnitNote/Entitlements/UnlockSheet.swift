@@ -148,11 +148,9 @@ struct UnlockSheet: View {
                 .frame(maxWidth: .infinity)
         } else if let price = coordinator.localizedLifetimePrice {
             Text(
-                String.localizedStringWithFormat(
-                    String(
-                        localized: "unlock.purchase.format",
-                        locale: locale
-                    ),
+                LocaleAwareText.format(
+                    "unlock.purchase.format",
+                    locale: locale,
                     price
                 )
             )
@@ -166,11 +164,9 @@ struct UnlockSheet: View {
     private var purchaseAccessibilityLabel: Text {
         if let price = coordinator.localizedLifetimePrice {
             Text(
-                String.localizedStringWithFormat(
-                    String(
-                        localized: "unlock.accessibility.purchase.format",
-                        locale: locale
-                    ),
+                LocaleAwareText.format(
+                    "unlock.accessibility.purchase.format",
+                    locale: locale,
                     price
                 )
             )

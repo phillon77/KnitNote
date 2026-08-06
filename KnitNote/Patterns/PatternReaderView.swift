@@ -58,6 +58,7 @@ private struct PatternReaderContent {
 
 struct PatternReaderView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
@@ -70,7 +71,7 @@ struct PatternReaderView: View {
     @State private var loadError = false
     @State private var pageCount = 0
     @State private var pdfViewport = PatternPDFViewportState()
-    @State private var saveError: String?
+    @State private var saveError: LocalizedMessage?
     @State private var showingPageNote = false
     @State private var calculatorState = PatternCalculatorState()
     @State private var showingCalculator = false
@@ -485,7 +486,7 @@ struct PatternReaderView: View {
             .alert("error.saveFailed", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
                 Button("common.ok") {}
             } message: {
-                Text(saveError ?? "")
+                Text(verbatim: saveError?.resolved(locale: locale) ?? "")
             }
             .alert("patterns.reader.conflict", isPresented: Binding(
                 get: { revisionCoordinator.requiresConflictResolution },
@@ -566,7 +567,7 @@ struct PatternReaderView: View {
                   transition.targetPageIndex == newPage else { return }
             guard revisionCoordinator.canChangePage else {
                 restorePageTransition()
-                saveError = String(localized: "error.saveFailed")
+                saveError = .key("error.saveFailed")
                 return
             }
             handledPageIndex = newPage
@@ -747,7 +748,7 @@ struct PatternReaderView: View {
             self.expectedDataGeneration = nextGeneration
             revisionCoordinator.confirmMutation(generation: nextGeneration)
         } catch {
-            saveError = error.localizedDescription
+            saveError = .key("error.saveFailed")
         }
     }
 
@@ -758,7 +759,7 @@ struct PatternReaderView: View {
         case .reload, .reloadReadOnly:
             reloadReader(for: readerContextIdentity)
         case .conflict:
-            saveError = String(localized: "error.saveFailed")
+            saveError = .key("error.saveFailed")
         }
     }
 
@@ -840,7 +841,7 @@ struct PatternReaderView: View {
             revisionCoordinator.confirmMutation(generation: nextGeneration)
             return true
         } catch {
-            saveError = error.localizedDescription
+            saveError = .key("error.saveFailed")
             return false
         }
     }
@@ -863,7 +864,7 @@ struct PatternReaderView: View {
             revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)
             return true
         } catch {
-            saveError = error.localizedDescription
+            saveError = .key("error.saveFailed")
             return false
         }
     }
@@ -886,7 +887,7 @@ struct PatternReaderView: View {
             revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)
             return true
         } catch {
-            saveError = error.localizedDescription
+            saveError = .key("error.saveFailed")
             return false
         }
     }
@@ -935,7 +936,7 @@ struct PatternReaderView: View {
             if editingPageNoteIndex == state.pageIndex { state.setPageNote(text) }
             return true
         } catch {
-            saveError = error.localizedDescription
+            saveError = .key("error.saveFailed")
             return false
         }
     }
@@ -984,7 +985,7 @@ struct PatternReaderView: View {
                   readerSession.identity == readerContextIdentity else { return }
             markup = .init()
             _ = markupSession.failLoading(for: readerGeneration, pageIndex: page)
-            if context.usageID != nil { saveError = error.localizedDescription }
+            if context.usageID != nil { saveError = .key("error.saveFailed") }
         }
     }
 
@@ -1023,7 +1024,7 @@ struct PatternReaderView: View {
             revisionCoordinator.setMarkupDirty(false)
             return true
         } catch {
-            saveError = error.localizedDescription
+            saveError = .key("error.saveFailed")
             return false
         }
     }
@@ -1048,6 +1049,7 @@ struct PatternReaderView: View {
 
 private struct PatternPageNoteReadOnlyView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     let pageNumber: Int
     let text: String
 
@@ -1059,7 +1061,11 @@ private struct PatternPageNoteReadOnlyView: View {
                     .padding()
                     .textSelection(.enabled)
             }
-            .navigationTitle(String(format: String(localized: "patterns.pageNote.page"), pageNumber))
+            .navigationTitle(LocaleAwareText.format(
+                "patterns.pageNote.page",
+                locale: locale,
+                pageNumber
+            ))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("common.ok") { dismiss() }

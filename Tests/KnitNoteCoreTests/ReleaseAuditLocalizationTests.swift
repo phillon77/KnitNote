@@ -217,6 +217,36 @@ import Testing
         #expect(result.status == 0)
         #expect(result.output.contains("RELEASE AUDIT: PASS"))
     }
+
+    @Test func staticAuditUsesAStaticOnlySuccessMarker() throws {
+        let result = try runReleaseAudit()
+        let outputLines = result.output
+            .split(separator: "\n")
+            .map(String.init)
+
+        #expect(result.status == 0)
+        #expect(outputLines.contains("STATIC RELEASE AUDIT: PASS"))
+        #expect(!outputLines.contains("RELEASE AUDIT: PASS"))
+    }
+
+    @Test func auditRejectsMissingContradictoryAndRepeatedModes() throws {
+        for arguments in [
+            [],
+            ["--static-only", "--archives", "/tmp/unused-archives"],
+            ["--static-only", "--static-only"],
+            ["--archives", "/tmp/first", "--archives", "/tmp/second"],
+        ] {
+            let result = try runReleaseAudit(arguments: arguments)
+            let outputLines = result.output
+                .split(separator: "\n")
+                .map(String.init)
+
+            #expect(result.status == 2)
+            #expect(result.output.contains("usage: release_audit.sh"))
+            #expect(!outputLines.contains("STATIC RELEASE AUDIT: PASS"))
+            #expect(!outputLines.contains("RELEASE AUDIT: PASS"))
+        }
+    }
 }
 
 private struct AuditResult {
@@ -243,17 +273,13 @@ private let releaseLocales = ["en", "zh-Hant", "zh-Hans", "de", "fr", "ja"]
 
 private func runReleaseAudit(
     archives: URL? = nil,
+    arguments: [String]? = nil,
     environment overrides: [String: String] = [:]
 ) throws -> AuditResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/bash")
-    process.arguments = [
-        "AppStore/Verification/release_audit.sh",
-        "--static-only",
-    ]
-    if let archives {
-        process.arguments?.append(contentsOf: ["--archives", archives.path])
-    }
+    let modeArguments = arguments ?? archives.map { ["--archives", $0.path] } ?? ["--static-only"]
+    process.arguments = ["AppStore/Verification/release_audit.sh"] + modeArguments
     process.currentDirectoryURL = releaseAuditRepositoryRoot
     process.environment = ProcessInfo.processInfo.environment.merging(overrides) { _, new in new }
     let output = Pipe()
@@ -365,6 +391,15 @@ private func makeArchiveFixture(
     try fileManager.setAttributes(
         [.posixPermissions: NSNumber(value: 0o755)],
         ofItemAtPath: codesign.path
+    )
+    let swift = fakeBin.appendingPathComponent("swift")
+    try """
+    #!/bin/sh
+    exit 0
+    """.write(to: swift, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes(
+        [.posixPermissions: NSNumber(value: 0o755)],
+        ofItemAtPath: swift.path
     )
     let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
     return ArchiveFixture(

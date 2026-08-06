@@ -1,12 +1,13 @@
 import SwiftUI
 
 struct YarnLabelStorageRow: View {
+    @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
     @State private var state: StorageState = .loading
 
     private enum StorageState {
         case loading
-        case loaded(String)
+        case loaded(Int64)
         case unavailable
     }
 
@@ -19,7 +20,8 @@ struct YarnLabelStorageRow: View {
                 ProgressView()
                     .controlSize(.small)
                     .accessibilityValue(Text("common.loading"))
-            case let .loaded(value):
+            case let .loaded(bytes):
+                let value = LocaleAwareText.byteCount(bytes, locale: locale)
                 Text(value)
                     .foregroundStyle(.secondary)
                     .accessibilityValue(Text(value))
@@ -40,12 +42,7 @@ struct YarnLabelStorageRow: View {
         state = .loading
         do {
             let bytes = try await store.yarnLabelPhotoStorageBytes()
-            let formatter = ByteCountFormatter()
-            formatter.countStyle = .file
-            formatter.allowedUnits = [.useKB, .useMB, .useGB]
-            formatter.includesUnit = true
-            formatter.isAdaptive = true
-            state = .loaded(formatter.string(fromByteCount: bytes))
+            state = .loaded(bytes)
         } catch {
             state = .unavailable
         }

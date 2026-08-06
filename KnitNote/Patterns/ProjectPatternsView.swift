@@ -20,7 +20,7 @@ struct ProjectPatternsView: View {
     @State private var showingYouTubeImporter = false
     @State private var selectedPattern: ProjectPatternReaderSelection?
     @State private var pendingUnlink: ProjectPatternReaderSelection?
-    @State private var errorMessage: String?
+    @State private var errorMessage: LocalizedMessage?
 
     var body: some View {
         NavigationStack {
@@ -106,7 +106,7 @@ struct ProjectPatternsView: View {
             ) {
                 Button("common.ok") {}
             } message: {
-                Text(errorMessage ?? "")
+                Text(verbatim: errorMessage?.resolved(locale: locale) ?? "")
             }
         }
         .tint(WatercolorTheme.actionBerry)
@@ -193,14 +193,14 @@ struct ProjectPatternsView: View {
 
     private func openYouTube(_ selection: ProjectPatternReaderSelection) {
         guard let link = try? store.youtubeLink(patternID: selection.pattern.id) else {
-            errorMessage = String(localized: "patterns.youtube.error.open")
+            errorMessage = .key("patterns.youtube.error.open")
             return
         }
         openURL(link.canonicalURL) { accepted in
             if accepted {
                 try? store.markPatternOpened(id: selection.pattern.id)
             } else {
-                errorMessage = String(localized: "patterns.youtube.error.open")
+                errorMessage = .key("patterns.youtube.error.open")
             }
         }
     }
@@ -210,7 +210,7 @@ struct ProjectPatternsView: View {
         do {
             try store.unlinkPattern(patternID: selection.pattern.id, from: projectID)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = .key("error.saveFailed")
         }
         pendingUnlink = nil
     }

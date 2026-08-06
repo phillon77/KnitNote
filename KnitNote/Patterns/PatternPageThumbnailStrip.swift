@@ -159,20 +159,16 @@ private struct PatternPageThumbnailCell: View {
     }
 
     private var accessibilityLabel: String {
-        let format = String(
-            localized: "patterns.reader.thumbnail.accessibility.format",
-            locale: locale
-        )
-        let pageLabel = String(
-            format: format,
+        let pageLabel = LocaleAwareText.format(
+            "patterns.reader.thumbnail.accessibility.format",
             locale: locale,
             Int64(item.accessibilityArguments[0]),
             Int64(item.accessibilityArguments[1])
         )
         guard item.isSelected else { return pageLabel }
         return pageLabel
-            + String(localized: ", ", locale: locale)
-            + String(localized: "patterns.reader.thumbnail.current", locale: locale)
+            + LocaleAwareText.string(", ", locale: locale)
+            + LocaleAwareText.string("patterns.reader.thumbnail.current", locale: locale)
     }
 
     private func loadThumbnail(for request: PatternPageThumbnailRequestIdentity) async {

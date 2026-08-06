@@ -103,7 +103,7 @@ struct ChooseLibraryPatternView: View {
             name: selection.option.pattern.displayName,
             assetTypeDescription: patternAssetDescription(selection.asset, locale: locale),
             status: selection.option.status,
-            relinkDescription: String(localized: "patterns.relink", locale: locale)
+            relinkDescription: LocaleAwareText.string("patterns.relink", locale: locale)
         ))
     }
 

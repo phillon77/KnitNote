@@ -14,13 +14,13 @@ struct YarnInventoryText: View {
     static func description(for yarn: StoredYarn, locale: Locale) -> String? {
         if let balls = yarn.remainingBalls {
             return description(
-                format: String(localized: "yarn.inventory.balls", locale: locale),
+                format: LocaleAwareText.string("yarn.inventory.balls", locale: locale),
                 quantity: balls,
                 locale: locale
             )
         } else if let grams = yarn.remainingGrams {
             return description(
-                format: String(localized: "yarn.inventory.grams", locale: locale),
+                format: LocaleAwareText.string("yarn.inventory.grams", locale: locale),
                 quantity: grams,
                 locale: locale
             )

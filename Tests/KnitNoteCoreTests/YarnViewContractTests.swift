@@ -88,8 +88,8 @@ struct YarnViewContractTests {
         let inventory = try sourceText("KnitNote/Yarn/YarnInventoryText.swift")
 
         #expect(inventory.contains("Decimal.FormatStyle.number.locale(locale)"))
-        #expect(inventory.contains("String(localized: \"yarn.inventory.balls\", locale: locale)"))
-        #expect(inventory.contains("String(localized: \"yarn.inventory.grams\", locale: locale)"))
+        #expect(inventory.contains("LocaleAwareText.string(\"yarn.inventory.balls\", locale: locale)"))
+        #expect(inventory.contains("LocaleAwareText.string(\"yarn.inventory.grams\", locale: locale)"))
         #expect(inventory.contains("String(format: format, locale: locale, quantity)"))
     }
 

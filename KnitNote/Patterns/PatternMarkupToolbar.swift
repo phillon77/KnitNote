@@ -18,7 +18,10 @@ struct PatternMarkupToolbar: View {
                 .buttonStyle(.bordered).tint(tool == .eraser ? .accentColor : .secondary)
             Menu("patterns.markup.color", systemImage: "paintpalette") {
                 ForEach(MarkupColor.allCases, id: \.self) { value in
-                    Button(String(localized: "patterns.markup.color.\(value.rawValue)")) { color = value; tool = .pen }
+                    Button(LocalizedStringKey("patterns.markup.color.\(value.rawValue)")) {
+                        color = value
+                        tool = .pen
+                    }
                 }
             }
             Menu("patterns.markup.width", systemImage: "lineweight") {

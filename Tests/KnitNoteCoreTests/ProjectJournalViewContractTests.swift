@@ -160,7 +160,7 @@ struct ProjectJournalViewContractTests {
         #expect(source.contains("@Environment(\\.locale) private var locale"))
         #expect(source.contains("journal.card.accessibility.withCaption.format"))
         #expect(source.contains("journal.card.accessibility.withoutCaption.format"))
-        #expect(source.contains("String(format: format, locale: locale"))
+        #expect(source.contains("LocaleAwareText.format(key, locale: locale"))
         #expect(source.contains("caption, date"))
         #expect(source.contains(".dateTime.year().month().day().locale(locale)"))
         #expect(!source.contains("Text(caption) + Text(\", \""))

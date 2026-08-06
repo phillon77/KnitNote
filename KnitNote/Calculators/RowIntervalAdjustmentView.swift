@@ -193,15 +193,14 @@ struct RowIntervalAdjustmentView: View {
             key = "calculator.adjustment.rows.summary.decrease.bothSides.range.format"
         }
 
-        let format = String(localized: String.LocalizationValue(key), locale: locale)
-        return String.localizedStringWithFormat(format, interval, result.eventCount)
+        return LocaleAwareText.format(key, locale: locale, interval, result.eventCount)
     }
 
     private func intervalText(_ result: RowIntervalAdjustmentResult) -> String {
         if result.minimumInterval == 1,
            result.maximumInterval == 1 {
-            return String(
-                localized: "calculator.adjustment.rows.interval.everyRow",
+            return LocaleAwareText.string(
+                "calculator.adjustment.rows.interval.everyRow",
                 locale: locale
             )
         }
@@ -217,19 +216,20 @@ struct RowIntervalAdjustmentView: View {
             minimum: result.minimumInterval,
             maximum: result.maximumInterval
         )
-        let format = String(
-            localized: "calculator.adjustment.rows.interval.range.format",
-            locale: locale
+        return LocaleAwareText.format(
+            "calculator.adjustment.rows.interval.range.format",
+            locale: locale,
+            range
         )
-        return String.localizedStringWithFormat(format, range)
     }
 
     private func intervalRangeText(minimum: Int, maximum: Int) -> String {
-        let format = String(
-            localized: "calculator.adjustment.rows.range.format",
-            locale: locale
+        LocaleAwareText.format(
+            "calculator.adjustment.rows.range.format",
+            locale: locale,
+            minimum,
+            maximum
         )
-        return String.localizedStringWithFormat(format, minimum, maximum)
     }
 
     private func detailText(_ row: Int) -> String {
@@ -239,8 +239,8 @@ struct RowIntervalAdjustmentView: View {
     private func failureText(_ failure: RowIntervalAdjustmentFailure) -> String {
         switch failure {
         case .invalidCounts:
-            return String(
-                localized: "calculator.adjustment.validation.positiveInteger",
+            return LocaleAwareText.string(
+                "calculator.adjustment.validation.positiveInteger",
                 locale: locale
             )
         case .exceedsSupportedLimit:
@@ -249,20 +249,19 @@ struct RowIntervalAdjustmentView: View {
                 RowIntervalAdjustmentCalculator.maximumSupportedValue
             )
         case .symmetricRequiresEvenStitches:
-            return String(
-                localized: "calculator.adjustment.rows.failure.symmetricEven",
+            return LocaleAwareText.string(
+                "calculator.adjustment.rows.failure.symmetricEven",
                 locale: locale
             )
         case .insufficientRows:
-            return String(
-                localized: "calculator.adjustment.rows.failure.insufficientRows",
+            return LocaleAwareText.string(
+                "calculator.adjustment.rows.failure.insufficientRows",
                 locale: locale
             )
         }
     }
 
     private func formattedText(_ key: String, _ value: Int) -> String {
-        let format = String(localized: String.LocalizationValue(key), locale: locale)
-        return String.localizedStringWithFormat(format, value)
+        LocaleAwareText.format(key, locale: locale, value)
     }
 }

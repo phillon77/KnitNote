@@ -46,6 +46,7 @@ struct KnitNoteApp: App {
     private let screenshotMode: StoreScreenshotMode?
 #if os(iOS)
     @StateObject private var phoneWatchSyncCoordinator: PhoneWatchSyncCoordinator
+    private let languageSelectionProjection: LanguageSelectionProjection?
 #endif
     @AppStorage("languageSelection") private var storedLanguage = LanguageSelection.system.rawValue
 
@@ -61,6 +62,12 @@ struct KnitNoteApp: App {
         }
         self.screenshotMode = screenshotMode
         #if os(iOS)
+        let languageSelectionProjection = LanguageSelectionProjection.live()
+        self.languageSelectionProjection = languageSelectionProjection
+        let initialLanguageSelection = UserDefaults.standard
+            .string(forKey: "languageSelection")
+            .flatMap(LanguageSelection.init(rawValue:)) ?? .system
+        languageSelectionProjection?.write(initialLanguageSelection)
         let entitlementProjectionWriter = try? EntitlementProjectionWriter.live()
         #endif
         let entitlementCoordinator = EntitlementCoordinator.configured(
@@ -150,7 +157,10 @@ struct KnitNoteApp: App {
                 .environmentObject(patternBackupReminderPresenter)
                 .preferredColorScheme(.light)
 #if os(iOS)
-                .onChange(of: storedLanguage) { _, _ in
+                .onChange(of: storedLanguage) { _, newValue in
+                    languageSelectionProjection?.write(
+                        LanguageSelection(rawValue: newValue) ?? .system
+                    )
                     phoneWatchSyncCoordinator.publishLatestSnapshotIfChanged()
                 }
 #endif

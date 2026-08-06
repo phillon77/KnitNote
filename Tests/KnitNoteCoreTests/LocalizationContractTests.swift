@@ -226,6 +226,44 @@ import Testing
         }
     }
 
+    @Test(arguments: ["de", "fr"])
+    func completeCatalogRejectsMissingRequiredPluralOne(language: String) throws {
+        let westernPlural = fixturePluralLocalization(
+            one: "%lld item",
+            other: "%lld items"
+        )
+        let otherOnlyPlural = fixtureOtherOnlyPluralLocalization(other: "%lld items")
+        var localizations: [String: Any] = [
+            "en": westernPlural,
+            "zh-Hant": otherOnlyPlural,
+            "zh-Hans": otherOnlyPlural,
+            "de": westernPlural,
+            "fr": westernPlural,
+            "ja": otherOnlyPlural,
+        ]
+        var mutated = try #require(localizations[language] as? [String: Any])
+        var variations = try #require(mutated["variations"] as? [String: Any])
+        var plural = try #require(variations["plural"] as? [String: Any])
+        plural.removeValue(forKey: "one")
+        variations["plural"] = plural
+        mutated["variations"] = variations
+        localizations[language] = mutated
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.missingVariationPath(
+                key: "feature.count.format",
+                language: language,
+                path: "variations.plural.one"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
     private func completeFixtureLocalizations() -> [String: Any] {
         [
             "en": fixtureLocalization(value: "%lld items"),
@@ -252,6 +290,16 @@ import Testing
             "variations": [
                 "plural": [
                     "one": fixtureLocalization(value: one),
+                    "other": fixtureLocalization(value: other),
+                ],
+            ],
+        ]
+    }
+
+    private func fixtureOtherOnlyPluralLocalization(other: String) -> [String: Any] {
+        [
+            "variations": [
+                "plural": [
                     "other": fixtureLocalization(value: other),
                 ],
             ],

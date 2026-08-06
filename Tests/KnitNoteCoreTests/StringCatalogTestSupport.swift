@@ -4,6 +4,7 @@ enum StringCatalogContractError: Error, Equatable {
     case missingLanguage(key: String, language: String)
     case emptyValue(key: String, language: String)
     case formatMismatch(key: String, language: String, path: String)
+    case missingVariationPath(key: String, language: String, path: String)
     case staleValue(key: String, language: String)
     case nonTranslatedValue(key: String, language: String, path: String, state: String?)
     case oracleMismatch(catalog: String)
@@ -64,11 +65,20 @@ func assertCompleteCatalog(
             throw CocoaError(.fileReadCorruptFile)
         }
         let localizations = entry["localizations"] as? [String: Any] ?? [:]
+        let usesPluralVariations = localizations.values
+            .flatMap { collectStringUnits(in: $0) }
+            .contains { $0.path.hasPrefix("variations.plural.") }
         let englishUnits = try catalogUnits(
             key: key,
             language: "en",
             sourceLanguage: sourceLanguage,
             localizations: localizations
+        )
+        try validateRequiredVariationPaths(
+            in: englishUnits,
+            key: key,
+            language: "en",
+            usesPluralVariations: usesPluralVariations
         )
         try validateCatalogUnits(englishUnits, key: key, language: "en")
         let englishTokenSignatures = Dictionary(
@@ -81,6 +91,12 @@ func assertCompleteCatalog(
                 language: language,
                 sourceLanguage: sourceLanguage,
                 localizations: localizations
+            )
+            try validateRequiredVariationPaths(
+                in: units,
+                key: key,
+                language: language,
+                usesPluralVariations: usesPluralVariations
             )
             try validateCatalogUnits(
                 units,
@@ -98,6 +114,36 @@ func assertCompleteCatalog(
                 )
             }
         }
+    }
+}
+
+private func validateRequiredVariationPaths(
+    in units: [CatalogStringUnit],
+    key: String,
+    language: String,
+    usesPluralVariations: Bool
+) throws {
+    let requiredPaths: [String]
+    if usesPluralVariations {
+        switch language {
+        case "en", "de", "fr":
+            requiredPaths = ["variations.plural.one", "variations.plural.other"]
+        case "zh-Hant", "zh-Hans", "ja":
+            requiredPaths = ["variations.plural.other"]
+        default:
+            requiredPaths = []
+        }
+    } else {
+        requiredPaths = ["<direct>"]
+    }
+
+    let actualPaths = Set(units.map(\.path))
+    if let missingPath = requiredPaths.first(where: { !actualPaths.contains($0) }) {
+        throw StringCatalogContractError.missingVariationPath(
+            key: key,
+            language: language,
+            path: missingPath
+        )
     }
 }
 

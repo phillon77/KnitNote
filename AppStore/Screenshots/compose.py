@@ -19,11 +19,22 @@ SOFT_WHITE = (255, 253, 255)
 
 
 def font_for(locale: str, size: int) -> ImageFont.FreeTypeFont:
-    candidates = (
-        ["/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti Medium.ttc"]
-        if locale == "zh-Hant"
-        else ["/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc"]
-    )
+    if locale.startswith("zh-"):
+        candidates = [
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Medium.ttc",
+        ]
+    elif locale == "ja":
+        candidates = [
+            "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+            "/System/Library/Fonts/ヒラギノ丸ゴ ProN W4.ttc",
+            "/System/Library/Fonts/SFNS.ttf",
+        ]
+    else:
+        candidates = [
+            "/System/Library/Fonts/SFNS.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+        ]
     for candidate in candidates:
         try:
             return ImageFont.truetype(candidate, size=size, index=0)
@@ -148,7 +159,8 @@ def main() -> int:
     try:
         for frame in payload["frames"]:
             print(compose_frame(frame, manifest_path.parent))
-        for locale in ("zh-Hant", "en"):
+        locales = list(dict.fromkeys(frame["locale"] for frame in payload["frames"]))
+        for locale in locales:
             localized_frames = [frame for frame in payload["frames"] if frame["locale"] == locale]
             print(make_contact_sheet(locale, localized_frames, manifest_path.parent))
     except (KeyError, OSError, ValueError) as error:

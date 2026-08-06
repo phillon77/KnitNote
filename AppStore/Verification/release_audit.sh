@@ -6,6 +6,13 @@ cd "$ROOT"
 
 ARCHIVES=""
 STATIC_ONLY=0
+EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja)
+EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja"]'
+PROJECT_FILE="${KNITNOTE_PROJECT_FILE:-KnitNote.xcodeproj/project.pbxproj}"
+INFO_PLIST_CATALOG="${KNITNOTE_INFO_PLIST_CATALOG:-KnitNote/Localization/InfoPlist.xcstrings}"
+MAIN_INFO_PLIST="${KNITNOTE_MAIN_INFO_PLIST:-KnitNote/Info.plist}"
+WATCH_INFO_PLIST="${KNITNOTE_WATCH_INFO_PLIST:-KnitNoteWatch/Info.plist}"
+SHARE_INFO_PLIST="${KNITNOTE_SHARE_INFO_PLIST:-KnitNoteShare/Info.plist}"
 
 usage() {
   echo "usage: release_audit.sh [--static-only] [--archives DIR]" >&2
@@ -23,6 +30,54 @@ verify_signed_app_group() {
     | jq -e '."com.apple.security.application-groups"
       == ["group.com.phillon.KnitNote"]' >/dev/null \
     || fail "$bundle signed entitlements do not contain only the production App Group"
+}
+
+verify_project_regions() {
+  python3 - "$PROJECT_FILE" "${EXPECTED_LOCALES[@]}" <<'PY'
+import re
+import sys
+
+project_path, *expected = sys.argv[1:]
+text = open(project_path, encoding="utf-8").read()
+development = re.search(r"\bdevelopmentRegion\s*=\s*([^;]+);", text)
+if development is None or development.group(1).strip().strip('"') != "en":
+    raise SystemExit("release audit: project developmentRegion is not en")
+
+known = re.search(r"\bknownRegions\s*=\s*\((.*?)\);", text, re.DOTALL)
+if known is None:
+    raise SystemExit("release audit: project knownRegions are missing")
+regions = set()
+for line in known.group(1).splitlines():
+    token = line.split("/*", 1)[0].strip().rstrip(",").strip().strip('"')
+    if token:
+        regions.add(token)
+localized_regions = regions - {"Base"}
+if localized_regions != set(expected):
+    actual = ",".join(sorted(localized_regions))
+    wanted = ",".join(sorted(expected))
+    raise SystemExit(
+        f"release audit: project knownRegions do not match; found [{actual}], expected [{wanted}]"
+    )
+PY
+}
+
+verify_declared_localizations() {
+  local label="$1" plist="$2"
+  plutil -convert json -o - "$plist" \
+    | jq -e --argjson expected "$EXPECTED_LOCALES_JSON" '
+      (.CFBundleLocalizations | type == "array")
+      and ((.CFBundleLocalizations | sort) == ($expected | sort))
+    ' >/dev/null \
+    || fail "$label CFBundleLocalizations do not match the six release locales"
+}
+
+verify_bundle_localizations() {
+  local label="$1" plist="$2" resources="$3" locale
+  for locale in "${EXPECTED_LOCALES[@]}"; do
+    [[ -d "$resources/$locale.lproj" ]] \
+      || fail "$label bundle is missing $locale.lproj"
+  done
+  verify_declared_localizations "$label" "$plist"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -50,16 +105,21 @@ fi
 SPEC_JSON="$(mktemp "${TMPDIR:-/tmp}/knitnote-release-spec.XXXXXX")"
 trap 'rm -f "$SPEC_JSON"' EXIT
 xcodegen dump --type parsed-json >"$SPEC_JSON"
+verify_project_regions
 
 plutil -lint \
-  KnitNote/Info.plist \
-  KnitNoteWatch/Info.plist \
-  KnitNoteShare/Info.plist \
+  "$MAIN_INFO_PLIST" \
+  "$WATCH_INFO_PLIST" \
+  "$SHARE_INFO_PLIST" \
   KnitNote/PrivacyInfo.xcprivacy \
   KnitNoteWatch/PrivacyInfo.xcprivacy \
   KnitNoteShare/PrivacyInfo.xcprivacy \
   KnitNote/KnitNote-iOS.entitlements \
   KnitNoteShare/KnitNoteShare.entitlements >/dev/null
+
+verify_declared_localizations "Main source" "$MAIN_INFO_PLIST"
+verify_declared_localizations "Watch source" "$WATCH_INFO_PLIST"
+verify_declared_localizations "Share source" "$SHARE_INFO_PLIST"
 
 EXPECTED_VERSION="1.3.1"
 EXPECTED_BUILD="7"
@@ -105,9 +165,10 @@ done
 
 for catalog in \
   KnitNote/Localization/Localizable.xcstrings \
+  "$INFO_PLIST_CATALOG" \
   KnitNoteWatch/Localizable.xcstrings \
   KnitNoteShare/Localizable.xcstrings; do
-  jq -e '
+  jq -e --argjson expected "$EXPECTED_LOCALES_JSON" '
     def localization_is_complete:
       type == "object"
       and length > 0
@@ -118,14 +179,23 @@ for catalog in \
           all(.[]; localization_is_complete)
         end
       );
-    (.strings | length) > 0
+    .sourceLanguage as $source
+    | ($source == "en")
+    and (.strings | length) > 0
     and all(
-      .strings[];
-      (.localizations.en | localization_is_complete)
-      and (.localizations."zh-Hant" | localization_is_complete)
+      .strings | to_entries[];
+      . as $entry
+      | all(
+          $expected[];
+          . as $locale
+          | if $locale == $source and ($entry.value.localizations[$locale] == null)
+            then ($entry.key | type == "string" and length > 0)
+            else ($entry.value.localizations[$locale] | localization_is_complete)
+            end
+        )
     )
   ' "$catalog" >/dev/null \
-    || fail "$catalog has an incomplete English or Traditional Chinese variation"
+    || fail "$catalog has an incomplete six-locale variation"
 done
 
 python3 AppStore/Verification/metadata_check.py AppStore/Metadata
@@ -150,6 +220,10 @@ if [[ -n "$ARCHIVES" ]]; then
   for path in "$IOS" "$WATCH" "$SHARE" "$MAC"; do
     [[ -d "$path" ]] || { echo "release audit: missing app bundle: $path" >&2; exit 1; }
   done
+  verify_bundle_localizations "iOS" "$IOS/Info.plist" "$IOS"
+  verify_bundle_localizations "Watch" "$WATCH/Info.plist" "$WATCH"
+  verify_bundle_localizations "Share" "$SHARE/Info.plist" "$SHARE"
+  verify_bundle_localizations "macOS" "$MAC/Contents/Info.plist" "$MAC/Contents/Resources"
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$IOS/Info.plist")" == "com.phillon.KnitNote" ]]
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH/Info.plist")" == "com.phillon.KnitNote.watch" ]]
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH/Info.plist")" == "com.phillon.KnitNote" ]]

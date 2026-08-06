@@ -2,8 +2,12 @@ import CryptoKit
 import Foundation
 
 public enum StoreScreenshotLanguage: String, CaseIterable, Sendable {
-    case zhHant = "zh-Hant"
     case en
+    case zhHant = "zh-Hant"
+    case zhHans = "zh-Hans"
+    case de
+    case fr
+    case ja
 }
 
 public enum StoreScreenshotScene: String, CaseIterable, Sendable {
@@ -373,7 +377,7 @@ private struct Copy {
                 .init(name: "奶油棉線", brand: "KnitNote", series: "Daily Cotton", color: "奶油白", code: "C01", balls: 3, grams: 145, location: "書房第二層"),
                 .init(name: "莓果混紡", brand: "KnitNote", series: "Berry Blend", color: "莓果紅", code: "B12", balls: 2, grams: 92, location: "編織袋"),
             ]
-        case .en:
+        case .en, .zhHans, .de, .fr, .ja:
             firstProject = "Cloud Shawl"
             secondProject = "Little Bear Vest"
             counterNames = ["Rows", "Pattern Repeat", "Armhole", "Neckline", "Left Sleeve", "Right Sleeve"]

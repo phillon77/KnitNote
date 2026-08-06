@@ -7,7 +7,7 @@ struct StoreScreenshotMode: Equatable {
     let readinessToken: String
 
     var locale: Locale {
-        Locale(identifier: language == .zhHant ? "zh-Hant" : "en")
+        Locale(identifier: language.rawValue)
     }
 
     static func resolve(processInfo: ProcessInfo = .processInfo) -> StoreScreenshotResolution {

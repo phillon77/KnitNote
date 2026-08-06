@@ -4,11 +4,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST="$ROOT/manifest.json"
 LOCALE="${1:-}"
+SUPPORTED_LOCALES=(en zh-Hant zh-Hans de fr ja)
+LOCALE_USAGE='en|zh-Hant|zh-Hans|de|fr|ja'
+
+locale_is_supported() {
+  local candidate="$1" supported
+  for supported in "${SUPPORTED_LOCALES[@]}"; do
+    [[ "$candidate" == "$supported" ]] && return 0
+  done
+  return 1
+}
 
 if [[ "$LOCALE" == "--release-plan" ]]; then
   LOCALE="${2:-}"
-  if [[ "$LOCALE" != "zh-Hant" && "$LOCALE" != "en" ]]; then
-    echo "usage: $0 --release-plan zh-Hant|en" >&2
+  if ! locale_is_supported "$LOCALE"; then
+    echo "usage: $0 --release-plan $LOCALE_USAGE" >&2
     exit 2
   fi
   python3 - "$MANIFEST" "$LOCALE" <<'PY'
@@ -31,8 +41,8 @@ PY
   exit 0
 fi
 
-if [[ "$LOCALE" != "zh-Hant" && "$LOCALE" != "en" ]]; then
-  echo "usage: $0 zh-Hant|en" >&2
+if ! locale_is_supported "$LOCALE"; then
+  echo "usage: $0 $LOCALE_USAGE" >&2
   exit 2
 fi
 
@@ -76,7 +86,11 @@ prepare_device() {
   local region
   case "$locale" in
     zh-Hant) region="zh_TW" ;;
+    zh-Hans) region="zh_CN" ;;
     en) region="en_US" ;;
+    de) region="de_DE" ;;
+    fr) region="fr_FR" ;;
+    ja) region="ja_JP" ;;
     *) echo "unsupported screenshot locale: $locale" >&2; return 2 ;;
   esac
   xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true

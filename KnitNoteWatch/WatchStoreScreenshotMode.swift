@@ -25,8 +25,8 @@ struct WatchStoreScreenshotMode {
 #if DEBUG
         guard let sceneValue = value(after: "-storeScreenshotScene", in: arguments),
               let scene = WatchStoreScreenshotScene(rawValue: sceneValue),
-              let language = value(after: "-storeScreenshotLanguage", in: arguments),
-              ["zh-Hant", "en"].contains(language),
+              let languageValue = value(after: "-storeScreenshotLanguage", in: arguments),
+              let language = StoreScreenshotLanguage(rawValue: languageValue),
               let readinessToken = value(after: "-storeScreenshotToken", in: arguments),
               !readinessToken.isEmpty else {
             return .invalid
@@ -34,7 +34,7 @@ struct WatchStoreScreenshotMode {
 
         let root = FileManager.default.temporaryDirectory
             .appending(path: "KnitNoteWatchStoreScreenshots", directoryHint: .isDirectory)
-            .appending(path: language, directoryHint: .isDirectory)
+            .appending(path: language.rawValue, directoryHint: .isDirectory)
         do {
             if FileManager.default.fileExists(atPath: root.path) {
                 try FileManager.default.removeItem(at: root)
@@ -44,7 +44,7 @@ struct WatchStoreScreenshotMode {
                 .save(fixture.cache)
             return .ready(WatchStoreScreenshotMode(
                 scene: scene,
-                locale: Locale(identifier: language == "zh-Hant" ? "zh-Hant" : "en"),
+                locale: Locale(identifier: language.rawValue),
                 baseDirectory: root,
                 projectID: fixture.projectID,
                 readinessToken: readinessToken
@@ -57,9 +57,11 @@ struct WatchStoreScreenshotMode {
 #endif
     }
 
-    private static func makeFixture(language: String) throws -> (cache: WatchSyncCache, projectID: UUID) {
+    private static func makeFixture(
+        language: StoreScreenshotLanguage
+    ) throws -> (cache: WatchSyncCache, projectID: UUID) {
         let projectID = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!
-        let counterNames = language == "zh-Hant"
+        let counterNames = language == .zhHant
             ? ["排數", "花樣重複", "袖窿", "領口", "左袖", "右袖"]
             : ["Rows", "Pattern Repeat", "Armhole", "Neckline", "Left Sleeve", "Right Sleeve"]
         let counters = zip(counterNames, [48, 6, 12, 4, 18, 18]).enumerated().map { index, item in
@@ -71,7 +73,7 @@ struct WatchStoreScreenshotMode {
         }
         let project = try WatchProjectSnapshot(
             id: projectID,
-            name: language == "zh-Hant" ? "雲朵披肩" : "Cloud Shawl",
+            name: language == .zhHant ? "雲朵披肩" : "Cloud Shawl",
             isCompleted: false,
             updatedAt: Date(timeIntervalSince1970: 1_767_225_600),
             counters: counters,

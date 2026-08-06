@@ -29,12 +29,16 @@ public final class LanguageSettings {
 
         if languageCode == "zh" {
             let chineseSubtags = subtags.dropFirst()
-            if chineseSubtags.contains(where: { $0.caseInsensitiveCompare("Hant") == .orderedSame })
-                || chineseSubtags.contains(where: { ["TW", "HK", "MO"].contains($0.uppercased()) }) {
+            if chineseSubtags.contains(where: { $0.caseInsensitiveCompare("Hant") == .orderedSame }) {
                 return .traditionalChinese
             }
-            if chineseSubtags.contains(where: { $0.caseInsensitiveCompare("Hans") == .orderedSame })
-                || chineseSubtags.contains(where: { ["CN", "SG"].contains($0.uppercased()) }) {
+            if chineseSubtags.contains(where: { $0.caseInsensitiveCompare("Hans") == .orderedSame }) {
+                return .simplifiedChinese
+            }
+            if chineseSubtags.contains(where: { ["TW", "HK", "MO"].contains($0.uppercased()) }) {
+                return .traditionalChinese
+            }
+            if chineseSubtags.contains(where: { ["CN", "SG"].contains($0.uppercased()) }) {
                 return .simplifiedChinese
             }
         }

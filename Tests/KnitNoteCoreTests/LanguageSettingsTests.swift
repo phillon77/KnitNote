@@ -6,6 +6,7 @@ import Testing
     @Test(arguments: [
         ("zh-Hant-HK", AppLanguage.traditionalChinese),
         ("zh-Hans-CN", AppLanguage.simplifiedChinese),
+        ("zh-Hans-HK", AppLanguage.simplifiedChinese),
         ("zh-CN", AppLanguage.simplifiedChinese),
         ("zh-SG", AppLanguage.simplifiedChinese),
         ("de-DE", AppLanguage.german),

@@ -19,6 +19,23 @@ import Testing
         )
     }
 
+    @Test func completeCatalogAcceptsReorderedNumberedArguments() throws {
+        let localizations: [String: Any] = [
+            "en": fixtureLocalization(value: "%1$lld items by %2$@"),
+            "zh-Hant": fixtureLocalization(value: "%1$lld 項，作者 %2$@"),
+            "zh-Hans": fixtureLocalization(value: "%1$lld 项，作者 %2$@"),
+            "de": fixtureLocalization(value: "%1$lld Elemente von %2$@"),
+            "fr": fixtureLocalization(value: "%1$lld articles par %2$@"),
+            "ja": fixtureLocalization(value: "%2$@ による %1$lld 件"),
+        ]
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        try assertCompleteCatalog(
+            at: catalog,
+            requiredLanguages: SupportedLocalization.v140Identifiers
+        )
+    }
+
     @Test func completeCatalogRejectsAMissingLanguage() throws {
         var localizations = completeFixtureLocalizations()
         localizations.removeValue(forKey: "zh-Hans")
@@ -91,7 +108,7 @@ import Testing
         }
     }
 
-    @Test func completeCatalogRejectsMismatchedFormatTokens() throws {
+    @Test func completeCatalogRejectsAChangedArgumentType() throws {
         var localizations = completeFixtureLocalizations()
         localizations["fr"] = fixtureLocalization(value: "%@ articles")
         let catalog = try makeCatalogFixture(localizations: localizations)

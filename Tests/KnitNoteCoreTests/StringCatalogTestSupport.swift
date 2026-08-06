@@ -32,7 +32,7 @@ func assertCompleteCatalog(
             localizations: localizations
         )
         try validateCatalogUnits(englishUnits, key: key, language: "en")
-        let englishTokenSignatures = Set(englishUnits.map { formatTokens(in: $0.value) })
+        let englishTokenSignatures = Set(englishUnits.map { formatSignature(in: $0.value) })
 
         for language in requiredLanguages {
             let units = try catalogUnits(
@@ -44,7 +44,7 @@ func assertCompleteCatalog(
             try validateCatalogUnits(units, key: key, language: language)
 
             guard language == "en"
-                    || units.allSatisfy({ englishTokenSignatures.contains(formatTokens(in: $0.value)) })
+                    || units.allSatisfy({ englishTokenSignatures.contains(formatSignature(in: $0.value)) })
             else {
                 throw StringCatalogContractError.formatMismatch(key: key, language: language)
             }
@@ -116,10 +116,29 @@ private func validateCatalogUnits(
     }
 }
 
-private func formatTokens(in value: String) -> [String] {
+private struct FormatArgument: Hashable {
+    let position: Int
+    let type: String
+}
+
+private func formatSignature(in value: String) -> [FormatArgument] {
     let expression = try! NSRegularExpression(pattern: #"%([0-9]+\$)?(lld|ld|d|@|f)"#)
     let range = NSRange(value.startIndex..., in: value)
-    return expression.matches(in: value, range: range).compactMap { match in
-        Range(match.range, in: value).map { String(value[$0]) }
+    var nextImplicitPosition = 1
+    let arguments: [FormatArgument] = expression.matches(in: value, range: range).compactMap { match in
+        guard let typeRange = Range(match.range(at: 2), in: value) else {
+            return nil
+        }
+        let position: Int
+        if let positionRange = Range(match.range(at: 1), in: value) {
+            position = Int(value[positionRange].dropLast())!
+        } else {
+            position = nextImplicitPosition
+            nextImplicitPosition += 1
+        }
+        return FormatArgument(position: position, type: String(value[typeRange]))
+    }
+    return arguments.sorted {
+        ($0.position, $0.type) < ($1.position, $1.type)
     }
 }

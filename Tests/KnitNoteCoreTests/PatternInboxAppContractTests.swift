@@ -45,7 +45,7 @@ import Testing
         #expect(root.contains("patterns.inbox.error.title"))
         #expect(root.contains("patterns.inbox.error.message"))
         #expect(root.contains("patterns.inbox.retry"))
-        #expect(root.contains("patterns.inbox.discard"))
+        #expect(root.contains("Button(\"patterns.inbox.discard\", role: .destructive)"))
         #expect(root.contains("patterns.inbox.later"))
         #expect(root.contains("patternInboxProcessor.dismissFailure()"))
         #expect(root.contains("patternInboxProcessor.failure?.itemID"))

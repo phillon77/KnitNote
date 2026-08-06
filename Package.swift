@@ -8,6 +8,10 @@ let package = Package(
     products: [.library(name: "KnitNoteCore", targets: ["KnitNoteCore"])],
     targets: [
         .target(name: "KnitNoteCore", resources: [.process("Resources")]),
-        .testTarget(name: "KnitNoteCoreTests", dependencies: ["KnitNoteCore"])
+        .testTarget(
+            name: "KnitNoteCoreTests",
+            dependencies: ["KnitNoteCore"],
+            exclude: ["Fixtures"]
+        )
     ]
 )

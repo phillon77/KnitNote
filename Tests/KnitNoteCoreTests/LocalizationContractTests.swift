@@ -116,7 +116,107 @@ import Testing
         #expect(
             throws: StringCatalogContractError.formatMismatch(
                 key: "feature.count.format",
-                language: "fr"
+                language: "fr",
+                path: "<direct>"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
+    @Test func catalogOracleRejectsADeletedSourceKey() throws {
+        let catalog = try makeCatalogFixture()
+        let oracle = try makeCatalogOracleFixture(
+            entries: [
+                "feature.count.format": oracleEntry(effectiveEnglish: "%lld items"),
+                "feature.secondary": oracleEntry(effectiveEnglish: "Secondary"),
+            ]
+        )
+
+        #expect(throws: StringCatalogContractError.oracleMismatch(catalog: "fixture")) {
+            try assertCatalogMatchesOracle(
+                at: catalog,
+                oracleAt: oracle,
+                catalogName: "fixture",
+                expectedSourceCommit: "f0116e0"
+            )
+        }
+    }
+
+    @Test func catalogOracleRejectsAnEffectiveEnglishMutation() throws {
+        var localizations = completeFixtureLocalizations()
+        localizations["en"] = fixtureLocalization(value: "%lld changed items")
+        let catalog = try makeCatalogFixture(localizations: localizations)
+        let oracle = try makeCatalogOracleFixture()
+
+        #expect(throws: StringCatalogContractError.oracleMismatch(catalog: "fixture")) {
+            try assertCatalogMatchesOracle(
+                at: catalog,
+                oracleAt: oracle,
+                catalogName: "fixture",
+                expectedSourceCommit: "f0116e0"
+            )
+        }
+    }
+
+    @Test func catalogOracleRejectsASourceMetadataMutation() throws {
+        let catalog = try makeCatalogFixture(
+            entryMetadata: ["comment": "Mutated source intent"]
+        )
+        let oracle = try makeCatalogOracleFixture()
+
+        #expect(throws: StringCatalogContractError.oracleMismatch(catalog: "fixture")) {
+            try assertCatalogMatchesOracle(
+                at: catalog,
+                oracleAt: oracle,
+                catalogName: "fixture",
+                expectedSourceCommit: "f0116e0"
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsANonTranslatedTargetState() throws {
+        var localizations = completeFixtureLocalizations()
+        localizations["de"] = fixtureLocalization(value: "%lld Elemente", state: "new")
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.nonTranslatedValue(
+                key: "feature.count.format",
+                language: "de",
+                path: "<direct>",
+                state: "new"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsFormatTokensMovedBetweenPluralCategories() throws {
+        let matching = fixturePluralLocalization(
+            one: "%lld item",
+            other: "%@ items"
+        )
+        var localizations = Dictionary(
+            uniqueKeysWithValues: SupportedLocalization.v140Identifiers.map { ($0, matching) }
+        )
+        localizations["de"] = fixturePluralLocalization(
+            one: "%@ Element",
+            other: "%lld Elemente"
+        )
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.formatMismatch(
+                key: "feature.count.format",
+                language: "de",
+                path: "variations.plural.one"
             )
         ) {
             try assertCompleteCatalog(
@@ -144,17 +244,71 @@ import Testing
         ["stringUnit": ["state": state, "value": value]]
     }
 
+    private func fixturePluralLocalization(
+        one: String,
+        other: String
+    ) -> [String: Any] {
+        [
+            "variations": [
+                "plural": [
+                    "one": fixtureLocalization(value: one),
+                    "other": fixtureLocalization(value: other),
+                ],
+            ],
+        ]
+    }
+
+    private func oracleEntry(
+        effectiveEnglish: String,
+        sourceMetadata: [String: Any] = ["comment": "Fixture source intent"]
+    ) -> [String: Any] {
+        [
+            "sourceMetadata": sourceMetadata,
+            "effectiveEnglish": [
+                [
+                    "path": [],
+                    "state": "translated",
+                    "value": effectiveEnglish,
+                ],
+            ],
+        ]
+    }
+
+    private func makeCatalogOracleFixture(
+        entries: [String: Any]? = nil
+    ) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "StringCatalogOracle-\(UUID().uuidString).json")
+        let oracle: [String: Any] = [
+            "sourceCommit": "f0116e0",
+            "catalogs": [
+                "fixture": [
+                    "rootMetadata": [
+                        "sourceLanguage": "en",
+                        "version": "1.0",
+                    ],
+                    "entries": entries ?? [
+                        "feature.count.format": oracleEntry(effectiveEnglish: "%lld items"),
+                    ],
+                ],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: oracle).write(to: url, options: .atomic)
+        return url
+    }
+
     private func makeCatalogFixture(
-        localizations: [String: Any]? = nil
+        localizations: [String: Any]? = nil,
+        entryMetadata: [String: Any] = ["comment": "Fixture source intent"]
     ) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appending(path: "StringCatalogContract-\(UUID().uuidString).xcstrings")
+        var entry = entryMetadata
+        entry["localizations"] = localizations ?? completeFixtureLocalizations()
         let catalog: [String: Any] = [
             "sourceLanguage": "en",
             "strings": [
-                "feature.count.format": [
-                    "localizations": localizations ?? completeFixtureLocalizations(),
-                ],
+                "feature.count.format": entry,
             ],
             "version": "1.0",
         ]
@@ -658,6 +812,16 @@ import Testing
     ]
 
     @Test func mainAppCatalogIsCompleteForVersion140Languages() throws {
+        try assertCatalogMatchesOracle(
+            at: repositoryRoot.appending(
+                path: "KnitNote/Localization/Localizable.xcstrings"
+            ),
+            oracleAt: repositoryRoot.appending(
+                path: "Tests/KnitNoteCoreTests/Fixtures/KnitNote-1.4.0-CatalogOracle.json"
+            ),
+            catalogName: "main",
+            expectedSourceCommit: "f0116e0"
+        )
         try assertCompleteCatalog(
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/Localizable.xcstrings"
@@ -667,6 +831,16 @@ import Testing
     }
 
     @Test func infoPlistCatalogIsCompleteForVersion140Languages() throws {
+        try assertCatalogMatchesOracle(
+            at: repositoryRoot.appending(
+                path: "KnitNote/Localization/InfoPlist.xcstrings"
+            ),
+            oracleAt: repositoryRoot.appending(
+                path: "Tests/KnitNoteCoreTests/Fixtures/KnitNote-1.4.0-CatalogOracle.json"
+            ),
+            catalogName: "infoPlist",
+            expectedSourceCommit: "f0116e0"
+        )
         try assertCompleteCatalog(
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/InfoPlist.xcstrings"
@@ -1263,12 +1437,122 @@ import Testing
         #expect(try localizedValue("patterns.add", language: "zh-Hant", strings: strings) == "加入織圖")
     }
 
+    @Test func simplifiedChineseUsesReviewedMainlandProductAndAccessibilityCopy() throws {
+        let strings = try catalogStrings()
+        let exactCopy = [
+            "backup.replace.warning": "恢复后将替换当前所有 KnitNote 数据。",
+            "backup.restore.confirm": "替换并恢复",
+            "counter.accessibility.collapse": "折叠 %@ 的计数器控件，当前值 %lld",
+            "counter.accessibility.decrement": "减少 %@，当前值 %lld",
+            "counter.accessibility.expand": "展开 %@ 的计数器控件，当前值 %lld",
+            "counter.accessibility.increment": "增加 %@，当前值 %lld",
+            "counter.accessibility.note": "编辑 %@ 的笔记，当前值 %lld",
+            "patterns.reader.readOnly": "只读",
+            "patterns.youtube.accessibility.thumbnail": "YouTube 视频缩略图",
+            "patterns.youtube.details": "视频信息",
+            "patterns.youtube.loading": "正在读取视频信息…",
+            "patterns.youtube.readMetadata": "读取视频信息",
+            "patterns.youtube.status": "视频信息状态",
+            "patterns.youtube.type": "YouTube 视频",
+            "settings.general": "通用",
+        ]
+
+        for (key, expectedValue) in exactCopy {
+            #expect(try localizedValue(key, language: "zh-Hans", strings: strings) == expectedValue)
+        }
+
+        let forbiddenTerms = [
+            "取代", "目前", "收合", "只阅读", "影片", "套用", "选填", "取得",
+            "这则", "这部设备", "建立", "加入", "仅供查看", "一至两张",
+        ]
+        let values = localizedValues(language: "zh-Hans", strings: strings)
+        let forbiddenHits = forbiddenTerms.flatMap { term in
+            values.filter { $0.contains(term) }.map { "\(term): \($0)" }
+        }
+        #expect(forbiddenHits.isEmpty)
+    }
+
+    @Test func frenchDestructiveAndSafetyCopyStatesTheActualOutcome() throws {
+        let strings = try catalogStrings()
+        let exactCopy = [
+            "patterns.inbox.discard": "Supprimer le fichier",
+            "patterns.inbox.error.message": "KnitNote n’a pas pu enregistrer le patron partagé. Réessayez ou supprimez ce fichier.",
+            "project.yarn.completed.readOnly": "Les associations de fils des projets terminés sont en lecture seule.",
+            "backup.error.unsupportedVersion": "Cette sauvegarde a été créée avec une version plus récente de KnitNote. Mettez l’app à jour avant de restaurer cette sauvegarde.",
+        ]
+
+        for (key, expectedValue) in exactCopy {
+            #expect(try localizedValue(key, language: "fr", strings: strings) == expectedValue)
+        }
+    }
+
+    @Test func reviewedGermanJapaneseStorageAndLifetimeCopyKeepsDistinctMeaning() throws {
+        let strings = try catalogStrings()
+        let exactCopy: [String: [String: String]] = [
+            "patterns.highlight": ["de": "Markierung"],
+            "patterns.highlightMode": ["de": "Markierungsmodus"],
+            "patterns.highlight.horizontalControl": ["de": "Horizontale Markierung"],
+            "patterns.highlight.verticalControl": ["de": "Vertikale Markierung"],
+            "patterns.markup": ["de": "Zeichnen"],
+            "patterns.markup.clear": ["de": "Zeichnungen löschen"],
+            "patterns.markup.clear.confirm": ["de": "Alle Zeichnungen auf dieser Seite löschen?"],
+            "patterns.import.cameraName": ["ja": "カメラで撮影した編み図"],
+            "yarn.storageLocation": [
+                "de": "Aufbewahrungsort",
+                "fr": "Lieu de rangement",
+            ],
+            "unlock.lifetime.message": [
+                "fr": "Un seul achat déverrouille KnitNote à vie.",
+                "ja": "1回の購入でKnitNoteを永久にアンロックできます。",
+            ],
+        ]
+
+        for (key, translations) in exactCopy {
+            for (language, expectedValue) in translations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
     private func catalogStrings() throws -> [String: Any] {
         let root = repositoryRoot
         let catalogURL = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")
         let data = try Data(contentsOf: catalogURL)
         let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         return try #require(catalog["strings"] as? [String: Any])
+    }
+
+    private func localizedValues(
+        language: String,
+        strings: [String: Any]
+    ) -> [String] {
+        strings.values.flatMap { entry -> [String] in
+            guard let entry = entry as? [String: Any],
+                  let localizations = entry["localizations"] as? [String: Any],
+                  let localization = localizations[language]
+            else { return [] }
+            return stringUnitValues(in: localization)
+        }
+    }
+
+    private func stringUnitValues(in node: Any) -> [String] {
+        if let dictionary = node as? [String: Any] {
+            var values: [String] = []
+            if let stringUnit = dictionary["stringUnit"] as? [String: Any],
+               let value = stringUnit["value"] as? String {
+                values.append(value)
+            }
+            for key in dictionary.keys where key != "stringUnit" {
+                if let child = dictionary[key] {
+                    values.append(contentsOf: stringUnitValues(in: child))
+                }
+            }
+            return values
+        }
+        if let array = node as? [Any] {
+            return array.flatMap(stringUnitValues(in:))
+        }
+        return []
     }
 
     private func watchCatalogStrings() throws -> [String: Any] {

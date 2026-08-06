@@ -233,7 +233,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法建立 KnitNote 备份，请再试一次。"
+            "value" : "无法创建 KnitNote 备份，请再试一次。"
           }
         },
         "zh-Hant" : {
@@ -381,7 +381,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cette sauvegarde a été créée avec une version plus récente de KnitNote. Mettez l’app à jour avant de la restaurer."
+            "value" : "Cette sauvegarde a été créée avec une version plus récente de KnitNote. Mettez l’app à jour avant de restaurer cette sauvegarde."
           }
         },
         "ja" : {
@@ -393,7 +393,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此备份由较新版 KnitNote 建立，请更新 App 后再恢复。"
+            "value" : "此备份由较新版 KnitNote 创建，请更新 App 后再恢复。"
           }
         },
         "zh-Hant" : {
@@ -673,7 +673,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "备份建立时间"
+            "value" : "备份创建时间"
           }
         },
         "zh-Hant" : {
@@ -941,7 +941,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "恢复后将取代目前所有 KnitNote 数据。"
+            "value" : "恢复后将替换当前所有 KnitNote 数据。"
           }
         },
         "zh-Hant" : {
@@ -1061,7 +1061,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "取代并恢复"
+            "value" : "替换并恢复"
           }
         },
         "zh-Hant" : {
@@ -1421,7 +1421,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "目前针数"
+            "value" : "当前针数"
           }
         },
         "zh-Hant" : {
@@ -1581,7 +1581,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请输入有效的目前针数与目标针数。"
+            "value" : "请输入有效的当前针数与目标针数。"
           }
         },
         "zh-Hant" : {
@@ -3982,7 +3982,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "行数计算（选填）"
+            "value" : "行数计算（可选）"
           }
         },
         "zh-Hant" : {
@@ -5145,7 +5145,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "收合 %@ 的计数器控制，目前数值 %lld"
+            "value" : "折叠 %@ 的计数器控件，当前值 %lld"
           }
         },
         "zh-Hant" : {
@@ -5185,7 +5185,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "减少 %@，目前数值 %lld"
+            "value" : "减少 %@，当前值 %lld"
           }
         },
         "zh-Hant" : {
@@ -5225,7 +5225,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "展开 %@ 的计数器控制，目前数值 %lld"
+            "value" : "展开 %@ 的计数器控件，当前值 %lld"
           }
         },
         "zh-Hant" : {
@@ -5265,7 +5265,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "增加 %@，目前数值 %lld"
+            "value" : "增加 %@，当前值 %lld"
           }
         },
         "zh-Hant" : {
@@ -5305,7 +5305,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "编辑 %@ 的笔记，目前数值 %lld"
+            "value" : "编辑 %@ 的笔记，当前值 %lld"
           }
         },
         "zh-Hant" : {
@@ -5345,7 +5345,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "计数器仅供查看。"
+            "value" : "计数器为只读状态。"
           }
         },
         "zh-Hant" : {
@@ -6188,7 +6188,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "说明（选填）"
+            "value" : "说明（可选）"
           }
         },
         "zh-Hant" : {
@@ -6548,7 +6548,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这则日记与照片将永久删除。"
+            "value" : "这篇日记及其照片将被永久删除。"
           }
         },
         "zh-Hant" : {
@@ -6588,7 +6588,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除这则日记？"
+            "value" : "删除这篇日记？"
           }
         },
         "zh-Hant" : {
@@ -6948,7 +6948,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这则日记已无法使用。"
+            "value" : "这篇日记已不可用。"
           }
         },
         "zh-Hant" : {
@@ -6988,7 +6988,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "作品已完成，编织日记仅供查看"
+            "value" : "作品已完成，编织日记为只读状态。"
           }
         },
         "zh-Hant" : {
@@ -7348,7 +7348,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "作品已完成，编织日记仅供查看"
+            "value" : "作品已完成，编织日记为只读状态。"
           }
         },
         "zh-Hant" : {
@@ -8191,7 +8191,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此选择会在深色模式中自动套用。"
+            "value" : "此选择会在深色模式中自动应用。"
           }
         },
         "zh-Hant" : {
@@ -8353,7 +8353,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "图解只保存在这部设备上。请前往设置手动导出备份，另外保存一份副本。"
+            "value" : "图解仅保存在此设备上。请前往设置手动导出备份，并另外保存一份副本。"
           }
         },
         "zh-Hant" : {
@@ -9034,7 +9034,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "加入日期"
+            "value" : "添加日期"
           }
         },
         "zh-Hant" : {
@@ -9930,7 +9930,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Horizontale Hervorhebung"
+            "value" : "Horizontale Markierung"
           }
         },
         "en" : {
@@ -10010,7 +10010,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vertikale Hervorhebung"
+            "value" : "Vertikale Markierung"
           }
         },
         "en" : {
@@ -10148,7 +10148,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "カメラの編み図"
+            "value" : "カメラで撮影した編み図"
           }
         },
         "zh-Hans" : {
@@ -10902,7 +10902,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ignorer le fichier"
+            "value" : "Supprimer le fichier"
           }
         },
         "ja" : {
@@ -10942,7 +10942,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KnitNote n'a pas pu enregistrer le patron partagé. Réessayez ou ignorez ce fichier."
+            "value" : "KnitNote n’a pas pu enregistrer le patron partagé. Réessayez ou supprimez ce fichier."
           }
         },
         "ja" : {
@@ -11314,7 +11314,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "加入第一份 PDF 或图片图解吧。"
+            "value" : "添加第一份 PDF 或图片图解吧。"
           }
         },
         "zh-Hant" : {
@@ -11768,7 +11768,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最近加入"
+            "value" : "最近添加"
           }
         },
         "zh-Hant" : {
@@ -11888,7 +11888,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "YouTube 影片"
+            "value" : "YouTube 视频"
           }
         },
         "zh-Hant" : {
@@ -12024,7 +12024,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Markierungen"
+            "value" : "Zeichnen"
           }
         },
         "en" : {
@@ -12064,7 +12064,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seite leeren"
+            "value" : "Zeichnungen löschen"
           }
         },
         "en" : {
@@ -12104,7 +12104,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alle Markierungen auf dieser Seite löschen?"
+            "value" : "Alle Zeichnungen auf dieser Seite löschen?"
           }
         },
         "en" : {
@@ -13092,7 +13092,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只阅读"
+            "value" : "只读"
           }
         },
         "zh-Hant" : {
@@ -13172,7 +13172,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "目前页"
+            "value" : "当前页"
           }
         },
         "zh-Hant" : {
@@ -13212,7 +13212,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "点两下即可前往这一页。"
+            "value" : "轻点两下即可前往此页。"
           }
         },
         "zh-Hant" : {
@@ -13492,7 +13492,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "YouTube 影片缩略图"
+            "value" : "YouTube 视频缩略图"
           }
         },
         "zh-Hant" : {
@@ -13532,7 +13532,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "加入 YouTube 链接"
+            "value" : "添加 YouTube 链接"
           }
         },
         "zh-Hant" : {
@@ -13612,7 +13612,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "影片信息"
+            "value" : "视频信息"
           }
         },
         "zh-Hant" : {
@@ -13692,7 +13692,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法读取影片数据。输入标题后仍可保存链接。"
+            "value" : "无法读取视频信息。输入标题后仍可保存链接。"
           }
         },
         "zh-Hant" : {
@@ -13772,7 +13772,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法读取影片数据。输入标题后仍可保存链接。"
+            "value" : "无法读取视频信息。输入标题后仍可保存链接。"
           }
         },
         "zh-Hant" : {
@@ -13892,7 +13892,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "读取影片数据中…"
+            "value" : "正在读取视频信息…"
           }
         },
         "zh-Hant" : {
@@ -13932,7 +13932,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法读取影片数据。输入标题后仍可保存链接。"
+            "value" : "无法读取视频信息。输入标题后仍可保存链接。"
           }
         },
         "zh-Hant" : {
@@ -14012,7 +14012,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "读取影片数据"
+            "value" : "读取视频信息"
           }
         },
         "zh-Hant" : {
@@ -14052,7 +14052,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "影片数据状态"
+            "value" : "视频信息状态"
           }
         },
         "zh-Hant" : {
@@ -14132,7 +14132,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "YouTube 影片"
+            "value" : "YouTube 视频"
           }
         },
         "zh-Hant" : {
@@ -14614,7 +14614,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "作品照片（选填）"
+            "value" : "作品照片（可选）"
           }
         },
         "zh-Hant" : {
@@ -15404,7 +15404,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les fils associés aux projets terminés sont en lecture seule."
+            "value" : "Les associations de fils des projets terminés sont en lecture seule."
           }
         },
         "ja" : {
@@ -15416,7 +15416,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已完成作品的毛线链接只能查看。"
+            "value" : "已完成作品的毛线关联为只读状态。"
           }
         },
         "zh-Hant" : {
@@ -16219,7 +16219,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一般"
+            "value" : "通用"
           }
         },
         "zh-Hant" : {
@@ -18659,7 +18659,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法取得"
+            "value" : "无法获取"
           }
         },
         "zh-Hant" : {
@@ -19579,7 +19579,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用一至两张标签照片，然后确认识别出的信息"
+            "value" : "使用一到两张标签照片，然后确认识别出的信息"
           }
         },
         "zh-Hant" : {
@@ -19939,7 +19939,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择一至两张清晰的毛线标签照片。"
+            "value" : "选择一到两张清晰的毛线标签照片。"
           }
         },
         "zh-Hant" : {
@@ -20515,7 +20515,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speicherort"
+            "value" : "Aufbewahrungsort"
           }
         },
         "en" : {
@@ -20527,7 +20527,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lieu de stockage"
+            "value" : "Lieu de rangement"
           }
         },
         "ja" : {

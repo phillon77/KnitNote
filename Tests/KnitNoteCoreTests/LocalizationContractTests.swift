@@ -657,13 +657,31 @@ import Testing
         "calculator.adjustment.rows.failure.exceedsSupportedLimit.format": ["en": "Enter 100,000 or fewer (maximum %lld).", "zh-Hant": "請輸入不超過 100,000（上限 %lld）。"],
     ]
 
-    @Test func counterStringsHaveEnglishAndTraditionalChineseTranslations() throws {
+    @Test func mainAppCatalogIsCompleteForVersion140Languages() throws {
+        try assertCompleteCatalog(
+            at: repositoryRoot.appending(
+                path: "KnitNote/Localization/Localizable.xcstrings"
+            ),
+            requiredLanguages: SupportedLocalization.v140Identifiers
+        )
+    }
+
+    @Test func infoPlistCatalogIsCompleteForVersion140Languages() throws {
+        try assertCompleteCatalog(
+            at: repositoryRoot.appending(
+                path: "KnitNote/Localization/InfoPlist.xcstrings"
+            ),
+            requiredLanguages: SupportedLocalization.v140Identifiers
+        )
+    }
+
+    @Test func counterStringsHaveEveryVersion140Translation() throws {
         let strings = try catalogStrings()
 
         for key in requiredKeys {
             let localizations = try #require(strings[key] as? [String: Any])
             let translations = try #require(localizations["localizations"] as? [String: Any])
-            for language in ["en", "zh-Hant"] {
+            for language in SupportedLocalization.v140Identifiers {
                 let translation = try #require(translations[language] as? [String: Any])
                 let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
                 #expect(!(try #require(stringUnit["value"] as? String)).isEmpty)
@@ -772,7 +790,7 @@ import Testing
         }
     }
 
-    @Test func task7Through12VisiblePatternKeysAreBilingualAndNonempty() throws {
+    @Test func task7Through12VisiblePatternKeysAreCompleteAndNonempty() throws {
         let strings = try catalogStrings()
         let catalogKeys = Set(strings.keys.filter(isTask13PatternKey))
         let sourceKeys = try task13PatternSourceKeys()
@@ -782,7 +800,7 @@ import Testing
 
         #expect(!requiredKeys.isEmpty)
         for key in requiredKeys.sorted() {
-            for language in ["en", "zh-Hant"] {
+            for language in SupportedLocalization.v140Identifiers {
                 let value = try localizedValue(key, language: language, strings: strings)
                 #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -792,7 +810,7 @@ import Testing
     @Test func patternRowAccessibilityFormatNamesAllThreeVisibleFacts() throws {
         let strings = try catalogStrings()
 
-        for language in ["en", "zh-Hant"] {
+        for language in SupportedLocalization.v140Identifiers {
             let value = try localizedValue(
                 "patterns.library.row.accessibility.format",
                 language: language,
@@ -839,13 +857,13 @@ import Testing
         }
     }
 
-    @Test func yarnStringsHaveEnglishAndTraditionalChineseTranslations() throws {
+    @Test func yarnStringsHaveEveryVersion140Translation() throws {
         let strings = try catalogStrings()
 
         for key in requiredYarnKeys {
             let entry = try #require(strings[key] as? [String: Any])
             let localizations = try #require(entry["localizations"] as? [String: Any])
-            for language in ["en", "zh-Hant"] {
+            for language in SupportedLocalization.v140Identifiers {
                 let translation = try #require(localizations[language] as? [String: Any])
                 let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
                 #expect(!(try #require(stringUnit["value"] as? String)).isEmpty)
@@ -890,7 +908,7 @@ import Testing
     @Test func journalCardAccessibilityFormatsKeepTheirExactPlaceholderContracts() throws {
         let strings = try catalogStrings()
 
-        for language in ["en", "zh-Hant"] {
+        for language in SupportedLocalization.v140Identifiers {
             #expect(
                 try localizedValue(
                     "journal.card.accessibility.withCaption.format",
@@ -955,7 +973,7 @@ import Testing
         }
     }
 
-    @Test func gaugeCalculatorStringsHaveTraditionalChineseAndEnglish() throws {
+    @Test func gaugeCalculatorStringsHaveEveryVersion140Translation() throws {
         let keys = [
             "calculator.tools.title",
             "calculator.gauge.title",
@@ -982,7 +1000,7 @@ import Testing
         for key in keys {
             let entry = try #require(strings[key] as? [String: Any])
             let localizations = try #require(entry["localizations"] as? [String: Any])
-            for language in ["en", "zh-Hant"] {
+            for language in SupportedLocalization.v140Identifiers {
                 let translation = try #require(localizations[language] as? [String: Any])
                 let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
                 #expect(!(try #require(stringUnit["value"] as? String)).isEmpty)
@@ -1069,7 +1087,7 @@ import Testing
             "calculator.adjustment.interval.decrease.format",
         ]
 
-        for language in ["en", "zh-Hant"] {
+        for language in SupportedLocalization.v140Identifiers {
             for key in integerFormats {
                 #expect(try localizedValue(key, language: language, strings: strings).components(separatedBy: "%lld").count == 2)
             }
@@ -1080,7 +1098,16 @@ import Testing
             #expect(try localizedValue("calculator.adjustment.accessibility.summary.full.format", language: language, strings: strings).components(separatedBy: "%@").count == 4)
             #expect(try localizedValue("calculator.adjustment.accessibility.summary.interval.format", language: language, strings: strings).components(separatedBy: "%@").count == 3)
             #expect(try localizedValue("calculator.adjustment.accessibility.summary.edge.format", language: language, strings: strings).components(separatedBy: "%@").count == 3)
-            #expect(try localizedValue("calculator.adjustment.failure.exceedsSupportedLimit.format", language: language, strings: strings).contains("100,000"))
+            let limitCopy = try localizedValue(
+                "calculator.adjustment.failure.exceedsSupportedLimit.format",
+                language: language,
+                strings: strings
+            )
+            #expect(limitCopy.replacingOccurrences(
+                of: #"[\s,.]"#,
+                with: "",
+                options: .regularExpression
+            ).contains("100000"))
         }
     }
 
@@ -1095,7 +1122,7 @@ import Testing
             "calculator.adjustment.rows.failure.exceedsSupportedLimit.format",
         ]
 
-        for language in ["en", "zh-Hant"] {
+        for language in SupportedLocalization.v140Identifiers {
             for key in summaryFormats {
                 let value = try localizedValue(key, language: language, strings: strings)
                 #expect(value.components(separatedBy: "%@").count == 2)
@@ -1106,7 +1133,16 @@ import Testing
             }
             #expect(try localizedValue("calculator.adjustment.rows.interval.range.format", language: language, strings: strings).components(separatedBy: "%@").count == 2)
             #expect(try localizedValue("calculator.adjustment.rows.range.format", language: language, strings: strings).components(separatedBy: "%lld").count == 3)
-            #expect(try localizedValue("calculator.adjustment.rows.failure.exceedsSupportedLimit.format", language: language, strings: strings).contains("100,000"))
+            let limitCopy = try localizedValue(
+                "calculator.adjustment.rows.failure.exceedsSupportedLimit.format",
+                language: language,
+                strings: strings
+            )
+            #expect(limitCopy.replacingOccurrences(
+                of: #"[\s,.]"#,
+                with: "",
+                options: .regularExpression
+            ).contains("100000"))
         }
     }
 
@@ -1153,7 +1189,7 @@ import Testing
         let entry = try #require(strings["yarn.accessibility.card"] as? [String: Any])
         let localizations = try #require(entry["localizations"] as? [String: Any])
 
-        for language in ["en", "zh-Hant"] {
+        for language in SupportedLocalization.v140Identifiers {
             let translation = try #require(localizations[language] as? [String: Any])
             let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
             let value = try #require(stringUnit["value"] as? String)
@@ -1161,12 +1197,12 @@ import Testing
         }
     }
 
-    @Test func defaultCounterNameFormatsAnOrdinalInBothSupportedLanguages() throws {
+    @Test func defaultCounterNameFormatsAnOrdinalInEveryVersion140Language() throws {
         let strings = try catalogStrings()
         let entry = try #require(strings["counter.defaultName"] as? [String: Any])
         let localizations = try #require(entry["localizations"] as? [String: Any])
 
-        for language in ["en", "zh-Hant"] {
+        for language in SupportedLocalization.v140Identifiers {
             let translation = try #require(localizations[language] as? [String: Any])
             let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
             let value = try #require(stringUnit["value"] as? String)
@@ -1181,7 +1217,7 @@ import Testing
         for key in keys {
             let entry = try #require(strings[key] as? [String: Any])
             let localizations = try #require(entry["localizations"] as? [String: Any])
-            for language in ["en", "zh-Hant"] {
+            for language in SupportedLocalization.v140Identifiers {
                 let translation = try #require(localizations[language] as? [String: Any])
                 let stringUnit = try #require(translation["stringUnit"] as? [String: Any])
                 let value = try #require(stringUnit["value"] as? String)

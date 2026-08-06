@@ -3,11 +3,11 @@
 - Name: KnitNote
 - Subtitle: Apple Watch 編織計數
 - Promotional text: 完整功能免費試用 7 天。用 Apple Watch 抬腕計數、閱讀 PDF 織圖與使用六組命名計數器；一次購買即可解鎖 iPhone、iPad、Mac 與配對的 Apple Watch。
-- Keywords: 編織,毛線,鉤針,棒針,計數器,織圖,密度,針數,毛線庫,編織日記
+- Keywords: 手作,毛線,鉤針,棒針,計數器,織圖,密度,針數,毛線庫,編織日記
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4 完整支援英文、繁體中文、簡體中文、德文、法文與日文介面。可在設定中選擇語言，Apple Watch 與分享畫面也會跟著切換。
+- What's New: KnitNote 1.4 完整支援英文、繁體中文、簡體中文、德文、法文與日文介面。在設定中選擇的語言會同步至 Apple Watch；分享延伸功能提供六種語言，並依系統語言顯示。
 - Description: |
   把注意力留給手上的毛線。KnitNote 把 Apple Watch 計數、作品進度、六組計數器與 PDF 織圖放在清楚、安靜的畫面裡。
 
@@ -43,7 +43,8 @@
 
   使用你熟悉的語言
   • 可在設定中選擇英文、繁體中文、簡體中文、德文、法文或日文
-  • App、Apple Watch 與分享畫面會使用你選擇的語言
+  • App 與 Apple Watch 會使用你選擇的語言
+  • 分享畫面提供六種語言，並依分享延伸功能的系統語言顯示
   • 作品名稱、筆記、日誌與匯入的織圖保持你原本輸入的內容
 
   資料可匯出成完整備份，並由你選擇的備份套件還原。

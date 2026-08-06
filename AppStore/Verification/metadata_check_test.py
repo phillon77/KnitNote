@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import unittest
 import subprocess
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 
 from AppStore.Verification.metadata_check import validate
@@ -119,27 +119,87 @@ class MetadataValidationTests(unittest.TestCase):
                     errors,
                 )
 
-    def test_forbidden_release_claims_are_rejected_in_every_locale(self) -> None:
-        claims = (
-            "AI translation",
-            "AI翻譯",
-            "AI翻译",
-            "KI Übersetzung",
-            "traduction IA",
-            "AI翻訳",
-            "雲端同步",
-            "自动识别针目",
-            "Abonnement",
-            "réseau social",
-            "マーケットプレイス",
+    def test_apple_name_and_individual_keyword_minimums_are_enforced(self) -> None:
+        one_character_name = self.write_metadata(Name="K")
+        self.assertIn(
+            f"{one_character_name}: Name: 1 character; minimum is 2",
+            validate(one_character_name),
         )
-        for claim in claims:
-            with self.subTest(claim=claim):
+        decomposed_one_character_name = self.write_metadata(Name="e\u0301")
+        self.assertIn(
+            f"{decomposed_one_character_name}: Name: 1 character; minimum is 2",
+            validate(decomposed_one_character_name),
+        )
+        self.assertEqual(validate(self.write_metadata(Name="KN")), [])
+
+        for one_character, two_characters in (
+            ("x", "xy"),
+            ("編", "編織"),
+            ("e\u0301", "ée"),
+        ):
+            with self.subTest(keyword=one_character):
+                path = self.write_metadata(Keywords=f"{one_character},pattern")
+                self.assertIn(
+                    f"{path}: Keywords: keyword '{one_character}' has 1 character; minimum is 2",
+                    validate(path),
+                )
+                self.assertEqual(
+                    validate(self.write_metadata(Keywords=f"{two_characters},pattern")),
+                    [],
+                )
+
+    def test_forbidden_claim_variants_are_normalized_and_bounded(self) -> None:
+        claims = (
+            ("AI translation", "en", "AI-powered translation"),
+            ("AI translation", "zh-Hant", "ＡＩ 翻譯"),
+            ("AI translation", "zh-Hans", "人工智能翻译"),
+            ("AI translation", "de", "KI–Übersetzung"),
+            ("AI translation", "fr", "traduction\u00a0par\u00a0IA"),
+            ("AI translation", "ja", "ＡＩ翻訳"),
+            ("cloud sync", "en", "cloud synchronization"),
+            ("cloud sync", "zh-Hant", "雲端 同步"),
+            ("cloud sync", "zh-Hans", "云端同步"),
+            ("cloud sync", "de", "Cloud‑Synchronisation"),
+            ("cloud sync", "fr", "synchronisation cloud"),
+            ("cloud sync", "ja", "クラウド同期"),
+            ("automatic stitch recognition", "en", "automatic stitch recognition"),
+            ("automatic stitch recognition", "zh-Hant", "自動辨識針目"),
+            ("automatic stitch recognition", "zh-Hans", "自动识别针目"),
+            ("automatic stitch recognition", "de", "automatische Maschenerkennung"),
+            ("automatic stitch recognition", "fr", "reconnaissance automatique des mailles"),
+            ("automatic stitch recognition", "ja", "編み目の自動認識"),
+            ("subscription", "en", "subscriptions"),
+            ("subscription", "zh-Hant", "訂閱"),
+            ("subscription", "zh-Hans", "订阅"),
+            ("subscription", "de", "Abonnements"),
+            ("subscription", "fr", "abonnements"),
+            ("subscription", "ja", "サブスクリプション"),
+            ("social network", "en", "social networking"),
+            ("social network", "zh-Hant", "社群網路"),
+            ("social network", "zh-Hans", "社交网络"),
+            ("social network", "de", "soziales Netzwerk"),
+            ("social network", "fr", "re\u0301seau social"),
+            ("social network", "ja", "ソーシャルネットワーク"),
+            ("marketplace", "en", "market place"),
+            ("marketplace", "zh-Hant", "編織市集"),
+            ("marketplace", "zh-Hans", "编织商城"),
+            ("marketplace", "de", "Marktplatz"),
+            ("marketplace", "fr", "place de marché"),
+            ("marketplace", "ja", "マーケットプレイス"),
+        )
+        for concept, locale, claim in claims:
+            with self.subTest(concept=concept, locale=locale, claim=claim):
                 errors = validate(self.write_metadata(Description=claim))
                 self.assertTrue(
                     any("forbidden release claim" in error for error in errors),
                     errors,
                 )
+
+        safe_copy = (
+            "Detailed maille notes make this a marketable companion. "
+            "Automatically save stitch counts when the sky is cloudy."
+        )
+        self.assertEqual(validate(self.write_metadata(Description=safe_copy)), [])
 
     def test_duplicate_keywords_are_compared_with_unicode_normalization(self) -> None:
         path = self.write_metadata(Keywords="tricot,échantillon,e\u0301chantillon")

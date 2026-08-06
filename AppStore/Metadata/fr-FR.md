@@ -2,12 +2,12 @@
 
 - Name: KnitNote : Compteur de rangs
 - Subtitle: Tricot sur Apple Watch
-- Promotional text: Essai complet de 7 jours. Comptez sur Apple Watch, lisez vos patrons PDF, utilisez six compteurs, puis débloquez iPhone, iPad, Mac et l’Apple Watch jumelée en un achat.
-- Keywords: crochet,patron,échantillon,fil,maille,aiguille,journal,suivi,tricot,pull
+- Promotional text: Essai complet de 7 jours. Comptez sur Apple Watch, lisez vos patrons PDF et utilisez six compteurs. Un achat unique débloque iPhone, iPad, Mac et l’Apple Watch jumelée.
+- Keywords: crochet,patron,échantillon,fil,maille,aiguille,journal,suivi,laine,pull
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4 propose une interface complète en anglais, chinois traditionnel, chinois simplifié, allemand, français et japonais. Choisissez la langue dans les réglages : l’Apple Watch et les écrans de partage suivent votre choix.
+- What's New: KnitNote 1.4 propose une interface complète en anglais, chinois traditionnel, chinois simplifié, allemand, français et japonais. La langue choisie dans les réglages est synchronisée avec l’Apple Watch. L’extension de partage est disponible dans les six langues et utilise la langue du système.
 - Description: |
   Gardez votre attention sur le fil entre vos mains. KnitNote réunit le comptage sur Apple Watch, l’avancement des ouvrages, six compteurs et les patrons PDF dans un espace clair et apaisant.
 
@@ -43,7 +43,8 @@
 
   Utilisez KnitNote dans votre langue
   • Choisissez l’anglais, le chinois traditionnel ou simplifié, l’allemand, le français ou le japonais dans les réglages
-  • L’app, l’Apple Watch et les écrans de partage utilisent votre choix
+  • L’app et l’Apple Watch utilisent votre choix
+  • Les écrans de partage sont disponibles dans les six langues et utilisent la langue du système
   • Les noms d’ouvrages, notes, entrées de journal et patrons importés restent exactement tels que vous les avez saisis
 
   Exportez une sauvegarde complète et restaurez le paquet de sauvegarde que vous choisissez.

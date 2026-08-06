@@ -3,11 +3,11 @@
 - Name: KnitNote：段数カウンター
 - Subtitle: Apple Watchで編み物カウント
 - Promotional text: すべての機能を7日間無料でお試し。Apple Watchでカウントし、PDF編み図を読み、6つのカウンターを使用。1回の購入でiPhone、iPad、Mac、ペアリング済みApple Watchの編集機能をロック解除できます。
-- Keywords: 編み物,毛糸,かぎ針,棒針,カウンター,編み図,ゲージ
+- Keywords: 手芸,輪針,毛糸,かぎ針,棒針,編み図,ゲージ
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4は、英語、繁体字中国語、簡体字中国語、ドイツ語、フランス語、日本語の完全なインターフェースに対応しました。設定で選んだ言語はApple Watchと共有画面にも反映されます。
+- What's New: KnitNote 1.4は、英語、繁体字中国語、簡体字中国語、ドイツ語、フランス語、日本語の6言語インターフェースに完全対応しました。設定で選んだ言語はApple Watchに同期されます。共有画面は6言語に対応し、システムの言語で表示されます。
 - Description: |
   手元の毛糸に集中できるように。KnitNoteはApple Watchでのカウント、作品の進捗、6つのカウンター、PDF編み図を、落ち着いた見やすい作業スペースにまとめます。
 
@@ -43,7 +43,8 @@
 
   使い慣れた言語で使用
   • 設定で英語、繁体字中国語、簡体字中国語、ドイツ語、フランス語、日本語から選択
-  • App、Apple Watch、共有画面は選んだ言語で表示
+  • AppとApple Watchは設定で選んだ言語で表示
+  • 共有画面は6言語に対応し、システムの言語で表示
   • 作品名、メモ、日誌、取り込んだ編み図は入力したまま保持
 
   データ全体をバックアップとして書き出し、選択したバックアップパッケージから復元できます。

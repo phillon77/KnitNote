@@ -1,5 +1,150 @@
 import Foundation
 import Testing
+@testable import KnitNoteCore
+
+@Suite struct StringCatalogLocalizationContractTests {
+    @Test func version140LocalizationContractNamesTheCompleteLanguageDomain() {
+        #expect(
+            SupportedLocalization.v140Identifiers
+                == ["en", "zh-Hant", "zh-Hans", "de", "fr", "ja"]
+        )
+    }
+
+    @Test func completeCatalogAcceptsEveryVersion140LanguageAndMatchingFormatTokens() throws {
+        let catalog = try makeCatalogFixture()
+
+        try assertCompleteCatalog(
+            at: catalog,
+            requiredLanguages: SupportedLocalization.v140Identifiers
+        )
+    }
+
+    @Test func completeCatalogRejectsAMissingLanguage() throws {
+        var localizations = completeFixtureLocalizations()
+        localizations.removeValue(forKey: "zh-Hans")
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.missingLanguage(
+                key: "feature.count.format",
+                language: "zh-Hans"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsAnEmptyValue() throws {
+        var localizations = completeFixtureLocalizations()
+        localizations["de"] = fixtureLocalization(value: "   ")
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.emptyValue(
+                key: "feature.count.format",
+                language: "de"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsAStaleValue() throws {
+        var localizations = completeFixtureLocalizations()
+        localizations["ja"] = fixtureLocalization(value: "%lld 件", state: "stale")
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.staleValue(
+                key: "feature.count.format",
+                language: "ja"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsADottedKeyPlaceholder() throws {
+        var localizations = completeFixtureLocalizations()
+        localizations["fr"] = fixtureLocalization(value: "feature.count.format")
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.staleValue(
+                key: "feature.count.format",
+                language: "fr"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsMismatchedFormatTokens() throws {
+        var localizations = completeFixtureLocalizations()
+        localizations["fr"] = fixtureLocalization(value: "%@ articles")
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.formatMismatch(
+                key: "feature.count.format",
+                language: "fr"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
+    private func completeFixtureLocalizations() -> [String: Any] {
+        [
+            "en": fixtureLocalization(value: "%lld items"),
+            "zh-Hant": fixtureLocalization(value: "%lld 項"),
+            "zh-Hans": fixtureLocalization(value: "%lld 项"),
+            "de": fixtureLocalization(value: "%lld Elemente"),
+            "fr": fixtureLocalization(value: "%lld articles"),
+            "ja": fixtureLocalization(value: "%lld 件"),
+        ]
+    }
+
+    private func fixtureLocalization(
+        value: String,
+        state: String = "translated"
+    ) -> [String: Any] {
+        ["stringUnit": ["state": state, "value": value]]
+    }
+
+    private func makeCatalogFixture(
+        localizations: [String: Any]? = nil
+    ) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "StringCatalogContract-\(UUID().uuidString).xcstrings")
+        let catalog: [String: Any] = [
+            "sourceLanguage": "en",
+            "strings": [
+                "feature.count.format": [
+                    "localizations": localizations ?? completeFixtureLocalizations(),
+                ],
+            ],
+            "version": "1.0",
+        ]
+        try JSONSerialization.data(withJSONObject: catalog).write(to: url, options: .atomic)
+        return url
+    }
+}
 
 @Suite struct LocalizationContractTests {
     private let requiredWatchTranslations = [

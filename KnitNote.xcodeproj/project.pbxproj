@@ -95,6 +95,7 @@
 		3EAC275D13EBAED2889D123E /* MacSettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D84BCA926B22F3BC532D2C /* MacSettingsComponents.swift */; };
 		3FCB7818FD9E10CF8F9FD2E4 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
 		44ECDB6FE17DB38EBCE188B2 /* PatternMarkupFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */; };
+		45127A7B3326589F3A7F3F3E /* SupportedLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9621F401CDF4DD1A0A2B6DA8 /* SupportedLocalization.swift */; };
 		45CEBD6E4B176EEF1424F7C2 /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
 		461C5C4F403AA6DA585E97F0 /* PreparedWatchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53F8478B3089817AE2FFFA1 /* PreparedWatchCommand.swift */; };
 		4738B2850ED925926970AEE2 /* CameraCapturePhotoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */; };
@@ -295,6 +296,7 @@
 		EABC9AD92D80676113974CC2 /* YouTubeLinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F424CC66033221DDAA5EA61E /* YouTubeLinkMetadataFetcher.swift */; };
 		EB5591BC653A43107284F01C /* EntitlementProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */; };
 		EC34F97C1EBEF741F560F2F4 /* PatternInboxPublicationReceiptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */; };
+		ED645E3C980D71D1881F3121 /* SupportedLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9621F401CDF4DD1A0A2B6DA8 /* SupportedLocalization.swift */; };
 		EFCF881CA8E318B938F4E3B7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */; };
 		F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
@@ -530,6 +532,7 @@
 		95621B1B43D280EDA70A3589 /* ChooseProjectYarnsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseProjectYarnsView.swift; sourceTree = "<group>"; };
 		95A239FE17FD6D0CE80537CE /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
 		9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightOverlay.swift; sourceTree = "<group>"; };
+		9621F401CDF4DD1A0A2B6DA8 /* SupportedLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportedLocalization.swift; sourceTree = "<group>"; };
 		964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchExperienceState.swift; sourceTree = "<group>"; };
 		96E071B2A89B3F9BEB0EEED2 /* FamilyHeroFramePreferenceKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyHeroFramePreferenceKey.swift; sourceTree = "<group>"; };
 		99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternDocument.swift; sourceTree = "<group>"; };
@@ -657,6 +660,7 @@
 			children = (
 				3CD5B158A45CBD8018FC499A /* AppLanguage.swift */,
 				94A3A973C57BA3A256E78283 /* LanguageSettings.swift */,
+				9621F401CDF4DD1A0A2B6DA8 /* SupportedLocalization.swift */,
 			);
 			path = Localization;
 			sourceTree = "<group>";
@@ -1500,6 +1504,7 @@
 				F1A9E3015D8D2FE61E35D6E8 /* StoredPattern.swift in Sources */,
 				70AA2EBA3FEE78787A9EEF4C /* StoredProject.swift in Sources */,
 				941A6C75385E9861EA992A1B /* StoredYarn.swift in Sources */,
+				ED645E3C980D71D1881F3121 /* SupportedLocalization.swift in Sources */,
 				70EBF8DB136C4E53A34F6B23 /* TrialRecord.swift in Sources */,
 				145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */,
 				AC9BA1F0CAC571AB1EB96FDE /* UnlockPresentation.swift in Sources */,
@@ -1607,6 +1612,7 @@
 				7B36CD7A8A59039791A1D325 /* StoredPattern.swift in Sources */,
 				00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */,
 				50FD51A80636056A79BEEF1C /* StoredYarn.swift in Sources */,
+				45127A7B3326589F3A7F3F3E /* SupportedLocalization.swift in Sources */,
 				55604F7E1350796B6B0EB59F /* TrialRecord.swift in Sources */,
 				61333EB179CA9A4FE0954015 /* UnlockPresentation.swift in Sources */,
 				FF37BEFDE0C26708962E792F /* WatchConnectivityEnvelope.swift in Sources */,
@@ -1700,9 +1706,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
 				PRODUCT_NAME = KnitNoteWatch;
 				SDKROOT = watchos;
@@ -1716,14 +1722,14 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.share;
 				PRODUCT_NAME = KnitNoteShare;
 				SDKROOT = iphoneos;
@@ -1754,14 +1760,14 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.share;
 				PRODUCT_NAME = KnitNoteShare;
 				SDKROOT = iphoneos;
@@ -1778,13 +1784,13 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "KnitNote/KnitNote-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote;
 				PRODUCT_NAME = KnitNote;
 				SDKROOT = auto;
@@ -1821,13 +1827,13 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "KnitNote/KnitNote-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote;
 				PRODUCT_NAME = KnitNote;
 				SDKROOT = auto;
@@ -1983,9 +1989,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
 				PRODUCT_NAME = KnitNoteWatch;
 				SDKROOT = watchos;

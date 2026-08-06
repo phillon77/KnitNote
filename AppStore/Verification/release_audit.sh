@@ -141,8 +141,8 @@ verify_declared_localizations "Main source" "$MAIN_INFO_PLIST"
 verify_declared_localizations "Watch source" "$WATCH_INFO_PLIST"
 verify_declared_localizations "Share source" "$SHARE_INFO_PLIST"
 
-EXPECTED_VERSION="1.3.1"
-EXPECTED_BUILD="7"
+EXPECTED_VERSION="1.4.0"
+EXPECTED_BUILD="8"
 for target in KnitNote KnitNoteWatch KnitNoteShare; do
   version="$(jq -er --arg target "$target" \
     '.targets[$target].settings.MARKETING_VERSION' "$SPEC_JSON")"
@@ -266,13 +266,19 @@ if [[ -n "$ARCHIVES" ]]; then
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH/Info.plist")" == "com.phillon.KnitNote" ]]
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SHARE/Info.plist")" == "com.phillon.KnitNote.share" ]]
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$MAC/Contents/Info.plist")" == "com.phillon.KnitNote" ]]
-  for plist in \
-    "$IOS/Info.plist" \
-    "$WATCH/Info.plist" \
-    "$SHARE/Info.plist" \
-    "$MAC/Contents/Info.plist"; do
-    [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" == "$EXPECTED_VERSION" ]]
-    [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" == "$EXPECTED_BUILD" ]]
+  for product in \
+    "iOS|$IOS/Info.plist" \
+    "Watch|$WATCH/Info.plist" \
+    "Share|$SHARE/Info.plist" \
+    "macOS|$MAC/Contents/Info.plist"; do
+    label="${product%%|*}"
+    plist="${product#*|}"
+    product_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+    product_build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
+    [[ "$product_version" == "$EXPECTED_VERSION" ]] \
+      || fail "$label product version is $product_version, expected $EXPECTED_VERSION"
+    [[ "$product_build" == "$EXPECTED_BUILD" ]] \
+      || fail "$label product build is $product_build, expected $EXPECTED_BUILD"
   done
   plutil -lint \
     "$IOS/PrivacyInfo.xcprivacy" \

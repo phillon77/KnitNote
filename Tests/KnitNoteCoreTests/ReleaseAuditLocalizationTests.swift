@@ -47,6 +47,32 @@ import Testing
         #expect(result.output.contains("Share CFBundleLocalizations do not match"))
     }
 
+    @Test func archiveAuditRejectsPreviousVersionAcrossShippingProducts() throws {
+        let fixture = try makeArchiveFixture(version: "1.3.1", build: "8")
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("iOS product version is 1.3.1, expected 1.4.0"))
+    }
+
+    @Test func archiveAuditRejectsPreviousBuildAcrossShippingProducts() throws {
+        let fixture = try makeArchiveFixture(version: "1.4.0", build: "7")
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("iOS product build is 7, expected 8"))
+    }
+
     @Test func staticAuditRejectsGeneratedProjectMissingOneReleaseRegion() throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("knitnote-project-regions-\(UUID().uuidString)")
@@ -248,7 +274,9 @@ private func runReleaseAudit(
 private func makeArchiveFixture(
     omittingDirectory: (target: String, locale: String)? = nil,
     extraDirectory: (target: String, locale: String)? = nil,
-    localizationOverrides: [String: [String]] = [:]
+    localizationOverrides: [String: [String]] = [:],
+    version: String = "1.4.0",
+    build: String = "8"
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
@@ -299,8 +327,8 @@ private func makeArchiveFixture(
         try fileManager.createDirectory(at: item.resources, withIntermediateDirectories: true)
         var plist: [String: Any] = [
             "CFBundleIdentifier": item.identifier,
-            "CFBundleShortVersionString": "1.3.1",
-            "CFBundleVersion": "7",
+            "CFBundleShortVersionString": version,
+            "CFBundleVersion": build,
             "CFBundleLocalizations": localizationOverrides[item.name] ?? releaseLocales,
         ]
         if let companionIdentifier = item.companionIdentifier {

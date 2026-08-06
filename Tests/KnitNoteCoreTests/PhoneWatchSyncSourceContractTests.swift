@@ -2,6 +2,49 @@ import Foundation
 import Testing
 
 @Suite struct PhoneWatchSyncSourceContractTests {
+    @Test func phonePublishesResolvedLanguageAndRepublishesOnSelectionChanges() throws {
+        let app = try source("KnitNote/App/KnitNoteApp.swift")
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+
+        #expect(app.contains("LanguageSettings(selection: selection)"))
+        #expect(app.contains(".resolvedLanguage().rawValue"))
+        #expect(app.contains(".onChange(of: storedLanguage)"))
+        #expect(app.contains("phoneWatchSyncCoordinator.publishLatestSnapshotIfChanged()"))
+        #expect(coordinator.contains("private let languageCode: () -> String"))
+        #expect(coordinator.contains("let languageCode = languageCode()"))
+        #expect(coordinator.contains("locale: Locale(identifier: languageCode)"))
+        #expect(coordinator.contains("languageCode: languageCode"))
+        #expect(coordinator.contains("snapshot.languageCode != lastPublishedLanguageCode"))
+    }
+
+    @Test func phoneAcknowledgementsRetainTheCurrentlySelectedLanguage() throws {
+        let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
+
+        #expect(coordinator.contains("private func withCurrentLanguage("))
+        #expect(
+            coordinator.components(separatedBy: "withCurrentLanguage(").count - 1 == 3
+        )
+    }
+
+    @Test func watchRootUsesValidatedPhoneLanguageAndFallsBackToCurrentLocale() throws {
+        let app = try source("KnitNoteWatch/KnitNoteWatchApp.swift")
+
+        #expect(app.contains("watchSyncCoordinator.snapshot?.languageCode"))
+        #expect(app.contains("AppLanguage(rawValue: code) != nil"))
+        #expect(app.contains("else { return .current }"))
+        #expect(app.contains("return Locale(identifier: code)"))
+        #expect(app.contains(".environment(\\.locale, appLocale)"))
+    }
+
+    @Test func watchGeneratedErrorCopyUsesTheSynchronizedLocale() throws {
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+
+        #expect(coordinator.contains("private let localize: (String, Locale) -> String"))
+        #expect(coordinator.contains("String(localized: String.LocalizationValue(key), locale: locale)"))
+        #expect(coordinator.contains("AppLanguage(rawValue: code) != nil"))
+        #expect(coordinator.contains("refreshLocalizedError()"))
+    }
+
     @Test func appOwnsAndStartsPhoneCoordinatorForItsLifetime() throws {
         let app = try source("KnitNote/App/KnitNoteApp.swift")
 

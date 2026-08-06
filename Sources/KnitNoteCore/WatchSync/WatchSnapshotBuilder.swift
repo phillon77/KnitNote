@@ -5,6 +5,7 @@ public enum WatchSnapshotBuilder {
         projects: [StoredProject],
         entitlement: EntitlementSnapshot,
         locale: Locale,
+        languageCode: String? = nil,
         generatedAt: Date
     ) throws -> WatchSyncSnapshot {
         let orderedProjects = projects.enumerated().sorted { lhs, rhs in
@@ -35,7 +36,8 @@ public enum WatchSnapshotBuilder {
                     },
                     selectedCounterID: project.selectedCounterID
                 )
-            }
+            },
+            languageCode: languageCode
         )
     }
 

@@ -25,6 +25,13 @@ struct KnitNoteWatchApp: App {
         }
     }
 
+    private var appLocale: Locale {
+        guard let code = watchSyncCoordinator.snapshot?.languageCode,
+              AppLanguage(rawValue: code) != nil
+        else { return .current }
+        return Locale(identifier: code)
+    }
+
     var body: some Scene {
         WindowGroup {
             if let screenshotMode {
@@ -34,6 +41,7 @@ struct KnitNoteWatchApp: App {
                 )
             } else {
                 WatchCounterView(coordinator: watchSyncCoordinator)
+                    .environment(\.locale, appLocale)
             }
         }
     }

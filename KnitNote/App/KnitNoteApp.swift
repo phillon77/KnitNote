@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 private struct MacMinimumWindowContentSizeModifier: ViewModifier {
@@ -102,7 +103,13 @@ struct KnitNoteApp: App {
 #if os(iOS)
         let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(
             projectStore: projectStore,
-            entitlementCoordinator: entitlementCoordinator
+            entitlementCoordinator: entitlementCoordinator,
+            languageCode: {
+                let selection = UserDefaults.standard
+                    .string(forKey: "languageSelection")
+                    .flatMap { LanguageSelection(rawValue: $0) } ?? .system
+                return LanguageSettings(selection: selection).resolvedLanguage().rawValue
+            }
         )
         _phoneWatchSyncCoordinator = StateObject(
             wrappedValue: phoneWatchSyncCoordinator
@@ -142,6 +149,11 @@ struct KnitNoteApp: App {
                 .environmentObject(patternInboxProcessor)
                 .environmentObject(patternBackupReminderPresenter)
                 .preferredColorScheme(.light)
+#if os(iOS)
+                .onChange(of: storedLanguage) { _, _ in
+                    phoneWatchSyncCoordinator.publishLatestSnapshotIfChanged()
+                }
+#endif
                 .knitNoteMacMinimumWindowContentSize()
                 .task {
                     await entitlementCoordinator.prepare()

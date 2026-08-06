@@ -3,6 +3,27 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchConnectivityEnvelopeTests {
+    @Test func snapshotEnvelopePreservesSelectedLanguage() throws {
+        let snapshot = WatchSyncSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 100),
+            entitlement: unlockedWatchEntitlement(
+                at: Date(timeIntervalSince1970: 100)
+            ),
+            projects: [],
+            languageCode: "de"
+        )
+
+        let dictionary = try WatchConnectivityEnvelope.snapshot(snapshot)
+            .dictionaryRepresentation()
+        let decoded = try WatchConnectivityEnvelope(dictionary: dictionary)
+
+        guard case let .snapshot(decodedSnapshot) = decoded else {
+            Issue.record("Expected a snapshot envelope")
+            return
+        }
+        #expect(decodedSnapshot.languageCode == "de")
+    }
+
     @Test func commandEnvelopeRoundTripsThroughPropertyListDictionary() throws {
         let command = WatchCounterCommand(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,

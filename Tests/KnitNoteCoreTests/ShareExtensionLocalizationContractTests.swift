@@ -1,7 +1,20 @@
 import Foundation
 import Testing
+@testable import KnitNoteCore
 
 @Suite struct ShareExtensionLocalizationContractTests {
+    @Test func watchAndShareCatalogsAreCompleteForVersion140Languages() throws {
+        for path in [
+            "KnitNoteWatch/Localizable.xcstrings",
+            "KnitNoteShare/Localizable.xcstrings",
+        ] {
+            try assertCompleteCatalog(
+                at: patternLibraryRepositoryURL(path),
+                requiredLanguages: SupportedLocalization.v140Identifiers
+            )
+        }
+    }
+
     @Test func shareExtensionHasExactEnglishAndTraditionalChineseCopy() throws {
         let url = patternLibraryRepositoryURL("KnitNoteShare/Localizable.xcstrings")
         let exists = FileManager.default.fileExists(atPath: url.path)

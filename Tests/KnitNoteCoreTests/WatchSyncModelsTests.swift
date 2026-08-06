@@ -3,6 +3,61 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchSyncModelsTests {
+    @Test func newSnapshotRoundTripPreservesSelectedLanguage() throws {
+        let snapshot = WatchSyncSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 101),
+            entitlement: WatchEntitlementSnapshot(
+                kind: .permanentlyUnlocked,
+                expiresAt: nil,
+                generatedAt: Date(timeIntervalSince1970: 101)
+            ),
+            projects: [],
+            languageCode: "ja"
+        )
+
+        let decoded = try WatchSyncCodec.decode(
+            WatchSyncSnapshot.self,
+            from: WatchSyncCodec.encode(snapshot)
+        )
+
+        #expect(decoded.schemaVersion == 2)
+        #expect(decoded.languageCode == "ja")
+    }
+
+    @Test func versionTwoSnapshotWithoutLanguageStillDecodes() throws {
+        let legacyVersionTwoSnapshotJSON = Data(#"""
+        {
+          "schemaVersion": 2,
+          "generatedAt": 101000,
+          "entitlement": {
+            "kind": "permanentlyUnlocked",
+            "generatedAt": 101000
+          },
+          "projects": []
+        }
+        """#.utf8)
+
+        let decoded = try WatchSyncCodec.decode(
+            WatchSyncSnapshot.self,
+            from: legacyVersionTwoSnapshotJSON
+        )
+
+        #expect(decoded.schemaVersion == 2)
+        #expect(decoded.languageCode == nil)
+    }
+
+    @Test func snapshotBuilderCarriesSelectedLanguage() throws {
+        let snapshot = try WatchSnapshotBuilder.make(
+            projects: [],
+            entitlement: .permanentlyUnlocked,
+            locale: Locale(identifier: "fr"),
+            languageCode: "fr",
+            generatedAt: Date(timeIntervalSince1970: 101)
+        )
+
+        #expect(snapshot.languageCode == "fr")
+    }
+
     @Test func snapshotRoundTripsSixCounters() throws {
         let counters = (1...6).map {
             WatchCounterSnapshot(id: UUID(), name: "Counter \($0)", value: $0)

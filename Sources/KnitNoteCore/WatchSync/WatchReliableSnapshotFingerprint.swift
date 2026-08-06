@@ -18,6 +18,7 @@ struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
     private let entitlementKind: WatchEntitlementSnapshot.Kind
     private let entitlementExpiry: Date?
     private let entitlementAllowsMutation: Bool
+    private let languageCode: String?
 
     init(snapshot: WatchSyncSnapshot) {
         entitlementKind = snapshot.entitlement.kind
@@ -25,6 +26,7 @@ struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
         entitlementAllowsMutation = snapshot.entitlement.canMutate(
             now: snapshot.generatedAt
         )
+        languageCode = snapshot.languageCode
         projects = snapshot.projects.map { project in
             Project(
                 id: project.id,

@@ -9,7 +9,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     private let transport: any WatchConnectivityTransport
     private let ledgerURL: URL
     private let preparedCommandURL: URL
-    private let locale: () -> Locale
+    private let languageCode: () -> String
     private let now: () -> Date
 
     private var projectSubscription: AnyCancellable?
@@ -20,6 +20,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
     private var entitlementExpiryTask: Task<Void, Never>?
     private var lastPublishedProjects: [WatchProjectSnapshot]?
     private var lastPublishedEntitlement: WatchEntitlementSnapshot?
+    private var lastPublishedLanguageCode: String?
     private var reliableSnapshotTransferState = WatchReliableSnapshotTransferState()
     private var recoveryState: WatchCommandRecoveryState?
     private var isConfigured = false
@@ -30,7 +31,9 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         entitlementCoordinator: EntitlementCoordinator,
         transport: (any WatchConnectivityTransport)? = nil,
         applicationSupportRoot: URL? = nil,
-        locale: @escaping () -> Locale = { .current },
+        languageCode: @escaping () -> String = {
+            LanguageSettings().resolvedLanguage().rawValue
+        },
         now: @escaping () -> Date = { .now }
     ) {
         self.projectStore = projectStore
@@ -41,7 +44,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
             .appendingPathComponent("KnitNote", isDirectory: true)
         ledgerURL = WatchSyncPaths.processedLedger(in: liveRoot)
         preparedCommandURL = WatchSyncPaths.preparedCommand(in: liveRoot)
-        self.locale = locale
+        self.languageCode = languageCode
         self.now = now
     }
 
@@ -197,12 +200,14 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         }
 
         do {
-            let acknowledgement = try projectStore.applyWatchCommandDurably(
-                command,
-                entitlement: entitlement,
-                ledgerURL: ledgerURL,
-                preparedCommandURL: preparedCommandURL,
-                now: now()
+            let acknowledgement = withCurrentLanguage(
+                try projectStore.applyWatchCommandDurably(
+                    command,
+                    entitlement: entitlement,
+                    ledgerURL: ledgerURL,
+                    preparedCommandURL: preparedCommandURL,
+                    now: now()
+                )
             )
             recoveryState = .ready
             send(acknowledgement, reply: reply)
@@ -212,12 +217,14 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
             sendSnapshot(reply: reply)
         } catch ProjectStoreError.accessRestricted {
             do {
-                let acknowledgement = try projectStore.acknowledgeRejectedWatchCommandDurably(
-                    command,
-                    rejection: .entitlementRequired,
-                    entitlement: entitlement,
-                    ledgerURL: ledgerURL,
-                    now: now()
+                let acknowledgement = withCurrentLanguage(
+                    try projectStore.acknowledgeRejectedWatchCommandDurably(
+                        command,
+                        rejection: .entitlementRequired,
+                        entitlement: entitlement,
+                        ledgerURL: ledgerURL,
+                        now: now()
+                    )
                 )
                 recoveryState = .ready
                 send(acknowledgement, reply: reply)
@@ -242,6 +249,17 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         } else {
             transport.transferUserInfo(envelope)
         }
+    }
+
+    private func withCurrentLanguage(
+        _ acknowledgement: WatchCommandAcknowledgement
+    ) -> WatchCommandAcknowledgement {
+        guard let snapshot = latestSnapshot() else { return acknowledgement }
+        return WatchCommandAcknowledgement(
+            commandID: acknowledgement.commandID,
+            rejection: acknowledgement.rejection,
+            snapshot: snapshot
+        )
     }
 
     private func handleQueueHandshake(
@@ -280,10 +298,11 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         publish(snapshot)
     }
 
-    private func publishLatestSnapshotIfChanged() {
+    func publishLatestSnapshotIfChanged() {
         guard let snapshot = latestSnapshot() else { return }
         if snapshot.projects != lastPublishedProjects
-            || snapshot.entitlement != lastPublishedEntitlement {
+            || snapshot.entitlement != lastPublishedEntitlement
+            || snapshot.languageCode != lastPublishedLanguageCode {
             publish(snapshot)
         } else {
             queueReliableSnapshotIfNeeded(snapshot)
@@ -295,6 +314,7 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
             try transport.updateApplicationContext(.snapshot(snapshot))
             lastPublishedProjects = snapshot.projects
             lastPublishedEntitlement = snapshot.entitlement
+            lastPublishedLanguageCode = snapshot.languageCode
         } catch {
             // Leave the marker unchanged so start, reachability, or the next
             // project event retries this exact authoritative payload.
@@ -323,11 +343,13 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
         guard let entitlement = entitlementCoordinator.verifiedSnapshot else {
             return nil
         }
+        let languageCode = languageCode()
         do {
             return try WatchSnapshotBuilder.make(
                 projects: projectStore.projects,
                 entitlement: entitlement,
-                locale: locale(),
+                locale: Locale(identifier: languageCode),
+                languageCode: languageCode,
                 generatedAt: now()
             )
         } catch {
@@ -338,7 +360,8 @@ final class PhoneWatchSyncCoordinator: ObservableObject {
                     expiresAt: nil,
                     generatedAt: now()
                 ),
-                projects: []
+                projects: [],
+                languageCode: languageCode
             )
         }
     }

@@ -105,17 +105,20 @@ public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
     public let generatedAt: Date
     public let entitlement: WatchEntitlementSnapshot
     public let projects: [WatchProjectSnapshot]
+    public let languageCode: String?
 
     public init(
         schemaVersion: Int = currentSchemaVersion,
         generatedAt: Date,
         entitlement: WatchEntitlementSnapshot,
-        projects: [WatchProjectSnapshot]
+        projects: [WatchProjectSnapshot],
+        languageCode: String? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.generatedAt = generatedAt
         self.entitlement = entitlement
         self.projects = projects
+        self.languageCode = languageCode
     }
 
     public init(from decoder: any Decoder) throws {
@@ -132,6 +135,7 @@ public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
             forKey: .entitlement
         )
         self.projects = try container.decode([WatchProjectSnapshot].self, forKey: .projects)
+        self.languageCode = try container.decodeIfPresent(String.self, forKey: .languageCode)
     }
 }
 

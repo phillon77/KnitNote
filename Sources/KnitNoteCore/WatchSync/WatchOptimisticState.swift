@@ -205,7 +205,8 @@ public struct WatchOptimisticState: Equatable, Sendable {
             schemaVersion: snapshot.schemaVersion,
             generatedAt: snapshot.generatedAt,
             entitlement: snapshot.entitlement,
-            projects: projects
+            projects: projects,
+            languageCode: snapshot.languageCode
         )
     }
 }

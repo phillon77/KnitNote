@@ -3,6 +3,16 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchReliableSnapshotFingerprintTests {
+    @Test func detectsLanguageChangesThatMustReachWatchReliably() throws {
+        let english = try snapshot(languageCode: "en")
+        let japanese = try snapshot(languageCode: "ja")
+
+        #expect(
+            WatchReliableSnapshotFingerprint(snapshot: english)
+                != WatchReliableSnapshotFingerprint(snapshot: japanese)
+        )
+    }
+
     @Test func ignoresCounterValuesAndTimestamps() throws {
         let first = try snapshot(value: 1, updatedAt: 10, generatedAt: 20)
         let second = try snapshot(value: 99, updatedAt: 30, generatedAt: 40)
@@ -90,7 +100,8 @@ import Testing
         isCompleted: Bool = false,
         projectName: String = "Sweater",
         counterName: String = "Counter 1",
-        selectedCounterOrdinal: Int = 1
+        selectedCounterOrdinal: Int = 1,
+        languageCode: String? = nil
     ) throws -> WatchSyncSnapshot {
         let projectID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
         let counters = (1...6).map { ordinal in
@@ -115,7 +126,8 @@ import Testing
                 expiresAt: nil,
                 generatedAt: Date(timeIntervalSince1970: generatedAt)
             ),
-            projects: [project]
+            projects: [project],
+            languageCode: languageCode
         )
     }
 

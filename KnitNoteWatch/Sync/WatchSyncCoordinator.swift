@@ -14,9 +14,10 @@ final class WatchSyncCoordinator: ObservableObject {
     private let transport: any WatchConnectivityTransport
     private let cacheFile: AtomicWatchSyncFile<WatchSyncCache>
     private let now: () -> Date
-    private let localize: (String) -> String
+    private let localize: (String, Locale) -> String
 
     private var state: WatchOptimisticState
+    private var currentError: WatchCommandRejection?
     private var deliveryState = WatchHeadDeliveryState()
     private var requiresSnapshot: Bool
     private var isConfigured = false
@@ -31,8 +32,8 @@ final class WatchSyncCoordinator: ObservableObject {
         transport: (any WatchConnectivityTransport)? = nil,
         applicationSupportRoot: URL? = nil,
         now: @escaping () -> Date = { .now },
-        localize: @escaping (String) -> String = {
-            String(localized: String.LocalizationValue($0))
+        localize: @escaping (String, Locale) -> String = { key, locale in
+            String(localized: String.LocalizationValue(key), locale: locale)
         }
     ) {
         self.transport = transport ?? WatchSession()
@@ -44,21 +45,27 @@ final class WatchSyncCoordinator: ObservableObject {
         self.localize = localize
 
         let recovery: WatchSyncCacheRecovery
+        let recoveryError: WatchCommandRejection?
         do {
             recovery = try WatchSyncCache.loadRecoveringCorruption(in: liveRoot)
-            localizedErrorReason = nil
+            recoveryError = nil
         } catch {
             recovery = WatchSyncCacheRecovery(cache: .empty, requiresSnapshot: true)
-            localizedErrorReason = localize(WatchCommandRejection.storageFailure.localizationKey)
+            recoveryError = .storageFailure
         }
 
         state = WatchOptimisticState(cache: recovery.cache)
         requiresSnapshot = recovery.requiresSnapshot
-        snapshot = state.snapshot
+        let recoveredSnapshot = state.snapshot
+        snapshot = recoveredSnapshot
         pendingCount = state.pendingCommands.count
         pendingCounterIDs = state.pendingCounterIDs
         selectedProjectID = state.selectedProjectID
         selectedCounterID = state.selectedCounterID
+        currentError = recoveryError
+        localizedErrorReason = recoveryError.map {
+            localize($0.localizationKey, Self.locale(for: recoveredSnapshot))
+        }
     }
 
     func start() {
@@ -197,7 +204,7 @@ final class WatchSyncCoordinator: ObservableObject {
         }
 
         guard persistThenPublish(candidate) else { return }
-        localizedErrorReason = nil
+        clearError()
 
         if reachableHandshakeCompleted {
             deliverHeadIfNeeded()
@@ -225,6 +232,7 @@ final class WatchSyncCoordinator: ObservableObject {
         pendingCounterIDs = candidate.pendingCounterIDs
         selectedProjectID = candidate.selectedProjectID
         selectedCounterID = candidate.selectedCounterID
+        refreshLocalizedError()
     }
 
     private func replaceSnapshot(_ snapshot: WatchSyncSnapshot) {
@@ -251,7 +259,7 @@ final class WatchSyncCoordinator: ObservableObject {
         if let rejection = acknowledgement.rejection {
             setError(rejection)
         } else {
-            localizedErrorReason = nil
+            clearError()
         }
         deliverHeadIfNeeded()
     }
@@ -359,7 +367,31 @@ final class WatchSyncCoordinator: ObservableObject {
     }
 
     private func setError(_ rejection: WatchCommandRejection) {
-        localizedErrorReason = localize(rejection.localizationKey)
+        currentError = rejection
+        refreshLocalizedError()
+    }
+
+    private func clearError() {
+        currentError = nil
+        localizedErrorReason = nil
+    }
+
+    private func refreshLocalizedError() {
+        guard let currentError else {
+            localizedErrorReason = nil
+            return
+        }
+        localizedErrorReason = localize(
+            currentError.localizationKey,
+            Self.locale(for: snapshot)
+        )
+    }
+
+    private static func locale(for snapshot: WatchSyncSnapshot?) -> Locale {
+        guard let code = snapshot?.languageCode,
+              AppLanguage(rawValue: code) != nil
+        else { return .current }
+        return Locale(identifier: code)
     }
 }
 

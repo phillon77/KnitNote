@@ -3,6 +3,14 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchOptimisticStateTests {
+    @Test func optimisticCounterMutationPreservesSelectedLanguage() throws {
+        let fixture = try Fixture(value: 4, languageCode: "ja")
+        var state = WatchOptimisticState(cache: fixture.cache)
+
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+        #expect(state.snapshot?.languageCode == "ja")
+    }
+
     @Test func enqueueRecordsCommandBeforeChangingDisplayedValue() throws {
         let fixture = try Fixture(value: 4)
         var state = WatchOptimisticState(cache: fixture.cache)
@@ -515,6 +523,7 @@ private struct Fixture {
     let projectID = UUID()
     let counterIDs = (0..<6).map { _ in UUID() }
     let snapshot: WatchSyncSnapshot
+    let languageCode: String?
 
     var counterID: UUID { counterIDs[0] }
 
@@ -527,7 +536,12 @@ private struct Fixture {
         )
     }
 
-    init(value: Int, isCompleted: Bool = false) throws {
+    init(
+        value: Int,
+        isCompleted: Bool = false,
+        languageCode: String? = nil
+    ) throws {
+        self.languageCode = languageCode
         let counters = counterIDs.enumerated().map { index, id in
             WatchCounterSnapshot(id: id, name: "Counter \(index + 1)", value: index == 0 ? value : 0)
         }
@@ -546,7 +560,8 @@ private struct Fixture {
                 expiresAt: nil,
                 generatedAt: Date(timeIntervalSince1970: 11)
             ),
-            projects: [project]
+            projects: [project],
+            languageCode: languageCode
         )
     }
 
@@ -586,7 +601,8 @@ private struct Fixture {
                 updatedAt: Date(timeIntervalSince1970: 29),
                 counters: counters,
                 selectedCounterID: counterID
-            )]
+            )],
+            languageCode: languageCode
         )
     }
 }

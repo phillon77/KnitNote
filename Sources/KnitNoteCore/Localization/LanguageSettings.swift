@@ -10,16 +10,41 @@ public final class LanguageSettings {
     public func resolvedLanguage(
         systemLanguages: [String] = Locale.preferredLanguages
     ) -> AppLanguage {
-        switch selection {
-        case .english:
+        if let explicitLanguage = selection.explicitLanguage {
+            return explicitLanguage
+        }
+
+        guard let identifier = systemLanguages.first else {
             return .english
-        case .traditionalChinese:
-            return .traditionalChinese
-        case .system:
-            guard let first = systemLanguages.first?.lowercased() else {
-                return .english
+        }
+
+        let subtags = identifier
+            .replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-")
+            .map(String.init)
+
+        guard let languageCode = subtags.first?.lowercased() else {
+            return .english
+        }
+
+        if languageCode == "zh" {
+            let chineseSubtags = subtags.dropFirst()
+            if chineseSubtags.contains(where: { $0.caseInsensitiveCompare("Hant") == .orderedSame })
+                || chineseSubtags.contains(where: { ["TW", "HK", "MO"].contains($0.uppercased()) }) {
+                return .traditionalChinese
             }
-            return first.hasPrefix("zh-hant") ? .traditionalChinese : .english
+            if chineseSubtags.contains(where: { $0.caseInsensitiveCompare("Hans") == .orderedSame })
+                || chineseSubtags.contains(where: { ["CN", "SG"].contains($0.uppercased()) }) {
+                return .simplifiedChinese
+            }
+        }
+
+        switch languageCode {
+        case "de": return .german
+        case "fr": return .french
+        case "ja": return .japanese
+        case "en": return .english
+        default: return .english
         }
     }
 

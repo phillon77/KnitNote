@@ -58,8 +58,8 @@ public enum StoreScreenshotFixtures {
     private static let projectPhotoToken = UUID(uuidString: "21000000-0000-4000-8000-000000000001")!
     private static let fixedDate = Date(timeIntervalSince1970: 1_767_225_600)
 
-    public static func make(language: StoreScreenshotLanguage) throws -> StoreScreenshotFixturePackage {
-        let copy = Copy(language: language)
+    public static func make(language _: StoreScreenshotLanguage) throws -> StoreScreenshotFixturePackage {
+        let copy = Copy()
         let counterIDs = (1...6).map {
             UUID(uuidString: String(format: "30000000-0000-4000-8000-%012d", $0))!
         }
@@ -219,6 +219,45 @@ public enum StoreScreenshotFixtures {
         return StoreScreenshotFixturePackage(archive: archive, files: files)
     }
 
+    public static func makeWatchFixture(
+        language _: StoreScreenshotLanguage
+    ) throws -> (cache: WatchSyncCache, projectID: UUID) {
+        let copy = Copy()
+        let counters = zip(copy.counterNames, [48, 6, 12, 4, 18, 18]).enumerated().map { index, item in
+            WatchCounterSnapshot(
+                id: UUID(uuidString: String(format: "30000000-0000-4000-8000-%012d", index + 1))!,
+                name: item.0,
+                value: item.1
+            )
+        }
+        let project = try WatchProjectSnapshot(
+            id: projectID,
+            name: copy.firstProject,
+            isCompleted: false,
+            updatedAt: fixedDate,
+            counters: counters,
+            selectedCounterID: counters[0].id
+        )
+        let snapshot = WatchSyncSnapshot(
+            generatedAt: fixedDate,
+            entitlement: WatchEntitlementSnapshot(
+                kind: .legacyPaidOwner,
+                expiresAt: nil,
+                generatedAt: fixedDate
+            ),
+            projects: [project]
+        )
+        return (
+            WatchSyncCache(
+                snapshot: snapshot,
+                pendingCommands: [],
+                selectedProjectID: projectID,
+                selectedCounterID: counters[0].id
+            ),
+            projectID
+        )
+    }
+
     private static func makeJournalEntries(copy: Copy) throws -> [ProjectJournalEntry] {
         let ids = [
             UUID(uuidString: "40000000-0000-4000-8000-000000000001")!,
@@ -360,38 +399,20 @@ private struct Copy {
     let journalCaptions: [String]
     let yarns: [YarnCopy]
 
-    init(language: StoreScreenshotLanguage) {
-        switch language {
-        case .zhHant:
-            firstProject = "雲朵披肩"
-            secondProject = "小熊背心"
-            counterNames = ["排數", "花樣重複", "袖窿", "領口", "左袖", "右袖"]
-            patternName = "雲朵披肩織圖"
-            pageNote = "第 24 排完成後開始領口減針"
-            rowNoteOne = "換成薰衣草色毛線"
-            rowNoteTwo = "下一排開始花樣重複"
-            toolNote = "環形針 80 cm"
-            journalCaptions = ["完成第一段花樣", "領口形狀完成"]
-            yarns = [
-                .init(name: "雲霧羊毛", brand: "KnitNote", series: "Soft Cloud", color: "薰衣草紫", code: "L08", balls: 4, grams: 180, location: "透明收納盒 A",),
-                .init(name: "奶油棉線", brand: "KnitNote", series: "Daily Cotton", color: "奶油白", code: "C01", balls: 3, grams: 145, location: "書房第二層"),
-                .init(name: "莓果混紡", brand: "KnitNote", series: "Berry Blend", color: "莓果紅", code: "B12", balls: 2, grams: 92, location: "編織袋"),
-            ]
-        case .en, .zhHans, .de, .fr, .ja:
-            firstProject = "Cloud Shawl"
-            secondProject = "Little Bear Vest"
-            counterNames = ["Rows", "Pattern Repeat", "Armhole", "Neckline", "Left Sleeve", "Right Sleeve"]
-            patternName = "Cloud Shawl Pattern"
-            pageNote = "Begin neckline decreases after row 24"
-            rowNoteOne = "Change to lavender yarn"
-            rowNoteTwo = "Begin pattern repeat on next row"
-            toolNote = "80 cm circular needle"
-            journalCaptions = ["First pattern section complete", "Neckline shaping complete"]
-            yarns = [
-                .init(name: "Cloud Wool", brand: "KnitNote", series: "Soft Cloud", color: "Lavender", code: "L08", balls: 4, grams: 180, location: "Clear box A"),
-                .init(name: "Cream Cotton", brand: "KnitNote", series: "Daily Cotton", color: "Cream", code: "C01", balls: 3, grams: 145, location: "Studio shelf"),
-                .init(name: "Berry Blend", brand: "KnitNote", series: "Berry Blend", color: "Berry", code: "B12", balls: 2, grams: 92, location: "Knitting bag"),
-            ]
-        }
+    init() {
+        firstProject = "Cloud Shawl"
+        secondProject = "Little Bear Vest"
+        counterNames = ["Rows", "Pattern Repeat", "Armhole", "Neckline", "Left Sleeve", "Right Sleeve"]
+        patternName = "Cloud Shawl Pattern"
+        pageNote = "Begin neckline decreases after row 24"
+        rowNoteOne = "Change to lavender yarn"
+        rowNoteTwo = "Begin pattern repeat on next row"
+        toolNote = "80 cm circular needle"
+        journalCaptions = ["First pattern section complete", "Neckline shaping complete"]
+        yarns = [
+            .init(name: "Cloud Wool", brand: "KnitNote", series: "Soft Cloud", color: "Lavender", code: "L08", balls: 4, grams: 180, location: "Clear box A"),
+            .init(name: "Cream Cotton", brand: "KnitNote", series: "Daily Cotton", color: "Cream", code: "C01", balls: 3, grams: 145, location: "Studio shelf"),
+            .init(name: "Berry Blend", brand: "KnitNote", series: "Berry Blend", color: "Berry", code: "B12", balls: 2, grams: 92, location: "Knitting bag"),
+        ]
     }
 }

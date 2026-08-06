@@ -3,20 +3,25 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct StoreScreenshotFixturesTests {
-    @Test func screenshotLanguagesCoverTheSixReleaseLocalesWithoutTranslatingFixtureData() throws {
+    @Test func screenshotLanguagesReuseOneByteIdenticalUserAuthoredPayload() throws {
         #expect(StoreScreenshotLanguage.allCases.map(\.rawValue) == releaseScreenshotLocales)
 
-        let english = try StoreScreenshotFixtures.make(language: .en).archive
-        for language in StoreScreenshotLanguage.allCases
-        where !["en", "zh-Hant"].contains(language.rawValue) {
-            let localized = try StoreScreenshotFixtures.make(language: language).archive
-            #expect(localized.projects.map(\.name) == english.projects.map(\.name))
-            #expect(
-                localized.projects.flatMap { $0.counters.map(\.customName) }
-                    == english.projects.flatMap { $0.counters.map(\.customName) }
-            )
-            #expect(localized.patterns.map(\.displayName) == english.patterns.map(\.displayName))
-            #expect(localized.yarns.map(\.name) == english.yarns.map(\.name))
+        let neutral = try StoreScreenshotFixtures.make(language: .en)
+        let neutralArchive = try neutral.archiveData()
+        for language in StoreScreenshotLanguage.allCases {
+            let localized = try StoreScreenshotFixtures.make(language: language)
+            #expect(try localized.archiveData() == neutralArchive)
+            #expect(localized.files == neutral.files)
+        }
+    }
+
+    @Test func watchScreenshotLanguagesReuseOneIdenticalUserAuthoredPayload() throws {
+        let neutral = try StoreScreenshotFixtures.makeWatchFixture(language: .en)
+
+        for language in StoreScreenshotLanguage.allCases {
+            let localized = try StoreScreenshotFixtures.makeWatchFixture(language: language)
+            #expect(localized.projectID == neutral.projectID)
+            #expect(localized.cache == neutral.cache)
         }
     }
 
@@ -223,10 +228,7 @@ import Testing
         #expect(Set(frames.compactMap { $0["locale"] as? String }) == Set(releaseScreenshotLocales))
         for locale in releaseScreenshotLocales {
             #expect(frames.filter { $0["locale"] as? String == locale }.count == 14)
-            let result = try screenshotProcess(
-                executable: "/bin/bash",
-                arguments: ["AppStore/Screenshots/capture.sh", locale]
-            )
+            let result = try screenshotCaptureProcess(locale: locale)
             #expect(result.status == 2)
             #expect(result.output.contains("IPHONE_UDID must identify"))
             #expect(!result.output.contains("usage:"))
@@ -243,6 +245,47 @@ import Testing
         )
         #expect(validation.status == 0)
         #expect(validation.output.contains("84 screenshot definitions valid"))
+    }
+
+    @Test func captureEntrypointIgnoresArmedParentEnvironment() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "knitnote-capture-environment-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fakeBin = root.appending(path: "bin", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: fakeBin, withIntermediateDirectories: true)
+        let marker = root.appending(path: "xcrun-was-invoked")
+        let fakeXcrun = fakeBin.appending(path: "xcrun")
+        try """
+        #!/bin/sh
+        : > "${MARKER_FILE:?}"
+        exit 99
+        """.write(to: fakeXcrun, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o755)],
+            ofItemAtPath: fakeXcrun.path
+        )
+
+        var armedEnvironment = ProcessInfo.processInfo.environment
+        let existingPath = armedEnvironment["PATH"] ?? "/usr/bin:/bin"
+        armedEnvironment.merge([
+            "PATH": "\(fakeBin.path):\(existingPath)",
+            "MARKER_FILE": marker.path,
+            "IPHONE_UDID": "armed-iphone",
+            "IPAD_UDID": "armed-ipad",
+            "WATCH_UDID": "armed-watch",
+            "IOS_APP": "/armed/KnitNote.app",
+            "WATCH_APP": "/armed/KnitNoteWatch.app",
+            "MAC_APP": "/armed/KnitNote.app",
+        ]) { _, armed in armed }
+
+        let result = try screenshotCaptureProcess(
+            locale: "en",
+            inheritedEnvironment: armedEnvironment
+        )
+
+        #expect(result.status == 2)
+        #expect(result.output.contains("IPHONE_UDID must identify"))
+        #expect(!FileManager.default.fileExists(atPath: marker.path))
     }
 
     @Test func composerCreatesAContactSheetForEveryManifestLocale() throws {
@@ -328,15 +371,39 @@ private struct ScreenshotProcessResult {
     let output: String
 }
 
+private func screenshotCaptureProcess(
+    locale: String,
+    inheritedEnvironment: [String: String] = ProcessInfo.processInfo.environment
+) throws -> ScreenshotProcessResult {
+    var sanitizedEnvironment = inheritedEnvironment
+    for key in [
+        "IPHONE_UDID",
+        "IPAD_UDID",
+        "WATCH_UDID",
+        "IOS_APP",
+        "WATCH_APP",
+        "MAC_APP",
+    ] {
+        sanitizedEnvironment.removeValue(forKey: key)
+    }
+    return try screenshotProcess(
+        executable: "/bin/bash",
+        arguments: ["AppStore/Screenshots/capture.sh", locale],
+        environment: sanitizedEnvironment
+    )
+}
+
 private func screenshotProcess(
     executable: String,
     arguments: [String],
-    currentDirectory: URL = screenshotRepositoryRoot
+    currentDirectory: URL = screenshotRepositoryRoot,
+    environment: [String: String] = ProcessInfo.processInfo.environment
 ) throws -> ScreenshotProcessResult {
     let process = Process()
     process.executableURL = URL(filePath: executable)
     process.arguments = arguments
     process.currentDirectoryURL = currentDirectory
+    process.environment = environment
     let output = Pipe()
     process.standardOutput = output
     process.standardError = output

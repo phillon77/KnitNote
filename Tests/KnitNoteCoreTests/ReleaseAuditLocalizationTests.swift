@@ -17,6 +17,21 @@ import Testing
         #expect(result.output.contains("Watch bundle is missing ja.lproj"))
     }
 
+    @Test func archiveAuditRejectsExtraNorwegianWatchLocalizationDirectory() throws {
+        let fixture = try makeArchiveFixture(
+            extraDirectory: (target: "Watch", locale: "nb")
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("Watch bundle localization directories do not match"))
+    }
+
     @Test func archiveAuditRejectsShareBundleWhoseDeclaredLocalizationsAreIncomplete() throws {
         let fixture = try makeArchiveFixture(
             localizationOverrides: ["Share": releaseLocales.filter { $0 != "fr" }]
@@ -99,6 +114,41 @@ import Testing
         #expect(result.output.contains("InfoPlist.xcstrings has an incomplete six-locale variation"))
     }
 
+    @Test func staticAuditRejectsInfoPlistCatalogWithExtraNorwegianLocalization() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("knitnote-extra-info-plist-locale-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
+        try FileManager.default.createDirectory(
+            at: temporaryRoot,
+            withIntermediateDirectories: true
+        )
+        let catalog = temporaryRoot.appendingPathComponent("InfoPlist.xcstrings")
+        let localizations = Dictionary(
+            uniqueKeysWithValues: (releaseLocales + ["nb"]).map { locale in
+                (
+                    locale,
+                    ["stringUnit": ["state": "translated", "value": "KnitNote"]]
+                )
+            }
+        )
+        let catalogWithExtraLocale: [String: Any] = [
+            "sourceLanguage": "en",
+            "strings": [
+                "CFBundleDisplayName": ["localizations": localizations],
+            ],
+            "version": "1.0",
+        ]
+        let data = try JSONSerialization.data(withJSONObject: catalogWithExtraLocale)
+        try data.write(to: catalog)
+
+        let result = try runReleaseAudit(
+            environment: ["KNITNOTE_INFO_PLIST_CATALOG": catalog.path]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("InfoPlist.xcstrings localization key domain does not match"))
+    }
+
     @Test func staticAuditRejectsSourceInfoPlistWithoutSixDeclaredLocalizations() throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("knitnote-source-info-plists-\(UUID().uuidString)")
@@ -129,7 +179,7 @@ import Testing
         #expect(result.output.contains("Share source CFBundleLocalizations do not match"))
     }
 
-    @Test func archiveAuditAcceptsSixMatchingLocalizationsOnEveryShippingBundle() throws {
+    @Test func archiveAuditAcceptsSixMatchingLocalizationsPlusBaseOnEveryShippingBundle() throws {
         let fixture = try makeArchiveFixture()
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
 
@@ -197,6 +247,7 @@ private func runReleaseAudit(
 
 private func makeArchiveFixture(
     omittingDirectory: (target: String, locale: String)? = nil,
+    extraDirectory: (target: String, locale: String)? = nil,
     localizationOverrides: [String: [String]] = [:]
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
@@ -256,7 +307,11 @@ private func makeArchiveFixture(
             plist["WKCompanionAppBundleIdentifier"] = companionIdentifier
         }
         try writePlist(plist, to: item.infoPlist)
-        for locale in releaseLocales
+        var localizationDirectories = releaseLocales + ["Base"]
+        if extraDirectory?.target == item.name, let extraLocale = extraDirectory?.locale {
+            localizationDirectories.append(extraLocale)
+        }
+        for locale in localizationDirectories
         where !(omittingDirectory?.target == item.name && omittingDirectory?.locale == locale) {
             try fileManager.createDirectory(
                 at: item.resources.appendingPathComponent("\(locale).lproj"),

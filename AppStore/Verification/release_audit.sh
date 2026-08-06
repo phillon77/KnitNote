@@ -77,6 +77,26 @@ verify_bundle_localizations() {
     [[ -d "$resources/$locale.lproj" ]] \
       || fail "$label bundle is missing $locale.lproj"
   done
+  python3 - "$label" "$resources" "${EXPECTED_LOCALES[@]}" <<'PY'
+from pathlib import Path
+import sys
+
+label, resources, *expected = sys.argv[1:]
+actual = {
+    path.name.removesuffix(".lproj")
+    for path in Path(resources).iterdir()
+    if path.is_dir() and path.name.endswith(".lproj")
+}
+# Base.lproj contains Interface Builder base resources; it is not a release locale.
+localized = actual - {"Base"}
+if localized != set(expected):
+    found = ",".join(sorted(localized))
+    wanted = ",".join(sorted(expected))
+    raise SystemExit(
+        f"release audit: {label} bundle localization directories do not match; "
+        f"found [{found}], expected [{wanted}] (optional Base.lproj allowed)"
+    )
+PY
   verify_declared_localizations "$label" "$plist"
 }
 
@@ -196,6 +216,23 @@ for catalog in \
     )
   ' "$catalog" >/dev/null \
     || fail "$catalog has an incomplete six-locale variation"
+  jq -e --argjson expected "$EXPECTED_LOCALES_JSON" '
+    .sourceLanguage as $source
+    | ($source == "en")
+    and (.strings | length > 0)
+    and all(
+      .strings | to_entries[];
+      . as $entry
+      | (($entry.value.localizations // {}) | keys) as $actual
+      | (($actual + (
+          if ($actual | index($source)) == null
+          then [$source]
+          else []
+          end
+        )) | sort) == ($expected | sort)
+    )
+  ' "$catalog" >/dev/null \
+    || fail "$catalog localization key domain does not match the six release locales"
 done
 
 python3 AppStore/Verification/metadata_check.py AppStore/Metadata

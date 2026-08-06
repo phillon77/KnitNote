@@ -33,11 +33,12 @@ FORBIDDEN_PATTERNS = (
         "AI translation",
         re.compile(
             r"(?<!\w)(?:"
-            r"ai(?:[ -]+powered)?[ -]*translat(?:e|ed|ing|ion)|"
+            r"ai(?:[ -]+powered)?[ -]*translat(?:e|ed|ing|ions?)|"
+            r"ki[ -]+gestützte[ -]+übersetzung|"
             r"(?:ki|künstliche intelligenz)[ -]+(?:übersetzung|übersetzen)|"
-            r"traduction[ -]+(?:par[ -]+)?ia|ia[ -]+traduction"
+            r"traductions?[ -]+(?:par[ -]+)?ia|ia[ -]+traduction"
             r")(?!\w)|"
-            r"(?:ai[ -]*(?:翻譯|翻译|翻訳)|"
+            r"(?:ai[ -]*(?:翻譯|翻译|翻訳|による[ -]*翻訳)|"
             r"(?:人工智慧|人工智能|人工知能)[ -]*(?:翻譯|翻译|翻訳))"
         ),
     ),
@@ -45,7 +46,7 @@ FORBIDDEN_PATTERNS = (
         "cloud sync",
         re.compile(
             r"(?<!\w)(?:"
-            r"cloud[ -]+sync(?:hronization)?|"
+            r"i?cloud[ -]+(?:sync(?:s|ed|ing)?|synchronization)|"
             r"cloud[ -]*synchronis(?:ation|ierung)|"
             r"synchronisation[ -]+(?:dans[ -]+le[ -]+)?cloud|"
             r"cloud[ -]+synchronisation"
@@ -56,7 +57,7 @@ FORBIDDEN_PATTERNS = (
         "automatic stitch recognition",
         re.compile(
             r"(?<!\w)(?:"
-            r"automatic[ -]+stitch[ -]+recognition|"
+            r"automatic[ -]+stitch[ -]+(?:recognition|detection)|"
             r"automatische[ -]+maschenerkennung|"
             r"reconnaissance[ -]+automatique[ -]+des[ -]+mailles"
             r")(?!\w)|"

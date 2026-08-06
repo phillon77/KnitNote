@@ -156,13 +156,21 @@ class MetadataValidationTests(unittest.TestCase):
             ("AI translation", "de", "KI–Übersetzung"),
             ("AI translation", "fr", "traduction\u00a0par\u00a0IA"),
             ("AI translation", "ja", "ＡＩ翻訳"),
+            ("AI translation", "en", "AI translations"),
+            ("AI translation", "en", "AI-powered translations"),
+            ("AI translation", "de", "KI-gestützte Übersetzung"),
+            ("AI translation", "fr", "traductions par IA"),
+            ("AI translation", "ja", "AIによる翻訳"),
             ("cloud sync", "en", "cloud synchronization"),
             ("cloud sync", "zh-Hant", "雲端 同步"),
             ("cloud sync", "zh-Hans", "云端同步"),
             ("cloud sync", "de", "Cloud‑Synchronisation"),
             ("cloud sync", "fr", "synchronisation cloud"),
             ("cloud sync", "ja", "クラウド同期"),
+            ("cloud sync", "en", "cloud syncing"),
+            ("cloud sync", "en", "iCloud sync"),
             ("automatic stitch recognition", "en", "automatic stitch recognition"),
+            ("automatic stitch recognition", "en", "automatic stitch detection"),
             ("automatic stitch recognition", "zh-Hant", "自動辨識針目"),
             ("automatic stitch recognition", "zh-Hans", "自动识别针目"),
             ("automatic stitch recognition", "de", "automatische Maschenerkennung"),
@@ -189,15 +197,17 @@ class MetadataValidationTests(unittest.TestCase):
         )
         for concept, locale, claim in claims:
             with self.subTest(concept=concept, locale=locale, claim=claim):
-                errors = validate(self.write_metadata(Description=claim))
-                self.assertTrue(
-                    any("forbidden release claim" in error for error in errors),
-                    errors,
+                path = self.write_metadata(Description=claim)
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: {concept}",
+                    validate(path),
                 )
 
         safe_copy = (
-            "Detailed maille notes make this a marketable companion. "
-            "Automatically save stitch counts when the sky is cloudy."
+            "Translations are manual. Apple Watch syncing is supported. "
+            "Export a file to iCloud Drive. Detect a dropped stitch manually. "
+            "KI-gestützte Diagramme and AIによる検索 are not translation claims. "
+            "Detailed maille notes make this a marketable companion."
         )
         self.assertEqual(validate(self.write_metadata(Description=safe_copy)), [])
 

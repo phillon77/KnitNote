@@ -3,9 +3,17 @@ import Testing
 
 @Suite(.serialized) struct RuntimeLocalizationSourceContractTests {
     @Test func compilerASTDetectorCatchesDirectFoundationLocalizationCalls() throws {
-        let source = runtimeLocalizationRepositoryRoot
-            .appending(path: ".build/runtime-localization-detector-\(UUID().uuidString).swift")
-        defer { try? FileManager.default.removeItem(at: source) }
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appending(
+                path: "RuntimeLocalizationSourceContractTests-\(UUID().uuidString)",
+                directoryHint: .isDirectory
+            )
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+        let source = temporaryDirectory.appending(path: "runtime-localization-detector.swift")
         try Data(
             """
             import Foundation

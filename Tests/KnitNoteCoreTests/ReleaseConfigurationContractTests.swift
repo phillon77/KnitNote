@@ -29,7 +29,7 @@ import Testing
         #expect(backupManifest.contains("static let currentFormatVersion = 2"))
     }
 
-    @Test func macAppStoreBuildUsesSandboxWithUserSelectedFileAccess() throws {
+    @Test func macAppStoreBuildUsesSandboxWithUserSelectedFileAndOutboundNetworkAccess() throws {
         let yaml = try sourceText("project.yml")
         let generatedProject = try sourceText("KnitNote.xcodeproj/project.pbxproj")
         let entitlementData = try? Data(
@@ -45,7 +45,8 @@ import Testing
         #expect(entitlementData != nil)
         #expect(entitlements?["com.apple.security.app-sandbox"] as? Bool == true)
         #expect(entitlements?["com.apple.security.files.user-selected.read-write"] as? Bool == true)
-        #expect(entitlements?.count == 2)
+        #expect(entitlements?["com.apple.security.network.client"] as? Bool == true)
+        #expect(entitlements?.count == 3)
     }
 
     @Test func submissionSourceHasEveryRequiredSection() throws {

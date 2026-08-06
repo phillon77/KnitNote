@@ -1,10 +1,10 @@
 # KnitNote Privacy Manifest Audit
 
-Last updated: 2026-07-23
+Last updated: 2026-08-06
 
 ## Result
 
-KnitNote does not send developer-accessible user data off device and includes no account, advertising, analytics, telemetry, tracking domain, network client, or third-party SDK. Both privacy manifests therefore declare no tracking and no collected data types.
+KnitNote does not send developer-accessible user data to a developer backend and includes no account, advertising, analytics, telemetry, tracking domain, or third-party SDK. When the user asks KnitNote to read a YouTube link, the app uses Apple's Link Presentation framework to request that link's public title and thumbnail from external services. This user-initiated lookup is not developer data collection, so the privacy manifests continue to declare no tracking and no collected data types.
 
 ## Main app declarations
 
@@ -32,7 +32,7 @@ The Watch app does not access `UserDefaults`; its snapshot, queue, and selection
 
 - Required-reason source search covered `UserDefaults`, `@AppStorage`, `stat`, `fstat`, file date keys, disk-space APIs, and system uptime APIs across `KnitNote`, `KnitNoteWatch`, and `Sources/KnitNoteCore`.
 - Release-binary undefined-symbol inspection confirmed file-stat APIs in both executables and AppStorage/UserDefaults only in the main app.
-- Network and SDK search covered `URLSession`, Network framework connections, Firebase, analytics, telemetry, tracking, and literal HTTP(S) endpoints. No runtime network or third-party SDK path was found.
+- Network and SDK search covered `URLSession`, Link Presentation, Network framework connections, Firebase, analytics, telemetry, tracking, and literal HTTP(S) endpoints. The only runtime network path is the user-initiated Link Presentation lookup for a validated YouTube URL; the Mac sandbox therefore declares outbound client access. No API key, developer backend, analytics, tracking, or third-party SDK path was found.
 - Camera and user-selected photos remain local app functionality and are not transmitted to the developer.
 
 ## Approved-reason references

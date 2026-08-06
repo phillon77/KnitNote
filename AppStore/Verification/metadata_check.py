@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 
@@ -13,6 +14,8 @@ LIMITS = {
     "Subtitle": 30,
     "Promotional text": 170,
     "Keywords": 100,
+    "What's New": 4_000,
+    "Description": 4_000,
 }
 REQUIRED = (
     "Name",
@@ -21,16 +24,58 @@ REQUIRED = (
     "Keywords",
     "Description",
     "Support URL",
+    "Marketing URL",
     "Privacy URL",
     "What's New",
 )
 FORBIDDEN = (
-    " ai ",
+    "ai translation",
     "cloud sync",
     "automatic stitch recognition",
     "social network",
     "marketplace",
     "subscription",
+    "ai 翻譯",
+    "ai翻譯",
+    "雲端同步",
+    "自動辨識針目",
+    "社群網路",
+    "市集",
+    "訂閱",
+    "ai 翻译",
+    "ai翻译",
+    "云端同步",
+    "自动识别针目",
+    "社交网络",
+    "市场平台",
+    "订阅",
+    "ki-übersetzung",
+    "ki übersetzung",
+    "cloud-synchronisierung",
+    "automatische maschenerkennung",
+    "soziales netzwerk",
+    "marktplatz",
+    "abonnement",
+    "traduction par ia",
+    "traduction ia",
+    "synchronisation dans le cloud",
+    "reconnaissance automatique des mailles",
+    "réseau social",
+    "place de marché",
+    "クラウド同期",
+    "ai翻訳",
+    "編み目の自動認識",
+    "ソーシャルネットワーク",
+    "マーケットプレイス",
+    "サブスクリプション",
+)
+EXPECTED_LOCALES = (
+    "en-US.md",
+    "zh-Hant.md",
+    "zh-Hans.md",
+    "de-DE.md",
+    "fr-FR.md",
+    "ja-JP.md",
 )
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 
@@ -76,18 +121,20 @@ def validate(path: Path) -> list[str]:
             unit = "UTF-8 bytes" if name == "Keywords" else "characters"
             errors.append(f"{path}: {name}: {length} {unit}; limit is {limit}")
 
-    keywords = [item.strip().casefold() for item in fields.get("Keywords", "").split(",")]
+    keywords = [
+        unicodedata.normalize("NFC", item.strip()).casefold()
+        for item in fields.get("Keywords", "").split(",")
+    ]
     duplicates = sorted({item for item in keywords if item and keywords.count(item) > 1})
     if duplicates:
         errors.append(f"{path}: Keywords: duplicates: {', '.join(duplicates)}")
 
-    searchable = " " + "\n".join(fields.values()).casefold() + " "
-    searchable = searchable.replace("no subscription", "")
+    searchable = "\n".join(fields.values()).casefold()
     for phrase in FORBIDDEN:
         if phrase in searchable:
             errors.append(f"{path}: copy: forbidden release claim: {phrase.strip()}")
 
-    for name in ("Support URL", "Privacy URL"):
+    for name in ("Support URL", "Marketing URL", "Privacy URL"):
         value = fields.get(name, "")
         if value and not value.startswith("https://"):
             errors.append(f"{path}: {name}: must use HTTPS")
@@ -99,7 +146,7 @@ def main() -> int:
         print("usage: metadata_check.py AppStore/Metadata", file=sys.stderr)
         return 2
     root = Path(sys.argv[1]) if len(sys.argv) == 2 else Path("AppStore/Metadata")
-    paths = [root / "zh-Hant.md", root / "en-US.md"]
+    paths = [root / filename for filename in EXPECTED_LOCALES]
     errors = [error for path in paths for error in validate(path)]
     if errors:
         print("\n".join(errors), file=sys.stderr)

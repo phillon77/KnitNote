@@ -2,12 +2,12 @@
 
 - Name: KnitNote: Row Counter & PDF
 - Subtitle: Knitting with Apple Watch
-- Promotional text: Try everything free for 7 days. Count from Apple Watch, read PDF patterns, use six named counters, then unlock all your Apple devices with one purchase.
+- Promotional text: Try everything free for 7 days. Count from Apple Watch, read PDF patterns, use six named counters, then unlock iPhone, iPad, Mac, and Apple Watch with one purchase.
 - Keywords: crochet,pattern,gauge,yarn,stitch,needle,hook,journal,tracker,craft,sweater
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.2 adds a 7-day full-feature trial and one lifetime unlock across iPhone, iPad, Mac, and the paired Apple Watch.
+- What's New: KnitNote 1.4 adds complete English, Traditional Chinese, Simplified Chinese, German, French, and Japanese interfaces. Choose a language in Settings; Watch and sharing screens follow your choice.
 - Description: |
   Keep your attention on the yarn in your hands. KnitNote puts Apple Watch counting, project progress, six counters, and PDF patterns in one calm, readable workspace.
 
@@ -41,6 +41,11 @@
   • Check projects and all six counters on Apple Watch
   • Offline changes sync back to iPhone when the connection returns
 
+  Use KnitNote in your language
+  • Choose English, Traditional Chinese, Simplified Chinese, German, French, or Japanese in Settings
+  • The interface, Apple Watch, and sharing screens follow your choice
+  • Your project names, notes, journal entries, and imported patterns stay exactly as you entered them
+
   Export a complete backup and restore from the backup package you select.
 
-  One purchase. No subscription. No account or advertising. Your working data stays on your device; a backup is created only when you explicitly export one.
+  One purchase unlocks editing. No account or advertising. Your working data stays on your device; a backup is created only when you explicitly export one.

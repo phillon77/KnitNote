@@ -85,9 +85,10 @@ struct SettingsView: View {
 
     private var languagePicker: some View {
         Picker("settings.language", selection: $storedLanguage) {
-            Text("language.system").tag(LanguageSelection.system.rawValue)
-            Text("language.traditionalChinese").tag(LanguageSelection.traditionalChinese.rawValue)
-            Text("language.english").tag(LanguageSelection.english.rawValue)
+            ForEach(LanguageSelection.allCases, id: \.rawValue) { selection in
+                Text(LocalizedStringKey(selection.localizationKey))
+                    .tag(selection.rawValue)
+            }
         }
     }
 
@@ -117,9 +118,10 @@ struct SettingsView: View {
     private var settingsForm: some View {
         Form {
             Picker("settings.language", selection: $storedLanguage) {
-                Text("language.system").tag(LanguageSelection.system.rawValue)
-                Text("language.traditionalChinese").tag(LanguageSelection.traditionalChinese.rawValue)
-                Text("language.english").tag(LanguageSelection.english.rawValue)
+                ForEach(LanguageSelection.allCases, id: \.rawValue) { selection in
+                    Text(LocalizedStringKey(selection.localizationKey))
+                        .tag(selection.rawValue)
+                }
             }
 
             Section("calculator.tools.title") {

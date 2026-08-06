@@ -36,4 +36,16 @@ public enum LanguageSelection: String, CaseIterable, Codable, Sendable {
             .japanese
         }
     }
+
+    public var localizationKey: String {
+        switch self {
+        case .system: "language.system"
+        case .traditionalChinese: "language.traditionalChinese"
+        case .simplifiedChinese: "language.simplifiedChinese"
+        case .english: "language.english"
+        case .german: "language.german"
+        case .french: "language.french"
+        case .japanese: "language.japanese"
+        }
+    }
 }

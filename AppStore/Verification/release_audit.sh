@@ -6,8 +6,8 @@ cd "$ROOT"
 
 ARCHIVES=""
 MODE=""
-EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja)
-EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja"]'
+EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el)
+EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja","nb","sv","fi","da","ko","el"]'
 PROJECT_FILE="${KNITNOTE_PROJECT_FILE:-KnitNote.xcodeproj/project.pbxproj}"
 INFO_PLIST_CATALOG="${KNITNOTE_INFO_PLIST_CATALOG:-KnitNote/Localization/InfoPlist.xcstrings}"
 MAIN_INFO_PLIST="${KNITNOTE_MAIN_INFO_PLIST:-KnitNote/Info.plist}"
@@ -68,7 +68,7 @@ verify_declared_localizations() {
       (.CFBundleLocalizations | type == "array")
       and ((.CFBundleLocalizations | sort) == ($expected | sort))
     ' >/dev/null \
-    || fail "$label CFBundleLocalizations do not match the six release locales"
+    || fail "$label CFBundleLocalizations do not match the twelve release locales"
 }
 
 verify_bundle_localizations() {
@@ -146,7 +146,7 @@ verify_declared_localizations "Main source" "$MAIN_INFO_PLIST"
 verify_declared_localizations "Watch source" "$WATCH_INFO_PLIST"
 verify_declared_localizations "Share source" "$SHARE_INFO_PLIST"
 
-EXPECTED_VERSION="1.4.0"
+EXPECTED_VERSION="1.4.1"
 EXPECTED_BUILD="8"
 for target in KnitNote KnitNoteWatch KnitNoteShare; do
   version="$(jq -er --arg target "$target" \
@@ -220,7 +220,7 @@ for catalog in \
         )
     )
   ' "$catalog" >/dev/null \
-    || fail "$catalog has an incomplete six-locale variation"
+    || fail "$catalog has an incomplete twelve-locale variation"
   jq -e --argjson expected "$EXPECTED_LOCALES_JSON" '
     .sourceLanguage as $source
     | ($source == "en")
@@ -237,7 +237,7 @@ for catalog in \
         )) | sort) == ($expected | sort)
     )
   ' "$catalog" >/dev/null \
-    || fail "$catalog localization key domain does not match the six release locales"
+    || fail "$catalog localization key domain does not match the twelve release locales"
 done
 
 python3 AppStore/Verification/metadata_check.py AppStore/Metadata

@@ -17,9 +17,9 @@ import Testing
         #expect(result.output.contains("Watch bundle is missing ja.lproj"))
     }
 
-    @Test func archiveAuditRejectsExtraNorwegianWatchLocalizationDirectory() throws {
+    @Test func archiveAuditRejectsExtraSpanishWatchLocalizationDirectory() throws {
         let fixture = try makeArchiveFixture(
-            extraDirectory: (target: "Watch", locale: "nb")
+            extraDirectory: (target: "Watch", locale: "es")
         )
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
 
@@ -57,11 +57,11 @@ import Testing
         )
 
         #expect(result.status != 0)
-        #expect(result.output.contains("iOS product version is 1.3.1, expected 1.4.0"))
+        #expect(result.output.contains("iOS product version is 1.3.1, expected 1.4.1"))
     }
 
     @Test func archiveAuditRejectsPreviousBuildAcrossShippingProducts() throws {
-        let fixture = try makeArchiveFixture(version: "1.4.0", build: "7")
+        let fixture = try makeArchiveFixture(version: "1.4.1", build: "7")
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
 
         let result = try runReleaseAudit(
@@ -137,10 +137,10 @@ import Testing
         )
 
         #expect(result.status != 0)
-        #expect(result.output.contains("InfoPlist.xcstrings has an incomplete six-locale variation"))
+        #expect(result.output.contains("InfoPlist.xcstrings has an incomplete twelve-locale variation"))
     }
 
-    @Test func staticAuditRejectsInfoPlistCatalogWithExtraNorwegianLocalization() throws {
+    @Test func staticAuditRejectsInfoPlistCatalogWithExtraSpanishLocalization() throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("knitnote-extra-info-plist-locale-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: temporaryRoot) }
@@ -150,7 +150,7 @@ import Testing
         )
         let catalog = temporaryRoot.appendingPathComponent("InfoPlist.xcstrings")
         let localizations = Dictionary(
-            uniqueKeysWithValues: (releaseLocales + ["nb"]).map { locale in
+            uniqueKeysWithValues: (releaseLocales + ["es"]).map { locale in
                 (
                     locale,
                     ["stringUnit": ["state": "translated", "value": "KnitNote"]]
@@ -175,7 +175,7 @@ import Testing
         #expect(result.output.contains("InfoPlist.xcstrings localization key domain does not match"))
     }
 
-    @Test func staticAuditRejectsSourceInfoPlistWithoutSixDeclaredLocalizations() throws {
+    @Test func staticAuditRejectsSourceInfoPlistWithoutTwelveDeclaredLocalizations() throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("knitnote-source-info-plists-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: temporaryRoot) }
@@ -205,7 +205,7 @@ import Testing
         #expect(result.output.contains("Share source CFBundleLocalizations do not match"))
     }
 
-    @Test func archiveAuditAcceptsSixMatchingLocalizationsPlusBaseOnEveryShippingBundle() throws {
+    @Test func archiveAuditAcceptsTwelveMatchingLocalizationsPlusBaseOnEveryShippingBundle() throws {
         let fixture = try makeArchiveFixture()
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
 
@@ -269,7 +269,10 @@ private struct BundleFixture {
     let companionIdentifier: String?
 }
 
-private let releaseLocales = ["en", "zh-Hant", "zh-Hans", "de", "fr", "ja"]
+private let releaseLocales = [
+    "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+    "nb", "sv", "fi", "da", "ko", "el",
+]
 
 private func runReleaseAudit(
     archives: URL? = nil,
@@ -301,7 +304,7 @@ private func makeArchiveFixture(
     omittingDirectory: (target: String, locale: String)? = nil,
     extraDirectory: (target: String, locale: String)? = nil,
     localizationOverrides: [String: [String]] = [:],
-    version: String = "1.4.0",
+    version: String = "1.4.1",
     build: String = "8"
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default

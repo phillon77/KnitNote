@@ -152,6 +152,14 @@ import Testing
 
     @Test func releaseStoryboardUsesTheApprovedSixImageOrder() throws {
         let expected: [String: [String]] = [
+            "da": [
+                "1|watch-sync|Tæl fra håndleddet. Fortsæt med at strikke.|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|Læs opskrifter. Hold alle tællere synkroniseret.|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|Seks tællere. Ét roligt arbejdsområde.|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|Prøv alle funktioner gratis i 7 dage.|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|Projekter, garn og noter – samlet ét sted.|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|Ét køb. Alle dine Apple-enheder.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
             "de": [
                 "1|watch-sync|Am Handgelenk zählen. Einfach weiterstricken.|01-watch-sync.png|Apple Watch+iPhone",
                 "2|pattern-sync|Muster lesen. Alle Zähler synchron halten.|02-pattern-sync.png|iPad+iPhone+PDF",
@@ -168,6 +176,22 @@ import Testing
                 "5|organized-workspace|Projects, yarn, notes—all together.|05-organized-workspace.png|projects+yarn+notes",
                 "6|one-purchase|One purchase. All your Apple devices.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
             ],
+            "el": [
+                "1|watch-sync|Μετρήστε από τον καρπό. Συνεχίστε το πλέξιμο.|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|Διαβάστε σχέδια. Κρατήστε όλους τους μετρητές συγχρονισμένους.|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|Έξι μετρητές. Ένας ήρεμος χώρος εργασίας.|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|Δοκιμάστε όλες τις λειτουργίες δωρεάν για 7 ημέρες.|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|Έργα, νήματα και σημειώσεις — όλα μαζί.|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|Μία αγορά. Όλες οι συσκευές Apple σας.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
+            "fi": [
+                "1|watch-sync|Laske ranteesta. Jatka neulomista.|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|Lue ohjeita. Pidä kaikki laskurit synkronoituina.|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|Kuusi laskuria. Yksi rauhallinen työtila.|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|Kokeile kaikkia ominaisuuksia maksutta 7 päivää.|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|Projektit, langat ja muistiinpanot – kaikki yhdessä.|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|Yksi osto. Kaikki Apple-laitteesi.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
             "fr": [
                 "1|watch-sync|Comptez au poignet. Continuez à tricoter.|01-watch-sync.png|Apple Watch+iPhone",
                 "2|pattern-sync|Lisez vos patrons. Gardez chaque compteur synchronisé.|02-pattern-sync.png|iPad+iPhone+PDF",
@@ -183,6 +207,30 @@ import Testing
                 "4|seven-day-trial|すべての機能を7日間無料でお試し。|04-seven-day-trial.png|trial+7 days",
                 "5|organized-workspace|作品、毛糸、メモをひとまとめに。|05-organized-workspace.png|projects+yarn+notes",
                 "6|one-purchase|1回の購入で、すべてのAppleデバイスに。|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
+            "ko": [
+                "1|watch-sync|손목에서 세고, 뜨개질을 계속하세요.|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|도안을 읽고, 모든 카운터를 동기화하세요.|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|6개 카운터. 차분한 작업 공간.|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|모든 기능을 7일 동안 무료로 사용해 보세요.|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|프로젝트, 실, 메모를 한곳에.|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|한 번 구매로 모든 Apple 기기에서.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
+            "nb": [
+                "1|watch-sync|Tell fra håndleddet. Fortsett å strikke.|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|Les mønstre. Hold alle tellerne synkronisert.|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|Seks tellere. Ett rolig arbeidsområde.|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|Prøv alle funksjonene gratis i 7 dager.|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|Prosjekter, garn og notater – alt samlet.|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|Ett kjøp. Alle Apple-enhetene dine.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
+            ],
+            "sv": [
+                "1|watch-sync|Räkna från handleden. Fortsätt sticka.|01-watch-sync.png|Apple Watch+iPhone",
+                "2|pattern-sync|Läs mönster. Håll alla räknare synkroniserade.|02-pattern-sync.png|iPad+iPhone+PDF",
+                "3|six-counters|Sex räknare. En lugn arbetsyta.|03-six-counters.png|iPhone+six named counters",
+                "4|seven-day-trial|Prova alla funktioner gratis i 7 dagar.|04-seven-day-trial.png|trial+7 days",
+                "5|organized-workspace|Projekt, garn och anteckningar – allt samlat.|05-organized-workspace.png|projects+yarn+notes",
+                "6|one-purchase|Ett köp. Alla dina Apple-enheter.|06-one-purchase.png|one purchase+iPhone+iPad+Mac+Apple Watch",
             ],
             "zh-Hans": [
                 "1|watch-sync|从手腕计数，编织不中断。|01-watch-sync.png|Apple Watch+iPhone",
@@ -244,7 +292,7 @@ import Testing
             ]
         )
         #expect(validation.status == 0)
-        #expect(validation.output.contains("84 screenshot definitions valid"))
+        #expect(validation.output.contains("168 screenshot definitions valid"))
     }
 
     @Test func captureEntrypointIgnoresArmedParentEnvironment() throws {
@@ -431,4 +479,7 @@ private let screenshotRepositoryRoot = URL(filePath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
 
-private let releaseScreenshotLocales = ["en", "zh-Hant", "zh-Hans", "de", "fr", "ja"]
+private let releaseScreenshotLocales = [
+    "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+    "nb", "sv", "fi", "da", "ko", "el",
+]

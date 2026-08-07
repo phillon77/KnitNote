@@ -12,7 +12,10 @@ from PIL import Image
 
 
 DENYLIST = ("lzz.1999", "/Users/", "IMG_", "截圖", "GPSLatitude", "GPSLongitude")
-EXPECTED_LOCALES = ("en", "zh-Hant", "zh-Hans", "de", "fr", "ja")
+EXPECTED_LOCALES = (
+    "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+    "nb", "sv", "fi", "da", "ko", "el",
+)
 EXPECTED_COUNTS = {"iphone": 5, "ipad": 4, "mac": 3, "watch": 2}
 EXPECTED_SIZES = {
     "iphone": (1320, 2868),
@@ -81,6 +84,13 @@ def validate_manifest(frames: list[dict]) -> None:
                 for char in headline
             ):
                 fail(f"{frame['filename']} is missing a Japanese headline")
+            if locale == "ko" and not any("\uac00" <= char <= "\ud7a3" for char in headline):
+                fail(f"{frame['filename']} is missing a Korean headline")
+            if locale == "el" and not any(
+                "\u0370" <= char <= "\u03ff" or "\u1f00" <= char <= "\u1fff"
+                for char in headline
+            ):
+                fail(f"{frame['filename']} is missing a Greek headline")
 
 
 def validate_images(root: Path, frames: list[dict]) -> None:

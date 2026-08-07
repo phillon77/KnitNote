@@ -8,6 +8,12 @@ public enum StoreScreenshotLanguage: String, CaseIterable, Sendable {
     case de
     case fr
     case ja
+    case nb
+    case sv
+    case fi
+    case da
+    case ko
+    case el
 }
 
 public enum StoreScreenshotScene: String, CaseIterable, Sendable {

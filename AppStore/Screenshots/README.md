@@ -1,6 +1,6 @@
 # KnitNote App Store screenshots
 
-This directory produces 84 screenshot definitions: 14 each for English, Traditional Chinese, Simplified Chinese, German, French, and Japanese. Captures use deterministic synthetic app data, never read the live Application Support store, and never use family photos. The added release locales reuse the existing English user-authored fixture text while the app chrome follows the selected locale, so the tooling does not imply that language switching translates user data.
+This directory produces 168 screenshot definitions: 14 each for English, Traditional Chinese, Simplified Chinese, German, French, Japanese, Norwegian Bokmål, Swedish, Finnish, Danish, Korean, and Greek. Captures use deterministic synthetic app data, never read the live Application Support store, and never use family photos. Every release locale reuses the same English user-authored fixture text while the app chrome follows the selected locale, so the tooling does not imply that language switching translates user data.
 
 ## One-time setup
 
@@ -46,7 +46,7 @@ AppStore/Screenshots/capture.sh ja
 /tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/validate.py AppStore/Screenshots/manifest.json
 ```
 
-To check all 84 definitions before raw captures exist, append `--manifest-only`.
+To check all 168 definitions before raw captures exist, append `--manifest-only`.
 
 Raw captures are written under `Raw/`. Final opaque RGB files are written under `Generated/<locale>/<platform>/`. The composition keeps at least 79% of every frame as real UI, with the headline and restrained watercolor accents limited to the outer margin.
 
@@ -58,6 +58,6 @@ Before upload, inspect every generated frame at 100% and verify:
 - status bars are deterministic and no control, pattern, counter, or note is covered;
 - no personal names, email addresses, local file paths, photos, or GPS metadata appear;
 - the screenshot is a faithful representation of the shipped app;
-- `validate.py` prints `84 screenshots valid`.
+- `validate.py` prints `168 screenshots valid`.
 
 `Raw/` is transient and must not be committed. Commit final `Generated/` files only after visual approval.

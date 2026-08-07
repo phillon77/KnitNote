@@ -15,7 +15,7 @@ import Testing
             let settings = try #require(target["settings"] as? [String: Any])
 
             #expect(settings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == identity.bundleIdentifier)
-            #expect(settings["MARKETING_VERSION"] as? String == "1.4.0")
+            #expect(settings["MARKETING_VERSION"] as? String == "1.4.1")
             #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "8")
         }
     }
@@ -40,7 +40,7 @@ import Testing
 
             #expect(settings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == product.bundleIdentifier)
             #expect(settings["INFOPLIST_FILE"] as? String == product.infoPlist)
-            #expect(settings["MARKETING_VERSION"] as? String == "1.4.0")
+            #expect(settings["MARKETING_VERSION"] as? String == "1.4.1")
             #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "8")
         }
     }
@@ -52,7 +52,10 @@ import Testing
         )
         let project = try #require(payload as? [String: Any])
         let targets = try #require(project["targets"] as? [String: Any])
-        let expectedLocales = ["en", "zh-Hant", "zh-Hans", "de", "fr", "ja"]
+        let expectedLocales = [
+            "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+            "nb", "sv", "fi", "da", "ko", "el",
+        ]
 
         for identity in shippingTargetIdentities {
             let target = try #require(targets[identity.target] as? [String: Any])

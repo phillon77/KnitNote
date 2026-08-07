@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST="$ROOT/manifest.json"
 LOCALE="${1:-}"
-SUPPORTED_LOCALES=(en zh-Hant zh-Hans de fr ja)
-LOCALE_USAGE='en|zh-Hant|zh-Hans|de|fr|ja'
+SUPPORTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el)
+LOCALE_USAGE='en|zh-Hant|zh-Hans|de|fr|ja|nb|sv|fi|da|ko|el'
 
 locale_is_supported() {
   local candidate="$1" supported
@@ -91,6 +91,12 @@ prepare_device() {
     de) region="de_DE" ;;
     fr) region="fr_FR" ;;
     ja) region="ja_JP" ;;
+    nb) region="nb_NO" ;;
+    sv) region="sv_SE" ;;
+    fi) region="fi_FI" ;;
+    da) region="da_DK" ;;
+    ko) region="ko_KR" ;;
+    el) region="el_GR" ;;
     *) echo "unsupported screenshot locale: $locale" >&2; return 2 ;;
   esac
   xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true

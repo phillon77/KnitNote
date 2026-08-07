@@ -20,6 +20,12 @@
 		<string>de</string>
 		<string>fr</string>
 		<string>ja</string>
+		<string>nb</string>
+		<string>sv</string>
+		<string>fi</string>
+		<string>da</string>
+		<string>ko</string>
+		<string>el</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>

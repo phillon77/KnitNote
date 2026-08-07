@@ -69,6 +69,42 @@ import UniformTypeIdentifiers
     #expect(JSONProjectStore(url: url).project(id: projectID)?.isCompleted == false)
 }
 
+@MainActor
+@Test func completedProjectDeletionIsRejectedWithoutChangingStoredData() throws {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CompletedDeletion-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Finished cardigan")
+    let projectID = try #require(store.projects.first?.id)
+    try store.markCompleted(projectID: projectID)
+    let archiveBefore = try Data(contentsOf: url)
+
+    #expect(throws: ProjectDeletionError.projectCompleted) {
+        try store.delete(id: projectID)
+    }
+
+    #expect(store.project(id: projectID)?.isCompleted == true)
+    #expect(try Data(contentsOf: url) == archiveBefore)
+}
+
+@MainActor
+@Test func resumedProjectCanBeDeleted() throws {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ResumedDeletion-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Finished cardigan")
+    let projectID = try #require(store.projects.first?.id)
+    try store.markCompleted(projectID: projectID)
+    try store.resumeProject(projectID: projectID)
+
+    try store.delete(id: projectID)
+
+    #expect(store.project(id: projectID) == nil)
+    #expect(JSONProjectStore(url: url).project(id: projectID) == nil)
+}
+
 @MainActor @Test func legacyArchiveLoadsWithEmptyYarnLibrary() throws {
     let storeURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let projectData = try JSONEncoder().encode(try StoredProject(name: "Scarf"))

@@ -91,6 +91,10 @@ public enum ProjectYarnLinkError: Error, Equatable, Sendable {
     case projectCompleted
 }
 
+public enum ProjectDeletionError: Error, Equatable, Sendable {
+    case projectCompleted
+}
+
 public typealias MutationAuthorizer = @MainActor (FeatureMutation) -> FeatureAccessDecision
 public typealias MutationSuccessCommitter = @MainActor (FeatureMutation) -> FeatureAccessDecision
 
@@ -823,8 +827,10 @@ final class PatternLibraryDeletionTransaction {
     }
     public func delete(id: UUID) throws {
         try requireAccess(.deleteProject)
-        let deletedProject = projects.first(where: { $0.id == id })
-        guard let deletedProject else { return }
+        guard let deletedProject = projects.first(where: { $0.id == id }) else { return }
+        guard !deletedProject.isCompleted else {
+            throw ProjectDeletionError.projectCompleted
+        }
         let filename = deletedProject.photoFilename
         let journalFilenames = Set(deletedProject.journalEntries.flatMap {
             [$0.photoFilename, $0.thumbnailFilename]

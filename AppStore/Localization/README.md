@@ -1,6 +1,6 @@
 # KnitNote terminology glossary
 
-`KnittingTerminology.csv` is the human-reviewed terminology source of truth for KnitNote 1.4.0 translators and String Catalog reviews. Each row expresses one semantic meaning across English, Traditional Chinese, Simplified Chinese, German, French, and Japanese.
+`KnittingTerminology.csv` is the human-reviewed terminology source of truth for KnitNote 1.4.1 translators and String Catalog reviews. Each row expresses one semantic meaning across English, Traditional Chinese, Simplified Chinese, German, French, Japanese, Norwegian Bokmål, Swedish, Finnish, Danish, Korean, and modern Greek.
 
 English defines a row's semantic intent. Simplified Chinese starts with a Traditional Chinese conversion only as a drafting aid, then is rewritten and reviewed for natural Mainland knitting usage; it must never be treated as character-for-character conversion.
 

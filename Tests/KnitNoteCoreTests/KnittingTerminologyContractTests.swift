@@ -3,13 +3,16 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct KnittingTerminologyContractTests {
-    @Test func terminologyContainsEveryVersion140LanguageAndUniqueKey() throws {
+    @Test func terminologyContainsEveryVersion141LanguageAndUniqueKey() throws {
         let table = try TerminologyTable.load(from: terminologyURL)
 
-        #expect(table.headers == ["key", "en", "zh-Hant", "zh-Hans", "de", "fr", "ja"])
+        #expect(table.headers == [
+            "key", "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+            "nb", "sv", "fi", "da", "ko", "el",
+        ])
         #expect(Set(table.rows.map(\.key)).count == table.rows.count)
         #expect(table.rows.allSatisfy { row in
-            SupportedLocalization.v140Identifiers.allSatisfy { !(row[$0] ?? "").isEmpty }
+            table.headers.dropFirst().allSatisfy { !(row[$0] ?? "").isEmpty }
         })
     }
 

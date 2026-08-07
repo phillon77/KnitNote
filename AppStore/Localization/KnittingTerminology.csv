@@ -1,14 +1,14 @@
-key,en,zh-Hant,zh-Hans,de,fr,ja
-pattern,Pattern,織圖,图解,Muster,Patron,編み図
-stitch,Stitch,針,针,Masche,Maille,目
-row,Row,排,行,Reihe,Rang,段
-round,Round,圈,圈,Runde,Tour,周
-gauge,Gauge,密度,密度,Maschenprobe,Échantillon,ゲージ
-increase,Increase,加針,加针,Zunahme,Augmentation,増し目
-decrease,Decrease,減針,减针,Abnahme,Diminution,減らし目
-knittingNeedle,Knitting needle,棒針,棒针,Stricknadel,Aiguille à tricoter,棒針
-crochetHook,Crochet hook,鉤針,钩针,Häkelnadel,Crochet,かぎ針
-yarn,Yarn,毛線,毛线,Garn,Fil,毛糸
-swatch,Swatch,樣片,小样,Maschenprobe,Échantillon,スワッチ
-counter,Counter,計數器,计数器,Zähler,Compteur,カウンター
-highlight,Highlight,高亮線,高亮线,Markierung,Surlignage,ハイライト
+key,en,zh-Hant,zh-Hans,de,fr,ja,nb,sv,fi,da,ko,el
+pattern,Pattern,織圖,图解,Muster,Patron,編み図,Mønster,Mönster,Ohje,Opskrift,도안,Σχέδιο
+stitch,Stitch,針,针,Masche,Maille,目,Maske,Maska,Silmukka,Maske,코,Πόντος
+row,Row,排,行,Reihe,Rang,段,Rad,Varv,Kerros,Pind,단,Σειρά
+round,Round,圈,圈,Runde,Tour,周,Omgång,Varv,Kierros,Omgang,라운드,Γύρος
+gauge,Gauge,密度,密度,Maschenprobe,Échantillon,ゲージ,Strikkefasthet,Masktäthet,Neuletiheys,Strikkefasthed,게이지,Δείγμα πλέξης
+increase,Increase,加針,加针,Zunahme,Augmentation,増し目,Økning,Ökning,Lisäys,Udtagning,코 늘리기,Αύξηση
+decrease,Decrease,減針,减针,Abnahme,Diminution,減らし目,Felling,Minskning,Kavennus,Indtagning,코 줄이기,Μείωση
+knittingNeedle,Knitting needle,棒針,棒针,Stricknadel,Aiguille à tricoter,棒針,Strikkepinne,Sticka,Neulepuikko,Strikkepind,대바늘,Βελόνα πλεξίματος
+crochetHook,Crochet hook,鉤針,钩针,Häkelnadel,Crochet,かぎ針,Heklenål,Virknål,Virkkuukoukku,Hæklenål,코바늘,Βελονάκι
+yarn,Yarn,毛線,毛线,Garn,Fil,毛糸,Garn,Garn,Lanka,Garn,실,Νήμα
+swatch,Swatch,樣片,小样,Maschenprobe,Échantillon,スワッチ,Strikkeprøve,Stickprov,Mallitilkku,Strikkeprøve,스와치,Δείγμα
+counter,Counter,計數器,计数器,Zähler,Compteur,カウンター,Teller,Räknare,Laskuri,Tæller,카운터,Μετρητής
+highlight,Highlight,高亮線,高亮线,Markierung,Surlignage,ハイライト,Utheving,Markering,Korostus,Fremhævning,강조,Επισήμανση

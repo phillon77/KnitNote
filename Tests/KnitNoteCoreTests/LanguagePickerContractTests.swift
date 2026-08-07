@@ -24,6 +24,12 @@ import Testing
             .german: "language.german",
             .french: "language.french",
             .japanese: "language.japanese",
+            .norwegianBokmal: "language.norwegianBokmal",
+            .swedish: "language.swedish",
+            .finnish: "language.finnish",
+            .danish: "language.danish",
+            .korean: "language.korean",
+            .greek: "language.greek",
         ]
 
         #expect(expectedKeys.count == LanguageSelection.allCases.count)

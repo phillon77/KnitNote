@@ -18,9 +18,23 @@ import Testing
             .resolvedLanguage(systemLanguages: [identifier]) == expected)
     }
 
+    @Test(arguments: [
+        ("nb-NO", AppLanguage.norwegianBokmal),
+        ("no-NO", AppLanguage.norwegianBokmal),
+        ("sv-SE", AppLanguage.swedish),
+        ("fi-FI", AppLanguage.finnish),
+        ("da-DK", AppLanguage.danish),
+        ("ko-KR", AppLanguage.korean),
+        ("el-GR", AppLanguage.greek),
+    ])
+    func followsVersion141SystemLanguages(identifier: String, expected: AppLanguage) {
+        #expect(LanguageSettings(selection: .system)
+            .resolvedLanguage(systemLanguages: [identifier]) == expected)
+    }
+
     @Test func unsupportedSystemLanguageFallsBackToEnglish() {
         #expect(LanguageSettings(selection: .system)
-            .resolvedLanguage(systemLanguages: ["ko-KR"]) == .english)
+            .resolvedLanguage(systemLanguages: ["it-IT"]) == .english)
     }
 
     @Test func explicitChoiceOverridesSystem() {
@@ -71,5 +85,15 @@ import Testing
         )
         #expect(locale.language.languageCode?.identifier == "de")
         #expect(locale.region?.identifier == "CA")
+    }
+
+    @Test func version141IdentifiersExtendVersion140WithoutChangingHistory() {
+        #expect(SupportedLocalization.v140Identifiers == [
+            "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+        ])
+        #expect(SupportedLocalization.v141Identifiers == [
+            "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+            "nb", "sv", "fi", "da", "ko", "el",
+        ])
     }
 }

@@ -48,6 +48,12 @@ public final class LanguageSettings {
         case "fr": return .french
         case "ja": return .japanese
         case "en": return .english
+        case "nb", "no": return .norwegianBokmal
+        case "sv": return .swedish
+        case "fi": return .finnish
+        case "da": return .danish
+        case "ko": return .korean
+        case "el": return .greek
         default: return .english
         }
     }

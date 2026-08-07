@@ -7,4 +7,6 @@ public enum SupportedLocalization {
         "fr",
         "ja",
     ]
+
+    public static let v141Identifiers = v140Identifiers + ["nb", "sv", "fi", "da", "ko", "el"]
 }

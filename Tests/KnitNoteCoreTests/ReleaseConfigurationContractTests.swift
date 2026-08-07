@@ -315,7 +315,7 @@ import Testing
     @Test func archiveAuditReadsSignedAppGroupEntitlementsFromAppAndShare() throws {
         let script = try sourceText("AppStore/Verification/release_audit.sh")
 
-        #expect(script.contains("codesign -d --entitlements :-"))
+        #expect(script.contains("\"$CODESIGN\" -d --entitlements :-"))
         #expect(script.contains("verify_signed_app_group \"$IOS\""))
         #expect(script.contains("verify_signed_app_group \"$SHARE\""))
     }

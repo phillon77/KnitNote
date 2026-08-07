@@ -5,10 +5,14 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+from provenance import atomic_write, create_generated, verify_raw
 
 
 BERRY = (166, 57, 115)
@@ -80,7 +84,7 @@ def draw_flower(draw: ImageDraw.ImageDraw, center: tuple[int, int], radius: int)
     draw.ellipse((x - radius * .42, y - radius * .42, x + radius * .42, y + radius * .42), fill=(249, 195, 83, 235))
 
 
-def compose_frame(frame: dict, root: Path) -> Path:
+def compose_frame(frame: dict, root: Path, generated: Path | None = None) -> Path:
     width, height = frame["width"], frame["height"]
     raw_path = root / "Raw" / frame["locale"] / frame["platform"] / frame["filename"]
     if not raw_path.is_file():
@@ -122,13 +126,14 @@ def compose_frame(frame: dict, root: Path) -> Path:
     draw_flower(accent_draw, (int(width * .945), max(flower_radius * 2, int(top * .56))), flower_radius)
     canvas.paste(accent, mask=accent.getchannel("A"))
 
-    output = root / "Generated" / frame["locale"] / frame["platform"] / frame["filename"]
+    output = (generated or root / "Generated") / frame["locale"] / frame["platform"] / frame["filename"]
     output.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(output, format="PNG", optimize=True)
     return output
 
 
-def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
+def make_contact_sheet(locale: str, frames: list[dict], root: Path, generated: Path | None = None) -> Path:
+    generated = generated or root / "Generated"
     columns = 4
     cell_width, cell_height = 360, 470
     rows = math.ceil(len(frames) / columns)
@@ -136,7 +141,7 @@ def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
     draw = ImageDraw.Draw(sheet)
     caption_font = font_for(locale, 20)
     for index, frame in enumerate(frames):
-        source_path = root / "Generated" / locale / frame["platform"] / frame["filename"]
+        source_path = generated / locale / frame["platform"] / frame["filename"]
         with Image.open(source_path) as source:
             thumbnail = ImageOps.contain(source.convert("RGB"), (cell_width - 28, cell_height - 68))
         x = index % columns * cell_width + (cell_width - thumbnail.width) // 2
@@ -144,7 +149,7 @@ def make_contact_sheet(locale: str, frames: list[dict], root: Path) -> Path:
         sheet.paste(thumbnail, (x, y))
         caption = f"{index + 1:02d} · {frame['platform']}"
         draw.text((index % columns * cell_width + 14, y + thumbnail.height + 12), caption, font=caption_font, fill=INK)
-    output = root / "Generated" / locale / "contact-sheet.jpg"
+    output = generated / locale / "contact-sheet.jpg"
     output.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(output, format="JPEG", quality=90, optimize=True)
     return output
@@ -156,14 +161,31 @@ def main() -> int:
         return 2
     manifest_path = Path(sys.argv[1]).resolve()
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    root = manifest_path.parent
+    generated = root / "Generated"
+    staging = Path(tempfile.mkdtemp(prefix=".Generated.staging.", dir=root))
+    previous = root / f".Generated.previous.{os.getpid()}"
     try:
+        verify_raw(manifest_path, root / "Raw")
         for frame in payload["frames"]:
-            print(compose_frame(frame, manifest_path.parent))
+            print(compose_frame(frame, root, staging))
         locales = list(dict.fromkeys(frame["locale"] for frame in payload["frames"]))
         for locale in locales:
             localized_frames = [frame for frame in payload["frames"] if frame["locale"] == locale]
-            print(make_contact_sheet(locale, localized_frames, manifest_path.parent))
+            print(make_contact_sheet(locale, localized_frames, root, staging))
+        provenance = create_generated(manifest_path, root / "Raw", staging, Path(__file__).resolve())
+        atomic_write(staging / "candidate-provenance.json", provenance)
+        if generated.exists():
+            os.replace(generated, previous)
+        try:
+            os.replace(staging, generated)
+        except BaseException:
+            if previous.exists() and not generated.exists():
+                os.replace(previous, generated)
+            raise
+        shutil.rmtree(previous, ignore_errors=True)
     except (KeyError, OSError, ValueError) as error:
+        shutil.rmtree(staging, ignore_errors=True)
         print(f"SCREENSHOT COMPOSITION: FAIL — {error}", file=sys.stderr)
         return 1
     return 0

@@ -41,12 +41,12 @@ export IPHONE_UDID='<dedicated iPhone 17 Pro Max UDID>'
 export IPAD_UDID='<dedicated iPad Pro 13-inch UDID>'
 export WATCH_UDID='<dedicated Apple Watch 46mm UDID>'
 CANDIDATE_COMMIT="$(git rev-parse HEAD)"
-AppStore/Screenshots/capture.sh --all-locales "$CANDIDATE_COMMIT"
+AppStore/Screenshots/capture.sh --all-locales "$CANDIDATE_COMMIT" 1.4.1 8
 /tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/compose.py AppStore/Screenshots/manifest.json
 /tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/validate.py AppStore/Screenshots/manifest.json
 ```
 
-The all-locales command refuses a dirty or different revision and requires the iOS, Watch, and Mac screenshot products to embed that same `KnitNoteSourceRevision`. It captures all twelve locales into a sibling staging directory, then replaces the complete `Raw/` set and writes `Raw/candidate-provenance.json` only after every locale succeeds. A partial run leaves both the prior images and prior provenance unchanged.
+The all-locales command refuses a dirty or different revision and requires canonical identifiers plus exact `1.4.1 (8)` and `KnitNoteSourceRevision` in the iOS, Watch, and Mac products. It hashes all three executables before capture, rechecks product identity and hashes afterward, binds all 168 raw files and the exact manifest bytes, then atomically publishes `Raw/` with its provenance. Composition authenticates that evidence, renders into staging, and atomically publishes `Generated/` with durable provenance and hashes for all 168 upload images. A failed capture or composition preserves the prior complete directory.
 
 To check all 168 definitions before raw captures exist, append `--manifest-only`.
 
@@ -62,4 +62,4 @@ Before upload, inspect every generated frame at 100% and verify:
 - the screenshot is a faithful representation of the shipped app;
 - `validate.py` prints `168 screenshots valid`.
 
-`Raw/` is transient and must not be committed. Commit final `Generated/` files only after visual approval.
+`Raw/` is transient and must not be committed. Keep `Generated/candidate-provenance.json` beside any approved final images; it retains the authenticated raw inventory and product evidence, so full validation can still verify the final 168-image set after `Raw/` is removed. Commit final `Generated/` files only after visual approval.

@@ -9,6 +9,9 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     DEVELOPMENT_TEAM: 9CFPAUL5N5
+  configs:
+    Debug:
+      KNITNOTE_SOURCE_REVISION: UNSET
 targets:
   KnitNote:
     type: application
@@ -71,7 +74,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
         MARKETING_VERSION: 1.4.1
         CURRENT_PROJECT_VERSION: 8
-        KNITNOTE_SOURCE_REVISION: UNSET
         PRODUCT_NAME: KnitNote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": KnitNote/KnitNote-macOS.entitlements
@@ -118,7 +120,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
         MARKETING_VERSION: 1.4.1
         CURRENT_PROJECT_VERSION: 8
-        KNITNOTE_SOURCE_REVISION: UNSET
         PRODUCT_NAME: KnitNoteWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   KnitNoteShare:
@@ -168,7 +169,6 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KnitNoteShare/KnitNoteShare.entitlements
         MARKETING_VERSION: 1.4.1
         CURRENT_PROJECT_VERSION: 8
-        KNITNOTE_SOURCE_REVISION: UNSET
         PRODUCT_NAME: KnitNoteShare
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES

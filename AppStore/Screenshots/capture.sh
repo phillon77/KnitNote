@@ -13,40 +13,51 @@ RAW_ROOT="${KNITNOTE_SCREENSHOT_RAW_ROOT:-$ROOT/Raw}"
 
 if [[ "${1:-}" == "--all-locales" ]]; then
   EXPECTED_COMMIT="${2:-}"
-  [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 --all-locales CANDIDATE_COMMIT" >&2; exit 2; }
+  EXPECTED_VERSION="${3:-}"
+  EXPECTED_BUILD="${4:-}"
+  [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ && -n "$EXPECTED_VERSION" && -n "$EXPECTED_BUILD" ]] || { echo "usage: $0 --all-locales CANDIDATE_COMMIT VERSION BUILD" >&2; exit 2; }
   [[ "$(git rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] || { echo "candidate commit does not match HEAD" >&2; exit 1; }
   [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || { echo "candidate worktree is dirty" >&2; exit 1; }
-  for product in \
-    "iOS|$IOS_APP/Info.plist" \
-    "Watch|$WATCH_APP/Info.plist" \
-    "macOS|$MAC_APP/Contents/Info.plist"; do
-    label="${product%%|*}"
-    plist="${product#*|}"
-    [[ -f "$plist" ]] || { echo "$label screenshot product Info.plist is missing" >&2; exit 1; }
-    [[ "$(/usr/libexec/PlistBuddy -c 'Print :KnitNoteSourceRevision' "$plist")" == "$EXPECTED_COMMIT" ]] \
-      || { echo "$label screenshot product does not match candidate commit" >&2; exit 1; }
-  done
   RUNNER="${KNITNOTE_SCREENSHOT_CAPTURE_RUNNER:-$0}"
   mkdir -p "$(dirname "$RAW_ROOT")"
   STAGING="$(mktemp -d "$(dirname "$RAW_ROOT")/.Raw.staging.XXXXXX")"
   PREVIOUS="$(dirname "$RAW_ROOT")/.Raw.previous.$$"
-  trap 'rm -rf "$STAGING" "$PREVIOUS"' EXIT
+  SNAPSHOT="$STAGING/.product-snapshot.json"
+  python3 "$ROOT/provenance.py" snapshot --commit "$EXPECTED_COMMIT" --version "$EXPECTED_VERSION" --build "$EXPECTED_BUILD" \
+    --ios-app "$IOS_APP" --watch-app "$WATCH_APP" --macos-app "$MAC_APP" --output "$SNAPSHOT"
+  published=0
+  cleanup_all_locales() {
+    if [[ "$published" == 0 && -e "$PREVIOUS" ]]; then
+      rm -rf "$RAW_ROOT"
+      mv "$PREVIOUS" "$RAW_ROOT"
+    fi
+    rm -rf "$STAGING"
+    [[ "$published" == 1 ]] && rm -rf "$PREVIOUS"
+  }
+  trap cleanup_all_locales EXIT
   for locale in "${SUPPORTED_LOCALES[@]}"; do
     KNITNOTE_SCREENSHOT_RAW_ROOT="$STAGING" "$RUNNER" "$locale"
   done
-  python3 - "$STAGING/candidate-provenance.json" "$EXPECTED_COMMIT" "${SUPPORTED_LOCALES[@]}" <<'PY'
+  [[ "$(git rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] || { echo "candidate HEAD changed during capture" >&2; exit 1; }
+  [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || { echo "candidate worktree changed during capture" >&2; exit 1; }
+  python3 "$ROOT/provenance.py" create-raw --manifest "$MANIFEST" --raw-root "$STAGING" \
+    --commit "$EXPECTED_COMMIT" --version "$EXPECTED_VERSION" --build "$EXPECTED_BUILD" \
+    --ios-app "$IOS_APP" --watch-app "$WATCH_APP" --macos-app "$MAC_APP" \
+    --output "$STAGING/candidate-provenance.json"
+  python3 - "$SNAPSHOT" "$STAGING/candidate-provenance.json" <<'PY'
 import json, sys
-path, commit, *locales = sys.argv[1:]
-with open(path, "w", encoding="utf-8") as output:
-    json.dump({"candidateCommit": commit, "locales": locales}, output, ensure_ascii=False, indent=2)
-    output.write("\n")
+before = json.load(open(sys.argv[1], encoding="utf-8"))
+after = json.load(open(sys.argv[2], encoding="utf-8"))["products"]
+raise SystemExit(0 if before == after else "screenshot products changed during capture")
 PY
+  rm -f "$SNAPSHOT"
   if [[ -e "$RAW_ROOT" ]]; then mv "$RAW_ROOT" "$PREVIOUS"; fi
   if ! mv "$STAGING" "$RAW_ROOT"; then
     [[ -e "$PREVIOUS" ]] && mv "$PREVIOUS" "$RAW_ROOT"
     exit 1
   fi
-  rm -rf "$PREVIOUS"
+  published=1
+  cleanup_all_locales
   trap - EXIT
   echo "All-locale captures complete for $EXPECTED_COMMIT"
   exit 0

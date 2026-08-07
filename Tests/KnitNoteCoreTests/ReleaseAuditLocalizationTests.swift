@@ -105,21 +105,26 @@ import Testing
     @Test func staticAuditRejectsAnyAdditionalTopLevelSharedBuildableProject() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("knitnote-project-inventory-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
-        for name in ["KnitNote.xcodeproj", "KnitNote 2.xcodeproj"] {
+        for (name, schemeNames) in [
+            ("KnitNote.xcodeproj", ["KnitNote", "KnitNoteWatch", "KnitNoteShare"]),
+            ("Archive.xcodeproj", ["KnitNote"]),
+        ] {
             let schemes = root.appendingPathComponent(name).appendingPathComponent("xcshareddata/xcschemes")
             try FileManager.default.createDirectory(
                 at: schemes,
                 withIntermediateDirectories: true
             )
-            try "<Scheme/>".write(
-                to: schemes.appendingPathComponent("KnitNote.xcscheme"),
-                atomically: true,
-                encoding: .utf8
-            )
+            for schemeName in schemeNames {
+                try "<Scheme/>".write(
+                    to: schemes.appendingPathComponent("\(schemeName).xcscheme"),
+                    atomically: true,
+                    encoding: .utf8
+                )
+            }
         }
         let result = try runReleaseAudit(environment: ["KNITNOTE_PROJECT_SCAN_ROOT": root.path])
         #expect(result.status != 0)
-        #expect(result.output.contains("top-level shared buildable projects must be only KnitNote.xcodeproj"))
+        #expect(result.output.contains("top-level Xcode project and shared scheme inventory is not canonical"))
     }
 
     @Test func staticAuditRejectsIncompleteInfoPlistCatalog() throws {
@@ -235,19 +240,25 @@ import Testing
         )
 
         #expect(result.status == 0)
-        #expect(result.output.contains("RELEASE AUDIT: PASS"))
+        #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
+        #expect(!result.output.split(separator: "\n").contains("RELEASE AUDIT: PASS"))
     }
 
     @Test func archiveAuditRejectsWrongRevisionEmptyLocalePrivacyDriftAndWrongSigning() throws {
         let cases: [(ArchiveFixture, String)] = [
             (try makeArchiveFixture(sourceRevision: String(repeating: "b", count: 40)), "product source revision"),
-            (try makeArchiveFixture(emptyResource: ("Watch", "el")), "has no non-empty localized resource"),
+            (try makeArchiveFixture(emptyResource: ("Watch", "el")), "Localizable.strings is not a valid compiled localization table"),
             (try makeArchiveFixture(privacyTracking: true), "declares tracking or collected data"),
             (try makeArchiveFixture(privacyReasonDrift: true), "differs semantically from source"),
             (try makeArchiveFixture(signingTeam: "BADTEAM123"), "signature team is not 9CFPAUL5N5"),
-            (try makeArchiveFixture(profileIdentifierOverride: "9CFPAUL5N5.com.phillon.WrongApp"), "provisioning profile is not App Store distribution"),
+            (try makeArchiveFixture(profileIdentifierOverride: "9CFPAUL5N5.com.phillon.WrongApp"), "provisioning profile is expired or is not App Store distribution"),
             (try makeArchiveFixture(profileCertificate: "different-certificate"), "signing certificate is not present"),
-            (try makeArchiveFixture(provenancePathOverride: "../unrelated"), "paths do not match canonical"),
+            (try makeArchiveFixture(provenancePathOverride: "../unrelated"), "provenance sourceCommit or deterministic archive inventory mismatch"),
+            (try makeArchiveFixture(mutateAfterProvenance: true), "deterministic archive inventory mismatch"),
+            (try makeArchiveFixture(profileExpired: true), "provisioning profile is expired"),
+            (try makeArchiveFixture(profileMissing: true), "embedded provisioning profile is missing"),
+            (try makeArchiveFixture(codesignFailure: true), "signature verification failed"),
+            (try makeArchiveFixture(signedIdentifierOverride: "9CFPAUL5N5.com.phillon.WrongApp"), "signed entitlements do not match"),
             (try makeArchiveFixture(gitHead: String(repeating: "b", count: 40)), "expected source revision does not match"),
             (try makeArchiveFixture(dirtySource: true), "source worktree is dirty"),
         ]
@@ -268,6 +279,32 @@ import Testing
         #expect(result.status == 0)
         #expect(outputLines.contains("STATIC RELEASE AUDIT: PASS"))
         #expect(!outputLines.contains("RELEASE AUDIT: PASS"))
+    }
+
+    @Test func productionAuditRejectsFixtureOverridesBeforeEmittingAPassMarker() throws {
+        let result = try runReleaseAudit(
+            arguments: ["--static-only"],
+            environment: [:],
+            productionEnvironment: ["KNITNOTE_AUDIT_GIT_ROOT": "/tmp/unrelated"]
+        )
+        #expect(result.status != 0)
+        #expect(result.output.contains("production audit rejects override KNITNOTE_AUDIT_GIT_ROOT"))
+        #expect(!result.output.contains("RELEASE AUDIT: PASS"))
+    }
+
+    @Test func supportedCandidateCreatorBindsBothSignedArchivesAndProvenanceBeforePublication() throws {
+        let script = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/create_release_candidate.sh"),
+            encoding: .utf8
+        )
+        #expect(script.contains("worktree add --detach"))
+        #expect(script.components(separatedBy: "xcodebuild -project KnitNote.xcodeproj").count - 1 == 2)
+        #expect(script.components(separatedBy: "KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive").count - 1 == 2)
+        let provenance = try #require(script.range(of: "release_archive_manifest.py\" create"))
+        let audit = try #require(script.range(of: "release_audit.sh --archives"))
+        let publication = try #require(script.range(of: "mv \"$ARTIFACTS\" \"$FINAL\""))
+        #expect(provenance.lowerBound < audit.lowerBound)
+        #expect(audit.lowerBound < publication.lowerBound)
     }
 
     @Test func auditRejectsMissingContradictoryAndRepeatedModes() throws {
@@ -321,7 +358,8 @@ private let releaseLocales = [
 private func runReleaseAudit(
     archives: URL? = nil,
     arguments: [String]? = nil,
-    environment overrides: [String: String] = [:]
+    environment overrides: [String: String] = [:],
+    productionEnvironment: [String: String]? = nil
 ) throws -> AuditResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -330,9 +368,18 @@ private func runReleaseAudit(
          "--expected-commit", fixtureCommit,
          "--provenance", $0.deletingLastPathComponent().appendingPathComponent("provenance.json").path]
     } ?? ["--static-only"]
-    process.arguments = ["AppStore/Verification/release_audit.sh"] + modeArguments
+    let isFixture = productionEnvironment == nil && (archives != nil || !overrides.isEmpty)
+    process.arguments = ["AppStore/Verification/release_audit.sh"] + (isFixture ? ["--test-only"] : []) + modeArguments
     process.currentDirectoryURL = releaseAuditRepositoryRoot
-    process.environment = ProcessInfo.processInfo.environment.merging(overrides) { _, new in new }
+    let requestedEnvironment = productionEnvironment ?? overrides
+    var environment = ProcessInfo.processInfo.environment.merging(requestedEnvironment) { _, new in new }
+    if let commandPath = overrides["PATH"]?.split(separator: ":").first.map(String.init) {
+        environment["KNITNOTE_GIT"] = "\(commandPath)/git"
+        environment["KNITNOTE_CODESIGN"] = "\(commandPath)/codesign"
+        environment["KNITNOTE_SECURITY"] = "\(commandPath)/security"
+        environment["KNITNOTE_SWIFT"] = "\(commandPath)/swift"
+    }
+    process.environment = environment
     let output = Pipe()
     process.standardOutput = output
     process.standardError = output
@@ -363,7 +410,12 @@ private func makeArchiveFixture(
     profileCertificate: String = "certificate",
     provenancePathOverride: String? = nil,
     gitHead: String = fixtureCommit,
-    dirtySource: Bool = false
+    dirtySource: Bool = false,
+    mutateAfterProvenance: Bool = false,
+    profileExpired: Bool = false,
+    profileMissing: Bool = false,
+    codesignFailure: Bool = false,
+    signedIdentifierOverride: String? = nil
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
@@ -433,7 +485,17 @@ private func makeArchiveFixture(
                 at: item.resources.appendingPathComponent("\(locale).lproj"),
                 withIntermediateDirectories: true
             )
-            try Data("localized".utf8).write(
+            let catalog: String
+            switch item.name {
+            case "Watch": catalog = "KnitNoteWatch/Localizable.xcstrings"
+            case "Share": catalog = "KnitNoteShare/Localizable.xcstrings"
+            default: catalog = "KnitNote/Localization/Localizable.xcstrings"
+            }
+            let catalogData = try Data(contentsOf: releaseAuditRepositoryRoot.appendingPathComponent(catalog))
+            let catalogJSON = try #require(JSONSerialization.jsonObject(with: catalogData) as? [String: Any])
+            let strings = try #require(catalogJSON["strings"] as? [String: Any])
+            try writePlist(
+                Dictionary(uniqueKeysWithValues: strings.keys.map { ($0, "localized") }),
                 to: item.resources.appendingPathComponent("\(locale).lproj/Localizable.strings")
             )
             if emptyResource?.0 == item.name && emptyResource?.1 == locale {
@@ -472,6 +534,7 @@ private func makeArchiveFixture(
                 "TeamIdentifier": ["9CFPAUL5N5"],
                 "Entitlements": profileEntitlements,
                 "DeveloperCertificates": [Data(profileCertificate.utf8)],
+                "ExpirationDate": profileExpired ? Date(timeIntervalSince1970: 0) : Date(timeIntervalSince1970: 4_102_444_800),
             ],
             to: profile
         )
@@ -491,14 +554,26 @@ private func makeArchiveFixture(
     let fakeBin = temporaryRoot.appendingPathComponent("bin")
     try fileManager.createDirectory(at: fakeBin, withIntermediateDirectories: true)
     let codesign = fakeBin.appendingPathComponent("codesign")
+    let shouldFailCodesign = codesignFailure ? "yes" : "no"
+    let fixtureSignedIdentifier = signedIdentifierOverride ?? ""
     try """
     #!/bin/sh
-    if [ "${1:-}" = "-dvv" ]; then
+    if [ "${1:-}" = "--verify" ] && [ "\(shouldFailCodesign)" = "yes" ]; then
+      exit 1
+    elif [ "${1:-}" = "-dvv" ]; then
       printf '%s\n' 'Authority=Apple Distribution: Fixture (\(signingTeam))' 'TeamIdentifier=\(signingTeam)' >&2
     elif [ "${1:-}" = "-d" ] && [ "${2:-}" = "--extract-certificates" ]; then
       printf '%s' 'certificate' > "${3:?}0"
     elif [ "${1:-}" = "-d" ]; then
-      printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array></dict></plist>'
+      case "${4:-${3:-}}" in
+        *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; group='' ;;
+        *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
+        *macOS*) bundle='com.phillon.KnitNote'; group='' ;;
+        *) bundle='com.phillon.KnitNote'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
+      esac
+      signed_id='\(fixtureSignedIdentifier)'
+      [ -n "$signed_id" ] || signed_id="9CFPAUL5N5.$bundle"
+      printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>application-identifier</key><string>'"$signed_id"'</string><key>com.apple.developer.team-identifier</key><string>9CFPAUL5N5</string><key>get-task-allow</key><false/>'"$group"'</dict></plist>'
     fi
     exit 0
     """.write(to: codesign, atomically: true, encoding: .utf8)
@@ -533,15 +608,37 @@ private func makeArchiveFixture(
     )
     let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
     let provenance = temporaryRoot.appendingPathComponent("provenance.json")
-    var artifactJSON: [String: Any] = [:]
-    for (name, file) in artifacts {
-        let relative = file.path.replacingOccurrences(of: archives.path + "/", with: "")
-        artifactJSON[name] = [
-            "path": name == "ios" ? (provenancePathOverride ?? relative) : relative,
-            "sha256": "9a3a45d01531a20e89ac6ae10b0b0beb0492acd7216a368aa062d1a5fecaf9cd",
-        ]
+    for archiveName in ["KnitNote-iOS-Privacy.xcarchive", "KnitNote-macOS-Privacy.xcarchive"] {
+        try writePlist(["Fixture": true], to: archives.appendingPathComponent("\(archiveName)/Info.plist"))
     }
-    try JSONSerialization.data(withJSONObject: ["sourceCommit": fixtureCommit, "artifacts": artifactJSON]).write(to: provenance)
+    let manifest = Process()
+    manifest.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    manifest.arguments = [
+        "python3", releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/release_archive_manifest.py").path,
+        "create", "--archives", archives.path, "--source-commit", fixtureCommit, "--output", provenance.path,
+    ]
+    try manifest.run()
+    manifest.waitUntilExit()
+    guard manifest.terminationStatus == 0 else { throw CocoaError(.fileWriteUnknown) }
+    if provenancePathOverride != nil {
+        var payload = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: provenance)) as? [String: Any])
+        payload["sourceCommit"] = String(repeating: "b", count: 40)
+        try JSONSerialization.data(withJSONObject: payload).write(to: provenance)
+    }
+    if mutateAfterProvenance {
+        try Data("mutated".utf8).write(to: artifacts[0].1)
+    }
+    if profileMissing {
+        try fileManager.removeItem(at: iOSApp.appendingPathComponent("embedded.mobileprovision"))
+        let regenerate = Process()
+        regenerate.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        regenerate.arguments = [
+            "python3", releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/release_archive_manifest.py").path,
+            "create", "--archives", archives.path, "--source-commit", fixtureCommit, "--output", provenance.path,
+        ]
+        try regenerate.run()
+        regenerate.waitUntilExit()
+    }
     return ArchiveFixture(
         temporaryRoot: temporaryRoot,
         archives: archives,

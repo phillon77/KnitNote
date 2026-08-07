@@ -15,7 +15,7 @@ No archive, signing, upload, submission, merge, push, price change, IAP change, 
 | Verification date | 2026-08-07, Asia/Taipei |
 | Task 5 starting commit | `ebe2d0cec5c968c4f8457dc70a8b58dba90c70b6` |
 | Recorded 1.4.0 source baseline | `ca3014146f2b9156b71b5104f7fea7e5fbd02839` (`1.4.0 (8)`) |
-| Exact source candidate | The commit containing this record, with subject `test: verify KnitNote 1.4.1 localization`; resolve with `git log -1 --format=%H -- AppStore/Verification/Localization141Verification.md` |
+| Exact source candidate | Resolve the immutable candidate at handoff with `git rev-parse HEAD`; bind signed archives through the supported creator and embedded source revision. This record deliberately does not predict its containing commit subject or SHA. |
 | Candidate branch | `docs/knitnote-1.4.1-greek-plan` |
 | Marketing version | `1.4.1` in every shipping target and inspected product |
 | Build number | `8`, preserved in every shipping target and inspected product |
@@ -43,8 +43,8 @@ en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Focused Task 5 RED | EXPECTED FAIL | 57 tests, 71 issues against the old `1.4.0`/six-locale audit and screenshot contracts |
-| Focused Task 5 review GREEN | PASS | 48 release/configuration/screenshot tests in 3 suites, zero issues |
-| Full Swift suite | PASS | 1,321 tests in 122 suites, zero issues |
+| Focused Task 5 hardening GREEN | PASS | 51 release/configuration/screenshot tests in 3 suites, zero issues |
+| Full Swift suite | PASS | 1,323 tests in 122 suites, zero issues |
 | Metadata validator | PASS | `METADATA CHECK: PASS` for all twelve repository locale packages |
 | Commercial configuration, offline | PASS | `COMMERCIAL RELEASE CHECK: PASS (offline)` |
 | Static release audit | PASS | `STATIC RELEASE AUDIT: PASS` |
@@ -52,7 +52,7 @@ en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 | Release storyboard contract | PASS | 72 entries: 6 per locale |
 | Real signed archive audit | **NOT RUN** | No signed archives were created or supplied |
 
-`STATIC RELEASE AUDIT: PASS` is intentionally not signed-candidate clearance. Only `release_audit.sh --archives DIR --expected-commit SHA --provenance FILE` against a clean same-commit checkout and signed iOS/macOS archives may emit `RELEASE AUDIT: PASS`. Archive mode also rejects missing or empty localized resources, privacy-manifest semantic drift, artifact hash drift, the wrong signing team/certificate/profile, and a mismatched embedded `KnitNoteSourceRevision`. Unsigned builds and static audit remain distinct evidence.
+`STATIC RELEASE AUDIT: PASS` is intentionally not signed-candidate clearance. The supported `create_release_candidate.sh OUTPUT_DIRECTORY` workflow creates both signed archives from a detached exact clean HEAD, embeds that revision, inventories all bundle bytes, writes provenance, and runs the production archive audit before publishing the directory. Only that production audit may emit `RELEASE AUDIT: PASS`; `--test-only` fixtures emit a visibly different marker. Unsigned builds and static audit remain distinct evidence.
 
 ## Unsigned Release build and package evidence
 

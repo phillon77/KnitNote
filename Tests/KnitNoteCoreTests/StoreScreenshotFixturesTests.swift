@@ -360,8 +360,21 @@ import Testing
             ]
         }
         let manifest = root.appending(path: "manifest.json")
-        try JSONSerialization.data(withJSONObject: ["frames": frames])
+        try JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "frames": frames])
             .write(to: manifest)
+
+        let provenanceSetup = try screenshotProcess(
+            executable: "/usr/bin/env",
+            arguments: [
+                "python3", "-c",
+                "import sys; sys.path.insert(0, sys.argv[1]); from provenance import *; m=Path(sys.argv[2]); r=Path(sys.argv[3]); c='" + String(repeating: "a", count: 40) + "'; h='" + String(repeating: "b", count: 64) + "'; p={n:{'bundleIdentifier':PRODUCT_IDS[n],'version':'1.4.1','build':'8','sourceRevision':c,'executable':PRODUCT_EXECUTABLES[n],'executableSHA256':h} for n in PRODUCT_IDS}; atomic_write(r/'candidate-provenance.json', create_raw(m,r,c,'1.4.1','8',p))",
+                screenshotRepositoryRoot.appending(path: "AppStore/Screenshots").path,
+                manifest.path,
+                root.appending(path: "Raw").path,
+            ],
+            currentDirectory: root
+        )
+        #expect(provenanceSetup.status == 0, Comment(rawValue: provenanceSetup.output))
 
         let result = try screenshotProcess(
             executable: "/usr/bin/env",
@@ -381,6 +394,24 @@ import Testing
                 )
             )
         }
+        let generatedProvenance = root.appending(path: "Generated/candidate-provenance.json")
+        #expect(FileManager.default.fileExists(atPath: generatedProvenance.path))
+        let mutated = root.appending(path: "Generated/en/iphone/01.png")
+        try Data("mutated".utf8).write(to: mutated)
+        let verification = try screenshotProcess(
+            executable: "/usr/bin/env",
+            arguments: [
+                "python3", "-c",
+                "import sys; sys.path.insert(0,sys.argv[1]); from provenance import verify_generated; from pathlib import Path; verify_generated(Path(sys.argv[2]),Path(sys.argv[3]),Path(sys.argv[4]),Path(sys.argv[5]))",
+                screenshotRepositoryRoot.appending(path: "AppStore/Screenshots").path,
+                manifest.path,
+                root.appending(path: "Raw").path,
+                root.appending(path: "Generated").path,
+                screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/compose.py").path,
+            ],
+            currentDirectory: root
+        )
+        #expect(verification.status != 0)
     }
 
     @Test func rawCapturePlanPutsTheWatchFixtureFirst() throws {
@@ -403,18 +434,26 @@ import Testing
         let iOSApp = root.appending(path: "KnitNote.app", directoryHint: .isDirectory)
         let watchApp = root.appending(path: "KnitNoteWatch.app", directoryHint: .isDirectory)
         let macApp = root.appending(path: "KnitNoteMac.app", directoryHint: .isDirectory)
-        for plist in [
-            iOSApp.appending(path: "Info.plist"),
-            watchApp.appending(path: "Info.plist"),
-            macApp.appending(path: "Contents/Info.plist"),
+        for (name, identifier, plist, executable) in [
+            ("KnitNote", "com.phillon.KnitNote", iOSApp.appending(path: "Info.plist"), iOSApp.appending(path: "KnitNote")),
+            ("KnitNoteWatch", "com.phillon.KnitNote.watch", watchApp.appending(path: "Info.plist"), watchApp.appending(path: "KnitNoteWatch")),
+            ("KnitNote", "com.phillon.KnitNote", macApp.appending(path: "Contents/Info.plist"), macApp.appending(path: "Contents/MacOS/KnitNote")),
         ] {
             try FileManager.default.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
             let data = try PropertyListSerialization.data(
-                fromPropertyList: ["KnitNoteSourceRevision": commit],
+                fromPropertyList: [
+                    "CFBundleIdentifier": identifier,
+                    "CFBundleShortVersionString": "1.4.1",
+                    "CFBundleVersion": "8",
+                    "CFBundleExecutable": name,
+                    "KnitNoteSourceRevision": commit,
+                ],
                 format: .xml,
                 options: 0
             )
             try data.write(to: plist)
+            try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("\(identifier)-executable".utf8).write(to: executable)
         }
         let git = bin.appending(path: "git")
         try """
@@ -426,8 +465,18 @@ import Testing
         #!/bin/sh
         echo "$1" >> "${LOCALE_LOG:?}"
         [ "$1" != "${FAIL_LOCALE:-}" ] || exit 1
-        mkdir -p "${KNITNOTE_SCREENSHOT_RAW_ROOT:?}/$1"
-        echo "$1" > "${KNITNOTE_SCREENSHOT_RAW_ROOT:?}/$1/capture.txt"
+        python3 - "$1" <<'PY'
+        import json, os, pathlib, sys
+        locale = sys.argv[1]
+        manifest = json.load(open(os.environ["SCREENSHOT_MANIFEST"], encoding="utf-8"))
+        for frame in manifest["frames"]:
+            if frame["locale"] != locale:
+                continue
+            path = pathlib.Path(os.environ["KNITNOTE_SCREENSHOT_RAW_ROOT"]) / locale / frame["platform"] / frame["filename"]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(locale.encode())
+        PY
+        [ "$1" != "${MUTATE_LOCALE:-}" ] || printf '%s' mutated >> "${MUTATE_EXECUTABLE:?}"
         """.write(to: runner, atomically: true, encoding: .utf8)
         for file in [git, runner] {
             try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: file.path)
@@ -440,18 +489,28 @@ import Testing
         environment["IOS_APP"] = iOSApp.path
         environment["WATCH_APP"] = watchApp.path
         environment["MAC_APP"] = macApp.path
-        var result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit], environment: environment)
+        environment["SCREENSHOT_MANIFEST"] = screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/manifest.json").path
+        var result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"], environment: environment)
         #expect(result.status == 0, Comment(rawValue: result.output))
         let payload = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: provenance)) as? [String: Any])
-        #expect(payload["candidateCommit"] as? String == commit)
+        let candidate = try #require(payload["candidate"] as? [String: Any])
+        #expect(candidate["commit"] as? String == commit)
         #expect(payload["locales"] as? [String] == releaseScreenshotLocales)
         let priorProvenance = try Data(contentsOf: provenance)
-        let priorEnglish = try Data(contentsOf: raw.appending(path: "en/capture.txt"))
+        let priorEnglish = try Data(contentsOf: raw.appending(path: "en/iphone/01-projects.png"))
         environment["FAIL_LOCALE"] = "fi"
-        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit], environment: environment)
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"], environment: environment)
         #expect(result.status != 0)
         #expect(try Data(contentsOf: provenance) == priorProvenance)
-        #expect(try Data(contentsOf: raw.appending(path: "en/capture.txt")) == priorEnglish)
+        #expect(try Data(contentsOf: raw.appending(path: "en/iphone/01-projects.png")) == priorEnglish)
+        environment.removeValue(forKey: "FAIL_LOCALE")
+        environment["MUTATE_LOCALE"] = "el"
+        environment["MUTATE_EXECUTABLE"] = iOSApp.appending(path: "KnitNote").path
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"], environment: environment)
+        #expect(result.status != 0)
+        #expect(result.output.contains("screenshot products changed during capture"))
+        #expect(try Data(contentsOf: provenance) == priorProvenance)
+        #expect(try Data(contentsOf: raw.appending(path: "en/iphone/01-projects.png")) == priorEnglish)
     }
 
     @Test func screenshotBuildInstructionsEmbedTheCandidateCommitInEveryProduct() throws {

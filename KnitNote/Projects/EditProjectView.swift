@@ -1,9 +1,22 @@
 import SwiftUI
 
+@MainActor
+enum EditProjectDeletionAction {
+    static func perform(
+        projectID: UUID,
+        store: JSONProjectStore,
+        onDeleted: () -> Void
+    ) throws {
+        try store.delete(id: projectID)
+        onDeleted()
+    }
+}
+
 struct EditProjectView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
+    let onDeleted: () -> Void
     @State private var name = ""
     @State private var toolType: ProjectToolType?
     @State private var toolSize = ""
@@ -12,6 +25,12 @@ struct EditProjectView: View {
     @State private var removesExistingPhoto = false
     @State private var isPhotoLoading = false
     @State private var errorMessage: String?
+    @State private var showingDeleteConfirmation = false
+
+    init(projectID: UUID, onDeleted: @escaping () -> Void = {}) {
+        self.projectID = projectID
+        self.onDeleted = onDeleted
+    }
 
     var body: some View {
         NavigationStack {
@@ -56,6 +75,11 @@ struct EditProjectView: View {
                         }
                     }
                 }
+                Section {
+                    Button("common.delete", systemImage: "trash", role: .destructive) {
+                        showingDeleteConfirmation = true
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(WatercolorBackground())
@@ -70,6 +94,14 @@ struct EditProjectView: View {
             .alert("error.saveFailed", isPresented: Binding(
                 get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
             )) { Button("common.ok") {} } message: { Text(errorMessage ?? "") }
+            .confirmationDialog(
+                "project.delete.title",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("common.delete", role: .destructive) { deleteProject() }
+                Button("common.cancel", role: .cancel) {}
+            }
         }
         .frame(minWidth: 340, minHeight: 420)
         .tint(WatercolorTheme.actionBerry)
@@ -102,6 +134,21 @@ struct EditProjectView: View {
                 photoChange: photoChange
             )
             dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteProject() {
+        do {
+            try EditProjectDeletionAction.perform(
+                projectID: projectID,
+                store: store,
+                onDeleted: {
+                    dismiss()
+                    onDeleted()
+                }
+            )
         } catch {
             errorMessage = error.localizedDescription
         }

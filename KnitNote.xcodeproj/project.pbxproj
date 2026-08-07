@@ -165,6 +165,7 @@
 		7268B20D129F4E40432255B5 /* ProjectJournalEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD7EFB82C9BFC4FF9F2EE78 /* ProjectJournalEntryDetailView.swift */; };
 		74876C768CC7C9A9FB5066A9 /* YarnCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF42C26BEFE47601ED68433 /* YarnCard.swift */; };
 		754EC51A54C17C1767A7D773 /* MacYarnLabelFileImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD56893C10E9FF664C6B6F3B /* MacYarnLabelFileImporter.swift */; };
+		75F5F44DE9FB203222A758B9 /* EditProjectDeletionActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */; };
 		7656DEB167A5633003EF3883 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		774C92AA4520877CB17C1614 /* EditProjectJournalEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */; };
 		78966754DAA0A483BE039268 /* EntitlementSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA07321152D08FECE09EB46 /* EntitlementSnapshot.swift */; };
@@ -414,6 +415,7 @@
 		1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSession.swift; sourceTree = "<group>"; };
 		1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternProjectView.swift; sourceTree = "<group>"; };
 		1E3AEB2A7F20F40D8B6D410F /* MacYarnLabelFileImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnLabelFileImporterTests.swift; sourceTree = "<group>"; };
+		20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectDeletionActionTests.swift; sourceTree = "<group>"; };
 		2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsLayout.swift; sourceTree = "<group>"; };
 		2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupExportPackage.swift; sourceTree = "<group>"; };
 		260C2E24AB236712E5FE22CC /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
@@ -792,6 +794,7 @@
 			isa = PBXGroup;
 			children = (
 				49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */,
+				20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */,
 				6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */,
 				453B830DB1C1E2A3A3954A38 /* KeychainTrialStoreTests.swift */,
 				2D1B84617CFE68892DFBBD66 /* MacFormLayoutSmokeTests.swift */,
@@ -1671,6 +1674,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */,
+				75F5F44DE9FB203222A758B9 /* EditProjectDeletionActionTests.swift in Sources */,
 				A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */,
 				CA1626EA32C6EE7500EB03A4 /* KeychainTrialStoreTests.swift in Sources */,
 				0383C350EB8EE615B729A4B5 /* MacFormLayoutSmokeTests.swift in Sources */,

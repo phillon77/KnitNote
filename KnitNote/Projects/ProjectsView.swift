@@ -6,7 +6,6 @@ struct ProjectsView: View {
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     @State private var showingCreate = false
     @State private var pendingUnlockAfterCreate = false
-    @State private var pendingDeletion: StoredProject?
     let onShowUnlock: () -> Void
     let onCreateSheetPresentationChanged: (Bool) -> Void
 
@@ -43,11 +42,6 @@ struct ProjectsView: View {
                                     ProjectCard(project: project)
                                 }
                                 .buttonStyle(.plain)
-                                .swipeActions {
-                                    Button("common.delete", role: .destructive) {
-                                        pendingDeletion = project
-                                    }
-                                }
                             }
                         }
                     }
@@ -85,19 +79,6 @@ struct ProjectsView: View {
                 .onAppear {
                     onCreateSheetPresentationChanged(true)
                 }
-            }
-            .confirmationDialog(
-                "project.delete.title",
-                isPresented: Binding(
-                    get: { pendingDeletion != nil },
-                    set: { if !$0 { pendingDeletion = nil } }
-                )
-            ) {
-                Button("common.delete", role: .destructive) {
-                    if let id = pendingDeletion?.id { try? store.delete(id: id) }
-                    pendingDeletion = nil
-                }
-                Button("common.cancel", role: .cancel) { pendingDeletion = nil }
             }
         }
     }

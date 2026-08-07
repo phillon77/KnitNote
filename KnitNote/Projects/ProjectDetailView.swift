@@ -12,6 +12,7 @@ private struct JournalEntryRoute: Identifiable {
 }
 
 struct ProjectDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
@@ -163,7 +164,10 @@ struct ProjectDetailView: View {
                 Button("project.edit", systemImage: "pencil") { showingEdit = true }
             }
             .sheet(isPresented: $showingEdit) {
-                EditProjectView(projectID: projectID)
+                EditProjectView(projectID: projectID) {
+                    showingEdit = false
+                    dismiss()
+                }
             }
             .sheet(item: $managingCounter) { counter in
                 EditCounterNameView(counter: counter) { name, value in

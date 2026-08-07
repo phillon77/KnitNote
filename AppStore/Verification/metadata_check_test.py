@@ -108,19 +108,19 @@ DELETION_PROTECTION_COPY = {
     "ko-KR.md": "완료된 프로젝트를 실수로 삭제하지 않도록 보호합니다. 삭제하려면 먼저 진행 중으로 되돌리세요.",
     "el-GR.md": "Τα ολοκληρωμένα έργα προστατεύονται πλέον από κατά λάθος διαγραφή. Επαναφέρετε πρώτα ένα έργο σε εξέλιξη για να το διαγράψετε.",
 }
-RECOVER_DELETED_PROJECT_CLAIMS = {
-    "en-US.md": "Deleted projects can be recovered.",
-    "zh-Hant.md": "已刪除作品可以復原。",
-    "zh-Hans.md": "已删除作品可以恢复。",
-    "de-DE.md": "Gelöschte Projekte können wiederhergestellt werden.",
-    "fr-FR.md": "Les projets supprimés peuvent être récupérés.",
-    "ja-JP.md": "削除した作品を復元できます。",
-    "nb-NO.md": "Slettede prosjekter kan gjenopprettes.",
-    "sv-SE.md": "Borttagna projekt kan återställas.",
-    "fi-FI.md": "Poistetut projektit voidaan palauttaa.",
-    "da-DK.md": "Slettede projekter kan gendannes.",
-    "ko-KR.md": "삭제된 프로젝트를 복구할 수 있습니다.",
-    "el-GR.md": "Τα διαγραμμένα έργα μπορούν να ανακτηθούν.",
+DELETED_PROJECT_RECOVERY_CLAIMS = {
+    "en-US.md": "Deleted projects can be restored from Trash.",
+    "zh-Hant.md": "已刪除的作品可從垃圾桶復原。",
+    "zh-Hans.md": "已删除的作品可从废纸篓恢复。",
+    "de-DE.md": "Gelöschte Projekte können aus dem Papierkorb wiederhergestellt werden.",
+    "fr-FR.md": "Les projets supprimés peuvent être restaurés depuis la corbeille.",
+    "ja-JP.md": "削除した作品はゴミ箱から復元できます。",
+    "nb-NO.md": "Slettede prosjekter kan gjenopprettes fra papirkurven.",
+    "sv-SE.md": "Borttagna projekt kan återställas från papperskorgen.",
+    "fi-FI.md": "Poistetut projektit voidaan palauttaa roskakorista.",
+    "da-DK.md": "Slettede projekter kan gendannes fra papirkurven.",
+    "ko-KR.md": "삭제된 프로젝트는 휴지통에서 복원할 수 있습니다.",
+    "el-GR.md": "Τα διαγραμμένα έργα μπορούν να ανακτηθούν από τον κάδο απορριμμάτων.",
 }
 
 
@@ -157,7 +157,17 @@ class MetadataLocaleTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 whats_new = parse(METADATA / filename)["What's New"]
                 self.assertIn(DELETION_PROTECTION_COPY[filename], whats_new)
-                self.assertNotIn(RECOVER_DELETED_PROJECT_CLAIMS[filename], whats_new)
+
+    def test_validator_rejects_deleted_project_recovery_claims_in_every_locale(self) -> None:
+        for filename in EXPECTED_LOCALES:
+            with self.subTest(filename=filename):
+                fields = parse(METADATA / filename)
+                fields["What's New"] += " " + DELETED_PROJECT_RECOVERY_CLAIMS[filename]
+                path = self.write_named_metadata(filename, fields)
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: deleted project recovery",
+                    validate(path),
+                )
 
     def test_validator_rejects_wrong_version_and_missing_language_semantics_for_every_package(self) -> None:
         for filename in EXPECTED_LOCALES:

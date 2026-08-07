@@ -114,6 +114,25 @@ FORBIDDEN_PATTERNS = (
         ),
     ),
     (
+        "deleted project recovery",
+        re.compile(
+            r"(?<!\w)(?:"
+            r"deleted[ -]+projects?.{0,120}(?:recover\w*|restor\w*)|"
+            r"gelöschte[ -]+projekte.{0,120}wiederhergestellt\w*|"
+            r"les[ -]+projets?[ -]+supprimés?.{0,120}(?:récupér\w*|restaur\w*)|"
+            r"slettede[ -]+prosjekter.{0,120}gjenopprett\w*|"
+            r"borttagna[ -]+projekt.{0,120}återställ\w*|"
+            r"poistetut[ -]+projektit.{0,120}palaut\w*|"
+            r"slettede[ -]+projekter.{0,120}gendann\w*|"
+            r"τα[ -]+διαγραμμένα[ -]+έργα.{0,120}(?:ανακτηθ\w*|επαναφερ\w*)"
+            r")(?!\w)|"
+            r"已刪除的?作品.{0,80}(?:復原|恢復)|"
+            r"已删除的?作品.{0,80}(?:恢复|復原)|"
+            r"削除した作品.{0,80}復元|"
+            r"삭제된[ -]*프로젝트.{0,80}(?:복원|복구)"
+        ),
+    ),
+    (
         "social network",
         re.compile(
             r"(?<!\w)(?:"

@@ -76,6 +76,15 @@ import Testing
                 "share.error.timeout": [
                     "el": "Η φόρτωση του αρχείου άργησε πολύ. Δοκιμάστε ξανά.",
                 ],
+                "share.error.multiple": [
+                    "ko": "한 번에 도안 파일 하나만 공유하세요.",
+                ],
+                "share.error.unsupported": [
+                    "ko": "PDF 또는 지원되는 이미지 파일 하나를 공유하세요.",
+                ],
+                "share.loading": [
+                    "sv": "Sparar ditt mönster…",
+                ],
             ],
         ]
 

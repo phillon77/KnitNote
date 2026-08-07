@@ -1080,7 +1080,6 @@ import Testing
     @Test func version141CriticalWorkflowCopyUsesApprovedProductLanguage() throws {
         let strings = try catalogStrings()
         let expected: [String: [String: String]] = [
-            "backup.preparing": ["fi": "Valmistellaan varmuuskopiota…"],
             "backup.error.storageOrAccess": [
                 "fi": "KnitNote ei voinut käyttää varmuuskopiota tai tallennustila ei riitä.",
             ],
@@ -1092,16 +1091,103 @@ import Testing
                 "fi": "Kokeilujaksoa jäljellä %lld päivää",
                 "el": "Απομένουν %lld ημέρες δοκιμής",
             ],
-            "yarn.range.lower": ["fi": "Alkaen"],
-            "yarn.range.upper": ["fi": "Saakka"],
-            "calculator.adjustment.edgeSummary": [
-                "el": "Ένας πόντος ακμής διατηρείται σε κάθε πλευρά.",
-            ],
-            "calculator.adjustment.failure.invalidCounts": [
-                "el": "Εισαγάγετε έγκυρο τρέχοντα και επιθυμητό αριθμό πόντων.",
-            ],
             "counter.accessibility.rename": [
                 "ko": "%@ 이름 변경, 현재 값 %lld",
+            ],
+            "calculator.adjustment.failure.invalidCounts": [
+                "fi": "Syötä kelvollinen nykyinen silmukkamäärä ja tavoitesilmukkamäärä.",
+                "el": "Εισαγάγετε έγκυρο τρέχοντα και επιθυμητό αριθμό πόντων.",
+            ],
+            "calculator.adjustment.interval.increase.singular": [
+                "fi": "Lisää 1 silmukka jokaisen silmukan jälkeen.",
+            ],
+            "calculator.adjustment.rows.failure.symmetricEven": [
+                "fi": "Syötä parillinen silmukkamäärä, jotta muutokset ovat samat molemmilla puolilla.",
+            ],
+            "calculator.gauge.rows.density.centimeters.format": [
+                "fi": "%@ kerrosta senttimetriä kohden",
+            ],
+            "calculator.gauge.rows.density.inches.format": [
+                "fi": "%@ kerrosta tuumaa kohden",
+            ],
+            "calculator.gauge.stitches.density.centimeters.format": [
+                "fi": "%@ silmukkaa senttimetriä kohden",
+            ],
+            "calculator.gauge.stitches.density.inches.format": [
+                "fi": "%@ silmukkaa tuumaa kohden",
+            ],
+            "calculator.adjustment.rows.interval.exact.format": [
+                "el": "Κάθε %lld σειρές",
+            ],
+            "projects.empty.title": [
+                "el": "Δεν υπάρχουν ακόμη έργα",
+            ],
+            "yarn.empty.message": [
+                "el": "Προσθέστε νήμα για να διατηρείτε μαζί τα στοιχεία, τη φωτογραφία και το απόθεμά του.",
+            ],
+            "calculator.adjustment.edgeSummary": [
+                "ko": "양쪽에 가장자리 코를 하나씩 남깁니다.",
+                "el": "Ένας πόντος ακμής διατηρείται σε κάθε πλευρά.",
+            ],
+            "calculator.adjustment.step.increaseOne": [
+                "ko": "1코를 늘리세요",
+            ],
+            "yarn.range.lower": [
+                "fi": "Alkaen", "ko": "시작", "nb": "Fra",
+            ],
+            "yarn.range.upper": [
+                "fi": "Saakka", "ko": "끝", "nb": "Til",
+            ],
+            "patterns.invalid": [
+                "nb": "Kan ikke lese mønsteret",
+            ],
+            "backup.export": [
+                "nb": "Eksporter fullstendig sikkerhetskopi",
+                "sv": "Exportera fullständig säkerhetskopia",
+                "da": "Eksporter komplet sikkerhedskopi",
+            ],
+            "backup.preparing": [
+                "fi": "Valmistellaan varmuuskopiota…",
+                "el": "Προετοιμασία αντιγράφου ασφαλείας…",
+                "ko": "백업 준비 중…",
+                "nb": "Forbereder sikkerhetskopi…",
+                "sv": "Förbereder säkerhetskopia…",
+                "da": "Forbereder sikkerhedskopi…",
+            ],
+            "backup.restoring": [
+                "el": "Επαναφορά αντιγράφου ασφαλείας…",
+                "ko": "백업 복원 중…",
+                "nb": "Gjenoppretter sikkerhetskopi…",
+                "sv": "Återställer säkerhetskopia…",
+                "da": "Gendanner sikkerhedskopi…",
+            ],
+            "common.loading": [
+                "ko": "불러오는 중",
+                "nb": "Laster inn", "sv": "Läser in", "da": "Indlæser",
+            ],
+            "journal.saving": [
+                "el": "Αποθήκευση καταχώρισης ημερολογίου…",
+                "ko": "일지 항목 저장 중",
+                "nb": "Lagrer journalinnlegg",
+                "sv": "Sparar dagboksinlägg",
+                "da": "Gemmer dagbogsindlæg",
+            ],
+            "patterns.import.processing": [
+                "el": "Εισαγωγή σχεδίου…",
+                "ko": "도안 가져오는 중",
+                "nb": "Importerer mønster",
+                "sv": "Importerar mönster",
+                "da": "Importerer mønster",
+            ],
+            "patterns.youtube.loading": [
+                "nb": "Leser videoinformasjon…",
+                "sv": "Läser videoinformation…",
+                "da": "Læser videooplysninger…",
+            ],
+            "project.delete.message": [
+                "nb": "Slette «%@»? Dette kan ikke angres.",
+                "sv": "Radera ”%@”? Det går inte att ångra.",
+                "da": "Slet \"%@\"? Det kan ikke fortrydes.",
             ],
         ]
 

@@ -664,7 +664,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "한 번에 하나의 도안 파일을 공유합니다."
+            "value" : "한 번에 도안 파일 하나만 공유하세요."
           }
         },
         "nb" : {
@@ -1049,7 +1049,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PDF 또는 지원되는 이미지 파일을 공유합니다."
+            "value" : "PDF 또는 지원되는 이미지 파일 하나를 공유하세요."
           }
         },
         "nb" : {
@@ -1138,7 +1138,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spara ditt mönster..."
+            "value" : "Sparar ditt mönster…"
           }
         },
         "zh-Hans" : {

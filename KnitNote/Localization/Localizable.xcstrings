@@ -847,7 +847,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eksporter komplet backup"
+            "value" : "Eksporter komplet sikkerhedskopi"
           }
         },
         "de" : {
@@ -895,13 +895,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fullstendig backup eksporteres"
+            "value" : "Eksporter fullstendig sikkerhetskopi"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Exportera komplett säkerhetskopiering"
+            "value" : "Exportera fullständig säkerhetskopia"
           }
         },
         "zh-Hans" : {
@@ -1227,7 +1227,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sikkerhedskopiering i gang…"
+            "value" : "Forbereder sikkerhedskopi…"
           }
         },
         "de" : {
@@ -1239,7 +1239,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Προετοιμασία αντιγράφων ασφαλείας..."
+            "value" : "Προετοιμασία αντιγράφου ασφαλείας…"
           }
         },
         "en" : {
@@ -1269,19 +1269,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "백업 준비 중..."
+            "value" : "백업 준비 중…"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Forbereder backup…"
+            "value" : "Forbereder sikkerhetskopi…"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Säkerhetskopiering i gång..."
+            "value" : "Förbereder säkerhetskopia…"
           }
         },
         "zh-Hans" : {
@@ -2379,7 +2379,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gendannelse af backup…"
+            "value" : "Gendanner sikkerhedskopi…"
           }
         },
         "de" : {
@@ -2421,19 +2421,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "백업 복원 중..."
+            "value" : "백업 복원 중…"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gjenoppretting av sikkerhetskopien…"
+            "value" : "Gjenoppretter sikkerhetskopi…"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Återställer säkerhetskopian..."
+            "value" : "Återställer säkerhetskopia…"
           }
         },
         "zh-Hans" : {
@@ -2877,7 +2877,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "각 양쪽에 한 개의 가장자리 코이 예약되어 있습니다."
+            "value" : "양쪽에 가장자리 코를 하나씩 남깁니다."
           }
         },
         "nb" : {
@@ -3087,7 +3087,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anna voimassa oleva nykyinen ja kohde silmukan määrä."
+            "value" : "Syötä kelvollinen nykyinen silmukkamäärä ja tavoitesilmukkamäärä."
           }
         },
         "fr" : {
@@ -3771,7 +3771,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lisää jokaisen 1 silmukka."
+            "value" : "Lisää 1 silmukka jokaisen silmukan jälkeen."
           }
         },
         "fr" : {
@@ -4455,7 +4455,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Molemmilla puolilla tapahtuvia muutoksia varten kirjoita tasainen määrä silmukoita."
+            "value" : "Syötä parillinen silmukkamäärä, jotta muutokset ovat samat molemmilla puolilla."
           }
         },
         "fr" : {
@@ -4671,7 +4671,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Κάθε σειρά %lld"
+            "value" : "Κάθε %lld σειρές"
           }
         },
         "en" : {
@@ -6297,7 +6297,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1코를 늘리다"
+            "value" : "1코를 늘리세요"
           }
         },
         "nb" : {
@@ -7496,7 +7496,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@-kerrokset per senttimetri"
+            "value" : "%@ kerrosta senttimetriä kohden"
           }
         },
         "fr" : {
@@ -7572,7 +7572,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@-kerrokset tuumaa kohti"
+            "value" : "%@ kerrosta tuumaa kohden"
           }
         },
         "fr" : {
@@ -8257,7 +8257,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ silmukat per senttimetri"
+            "value" : "%@ silmukkaa senttimetriä kohden"
           }
         },
         "fr" : {
@@ -8333,7 +8333,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ silmukoita tuumaa kohti"
+            "value" : "%@ silmukkaa tuumaa kohden"
           }
         },
         "fr" : {
@@ -9527,7 +9527,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "pålæsning"
+            "value" : "Indlæser"
           }
         },
         "de" : {
@@ -9569,19 +9569,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "하역"
+            "value" : "불러오는 중"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Laster"
+            "value" : "Laster inn"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "lastning"
+            "value" : "Läser in"
           }
         },
         "zh-Hans" : {
@@ -14090,7 +14090,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemmer journalpost"
+            "value" : "Gemmer dagbogsindlæg"
           }
         },
         "de" : {
@@ -14102,7 +14102,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Αποθήκευση καταχώρησης χρονικού"
+            "value" : "Αποθήκευση καταχώρισης ημερολογίου…"
           }
         },
         "en" : {
@@ -14132,19 +14132,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "저장된 기록 항목"
+            "value" : "일지 항목 저장 중"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lagre journalpost"
+            "value" : "Lagrer journalinnlegg"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spara journalpost"
+            "value" : "Sparar dagboksinlägg"
           }
         },
         "zh-Hans" : {
@@ -20632,7 +20632,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Indlæsning af mønster"
+            "value" : "Importerer mønster"
           }
         },
         "de" : {
@@ -20644,7 +20644,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Σχέδιο εισαγωγής"
+            "value" : "Εισαγωγή σχεδίου…"
           }
         },
         "en" : {
@@ -20674,19 +20674,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "도안 가져오기"
+            "value" : "도안 가져오는 중"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Importeringsmønster"
+            "value" : "Importerer mønster"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import av mönster"
+            "value" : "Importerar mönster"
           }
         },
         "zh-Hans" : {
@@ -21744,7 +21744,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Må ikke lese mønsteret."
+            "value" : "Kan ikke lese mønsteret"
           }
         },
         "sv" : {
@@ -26912,7 +26912,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Læser videoudtømmelsen…"
+            "value" : "Læser videooplysninger…"
           }
         },
         "de" : {
@@ -26966,7 +26966,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Läsning av videoinformation..."
+            "value" : "Läser videoinformation…"
           }
         },
         "zh-Hans" : {
@@ -27674,7 +27674,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kan \"%@\" ikke slettes? Det kan ikke fortrydes."
+            "value" : "Slet \"%@\"? Det kan ikke fortrydes."
           }
         },
         "de" : {
@@ -27722,13 +27722,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kan ikke angre på sletting av \"%@\"?"
+            "value" : "Slette «%@»? Dette kan ikke angres."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kan du ta bort \"%@\"? Det går inte att ångra det."
+            "value" : "Radera ”%@”? Det går inte att ångra."
           }
         },
         "zh-Hans" : {
@@ -30956,7 +30956,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Χωρίς Προγράμματα ακόμα"
+            "value" : "Δεν υπάρχουν ακόμη έργα"
           }
         },
         "en" : {
@@ -34377,7 +34377,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Προσθέστε νήμα για να κρατήσει τις λεπτομέρειες, φωτογραφία, και απογραφή μαζί."
+            "value" : "Προσθέστε νήμα για να διατηρείτε μαζί τα στοιχεία, τη φωτογραφία και το απόθεμά του."
           }
         },
         "en" : {
@@ -36839,13 +36839,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "에서"
+            "value" : "시작"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "fra"
+            "value" : "Fra"
           }
         },
         "sv" : {
@@ -36915,13 +36915,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "에"
+            "value" : "끝"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "igjen"
+            "value" : "Til"
           }
         },
         "sv" : {

@@ -6,6 +6,51 @@ MANIFEST="$ROOT/manifest.json"
 LOCALE="${1:-}"
 SUPPORTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el)
 LOCALE_USAGE='en|zh-Hant|zh-Hans|de|fr|ja|nb|sv|fi|da|ko|el'
+IOS_APP="${IOS_APP:-/tmp/KnitNoteScreenshots/Build/Products/Debug-iphonesimulator/KnitNote.app}"
+WATCH_APP="${WATCH_APP:-/tmp/KnitNoteScreenshotsWatch/Build/Products/Debug-watchsimulator/KnitNoteWatch.app}"
+MAC_APP="${MAC_APP:-/tmp/KnitNoteScreenshotsMac/Build/Products/Debug/KnitNote.app}"
+RAW_ROOT="${KNITNOTE_SCREENSHOT_RAW_ROOT:-$ROOT/Raw}"
+
+if [[ "${1:-}" == "--all-locales" ]]; then
+  EXPECTED_COMMIT="${2:-}"
+  [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 --all-locales CANDIDATE_COMMIT" >&2; exit 2; }
+  [[ "$(git rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] || { echo "candidate commit does not match HEAD" >&2; exit 1; }
+  [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || { echo "candidate worktree is dirty" >&2; exit 1; }
+  for product in \
+    "iOS|$IOS_APP/Info.plist" \
+    "Watch|$WATCH_APP/Info.plist" \
+    "macOS|$MAC_APP/Contents/Info.plist"; do
+    label="${product%%|*}"
+    plist="${product#*|}"
+    [[ -f "$plist" ]] || { echo "$label screenshot product Info.plist is missing" >&2; exit 1; }
+    [[ "$(/usr/libexec/PlistBuddy -c 'Print :KnitNoteSourceRevision' "$plist")" == "$EXPECTED_COMMIT" ]] \
+      || { echo "$label screenshot product does not match candidate commit" >&2; exit 1; }
+  done
+  RUNNER="${KNITNOTE_SCREENSHOT_CAPTURE_RUNNER:-$0}"
+  mkdir -p "$(dirname "$RAW_ROOT")"
+  STAGING="$(mktemp -d "$(dirname "$RAW_ROOT")/.Raw.staging.XXXXXX")"
+  PREVIOUS="$(dirname "$RAW_ROOT")/.Raw.previous.$$"
+  trap 'rm -rf "$STAGING" "$PREVIOUS"' EXIT
+  for locale in "${SUPPORTED_LOCALES[@]}"; do
+    KNITNOTE_SCREENSHOT_RAW_ROOT="$STAGING" "$RUNNER" "$locale"
+  done
+  python3 - "$STAGING/candidate-provenance.json" "$EXPECTED_COMMIT" "${SUPPORTED_LOCALES[@]}" <<'PY'
+import json, sys
+path, commit, *locales = sys.argv[1:]
+with open(path, "w", encoding="utf-8") as output:
+    json.dump({"candidateCommit": commit, "locales": locales}, output, ensure_ascii=False, indent=2)
+    output.write("\n")
+PY
+  if [[ -e "$RAW_ROOT" ]]; then mv "$RAW_ROOT" "$PREVIOUS"; fi
+  if ! mv "$STAGING" "$RAW_ROOT"; then
+    [[ -e "$PREVIOUS" ]] && mv "$PREVIOUS" "$RAW_ROOT"
+    exit 1
+  fi
+  rm -rf "$PREVIOUS"
+  trap - EXIT
+  echo "All-locale captures complete for $EXPECTED_COMMIT"
+  exit 0
+fi
 
 locale_is_supported() {
   local candidate="$1" supported
@@ -45,10 +90,6 @@ if ! locale_is_supported "$LOCALE"; then
   echo "usage: $0 $LOCALE_USAGE" >&2
   exit 2
 fi
-
-IOS_APP="${IOS_APP:-/tmp/KnitNoteScreenshots/Build/Products/Debug-iphonesimulator/KnitNote.app}"
-WATCH_APP="${WATCH_APP:-/tmp/KnitNoteScreenshotsWatch/Build/Products/Debug-watchsimulator/KnitNoteWatch.app}"
-MAC_APP="${MAC_APP:-/tmp/KnitNoteScreenshotsMac/Build/Products/Debug/KnitNote.app}"
 
 require_variable() {
   local name="$1"
@@ -252,7 +293,7 @@ prepare_device "$IPAD_UDID" "$LOCALE"
 prepare_device "$WATCH_UDID" "$LOCALE"
 
 while IFS=$'\t' read -r platform scene filename width height; do
-  output="$ROOT/Raw/$LOCALE/$platform/$filename"
+  output="$RAW_ROOT/$LOCALE/$platform/$filename"
   echo "Capturing $LOCALE $platform $scene"
   if [[ "$platform" == "mac" ]]; then
     capture_mac "$scene" "$output" "$width" "$height"

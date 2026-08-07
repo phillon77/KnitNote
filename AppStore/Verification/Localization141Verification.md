@@ -14,6 +14,7 @@ No archive, signing, upload, submission, merge, push, price change, IAP change, 
 | --- | --- |
 | Verification date | 2026-08-07, Asia/Taipei |
 | Task 5 starting commit | `ebe2d0cec5c968c4f8457dc70a8b58dba90c70b6` |
+| Recorded 1.4.0 source baseline | `ca3014146f2b9156b71b5104f7fea7e5fbd02839` (`1.4.0 (8)`) |
 | Exact source candidate | The commit containing this record, with subject `test: verify KnitNote 1.4.1 localization`; resolve with `git log -1 --format=%H -- AppStore/Verification/Localization141Verification.md` |
 | Candidate branch | `docs/knitnote-1.4.1-greek-plan` |
 | Marketing version | `1.4.1` in every shipping target and inspected product |
@@ -24,6 +25,8 @@ No archive, signing, upload, submission, merge, push, price change, IAP change, 
 | `origin/main` at verification time | `3ff06866923ee1d0952b211079e0e4fdd073867f` |
 
 The containing commit is not embedded as its own literal SHA because changing this file would change that SHA. The handoff must pair this record with the containing commit reported by Git.
+
+The baseline above is the latest repository source commit configured as `1.4.0 (8)` immediately before the 1.4.1 localization plan, and `git merge-base --is-ancestor ca3014146f2b9156b71b5104f7fea7e5fbd02839 HEAD` must pass. The older `Localization140Verification.md` record was last changed at `77d0c2ea0e991cb0a5411809b379620fa906f904`; that record itself says STOP and records no signed archive. This is source-lineage evidence only: it does not establish parity with an App Store-selected or released binary, and the contemporaneous `main` value is not the release baseline.
 
 ## Exact localization identity
 
@@ -40,8 +43,8 @@ en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Focused Task 5 RED | EXPECTED FAIL | 57 tests, 71 issues against the old `1.4.0`/six-locale audit and screenshot contracts |
-| Focused Task 5 GREEN | PASS | 57 tests in 5 suites, zero issues |
-| Full Swift suite | PASS | 1,317 tests in 122 suites, zero issues |
+| Focused Task 5 review GREEN | PASS | 48 release/configuration/screenshot tests in 3 suites, zero issues |
+| Full Swift suite | PASS | 1,321 tests in 122 suites, zero issues |
 | Metadata validator | PASS | `METADATA CHECK: PASS` for all twelve repository locale packages |
 | Commercial configuration, offline | PASS | `COMMERCIAL RELEASE CHECK: PASS (offline)` |
 | Static release audit | PASS | `STATIC RELEASE AUDIT: PASS` |
@@ -49,7 +52,7 @@ en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 | Release storyboard contract | PASS | 72 entries: 6 per locale |
 | Real signed archive audit | **NOT RUN** | No signed archives were created or supplied |
 
-`STATIC RELEASE AUDIT: PASS` is intentionally not signed-candidate clearance. Only `release_audit.sh --archives DIR` against same-commit signed iOS and macOS archives may emit `RELEASE AUDIT: PASS`.
+`STATIC RELEASE AUDIT: PASS` is intentionally not signed-candidate clearance. Only `release_audit.sh --archives DIR --expected-commit SHA --provenance FILE` against a clean same-commit checkout and signed iOS/macOS archives may emit `RELEASE AUDIT: PASS`. Archive mode also rejects missing or empty localized resources, privacy-manifest semantic drift, artifact hash drift, the wrong signing team/certificate/profile, and a mismatched embedded `KnitNoteSourceRevision`. Unsigned builds and static audit remain distinct evidence.
 
 ## Unsigned Release build and package evidence
 

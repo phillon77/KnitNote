@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4 bietet eine vollständige Oberfläche auf Englisch, traditionellem und vereinfachtem Chinesisch, Deutsch, Französisch und Japanisch. Die in den Einstellungen gewählte Sprache wird mit der Apple Watch und der Teilen-Erweiterung synchronisiert.
+- What's New: KnitNote 1.4.1 ergänzt vollständige Oberflächen auf Norwegisch (Bokmål), Schwedisch, Finnisch, Dänisch, Koreanisch und Griechisch. Die in den Einstellungen gewählte Sprache gilt auch für Apple Watch und die Ansichten zum Teilen.
 - Description: |
   Konzentriere dich auf das Garn in deinen Händen. KnitNote vereint das Zählen mit der Apple Watch, Projektfortschritt, sechs Zähler und PDF-Muster in einem ruhigen, übersichtlichen Arbeitsbereich.
 
@@ -42,7 +42,7 @@
   • Offline vorgenommene Änderungen werden nach erneuter Verbindung an das iPhone übertragen
 
   KnitNote in deiner Sprache verwenden
-  • Englisch, traditionelles oder vereinfachtes Chinesisch, Deutsch, Französisch oder Japanisch in den Einstellungen wählen
+  • In den Einstellungen Englisch, traditionelles Chinesisch, vereinfachtes Chinesisch, Deutsch, Französisch, Japanisch, Norwegisch (Bokmål), Schwedisch, Finnisch, Dänisch, Koreanisch oder Griechisch wählen
   • App und Apple Watch verwenden deine Auswahl
   • Die Ansichten zum Teilen folgen der in den KnitNote-Einstellungen ausgewählten Sprache
   • Projektnamen, Notizen, Tagebucheinträge und importierte Muster bleiben genau so erhalten, wie du sie eingegeben hast

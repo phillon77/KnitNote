@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4 完整支持英语、繁体中文、简体中文、德语、法语和日语界面。在设置中选择的语言会同步到 Apple Watch 和分享扩展。
+- What's New: KnitNote 1.4.1 新增完整的挪威博克马尔语、瑞典语、芬兰语、丹麦语、韩语和希腊语界面。在设置中选择的语言也会应用到 Apple Watch 和分享界面。
 - Description: |
   把注意力留给手中的毛线。KnitNote 将 Apple Watch 计数、作品进度、6 个计数器和 PDF 图解整合在一个清晰、安静的工作空间中。
 
@@ -42,7 +42,7 @@
   • 离线操作会在重新连接后传回 iPhone
 
   使用你熟悉的语言
-  • 可在设置中选择英语、繁体中文、简体中文、德语、法语或日语
+  • 可在设置中选择英语、繁体中文、简体中文、德语、法语、日语、挪威博克马尔语、瑞典语、芬兰语、丹麦语、韩语或希腊语
   • App 和 Apple Watch 会使用你选择的语言
   • 分享界面会跟随 KnitNote 设置中选择的语言
   • 作品名称、笔记、日记和导入的图解保持你原本输入的内容

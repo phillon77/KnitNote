@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 ARCHIVES=""
+EXPECTED_COMMIT=""
+PROVENANCE=""
 MODE=""
 EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el)
 EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja","nb","sv","fi","da","ko","el"]'
@@ -13,9 +15,13 @@ INFO_PLIST_CATALOG="${KNITNOTE_INFO_PLIST_CATALOG:-KnitNote/Localization/InfoPli
 MAIN_INFO_PLIST="${KNITNOTE_MAIN_INFO_PLIST:-KnitNote/Info.plist}"
 WATCH_INFO_PLIST="${KNITNOTE_WATCH_INFO_PLIST:-KnitNoteWatch/Info.plist}"
 SHARE_INFO_PLIST="${KNITNOTE_SHARE_INFO_PLIST:-KnitNoteShare/Info.plist}"
+PROJECT_SCAN_ROOT="${KNITNOTE_PROJECT_SCAN_ROOT:-$ROOT}"
+SOURCE_ROOT="${KNITNOTE_AUDIT_GIT_ROOT:-$ROOT}"
+EXPECTED_TEAM="9CFPAUL5N5"
+RELEASE_140_SOURCE_BASELINE="ca3014146f2b9156b71b5104f7fea7e5fbd02839"
 
 usage() {
-  echo "usage: release_audit.sh (--static-only | --archives DIR)" >&2
+  echo "usage: release_audit.sh (--static-only | --archives DIR --expected-commit SHA --provenance FILE)" >&2
 }
 
 fail() {
@@ -30,6 +36,89 @@ verify_signed_app_group() {
     | jq -e '."com.apple.security.application-groups"
       == ["group.com.phillon.KnitNote"]' >/dev/null \
     || fail "$bundle signed entitlements do not contain only the production App Group"
+}
+
+verify_privacy_manifest() {
+  local manifest="$1"
+  plutil -convert json -o - "$manifest" | jq -e '
+    .NSPrivacyTracking == false
+    and (.NSPrivacyTrackingDomains | length) == 0
+    and (.NSPrivacyCollectedDataTypes | length) == 0
+  ' >/dev/null || fail "$manifest declares tracking or collected data"
+}
+
+verify_privacy_matches_source() {
+  local label="$1" archived="$2" source="$3" archived_json source_json
+  verify_privacy_manifest "$archived"
+  archived_json="$(plutil -convert json -o - "$archived" | jq -S .)"
+  source_json="$(plutil -convert json -o - "$source" | jq -S .)"
+  [[ "$archived_json" == "$source_json" ]] \
+    || fail "$label archived privacy manifest differs semantically from source"
+}
+
+verify_signing_identity() {
+  local label="$1" bundle="$2" profile="$3" bundle_id="$4" expected_group="$5" details cert_prefix profile_json
+  codesign --verify --deep --strict "$bundle" || fail "$label signature verification failed"
+  details="$(codesign -dvv "$bundle" 2>&1)"
+  [[ "$details" == *"TeamIdentifier=$EXPECTED_TEAM"* ]] \
+    || fail "$label signature team is not $EXPECTED_TEAM"
+  [[ "$details" == *"Authority=Apple Distribution:"*"($EXPECTED_TEAM)"* ]] \
+    || fail "$label is not signed by the expected Apple Distribution certificate"
+  [[ -f "$profile" ]] || fail "$label embedded provisioning profile is missing"
+  cert_prefix="$(mktemp "${TMPDIR:-/tmp}/knitnote-signing-cert.XXXXXX")"
+  rm -f "$cert_prefix"
+  profile_json="$(mktemp "${TMPDIR:-/tmp}/knitnote-profile.XXXXXX")"
+  codesign -d --extract-certificates "$cert_prefix" "$bundle" 2>/dev/null \
+    || { rm -f "$cert_prefix"* "$profile_json"; fail "$label signing certificate extraction failed"; }
+  security cms -D -i "$profile" >"$profile_json"
+  python3 - "$profile_json" "$EXPECTED_TEAM" "$bundle_id" "$expected_group" <<'PY' \
+    || { rm -f "$cert_prefix"* "$profile_json"; fail "$label provisioning profile is not App Store distribution for $EXPECTED_TEAM"; }
+import plistlib
+from pathlib import Path
+import sys
+
+profile = plistlib.loads(Path(sys.argv[1]).read_bytes())
+team, bundle, group = sys.argv[2:]
+entitlements = profile.get("Entitlements", {})
+identifier = entitlements.get("application-identifier", entitlements.get("com.apple.application-identifier"))
+groups = entitlements.get("com.apple.security.application-groups", [])
+valid = (
+    profile.get("TeamIdentifier") == [team]
+    and entitlements.get("get-task-allow") is False
+    and identifier == f"{team}.{bundle}"
+    and groups == ([group] if group else [])
+    and "ProvisionedDevices" not in profile
+    and "ProvisionsAllDevices" not in profile
+)
+raise SystemExit(0 if valid else 1)
+PY
+  python3 - "$profile_json" "${cert_prefix}0" <<'PY' \
+    || { rm -f "$cert_prefix"* "$profile_json"; fail "$label signing certificate is not present in its provisioning profile"; }
+import plistlib
+from pathlib import Path
+import sys
+
+profile = plistlib.loads(Path(sys.argv[1]).read_bytes())
+leaf = Path(sys.argv[2]).read_bytes()
+certificates = profile.get("DeveloperCertificates", [])
+raise SystemExit(0 if leaf in certificates else 1)
+PY
+  rm -f "$cert_prefix"* "$profile_json"
+}
+
+verify_project_inventory() {
+  python3 - "$PROJECT_SCAN_ROOT" <<'PY'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+projects = sorted(
+    path.name for path in root.glob("KnitNote*.xcodeproj")
+    if (path / "project.pbxproj").is_file()
+    or any((path / "xcshareddata" / "xcschemes").glob("*.xcscheme"))
+)
+if projects != ["KnitNote.xcodeproj"]:
+    raise SystemExit(f"release audit: top-level shared buildable projects must be only KnitNote.xcodeproj; found {projects}")
+PY
 }
 
 verify_project_regions() {
@@ -76,6 +165,8 @@ verify_bundle_localizations() {
   for locale in "${EXPECTED_LOCALES[@]}"; do
     [[ -d "$resources/$locale.lproj" ]] \
       || fail "$label bundle is missing $locale.lproj"
+    find "$resources/$locale.lproj" -type f -size +0c -print -quit | grep -q . \
+      || fail "$label bundle $locale.lproj has no non-empty localized resource"
   done
   python3 - "$label" "$resources" "${EXPECTED_LOCALES[@]}" <<'PY'
 from pathlib import Path
@@ -114,6 +205,16 @@ while [[ $# -gt 0 ]]; do
       ARCHIVES="$2"
       shift 2
       ;;
+    --expected-commit)
+      [[ $# -ge 2 && -z "$EXPECTED_COMMIT" ]] || { usage; exit 2; }
+      EXPECTED_COMMIT="$2"
+      shift 2
+      ;;
+    --provenance)
+      [[ $# -ge 2 && -z "$PROVENANCE" ]] || { usage; exit 2; }
+      PROVENANCE="$2"
+      shift 2
+      ;;
     *)
       usage
       exit 2
@@ -122,6 +223,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$MODE" ]] || { usage; exit 2; }
+if [[ "$MODE" == "archives" ]]; then
+  [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ && -f "$PROVENANCE" ]] || { usage; exit 2; }
+else
+  [[ -z "$EXPECTED_COMMIT" && -z "$PROVENANCE" ]] || { usage; exit 2; }
+fi
 
 if [[ "$MODE" == "archives" ]]; then
   swift test --disable-sandbox
@@ -131,6 +237,9 @@ SPEC_JSON="$(mktemp "${TMPDIR:-/tmp}/knitnote-release-spec.XXXXXX")"
 trap 'rm -f "$SPEC_JSON"' EXIT
 xcodegen dump --type parsed-json >"$SPEC_JSON"
 verify_project_regions
+verify_project_inventory
+git merge-base --is-ancestor "$RELEASE_140_SOURCE_BASELINE" HEAD \
+  || fail "candidate is not descended from the recorded 1.4.0 source baseline"
 
 plutil -lint \
   "$MAIN_INFO_PLIST" \
@@ -179,13 +288,7 @@ for manifest in \
   KnitNote/PrivacyInfo.xcprivacy \
   KnitNoteWatch/PrivacyInfo.xcprivacy \
   KnitNoteShare/PrivacyInfo.xcprivacy; do
-  plutil -convert json -o - "$manifest" \
-    | jq -e '
-      .NSPrivacyTracking == false
-      and (.NSPrivacyTrackingDomains | length) == 0
-      and (.NSPrivacyCollectedDataTypes | length) == 0
-    ' >/dev/null \
-    || fail "$manifest declares tracking or collected data"
+  verify_privacy_manifest "$manifest"
 done
 
 for catalog in \
@@ -255,6 +358,24 @@ if rg -n "URLSession|NWConnection|Firebase|Analytics|Telemetry|tracking|https?:/
 fi
 
 if [[ -n "$ARCHIVES" ]]; then
+  [[ "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] \
+    || fail "expected source revision does not match repository HEAD"
+  [[ -z "$(git -C "$SOURCE_ROOT" status --porcelain --untracked-files=normal)" ]] \
+    || fail "source worktree is dirty"
+  jq -e --arg commit "$EXPECTED_COMMIT" '
+    .sourceCommit == $commit
+    and (.artifacts | type == "object")
+    and ((.artifacts | keys | sort) == (["ios", "macos", "share", "watch"] | sort))
+    and all(.artifacts[]; (.path | type == "string" and length > 0) and (.sha256 | test("^[0-9a-f]{64}$")))
+  ' "$PROVENANCE" >/dev/null \
+    || fail "provenance manifest sourceCommit does not match"
+  jq -e '
+    .artifacts.ios.path == "KnitNote-iOS-Privacy.xcarchive/Products/Applications/KnitNote.app/KnitNote"
+    and .artifacts.watch.path == "KnitNote-iOS-Privacy.xcarchive/Products/Applications/KnitNote.app/Watch/KnitNoteWatch.app/KnitNoteWatch"
+    and .artifacts.share.path == "KnitNote-iOS-Privacy.xcarchive/Products/Applications/KnitNote.app/PlugIns/KnitNoteShare.appex/KnitNoteShare"
+    and .artifacts.macos.path == "KnitNote-macOS-Privacy.xcarchive/Products/Applications/KnitNote.app/Contents/MacOS/KnitNote"
+    and (([.artifacts[].path] | unique | length) == 4)
+  ' "$PROVENANCE" >/dev/null || fail "provenance artifact paths do not match canonical release executables"
   IOS="$ARCHIVES/KnitNote-iOS-Privacy.xcarchive/Products/Applications/KnitNote.app"
   MAC="$ARCHIVES/KnitNote-macOS-Privacy.xcarchive/Products/Applications/KnitNote.app"
   WATCH="$IOS/Watch/KnitNoteWatch.app"
@@ -284,16 +405,31 @@ if [[ -n "$ARCHIVES" ]]; then
       || fail "$label product version is $product_version, expected $EXPECTED_VERSION"
     [[ "$product_build" == "$EXPECTED_BUILD" ]] \
       || fail "$label product build is $product_build, expected $EXPECTED_BUILD"
+    product_revision="$(/usr/libexec/PlistBuddy -c 'Print :KnitNoteSourceRevision' "$plist")"
+    [[ "$product_revision" == "$EXPECTED_COMMIT" ]] \
+      || fail "$label product source revision does not match expected commit"
   done
   plutil -lint \
     "$IOS/PrivacyInfo.xcprivacy" \
     "$WATCH/PrivacyInfo.xcprivacy" \
     "$SHARE/PrivacyInfo.xcprivacy" \
     "$MAC/Contents/Resources/PrivacyInfo.xcprivacy" >/dev/null
-  codesign --verify --deep --strict "$IOS"
-  codesign --verify --deep --strict "$MAC"
+  verify_privacy_matches_source "iOS" "$IOS/PrivacyInfo.xcprivacy" "KnitNote/PrivacyInfo.xcprivacy"
+  verify_privacy_matches_source "Watch" "$WATCH/PrivacyInfo.xcprivacy" "KnitNoteWatch/PrivacyInfo.xcprivacy"
+  verify_privacy_matches_source "Share" "$SHARE/PrivacyInfo.xcprivacy" "KnitNoteShare/PrivacyInfo.xcprivacy"
+  verify_privacy_matches_source "macOS" "$MAC/Contents/Resources/PrivacyInfo.xcprivacy" "KnitNote/PrivacyInfo.xcprivacy"
+  verify_signing_identity "iOS" "$IOS" "$IOS/embedded.mobileprovision" "com.phillon.KnitNote" "group.com.phillon.KnitNote"
+  verify_signing_identity "Watch" "$WATCH" "$WATCH/embedded.mobileprovision" "com.phillon.KnitNote.watch" ""
+  verify_signing_identity "Share" "$SHARE" "$SHARE/embedded.mobileprovision" "com.phillon.KnitNote.share" "group.com.phillon.KnitNote"
+  verify_signing_identity "macOS" "$MAC" "$MAC/Contents/embedded.provisionprofile" "com.phillon.KnitNote" ""
   verify_signed_app_group "$IOS"
   verify_signed_app_group "$SHARE"
+  while IFS=$'\t' read -r artifact relative expected_hash; do
+    file="$ARCHIVES/$relative"
+    [[ -f "$file" ]] || fail "provenance artifact $artifact is missing: $relative"
+    actual_hash="$(shasum -a 256 "$file" | awk '{print $1}')"
+    [[ "$actual_hash" == "$expected_hash" ]] || fail "provenance hash mismatch for $artifact"
+  done < <(jq -r '.artifacts | to_entries[] | [.key, .value.path, .value.sha256] | @tsv' "$PROVENANCE")
 fi
 
 if [[ "$MODE" == "archives" ]]; then

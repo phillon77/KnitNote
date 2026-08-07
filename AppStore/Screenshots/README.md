@@ -17,15 +17,19 @@ This directory produces 168 screenshot definitions: 14 each for English, Traditi
 3. Build the Debug screenshot binaries:
 
    ```bash
+   CANDIDATE_COMMIT="$(git rev-parse HEAD)"
    xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Debug \
      -destination 'generic/platform=iOS Simulator' \
-     -derivedDataPath /tmp/KnitNoteScreenshots build
+     -derivedDataPath /tmp/KnitNoteScreenshots \
+     KNITNOTE_SOURCE_REVISION="$CANDIDATE_COMMIT" build
    xcodebuild -project KnitNote.xcodeproj -scheme KnitNoteWatch -configuration Debug \
      -destination 'generic/platform=watchOS Simulator' \
-     -derivedDataPath /tmp/KnitNoteScreenshotsWatch build
+     -derivedDataPath /tmp/KnitNoteScreenshotsWatch \
+     KNITNOTE_SOURCE_REVISION="$CANDIDATE_COMMIT" build
    xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Debug \
      -destination 'generic/platform=macOS' \
-     -derivedDataPath /tmp/KnitNoteScreenshotsMac build
+     -derivedDataPath /tmp/KnitNoteScreenshotsMac \
+     KNITNOTE_SOURCE_REVISION="$CANDIDATE_COMMIT" build
    ```
 
 ## Capture and compose
@@ -36,15 +40,13 @@ Export the three dedicated simulator identifiers. Mac capture launches a separat
 export IPHONE_UDID='<dedicated iPhone 17 Pro Max UDID>'
 export IPAD_UDID='<dedicated iPad Pro 13-inch UDID>'
 export WATCH_UDID='<dedicated Apple Watch 46mm UDID>'
-AppStore/Screenshots/capture.sh zh-Hant
-AppStore/Screenshots/capture.sh en
-AppStore/Screenshots/capture.sh zh-Hans
-AppStore/Screenshots/capture.sh de
-AppStore/Screenshots/capture.sh fr
-AppStore/Screenshots/capture.sh ja
+CANDIDATE_COMMIT="$(git rev-parse HEAD)"
+AppStore/Screenshots/capture.sh --all-locales "$CANDIDATE_COMMIT"
 /tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/compose.py AppStore/Screenshots/manifest.json
 /tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/validate.py AppStore/Screenshots/manifest.json
 ```
+
+The all-locales command refuses a dirty or different revision and requires the iOS, Watch, and Mac screenshot products to embed that same `KnitNoteSourceRevision`. It captures all twelve locales into a sibling staging directory, then replaces the complete `Raw/` set and writes `Raw/candidate-provenance.json` only after every locale succeeds. A partial run leaves both the prior images and prior provenance unchanged.
 
 To check all 168 definitions before raw captures exist, append `--manifest-only`.
 

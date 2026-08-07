@@ -54,7 +54,10 @@ import Testing
 
         #expect(text.contains("公開版本：iOS／macOS `1.2.1`"))
         #expect(text.contains("legacy paid owner"))
-        #expect(text.contains("schema 11"))
+        let source = try sourceText("Sources/KnitNoteCore/Projects/JSONProjectStore.swift")
+        let sourceMatch = try #require(source.firstMatch(of: /static let currentVersion = ([0-9]+)/))
+        let documentedMatch = try #require(text.firstMatch(of: /current project archive format uses schema ([0-9]+)/))
+        #expect(sourceMatch.1 == documentedMatch.1)
         #expect(text.contains("manifest 2"))
         #expect(text.contains("KnitNoteShare"))
         for heading in [

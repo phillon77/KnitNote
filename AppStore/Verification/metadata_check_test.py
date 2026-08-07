@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from AppStore.Verification.metadata_check import validate
+from AppStore.Verification.metadata_check import parse, validate
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -27,13 +28,136 @@ EXPECTED_LOCALES = V140_LOCALES + (
     "ko-KR.md",
     "el-GR.md",
 )
+LANGUAGE_NAMES = {
+    "en-US.md": (
+        "English", "Traditional Chinese", "Simplified Chinese", "German", "French", "Japanese",
+        "Norwegian Bokmål", "Swedish", "Finnish", "Danish", "Korean", "Greek",
+    ),
+    "zh-Hant.md": (
+        "英文", "繁體中文", "簡體中文", "德文", "法文", "日文",
+        "挪威博克馬爾文", "瑞典文", "芬蘭文", "丹麥文", "韓文", "希臘文",
+    ),
+    "zh-Hans.md": (
+        "英语", "繁体中文", "简体中文", "德语", "法语", "日语",
+        "挪威博克马尔语", "瑞典语", "芬兰语", "丹麦语", "韩语", "希腊语",
+    ),
+    "de-DE.md": (
+        "Englisch", "traditionelles Chinesisch", "vereinfachtes Chinesisch", "Deutsch",
+        "Französisch", "Japanisch", "Norwegisch (Bokmål)", "Schwedisch", "Finnisch",
+        "Dänisch", "Koreanisch", "Griechisch",
+    ),
+    "fr-FR.md": (
+        "anglais", "chinois traditionnel", "chinois simplifié", "allemand", "français",
+        "japonais", "norvégien bokmål", "suédois", "finnois", "danois", "coréen", "grec",
+    ),
+    "ja-JP.md": (
+        "英語", "繁体字中国語", "簡体字中国語", "ドイツ語", "フランス語", "日本語",
+        "ノルウェー語（ブークモール）", "スウェーデン語", "フィンランド語", "デンマーク語", "韓国語", "ギリシャ語",
+    ),
+    "nb-NO.md": (
+        "engelsk", "tradisjonell kinesisk", "forenklet kinesisk", "tysk", "fransk", "japansk",
+        "norsk bokmål", "svensk", "finsk", "dansk", "koreansk", "gresk",
+    ),
+    "sv-SE.md": (
+        "engelska", "traditionell kinesiska", "förenklad kinesiska", "tyska", "franska",
+        "japanska", "norskt bokmål", "svenska", "finska", "danska", "koreanska", "grekiska",
+    ),
+    "fi-FI.md": (
+        "englanti", "perinteinen kiina", "yksinkertaistettu kiina", "saksa", "ranska", "japani",
+        "norjan bokmål", "ruotsi", "suomi", "tanska", "korea", "kreikka",
+    ),
+    "da-DK.md": (
+        "engelsk", "traditionelt kinesisk", "forenklet kinesisk", "tysk", "fransk", "japansk",
+        "norsk bokmål", "svensk", "finsk", "dansk", "koreansk", "græsk",
+    ),
+    "ko-KR.md": (
+        "영어", "중국어 번체", "중국어 간체", "독일어", "프랑스어", "일본어",
+        "노르웨이어(보크몰)", "스웨덴어", "핀란드어", "덴마크어", "한국어", "그리스어",
+    ),
+    "el-GR.md": (
+        "αγγλικά", "παραδοσιακά κινεζικά", "απλοποιημένα κινεζικά", "γερμανικά",
+        "γαλλικά", "ιαπωνικά", "νορβηγικά μποκμάλ", "σουηδικά", "φινλανδικά",
+        "δανικά", "κορεατικά", "ελληνικά",
+    ),
+}
+SETTINGS_AND_SURFACE_TOKENS = {
+    "en-US.md": ("Settings", "Apple Watch", "sharing"),
+    "zh-Hant.md": ("設定", "Apple Watch", "分享"),
+    "zh-Hans.md": ("设置", "Apple Watch", "分享"),
+    "de-DE.md": ("Einstellungen", "Apple Watch", "Teilen"),
+    "fr-FR.md": ("réglages", "Apple Watch", "partage"),
+    "ja-JP.md": ("設定", "Apple Watch", "共有"),
+    "nb-NO.md": ("innstillingene", "Apple Watch", "delings"),
+    "sv-SE.md": ("inställningarna", "Apple Watch", "delnings"),
+    "fi-FI.md": ("asetuksissa", "Apple Watch", "jakonäkym"),
+    "da-DK.md": ("indstillingerne", "Apple Watch", "delings"),
+    "ko-KR.md": ("설정", "Apple Watch", "공유"),
+    "el-GR.md": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
+}
 
 
 class MetadataLocaleTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.fixture_index = 0
+
     def test_every_v141_locale_is_valid(self) -> None:
         for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename):
                 self.assertEqual(validate(METADATA / filename), [])
+
+    def test_every_package_describes_one_v141_twelve_language_settings_contract(self) -> None:
+        for filename in EXPECTED_LOCALES:
+            with self.subTest(filename=filename):
+                fields = parse(METADATA / filename)
+                whats_new = fields["What's New"]
+                description = fields["Description"]
+                self.assertEqual(
+                    re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new),
+                    ["1.4.1"],
+                )
+                for language in LANGUAGE_NAMES[filename][6:]:
+                    self.assertIn(language, whats_new)
+                for language in LANGUAGE_NAMES[filename]:
+                    self.assertIn(language, description)
+                for token in SETTINGS_AND_SURFACE_TOKENS[filename]:
+                    self.assertIn(token, description)
+
+    def test_validator_rejects_wrong_version_and_missing_language_semantics_for_every_package(self) -> None:
+        for filename in EXPECTED_LOCALES:
+            with self.subTest(filename=filename, mutation="version"):
+                fields = parse(METADATA / filename)
+                fields["What's New"] = fields["What's New"].replace("1.4.1", "1.4.0")
+                path = self.write_named_metadata(filename, fields)
+                self.assertTrue(
+                    any("What's New: must identify KnitNote 1.4.1" in error for error in validate(path)),
+                    validate(path),
+                )
+            with self.subTest(filename=filename, mutation="language"):
+                fields = parse(METADATA / filename)
+                missing = LANGUAGE_NAMES[filename][-1]
+                fields["Description"] = fields["Description"].replace(missing, "")
+                path = self.write_named_metadata(filename, fields)
+                self.assertTrue(
+                    any(f"Description: missing supported language: {missing}" in error for error in validate(path)),
+                    validate(path),
+                )
+
+    def write_named_metadata(self, filename: str, fields: dict[str, str]) -> Path:
+        root = Path(self.temporary_directory.name) / str(self.fixture_index)
+        root.mkdir(parents=True)
+        self.fixture_index += 1
+        path = root / filename
+        lines = ["# Metadata fixture", ""]
+        for name, value in fields.items():
+            if name == "Description":
+                lines.append("- Description: |")
+                lines.extend(f"  {line}" if line else "" for line in value.splitlines())
+            else:
+                lines.append(f"- {name}: {value}")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return path
 
     def test_cli_rejects_a_directory_missing_any_v141_locale(self) -> None:
         checker = Path(__file__).with_name("metadata_check.py")

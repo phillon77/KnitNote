@@ -173,6 +173,94 @@ EXPECTED_LOCALES = V140_LOCALES + (
     "ko-KR.md",
     "el-GR.md",
 )
+LANGUAGE_CONTRACTS = {
+    "en-US.md": {
+        "languages": (
+            "English", "Traditional Chinese", "Simplified Chinese", "German", "French", "Japanese",
+            "Norwegian Bokmål", "Swedish", "Finnish", "Danish", "Korean", "Greek",
+        ),
+        "surfaces": ("Settings", "Apple Watch", "sharing"),
+    },
+    "zh-Hant.md": {
+        "languages": (
+            "英文", "繁體中文", "簡體中文", "德文", "法文", "日文",
+            "挪威博克馬爾文", "瑞典文", "芬蘭文", "丹麥文", "韓文", "希臘文",
+        ),
+        "surfaces": ("設定", "Apple Watch", "分享"),
+    },
+    "zh-Hans.md": {
+        "languages": (
+            "英语", "繁体中文", "简体中文", "德语", "法语", "日语",
+            "挪威博克马尔语", "瑞典语", "芬兰语", "丹麦语", "韩语", "希腊语",
+        ),
+        "surfaces": ("设置", "Apple Watch", "分享"),
+    },
+    "de-DE.md": {
+        "languages": (
+            "Englisch", "traditionelles Chinesisch", "vereinfachtes Chinesisch", "Deutsch",
+            "Französisch", "Japanisch", "Norwegisch (Bokmål)", "Schwedisch", "Finnisch",
+            "Dänisch", "Koreanisch", "Griechisch",
+        ),
+        "surfaces": ("Einstellungen", "Apple Watch", "Teilen"),
+    },
+    "fr-FR.md": {
+        "languages": (
+            "anglais", "chinois traditionnel", "chinois simplifié", "allemand", "français",
+            "japonais", "norvégien bokmål", "suédois", "finnois", "danois", "coréen", "grec",
+        ),
+        "surfaces": ("réglages", "Apple Watch", "partage"),
+    },
+    "ja-JP.md": {
+        "languages": (
+            "英語", "繁体字中国語", "簡体字中国語", "ドイツ語", "フランス語", "日本語",
+            "ノルウェー語（ブークモール）", "スウェーデン語", "フィンランド語", "デンマーク語", "韓国語", "ギリシャ語",
+        ),
+        "surfaces": ("設定", "Apple Watch", "共有"),
+    },
+    "nb-NO.md": {
+        "languages": (
+            "engelsk", "tradisjonell kinesisk", "forenklet kinesisk", "tysk", "fransk", "japansk",
+            "norsk bokmål", "svensk", "finsk", "dansk", "koreansk", "gresk",
+        ),
+        "surfaces": ("innstillingene", "Apple Watch", "delings"),
+    },
+    "sv-SE.md": {
+        "languages": (
+            "engelska", "traditionell kinesiska", "förenklad kinesiska", "tyska", "franska",
+            "japanska", "norskt bokmål", "svenska", "finska", "danska", "koreanska", "grekiska",
+        ),
+        "surfaces": ("inställningarna", "Apple Watch", "delnings"),
+    },
+    "fi-FI.md": {
+        "languages": (
+            "englanti", "perinteinen kiina", "yksinkertaistettu kiina", "saksa", "ranska", "japani",
+            "norjan bokmål", "ruotsi", "suomi", "tanska", "korea", "kreikka",
+        ),
+        "surfaces": ("asetuksissa", "Apple Watch", "jakonäkym"),
+    },
+    "da-DK.md": {
+        "languages": (
+            "engelsk", "traditionelt kinesisk", "forenklet kinesisk", "tysk", "fransk", "japansk",
+            "norsk bokmål", "svensk", "finsk", "dansk", "koreansk", "græsk",
+        ),
+        "surfaces": ("indstillingerne", "Apple Watch", "delings"),
+    },
+    "ko-KR.md": {
+        "languages": (
+            "영어", "중국어 번체", "중국어 간체", "독일어", "프랑스어", "일본어",
+            "노르웨이어(보크몰)", "스웨덴어", "핀란드어", "덴마크어", "한국어", "그리스어",
+        ),
+        "surfaces": ("설정", "Apple Watch", "공유"),
+    },
+    "el-GR.md": {
+        "languages": (
+            "αγγλικά", "παραδοσιακά κινεζικά", "απλοποιημένα κινεζικά", "γερμανικά",
+            "γαλλικά", "ιαπωνικά", "νορβηγικά μποκμάλ", "σουηδικά", "φινλανδικά",
+            "δανικά", "κορεατικά", "ελληνικά",
+        ),
+        "surfaces": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
+    },
+}
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")
 CLAIM_DASH = re.compile(r"[\u2010-\u2015\u2212]")
@@ -257,6 +345,25 @@ def validate(path: Path) -> list[str]:
         value = fields.get(name, "")
         if value and not value.startswith("https://"):
             errors.append(f"{path}: {name}: must use HTTPS")
+
+    contract = LANGUAGE_CONTRACTS.get(path.name)
+    if contract is not None:
+        whats_new = fields.get("What's New", "")
+        description = fields.get("Description", "")
+        versions = re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new)
+        if versions != ["1.4.1"]:
+            errors.append(f"{path}: What's New: must identify KnitNote 1.4.1 exactly")
+        for language in contract["languages"][6:]:
+            if language.casefold() not in whats_new.casefold():
+                errors.append(f"{path}: What's New: missing added language: {language}")
+        for language in contract["languages"]:
+            if language.casefold() not in description.casefold():
+                errors.append(f"{path}: Description: missing supported language: {language}")
+        for token in contract["surfaces"]:
+            if token.casefold() not in description.casefold():
+                errors.append(
+                    f"{path}: Description: missing Settings/Watch/Share contract token: {token}"
+                )
     return errors
 
 

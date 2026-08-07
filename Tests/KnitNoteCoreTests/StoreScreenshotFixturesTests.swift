@@ -373,7 +373,7 @@ import Testing
             currentDirectory: root
         )
 
-        #expect(result.status == 0)
+        #expect(result.status == 0, Comment(rawValue: result.output))
         for locale in releaseScreenshotLocales {
             #expect(
                 FileManager.default.fileExists(
@@ -389,6 +389,79 @@ import Testing
         #expect(script.contains("\"watch\": 0"))
         #expect(script.contains("sorted(localized, key="))
         #expect(script.contains("watchProjects"))
+    }
+
+    @Test func allLocaleCaptureIsAtomicAndRecordsTheCandidateCommit() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "knitnote-all-locales-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bin = root.appending(path: "bin", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let commit = String(repeating: "a", count: 40)
+        let log = root.appending(path: "locales.log")
+        let raw = root.appending(path: "Raw", directoryHint: .isDirectory)
+        let provenance = raw.appending(path: "candidate-provenance.json")
+        let iOSApp = root.appending(path: "KnitNote.app", directoryHint: .isDirectory)
+        let watchApp = root.appending(path: "KnitNoteWatch.app", directoryHint: .isDirectory)
+        let macApp = root.appending(path: "KnitNoteMac.app", directoryHint: .isDirectory)
+        for plist in [
+            iOSApp.appending(path: "Info.plist"),
+            watchApp.appending(path: "Info.plist"),
+            macApp.appending(path: "Contents/Info.plist"),
+        ] {
+            try FileManager.default.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let data = try PropertyListSerialization.data(
+                fromPropertyList: ["KnitNoteSourceRevision": commit],
+                format: .xml,
+                options: 0
+            )
+            try data.write(to: plist)
+        }
+        let git = bin.appending(path: "git")
+        try """
+        #!/bin/sh
+        case "$*" in *"rev-parse HEAD"*) echo \(commit);; *"status --porcelain"*) :;; esac
+        """.write(to: git, atomically: true, encoding: .utf8)
+        let runner = bin.appending(path: "runner")
+        try """
+        #!/bin/sh
+        echo "$1" >> "${LOCALE_LOG:?}"
+        [ "$1" != "${FAIL_LOCALE:-}" ] || exit 1
+        mkdir -p "${KNITNOTE_SCREENSHOT_RAW_ROOT:?}/$1"
+        echo "$1" > "${KNITNOTE_SCREENSHOT_RAW_ROOT:?}/$1/capture.txt"
+        """.write(to: runner, atomically: true, encoding: .utf8)
+        for file in [git, runner] {
+            try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: file.path)
+        }
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "\(bin.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
+        environment["LOCALE_LOG"] = log.path
+        environment["KNITNOTE_SCREENSHOT_CAPTURE_RUNNER"] = runner.path
+        environment["KNITNOTE_SCREENSHOT_RAW_ROOT"] = raw.path
+        environment["IOS_APP"] = iOSApp.path
+        environment["WATCH_APP"] = watchApp.path
+        environment["MAC_APP"] = macApp.path
+        var result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit], environment: environment)
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        let payload = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: provenance)) as? [String: Any])
+        #expect(payload["candidateCommit"] as? String == commit)
+        #expect(payload["locales"] as? [String] == releaseScreenshotLocales)
+        let priorProvenance = try Data(contentsOf: provenance)
+        let priorEnglish = try Data(contentsOf: raw.appending(path: "en/capture.txt"))
+        environment["FAIL_LOCALE"] = "fi"
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit], environment: environment)
+        #expect(result.status != 0)
+        #expect(try Data(contentsOf: provenance) == priorProvenance)
+        #expect(try Data(contentsOf: raw.appending(path: "en/capture.txt")) == priorEnglish)
+    }
+
+    @Test func screenshotBuildInstructionsEmbedTheCandidateCommitInEveryProduct() throws {
+        let readme = try screenshotSourceText("AppStore/Screenshots/README.md")
+        let commit = try #require(readme.range(of: "CANDIDATE_COMMIT=\"$(git rev-parse HEAD)\""))
+        let firstBuild = try #require(readme.range(of: "xcodebuild -project KnitNote.xcodeproj"))
+        #expect(commit.lowerBound < firstBuild.lowerBound)
+        #expect(
+            readme.components(separatedBy: "KNITNOTE_SOURCE_REVISION=\"$CANDIDATE_COMMIT\" build").count - 1 == 3
+        )
     }
 }
 

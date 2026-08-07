@@ -46,6 +46,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>KnitNoteSourceRevision</key>
+	<string>$(KNITNOTE_SOURCE_REVISION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.lifestyle</string>
 	<key>NSCameraUsageDescription</key>

@@ -1732,6 +1732,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
+				KNITNOTE_SOURCE_REVISION = UNSET;
 				MARKETING_VERSION = 1.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
 				PRODUCT_NAME = KnitNoteWatch;
@@ -1748,6 +1749,7 @@
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
+				KNITNOTE_SOURCE_REVISION = UNSET;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1786,6 +1788,7 @@
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
+				KNITNOTE_SOURCE_REVISION = UNSET;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1810,6 +1813,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNote/Info.plist;
+				KNITNOTE_SOURCE_REVISION = UNSET;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1853,6 +1857,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNote/Info.plist;
+				KNITNOTE_SOURCE_REVISION = UNSET;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -2015,6 +2020,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
+				KNITNOTE_SOURCE_REVISION = UNSET;
 				MARKETING_VERSION = 1.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
 				PRODUCT_NAME = KnitNoteWatch;

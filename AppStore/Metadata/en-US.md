@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4 adds complete English, Traditional Chinese, Simplified Chinese, German, French, and Japanese interfaces. Your Settings choice syncs to Apple Watch and the Share extension.
+- What's New: KnitNote 1.4.1 adds complete Norwegian Bokmål, Swedish, Finnish, Danish, Korean, and Greek interfaces. Your Settings choice also applies to Apple Watch and sharing screens.
 - Description: |
   Keep your attention on the yarn in your hands. KnitNote puts Apple Watch counting, project progress, six counters, and PDF patterns in one calm, readable workspace.
 
@@ -42,9 +42,9 @@
   • Offline changes sync back to iPhone when the connection returns
 
   Use KnitNote in your language
-  • Choose English, Traditional Chinese, Simplified Chinese, German, French, or Japanese in Settings
+  • Choose English, Traditional Chinese, Simplified Chinese, German, French, Japanese, Norwegian Bokmål, Swedish, Finnish, Danish, Korean, or Greek in Settings
   • The app and Apple Watch use your choice
-  • Sharing screens follow the language selected in KnitNote Settings
+  • sharing screens follow the language selected in KnitNote Settings
   • Your project names, notes, journal entries, and imported patterns stay exactly as you entered them
 
   Export a complete backup and restore from the backup package you select.

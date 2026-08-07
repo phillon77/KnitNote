@@ -32,6 +32,6 @@
   • Se prosjektene og alle seks tellerne på Apple Watch
   • Endringer som gjøres uten nett, overføres til iPhone når forbindelsen er tilbake
 
-  Velg språk i KnitNote-innstillingene. Appen, Apple Watch og delingsvisningene bruker valget ditt, mens prosjektnavn, notater, journalinnhold og importerte mønstre beholdes slik du skrev eller importerte dem.
+  Velg engelsk, tradisjonell kinesisk, forenklet kinesisk, tysk, fransk, japansk, norsk bokmål, svensk, finsk, dansk, koreansk eller gresk i KnitNote-innstillingene. Appen, Apple Watch og delingsvisningene bruker valget ditt, mens prosjektnavn, notater, journalinnhold og importerte mønstre beholdes slik du skrev eller importerte dem.
 
   Eksporter en fullstendig sikkerhetskopi, og gjenopprett fra sikkerhetskopien du velger.

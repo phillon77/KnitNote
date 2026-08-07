@@ -3,7 +3,7 @@
 - Name: KnitNote
 - Subtitle: Apple Watch 編織計數
 - Promotional text: 完整功能免費試用 7 天。用 Apple Watch 抬腕計數、閱讀 PDF 織圖與使用六組命名計數器；一次購買即可解鎖 iPhone、iPad、Mac 與配對的 Apple Watch。
-- Keywords: 手作,毛線,鉤針,棒針,計數器,織圖,密度,針數,毛線庫,編織日記
+- Keywords: 毛線編織,鉤針編織,棒針編織,計數器,編織圖解,編織密度,毛線庫,編織日記
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html

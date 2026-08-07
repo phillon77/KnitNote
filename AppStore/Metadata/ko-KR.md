@@ -3,7 +3,7 @@
 - Name: KnitNote: 단수 카운터
 - Subtitle: 도안과 Apple Watch
 - Promotional text: Apple Watch로 단을 세고, PDF와 이미지 도안을 읽으며, 이름을 지정할 수 있는 6개 카운터로 프로젝트 진행 상황과 실, 메모를 한곳에 정리하세요.
-- Keywords: 뜨개질,코바늘,도안,실관리,코수,단수,게이지,카운터,대바늘,뜨개일지
+- Keywords: 뜨개질,코바늘,뜨개도안,실관리,코수계산,단수세기,게이지,카운터,대바늘
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html

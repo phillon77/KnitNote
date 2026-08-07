@@ -36,10 +36,17 @@ FORBIDDEN_PATTERNS = (
             r"ai(?:[ -]+powered)?[ -]*translat(?:e|ed|ing|ions?)|"
             r"ki[ -]+gestützte[ -]+übersetzung|"
             r"(?:ki|künstliche intelligenz)[ -]+(?:übersetzung|übersetzen)|"
-            r"traductions?[ -]+(?:par[ -]+)?ia|ia[ -]+traduction"
+            r"traductions?[ -]+(?:par[ -]+)?ia|ia[ -]+traduction|"
+            r"automatisk[ -]+oversettelse|ki[ -]+oversettelse|"
+            r"automatisk[ -]+översättning|ai[ -]+översättning|"
+            r"automaattinen[ -]+käännös|tekoälykäännös|"
+            r"automatisk[ -]+oversættelse|ai[ -]+oversættelse|"
+            r"αυτόματη[ -]+μετάφραση|"
+            r"μετάφραση[ -]+με[ -]+τεχνητή[ -]+νοημοσύνη"
             r")(?!\w)|"
             r"(?:ai[ -]*(?:翻譯|翻译|翻訳|による[ -]*翻訳)|"
-            r"(?:人工智慧|人工智能|人工知能)[ -]*(?:翻譯|翻译|翻訳))"
+            r"(?:人工智慧|人工智能|人工知能)[ -]*(?:翻譯|翻译|翻訳)|"
+            r"(?:자동|인공지능)[ -]*번역)"
         ),
     ),
     (
@@ -68,8 +75,42 @@ FORBIDDEN_PATTERNS = (
     (
         "subscription",
         re.compile(
-            r"(?<!\w)(?:subscriptions?|abonnements?)(?!\w)|"
-            r"訂閱|订阅|サブスクリプション|定期購入"
+            r"(?<!\w)(?:"
+            r"subscriptions?|abonnements?|prenumeration|tilaus|συνδρομή"
+            r")(?!\w)|"
+            r"訂閱|订阅|サブスクリプション|定期購入|구독"
+        ),
+    ),
+    (
+        "trial/free",
+        re.compile(
+            r"(?<!\w)(?:"
+            r"gratis|prøveperiode|provperiod|ilmainen|ilmaiseksi|kokeilujakso|"
+            r"δωρεάν|δοκιμαστική[ -]+περίοδοσ"
+            r")(?!\w)|(?:무료(?:[ -]*체험)?|체험[ -]*기간)"
+        ),
+    ),
+    (
+        "price",
+        re.compile(
+            r"(?<!\w)(?:pris|hinta|τιμή)(?!\w)|가격"
+        ),
+    ),
+    (
+        "purchase",
+        re.compile(
+            r"(?<!\w)(?:kjøp|köp|osto|køb|αγορά)(?!\w)|구매"
+        ),
+    ),
+    (
+        "cloud/remote service",
+        re.compile(
+            r"(?<!\w)(?:"
+            r"skysynkronisering|molnsynkronisering|pilvisynkronointi|"
+            r"fjärrtjänst|etäpalvelu|ekstern[ -]+tjeneste|"
+            r"συγχρονισμόσ[ -]+στο[ -]+(?:cloud|νέφοσ)|"
+            r"απομακρυσμένη[ -]+υπηρεσία"
+            r")(?!\w)|(?:클라우드[ -]*동기화|원격[ -]*서비스)"
         ),
     ),
     (
@@ -105,7 +146,14 @@ FORBIDDEN_PATTERNS = (
             r"utilise(?:nt)?.{0,30}langue[ -]+du[ -]+système|"
             r"共有画面.{0,80}システムの言語で表示|"
             r"(?:分享扩展|分享界面).{0,80}(?:按|使用).{0,30}系统语言.{0,20}显示|"
-            r"(?:分享延伸功能|分享畫面).{0,80}依.{0,30}系統語言.{0,20}顯示"
+            r"(?:分享延伸功能|分享畫面).{0,80}依.{0,30}系統語言.{0,20}顯示|"
+            r"(?:delingsutvidelsen|delingsvisningene).{0,120}systemspråket|"
+            r"(?:delningstillägget|delningsvyerna).{0,120}systemspråket|"
+            r"(?:jakolaajennus|jakonäkymät).{0,120}järjestelmän[ -]+kieltä|"
+            r"(?:delingsudvidelsen|delingsvisningerne).{0,120}systemets[ -]+sprog|"
+            r"(?:공유[ -]+확장[ -]+프로그램|공유[ -]+화면).{0,80}시스템[ -]+언어|"
+            r"(?:επέκταση|προβολέσ)[ -]+κοινήσ[ -]+χρήσησ.{0,120}"
+            r"γλώσσα[ -]+του[ -]+συστήματοσ"
         ),
     ),
 )
@@ -185,10 +233,11 @@ def validate(path: Path) -> list[str]:
     keyword_values = [item.strip() for item in fields.get("Keywords", "").split(",")]
     for keyword in keyword_values:
         keyword_length = len(unicodedata.normalize("NFKC", keyword))
-        if keyword and keyword_length < 2:
+        if keyword and keyword_length < 3:
+            unit = "character" if keyword_length == 1 else "characters"
             errors.append(
                 f"{path}: Keywords: keyword '{keyword}' has "
-                f"{keyword_length} character; minimum is 2"
+                f"{keyword_length} {unit}; minimum is 3"
             )
 
     keywords = [

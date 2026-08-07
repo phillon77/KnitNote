@@ -140,19 +140,26 @@ class MetadataValidationTests(unittest.TestCase):
         )
         self.assertEqual(validate(self.write_metadata(Name="KN")), [])
 
-        for one_character, two_characters in (
-            ("x", "xy"),
-            ("編", "編織"),
-            ("e\u0301", "ée"),
+        for one_character, two_characters, three_characters in (
+            ("x", "xy", "xyz"),
+            ("編", "編織", "編織圖"),
+            ("e\u0301", "e\u0301x", "e\u0301xy"),
         ):
             with self.subTest(keyword=one_character):
                 path = self.write_metadata(Keywords=f"{one_character},pattern")
                 self.assertIn(
-                    f"{path}: Keywords: keyword '{one_character}' has 1 character; minimum is 2",
+                    f"{path}: Keywords: keyword '{one_character}' has 1 character; minimum is 3",
                     validate(path),
                 )
+            with self.subTest(keyword=two_characters):
+                path = self.write_metadata(Keywords=f"{two_characters},pattern")
+                self.assertIn(
+                    f"{path}: Keywords: keyword '{two_characters}' has 2 characters; minimum is 3",
+                    validate(path),
+                )
+            with self.subTest(keyword=three_characters):
                 self.assertEqual(
-                    validate(self.write_metadata(Keywords=f"{two_characters},pattern")),
+                    validate(self.write_metadata(Keywords=f"{three_characters},pattern")),
                     [],
                 )
 
@@ -237,6 +244,142 @@ class MetadataValidationTests(unittest.TestCase):
                     validate(path),
                 )
 
+    def test_v141_trial_and_free_claims_are_forbidden(self) -> None:
+        claims = (
+            ("nb", "Gratis"),
+            ("nb", "Prøveperiode"),
+            ("sv", "Gratis"),
+            ("sv", "Provperiod"),
+            ("fi", "Ilmainen"),
+            ("fi", "Kokeilujakso"),
+            ("da", "Gratis"),
+            ("da", "Prøveperiode"),
+            ("ko", "무료"),
+            ("ko", "체험 기간"),
+            ("el", "Δωρεάν"),
+            ("el", "Δοκιμαστική περίοδος"),
+        )
+        self.assert_forbidden_claims("trial/free", claims)
+
+    def test_v141_price_claims_are_forbidden(self) -> None:
+        claims = (
+            ("nb", "Pris"),
+            ("sv", "Pris"),
+            ("fi", "Hinta"),
+            ("da", "Pris"),
+            ("ko", "가격"),
+            ("el", "Τιμή"),
+        )
+        self.assert_forbidden_claims("price", claims)
+
+    def test_v141_purchase_claims_are_forbidden(self) -> None:
+        claims = (
+            ("nb", "Kjøp"),
+            ("sv", "Köp"),
+            ("fi", "Osto"),
+            ("da", "Køb"),
+            ("ko", "구매"),
+            ("el", "Αγορά"),
+        )
+        self.assert_forbidden_claims("purchase", claims)
+
+    def test_v141_subscription_claims_are_forbidden(self) -> None:
+        claims = (
+            ("nb", "Abonnement"),
+            ("sv", "Prenumeration"),
+            ("fi", "Tilaus"),
+            ("da", "Abonnement"),
+            ("ko", "구독"),
+            ("el", "Συνδρομή"),
+        )
+        self.assert_forbidden_claims("subscription", claims)
+
+    def test_v141_automatic_and_ai_translation_claims_are_forbidden(self) -> None:
+        claims = (
+            ("nb", "Automatisk oversettelse"),
+            ("nb", "KI-oversettelse"),
+            ("sv", "Automatisk översättning"),
+            ("sv", "AI-översättning"),
+            ("fi", "Automaattinen käännös"),
+            ("fi", "Tekoälykäännös"),
+            ("da", "Automatisk oversættelse"),
+            ("da", "AI-oversættelse"),
+            ("ko", "자동 번역"),
+            ("ko", "인공지능 번역"),
+            ("el", "Αυτόματη μετάφραση"),
+            ("el", "Μετάφραση με τεχνητή νοημοσύνη"),
+        )
+        self.assert_forbidden_claims("AI translation", claims)
+
+    def test_v141_cloud_and_remote_service_claims_are_forbidden(self) -> None:
+        claims = (
+            ("nb", "Skysynkronisering"),
+            ("nb", "Ekstern tjeneste"),
+            ("sv", "Molnsynkronisering"),
+            ("sv", "Fjärrtjänst"),
+            ("fi", "Pilvisynkronointi"),
+            ("fi", "Etäpalvelu"),
+            ("da", "Skysynkronisering"),
+            ("da", "Ekstern tjeneste"),
+            ("ko", "클라우드 동기화"),
+            ("ko", "원격 서비스"),
+            ("el", "Συγχρονισμός στο cloud"),
+            ("el", "Απομακρυσμένη υπηρεσία"),
+        )
+        self.assert_forbidden_claims("cloud/remote service", claims)
+
+    def test_v141_share_system_only_language_claims_are_forbidden(self) -> None:
+        claims = (
+            ("nb", "Delingsvisningene bruker systemspråket."),
+            ("sv", "Delningsvyerna använder systemspråket."),
+            ("fi", "Jakonäkymät käyttävät järjestelmän kieltä."),
+            ("da", "Delingsvisningerne bruger systemets sprog."),
+            ("ko", "공유 화면은 시스템 언어를 사용합니다."),
+            ("el", "Οι προβολές κοινής χρήσης χρησιμοποιούν τη γλώσσα του συστήματος."),
+        )
+        self.assert_forbidden_claims("Share system-only language", claims)
+
+    def test_v141_offline_watch_transfer_and_explicit_backup_wording_is_allowed(self) -> None:
+        safe_copy = (
+            (
+                "nb",
+                "Endringer gjort uten nett overføres til iPhone når forbindelsen er tilbake. "
+                "Eksporter en fullstendig sikkerhetskopi.",
+            ),
+            (
+                "sv",
+                "Ändringar som görs utan nätanslutning överförs till iPhone när anslutningen är tillbaka. "
+                "Exportera en fullständig säkerhetskopia.",
+            ),
+            (
+                "fi",
+                "Ilman verkkoyhteyttä tehdyt muutokset siirretään iPhoneen, kun yhteys palaa. "
+                "Vie täydellinen varmuuskopio.",
+            ),
+            (
+                "da",
+                "Ændringer uden netværksforbindelse overføres til iPhone, når forbindelsen er tilbage. "
+                "Eksporter en komplet sikkerhedskopi.",
+            ),
+            (
+                "ko",
+                "오프라인에서 변경한 내용은 다시 연결되면 iPhone으로 전송됩니다. "
+                "전체 백업을 내보냅니다.",
+            ),
+            (
+                "el",
+                "Οι αλλαγές εκτός σύνδεσης μεταφέρονται στο iPhone όταν επανέλθει η σύνδεση. "
+                "Εξαγάγετε ένα πλήρες αντίγραφο ασφαλείας.",
+            ),
+        )
+
+        for locale, description in safe_copy:
+            with self.subTest(locale=locale):
+                self.assertEqual(
+                    validate(self.write_metadata(Description=description)),
+                    [],
+                )
+
     def test_duplicate_keywords_are_compared_with_unicode_normalization(self) -> None:
         path = self.write_metadata(Keywords="tricot,échantillon,e\u0301chantillon")
 
@@ -272,6 +415,19 @@ class MetadataValidationTests(unittest.TestCase):
         ]
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return path
+
+    def assert_forbidden_claims(
+        self,
+        concept: str,
+        claims: tuple[tuple[str, str], ...],
+    ) -> None:
+        for locale, claim in claims:
+            with self.subTest(concept=concept, locale=locale, claim=claim):
+                path = self.write_metadata(Description=claim)
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: {concept}",
+                    validate(path),
+                )
 
 
 if __name__ == "__main__":

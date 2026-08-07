@@ -3,7 +3,7 @@
 - Name: KnitNote：段数カウンター
 - Subtitle: Apple Watchで編み物カウント
 - Promotional text: すべての機能を7日間無料でお試し。Apple Watchでカウントし、PDF編み図を読み、6つのカウンターを使用。1回の購入でiPhone、iPad、Mac、ペアリング済みApple Watchの編集機能をロック解除できます。
-- Keywords: 手芸,輪針,毛糸,かぎ針,棒針,編み図,ゲージ
+- Keywords: 編み物,輪針編み,毛糸管理,かぎ針,棒針編み,編み図,ゲージ
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html

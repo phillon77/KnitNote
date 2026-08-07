@@ -4,7 +4,7 @@
 
 **STOP — the source candidate is `1.4.1 (8)`, but release acceptance is incomplete.**
 
-Automated tests, static release checks, four unsigned Release builds, and direct inspection of six standalone/embedded products agree on the exact twelve-language candidate identity. This evidence does not establish signed-archive, physical-device, native-language, visual, accessibility, data-neutrality, commercial, or App Store Connect acceptance.
+Automated tests and static release checks cover the repository state containing this record. Four earlier unsigned Release builds and six inspected standalone/embedded products establish package shape for the same `1.4.1 (8)` source configuration, but they predate the latest audit-only hardening and are not exact-current-HEAD binary evidence. None of this establishes signed-archive, physical-device, native-language, visual, accessibility, data-neutrality, commercial, or App Store Connect acceptance.
 
 No archive, signing, upload, submission, merge, push, price change, IAP change, or App Store Connect modification was performed.
 
@@ -17,8 +17,8 @@ No archive, signing, upload, submission, merge, push, price change, IAP change, 
 | Recorded 1.4.0 source baseline | `ca3014146f2b9156b71b5104f7fea7e5fbd02839` (`1.4.0 (8)`) |
 | Exact source candidate | Resolve the immutable candidate at handoff with `git rev-parse HEAD`; bind signed archives through the supported creator and embedded source revision. This record deliberately does not predict its containing commit subject or SHA. |
 | Candidate branch | `docs/knitnote-1.4.1-greek-plan` |
-| Marketing version | `1.4.1` in every shipping target and inspected product |
-| Build number | `8`, preserved in every shipping target and inspected product |
+| Marketing version | `1.4.1` in every shipping target; historical inspected products also reported `1.4.1` |
+| Build number | `8` in every shipping target; historical inspected products also reported `8` |
 | Xcode | 26.6 (`17F113`) |
 | Swift | Apple Swift 6.3.3 (`swiftlang-6.3.3.1.3`) |
 | `main` at verification time | `3ff06866923ee1d0952b211079e0e4fdd073867f` |
@@ -36,15 +36,15 @@ The required locale set is:
 en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 ```
 
-`project.yml`, the generated Xcode project, all three source Info.plists, all four String Catalogs, the release audit, the screenshot manifest/capture tooling, and every inspected built product use this exact set. `Base.lproj` is ignored only as an optional Interface Builder base-resource directory; any other missing or extra localization is rejected.
+`project.yml`, the generated Xcode project, all three source Info.plists, all four String Catalogs, the release audit, and the screenshot manifest/capture tooling use this exact set. Historical inspected products used the same set. `Base.lproj` is ignored only as an optional Interface Builder base-resource directory; any other missing or extra localization is rejected.
 
 ## TDD and automated verification
 
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Focused Task 5 RED | EXPECTED FAIL | 57 tests, 71 issues against the old `1.4.0`/six-locale audit and screenshot contracts |
-| Focused Task 5 hardening GREEN | PASS | 51 release/configuration/screenshot tests in 3 suites, zero issues |
-| Full Swift suite | PASS | 1,323 tests in 122 suites, zero issues |
+| Focused Task 5 hardening GREEN | PASS | 54 release/configuration/screenshot tests in 3 suites, zero issues, including real-format UTF-16LE table parsing and strict codesign option coverage |
+| Full Swift suite | PASS | 1,326 tests in 122 suites, zero issues |
 | Metadata validator | PASS | `METADATA CHECK: PASS` for all twelve repository locale packages |
 | Commercial configuration, offline | PASS | `COMMERCIAL RELEASE CHECK: PASS (offline)` |
 | Static release audit | PASS | `STATIC RELEASE AUDIT: PASS` |
@@ -54,9 +54,11 @@ en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 
 `STATIC RELEASE AUDIT: PASS` is intentionally not signed-candidate clearance. The supported `create_release_candidate.sh OUTPUT_DIRECTORY` workflow creates both signed archives from a detached exact clean HEAD, embeds that revision, inventories all bundle bytes, writes provenance, and runs the production archive audit before publishing the directory. Only that production audit may emit `RELEASE AUDIT: PASS`; `--test-only` fixtures emit a visibly different marker. Unsigned builds and static audit remain distinct evidence.
 
-## Unsigned Release build and package evidence
+Archive localization validation uses Apple `plutil` to normalize compiled `.strings`/`.stringsdict` tables before exact source-catalog key-domain comparison. This covers real macOS UTF-16LE tables whose XML encoding declaration is not directly parseable by Python `plistlib`. Certificate extraction uses codesign's joined `--extract-certificates=PREFIX` form.
 
-All builds used `CODE_SIGNING_ALLOWED=NO` and separate DerivedData paths. They are compile/package evidence only.
+## Historical unsigned Release build and package evidence
+
+All builds used `CODE_SIGNING_ALLOWED=NO` and separate DerivedData paths. They predate the latest audit-only hardening, so they are historical compile/package evidence only and do not prove the exact current HEAD.
 
 | Target | Destination | DerivedData | Result | Identifier | Version/build |
 | --- | --- | --- | --- | --- | --- |

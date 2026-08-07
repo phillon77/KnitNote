@@ -75,7 +75,7 @@ verify_signing_identity() {
   rm -f "$cert_prefix"
   profile_json="$(mktemp "${TMPDIR:-/tmp}/knitnote-profile.XXXXXX")"
   signed_json="$(mktemp "${TMPDIR:-/tmp}/knitnote-signed-entitlements.XXXXXX")"
-  "$CODESIGN" -d --extract-certificates "$cert_prefix" "$bundle" 2>/dev/null \
+  "$CODESIGN" -d "--extract-certificates=$cert_prefix" "$bundle" 2>/dev/null \
     || { rm -f "$cert_prefix"* "$profile_json" "$signed_json"; fail "$label signing certificate extraction failed"; }
   "$SECURITY" cms -D -i "$profile" >"$profile_json" \
     || { rm -f "$cert_prefix"* "$profile_json" "$signed_json"; fail "$label provisioning profile decode failed"; }
@@ -229,13 +229,14 @@ verify_bundle_localizations() {
     [[ -d "$resources/$locale.lproj" ]] \
       || fail "$label bundle is missing $locale.lproj"
   done
-  python3 - "$label" "$resources" "$catalog" "${EXPECTED_LOCALES[@]}" <<'PY'
+  python3 - "$label" "$resources" "$catalog" "$PLUTIL" "${EXPECTED_LOCALES[@]}" <<'PY'
 import json
 import plistlib
+import subprocess
 from pathlib import Path
 import sys
 
-label, resources, catalog, *expected = sys.argv[1:]
+label, resources, catalog, plutil, *expected = sys.argv[1:]
 resources = Path(resources)
 actual = {
     path.name.removesuffix(".lproj")
@@ -263,7 +264,12 @@ for locale in expected:
         if not table.exists():
             continue
         try:
-            value = plistlib.loads(table.read_bytes())
+            conversion = subprocess.run(
+                [plutil, "-convert", "binary1", "-o", "-", "--", str(table)],
+                check=True,
+                capture_output=True,
+            )
+            value = plistlib.loads(conversion.stdout)
         except Exception as error:
             raise SystemExit(f"release audit: {label} {locale} {table.name} is not a valid compiled localization table: {error}")
         if not isinstance(value, dict) or not value:

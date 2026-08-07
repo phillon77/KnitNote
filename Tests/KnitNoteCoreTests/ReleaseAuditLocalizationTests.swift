@@ -244,6 +244,44 @@ import Testing
         #expect(!result.output.split(separator: "\n").contains("RELEASE AUDIT: PASS"))
     }
 
+    @Test func archiveAuditAcceptsRealUTF16LEMacStringsAndPreservesItsExactKeyDomain() throws {
+        let fixture = try makeArchiveFixture(utf16Localization: ("macOS", "el"))
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
+    }
+
+    @Test func archiveAuditUsesTheSupportedJoinedCertificateExtractionOption() throws {
+        let script = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/release_audit.sh"),
+            encoding: .utf8
+        )
+        #expect(script.contains("\"--extract-certificates=$cert_prefix\""))
+        #expect(!script.contains("--extract-certificates \"$cert_prefix\""))
+    }
+
+    @Test func archiveAuditRejectsUTF16LEMacStringsWithAKeyDomainDrift() throws {
+        let fixture = try makeArchiveFixture(
+            utf16Localization: ("macOS", "el"),
+            missingLocalizationKey: ("macOS", "el")
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("macOS el compiled localization key domain differs from source"))
+    }
+
     @Test func archiveAuditRejectsWrongRevisionEmptyLocalePrivacyDriftAndWrongSigning() throws {
         let cases: [(ArchiveFixture, String)] = [
             (try makeArchiveFixture(sourceRevision: String(repeating: "b", count: 40)), "product source revision"),
@@ -415,7 +453,9 @@ private func makeArchiveFixture(
     profileExpired: Bool = false,
     profileMissing: Bool = false,
     codesignFailure: Bool = false,
-    signedIdentifierOverride: String? = nil
+    signedIdentifierOverride: String? = nil,
+    utf16Localization: (target: String, locale: String)? = nil,
+    missingLocalizationKey: (target: String, locale: String)? = nil
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
@@ -494,10 +534,15 @@ private func makeArchiveFixture(
             let catalogData = try Data(contentsOf: releaseAuditRepositoryRoot.appendingPathComponent(catalog))
             let catalogJSON = try #require(JSONSerialization.jsonObject(with: catalogData) as? [String: Any])
             let strings = try #require(catalogJSON["strings"] as? [String: Any])
-            try writePlist(
-                Dictionary(uniqueKeysWithValues: strings.keys.map { ($0, "localized") }),
-                to: item.resources.appendingPathComponent("\(locale).lproj/Localizable.strings")
-            )
+            var localizedValues = Dictionary(uniqueKeysWithValues: strings.keys.map { ($0, "localized") })
+            if missingLocalizationKey?.target == item.name && missingLocalizationKey?.locale == locale,
+               let removedKey = localizedValues.keys.sorted().first {
+                localizedValues.removeValue(forKey: removedKey)
+            }
+            try writePlist(localizedValues, to: item.resources.appendingPathComponent("\(locale).lproj/Localizable.strings"))
+            if utf16Localization?.target == item.name && utf16Localization?.locale == locale {
+                try writeUTF16LEStrings(localizedValues, to: item.resources.appendingPathComponent("\(locale).lproj/Localizable.strings"))
+            }
             if emptyResource?.0 == item.name && emptyResource?.1 == locale {
                 try Data().write(to: item.resources.appendingPathComponent("\(locale).lproj/Localizable.strings"))
             }
@@ -562,8 +607,12 @@ private func makeArchiveFixture(
       exit 1
     elif [ "${1:-}" = "-dvv" ]; then
       printf '%s\n' 'Authority=Apple Distribution: Fixture (\(signingTeam))' 'TeamIdentifier=\(signingTeam)' >&2
+    elif [ "${1:-}" = "-d" ] && [ "${2#--extract-certificates=}" != "${2:-}" ]; then
+      prefix="${2#--extract-certificates=}"
+      [ -n "$prefix" ] || exit 64
+      printf '%s' 'certificate' > "${prefix}0"
     elif [ "${1:-}" = "-d" ] && [ "${2:-}" = "--extract-certificates" ]; then
-      printf '%s' 'certificate' > "${3:?}0"
+      exit 64
     elif [ "${1:-}" = "-d" ]; then
       case "${4:-${3:-}}" in
         *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; group='' ;;
@@ -657,6 +706,20 @@ private func writePlist(_ value: Any, to url: URL) throws {
         format: .xml,
         options: 0
     )
+    try data.write(to: url)
+}
+
+private func writeUTF16LEStrings(_ values: [String: String], to url: URL) throws {
+    let xml = try PropertyListSerialization.data(
+        fromPropertyList: values,
+        format: .xml,
+        options: 0
+    )
+    // This matches the archived macOS table shape: UTF-16LE bytes while the
+    // XML declaration still says UTF-8. Apple plutil accepts it; plistlib does not.
+    let text = try #require(String(data: xml, encoding: .utf8))
+    var data = Data([0xff, 0xfe])
+    data.append(try #require(text.data(using: .utf16LittleEndian)))
     try data.write(to: url)
 }
 

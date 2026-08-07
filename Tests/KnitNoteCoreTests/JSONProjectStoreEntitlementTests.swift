@@ -291,6 +291,27 @@ import UniformTypeIdentifiers
 }
 
 @MainActor
+@Test func trialNotStartedCanResumeCompletedProjectOnlyForDeletionWithoutStartingTrial() throws {
+    try assertCompletedProjectDeletionEscapeHatch(
+        snapshot: .trialNotStarted,
+        unrelatedEditDecision: .startTrial,
+        expectedCommittedMutationsAfterRestrictedEdit: [.editProject]
+    )
+}
+
+@MainActor
+@Test func expiredTrialCanResumeCompletedProjectOnlyForDeletionWithoutRequestingUnlock() throws {
+    try assertCompletedProjectDeletionEscapeHatch(
+        snapshot: .trial(
+            startedAt: Date(timeIntervalSince1970: 100),
+            expiresAt: Date(timeIntervalSince1970: 700)
+        ),
+        unrelatedEditDecision: .requiresUnlock,
+        expectedCommittedMutationsAfterRestrictedEdit: []
+    )
+}
+
+@MainActor
 @Test func passivePatternBrowsingPreservesExplicitFieldsAndExplicitEditStartsTrial() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("PassivePatternBrowsing-\(UUID().uuidString)", isDirectory: true)
@@ -1332,6 +1353,78 @@ private func journalBoundaryJPEG() throws -> Data {
     CGImageDestinationAddImage(destination, image, nil)
     #expect(CGImageDestinationFinalize(destination))
     return data as Data
+}
+
+@MainActor
+private func assertCompletedProjectDeletionEscapeHatch(
+    snapshot: EntitlementSnapshot,
+    unrelatedEditDecision: FeatureAccessDecision,
+    expectedCommittedMutationsAfterRestrictedEdit: [FeatureMutation]
+) throws {
+    let now = Date(timeIntervalSince1970: 1_000)
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CompletedDeletionEntitlement-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let archive = root.appendingPathComponent("projects-v1.json")
+    var project = try StoredProject(name: "Finished cardigan")
+    project.markCompleted(at: Date(timeIntervalSince1970: 900))
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [project]
+    )).write(to: archive, options: .atomic)
+
+    var authorizedMutations: [FeatureMutation] = []
+    var accessDecisions: [FeatureAccessDecision] = []
+    var committedMutations: [FeatureMutation] = []
+    let store = JSONProjectStore(
+        url: archive,
+        authorizeMutation: { mutation in
+            let decision = FeatureAccessPolicy.decision(
+                for: mutation,
+                snapshot: snapshot,
+                now: now
+            )
+            authorizedMutations.append(mutation)
+            accessDecisions.append(decision)
+            return decision
+        },
+        commitSuccessfulMutation: { mutation in
+            committedMutations.append(mutation)
+            return .requiresUnlock
+        }
+    )
+
+    #expect(throws: ProjectDeletionError.projectCompleted) {
+        try store.delete(id: project.id)
+    }
+    #expect(store.project(id: project.id)?.isCompleted == true)
+
+    try store.resumeProject(projectID: project.id)
+
+    #expect(store.project(id: project.id)?.isCompleted == false)
+    #expect(
+        authorizedMutations == [.deleteProject, .resumeProject]
+    )
+    #expect(accessDecisions == [.allow, .allow])
+    #expect(committedMutations.isEmpty)
+
+    let archiveBeforeRestrictedEdit = try Data(contentsOf: archive)
+    #expect(throws: ProjectStoreError.accessRestricted) {
+        try store.rename(id: project.id, to: "Must remain restricted")
+    }
+    #expect(store.project(id: project.id)?.name == "Finished cardigan")
+    #expect(try Data(contentsOf: archive) == archiveBeforeRestrictedEdit)
+    #expect(authorizedMutations.last == .editProject)
+    #expect(accessDecisions.last == unrelatedEditDecision)
+    #expect(committedMutations == expectedCommittedMutationsAfterRestrictedEdit)
+
+    try store.delete(id: project.id)
+
+    #expect(store.project(id: project.id) == nil)
+    #expect(JSONProjectStore(url: archive).project(id: project.id) == nil)
+    #expect(authorizedMutations.last == .deleteProject)
+    #expect(accessDecisions.last == .allow)
 }
 
 @MainActor

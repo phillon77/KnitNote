@@ -34,7 +34,7 @@ public enum FeatureAccessPolicy {
         snapshot: EntitlementSnapshot,
         now: Date
     ) -> FeatureAccessDecision {
-        if mutation == .deleteProject {
+        if mutation == .deleteProject || mutation == .resumeProject {
             return .allow
         }
         return switch snapshot.state(at: now) {

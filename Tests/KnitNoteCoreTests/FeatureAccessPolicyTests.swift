@@ -4,7 +4,9 @@ import Testing
 
 private let policyNow = Date(timeIntervalSince1970: 1_000)
 
-@Test(arguments: FeatureMutation.allCases.filter { $0 != .deleteProject })
+@Test(arguments: FeatureMutation.allCases.filter {
+    $0 != .deleteProject && $0 != .resumeProject
+})
 func expiredTrialRejectsEveryNonDeletionMutation(_ mutation: FeatureMutation) {
     #expect(FeatureAccessPolicy.decision(
         for: mutation,
@@ -47,7 +49,10 @@ func legacyPaidOwnerAllowsEveryMutation(_ mutation: FeatureMutation) {
 }
 
 @Test(arguments: FeatureMutation.allCases.filter {
-    $0 != .deleteProject && $0 != .restoreBackup && $0 != .recordPatternBrowsing
+    $0 != .deleteProject
+        && $0 != .resumeProject
+        && $0 != .restoreBackup
+        && $0 != .recordPatternBrowsing
 })
 func trialNotStartedStartsForEveryUserAuthoredMutation(_ mutation: FeatureMutation) {
     #expect(FeatureAccessPolicy.decision(
@@ -69,6 +74,23 @@ func projectDeletionNeverRequiresStartingATrialOrPurchasing(
 ) {
     #expect(FeatureAccessPolicy.decision(
         for: .deleteProject,
+        snapshot: snapshot,
+        now: policyNow
+    ) == .allow)
+}
+
+@Test(arguments: [
+    EntitlementSnapshot.trialNotStarted,
+    .trial(
+        startedAt: Date(timeIntervalSince1970: 100),
+        expiresAt: Date(timeIntervalSince1970: 700)
+    ),
+])
+func projectResumeNeverRequiresStartingATrialOrPurchasing(
+    _ snapshot: EntitlementSnapshot
+) {
+    #expect(FeatureAccessPolicy.decision(
+        for: .resumeProject,
         snapshot: snapshot,
         now: policyNow
     ) == .allow)

@@ -48,20 +48,21 @@ xcodebuild test -project KnitNote.xcodeproj -scheme KnitNote -destination 'platf
 | Build result | Device-destination Debug build exited 0 at `/tmp/KnitNoteCompletedDeletion-iPhone/Build/Products/Debug-iphoneos/KnitNote.app`; signing identity was Apple Development, Team ID `9CFPAUL5N5`. This is a development build, not a signed distribution archive. |
 | Install result | `xcrun devicectl device install app` exited 0 over the existing bundle. No uninstall or data erase command was used. Installed path: `/private/var/containers/Bundle/Application/998EE0EA-3518-43F2-80A4-530B7C8BD7BE/KnitNote.app`. |
 | Launch result | `xcrun devicectl device process launch … com.phillon.KnitNote` exited 0. |
-| Locale | The device query did not return a locale. The user subsequently performed and passed the Task 4 VoiceOver acceptance in Traditional Chinese (`zh-Hant`); this is user-reported physical evidence, not an inferred locale. |
+| App interface locale | English (`en`) during the user physical acceptance. This is user-provided evidence; the device query itself did not return a locale. |
+| VoiceOver language result | Separately, the user reported that Traditional-Chinese VoiceOver announced the disabled Delete control and its guidance. This does **not** establish `zh-Hant` app-interface acceptance. |
 
 The install and launch prove only that the exact Debug candidate could replace the existing same-bundle development installation and start. They do not prove preservation of user data, UI state, tactile behavior, VoiceOver output, or any release condition.
 
 ### User physical iPhone acceptance — PASS (2026-08-08)
 
-The user reported the following sequential PASS results on the already-recorded physical iPhone 17 Pro Max (iOS 26.6), using the exact `efb801e86e9a3c196603548be9aca8c0b957c2c0` Debug candidate `com.phillon.KnitNote` `1.4.1 (8)`. This is user physical acceptance evidence; it does not imply acceptance for any other platform, locale, or release gate.
+The user reported the following sequential PASS results on the already-recorded physical iPhone 17 Pro Max (iOS 26.6), using the exact `efb801e86e9a3c196603548be9aca8c0b957c2c0` Debug candidate `com.phillon.KnitNote` `1.4.1 (8)` with the app interface set to English (`en`). This is user physical acceptance evidence; it does not imply `zh-Hant` app-interface acceptance or acceptance for any other platform, locale, or release gate.
 
 1. **PASS — In-progress project:** editor Delete was enabled; confirmation appeared; deletion succeeded; the app returned to the project list.
 2. **PASS — Completed project:** editor Delete was disabled; localized resume guidance was visible; the project remained after leaving and reopening the app.
 3. **PASS — Restored project:** after Resume, reopening Edit, and confirming Delete, the project was absent after app relaunch.
-4. **PASS — Traditional Chinese VoiceOver:** VoiceOver announced the disabled Delete control and its guidance.
+4. **PASS — Traditional Chinese VoiceOver:** VoiceOver announced the disabled Delete control and its guidance. This is an accessibility-language result separate from the English app-interface locale.
 
-These tests used disposable projects only. Existing non-disposable projects were not part of this acceptance.
+These tests used disposable projects only. After acceptance, the user confirmed that all existing non-disposable/formal projects remained fully present and unchanged. This is a user physical preservation observation for the stated projects, not a replacement for the broader data-neutrality acceptance below.
 
 ## Candidate and environment identity
 

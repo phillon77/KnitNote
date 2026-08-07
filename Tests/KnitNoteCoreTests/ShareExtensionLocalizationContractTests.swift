@@ -55,4 +55,43 @@ import Testing
             }
         }
     }
+
+    @Test func version141WatchAndShareActionsUseApprovedCompactCopy() throws {
+        let expectedByPath: [String: [String: [String: String]]] = [
+            "KnitNoteWatch/Localizable.xcstrings": [
+                "watch.counter.actions": [
+                    "nb": "Tellerhandlinger", "sv": "Räknaråtgärder", "fi": "Laskurin toiminnot",
+                    "da": "Tællerhandlinger", "ko": "카운터 동작", "el": "Ενέργειες μετρητή",
+                ],
+                "watch.counter.cancel": [
+                    "nb": "Avbryt", "sv": "Avbryt", "fi": "Peruuta",
+                    "da": "Annuller", "ko": "취소", "el": "Ακύρωση",
+                ],
+            ],
+            "KnitNoteShare/Localizable.xcstrings": [
+                "share.cancel": [
+                    "nb": "Avbryt", "sv": "Avbryt", "fi": "Peruuta",
+                    "da": "Annuller", "ko": "취소", "el": "Ακύρωση",
+                ],
+                "share.error.timeout": [
+                    "el": "Η φόρτωση του αρχείου άργησε πολύ. Δοκιμάστε ξανά.",
+                ],
+            ],
+        ]
+
+        for (path, expectedKeys) in expectedByPath {
+            let data = try Data(contentsOf: patternLibraryRepositoryURL(path))
+            let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let strings = try #require(root["strings"] as? [String: Any])
+            for (key, expectedTranslations) in expectedKeys {
+                let entry = try #require(strings[key] as? [String: Any])
+                let localizations = try #require(entry["localizations"] as? [String: Any])
+                for (language, expectedValue) in expectedTranslations {
+                    let localization = try #require(localizations[language] as? [String: Any])
+                    let unit = try #require(localization["stringUnit"] as? [String: Any])
+                    #expect(unit["value"] as? String == expectedValue)
+                }
+            }
+        }
+    }
 }

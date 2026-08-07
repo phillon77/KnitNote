@@ -203,9 +203,15 @@ import Testing
             one: "%lld item",
             other: "%@ items"
         )
-        var localizations = Dictionary(
-            uniqueKeysWithValues: SupportedLocalization.v140Identifiers.map { ($0, matching) }
-        )
+        let otherOnly = fixtureOtherOnlyPluralLocalization(other: "%@ items")
+        var localizations: [String: Any] = [
+            "en": matching,
+            "zh-Hant": otherOnly,
+            "zh-Hans": otherOnly,
+            "de": matching,
+            "fr": matching,
+            "ja": otherOnly,
+        ]
         localizations["de"] = fixturePluralLocalization(
             one: "%@ Element",
             other: "%lld Elemente"
@@ -264,6 +270,83 @@ import Testing
         }
     }
 
+    @Test(arguments: ["nb", "sv", "fi", "da", "el"])
+    func completeCatalogRejectsMissingVersion141PluralOne(language: String) throws {
+        var localizations = version141PluralFixtureLocalizations()
+        var mutated = try #require(localizations[language] as? [String: Any])
+        var variations = try #require(mutated["variations"] as? [String: Any])
+        var plural = try #require(variations["plural"] as? [String: Any])
+        plural.removeValue(forKey: "one")
+        variations["plural"] = plural
+        mutated["variations"] = variations
+        localizations[language] = mutated
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.missingVariationPath(
+                key: "feature.count.format",
+                language: language,
+                path: "variations.plural.one"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v141Identifiers
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsMissingKoreanPluralOther() throws {
+        var localizations = version141PluralFixtureLocalizations()
+        localizations["ko"] = fixturePluralLocalization(
+            one: "%lld개 항목",
+            other: "%lld개 항목"
+        )
+        var korean = try #require(localizations["ko"] as? [String: Any])
+        var variations = try #require(korean["variations"] as? [String: Any])
+        var plural = try #require(variations["plural"] as? [String: Any])
+        plural.removeValue(forKey: "other")
+        variations["plural"] = plural
+        korean["variations"] = variations
+        localizations["ko"] = korean
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.missingVariationPath(
+                key: "feature.count.format",
+                language: "ko",
+                path: "variations.plural.other"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v141Identifiers
+            )
+        }
+    }
+
+    @Test func completeCatalogRejectsRedundantKoreanPluralOne() throws {
+        var localizations = version141PluralFixtureLocalizations()
+        localizations["ko"] = fixturePluralLocalization(
+            one: "%lld개 항목",
+            other: "%lld개 항목"
+        )
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.unexpectedVariationPath(
+                key: "feature.count.format",
+                language: "ko",
+                path: "variations.plural.one"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v141Identifiers
+            )
+        }
+    }
+
     private func completeFixtureLocalizations() -> [String: Any] {
         [
             "en": fixtureLocalization(value: "%lld items"),
@@ -272,6 +355,28 @@ import Testing
             "de": fixtureLocalization(value: "%lld Elemente"),
             "fr": fixtureLocalization(value: "%lld articles"),
             "ja": fixtureLocalization(value: "%lld 件"),
+        ]
+    }
+
+    private func version141PluralFixtureLocalizations() -> [String: Any] {
+        let oneAndOther = fixturePluralLocalization(
+            one: "%lld item",
+            other: "%lld items"
+        )
+        let otherOnly = fixtureOtherOnlyPluralLocalization(other: "%lld items")
+        return [
+            "en": oneAndOther,
+            "zh-Hant": otherOnly,
+            "zh-Hans": otherOnly,
+            "de": oneAndOther,
+            "fr": oneAndOther,
+            "ja": otherOnly,
+            "nb": oneAndOther,
+            "sv": oneAndOther,
+            "fi": oneAndOther,
+            "da": oneAndOther,
+            "ko": otherOnly,
+            "el": oneAndOther,
         ]
     }
 
@@ -921,6 +1026,88 @@ import Testing
             for language in SupportedLocalization.v141Identifiers {
                 let value = try localizedValue(key, language: language, strings: strings)
                 #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    @Test func version141CommonActionsUseApprovedConcisePlatformCopy() throws {
+        let strings = try catalogStrings()
+        let actionGroups: [([String], [String: String])] = [
+            (["backup.alert.dismiss", "common.ok"], [
+                "nb": "OK", "sv": "OK", "fi": "OK", "da": "OK", "ko": "확인", "el": "OK",
+            ]),
+            (["backup.cancel", "common.cancel"], [
+                "nb": "Avbryt", "sv": "Avbryt", "fi": "Peruuta", "da": "Annuller", "ko": "취소", "el": "Ακύρωση",
+            ]),
+            (["common.add", "patterns.calculator.add"], [
+                "nb": "Legg til", "sv": "Lägg till", "fi": "Lisää", "da": "Tilføj", "ko": "추가", "el": "Προσθήκη",
+            ]),
+            (["common.delete", "journal.delete"], [
+                "nb": "Slett", "sv": "Radera", "fi": "Poista", "da": "Slet", "ko": "삭제", "el": "Διαγραφή",
+            ]),
+            (["common.save"], [
+                "nb": "Lagre", "sv": "Spara", "fi": "Tallenna", "da": "Gem", "ko": "저장", "el": "Αποθήκευση",
+            ]),
+            (["common.retry"], [
+                "nb": "Prøv igjen", "sv": "Försök igen", "fi": "Yritä uudelleen", "da": "Prøv igen", "ko": "다시 시도", "el": "Δοκιμάστε ξανά",
+            ]),
+            (["patterns.markup.undo", "project.undo"], [
+                "nb": "Angre", "sv": "Ångra", "fi": "Kumoa", "da": "Fortryd", "ko": "실행 취소", "el": "Αναίρεση",
+            ]),
+            (["patterns.detail.unlink", "patterns.unlink", "project.yarn.unlink.action"], [
+                "nb": "Fjern kobling", "sv": "Ta bort länk", "fi": "Poista linkitys", "da": "Fjern link", "ko": "연결 해제", "el": "Αποσύνδεση",
+            ]),
+            (["project.rename"], [
+                "nb": "Gi nytt navn", "sv": "Byt namn", "fi": "Nimeä uudelleen", "da": "Omdøb", "ko": "이름 변경", "el": "Μετονομασία",
+            ]),
+            (["patterns.backup.reminder.dismiss"], [
+                "nb": "Ikke nå", "sv": "Inte nu", "fi": "Ei nyt", "da": "Ikke nu", "ko": "나중에", "el": "Όχι τώρα",
+            ]),
+            (["yarn.scan.recognize"], [
+                "nb": "Gjenkjenn", "sv": "Identifiera", "fi": "Tunnista", "da": "Genkend", "ko": "인식", "el": "Αναγνώριση",
+            ]),
+        ]
+
+        for (keys, expectedTranslations) in actionGroups {
+            for key in keys {
+                for (language, expectedValue) in expectedTranslations {
+                    #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+                }
+            }
+        }
+    }
+
+    @Test func version141CriticalWorkflowCopyUsesApprovedProductLanguage() throws {
+        let strings = try catalogStrings()
+        let expected: [String: [String: String]] = [
+            "backup.preparing": ["fi": "Valmistellaan varmuuskopiota…"],
+            "backup.error.storageOrAccess": [
+                "fi": "KnitNote ei voinut käyttää varmuuskopiota tai tallennustila ei riitä.",
+            ],
+            "unlock.trial.active.one": [
+                "fi": "Kokeilujaksoa jäljellä 1 päivä",
+                "el": "Απομένει 1 ημέρα δοκιμής",
+            ],
+            "unlock.trial.active.many.format": [
+                "fi": "Kokeilujaksoa jäljellä %lld päivää",
+                "el": "Απομένουν %lld ημέρες δοκιμής",
+            ],
+            "yarn.range.lower": ["fi": "Alkaen"],
+            "yarn.range.upper": ["fi": "Saakka"],
+            "calculator.adjustment.edgeSummary": [
+                "el": "Ένας πόντος ακμής διατηρείται σε κάθε πλευρά.",
+            ],
+            "calculator.adjustment.failure.invalidCounts": [
+                "el": "Εισαγάγετε έγκυρο τρέχοντα και επιθυμητό αριθμό πόντων.",
+            ],
+            "counter.accessibility.rename": [
+                "ko": "%@ 이름 변경, 현재 값 %lld",
+            ],
+        ]
+
+        for (key, expectedTranslations) in expected {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
             }
         }
     }

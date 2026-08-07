@@ -5,6 +5,7 @@ enum StringCatalogContractError: Error, Equatable {
     case emptyValue(key: String, language: String)
     case formatMismatch(key: String, language: String, path: String)
     case missingVariationPath(key: String, language: String, path: String)
+    case unexpectedVariationPath(key: String, language: String, path: String)
     case staleValue(key: String, language: String)
     case nonTranslatedValue(key: String, language: String, path: String, state: String?)
     case oracleMismatch(catalog: String)
@@ -157,26 +158,33 @@ private func validateRequiredVariationPaths(
     language: String,
     usesPluralVariations: Bool
 ) throws {
-    let requiredPaths: [String]
+    let expectedPaths: Set<String>
     if usesPluralVariations {
         switch language {
-        case "en", "de", "fr":
-            requiredPaths = ["variations.plural.one", "variations.plural.other"]
-        case "zh-Hant", "zh-Hans", "ja":
-            requiredPaths = ["variations.plural.other"]
+        case "en", "de", "fr", "nb", "sv", "fi", "da", "el":
+            expectedPaths = ["variations.plural.one", "variations.plural.other"]
+        case "zh-Hant", "zh-Hans", "ja", "ko":
+            expectedPaths = ["variations.plural.other"]
         default:
-            requiredPaths = []
+            return
         }
     } else {
-        requiredPaths = ["<direct>"]
+        expectedPaths = ["<direct>"]
     }
 
     let actualPaths = Set(units.map(\.path))
-    if let missingPath = requiredPaths.first(where: { !actualPaths.contains($0) }) {
+    if let missingPath = expectedPaths.sorted().first(where: { !actualPaths.contains($0) }) {
         throw StringCatalogContractError.missingVariationPath(
             key: key,
             language: language,
             path: missingPath
+        )
+    }
+    if let unexpectedPath = actualPaths.sorted().first(where: { !expectedPaths.contains($0) }) {
+        throw StringCatalogContractError.unexpectedVariationPath(
+            key: key,
+            language: language,
+            path: unexpectedPath
         )
     }
 }

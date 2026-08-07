@@ -866,6 +866,23 @@ import Testing
         "project.tool.notes": ["en": "Notes", "zh-Hant": "備註"],
     ]
 
+    private let requiredCompletedProjectDeletionGuidanceTranslations: [String: [String: String]] = [
+        "project.delete.requiresResume": [
+            "en": "Restore this project to in progress before deleting it.",
+            "zh-Hant": "請先將作品恢復為進行中，才能刪除。",
+            "zh-Hans": "请先将作品恢复为进行中，才能删除。",
+            "de": "Setze dieses Projekt vor dem Löschen auf „In Bearbeitung“ zurück.",
+            "fr": "Remettez ce projet en cours avant de le supprimer.",
+            "ja": "この作品を削除するには、先に「進行中」に戻してください。",
+            "nb": "Gjenoppta prosjektet før du sletter det.",
+            "sv": "Återuppta projektet innan du tar bort det.",
+            "fi": "Jatka projektia ennen kuin poistat sen.",
+            "da": "Genoptag projektet, før du sletter det.",
+            "ko": "이 프로젝트를 삭제하려면 먼저 진행 중으로 되돌리세요.",
+            "el": "Επαναφέρετε πρώτα το έργο σε εξέλιξη για να το διαγράψετε.",
+        ],
+    ]
+
     private let requiredGaugeFormatTranslations = [
         "calculator.gauge.recommendation.format": [
             "en": "Recommended: %lld",
@@ -981,6 +998,7 @@ import Testing
                 "language.danish",
                 "language.korean",
                 "language.greek",
+                "project.delete.requiresResume",
             ]
         )
         try assertCompleteCatalog(
@@ -1026,6 +1044,20 @@ import Testing
             for language in SupportedLocalization.v141Identifiers {
                 let value = try localizedValue(key, language: language, strings: strings)
                 #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    @Test func completedProjectDeletionGuidanceUsesExactCopyInEveryRuntimeLanguage() throws {
+        let strings = try catalogStrings()
+
+        for (key, expectedTranslations) in requiredCompletedProjectDeletionGuidanceTranslations {
+            #expect(Set(expectedTranslations.keys) == Set(SupportedLocalization.v141Identifiers))
+            for language in SupportedLocalization.v141Identifiers {
+                #expect(
+                    try localizedValue(key, language: language, strings: strings)
+                        == expectedTranslations[language]
+                )
             }
         }
     }

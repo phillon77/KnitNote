@@ -12,6 +12,15 @@ enum EditProjectDeletionAction {
     }
 }
 
+enum ProjectDeletionAvailability: Equatable {
+    case allowed
+    case requiresResume
+
+    init(project: StoredProject?) {
+        self = project?.isCompleted == true ? .requiresResume : .allowed
+    }
+}
+
 struct EditProjectView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: JSONProjectStore
@@ -79,6 +88,13 @@ struct EditProjectView: View {
                     Button("common.delete", systemImage: "trash", role: .destructive) {
                         showingDeleteConfirmation = true
                     }
+                    .disabled(deletionAvailability == .requiresResume)
+
+                    if deletionAvailability == .requiresResume {
+                        Text("project.delete.requiresResume")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -114,6 +130,10 @@ struct EditProjectView: View {
     }
 
     private var project: StoredProject? { store.project(id: projectID) }
+
+    private var deletionAvailability: ProjectDeletionAvailability {
+        ProjectDeletionAvailability(project: project)
+    }
 
     private func save() {
         let photoChange: ProjectPhotoChange

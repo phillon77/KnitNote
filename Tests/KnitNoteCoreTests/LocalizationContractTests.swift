@@ -859,7 +859,7 @@ import Testing
         "calculator.adjustment.rows.failure.exceedsSupportedLimit.format": ["en": "Enter 100,000 or fewer (maximum %lld).", "zh-Hant": "請輸入不超過 100,000（上限 %lld）。"],
     ]
 
-    @Test func mainAppCatalogIsCompleteForVersion140Languages() throws {
+    @Test func mainAppCatalogIsCompleteForVersion141Languages() throws {
         try assertCatalogMatchesOracle(
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/Localizable.xcstrings"
@@ -868,17 +868,25 @@ import Testing
                 path: "Tests/KnitNoteCoreTests/Fixtures/KnitNote-1.4.0-CatalogOracle.json"
             ),
             catalogName: "main",
-            expectedSourceCommit: "f0116e0"
+            expectedSourceCommit: "f0116e0",
+            permittedAdditionalKeys: [
+                "language.norwegianBokmal",
+                "language.swedish",
+                "language.finnish",
+                "language.danish",
+                "language.korean",
+                "language.greek",
+            ]
         )
         try assertCompleteCatalog(
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/Localizable.xcstrings"
             ),
-            requiredLanguages: SupportedLocalization.v140Identifiers
+            requiredLanguages: SupportedLocalization.v141Identifiers
         )
     }
 
-    @Test func infoPlistCatalogIsCompleteForVersion140Languages() throws {
+    @Test func infoPlistCatalogIsCompleteForVersion141Languages() throws {
         try assertCatalogMatchesOracle(
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/InfoPlist.xcstrings"
@@ -893,8 +901,28 @@ import Testing
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/InfoPlist.xcstrings"
             ),
-            requiredLanguages: SupportedLocalization.v140Identifiers
+            requiredLanguages: SupportedLocalization.v141Identifiers
         )
+    }
+
+    @Test func version141LanguagePickerKeysExistAndAreCompleteInEveryLanguage() throws {
+        let strings = try catalogStrings()
+        let expectedEnglish = [
+            "language.norwegianBokmal": "Norwegian Bokmål",
+            "language.swedish": "Swedish",
+            "language.finnish": "Finnish",
+            "language.danish": "Danish",
+            "language.korean": "Korean",
+            "language.greek": "Greek",
+        ]
+
+        for (key, english) in expectedEnglish {
+            #expect(try localizedValue(key, language: "en", strings: strings) == english)
+            for language in SupportedLocalization.v141Identifiers {
+                let value = try localizedValue(key, language: language, strings: strings)
+                #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
     }
 
     @Test func counterStringsHaveEveryVersion140Translation() throws {

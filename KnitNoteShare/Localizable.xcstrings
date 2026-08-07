@@ -4,16 +4,34 @@
     "share.cancel" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuller"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abbrechen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ακύρωση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peruuta"
           }
         },
         "fr" : {
@@ -26,6 +44,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avbryt"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avbryt"
           }
         },
         "zh-Hans" : {
@@ -45,16 +81,34 @@
     "share.close" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luk"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Schließen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κλείσιμο"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sulje"
           }
         },
         "fr" : {
@@ -67,6 +121,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "닫기"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lukk"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stäng"
           }
         },
         "zh-Hans" : {
@@ -83,19 +155,113 @@
         }
       }
     },
+    "share.entitlement.blocked" : {
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dine eksisterende data er sikre. Din prøveperiode er afsluttet, eller KnitNote skal opdatere din adgang. Åbn KnitNote for at fortsætte."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine vorhandenen Daten bleiben sicher. Deine Testphase ist abgelaufen oder KnitNote muss deinen Zugriff aktualisieren. Öffne KnitNote, um fortzufahren."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα υπάρχοντα δεδομένα σας είναι ασφαλή. Η δοκιμαστική περίοδος έληξε ή το KnitNote πρέπει να ανανεώσει την πρόσβασή σας. Ανοίξτε το KnitNote για να συνεχίσετε."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your existing data is safe. Your trial has ended or KnitNote needs to refresh your access. Open KnitNote to continue."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nykyiset tietosi ovat turvassa. Kokeilujaksosi on päättynyt tai KnitNoten on päivitettävä käyttöoikeutesi. Jatka avaamalla KnitNote."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos données existantes sont conservées. Votre essai est terminé ou KnitNote doit actualiser votre accès. Ouvrez KnitNote pour continuer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存のデータは安全に保管されています。トライアルが終了したか、KnitNoteで利用権を更新する必要があります。続けるにはKnitNoteを開いてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "귀하의 기존 데이터는 안전합니다. 귀하의 체험 기간이 종료되었거나 KnitNote에서 귀하의 액세스를 새로 고쳐야 합니다. KnitNote를 열어 계속 진행하십시오."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dine eksisterende data er trygge. Prøvetiden din er over, eller KnitNote må oppdatere tilgangen din. Åpne KnitNote for å fortsette."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dina befintliga uppgifter är säkra. Din provperiod har slutat eller KnitNote behöver uppdatera din åtkomst. Öppna KnitNote för att fortsätta."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你现有的数据仍安全保留。试用期已结束，或 KnitNote 需要刷新你的使用权限。请打开 KnitNote 以继续。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你現有的資料仍安全保留。試用期已結束，或 KnitNote 需要重新確認你的使用權限。請開啟 KnitNote 以繼續。"
+          }
+        }
+      }
+    },
     "share.error.access" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote kunne ikke få adgang til denne fil."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote konnte nicht auf diese Datei zugreifen."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το KnitNote δεν έχει πρόσβαση σε αυτό το αρχείο."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote could not access this file."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote ei voinut käyttää tätä tiedostoa."
           }
         },
         "fr" : {
@@ -108,6 +274,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNoteはこのファイルにアクセスできませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote는 이 파일을 액세스할 수 없었습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote kunne ikke få tilgang til denne filen."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote kunde inte komma åt den här filen."
           }
         },
         "zh-Hans" : {
@@ -127,16 +311,34 @@
     "share.error.cancelled" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delingen er blevet annulleret."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Das Teilen wurde abgebrochen."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Η κοινή χρήση ακυρώθηκε."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sharing was cancelled."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jakaminen peruttiin."
           }
         },
         "fr" : {
@@ -149,6 +351,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "共有がキャンセルされました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유가 취소되었습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delingen ble kansellert."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delningen avbröts."
           }
         },
         "zh-Hans" : {
@@ -168,16 +388,34 @@
     "share.error.empty" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne fil er tom."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Diese Datei ist leer."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αυτό το αρχείο είναι άδειο."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This file is empty."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämä tiedosto on tyhjä."
           }
         },
         "fr" : {
@@ -190,6 +428,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このファイルは空です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 파일은 비어 있습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne filen er tom."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denna fil är tom."
           }
         },
         "zh-Hans" : {
@@ -209,16 +465,34 @@
     "share.error.invalidFile" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette er ikke en gyldig PDF eller understøttet billede."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dies ist keine gültige PDF-Datei oder ein unterstütztes Bild."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αυτό δεν είναι έγκυρο PDF ή υποστηριζόμενο αρχείο εικόνας."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This is not a valid PDF or supported image."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämä ei ole kelvollinen PDF tai tuettu kuva."
           }
         },
         "fr" : {
@@ -231,6 +505,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有効なPDFまたは対応画像ではありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이것은 유효한 PDF 또는 지원되는 이미지가 아닙니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette er ikke en gyldig PDF-fil eller et støttet bilde."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detta är inte en giltig PDF-fil eller en bild som stöds."
           }
         },
         "zh-Hans" : {
@@ -250,16 +542,34 @@
     "share.error.load" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det delte fil kunne ikke indlæses."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Die geteilte Datei konnte nicht geladen werden."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το κοινόχρηστο αρχείο δεν ήταν δυνατό να φορτωθεί."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The shared file could not be loaded."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaettua tiedostoa ei voitu ladata."
           }
         },
         "fr" : {
@@ -272,6 +582,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "共有されたファイルを読み込めませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유 파일을 로드할 수 없습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Den delte filen kunne ikke lastes inn."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det delade filen kunde inte laddas."
           }
         },
         "zh-Hans" : {
@@ -291,16 +619,34 @@
     "share.error.multiple" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Del én mønstrefil ad gangen."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Teile jeweils nur eine Musterdatei."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μοιραστείτε ένα αρχείο σχεδίου κάθε φορά."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Share one pattern file at a time."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaa yksi ohjetiedosto kerrallaan."
           }
         },
         "fr" : {
@@ -313,6 +659,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編み図ファイルは一度に1つだけ共有してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 번에 하나의 패턴 파일을 공유합니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Del én mønsterfil om gangen."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dela en mönsterfil åt gången."
           }
         },
         "zh-Hans" : {
@@ -332,16 +696,34 @@
     "share.error.storage" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mønsteret kunne ikke gemmes. Prøv igen."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Das Muster konnte nicht gespeichert werden. Versuche es erneut."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το σχέδιο δεν μπόρεσε να σωθεί. Παρακαλώ προσπαθήστε ξανά."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The pattern could not be saved. Please try again."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohjetta ei voitu tallentaa. Yritä uudelleen."
           }
         },
         "fr" : {
@@ -354,6 +736,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編み図を保存できませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패턴을 저장할 수 없습니다. 다시 시도해 주세요."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mønsteret kunne ikke lagres. Vennligst prøv igjen."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mönstret kunde inte sparas. Försök igen."
           }
         },
         "zh-Hans" : {
@@ -373,16 +773,34 @@
     "share.error.timeout" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filen tog for lang tid at indlæse. Prøv igen."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Das Laden der Datei hat zu lange gedauert. Versuche es erneut."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ο φάκελος άργησε να φορτωθεί. Παρακαλώ προσπαθήστε ξανά."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The file took too long to load. Please try again."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiedoston lataaminen kesti liian kauan. Yritä uudelleen."
           }
         },
         "fr" : {
@@ -395,6 +813,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイルの読み込みに時間がかかりすぎました。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일을 로드하는 데 너무 오래 걸렸습니다. 다시 시도해 주세요."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filen tok for lang tid å laste inn. Vennligst prøv igjen."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filen tog för lång tid att ladda. Försök igen."
           }
         },
         "zh-Hans" : {
@@ -414,16 +850,34 @@
     "share.error.tooLarge" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne fil er for stor til at tilføje."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Diese Datei ist zu groß, um sie hinzuzufügen."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αυτό το αρχείο είναι πολύ μεγάλο για να προστεθεί."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This file is too large to add."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämä tiedosto on liian suuri lisättäväksi."
           }
         },
         "fr" : {
@@ -436,6 +890,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このファイルは大きすぎるため追加できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 파일은 추가하기에는 너무 크습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne filen er for stor til å legges til."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denna fil är för stor för att läggas till."
           }
         },
         "zh-Hans" : {
@@ -455,16 +927,34 @@
     "share.error.unexpected" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mønsteret kunne ikke tilføjes. Prøv igen."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Das Muster konnte nicht hinzugefügt werden. Versuche es erneut."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το σχέδιο δεν μπορούσε να προστεθεί. Παρακαλώ προσπαθήστε ξανά."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The pattern could not be added. Please try again."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohjetta ei voitu lisätä. Yritä uudelleen."
           }
         },
         "fr" : {
@@ -477,6 +967,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編み図を追加できませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패턴을 추가할 수 없습니다. 다시 시도해 주세요."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mønsteret kunne ikke legges til. Vennligst prøv igjen."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mönstret kunde inte läggas till. Försök igen."
           }
         },
         "zh-Hans" : {
@@ -496,16 +1004,34 @@
     "share.error.unsupported" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Del en PDF-fil eller en understøttet billedfil."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Teile eine PDF-Datei oder eine unterstützte Bilddatei."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μοιραστείτε ένα PDF ή υποστηριζόμενο αρχείο εικόνας."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Share one PDF or supported image file."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaa yksi PDF-tiedosto tai tuettu kuvatiedosto."
           }
         },
         "fr" : {
@@ -518,6 +1044,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PDFまたは対応画像ファイルを1つ共有してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF 또는 지원되는 이미지 파일을 공유합니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Del en PDF-fil eller en støttet bildefil."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dela en PDF-fil eller en bildfil som stöds."
           }
         },
         "zh-Hans" : {
@@ -534,59 +1078,37 @@
         }
       }
     },
-    "share.entitlement.blocked" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deine vorhandenen Daten bleiben sicher. Deine Testphase ist abgelaufen oder KnitNote muss deinen Zugriff aktualisieren. Öffne KnitNote, um fortzufahren."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your existing data is safe. Your trial has ended or KnitNote needs to refresh your access. Open KnitNote to continue."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vos données existantes sont conservées. Votre essai est terminé ou KnitNote doit actualiser votre accès. Ouvrez KnitNote pour continuer."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "既存のデータは安全に保管されています。トライアルが終了したか、KnitNoteで利用権を更新する必要があります。続けるにはKnitNoteを開いてください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你现有的数据仍安全保留。试用期已结束，或 KnitNote 需要刷新你的使用权限。请打开 KnitNote 以继续。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你現有的資料仍安全保留。試用期已結束，或 KnitNote 需要重新確認你的使用權限。請開啟 KnitNote 以繼續。"
-          }
-        }
-      }
-    },
     "share.loading" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemmer dit mønster…"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Muster wird gespeichert …"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αποθήκευση του σχεδίου σας…"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saving your pattern…"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tallennetaan ohjettasi…"
           }
         },
         "fr" : {
@@ -599,6 +1121,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編み図を保存中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패턴을 저장 중입니다..."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lagrer mønsteret ditt..."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spara ditt mönster..."
           }
         },
         "zh-Hans" : {
@@ -617,16 +1157,34 @@
     },
     "share.openKnitNote" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åbn KnitNote"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote öffnen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Άνοιγμα του KnitNote"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open KnitNote"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avaa KnitNote"
           }
         },
         "fr" : {
@@ -639,6 +1197,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNoteを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote 열기"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åpne KnitNote"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öppna KnitNote"
           }
         },
         "zh-Hans" : {
@@ -658,16 +1234,34 @@
     "share.success" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilføjet til KnitNote"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zu KnitNote hinzugefügt"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Προστέθηκε στο KnitNote"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Added to KnitNote"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lisätty KnitNoteen"
           }
         },
         "fr" : {
@@ -680,6 +1274,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNoteに追加しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote에 추가됨"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lagt til i KnitNote"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lagt till i KnitNote"
           }
         },
         "zh-Hans" : {
@@ -698,16 +1310,34 @@
     },
     "share.title" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilføj til KnitNote"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zu KnitNote hinzufügen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Προσθήκη στο KnitNote"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add to KnitNote"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lisää KnitNoteen"
           }
         },
         "fr" : {
@@ -720,6 +1350,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNoteに追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote에 추가하기"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legg til i KnitNote"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lägg till i KnitNote"
           }
         },
         "zh-Hans" : {

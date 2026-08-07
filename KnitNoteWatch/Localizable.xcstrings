@@ -4,16 +4,34 @@
     "watch.counter.actions" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tællerhandlinger"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zähleraktionen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ενέργειες μετρητή"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Counter actions"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laskurin toiminnot"
           }
         },
         "fr" : {
@@ -26,6 +44,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "カウンターの操作"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카운터 동작"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tellerhandlinger"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Räknaråtgärder"
           }
         },
         "zh-Hans" : {
@@ -45,16 +81,34 @@
     "watch.counter.cancel" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuller"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abbrechen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ακύρωση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peruuta"
           }
         },
         "fr" : {
@@ -67,6 +121,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avbryt"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avbryt"
           }
         },
         "zh-Hans" : {
@@ -85,16 +157,34 @@
     },
     "watch.counter.decrement" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formindsk med 1"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Um 1 verringern"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μείωση κατά 1"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Decrease by 1"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vähennä yhdellä"
           }
         },
         "fr" : {
@@ -107,6 +197,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1減らす"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 감소"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reduser med 1"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minska med 1"
           }
         },
         "zh-Hans" : {
@@ -125,16 +233,34 @@
     },
     "watch.counter.incrementHint" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Øg med 1"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Um 1 erhöhen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αύξηση κατά 1"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Increment by 1"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lisää yhdellä"
           }
         },
         "fr" : {
@@ -147,6 +273,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1増やす"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 증가"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Øk med 1"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öka med 1"
           }
         },
         "zh-Hans" : {
@@ -165,16 +309,34 @@
     },
     "watch.counter.reset" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nulstil"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auf null zurücksetzen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Επαναφορά στο μηδέν"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reset to zero"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nollaa"
           }
         },
         "fr" : {
@@ -187,6 +349,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ゼロにリセット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0으로 재설정"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilbakestill til null"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Återställ till noll"
           }
         },
         "zh-Hans" : {
@@ -205,16 +385,34 @@
     },
     "watch.entitlement.unlockOnIPhone" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lås op på iPhone"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auf dem iPhone freischalten"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ξεκλείδωμα στο iPhone"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unlock on iPhone"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avaa lukitus iPhonessa"
           }
         },
         "fr" : {
@@ -227,6 +425,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iPhoneでアンロック"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone에서 잠금 해제"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lås opp på iPhone"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lås upp på iPhone"
           }
         },
         "zh-Hans" : {
@@ -245,16 +461,34 @@
     },
     "watch.project.completed" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuldført"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abgeschlossen"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ολοκληρώθηκε"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Completed"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valmis"
           }
         },
         "fr" : {
@@ -267,6 +501,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fullført"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slutfört"
           }
         },
         "zh-Hans" : {
@@ -285,16 +537,34 @@
     },
     "watch.projects.empty" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen projekter endnu"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Noch keine Projekte"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δεν υπάρχουν έργα ακόμη"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No projects yet"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ei projekteja vielä"
           }
         },
         "fr" : {
@@ -307,6 +577,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "作品はまだありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 프로젝트가 없습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen prosjekter ennå."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inga projekt ännu"
           }
         },
         "zh-Hans" : {
@@ -326,16 +614,34 @@
     "watch.projects.title" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projekter"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Projekte"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Έργα"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Projects"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projektit"
           }
         },
         "fr" : {
@@ -348,6 +654,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "作品"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로젝트"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prosjekter"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projekt"
           }
         },
         "zh-Hans" : {
@@ -367,16 +691,34 @@
     "watch.sync.error.counterMissing" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne tæller er ikke længere tilgængelig."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dieser Zähler ist nicht mehr verfügbar."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αυτός ο μετρητής δεν είναι πλέον διαθέσιμος."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This counter is no longer available."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämä laskuri ei ole enää käytettävissä."
           }
         },
         "fr" : {
@@ -389,6 +731,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このカウンターは利用できなくなりました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 카운터는 더 이상 사용할 수 없습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne telleren er ikke lenger tilgjengelig."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Den här räknaren är inte längre tillgänglig."
           }
         },
         "zh-Hans" : {
@@ -407,16 +767,34 @@
     },
     "watch.sync.error.projectCompleted" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projektet er fuldført; tællerne er skrivebeskyttede."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Projekt abgeschlossen; Zähler sind schreibgeschützt."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ολοκληρωμένο έργο· οι μετρητές είναι μόνο για ανάγνωση."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Completed project; counters are read-only."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projekti on valmis; laskureita voi vain tarkastella."
           }
         },
         "fr" : {
@@ -429,6 +807,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完了した作品のカウンターは読み取り専用です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료된 프로젝트입니다. 카운터는 읽기 전용입니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fullført prosjekt; tellerne er skrivebeskyttet."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slutfört projekt; räknarna är skrivskyddade."
           }
         },
         "zh-Hans" : {
@@ -447,16 +843,34 @@
     },
     "watch.sync.error.projectMissing" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette projekt er ikke længere tilgængeligt."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dieses Projekt ist nicht mehr verfügbar."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το έργο αυτό δεν είναι πλέον διαθέσιμο."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This project is no longer available."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämä hanke ei ole enää käytettävissä."
           }
         },
         "fr" : {
@@ -469,6 +883,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この作品は利用できなくなりました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프로젝트는 더 이상 사용할 수 없습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette prosjektet er ikke lenger tilgjengelig."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detta projekt är inte längre tillgängligt."
           }
         },
         "zh-Hans" : {
@@ -488,16 +920,34 @@
     "watch.sync.error.storageFailure" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne ændring af tælleren kunne ikke gemmes."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Diese Zähleränderung konnte nicht gespeichert werden."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δεν ήταν δυνατή η αποθήκευση αυτής της αλλαγής του μετρητή."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't save this counter change."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tätä laskurin muutosta ei voitu tallentaa."
           }
         },
         "fr" : {
@@ -510,6 +960,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このカウンターの変更を保存できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 카운터 변경 사항을 저장할 수 없습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det var ikke mulig å lagre denne endringen i telleren."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det gick inte att spara den här ändringen av räknaren."
           }
         },
         "zh-Hans" : {
@@ -529,16 +997,34 @@
     "watch.sync.error.unsupportedSchema" : {
       "extractionState" : "stale",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opdater KnitNote på iPhone og Apple Watch for at fortsætte synkroniseringen."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aktualisiere KnitNote auf dem iPhone und der Apple Watch, um die Synchronisierung fortzusetzen."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ενημερώστε το KnitNote στο iPhone και το Apple Watch για να συνεχίσετε τον συγχρονισμό."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Update KnitNote on iPhone and Apple Watch to continue syncing."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Päivitä KnitNote iPhonessa ja Apple Watchissa jatkaaksesi synkronointia."
           }
         },
         "fr" : {
@@ -551,6 +1037,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期を続けるには、iPhoneとApple WatchのKnitNoteをアップデートしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone 및 Apple Watch에서 KnitNote를 업데이트하여 동기화를 계속 진행하세요."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oppdater KnitNote på iPhone og Apple Watch for å fortsette synkroniseringen."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uppdatera KnitNote på iPhone och Apple Watch för att fortsätta synkroniseringen."
           }
         },
         "zh-Hans" : {
@@ -569,16 +1073,34 @@
     },
     "watch.sync.pending" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Venter på synkronisering"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Synchronisierung ausstehend"
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αναμονή συγχρονισμού"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Waiting to sync"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odotetaan synkronointia"
           }
         },
         "fr" : {
@@ -591,6 +1113,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期待ち"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화를 기다리고 있습니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Venter på synkronisering."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Väntar på synkronisering"
           }
         },
         "zh-Hans" : {

@@ -15,7 +15,8 @@ func assertCatalogMatchesOracle(
     at url: URL,
     oracleAt oracleURL: URL,
     catalogName: String,
-    expectedSourceCommit: String
+    expectedSourceCommit: String,
+    permittedAdditionalKeys: Set<String> = []
 ) throws {
     let oracleData = try Data(contentsOf: oracleURL)
     let oracleObject = try JSONSerialization.jsonObject(with: oracleData)
@@ -42,8 +43,41 @@ func assertCatalogMatchesOracle(
         throw CocoaError(.fileReadCorruptFile)
     }
     let actual = try catalogOracleSnapshot(from: root)
-    guard (actual as NSDictionary).isEqual(to: expected) else {
+    guard catalogSnapshot(
+        actual,
+        matchesHistoricalOracle: expected,
+        permittedAdditionalKeys: permittedAdditionalKeys
+    ) else {
         throw StringCatalogContractError.oracleMismatch(catalog: catalogName)
+    }
+}
+
+private func catalogSnapshot(
+    _ actual: [String: Any],
+    matchesHistoricalOracle expected: [String: Any],
+    permittedAdditionalKeys: Set<String>
+) -> Bool {
+    guard let actualRoot = actual["rootMetadata"] as? [String: Any],
+          let expectedRoot = expected["rootMetadata"] as? [String: Any],
+          (actualRoot as NSDictionary).isEqual(to: expectedRoot),
+          let actualEntries = actual["entries"] as? [String: Any],
+          let expectedEntries = expected["entries"] as? [String: Any]
+    else {
+        return false
+    }
+
+    let expectedKeys = Set(expectedEntries.keys)
+    guard Set(actualEntries.keys) == expectedKeys.union(permittedAdditionalKeys) else {
+        return false
+    }
+
+    return expectedKeys.allSatisfy { key in
+        guard let actualEntry = actualEntries[key] as? [String: Any],
+              let expectedEntry = expectedEntries[key] as? [String: Any]
+        else {
+            return false
+        }
+        return (actualEntry as NSDictionary).isEqual(to: expectedEntry)
     }
 }
 

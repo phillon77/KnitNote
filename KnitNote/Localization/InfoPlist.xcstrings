@@ -5,7 +5,19 @@
       "comment" : "Bundle display name",
       "extractionState" : "extracted_with_value",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
         "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "el" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote"
@@ -17,6 +29,12 @@
             "value" : "KnitNote"
           }
         },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24,6 +42,24 @@
           }
         },
         "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "sv" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote"
@@ -47,7 +83,19 @@
       "comment" : "Bundle name",
       "extractionState" : "extracted_with_value",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
         "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "el" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote"
@@ -59,6 +107,12 @@
             "value" : "KnitNote"
           }
         },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
@@ -66,6 +120,24 @@
           }
         },
         "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
+        "sv" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote"
@@ -87,10 +159,28 @@
     },
     "KnitNote Backup" : {
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote-sikkerhedskopi"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote-Backup"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αντίγραφο ασφαλείας KnitNote"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote-varmuuskopio"
           }
         },
         "fr" : {
@@ -103,6 +193,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNoteバックアップ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote 백업"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote-sikkerhetskopi"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote-säkerhetskopia"
           }
         },
         "zh-Hans" : {
@@ -122,16 +230,34 @@
     "NSCameraUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag billeder til strikkeprojekter, dagbogsnotater og garnetiketter."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mit der Kamera kannst du Fotos zu Strickprojekten, Tagebucheinträgen und Garnetiketten hinzufügen."
           }
         },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τραβήξτε φωτογραφίες για έργα πλεξίματος, καταχωρίσεις ημερολογίου και ετικέτες νημάτων."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Take photos for knitting projects, journal entries, and yarn labels."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ota kuvia neuleprojekteihin, päiväkirjamerkintöihin ja lankaetiketteihin."
           }
         },
         "fr" : {
@@ -144,6 +270,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編み物の作品、編み物日記、毛糸ラベルに写真を追加するためにカメラを使用します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "뜨개질 프로젝트, 일기 항목 및 실 라벨에 사용할 사진을 촬영합니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta bilder til strikkeprosjekter, dagbokoppføringer og garnetiketter."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta bilder till stickprojekt, dagboksanteckningar och garnetiketter."
           }
         },
         "zh-Hans" : {

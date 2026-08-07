@@ -1274,10 +1274,16 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				da,
 				de,
+				el,
 				en,
+				fi,
 				fr,
 				ja,
+				ko,
+				nb,
+				sv,
 				"zh-Hans",
 				"zh-Hant",
 			);

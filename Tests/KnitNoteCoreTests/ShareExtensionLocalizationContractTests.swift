@@ -3,14 +3,14 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct ShareExtensionLocalizationContractTests {
-    @Test func watchAndShareCatalogsAreCompleteForVersion140Languages() throws {
+    @Test func watchAndShareCatalogsAreCompleteForVersion141Languages() throws {
         for path in [
             "KnitNoteWatch/Localizable.xcstrings",
             "KnitNoteShare/Localizable.xcstrings",
         ] {
             try assertCompleteCatalog(
                 at: patternLibraryRepositoryURL(path),
-                requiredLanguages: SupportedLocalization.v140Identifiers
+                requiredLanguages: SupportedLocalization.v141Identifiers
             )
         }
     }

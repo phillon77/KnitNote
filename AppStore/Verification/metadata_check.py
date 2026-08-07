@@ -109,13 +109,21 @@ FORBIDDEN_PATTERNS = (
         ),
     ),
 )
-EXPECTED_LOCALES = (
+V140_LOCALES = (
     "en-US.md",
     "zh-Hant.md",
     "zh-Hans.md",
     "de-DE.md",
     "fr-FR.md",
     "ja-JP.md",
+)
+EXPECTED_LOCALES = V140_LOCALES + (
+    "nb-NO.md",
+    "sv-SE.md",
+    "fi-FI.md",
+    "da-DK.md",
+    "ko-KR.md",
+    "el-GR.md",
 )
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")

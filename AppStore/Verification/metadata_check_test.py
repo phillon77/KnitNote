@@ -11,7 +11,7 @@ from AppStore.Verification.metadata_check import validate
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 METADATA = REPOSITORY_ROOT / "AppStore" / "Metadata"
-EXPECTED_LOCALES = (
+V140_LOCALES = (
     "en-US.md",
     "zh-Hant.md",
     "zh-Hans.md",
@@ -19,15 +19,23 @@ EXPECTED_LOCALES = (
     "fr-FR.md",
     "ja-JP.md",
 )
+EXPECTED_LOCALES = V140_LOCALES + (
+    "nb-NO.md",
+    "sv-SE.md",
+    "fi-FI.md",
+    "da-DK.md",
+    "ko-KR.md",
+    "el-GR.md",
+)
 
 
 class MetadataLocaleTests(unittest.TestCase):
-    def test_every_v140_locale_is_valid(self) -> None:
+    def test_every_v141_locale_is_valid(self) -> None:
         for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename):
                 self.assertEqual(validate(METADATA / filename), [])
 
-    def test_cli_rejects_a_directory_missing_any_v140_locale(self) -> None:
+    def test_cli_rejects_a_directory_missing_any_v141_locale(self) -> None:
         checker = Path(__file__).with_name("metadata_check.py")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -45,7 +53,7 @@ class MetadataLocaleTests(unittest.TestCase):
             )
 
         self.assertEqual(result.returncode, 1)
-        for filename in ("zh-Hans.md", "de-DE.md", "fr-FR.md", "ja-JP.md"):
+        for filename in EXPECTED_LOCALES[2:]:
             with self.subTest(filename=filename):
                 self.assertIn(filename, result.stderr)
 

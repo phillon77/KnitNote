@@ -270,7 +270,7 @@
 		D1B419F969D9B3AB8A3617DB /* ProjectPatternLinkIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */; };
 		D1DE59CB01C60B48B3511FAA /* YarnInventoryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317AA99C4071F5F032A42C9E /* YarnInventoryText.swift */; };
 		D25E473555AEF8D28E1F8E76 /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260C2E24AB236712E5FE22CC /* BackupHistory.swift */; };
-		D56C0BDFF30C510581164CC1 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */; platformFilters = (ios, ); };
+		D56C0BDFF30C510581164CC1 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */; };
 		D5EF0DF13872B22FE216EDBD /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
 		D6245A8AF2DF4000F6DCF0E4 /* YarnLabelRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2C1C3F85EC883DEF17C822 /* YarnLabelRecognitionService.swift */; };
 		D70477783D80381ABCF01AFF /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };

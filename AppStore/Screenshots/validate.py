@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections import Counter
@@ -94,9 +95,21 @@ def validate_manifest(frames: list[dict]) -> None:
                 fail(f"{frame['filename']} is missing a Greek headline")
 
 
-def validate_images(root: Path, frames: list[dict]) -> None:
+def validate_images(
+    root: Path,
+    frames: list[dict],
+    expected_commit: str,
+    expected_version: str,
+    expected_build: str,
+) -> None:
     verify_generated(
-        root / "manifest.json", root / "Raw", root / "Generated", root / "compose.py"
+        root / "manifest.json",
+        root / "Raw",
+        root / "Generated",
+        root / "compose.py",
+        expected_commit=expected_commit,
+        expected_version=expected_version,
+        expected_build=expected_build,
     )
     for frame in frames:
         raw_path = root / "Raw" / frame["locale"] / frame["platform"] / frame["filename"]
@@ -122,20 +135,39 @@ def validate_images(root: Path, frames: list[dict]) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) not in {2, 3} or (len(sys.argv) == 3 and sys.argv[2] != "--manifest-only"):
-        print("usage: validate.py <manifest.json> [--manifest-only]", file=sys.stderr)
-        return 2
-    manifest_path = Path(sys.argv[1]).resolve()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("manifest", type=Path)
+    parser.add_argument("--manifest-only", action="store_true")
+    parser.add_argument("--expected-commit")
+    parser.add_argument("--expected-version")
+    parser.add_argument("--expected-build")
+    arguments = parser.parse_args()
+    expected_identity = (
+        arguments.expected_commit,
+        arguments.expected_version,
+        arguments.expected_build,
+    )
+    if not arguments.manifest_only and any(value is None for value in expected_identity):
+        parser.error(
+            "final validation requires --expected-commit, --expected-version, and --expected-build"
+        )
+    manifest_path = arguments.manifest.resolve()
     try:
         frames = load_manifest(manifest_path)
         validate_manifest(frames)
-        if "--manifest-only" not in sys.argv:
-            validate_images(manifest_path.parent, frames)
+        if not arguments.manifest_only:
+            validate_images(
+                manifest_path.parent,
+                frames,
+                arguments.expected_commit,
+                arguments.expected_version,
+                arguments.expected_build,
+            )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"SCREENSHOT VALIDATION: FAIL — {error}", file=sys.stderr)
         return 1
     count = len(frames)
-    noun = "screenshot definitions" if "--manifest-only" in sys.argv else "screenshots"
+    noun = "screenshot definitions" if arguments.manifest_only else "screenshots"
     print(f"{count} {noun} valid")
     return 0
 

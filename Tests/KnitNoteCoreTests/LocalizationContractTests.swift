@@ -1177,7 +1177,7 @@ import Testing
                 "ko": "도안 가져오는 중",
                 "nb": "Importerer mønster",
                 "sv": "Importerar mönster",
-                "da": "Importerer mønster",
+                "da": "Importerer opskrift",
             ],
             "patterns.youtube.loading": [
                 "nb": "Leser videoinformasjon…",

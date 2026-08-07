@@ -56,7 +56,6 @@ targets:
         buildPhase: resources
       - path: KnitNote/Localization/InfoPlist.xcstrings
         buildPhase: resources
-        destinationFilters: [iOS]
       - path: KnitNote/LaunchScreen.storyboard
         buildPhase: resources
         destinationFilters: [iOS]

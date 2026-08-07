@@ -108,6 +108,27 @@ def validate_candidate_evidence(provenance: dict) -> None:
             raise ValueError(f"raw {name} product provenance is invalid")
 
 
+def validate_expected_candidate(
+    provenance: dict,
+    expected_commit: str | None,
+    expected_version: str | None,
+    expected_build: str | None,
+) -> None:
+    expected = (expected_commit, expected_version, expected_build)
+    if expected == (None, None, None):
+        return
+    if any(value is None for value in expected):
+        raise ValueError("expected immutable candidate identity is incomplete")
+    candidate = provenance.get("candidate", {})
+    actual = (
+        candidate.get("commit"),
+        candidate.get("version"),
+        candidate.get("build"),
+    )
+    if actual != expected:
+        raise ValueError("generated screenshots do not match the expected immutable candidate")
+
+
 def verify_raw(manifest: Path, raw: Path) -> dict:
     provenance = load(raw / "candidate-provenance.json")
     validate_candidate_evidence(provenance)
@@ -132,7 +153,16 @@ def create_generated(manifest: Path, raw: Path, generated: Path, composer: Path)
     return result
 
 
-def verify_generated(manifest: Path, raw: Path, generated: Path, composer: Path) -> dict:
+def verify_generated(
+    manifest: Path,
+    raw: Path,
+    generated: Path,
+    composer: Path,
+    *,
+    expected_commit: str | None = None,
+    expected_version: str | None = None,
+    expected_build: str | None = None,
+) -> dict:
     provenance = load(generated / "candidate-provenance.json")
     if (raw / "candidate-provenance.json").is_file():
         expected = create_generated(manifest, raw, generated, composer)
@@ -158,6 +188,12 @@ def verify_generated(manifest: Path, raw: Path, generated: Path, composer: Path)
             or any(character not in "0123456789abcdef" for character in raw_provenance_hash)
         ):
             raise ValueError("durable generated screenshot provenance mismatch")
+    validate_expected_candidate(
+        provenance,
+        expected_commit,
+        expected_version,
+        expected_build,
+    )
     return provenance
 
 

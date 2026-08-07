@@ -3,6 +3,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST="$ROOT/manifest.json"
+TEST_ONLY=0
+if [[ "${1:-}" == "--test-only" ]]; then
+  TEST_ONLY=1
+  shift
+fi
 LOCALE="${1:-}"
 SUPPORTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el)
 LOCALE_USAGE='en|zh-Hant|zh-Hans|de|fr|ja|nb|sv|fi|da|ko|el'
@@ -18,7 +23,14 @@ if [[ "${1:-}" == "--all-locales" ]]; then
   [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ && -n "$EXPECTED_VERSION" && -n "$EXPECTED_BUILD" ]] || { echo "usage: $0 --all-locales CANDIDATE_COMMIT VERSION BUILD" >&2; exit 2; }
   [[ "$(git rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] || { echo "candidate commit does not match HEAD" >&2; exit 1; }
   [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || { echo "candidate worktree is dirty" >&2; exit 1; }
-  RUNNER="${KNITNOTE_SCREENSHOT_CAPTURE_RUNNER:-$0}"
+  if [[ "$TEST_ONLY" == 0 && -n "${KNITNOTE_SCREENSHOT_CAPTURE_RUNNER+x}" ]]; then
+    echo "production capture rejects KNITNOTE_SCREENSHOT_CAPTURE_RUNNER; use --test-only only for fixtures" >&2
+    exit 1
+  fi
+  RUNNER="$0"
+  if [[ "$TEST_ONLY" == 1 ]]; then
+    RUNNER="${KNITNOTE_SCREENSHOT_CAPTURE_RUNNER:-$RUNNER}"
+  fi
   mkdir -p "$(dirname "$RAW_ROOT")"
   STAGING="$(mktemp -d "$(dirname "$RAW_ROOT")/.Raw.staging.XXXXXX")"
   PREVIOUS="$(dirname "$RAW_ROOT")/.Raw.previous.$$"

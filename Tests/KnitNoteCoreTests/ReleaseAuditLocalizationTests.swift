@@ -230,6 +230,28 @@ import Testing
         #expect(result.output.contains("Share source CFBundleLocalizations do not match"))
     }
 
+    @Test func staticAuditRejectsChangedSourceMacSecurityContract() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("knitnote-source-mac-entitlements-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let entitlements = root.appendingPathComponent("KnitNote-macOS.entitlements")
+        try writePlist(
+            [
+                "com.apple.security.app-sandbox": true,
+                "com.apple.security.files.user-selected.read-write": false,
+                "com.apple.security.network.client": true,
+            ],
+            to: entitlements
+        )
+
+        let result = try runReleaseAudit(
+            environment: ["KNITNOTE_MAC_ENTITLEMENTS": entitlements.path]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source Mac entitlements do not match the production security contract"))
+    }
+
     @Test func archiveAuditAcceptsTwelveMatchingLocalizationsPlusBaseOnEveryShippingBundle() throws {
         let fixture = try makeArchiveFixture()
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
@@ -242,6 +264,182 @@ import Testing
         #expect(result.status == 0)
         #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
         #expect(!result.output.split(separator: "\n").contains("RELEASE AUDIT: PASS"))
+    }
+
+    @Test func archiveAuditRejectsMissingMacInfoPlistTable() throws {
+        let fixture = try makeArchiveFixture(
+            omittingInfoPlistTable: (target: "macOS", locale: "ko")
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("macOS bundle is missing ko.lproj/InfoPlist.strings"))
+    }
+
+    @Test func archiveAuditRejectsWrongAndExtraProductSpecificInfoPlistValues() throws {
+        let cases: [(ArchiveFixture, String)] = [
+            (
+                try makeArchiveFixture(
+                    infoPlistValueOverride: (
+                        target: "iOS",
+                        locale: "nb",
+                        key: "KnitNote Backup",
+                        value: "Wrong backup description"
+                    )
+                ),
+                "iOS nb InfoPlist effective value differs"
+            ),
+            (
+                try makeArchiveFixture(
+                    extraInfoPlistKey: (target: "macOS", locale: "sv")
+                ),
+                "macOS sv InfoPlist compiled key domain differs"
+            ),
+        ]
+        for (fixture, expected) in cases {
+            defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+            let result = try runReleaseAudit(
+                archives: fixture.archives,
+                environment: ["PATH": fixture.commandPath]
+            )
+            #expect(result.status != 0)
+            #expect(result.output.contains(expected))
+        }
+    }
+
+    @Test func archiveAuditRejectsBrokenEnglishInfoPlistSourceFallback() throws {
+        let fixture = try makeArchiveFixture(
+            englishInfoPlistFallbackOverride: (
+                target: "macOS",
+                key: "KnitNote Backup",
+                value: "Wrong English backup description"
+            )
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("macOS Info.plist has no English source fallback"))
+    }
+
+    @Test func archiveAuditRejectsWrongDirectEnglishInfoPlistFallbackEvenWhenCompiledTableMasksIt() throws {
+        let fixture = try makeArchiveFixture(
+            englishInfoPlistFallbackOverride: (
+                target: "iOS",
+                key: "NSCameraUsageDescription",
+                value: "Wrong camera purpose"
+            )
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("iOS Info.plist has no English source fallback"))
+        #expect(result.output.contains("NSCameraUsageDescription"))
+    }
+
+    @Test func archiveAuditRejectsBackupFallbackLiteralAtTheWrongPlistPath() throws {
+        let fixture = try makeArchiveFixture(
+            englishInfoPlistFallbackOverride: (
+                target: "macOS",
+                key: "KnitNote Backup",
+                value: "Wrong backup description"
+            ),
+            misplacedEnglishInfoPlistFallback: (
+                target: "macOS",
+                key: "KnitNote Backup"
+            )
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("macOS Info.plist has no English source fallback"))
+        #expect(result.output.contains("KnitNote Backup"))
+    }
+
+    @Test func archiveAuditRejectsEachMissingOrChangedMacSecurityEntitlement() throws {
+        let keys = [
+            "com.apple.security.app-sandbox",
+            "com.apple.security.files.user-selected.read-write",
+            "com.apple.security.network.client",
+        ]
+        for key in keys {
+            for mutation in ["missing", "changed"] {
+                let fixture = try makeArchiveFixture(
+                    missingMacSignedEntitlement: mutation == "missing" ? key : nil,
+                    changedMacSignedEntitlement: mutation == "changed" ? key : nil
+                )
+                defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+                let result = try runReleaseAudit(
+                    archives: fixture.archives,
+                    environment: ["PATH": fixture.commandPath]
+                )
+
+                #expect(result.status != 0)
+                #expect(
+                    result.output.contains(
+                        "macOS signed entitlements do not match the production security contract"
+                    )
+                )
+            }
+        }
+    }
+
+    @Test func archiveAuditRejectsUnexpectedMacSecurityEntitlement() throws {
+        let fixture = try makeArchiveFixture(
+            extraMacSignedEntitlement: "com.apple.security.cs.allow-jit"
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(
+            result.output.contains(
+                "macOS signed entitlements do not match the production security contract"
+            )
+        )
+    }
+
+    @Test func archiveAuditRejectsUnexpectedMacDeveloperEntitlement() throws {
+        let fixture = try makeArchiveFixture(
+            extraMacSignedEntitlement: "aps-environment"
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(
+            result.output.contains(
+                "macOS signed entitlements do not match the production security contract"
+            )
+        )
     }
 
     @Test func archiveAuditAcceptsRealUTF16LEMacStringsAndPreservesItsExactKeyDomain() throws {
@@ -455,7 +653,15 @@ private func makeArchiveFixture(
     codesignFailure: Bool = false,
     signedIdentifierOverride: String? = nil,
     utf16Localization: (target: String, locale: String)? = nil,
-    missingLocalizationKey: (target: String, locale: String)? = nil
+    missingLocalizationKey: (target: String, locale: String)? = nil,
+    omittingInfoPlistTable: (target: String, locale: String)? = nil,
+    infoPlistValueOverride: (target: String, locale: String, key: String, value: String)? = nil,
+    extraInfoPlistKey: (target: String, locale: String)? = nil,
+    englishInfoPlistFallbackOverride: (target: String, key: String, value: String)? = nil,
+    misplacedEnglishInfoPlistFallback: (target: String, key: String)? = nil,
+    missingMacSignedEntitlement: String? = nil,
+    changedMacSignedEntitlement: String? = nil,
+    extraMacSignedEntitlement: String? = nil
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
@@ -511,6 +717,28 @@ private func makeArchiveFixture(
             "CFBundleLocalizations": localizationOverrides[item.name] ?? releaseLocales,
             "KnitNoteSourceRevision": sourceRevision,
         ]
+        if item.name == "iOS" || item.name == "macOS" {
+            plist["CFBundleDisplayName"] = "KnitNote"
+            plist["CFBundleName"] = "KnitNote"
+            plist["NSCameraUsageDescription"] = "Take photos for knitting projects, journal entries, and yarn labels."
+            if let override = englishInfoPlistFallbackOverride,
+               override.target == item.name,
+               override.key != "KnitNote Backup" {
+                plist[override.key] = override.value
+            }
+            let backupDescription = englishInfoPlistFallbackOverride?.target == item.name
+                && englishInfoPlistFallbackOverride?.key == "KnitNote Backup"
+                ? englishInfoPlistFallbackOverride?.value ?? "KnitNote Backup"
+                : "KnitNote Backup"
+            plist["UTExportedTypeDeclarations"] = [[
+                "UTTypeDescription": backupDescription,
+                "UTTypeIdentifier": "com.phillon.KnitNote.backup",
+            ]]
+            if let misplaced = misplacedEnglishInfoPlistFallback,
+               misplaced.target == item.name {
+                plist["FixtureMisplacedEnglishFallback"] = misplaced.key
+            }
+        }
         if let companionIdentifier = item.companionIdentifier {
             plist["WKCompanionAppBundleIdentifier"] = companionIdentifier
         }
@@ -545,6 +773,28 @@ private func makeArchiveFixture(
             }
             if emptyResource?.0 == item.name && emptyResource?.1 == locale {
                 try Data().write(to: item.resources.appendingPathComponent("\(locale).lproj/Localizable.strings"))
+            }
+            if (item.name == "iOS" || item.name == "macOS"),
+               locale != "Base",
+               !(omittingInfoPlistTable?.target == item.name && omittingInfoPlistTable?.locale == locale) {
+                var infoValues = try compiledInfoPlistValues(locale: locale)
+                if locale == "en" {
+                    infoValues = infoValues.filter { $0.key == "NSCameraUsageDescription" }
+                }
+                if infoPlistValueOverride?.target == item.name,
+                   infoPlistValueOverride?.locale == locale,
+                   let key = infoPlistValueOverride?.key,
+                   let value = infoPlistValueOverride?.value {
+                    infoValues[key] = value
+                }
+                if extraInfoPlistKey?.target == item.name,
+                   extraInfoPlistKey?.locale == locale {
+                    infoValues["UnexpectedSystemString"] = "Unexpected"
+                }
+                try writePlist(
+                    infoValues,
+                    to: item.resources.appendingPathComponent("\(locale).lproj/InfoPlist.strings")
+                )
             }
         }
         let sourcePrivacy: String
@@ -601,6 +851,15 @@ private func makeArchiveFixture(
     let codesign = fakeBin.appendingPathComponent("codesign")
     let shouldFailCodesign = codesignFailure ? "yes" : "no"
     let fixtureSignedIdentifier = signedIdentifierOverride ?? ""
+    let macSecurityEntitlements = [
+        "com.apple.security.app-sandbox",
+        "com.apple.security.files.user-selected.read-write",
+        "com.apple.security.network.client",
+    ].map { key in
+        guard missingMacSignedEntitlement != key else { return "" }
+        let value = changedMacSignedEntitlement == key ? "<false/>" : "<true/>"
+        return "<key>\(key)</key>\(value)"
+    }.joined() + (extraMacSignedEntitlement.map { "<key>\($0)</key><true/>" } ?? "")
     try """
     #!/bin/sh
     if [ "${1:-}" = "--verify" ] && [ "\(shouldFailCodesign)" = "yes" ]; then
@@ -617,7 +876,7 @@ private func makeArchiveFixture(
       case "${4:-${3:-}}" in
         *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; group='' ;;
         *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
-        *macOS*) bundle='com.phillon.KnitNote'; group='' ;;
+        *macOS*) bundle='com.phillon.KnitNote'; group='\(macSecurityEntitlements)' ;;
         *) bundle='com.phillon.KnitNote'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
       esac
       signed_id='\(fixtureSignedIdentifier)'
@@ -694,6 +953,26 @@ private func makeArchiveFixture(
         commandPath: "\(fakeBin.path):\(existingPath)",
         provenance: provenance
     )
+}
+
+private func compiledInfoPlistValues(locale: String) throws -> [String: String] {
+    let url = releaseAuditRepositoryRoot
+        .appendingPathComponent("KnitNote/Localization/InfoPlist.xcstrings")
+    let payload = try #require(
+        JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+    )
+    let strings = try #require(payload["strings"] as? [String: Any])
+    return try Dictionary(uniqueKeysWithValues: strings.map { key, rawEntry in
+        let entry = try #require(rawEntry as? [String: Any])
+        let localizations = entry["localizations"] as? [String: Any] ?? [:]
+        if let localization = localizations[locale] as? [String: Any],
+           let unit = localization["stringUnit"] as? [String: Any],
+           let value = unit["value"] as? String {
+            return (key, value)
+        }
+        #expect(locale == "en")
+        return (key, key)
+    })
 }
 
 private func writePlist(_ value: Any, to url: URL) throws {

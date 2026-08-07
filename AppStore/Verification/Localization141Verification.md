@@ -4,7 +4,7 @@
 
 **STOP — the source candidate is `1.4.1 (8)`, but release acceptance is incomplete.**
 
-Automated tests and static release checks cover the repository state containing this record. Four earlier unsigned Release builds and six inspected standalone/embedded products establish package shape for the same `1.4.1 (8)` source configuration, but they predate the latest audit-only hardening and are not exact-current-HEAD binary evidence. None of this establishes signed-archive, physical-device, native-language, visual, accessibility, data-neutrality, commercial, or App Store Connect acceptance.
+Automated tests and static release checks cover the repository state containing this record. Four unsigned Release builds were created after the final-fixes commit and six standalone/embedded products were inspected against that exact containing commit. This is exact-source compile and package evidence only; it does not establish signed-archive, physical-device, native-language, visual, accessibility, data-neutrality, commercial, or App Store Connect acceptance.
 
 No archive, signing, upload, submission, merge, push, price change, IAP change, or App Store Connect modification was performed.
 
@@ -44,7 +44,9 @@ en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 | --- | --- | --- |
 | Focused Task 5 RED | EXPECTED FAIL | 57 tests, 71 issues against the old `1.4.0`/six-locale audit and screenshot contracts |
 | Focused Task 5 hardening GREEN | PASS | 54 release/configuration/screenshot tests in 3 suites, zero issues, including real-format UTF-16LE table parsing and strict codesign option coverage |
-| Full Swift suite | PASS | 1,326 tests in 122 suites, zero issues |
+| Final-fixes focused Swift tests | PASS | 122 tests in 8 suites, zero issues |
+| Full Swift suite | PASS | 1,341 tests: 1,027 tests in all 122 named suites plus 314 module-level tests. Coverage used mutually exclusive uppercase suite and lowercase global-test partitions. Broad concurrent invocations stalled in SwiftPM helpers, so no monolithic-pass claim is made. One transient Xcode build-settings read returned missing values; the same 3-test identity suite passed after a clean recompilation, with all four shipping products verified. |
+| Python tooling tests | PASS | 22 tests: 20 metadata validator tests and 2 Korean compositor/glyph tests |
 | Metadata validator | PASS | `METADATA CHECK: PASS` for all twelve repository locale packages |
 | Commercial configuration, offline | PASS | `COMMERCIAL RELEASE CHECK: PASS (offline)` |
 | Static release audit | PASS | `STATIC RELEASE AUDIT: PASS` |
@@ -56,16 +58,16 @@ en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el
 
 Archive localization validation uses Apple `plutil` to normalize compiled `.strings`/`.stringsdict` tables before exact source-catalog key-domain comparison. This covers real macOS UTF-16LE tables whose XML encoding declaration is not directly parseable by Python `plistlib`. Certificate extraction uses codesign's joined `--extract-certificates=PREFIX` form.
 
-## Historical unsigned Release build and package evidence
+## Exact containing-commit unsigned Release build and package evidence
 
-All builds used `CODE_SIGNING_ALLOWED=NO` and separate DerivedData paths. They predate the latest audit-only hardening, so they are historical compile/package evidence only and do not prove the exact current HEAD.
+All builds used `CODE_SIGNING_ALLOWED=NO`, the containing commit as `KNITNOTE_SOURCE_REVISION`, and separate DerivedData paths. They were run after the final-fixes commit and prove only unsigned compilation and package shape for that exact source commit.
 
 | Target | Destination | DerivedData | Result | Identifier | Version/build |
 | --- | --- | --- | --- | --- | --- |
-| KnitNote iOS | `generic/platform=iOS` | `/tmp/KnitNote141Task5-iOS` | PASS | `com.phillon.KnitNote` | `1.4.1 (8)` |
-| KnitNote macOS | `platform=macOS` | `/tmp/KnitNote141Task5-macOS` | PASS | `com.phillon.KnitNote` | `1.4.1 (8)` |
-| KnitNoteWatch | `generic/platform=watchOS` | `/tmp/KnitNote141Task5-Watch` | PASS | `com.phillon.KnitNote.watch` | `1.4.1 (8)` |
-| KnitNoteShare | `generic/platform=iOS` | `/tmp/KnitNote141Task5-Share` | PASS | `com.phillon.KnitNote.share` | `1.4.1 (8)` |
+| KnitNote iOS | `generic/platform=iOS` | `/tmp/KnitNote141FinalFixes-iOS` | PASS | `com.phillon.KnitNote` | `1.4.1 (8)` |
+| KnitNote macOS | `platform=macOS` | `/tmp/KnitNote141FinalFixes-macOS` | PASS | `com.phillon.KnitNote` | `1.4.1 (8)` |
+| KnitNoteWatch | `generic/platform=watchOS` | `/tmp/KnitNote141FinalFixes-Watch` | PASS | `com.phillon.KnitNote.watch` | `1.4.1 (8)` |
+| KnitNoteShare | `generic/platform=iOS` | `/tmp/KnitNote141FinalFixes-Share` | PASS | `com.phillon.KnitNote.share` | `1.4.1 (8)` |
 
 Direct inspection covered standalone iOS, macOS, Watch, and Share products plus the Watch and Share products embedded in the iOS app. All six had the expected identifier, `1.4.1 (8)`, exact twelve-item `CFBundleLocalizations`, and exactly these packaged localization directories:
 
@@ -74,7 +76,23 @@ da.lproj, de.lproj, el.lproj, en.lproj, fi.lproj, fr.lproj,
 ja.lproj, ko.lproj, nb.lproj, sv.lproj, zh-Hans.lproj, zh-Hant.lproj
 ```
 
-Both Watch products also retain `WKCompanionAppBundleIdentifier = com.phillon.KnitNote` through the tested packaging contract.
+Both Watch products also retain `WKCompanionAppBundleIdentifier = com.phillon.KnitNote` through the tested packaging contract. The exact iOS and macOS main products each contain all twelve compiled `InfoPlist.strings` tables. No compiled table contains a key outside the four-key contract (`CFBundleDisplayName`, `CFBundleName`, `NSCameraUsageDescription`, and `KnitNote Backup`), and each compiled-table plus validated direct-plist fallback resolves to the exact effective four-key values. This accounts for English source values that Xcode legitimately omits from the compiled table while still checking their exact plist paths independently.
+
+The hardened production archive audit now also requires the signed macOS product to have the exact App Sandbox, user-selected read/write, and outbound-network entitlement contract, with only the explicitly permitted signing identifiers and optional production/debug spelling. This source/build evidence is unsigned, so it does not claim that signed-entitlement gate has run.
+
+## Final whole-branch finding disposition
+
+All locally automatable source/tooling corrections from the final review were implemented and covered by positive and negative tests. The terminology finding is only partially resolved until independent native-speaker review is complete:
+
+- supported-locale missing keys and missing plural variations explicitly fall back to English;
+- iOS and macOS both package complete system-string tables, and the audit rejects missing, extra, stale, masked, or misplaced values;
+- source and signed macOS entitlements are checked against the exact production security contract;
+- screenshot capture test seams require `--test-only`, while full validation requires the expected immutable commit, version, and build;
+- Korean composition requires a Hangul-capable font and rejects tofu-equivalent glyph rendering;
+- catalog terminology scopes are machine-connected to the glossary, objective defects were corrected, and native-speaker certification remains pending;
+- metadata validation rejects both missing and extra locale packages.
+
+The separate prerequisite blocker remains unresolved: `ca3014146f2b9156b71b5104f7fea7e5fbd02839` proves recorded `1.4.0 (8)` source lineage only. No exact released/App Store-selected 1.4.0 binary-to-commit relationship was supplied or established.
 
 ## Physical and native acceptance
 

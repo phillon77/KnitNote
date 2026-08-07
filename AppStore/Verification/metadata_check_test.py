@@ -181,6 +181,30 @@ class MetadataLocaleTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertIn(filename, result.stderr)
 
+    def test_cli_rejects_an_unexpected_locale_package(self) -> None:
+        checker = Path(__file__).with_name("metadata_check.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for filename in EXPECTED_LOCALES:
+                (root / filename).write_text(
+                    (METADATA / filename).read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
+            (root / "es-ES.md").write_text(
+                (METADATA / "en-US.md").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(checker), str(root)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unexpected metadata locale package: es-ES.md", result.stderr)
+
 
 class MetadataValidationTests(unittest.TestCase):
     def test_every_store_field_is_required(self) -> None:

@@ -7853,7 +7853,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prøvelappens højde"
+            "value" : "Strikkeprøvens højde"
           }
         },
         "de" : {
@@ -7901,13 +7901,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prøvelappens høyde"
+            "value" : "Strikkeprøvens høyde"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Provlappens höjd"
+            "value" : "Stickprovets höjd"
           }
         },
         "zh-Hans" : {
@@ -7919,7 +7919,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "樣本高度"
+            "value" : "樣片高度"
           }
         }
       }
@@ -7929,7 +7929,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pinde i prøvelappen"
+            "value" : "Pinde i strikkeprøven"
           }
         },
         "de" : {
@@ -7977,13 +7977,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rader i prøvelappen"
+            "value" : "Rader i strikkeprøven"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Varv i provlappen"
+            "value" : "Varv i stickprovet"
           }
         },
         "zh-Hans" : {
@@ -7995,7 +7995,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "樣本排數"
+            "value" : "樣片排數"
           }
         }
       }
@@ -8005,7 +8005,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masker i prøvelappen"
+            "value" : "Masker i strikkeprøven"
           }
         },
         "de" : {
@@ -8053,13 +8053,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masker i prøvelappen"
+            "value" : "Masker i strikkeprøven"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maskor i provlappen"
+            "value" : "Maskor i stickprovet"
           }
         },
         "zh-Hans" : {
@@ -8071,7 +8071,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "樣本針數"
+            "value" : "樣片針數"
           }
         }
       }
@@ -8081,7 +8081,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prøvelappens bredde"
+            "value" : "Strikkeprøvens bredde"
           }
         },
         "de" : {
@@ -8129,13 +8129,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prøvelappens bredde"
+            "value" : "Strikkeprøvens bredde"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Provlappens bredd"
+            "value" : "Stickprovets bredd"
           }
         },
         "zh-Hans" : {
@@ -8147,7 +8147,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "樣本寬度"
+            "value" : "樣片寬度"
           }
         }
       }
@@ -11788,7 +11788,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ny dagboksinlägg"
+            "value" : "Nytt dagboksinlägg"
           }
         },
         "zh-Hans" : {
@@ -15230,7 +15230,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønstre"
+            "value" : "Opskrifter"
           }
         },
         "de" : {
@@ -15915,7 +15915,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tilføj mønster"
+            "value" : "Tilføj opskrift"
           }
         },
         "de" : {
@@ -15992,7 +15992,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ændrer kun dette mønster."
+            "value" : "Ændrer kun denne opskrift."
           }
         },
         "de" : {
@@ -16375,7 +16375,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønstre gemmes kun på denne enhed. Eksporter en manuel sikkerhedskopi fra Indstillinger for at opbevare en separat kopi."
+            "value" : "Opskrifter gemmes kun på denne enhed. Eksporter en manuel sikkerhedskopi fra Indstillinger for at opbevare en separat kopi."
           }
         },
         "de" : {
@@ -16527,7 +16527,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beskyt dine mønstre."
+            "value" : "Beskyt dine opskrifter."
           }
         },
         "de" : {
@@ -16983,7 +16983,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Åbner en lommeregner uden at forlade mønsteret."
+            "value" : "Åbner en lommeregner uden at forlade opskriften."
           }
         },
         "de" : {
@@ -17592,7 +17592,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slet mønster?"
+            "value" : "Slet opskrift?"
           }
         },
         "de" : {
@@ -17820,7 +17820,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slet mønsteret permanent"
+            "value" : "Slet opskriften permanent"
           }
         },
         "de" : {
@@ -17972,7 +17972,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slet dette mønster permanent?"
+            "value" : "Slet denne opskrift permanent?"
           }
         },
         "de" : {
@@ -18048,7 +18048,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fjern forbindelsen mellem dette mønster og de følgende projekter, før du sletter det."
+            "value" : "Fjern forbindelsen mellem denne opskrift og de følgende projekter, før du sletter den."
           }
         },
         "de" : {
@@ -18884,7 +18884,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Åbn mønster"
+            "value" : "Åbn opskrift"
           }
         },
         "de" : {
@@ -18960,7 +18960,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Omdøb mønster"
+            "value" : "Omdøb opskrift"
           }
         },
         "de" : {
@@ -19112,7 +19112,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsterfejl"
+            "value" : "Opskriftsfejl"
           }
         },
         "de" : {
@@ -19230,7 +19230,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "하이라이트"
+            "value" : "강조"
           }
         },
         "nb" : {
@@ -19458,7 +19458,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "수평 하이라이트"
+            "value" : "수평 강조"
           }
         },
         "nb" : {
@@ -19686,7 +19686,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "하이라이트 모드"
+            "value" : "강조 모드"
           }
         },
         "nb" : {
@@ -19796,7 +19796,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kamera-mønster"
+            "value" : "Kameraopskrift"
           }
         },
         "de" : {
@@ -19872,7 +19872,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vælg det gemte mønster"
+            "value" : "Vælg den gemte opskrift"
           }
         },
         "de" : {
@@ -20328,7 +20328,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsteret kunne ikke gemmes. Prøv igen."
+            "value" : "Opskriften kunne ikke gemmes. Prøv igen."
           }
         },
         "de" : {
@@ -20480,7 +20480,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsteret kunne ikke importeres. Prøv igen."
+            "value" : "Opskriften kunne ikke importeres. Prøv igen."
           }
         },
         "de" : {
@@ -20632,7 +20632,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Importerer mønster"
+            "value" : "Importerer opskrift"
           }
         },
         "de" : {
@@ -20708,7 +20708,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsteret er gemt og knyttet til dette projekt."
+            "value" : "Opskriften er gemt og knyttet til dette projekt."
           }
         },
         "de" : {
@@ -20784,7 +20784,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det gemte mønster er knyttet til dette projekt."
+            "value" : "Den gemte opskrift er knyttet til dette projekt."
           }
         },
         "de" : {
@@ -20860,7 +20860,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønster forbundet"
+            "value" : "Opskrift forbundet"
           }
         },
         "de" : {
@@ -20936,7 +20936,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Importer nyt mønster"
+            "value" : "Importer ny opskrift"
           }
         },
         "de" : {
@@ -21012,7 +21012,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Denne fil matcher mere end ét gemt mønster. Vælg et, eller opret en ny samling."
+            "value" : "Denne fil matcher mere end én gemt opskrift. Vælg én, eller opret en ny samling."
           }
         },
         "de" : {
@@ -21088,7 +21088,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vælg et mønster"
+            "value" : "Vælg en opskrift"
           }
         },
         "de" : {
@@ -21316,7 +21316,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KnitNote kunne ikke gemme det delte mønster. Prøv igen, eller slet denne fil."
+            "value" : "KnitNote kunne ikke gemme den delte opskrift. Prøv igen, eller slet denne fil."
           }
         },
         "de" : {
@@ -21392,7 +21392,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delt mønster er ikke gemt."
+            "value" : "Delt opskrift er ikke gemt."
           }
         },
         "de" : {
@@ -21468,7 +21468,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delt mønster gemt"
+            "value" : "Delt opskrift gemt"
           }
         },
         "de" : {
@@ -21696,7 +21696,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsteret kan ikke læses."
+            "value" : "Opskriften kan ikke læses."
           }
         },
         "de" : {
@@ -21772,7 +21772,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dette mønster er allerede i dit bibliotek."
+            "value" : "Denne opskrift er allerede i dit bibliotek."
           }
         },
         "de" : {
@@ -21924,7 +21924,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se gemt mønster"
+            "value" : "Se gemt opskrift"
           }
         },
         "de" : {
@@ -22000,7 +22000,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tilføj dit første PDF- eller billedmønster."
+            "value" : "Tilføj din første PDF- eller billedopskrift."
           }
         },
         "de" : {
@@ -22076,7 +22076,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen mønstre endnu"
+            "value" : "Ingen opskrifter endnu"
           }
         },
         "de" : {
@@ -22652,7 +22652,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Søg i mønstre"
+            "value" : "Søg i opskrifter"
           }
         },
         "de" : {
@@ -22728,7 +22728,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sorter mønstre"
+            "value" : "Sorter opskrifter"
           }
         },
         "de" : {
@@ -22956,7 +22956,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsterforhåndsvisning"
+            "value" : "Opskriftsforhåndsvisning"
           }
         },
         "de" : {
@@ -23184,7 +23184,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vælg et mønster"
+            "value" : "Vælg en opskrift"
           }
         },
         "de" : {
@@ -23260,7 +23260,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alle biblioteksmønstre er allerede linket."
+            "value" : "Alle biblioteksopskrifter er allerede linket."
           }
         },
         "de" : {
@@ -23336,7 +23336,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Link fra mønsterbiblioteket"
+            "value" : "Link fra opskriftsbiblioteket"
           }
         },
         "de" : {
@@ -24556,7 +24556,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsterfil mangler"
+            "value" : "Opskriftsfil mangler"
           }
         },
         "de" : {
@@ -24708,7 +24708,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønstre"
+            "value" : "Opskrifter"
           }
         },
         "de" : {
@@ -25164,7 +25164,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønster ændret andetsteds"
+            "value" : "Opskrift ændret andetsteds"
           }
         },
         "de" : {
@@ -25848,7 +25848,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Projektmønstre"
+            "value" : "Projektopskrifter"
           }
         },
         "de" : {
@@ -26000,7 +26000,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsteret forbliver i dit bibliotek, og de gemte læseoplysninger fra dette projekt bevares."
+            "value" : "Opskriften forbliver i dit bibliotek, og de gemte læseoplysninger fra dette projekt bevares."
           }
         },
         "de" : {
@@ -26076,7 +26076,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fjern forbindelsen til dette mønster?"
+            "value" : "Fjern forbindelsen til denne opskrift?"
           }
         },
         "de" : {
@@ -29465,7 +29465,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "뜨개질 바늘"
+            "value" : "대바늘"
           }
         },
         "nb" : {
@@ -31443,7 +31443,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "저장"
+            "value" : "저장 공간"
           }
         },
         "nb" : {
@@ -32085,7 +32085,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dine projekter, mønstre og noter er sikre. Lås op for at fortsætte med at redigere."
+            "value" : "Dine projekter, opskrifter og noter er sikre. Lås op for at fortsætte med at redigere."
           }
         },
         "de" : {
@@ -33149,7 +33149,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld Dage tilbage i prøveperioden"
+            "value" : "%lld dage tilbage i prøveperioden"
           }
         },
         "de" : {
@@ -37219,7 +37219,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "뜨개바늘"
+            "value" : "대바늘"
           }
         },
         "nb" : {

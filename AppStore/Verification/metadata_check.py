@@ -372,8 +372,22 @@ def main() -> int:
         print("usage: metadata_check.py AppStore/Metadata", file=sys.stderr)
         return 2
     root = Path(sys.argv[1]) if len(sys.argv) == 2 else Path("AppStore/Metadata")
-    paths = [root / filename for filename in EXPECTED_LOCALES]
-    errors = [error for path in paths for error in validate(path)]
+    expected = set(EXPECTED_LOCALES)
+    actual = {
+        path.name
+        for path in root.iterdir()
+        if path.is_file() and path.suffix == ".md"
+    } if root.is_dir() else set()
+    errors = [
+        f"{root}: missing metadata locale package: {filename}"
+        for filename in sorted(expected - actual)
+    ]
+    errors.extend(
+        f"{root}: unexpected metadata locale package: {filename}"
+        for filename in sorted(actual - expected)
+    )
+    paths = [root / filename for filename in EXPECTED_LOCALES if filename in actual]
+    errors.extend(error for path in paths for error in validate(path))
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1

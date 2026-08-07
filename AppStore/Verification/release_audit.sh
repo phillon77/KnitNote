@@ -11,11 +11,14 @@ MODE=""
 TEST_ONLY=0
 EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el)
 EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja","nb","sv","fi","da","ko","el"]'
+IOS_INFO_PLIST_KEYS_JSON='["CFBundleDisplayName","CFBundleName","KnitNote Backup","NSCameraUsageDescription"]'
+MAC_INFO_PLIST_KEYS_JSON='["CFBundleDisplayName","CFBundleName","KnitNote Backup","NSCameraUsageDescription"]'
 PROJECT_FILE="KnitNote.xcodeproj/project.pbxproj"
 INFO_PLIST_CATALOG="KnitNote/Localization/InfoPlist.xcstrings"
 MAIN_INFO_PLIST="KnitNote/Info.plist"
 WATCH_INFO_PLIST="KnitNoteWatch/Info.plist"
 SHARE_INFO_PLIST="KnitNoteShare/Info.plist"
+MAC_ENTITLEMENTS="KnitNote/KnitNote-macOS.entitlements"
 PROJECT_SCAN_ROOT="$ROOT"
 GIT=/usr/bin/git
 CODESIGN=/usr/bin/codesign
@@ -33,6 +36,33 @@ usage() {
 fail() {
   echo "release audit: $*" >&2
   exit 1
+}
+
+verify_mac_security_entitlements() {
+  local label="$1" plist="$2" mode="${3:-source}"
+  "$PLUTIL" -convert json -o - "$plist" \
+    | jq -e --arg mode "$mode" '
+      def production_security: {
+        "com.apple.security.app-sandbox": true,
+        "com.apple.security.files.user-selected.read-write": true,
+        "com.apple.security.network.client": true
+      };
+      if $mode == "source" then
+        . == production_security
+      else
+        (with_entries(select(.key | startswith("com.apple.security."))) == production_security)
+        and ((keys - [
+          "application-identifier",
+          "com.apple.application-identifier",
+          "com.apple.developer.team-identifier",
+          "get-task-allow",
+          "com.apple.security.app-sandbox",
+          "com.apple.security.files.user-selected.read-write",
+          "com.apple.security.network.client"
+        ]) | length == 0)
+      end
+    ' >/dev/null \
+    || fail "$label entitlements do not match the production security contract"
 }
 
 verify_signed_app_group() {
@@ -143,6 +173,9 @@ valid = (
 )
 raise SystemExit(0 if valid else 1)
 PY
+  if [[ "$label" == "macOS" ]]; then
+    verify_mac_security_entitlements "macOS signed" "$signed_json" signed
+  fi
   rm -f "$cert_prefix"* "$profile_json" "$signed_json"
 }
 
@@ -289,6 +322,113 @@ PY
   verify_declared_localizations "$label" "$plist"
 }
 
+verify_info_plist_localizations() {
+  local label="$1" plist="$2" resources="$3" expected_keys_json="$4"
+  python3 - "$label" "$plist" "$resources" "$INFO_PLIST_CATALOG" "$PLUTIL" \
+    "$expected_keys_json" "${EXPECTED_LOCALES[@]}" <<'PY'
+import json
+import plistlib
+import subprocess
+from pathlib import Path
+import sys
+
+label, plist_path, resources_path, catalog_path, plutil, expected_keys_json, *locales = sys.argv[1:]
+plist = plistlib.loads(Path(plist_path).read_bytes())
+resources = Path(resources_path)
+catalog = json.loads(Path(catalog_path).read_text(encoding="utf-8"))
+source = catalog.get("sourceLanguage")
+entries = catalog.get("strings", {})
+expected_keys = set(json.loads(expected_keys_json))
+if source != "en" or set(entries) != expected_keys:
+    raise SystemExit(
+        f"release audit: {label} InfoPlist source key domain differs from its product contract"
+    )
+
+def catalog_source_value(key):
+    localization = (entries[key].get("localizations") or {}).get(source)
+    if localization is None:
+        return key
+    unit = localization.get("stringUnit")
+    value = unit.get("value") if isinstance(unit, dict) else None
+    if not isinstance(value, str) or not value:
+        raise SystemExit(
+            f"release audit: {label} InfoPlist English source value is invalid for {key!r}"
+        )
+    return value
+
+base_values = {}
+for key in sorted(expected_keys - {"KnitNote Backup"}):
+    value = plist.get(key)
+    if not isinstance(value, str) or value != catalog_source_value(key):
+        raise SystemExit(
+            f"release audit: {label} Info.plist has no English source fallback at the required path for {key!r}"
+        )
+    base_values[key] = value
+
+declarations = plist.get("UTExportedTypeDeclarations")
+backup_declarations = [
+    declaration
+    for declaration in declarations if isinstance(declaration, dict)
+    and declaration.get("UTTypeIdentifier") == "com.phillon.KnitNote.backup"
+] if isinstance(declarations, list) else []
+if (
+    len(backup_declarations) != 1
+    or backup_declarations[0].get("UTTypeDescription") != catalog_source_value("KnitNote Backup")
+):
+    raise SystemExit(
+        f"release audit: {label} Info.plist has no English source fallback at the required path for 'KnitNote Backup'"
+    )
+base_values["KnitNote Backup"] = backup_declarations[0]["UTTypeDescription"]
+
+for locale in locales:
+    table = resources / f"{locale}.lproj" / "InfoPlist.strings"
+    if not table.is_file():
+        raise SystemExit(
+            f"release audit: {label} bundle is missing {locale}.lproj/InfoPlist.strings"
+        )
+    try:
+        conversion = subprocess.run(
+            [plutil, "-convert", "binary1", "-o", "-", "--", str(table)],
+            check=True,
+            capture_output=True,
+        )
+        compiled = plistlib.loads(conversion.stdout)
+    except Exception as error:
+        raise SystemExit(
+            f"release audit: {label} {locale} InfoPlist.strings is not a valid compiled localization table: {error}"
+        )
+    if not isinstance(compiled, dict) or any(not isinstance(key, str) or not isinstance(value, str) for key, value in compiled.items()):
+        raise SystemExit(
+            f"release audit: {label} {locale} InfoPlist.strings is not a string dictionary"
+        )
+    if not set(compiled).issubset(expected_keys):
+        extra = sorted(set(compiled) - expected_keys)
+        raise SystemExit(
+            f"release audit: {label} {locale} InfoPlist compiled key domain differs from source; extra={extra[:5]}"
+        )
+    for key in sorted(expected_keys):
+        localization = (entries[key].get("localizations") or {}).get(locale)
+        if localization is None:
+            if locale != source:
+                raise SystemExit(
+                    f"release audit: {label} {locale} InfoPlist source localization is missing for {key!r}"
+                )
+            expected = key
+        else:
+            unit = localization.get("stringUnit")
+            expected = unit.get("value") if isinstance(unit, dict) else None
+            if not isinstance(expected, str) or not expected:
+                raise SystemExit(
+                    f"release audit: {label} {locale} InfoPlist source value is invalid for {key!r}"
+                )
+        effective = compiled[key] if key in compiled else base_values[key]
+        if effective != expected:
+            raise SystemExit(
+                f"release audit: {label} {locale} InfoPlist effective value differs for {key!r}"
+            )
+PY
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --test-only)
@@ -331,6 +471,7 @@ if [[ "$TEST_ONLY" == 1 ]]; then
   MAIN_INFO_PLIST="${KNITNOTE_MAIN_INFO_PLIST:-$MAIN_INFO_PLIST}"
   WATCH_INFO_PLIST="${KNITNOTE_WATCH_INFO_PLIST:-$WATCH_INFO_PLIST}"
   SHARE_INFO_PLIST="${KNITNOTE_SHARE_INFO_PLIST:-$SHARE_INFO_PLIST}"
+  MAC_ENTITLEMENTS="${KNITNOTE_MAC_ENTITLEMENTS:-$MAC_ENTITLEMENTS}"
   PROJECT_SCAN_ROOT="${KNITNOTE_PROJECT_SCAN_ROOT:-$PROJECT_SCAN_ROOT}"
   GIT="${KNITNOTE_GIT:-$GIT}"
   CODESIGN="${KNITNOTE_CODESIGN:-$CODESIGN}"
@@ -373,6 +514,7 @@ verify_project_inventory
   KnitNoteWatch/PrivacyInfo.xcprivacy \
   KnitNoteShare/PrivacyInfo.xcprivacy \
   KnitNote/KnitNote-iOS.entitlements \
+  "$MAC_ENTITLEMENTS" \
   KnitNoteShare/KnitNoteShare.entitlements >/dev/null
 
 verify_declared_localizations "Main source" "$MAIN_INFO_PLIST"
@@ -407,6 +549,8 @@ for entitlements in \
       == ["group.com.phillon.KnitNote"]' >/dev/null \
     || fail "$entitlements does not contain only the production App Group"
 done
+
+verify_mac_security_entitlements "source Mac" "$MAC_ENTITLEMENTS" source
 
 for manifest in \
   KnitNote/PrivacyInfo.xcprivacy \
@@ -500,6 +644,8 @@ if [[ -n "$ARCHIVES" ]]; then
   verify_bundle_localizations "Watch" "$WATCH/Info.plist" "$WATCH" "KnitNoteWatch/Localizable.xcstrings"
   verify_bundle_localizations "Share" "$SHARE/Info.plist" "$SHARE" "KnitNoteShare/Localizable.xcstrings"
   verify_bundle_localizations "macOS" "$MAC/Contents/Info.plist" "$MAC/Contents/Resources" "KnitNote/Localization/Localizable.xcstrings"
+  verify_info_plist_localizations "iOS" "$IOS/Info.plist" "$IOS" "$IOS_INFO_PLIST_KEYS_JSON"
+  verify_info_plist_localizations "macOS" "$MAC/Contents/Info.plist" "$MAC/Contents/Resources" "$MAC_INFO_PLIST_KEYS_JSON"
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$IOS/Info.plist")" == "com.phillon.KnitNote" ]]
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH/Info.plist")" == "com.phillon.KnitNote.watch" ]]
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH/Info.plist")" == "com.phillon.KnitNote" ]]

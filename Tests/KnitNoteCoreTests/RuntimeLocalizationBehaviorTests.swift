@@ -63,6 +63,39 @@ import Testing
         )
     }
 
+    @Test func supportedLocaleMissingKeyFallsBackToTheEnglishCatalog() throws {
+        let bundle = try localizedFixtureBundle()
+
+        #expect(
+            LocaleAwareText.string(
+                "english.only",
+                locale: Locale(identifier: "de_DE"),
+                bundle: bundle
+            ) == "English only"
+        )
+        #expect(
+            LocaleAwareText.format(
+                "english.format",
+                locale: Locale(identifier: "de_DE"),
+                bundle: bundle,
+                4
+            ) == "English Page 4"
+        )
+    }
+
+    @Test func supportedLocaleMissingPluralVariationFallsBackToTheEnglishCatalogVariation() throws {
+        let bundle = try localizedFixtureBundle()
+
+        #expect(
+            LocaleAwareText.interpolated(
+                "fallback.count",
+                defaultValue: "\(2) default entries",
+                locale: Locale(identifier: "de_DE"),
+                bundle: bundle
+            ) == "2 English catalog entries"
+        )
+    }
+
     @Test func byteCountReformatsWhenTheSelectedLocaleChanges() {
         let bytes: Int64 = 1_500_000
 
@@ -101,6 +134,8 @@ private func localizedFixtureBundle() throws -> Bundle {
 
     let stringsByLanguage = [
         "en": [
+            "english.format": "English Page %d",
+            "english.only": "English only",
             "save.error": "Save failed",
             "page.title": "Page %d Note",
         ],
@@ -119,7 +154,7 @@ private func localizedFixtureBundle() throws -> Bundle {
         )
         try data.write(to: directory.appending(path: "Localizable.strings"))
 
-        let plural: [String: Any] = [
+        var plural: [String: Any] = [
             "project.count": [
                 "NSStringLocalizedFormatKey": "%#@count@",
                 "count": [
@@ -130,6 +165,26 @@ private func localizedFixtureBundle() throws -> Bundle {
                 ],
             ],
         ]
+        if language == "en" {
+            plural["fallback.count"] = [
+                "NSStringLocalizedFormatKey": "%#@count@",
+                "count": [
+                    "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+                    "NSStringFormatValueTypeKey": "lld",
+                    "one": "%lld English catalog entry",
+                    "other": "%lld English catalog entries",
+                ],
+            ]
+        } else {
+            plural["fallback.count"] = [
+                "NSStringLocalizedFormatKey": "%#@count@",
+                "count": [
+                    "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+                    "NSStringFormatValueTypeKey": "lld",
+                    "one": "%lld deutscher Eintrag",
+                ],
+            ]
+        }
         let pluralData = try PropertyListSerialization.data(
             fromPropertyList: plural,
             format: .xml,

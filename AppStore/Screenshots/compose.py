@@ -20,6 +20,21 @@ INK = (48, 58, 82)
 PALE_BLUE = (229, 239, 255)
 LAVENDER = (241, 235, 255)
 SOFT_WHITE = (255, 253, 255)
+REQUIRED_GLYPH_SAMPLES = {"ko": "프로젝트뜨개질"}
+
+
+def glyph_mask_signature(font: ImageFont.FreeTypeFont, character: str) -> tuple[tuple[int, int], bytes]:
+    mask = font.getmask(character, mode="L")
+    return mask.size, bytes(mask)
+
+
+def supports_required_glyphs(font: ImageFont.FreeTypeFont, sample: str) -> bool:
+    missing = glyph_mask_signature(font, chr(0x10FFFF))
+    return all(
+        glyph_mask_signature(font, character) != missing
+        for character in sample
+        if not character.isspace()
+    )
 
 
 def font_for(locale: str, size: int) -> ImageFont.FreeTypeFont:
@@ -34,6 +49,13 @@ def font_for(locale: str, size: int) -> ImageFont.FreeTypeFont:
             "/System/Library/Fonts/ヒラギノ丸ゴ ProN W4.ttc",
             "/System/Library/Fonts/SFNS.ttf",
         ]
+    elif locale == "ko":
+        candidates = [
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+            "/System/Library/Fonts/AppleGothic.ttf",
+            "/System/Library/Fonts/SFNS.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+        ]
     else:
         candidates = [
             "/System/Library/Fonts/SFNS.ttf",
@@ -41,9 +63,14 @@ def font_for(locale: str, size: int) -> ImageFont.FreeTypeFont:
         ]
     for candidate in candidates:
         try:
-            return ImageFont.truetype(candidate, size=size, index=0)
+            font = ImageFont.truetype(candidate, size=size, index=0)
         except OSError:
             continue
+        required = REQUIRED_GLYPH_SAMPLES.get(locale)
+        if required is None or supports_required_glyphs(font, required):
+            return font
+    if locale in REQUIRED_GLYPH_SAMPLES:
+        raise OSError(f"no screenshot font can render every required {locale} glyph")
     return ImageFont.load_default(size=size)
 
 

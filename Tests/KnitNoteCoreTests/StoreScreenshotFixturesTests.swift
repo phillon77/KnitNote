@@ -293,6 +293,17 @@ import Testing
         )
         #expect(validation.status == 0)
         #expect(validation.output.contains("168 screenshot definitions valid"))
+
+        let missingCandidateIdentity = try screenshotProcess(
+            executable: "/usr/bin/env",
+            arguments: [
+                "python3",
+                "AppStore/Screenshots/validate.py",
+                "AppStore/Screenshots/manifest.json",
+            ]
+        )
+        #expect(missingCandidateIdentity.status == 2)
+        #expect(missingCandidateIdentity.output.contains("--expected-commit"))
     }
 
     @Test func captureEntrypointIgnoresArmedParentEnvironment() throws {
@@ -396,6 +407,21 @@ import Testing
         }
         let generatedProvenance = root.appending(path: "Generated/candidate-provenance.json")
         #expect(FileManager.default.fileExists(atPath: generatedProvenance.path))
+        let staleCandidateVerification = try screenshotProcess(
+            executable: "/usr/bin/env",
+            arguments: [
+                "python3", "-c",
+                "import sys; sys.path.insert(0,sys.argv[1]); from provenance import verify_generated; from pathlib import Path; verify_generated(Path(sys.argv[2]),Path(sys.argv[3]),Path(sys.argv[4]),Path(sys.argv[5]),expected_commit='" + String(repeating: "c", count: 40) + "',expected_version='1.4.1',expected_build='8')",
+                screenshotRepositoryRoot.appending(path: "AppStore/Screenshots").path,
+                manifest.path,
+                root.appending(path: "Raw").path,
+                root.appending(path: "Generated").path,
+                screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/compose.py").path,
+            ],
+            currentDirectory: root
+        )
+        #expect(staleCandidateVerification.status != 0)
+        #expect(staleCandidateVerification.output.contains("expected immutable candidate"))
         let mutated = root.appending(path: "Generated/en/iphone/01.png")
         try Data("mutated".utf8).write(to: mutated)
         let verification = try screenshotProcess(
@@ -412,6 +438,17 @@ import Testing
             currentDirectory: root
         )
         #expect(verification.status != 0)
+    }
+
+    @Test func koreanCompositorRendersHangulAsDistinctNonTofuGlyphPixels() throws {
+        let result = try screenshotProcess(
+            executable: "/usr/bin/env",
+            arguments: [
+                "python3", "-m", "unittest", "AppStore.Screenshots.compose_test",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
     }
 
     @Test func rawCapturePlanPutsTheWatchFixtureFirst() throws {
@@ -490,7 +527,15 @@ import Testing
         environment["WATCH_APP"] = watchApp.path
         environment["MAC_APP"] = macApp.path
         environment["SCREENSHOT_MANIFEST"] = screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/manifest.json").path
-        var result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"], environment: environment)
+        var result = try screenshotProcess(
+            executable: "/bin/bash",
+            arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"],
+            environment: environment
+        )
+        #expect(result.status != 0)
+        #expect(result.output.contains("production capture rejects KNITNOTE_SCREENSHOT_CAPTURE_RUNNER"))
+
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.4.1", "8"], environment: environment)
         #expect(result.status == 0, Comment(rawValue: result.output))
         let payload = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: provenance)) as? [String: Any])
         let candidate = try #require(payload["candidate"] as? [String: Any])
@@ -499,14 +544,14 @@ import Testing
         let priorProvenance = try Data(contentsOf: provenance)
         let priorEnglish = try Data(contentsOf: raw.appending(path: "en/iphone/01-projects.png"))
         environment["FAIL_LOCALE"] = "fi"
-        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"], environment: environment)
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.4.1", "8"], environment: environment)
         #expect(result.status != 0)
         #expect(try Data(contentsOf: provenance) == priorProvenance)
         #expect(try Data(contentsOf: raw.appending(path: "en/iphone/01-projects.png")) == priorEnglish)
         environment.removeValue(forKey: "FAIL_LOCALE")
         environment["MUTATE_LOCALE"] = "el"
         environment["MUTATE_EXECUTABLE"] = iOSApp.appending(path: "KnitNote").path
-        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"], environment: environment)
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.4.1", "8"], environment: environment)
         #expect(result.status != 0)
         #expect(result.output.contains("screenshot products changed during capture"))
         #expect(try Data(contentsOf: provenance) == priorProvenance)

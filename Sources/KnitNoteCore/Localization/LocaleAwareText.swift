@@ -6,12 +6,9 @@ public enum LocaleAwareText {
         locale: Locale,
         bundle: Bundle = .main
     ) -> String {
-        let resource = LocalizedStringResource(
-            String.LocalizationValue(key),
-            locale: locale,
-            bundle: .atURL(bundle.bundleURL)
-        )
-        return String(localized: resource)
+        let selected = resolve(key, locale: locale, bundle: bundle)
+        guard selected == key else { return selected }
+        return resolve(key, locale: englishLocale, bundle: bundle)
     }
 
     public static func format(
@@ -30,6 +27,60 @@ public enum LocaleAwareText {
         locale: Locale,
         bundle: Bundle = .main
     ) -> String {
+        let selected = resolve(
+            key,
+            defaultValue: defaultValue,
+            locale: locale,
+            bundle: bundle
+        )
+        let defaultRendered = String(
+            localized: defaultValue,
+            table: "__KnitNoteMissingLocalization__",
+            bundle: bundle,
+            locale: locale,
+            comment: ""
+        )
+        let keyString = String(describing: key)
+        guard selected == keyString
+                || selected == defaultRendered
+                || selected == "(null)"
+                || selected.contains("%#@")
+        else {
+            return selected
+        }
+        return resolve(
+            key,
+            defaultValue: defaultValue,
+            locale: englishLocale,
+            bundle: bundle
+        )
+    }
+
+    public static func byteCount(_ bytes: Int64, locale: Locale) -> String {
+        bytes.formatted(.byteCount(style: .file).locale(locale))
+    }
+
+    private static let englishLocale = Locale(identifier: "en")
+
+    private static func resolve(
+        _ key: String,
+        locale: Locale,
+        bundle: Bundle
+    ) -> String {
+        let resource = LocalizedStringResource(
+            String.LocalizationValue(key),
+            locale: locale,
+            bundle: .atURL(bundle.bundleURL)
+        )
+        return String(localized: resource)
+    }
+
+    private static func resolve(
+        _ key: StaticString,
+        defaultValue: String.LocalizationValue,
+        locale: Locale,
+        bundle: Bundle
+    ) -> String {
         let resource = LocalizedStringResource(
             key,
             defaultValue: defaultValue,
@@ -37,10 +88,6 @@ public enum LocaleAwareText {
             bundle: .atURL(bundle.bundleURL)
         )
         return String(localized: resource)
-    }
-
-    public static func byteCount(_ bytes: Int64, locale: Locale) -> String {
-        bytes.formatted(.byteCount(style: .file).locale(locale))
     }
 }
 

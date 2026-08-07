@@ -1,14 +1,14 @@
-key,en,zh-Hant,zh-Hans,de,fr,ja,nb,sv,fi,da,ko,el
-pattern,Pattern,織圖,图解,Muster,Patron,編み図,Mønster,Mönster,Ohje,Opskrift,도안,Σχέδιο
-stitch,Stitch,針,针,Masche,Maille,目,Maske,Maska,Silmukka,Maske,코,Πόντος
-row,Row,排,行,Reihe,Rang,段,Rad,Varv,Kerros,Pind,단,Σειρά
-round,Round,圈,圈,Runde,Tour,周,Omgång,Varv,Kierros,Omgang,라운드,Γύρος
-gauge,Gauge,密度,密度,Maschenprobe,Échantillon,ゲージ,Strikkefasthet,Masktäthet,Neuletiheys,Strikkefasthed,게이지,Δείγμα πλέξης
-increase,Increase,加針,加针,Zunahme,Augmentation,増し目,Økning,Ökning,Lisäys,Udtagning,코 늘리기,Αύξηση
-decrease,Decrease,減針,减针,Abnahme,Diminution,減らし目,Felling,Minskning,Kavennus,Indtagning,코 줄이기,Μείωση
-knittingNeedle,Knitting needle,棒針,棒针,Stricknadel,Aiguille à tricoter,棒針,Strikkepinne,Sticka,Neulepuikko,Strikkepind,대바늘,Βελόνα πλεξίματος
-crochetHook,Crochet hook,鉤針,钩针,Häkelnadel,Crochet,かぎ針,Heklenål,Virknål,Virkkuukoukku,Hæklenål,코바늘,Βελονάκι
-yarn,Yarn,毛線,毛线,Garn,Fil,毛糸,Garn,Garn,Lanka,Garn,실,Νήμα
-swatch,Swatch,樣片,小样,Maschenprobe,Échantillon,スワッチ,Strikkeprøve,Stickprov,Mallitilkku,Strikkeprøve,스와치,Δείγμα
-counter,Counter,計數器,计数器,Zähler,Compteur,カウンター,Teller,Räknare,Laskuri,Tæller,카운터,Μετρητής
-highlight,Highlight,高亮線,高亮线,Markierung,Surlignage,ハイライト,Utheving,Markering,Korostus,Fremhævning,강조,Επισήμανση
+key,catalogKeys,en,zh-Hant,zh-Hans,de,fr,ja,nb,sv,fi,da,ko,el
+pattern,*,Pattern|Patterns,織圖,图解,Muster,Patron|Patrons,編み図,Mønster|Mønstre,Mönster|Mönstret,Ohje|Ohjeet,Opskrift|Opskrifter,도안,Σχέδιο|Σχέδια|Σχεδίου|Σχεδίων|Μοτίβου
+stitch,calculator.*,Stitch|Stitch*,針,针,Masche|Masch*,Maille|Maill*,目,Maske|Mask*,Maska|Mask*,Silmukka|Silmuk*,Maske|Mask*,코,Πόντος|Πόντ*
+row,calculator.*;notes.*;project.*;projects.*,Row|Row*,排|段,行,Reihe|Reih*,Rang|Rang*,段,Rad|Rad*,Varv|Rad*,Kerros|Kerro*,Pind|Rækk*,단,Σειρά|Σειρ*
+round,-,Round,圈,圈,Runde,Tour,周,Omgang,Varv,Kierros,Omgang,라운드,Γύρος
+gauge,calculator.gauge.*,Gauge,密度,密度,Maschenprobe,Échantillon,ゲージ,Strikkefasthet,Masktäthet,Neuletiheys,Strikkefasthed,게이지,Πυκνότητα πλέξης|Πυκνότητ*
+increase,calculator.adjustment.*,Increase|Increas*,加針|加,加针|加,Zunahme|Zunehm*|Erhöh*|Zu-,Augmentation|Augment*,増し目|増や*,Økning|Øk*,Ökning|Ök*,Lisäys|Lisä*,Udtagning|Tag|Øg*,코 늘리기|늘리*|늘립*|증가,Αύξηση|Αυξ*
+decrease,calculator.adjustment.*,Decrease|Decreas*,減針|減|併,减针|减|并,Abnahme|Abnehm*|Zusammenstrick*,Diminution|Diminu*|Tricot*,減らし目|減ら*|1目に,Felling|Fell*|Reduser*,Minskning|Minsk*,Kavennus|Kavenn*|Vähenny*|Yhteen,Indtagning|Tag|Reducer*|Sammen,코 줄이기|줄이*|줄입*|감소,Μείωση|Μειώ*
+knittingNeedle,project.tool.type.knittingNeedles;yarn.recommendedNeedleMM;yarn.recommendedNeedleMM.lower.accessibility;yarn.recommendedNeedleMM.upper.accessibility,Knitting needle|Knitting needles,棒針,棒针,Stricknadel|Stricknadeln,Aiguille à tricoter|Aiguilles à tricoter,棒針,Strikkepinne|Strikkepinner,Sticka|Sticknål*,Neulepuikko|Neulepuikot,Strikkepind|Strikkenåle,대바늘,Βελόνα πλεξίματος|Βελόνες πλεξίματος
+crochetHook,project.tool.type.crochetHook;yarn.recommendedHookMM;yarn.recommendedHookMM.lower.accessibility;yarn.recommendedHookMM.upper.accessibility,Crochet hook,鉤針,钩针,Häkelnadel,Crochet,かぎ針,Heklenål,Virknål,Virkkuukoukku,Hæklenål,코바늘,Βελονάκι
+yarn,backup.preview.yarns;nav.yarn;art.lemonYarn.accessibility;project.yarn.*;yarn.*,Yarn,毛線|標籤,毛线,Garn,Fil|Fils,毛糸,Garn,Garn,Lanka|Langan,Garn,실,Νήμα|Νήματ*
+swatch,calculator.gauge.*,Swatch,樣片,小样,Maschenprobe,Échantillon,スワッチ,Strikkeprøve|Strikkeprøvens,Stickprov|Stickprovets,Mallitilkku|Mallitilkun,Strikkeprøve|Strikkeprøvens,스와치,Δείγμα|δείγματος
+counter,counter.*,Counter,計數器,计数器,Zähler,Compteur,カウンター,Teller,Räknare,Laskuri|laskuria,Tæller,카운터,Μετρητής|Μετρητ*
+highlight,patterns.*,Highlight,高亮線|高亮,高亮线|高亮,Markierung,Surlignage,ハイライト,Utheving|Fremheving,Markering,Korostus,Fremhævning|Fremhævelse,강조,Επισήμανση

@@ -1339,6 +1339,38 @@ import Testing
         }
     }
 
+    @Test func version141FourthReviewSiblingFamiliesKeepDomainAndCommandMeaning() throws {
+        let strings = try catalogStrings()
+        let expected: [String: [String: String]] = [
+            "patterns.calculator.hint": [
+                "fi": "Avaa laskimen poistumatta ohjeesta",
+            ],
+            "calculator.adjustment.summary.decrease.format": [
+                "ko": "%lld코를 균일하게 줄이세요.",
+            ],
+            "calculator.adjustment.summary.decrease.singular": [
+                "fi": "Kavenna 1 silmukka tasaisesti.",
+                "nb": "Fell 1 maske jevnt.",
+                "ko": "1코를 균일하게 줄이세요.",
+            ],
+            "counter.accessibility.expand": [
+                "ko": "%@ 컨트롤 펼치기, 현재 값 %lld",
+            ],
+            "patterns.pageNote.page": [
+                "sv": "Anteckning för sida %d",
+            ],
+            "patterns.calculator.divide": [
+                "da": "Dividere",
+            ],
+        ]
+
+        for (key, expectedTranslations) in expected {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
     @Test func counterStringsHaveEveryVersion140Translation() throws {
         let strings = try catalogStrings()
 

@@ -6601,7 +6601,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld코를 균일하게 줄입니다."
+            "value" : "%lld코를 균일하게 줄이세요."
           }
         },
         "nb" : {
@@ -6659,7 +6659,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennä 1 silmukka tasaisesti."
+            "value" : "Kavenna 1 silmukka tasaisesti."
           }
         },
         "fr" : {
@@ -6677,13 +6677,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1코를 균일하게 줄입니다."
+            "value" : "1코를 균일하게 줄이세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reduser 1 maske jevnt."
+            "value" : "Fell 1 maske jevnt."
           }
         },
         "sv" : {
@@ -10025,7 +10025,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, 현재 값 %lld에 대한 컨트롤을 확장합니다."
+            "value" : "%@ 컨트롤 펼치기, 현재 값 %lld"
           }
         },
         "nb" : {
@@ -16755,7 +16755,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "opdele"
+            "value" : "Dividere"
           }
         },
         "de" : {
@@ -17007,7 +17007,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Avaa laskurin poistumatta ohjeesta"
+            "value" : "Avaa laskimen poistumatta ohjeesta"
           }
         },
         "fr" : {
@@ -24914,7 +24914,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sida %d Anmärkning"
+            "value" : "Anteckning för sida %d"
           }
         },
         "zh-Hans" : {

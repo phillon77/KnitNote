@@ -6,7 +6,62 @@
 
 Automated tests and static release checks cover the repository state containing this record. Four unsigned Release builds were created after the final-fixes commit and six standalone/embedded products were inspected against that exact containing commit. This is exact-source compile and package evidence only; it does not establish signed-archive, physical-device, native-language, visual, accessibility, data-neutrality, commercial, or App Store Connect acceptance.
 
-No archive, signing, upload, submission, merge, push, price change, IAP change, or App Store Connect modification was performed.
+No archive, distribution signing, upload, submission, merge, push, price change, IAP change, or App Store Connect modification was performed. A later Task 4 iPhone Debug build used development signing solely for the recorded physical acceptance.
+
+## 2026-08-08 Task 4: completed-project deletion protection evidence
+
+This section is later evidence for the working-tree source at `efb801e86e9a3c196603548be9aca8c0b957c2c0` on branch `docs/knitnote-1.4-localization`. It does not replace the historical evidence below or relax any release gate.
+
+| Check | Result | Exact evidence |
+| --- | --- | --- |
+| Full Swift package suite | PASS | `swift test --quiet` exited 0: `1,345 tests in 122 suites passed after 118.912 seconds` (the legacy XCTest suite reported 0 tests / 0 failures separately). |
+| Brief-specified focused Xcode command | INCONCLUSIVE | The first sandboxed attempt exited 65 because `testmanagerd.control` was blocked by a sandbox restriction. The exact same command was then rerun with the required host service access and exited 0, but its `.xcresult` reports `totalTestCount: 0`, `result: unknown`; therefore this selector is not treated as evidence that a test executed. |
+| Supplementary `KnitNoteAppTests` target | PASS | `xcodebuild test … -only-testing:KnitNoteAppTests …` exited 0. Its `.xcresult` reports `totalTestCount: 56`, `passedTests: 56`, `failedTests: 0`, `result: Passed` (the per-configuration dynamic-parameter aggregate reports 59 passed executions). It includes the three deletion tests: `completedProjectRequiresResumeBeforeEditorDeletion()`, `inProgressProjectAllowsEditorDeletion()`, and `projectEditorDeletionRemovesTheProjectBeforeLeavingTheEditor()`. |
+| Unsigned Debug iOS Simulator build | PASS | Brief command exited 0 with `CODE_SIGNING_ALLOWED=NO`, derived data `/tmp/KnitNoteCompletedDeletion-iOS`. |
+| Unsigned Debug macOS build | PASS | Brief command exited 0 with `CODE_SIGNING_ALLOWED=NO`, derived data `/tmp/KnitNoteCompletedDeletion-macOS`. |
+| Metadata validator | PASS | `METADATA CHECK: PASS`. |
+| Static release audit | PASS | `METADATA CHECK: PASS`; `COMMERCIAL RELEASE CHECK: PASS (offline)`; `STATIC RELEASE AUDIT: PASS`. |
+| Whitespace check | PASS | `git diff --check` exited 0 with no output before this record was edited. |
+
+The focused selector discrepancy is a test-command concern, not a passing result: `EditProjectDeletionActionTests.swift` contains top-level Swift Testing tests, while the brief's selector is `-only-testing:KnitNoteAppTests/EditProjectDeletionActionTests`. The successful broader target run is recorded as supplementary evidence rather than silently substituting for the requested command.
+
+#### Deterministic top-level Swift Testing selector resolution
+
+The valid selectors come directly from the successful `.xcresult` test identifiers, which are `KnitNoteAppTests/<top-level test function>()`, not `KnitNoteAppTests/<source filename>`. This command exited 0:
+
+```bash
+xcodebuild test -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteCompletedDeletionTestsTopLevel -only-testing:'KnitNoteAppTests/completedProjectRequiresResumeBeforeEditorDeletion()' -only-testing:'KnitNoteAppTests/inProgressProjectAllowsEditorDeletion()' -only-testing:'KnitNoteAppTests/projectEditorDeletionRemovesTheProjectBeforeLeavingTheEditor()' CODE_SIGNING_ALLOWED=NO -quiet
+```
+
+`/tmp/KnitNoteCompletedDeletionTestsTopLevel/Logs/Test/Test-KnitNote-2026.08.08_06-26-55-+0800.xcresult` reports `totalTestCount: 3`, `passedTests: 3`, `failedTests: 0`, `skippedTests: 0`, and `result: Passed`. Its only test nodes are the three named deletion tests. This resolves the zero-test concern without changing source: the brief's file-style selector is invalid for top-level Swift Testing functions, while the explicit function selectors are deterministic and focused.
+
+### Exact iPhone Debug install boundary
+
+| Field | Recorded value |
+| --- | --- |
+| Build source | `efb801e86e9a3c196603548be9aca8c0b957c2c0` |
+| Candidate | Debug `com.phillon.KnitNote`, `1.4.1 (8)` |
+| Device | `iPhone` — iPhone 17 Pro Max (`iPhone18,2`), physical, paired and booted |
+| Device identifier | `30C68657-A038-5548-A1C6-F9280C02D5FB` (UDID `00008150-00042D6A3612401C`) |
+| OS | iOS 26.6 (build `23G71`) |
+| Pre-install state | Existing developer app `com.phillon.KnitNote` `1.4.1 (8)` was present. |
+| Build result | Device-destination Debug build exited 0 at `/tmp/KnitNoteCompletedDeletion-iPhone/Build/Products/Debug-iphoneos/KnitNote.app`; signing identity was Apple Development, Team ID `9CFPAUL5N5`. This is a development build, not a signed distribution archive. |
+| Install result | `xcrun devicectl device install app` exited 0 over the existing bundle. No uninstall or data erase command was used. Installed path: `/private/var/containers/Bundle/Application/998EE0EA-3518-43F2-80A4-530B7C8BD7BE/KnitNote.app`. |
+| Launch result | `xcrun devicectl device process launch … com.phillon.KnitNote` exited 0. |
+| Locale | The device query did not return a locale. The user subsequently performed and passed the Task 4 VoiceOver acceptance in Traditional Chinese (`zh-Hant`); this is user-reported physical evidence, not an inferred locale. |
+
+The install and launch prove only that the exact Debug candidate could replace the existing same-bundle development installation and start. They do not prove preservation of user data, UI state, tactile behavior, VoiceOver output, or any release condition.
+
+### User physical iPhone acceptance — PASS (2026-08-08)
+
+The user reported the following sequential PASS results on the already-recorded physical iPhone 17 Pro Max (iOS 26.6), using the exact `efb801e86e9a3c196603548be9aca8c0b957c2c0` Debug candidate `com.phillon.KnitNote` `1.4.1 (8)`. This is user physical acceptance evidence; it does not imply acceptance for any other platform, locale, or release gate.
+
+1. **PASS — In-progress project:** editor Delete was enabled; confirmation appeared; deletion succeeded; the app returned to the project list.
+2. **PASS — Completed project:** editor Delete was disabled; localized resume guidance was visible; the project remained after leaving and reopening the app.
+3. **PASS — Restored project:** after Resume, reopening Edit, and confirming Delete, the project was absent after app relaunch.
+4. **PASS — Traditional Chinese VoiceOver:** VoiceOver announced the disabled Delete control and its guidance.
+
+These tests used disposable projects only. Existing non-disposable projects were not part of this acceptance.
 
 ## Candidate and environment identity
 
@@ -96,7 +151,7 @@ The separate prerequisite blocker remains unresolved: `ca3014146f2b9156b71b5104f
 
 ## Physical and native acceptance
 
-No acceptance device was used. Device model, OS version, installed candidate identity, tester, and date are therefore **NOT RECORDED** for every surface below.
+For the broad localization/platform matrix below, no acceptance device was used. The scoped Task 4 iPhone deletion and Traditional-Chinese VoiceOver acceptance above is the sole recorded exception; it does not establish the remaining surfaces, locales, or workflows.
 
 | Surface | Existing locales: `en`, `zh-Hant`, `zh-Hans`, `de`, `fr`, `ja` | New locales: `nb`, `sv`, `fi`, `da`, `ko`, `el` |
 | --- | --- | --- |
@@ -122,7 +177,7 @@ All twelve metadata source packages pass repository validation. Live App Store C
 
 | Role | Name | Device/OS | Exact candidate | Decision |
 | --- | --- | --- | --- | --- |
-| iPhone/iPad tester | NOT ASSIGNED | NOT RECORDED | NOT INSTALLED | PENDING |
+| iPhone/iPad tester | User (Task 4 scope) | iPhone 17 Pro Max / iOS 26.6 | Debug `efb801e86e9a3c196603548be9aca8c0b957c2c0`, `1.4.1 (8)` | PASS — four deletion/Traditional-Chinese VoiceOver assertions only; all remaining iPhone/iPad matrix items PENDING |
 | Mac tester | NOT ASSIGNED | NOT RECORDED | NOT INSTALLED | PENDING |
 | Watch tester | NOT ASSIGNED | NOT RECORDED | NOT INSTALLED | PENDING |
 | Share Extension tester | NOT ASSIGNED | NOT RECORDED | NOT INSTALLED | PENDING |

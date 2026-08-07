@@ -8,9 +8,28 @@ Automated tests and static release checks cover the repository state containing 
 
 No archive, distribution signing, upload, submission, merge, push, price change, IAP change, or App Store Connect modification was performed. A later Task 4 iPhone Debug build used development signing solely for the recorded physical acceptance.
 
-## 2026-08-08 Task 4: completed-project deletion protection evidence
+## 2026-08-08 final entitlement-neutral resume candidate
 
-This section is later evidence for the working-tree source at `efb801e86e9a3c196603548be9aca8c0b957c2c0` on branch `docs/knitnote-1.4-localization`. It does not replace the historical evidence below or relax any release gate.
+The final-review source fix is `9adc8fe` (`fix: keep completed-project deletion entitlement-neutral`). The exact candidate is the commit containing this evidence record, resolved at handoff with `git rev-parse HEAD`; this record does not embed its own changing commit identifier. The source change makes only `.resumeProject` join `.deleteProject` as an entitlement-neutral capability. The store still rejects direct deletion while a project is completed, and every unrelated editing capability retains its prior trial or unlock decision.
+
+| Check | Result | Exact evidence |
+| --- | --- | --- |
+| Witnessed focused RED | EXPECTED FAIL | Before the source change, `swift test --filter 'trialNotStartedCanResumeCompletedProjectOnlyForDeletionWithoutStartingTrial\|expiredTrialCanResumeCompletedProjectOnlyForDeletionWithoutRequestingUnlock'` ran 2 tests and failed with 2 issues: both resume calls threw `ProjectStoreError.accessRestricted`. The trial-not-started path reached the trial-commit gate; the expired path was rejected by policy. |
+| Focused GREEN and entitlement regression | PASS | `swift test --filter 'JSONProjectStoreTests\|FeatureAccessPolicyTests\|JSONProjectStoreEntitlementTests'` exited 0: 114 tests in 1 suite passed. Both snapshots prove direct completed-project deletion is rejected; resume returns `.allow` without committing trial start or requesting unlock; `.editProject` remains gated; resume then deletion persists. |
+| Full Swift package suite | PASS | `swift test --quiet` exited 0: 1,348 tests in 122 suites passed after 126.683 seconds (the legacy XCTest suite separately reported 0 tests / 0 failures). |
+| Focused macOS app-hosted deletion tests | PASS | The deterministic three-function selector command exited 0 with host test-runner access. `/tmp/KnitNoteCompletedDeletionFinalFixTests/Logs/Test/Test-KnitNote-2026.08.08_07-06-12-+0800.xcresult` reports 3 passed, 0 failed, 0 skipped, `result: Passed`. The initial restricted-sandbox run exited 65 because `testmanagerd.control` was blocked and is not counted as test evidence. |
+| Unsigned Debug iOS Simulator build | PASS | `xcodebuild ... -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/KnitNoteCompletedDeletionFinalFix-iOS CODE_SIGNING_ALLOWED=NO build -quiet` exited 0. |
+| Unsigned Debug macOS build | PASS | `xcodebuild ... -configuration Debug -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteCompletedDeletionFinalFix-macOS CODE_SIGNING_ALLOWED=NO build -quiet` exited 0. |
+| Metadata validator | PASS | `python3 AppStore/Verification/metadata_check.py AppStore/Metadata` emitted `METADATA CHECK: PASS`. |
+| Static release audit | PASS | `bash AppStore/Verification/release_audit.sh --static-only` emitted `METADATA CHECK: PASS`, `COMMERCIAL RELEASE CHECK: PASS (offline)`, and `STATIC RELEASE AUDIT: PASS`. |
+
+### New-candidate physical acceptance — PENDING
+
+The prior `efb801e86e9a3c196603548be9aca8c0b957c2c0` iPhone PASS below is historical evidence only. It does not accept the new entitlement-policy candidate. After the exact containing commit is overlay-installed without uninstalling or erasing data, the user must repeat the disposable-project in-progress deletion, completed-project rejection, resume-without-unlock-or-trial-start, resumed deletion, relaunch persistence, Traditional-Chinese VoiceOver, and non-disposable-project preservation checks. Until the user supplies those results, the new candidate decision is **PENDING** and the release decision remains **STOP**.
+
+## Historical 2026-08-08 Task 4: completed-project deletion protection evidence
+
+This section is historical evidence for the working-tree source at `efb801e86e9a3c196603548be9aca8c0b957c2c0` on branch `docs/knitnote-1.4-localization`. It does not apply to the final entitlement-neutral resume candidate, replace the broader historical evidence below, or relax any release gate.
 
 | Check | Result | Exact evidence |
 | --- | --- | --- |

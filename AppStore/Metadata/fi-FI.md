@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4.1 lisää täydellisen käyttöliittymän seuraaville kielille: norjan bokmål, ruotsi, suomi, tanska, korea ja kreikka. Asetuksissa valittu kieli näkyy myös Apple Watchissa ja jakonäkymissä.
+- What's New: KnitNote 1.4.1 lisää täydellisen käyttöliittymän seuraaville kielille: norjan bokmål, ruotsi, suomi, tanska, korea ja kreikka. Asetuksissa valittu kieli näkyy myös Apple Watchissa ja jakonäkymissä. Valmiit projektit on nyt suojattu tahattomalta poistamiselta. Jatka projektia ennen kuin poistat sen.
 - Description: |
   Keskity käsissäsi olevaan lankaan. KnitNote kokoaa neuleprojektit, kuusi laskuria, ohjeet ja muistiinpanot selkeään ja rauhalliseen työtilaan.
 

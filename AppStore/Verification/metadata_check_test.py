@@ -94,6 +94,34 @@ SETTINGS_AND_SURFACE_TOKENS = {
     "ko-KR.md": ("설정", "Apple Watch", "공유"),
     "el-GR.md": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
 }
+DELETION_PROTECTION_COPY = {
+    "en-US.md": "Completed projects are now protected from accidental deletion; restore one to in progress before deleting it.",
+    "zh-Hant.md": "已完成作品現在有防誤刪保護；如需刪除，請先恢復為進行中。",
+    "zh-Hans.md": "已完成作品现在有防误删保护；如需删除，请先恢复为进行中。",
+    "de-DE.md": "Abgeschlossene Projekte sind jetzt vor versehentlichem Löschen geschützt. Setze ein Projekt vor dem Löschen zuerst auf „In Bearbeitung“ zurück.",
+    "fr-FR.md": "Les projets terminés sont désormais protégés contre les suppressions accidentelles. Remettez-les en cours avant de les supprimer.",
+    "ja-JP.md": "完了した作品の誤削除を防ぐ保護を追加しました。削除するには、先に「進行中」に戻してください。",
+    "nb-NO.md": "Fullførte prosjekter er nå beskyttet mot utilsiktet sletting. Gjenoppta et prosjekt før du sletter det.",
+    "sv-SE.md": "Slutförda projekt skyddas nu mot oavsiktlig radering. Återuppta ett projekt innan du tar bort det.",
+    "fi-FI.md": "Valmiit projektit on nyt suojattu tahattomalta poistamiselta. Jatka projektia ennen kuin poistat sen.",
+    "da-DK.md": "Afsluttede projekter er nu beskyttet mod utilsigtet sletning. Genoptag et projekt, før du sletter det.",
+    "ko-KR.md": "완료된 프로젝트를 실수로 삭제하지 않도록 보호합니다. 삭제하려면 먼저 진행 중으로 되돌리세요.",
+    "el-GR.md": "Τα ολοκληρωμένα έργα προστατεύονται πλέον από κατά λάθος διαγραφή. Επαναφέρετε πρώτα ένα έργο σε εξέλιξη για να το διαγράψετε.",
+}
+RECOVER_DELETED_PROJECT_CLAIMS = {
+    "en-US.md": "Deleted projects can be recovered.",
+    "zh-Hant.md": "已刪除作品可以復原。",
+    "zh-Hans.md": "已删除作品可以恢复。",
+    "de-DE.md": "Gelöschte Projekte können wiederhergestellt werden.",
+    "fr-FR.md": "Les projets supprimés peuvent être récupérés.",
+    "ja-JP.md": "削除した作品を復元できます。",
+    "nb-NO.md": "Slettede prosjekter kan gjenopprettes.",
+    "sv-SE.md": "Borttagna projekt kan återställas.",
+    "fi-FI.md": "Poistetut projektit voidaan palauttaa.",
+    "da-DK.md": "Slettede projekter kan gendannes.",
+    "ko-KR.md": "삭제된 프로젝트를 복구할 수 있습니다.",
+    "el-GR.md": "Τα διαγραμμένα έργα μπορούν να ανακτηθούν.",
+}
 
 
 class MetadataLocaleTests(unittest.TestCase):
@@ -123,6 +151,13 @@ class MetadataLocaleTests(unittest.TestCase):
                     self.assertIn(language, description)
                 for token in SETTINGS_AND_SURFACE_TOKENS[filename]:
                     self.assertIn(token, description)
+
+    def test_every_v141_whats_new_describes_completed_project_deletion_protection(self) -> None:
+        for filename in EXPECTED_LOCALES:
+            with self.subTest(filename=filename):
+                whats_new = parse(METADATA / filename)["What's New"]
+                self.assertIn(DELETION_PROTECTION_COPY[filename], whats_new)
+                self.assertNotIn(RECOVER_DELETED_PROJECT_CLAIMS[filename], whats_new)
 
     def test_validator_rejects_wrong_version_and_missing_language_semantics_for_every_package(self) -> None:
         for filename in EXPECTED_LOCALES:

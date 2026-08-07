@@ -98,7 +98,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Έτοιμος"
+            "value" : "Έτοιμο"
           }
         },
         "en" : {
@@ -128,13 +128,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "준비 완료 상태"
+            "value" : "준비 완료"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ha parat"
+            "value" : "Klar"
           }
         },
         "sv" : {
@@ -162,7 +162,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En mor strikker i en akvarel himmel ved siden af kaninen Lemon."
+            "value" : "En mor strikker under en akvarelhimmel ved siden af kaninen Lemon."
           }
         },
         "de" : {
@@ -174,7 +174,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Μια μητέρα πλέκει σε έναν ουρανό με ακουαρέλες δίπλα στο λεμόνι το κουνέλι."
+            "value" : "Μια μητέρα πλέκει κάτω από έναν ουρανό ακουαρέλας, δίπλα στον Lemon, το κουνέλι."
           }
         },
         "en" : {
@@ -186,7 +186,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Äiti neuloo vesiväritaivaalla sitruuna kanin vieressä."
+            "value" : "Äiti neuloo vesiväritaivaan alla Lemon-kani vierellään."
           }
         },
         "fr" : {
@@ -239,7 +239,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lemon kaninen hviler på en lavendelgarnbold."
+            "value" : "Kaninen Lemon hviler på et nøgle lavendelfarvet garn."
           }
         },
         "de" : {
@@ -251,7 +251,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Λεμόνι το κουνέλι να στηρίζεται σε μια μπάλα νήματος λεβάντας."
+            "value" : "Ο Lemon, το κουνέλι, ξεκουράζεται πάνω σε ένα λεβαντί κουβάρι νήματος."
           }
         },
         "en" : {
@@ -263,7 +263,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sitruuna kani lepää laventeli lankapallo."
+            "value" : "Lemon-kani lepää laventelinvärisen lankakerän päällä."
           }
         },
         "fr" : {
@@ -281,13 +281,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "라벤더 실 공에 누워 있는 토끼 레몬."
+            "value" : "라벤더색 실타래 위에서 쉬고 있는 토끼 레몬."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lemon kaninen hviler på en ball med lavendelgarn."
+            "value" : "Kaninen Lemon hviler på et nøste lavendelfarget garn."
           }
         },
         "sv" : {
@@ -643,7 +643,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Toinen tietooperaatio on jo käynnissä. Odota ja yritä uudelleen."
+            "value" : "Toinen tietotoiminto on jo käynnissä. Odota ja yritä uudelleen."
           }
         },
         "fr" : {
@@ -737,7 +737,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KnitNote에서 백업을 액세스할 수 없거나 저장 공간이 충분하지 않습니다."
+            "value" : "KnitNote가 백업에 접근할 수 없거나 저장 공간이 부족합니다."
           }
         },
         "nb" : {
@@ -1053,7 +1053,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Säkerhetskopiering exporterad."
+            "value" : "Säkerhetskopian exporterades."
           }
         },
         "zh-Hans" : {
@@ -1075,7 +1075,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sidste vellykkede backup"
+            "value" : "Seneste vellykkede sikkerhedskopi"
           }
         },
         "de" : {
@@ -1123,13 +1123,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Siste vellykkede backup"
+            "value" : "Siste vellykkede sikkerhetskopi"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Senaste framgångsrika säkerhetskopian"
+            "value" : "Senaste lyckade säkerhetskopia"
           }
         },
         "zh-Hans" : {
@@ -1303,7 +1303,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sikkerhedskopieret"
+            "value" : "Sikkerhedskopi oprettet"
           }
         },
         "de" : {
@@ -1315,7 +1315,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Δημιουργία αντιγράφων ασφαλείας"
+            "value" : "Το αντίγραφο ασφαλείας δημιουργήθηκε"
           }
         },
         "en" : {
@@ -1357,7 +1357,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Säkerhetskopiering skapad"
+            "value" : "Säkerhetskopia skapad"
           }
         },
         "zh-Hans" : {
@@ -1388,7 +1388,7 @@
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-projekter"
+                  "value" : "%lld projekter"
                 }
               }
             }
@@ -1514,13 +1514,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-prosjekt"
+                  "value" : "%lld prosjekt"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-prosjekter"
+                  "value" : "%lld prosjekter"
                 }
               }
             }
@@ -1532,13 +1532,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-projekt"
+                  "value" : "%lld projekt"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-projekt"
+                  "value" : "%lld projekt"
                 }
               }
             }
@@ -1698,7 +1698,7 @@
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld 실"
+                  "value" : "실 %lld개"
                 }
               }
             }
@@ -1977,7 +1977,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Återställ från säkerhetskopiering"
+            "value" : "Återställ från säkerhetskopia"
           }
         },
         "zh-Hans" : {
@@ -2193,7 +2193,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "복원 실패했습니다. 원래 데이터가 보존되었습니다."
+            "value" : "복원에 실패했습니다. 원래 데이터는 보존되었습니다."
           }
         },
         "nb" : {
@@ -2275,7 +2275,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gjenoppretting og gjenoppretting mislyktes begge. Slutt å bruke KnitNote og gjenopprett appens data fra en enhetssikkerhetskopi."
+            "value" : "Både gjenoppretting og tilbakeføring mislyktes. Slutt å bruke KnitNote og gjenopprett appdataene fra en sikkerhetskopi av enheten."
           }
         },
         "sv" : {
@@ -2509,7 +2509,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Databasuppspara"
+            "value" : "Datasäkerhetskopiering"
           }
         },
         "zh-Hans" : {
@@ -3029,7 +3029,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "100,000 코 이하(최대 %lld)를 입력합니다."
+            "value" : "100,000코 이하를 입력하세요(최대 %lld)."
           }
         },
         "nb" : {
@@ -3075,7 +3075,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Εισαγάγετε έγκυρο τρέχοντα και επιθυμητό αριθμό πόντων."
+            "value" : "Εισαγάγετε έγκυρους αριθμούς για τους τρέχοντες και τους επιθυμητούς πόντους."
           }
         },
         "en" : {
@@ -3105,7 +3105,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "유효한 현재 및 대상 코 수를 입력하십시오."
+            "value" : "올바른 현재 코 수와 목표 코 수를 입력하세요."
           }
         },
         "nb" : {
@@ -3163,7 +3163,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tätä mukautusta ei voida täyttää tasaisesti yhdellä kerroksella. Jaa se usean kerroksen yli."
+            "value" : "Tätä muutosta ei voi tehdä tasaisesti yhdellä kerroksella. Jaa se usealle kerrokselle."
           }
         },
         "fr" : {
@@ -3193,7 +3193,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Denna justering kan inte slutföras jämnt i en varv. Dela upp den på flera varv."
+            "value" : "Denna justering kan inte göras jämnt på ett varv. Fördela den över flera varv."
           }
         },
         "zh-Hans" : {
@@ -3315,7 +3315,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennä vierekkäisiä silmukoita koko kerroksen."
+            "value" : "Kavenna vierekkäisiä silmukoita koko kerroksen ajan."
           }
         },
         "fr" : {
@@ -3367,7 +3367,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fald efter hver %@-masker."
+            "value" : "Tag ind med %@ maskers mellemrum."
           }
         },
         "de" : {
@@ -3391,7 +3391,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennä jokaisen %@-silmukan jälkeen."
+            "value" : "Kavenna %@ silmukan välein."
           }
         },
         "fr" : {
@@ -3409,19 +3409,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@코마다 감소합니다."
+            "value" : "%@코마다 줄이세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reduser etter hver %@-masker."
+            "value" : "Fell med %@ maskers mellomrom."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Minskning efter varje %@-maskor."
+            "value" : "Minska med %@ maskors mellanrum."
           }
         },
         "zh-Hans" : {
@@ -3443,7 +3443,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fald efter hver %lld-masker."
+            "value" : "Tag ind med %lld maskers mellemrum."
           }
         },
         "de" : {
@@ -3467,7 +3467,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennä jokaisen %lld-silmukan jälkeen."
+            "value" : "Kavenna %lld silmukan välein."
           }
         },
         "fr" : {
@@ -3485,19 +3485,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld코마다 감소합니다."
+            "value" : "%lld코마다 줄이세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reduser etter hver %lld-masker."
+            "value" : "Fell med %lld maskers mellomrom."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Minskning efter varje %lld-maskor."
+            "value" : "Minska med %lld maskors mellanrum."
           }
         },
         "zh-Hans" : {
@@ -3519,7 +3519,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Faldet sker efter hvert 1. maske."
+            "value" : "Tag ind efter hver maske."
           }
         },
         "de" : {
@@ -3531,7 +3531,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Μειώστε μετά από κάθε 1 πόντο."
+            "value" : "Κάντε μία μείωση μετά από κάθε πόντο."
           }
         },
         "en" : {
@@ -3543,7 +3543,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennä jokaisen 1 silmukan jälkeen."
+            "value" : "Kavenna jokaisen silmukan jälkeen."
           }
         },
         "fr" : {
@@ -3561,19 +3561,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "매 1코마다 줄이세요."
+            "value" : "코마다 줄이세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reduser etter hvert som du syr 1 maske."
+            "value" : "Fell etter hver maske."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Minska efter varje 1:a maskor."
+            "value" : "Minska efter varje maska."
           }
         },
         "zh-Hans" : {
@@ -3595,7 +3595,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Forøg efter hver %@-masker."
+            "value" : "Tag ud med %@ maskers mellemrum."
           }
         },
         "de" : {
@@ -3619,7 +3619,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lisää jokaisen %@-silmukan jälkeen."
+            "value" : "Lisää %@ silmukan välein."
           }
         },
         "fr" : {
@@ -3637,19 +3637,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@코마다 증가합니다."
+            "value" : "%@코마다 늘리세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Øk etter hver %@-masker."
+            "value" : "Øk med %@ maskers mellomrom."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öka efter varje %@-maskor."
+            "value" : "Öka med %@ maskors mellanrum."
           }
         },
         "zh-Hans" : {
@@ -3671,7 +3671,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Forøg efter hver %lld-masker."
+            "value" : "Tag ud med %lld maskers mellemrum."
           }
         },
         "de" : {
@@ -3695,7 +3695,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lisää jokaisen %lld-silmukan jälkeen."
+            "value" : "Lisää %lld silmukan välein."
           }
         },
         "fr" : {
@@ -3713,19 +3713,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld코마다 증가합니다."
+            "value" : "%lld코마다 늘리세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Øk etter hver %lld-masker."
+            "value" : "Øk med %lld maskers mellomrom."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öka efter varje %lld-maskor."
+            "value" : "Öka med %lld maskors mellanrum."
           }
         },
         "zh-Hans" : {
@@ -3747,7 +3747,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Øg efter hvert 1. maske."
+            "value" : "Tag ud efter hver maske."
           }
         },
         "de" : {
@@ -3759,7 +3759,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Αυξήστε μετά από κάθε 1 πόντο."
+            "value" : "Κάντε μία αύξηση μετά από κάθε πόντο."
           }
         },
         "en" : {
@@ -3789,19 +3789,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "매 1코마다 증가합니다."
+            "value" : "코마다 늘리세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Øk etter hvert som du syr 1 maske."
+            "value" : "Øk etter hver maske."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öka efter varje 1 maska."
+            "value" : "Öka efter varje maska."
           }
         },
         "zh-Hans" : {
@@ -3899,7 +3899,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "På tværs af rækkerne"
+            "value" : "Over flere pinde"
           }
         },
         "de" : {
@@ -3911,7 +3911,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Σε όλες τις σειρές"
+            "value" : "Σε πολλές σειρές"
           }
         },
         "en" : {
@@ -3941,19 +3941,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "단을 가로지르며"
+            "value" : "여러 단에 걸쳐"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "På tvers av rader"
+            "value" : "Over flere rader"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Över raderna"
+            "value" : "Över flera varv"
           }
         },
         "zh-Hans" : {
@@ -4029,7 +4029,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En varv"
+            "value" : "Ett varv"
           }
         },
         "zh-Hans" : {
@@ -4093,7 +4093,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "각 양쪽에 한 개의 가장자리 코를 남겨두세요."
+            "value" : "양쪽에 가장자리 코를 하나씩 남기세요."
           }
         },
         "nb" : {
@@ -4127,7 +4127,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "pind %lld."
+            "value" : "Pind %lld."
           }
         },
         "de" : {
@@ -4175,7 +4175,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rad %lld."
+            "value" : "Rad %lld."
           }
         },
         "sv" : {
@@ -4321,7 +4321,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "100,000 이하(최대 %lld)를 입력하십시오."
+            "value" : "100,000 이하를 입력하세요(최대 %lld)."
           }
         },
         "nb" : {
@@ -4397,7 +4397,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "각 단당 한 번씩 이러한 변경 사항을 배포할 수 있는 단이 충분하지 않습니다."
+            "value" : "단마다 한 번씩 변경하려면 단 수가 부족합니다."
           }
         },
         "nb" : {
@@ -4473,13 +4473,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "양쪽의 일치하는 변경을 위해 짝수 수의 코를 입력하십시오."
+            "value" : "양쪽을 똑같이 조정하려면 짝수 개의 코를 입력하세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For å oppnå en tilpasning av endringene på begge sider, skriv inn et jevnt antall masker."
+            "value" : "For like endringer på begge sider må masketallet være et partall."
           }
         },
         "sv" : {
@@ -4625,7 +4625,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "모든 단"
+            "value" : "매 단마다"
           }
         },
         "nb" : {
@@ -4659,7 +4659,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hver %lld-pind"
+            "value" : "Hver %lld. pind"
           }
         },
         "de" : {
@@ -4683,7 +4683,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jokainen %lld-kerros"
+            "value" : "%lld kerroksen välein"
           }
         },
         "fr" : {
@@ -4701,19 +4701,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "모든 %lld 단"
+            "value" : "%lld단마다"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hver %lld-rad"
+            "value" : "Hver %lld. rad"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Varje varv %lld"
+            "value" : "Med %lld varvs mellanrum"
           }
         },
         "zh-Hans" : {
@@ -4811,7 +4811,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "operation"
+            "value" : "Handling"
           }
         },
         "de" : {
@@ -4853,19 +4853,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "작업 과정"
+            "value" : "작업"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "virkning"
+            "value" : "Handling"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "verkan"
+            "value" : "Åtgärd"
           }
         },
         "zh-Hans" : {
@@ -4887,7 +4887,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "fald"
+            "value" : "Indtagning"
           }
         },
         "de" : {
@@ -4929,19 +4929,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "감소"
+            "value" : "줄이기"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "minsking"
+            "value" : "Felling"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "minska"
+            "value" : "Minskning"
           }
         },
         "zh-Hans" : {
@@ -4963,7 +4963,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "forøge"
+            "value" : "Udtagning"
           }
         },
         "de" : {
@@ -5005,7 +5005,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "증가"
+            "value" : "늘리기"
           }
         },
         "nb" : {
@@ -5017,7 +5017,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "öka"
+            "value" : "Ökning"
           }
         },
         "zh-Hans" : {
@@ -5343,7 +5343,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, træk 1 maske af på hver side. Justeringsrækker: %lld."
+            "value" : "%@, tag 1 maske ind på hver side. Justeringsrækker: %lld."
           }
         },
         "de" : {
@@ -5367,7 +5367,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, vähennä 1 silmukka molemmin puolin. säätökerrokset: %lld."
+            "value" : "%@, kavenna 1 silmukka molemmin puolin. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5391,13 +5391,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, trekk 1 maske av hver side. Justeringsrader: %lld."
+            "value" : "%@, fell 1 maske på hver side. Justeringsrader: %lld."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, minska 1 virkning på varje sida. Justeringsrader: %lld."
+            "value" : "%@, minska 1 maska på varje sida. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -5419,7 +5419,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, træk 1 maske af på hver side. Justeringsrækker: %lld."
+            "value" : "%@, tag 1 maske ind på hver side. Justeringsrækker: %lld."
           }
         },
         "de" : {
@@ -5443,7 +5443,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, vähennä 1 silmukka molemmin puolin. säätökerrokset: %lld."
+            "value" : "%@, kavenna 1 silmukka molemmin puolin. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5467,13 +5467,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, trekk 1 maske av hver side. Justeringsrader: %lld."
+            "value" : "%@, fell 1 maske på hver side. Justeringsrader: %lld."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, minska 1 virkning på varje sida. Justeringsrader: %lld."
+            "value" : "%@, minska 1 maska på varje sida. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -5495,7 +5495,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, træk 1 maske af på den ene side. Justeringsrækker: %lld."
+            "value" : "%@, tag 1 maske ind på den ene side. Justeringsrækker: %lld."
           }
         },
         "de" : {
@@ -5519,7 +5519,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, vähennä 1 silmukka toisella puolella. säätökerrokset: %lld."
+            "value" : "%@, kavenna 1 silmukka yhdellä puolella. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5543,13 +5543,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, trekk 1 maske av på den ene siden. Justeringsrader: %lld."
+            "value" : "%@, fell 1 maske på én side. Justeringsrader: %lld."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, minska 1 virkning på ena sidan. Justeringsrader: %lld."
+            "value" : "%@, minska 1 maska på ena sidan. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -5571,7 +5571,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, træk 1 maske af på den ene side. Justeringsrækker: %lld."
+            "value" : "%@, tag 1 maske ind på den ene side. Justeringsrækker: %lld."
           }
         },
         "de" : {
@@ -5595,7 +5595,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, vähennä 1 silmukka toisella puolella. säätökerrokset: %lld."
+            "value" : "%@, kavenna 1 silmukka yhdellä puolella. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5619,13 +5619,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, trekk 1 maske av på den ene siden. Justeringsrader: %lld."
+            "value" : "%@, fell 1 maske på én side. Justeringsrader: %lld."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, minska 1 virkning på ena sidan. Justeringsrader: %lld."
+            "value" : "%@, minska 1 maska på ena sidan. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -5671,7 +5671,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, lisää 1 silmukka molemmin puolin. säätökerrokset: %lld."
+            "value" : "%@, lisää 1 silmukka molemmin puolin. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5695,13 +5695,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, øk 1 maske på hver side. Justeringslinjer: %lld."
+            "value" : "%@, øk 1 maske på hver side. Justeringsrader: %lld."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, öka 1 maska på varje sida. Justeringsrader: %lld."
+            "value" : "%@, öka 1 maska på varje sida. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -5747,7 +5747,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, lisää 1 silmukka molemmin puolin. säätökerrokset: %lld."
+            "value" : "%@, lisää 1 silmukka molemmin puolin. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5771,13 +5771,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, øk 1 maske på hver side. Justeringslinjer: %lld."
+            "value" : "%@, øk 1 maske på hver side. Justeringsrader: %lld."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, öka 1 maska på varje sida. Justeringsrader: %lld."
+            "value" : "%@, öka 1 maska på varje sida. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -5799,7 +5799,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, 1 stik øges på den ene side. Justeringsrækker: %lld."
+            "value" : "%@, øg 1 maske på den ene side. Justeringsrækker: %lld."
           }
         },
         "de" : {
@@ -5823,7 +5823,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, lisää 1 silmukka toisella puolella. säätökerrokset: %lld."
+            "value" : "%@, lisää 1 silmukka yhdellä puolella. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5853,7 +5853,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, öka 1 maska på ena sidan. Justeringsrader: %lld."
+            "value" : "%@, öka 1 maska på ena sidan. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -5875,7 +5875,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, 1 stik øges på den ene side. Justeringsrækker: %lld."
+            "value" : "%@, øg 1 maske på den ene side. Justeringsrækker: %lld."
           }
         },
         "de" : {
@@ -5899,7 +5899,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, lisää 1 silmukka toisella puolella. säätökerrokset: %lld."
+            "value" : "%@, lisää 1 silmukka yhdellä puolella. Säätökerrokset: %lld."
           }
         },
         "fr" : {
@@ -5929,7 +5929,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, öka 1 maska på ena sidan. Justeringsrader: %lld."
+            "value" : "%@, öka 1 maska på ena sidan. Justeringsvarv: %lld."
           }
         },
         "zh-Hans" : {
@@ -6103,7 +6103,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fald de næste 2 masker til 1."
+            "value" : "Strik de næste 2 masker sammen."
           }
         },
         "de" : {
@@ -6127,7 +6127,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennä seuraavat 2 silmukkaa yhteen"
+            "value" : "Neulo seuraavat 2 silmukkaa yhteen"
           }
         },
         "fr" : {
@@ -6145,7 +6145,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "다음 2코를 1개로 줄이세요."
+            "value" : "다음 2코를 1코로 줄이세요."
           }
         },
         "nb" : {
@@ -6495,7 +6495,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Εμφάνιση ολοκληρωμένων βημάτων"
+            "value" : "Εμφάνιση όλων των βημάτων"
           }
         },
         "en" : {
@@ -6583,7 +6583,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennä %lld-silmukoita tasaisesti."
+            "value" : "Kavenna tasaisesti %lld silmukkaa."
           }
         },
         "fr" : {
@@ -6607,7 +6607,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reduser %lld-masker jevnt."
+            "value" : "Fell %lld masker jevnt."
           }
         },
         "sv" : {
@@ -6635,7 +6635,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fald 1 maske jævnt."
+            "value" : "Tag 1 maske ind jævnt."
           }
         },
         "de" : {
@@ -6677,7 +6677,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1코씩 균일하게 줄입니다."
+            "value" : "1코를 균일하게 줄입니다."
           }
         },
         "nb" : {
@@ -6735,7 +6735,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lisää %lld-silmukoita tasaisesti."
+            "value" : "Lisää tasaisesti %lld silmukkaa."
           }
         },
         "fr" : {
@@ -6759,13 +6759,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Øk %lld-maskene jevnt."
+            "value" : "Øk %lld masker jevnt."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öka %lld-maskorna jämnt."
+            "value" : "Öka %lld maskor jämnt."
           }
         },
         "zh-Hans" : {
@@ -6863,7 +6863,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der er ingen behov for nogen stigninger eller fald."
+            "value" : "Der er ikke behov for udtagninger eller indtagninger."
           }
         },
         "de" : {
@@ -6911,7 +6911,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det er ingen behov for noen økninger eller reduksjoner."
+            "value" : "Ingen økninger eller fellinger er nødvendige."
           }
         },
         "sv" : {
@@ -7243,7 +7243,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Præcis resultat"
+            "value" : "Præcist resultat"
           }
         },
         "de" : {
@@ -7396,7 +7396,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekommanderet"
+            "value" : "Anbefalet"
           }
         },
         "de" : {
@@ -7548,7 +7548,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ rader pr. tomme"
+            "value" : "%@ pinde pr. tomme"
           }
         },
         "de" : {
@@ -7672,7 +7672,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rangberegning (valgfritt)"
+            "value" : "Radberegning (valgfritt)"
           }
         },
         "sv" : {
@@ -7895,7 +7895,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "샘플 높이"
+            "value" : "스와치 높이"
           }
         },
         "nb" : {
@@ -7929,7 +7929,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "pinde i prøvelappen"
+            "value" : "Pinde i prøvelappen"
           }
         },
         "de" : {
@@ -8081,7 +8081,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsterbredde"
+            "value" : "Prøvelappens bredde"
           }
         },
         "de" : {
@@ -8123,19 +8123,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "샘플 너비"
+            "value" : "스와치 너비"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsterbredde"
+            "value" : "Prøvelappens bredde"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Provbredd"
+            "value" : "Provlappens bredd"
           }
         },
         "zh-Hans" : {
@@ -8966,13 +8966,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tommel"
+            "value" : "Tommer"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tums"
+            "value" : "Tum"
           }
         },
         "zh-Hans" : {
@@ -8994,7 +8994,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strikkerregnemaskiner"
+            "value" : "Strikkeberegnere"
           }
         },
         "de" : {
@@ -9311,7 +9311,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Έρχεται μια μελλοντική ενημέρωση."
+            "value" : "Θα προστεθεί σε μελλοντική ενημέρωση."
           }
         },
         "en" : {
@@ -9323,7 +9323,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tulossa on tuleva päivitys."
+            "value" : "Tulossa myöhemmässä päivityksessä."
           }
         },
         "fr" : {
@@ -9341,7 +9341,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "미래 업데이트로 출시됩니다."
+            "value" : "향후 업데이트에서 제공됩니다."
           }
         },
         "nb" : {
@@ -9353,7 +9353,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kommer i ett framtida uppdatering."
+            "value" : "Kommer i en framtida uppdatering."
           }
         },
         "zh-Hans" : {
@@ -9843,7 +9843,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Έλεγχος κατάρρευσης για %@, τρέχουσα τιμή %lld"
+            "value" : "Σύμπτυξη στοιχείων ελέγχου για %@, τρέχουσα τιμή %lld"
           }
         },
         "en" : {
@@ -9855,7 +9855,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Romahdusohjaimet %@:lle, nykyarvo %lld:lle"
+            "value" : "Supista kohteen %@ säätimet, nykyinen arvo %lld"
           }
         },
         "fr" : {
@@ -9873,7 +9873,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@, 현재 값 %lld의 축소 제어"
+            "value" : "%@ 컨트롤 접기, 현재 값 %lld"
           }
         },
         "nb" : {
@@ -10007,7 +10007,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Laajenna ohjaimet %@, nykyinen arvo %lld"
+            "value" : "Laajenna kohteen %@ säätimet, nykyinen arvo %lld"
           }
         },
         "fr" : {
@@ -10159,7 +10159,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Muokkaa viestiä %@:lle, nykyinen arvo %lld:lle"
+            "value" : "Muokkaa kohteen %@ muistiinpanoa, nykyinen arvo %lld"
           }
         },
         "fr" : {
@@ -10387,7 +10387,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Napauta lisää yhdellä. Kosketa ja pidä kiinni."
+            "value" : "Napauta kasvattaaksesi arvoa yhdellä. Hallitse koskettamalla pitkään."
           }
         },
         "fr" : {
@@ -10452,7 +10452,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Μετρητές κατάρρευσης"
+            "value" : "Σύμπτυξη μετρητών"
           }
         },
         "en" : {
@@ -10635,7 +10635,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "상점 카운터 %lld"
+            "value" : "카운터 %lld"
           }
         },
         "nb" : {
@@ -10788,7 +10788,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "카운터를 증가시키다"
+            "value" : "카운터 늘리기"
           }
         },
         "nb" : {
@@ -10922,7 +10922,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vähennys 1"
+            "value" : "Vähennä yhdellä"
           }
         },
         "fr" : {
@@ -11320,7 +11320,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "가치"
+            "value" : "값"
           }
         },
         "nb" : {
@@ -11506,7 +11506,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Foto til dagbogsskrivning"
+            "value" : "Foto til dagbogsindlæg"
           }
         },
         "de" : {
@@ -11582,7 +11582,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Foto til dagbogsskrivning"
+            "value" : "Foto til dagbogsindlæg"
           }
         },
         "de" : {
@@ -11734,7 +11734,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ny dagbogseintrag"
+            "value" : "Nyt dagbogsindlæg"
           }
         },
         "de" : {
@@ -11822,7 +11822,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Τίτλος (προαιρετικό)"
+            "value" : "Λεζάντα (προαιρετική)"
           }
         },
         "en" : {
@@ -11852,7 +11852,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "자막(선택 사항)"
+            "value" : "캡션(선택 사항)"
           }
         },
         "nb" : {
@@ -11940,7 +11940,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lägg till en anteckning om denna framsteg."
+            "value" : "Lägg till en anteckning om detta framsteg."
           }
         },
         "zh-Hans" : {
@@ -11962,7 +11962,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbogseintrag, %1$@, %2$@"
+            "value" : "Dagbogsindlæg, %1$@, %2$@"
           }
         },
         "de" : {
@@ -11974,7 +11974,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Είσοδος εφημερίδας, %1$@, %2$@"
+            "value" : "Καταχώριση ημερολογίου, %1$@, %2$@"
           }
         },
         "en" : {
@@ -12038,7 +12038,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbogseintrag, billedindlæsning, %1$@, %2$@"
+            "value" : "Dagbogsindlæg, billede indlæses, %1$@, %2$@"
           }
         },
         "de" : {
@@ -12050,7 +12050,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Είσοδος περιοδικού, φόρτωση φωτογραφιών, %1$@, %2$@"
+            "value" : "Καταχώριση ημερολογίου, φόρτωση φωτογραφίας, %1$@, %2$@"
           }
         },
         "en" : {
@@ -12086,7 +12086,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbokoppføring, bildeopplasting, %1$@, %2$@"
+            "value" : "Dagbokoppføring, bildet lastes inn, %1$@, %2$@"
           }
         },
         "sv" : {
@@ -12114,7 +12114,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbogseintrag, billede ikke tilgængeligt, %1$@, %2$@"
+            "value" : "Dagbogsindlæg, billede ikke tilgængeligt, %1$@, %2$@"
           }
         },
         "de" : {
@@ -12126,7 +12126,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Εγγραφή σε περιοδικό, φωτογραφία μη διαθέσιμη, %1$@, %2$@"
+            "value" : "Καταχώριση ημερολογίου, μη διαθέσιμη φωτογραφία, %1$@, %2$@"
           }
         },
         "en" : {
@@ -12190,7 +12190,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbogseintrag, %@"
+            "value" : "Dagbogsindlæg, %@"
           }
         },
         "de" : {
@@ -12202,7 +12202,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Καταχώρηση εφημερίδας, %@"
+            "value" : "Καταχώριση ημερολογίου, %@"
           }
         },
         "en" : {
@@ -12266,7 +12266,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbogseintrag, billedindlæsning, %@"
+            "value" : "Dagbogsindlæg, billede indlæses, %@"
           }
         },
         "de" : {
@@ -12278,7 +12278,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Είσοδος περιοδικού, φόρτωση φωτογραφιών, %@"
+            "value" : "Καταχώριση ημερολογίου, φόρτωση φωτογραφίας, %@"
           }
         },
         "en" : {
@@ -12314,7 +12314,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbokoppføring, bildeopplasting, %@"
+            "value" : "Dagbokoppføring, bildet lastes inn, %@"
           }
         },
         "sv" : {
@@ -12342,7 +12342,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbogshændelse, billede ikke tilgængeligt, %@"
+            "value" : "Dagbogsindlæg, billede ikke tilgængeligt, %@"
           }
         },
         "de" : {
@@ -12354,7 +12354,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Εγγραφή σε περιοδικό, φωτογραφία μη διαθέσιμη, %@"
+            "value" : "Καταχώριση ημερολογίου, μη διαθέσιμη φωτογραφία, %@"
           }
         },
         "en" : {
@@ -12366,7 +12366,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aikakausjulkaisu, valokuvaa ei saatavilla, %@"
+            "value" : "Päiväkirjamerkintä, valokuvaa ei ole saatavilla, %@"
           }
         },
         "fr" : {
@@ -12506,7 +12506,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Αυτή η καταχώρηση ημερολογίου και οι φωτογραφίες του θα διαγραφούν οριστικά."
+            "value" : "Αυτή η καταχώριση ημερολογίου και οι φωτογραφίες της θα διαγραφούν οριστικά."
           }
         },
         "en" : {
@@ -12594,7 +12594,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Poistaa päiväkirjamerkintä?"
+            "value" : "Poistetaanko päiväkirjamerkintä?"
           }
         },
         "fr" : {
@@ -12646,7 +12646,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagbogseintrag"
+            "value" : "Dagbogsindlæg"
           }
         },
         "de" : {
@@ -12974,7 +12974,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Päiväkirjaa ei tallennettu."
+            "value" : "Päiväkirjamerkintöjä ei tallennettu."
           }
         },
         "fr" : {
@@ -13080,7 +13080,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fick inte ta bort journalposten."
+            "value" : "Kunde inte radera dagboksinlägget"
           }
         },
         "zh-Hans" : {
@@ -13232,7 +13232,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Välj ett giltigt bild och försök igen."
+            "value" : "Välj en giltig bild och försök igen."
           }
         },
         "zh-Hans" : {
@@ -13342,7 +13342,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Αυτό το ολοκληρωμένο ημερολόγιο του έργου είναι μόνο για ανάγνωση."
+            "value" : "Το ημερολόγιο αυτού του ολοκληρωμένου έργου είναι μόνο για ανάγνωση."
           }
         },
         "en" : {
@@ -13354,7 +13354,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tämä valmistunut projektin päiväkirja on vain luettavissa."
+            "value" : "Tämän valmistuneen projektin päiväkirjaa voi vain tarkastella."
           }
         },
         "fr" : {
@@ -13378,13 +13378,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagboken for dette ferdige prosjektet er kun lesbart."
+            "value" : "Dagboken for dette ferdige prosjektet er skrivebeskyttet."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Loggen för det slutförda projektet är endast läsbart."
+            "value" : "Dagboken för det slutförda projektet är skrivskyddad."
           }
         },
         "zh-Hans" : {
@@ -13430,7 +13430,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Päiväkirjaa ei voitu tallentaa"
+            "value" : "Päiväkirjamerkintää ei voitu tallentaa"
           }
         },
         "fr" : {
@@ -13460,7 +13460,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fick inte spara journalposten."
+            "value" : "Kunde inte spara dagboksinlägget"
           }
         },
         "zh-Hans" : {
@@ -13506,7 +13506,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Päiväkirjaa ei voitu tallentaa. Yritä uudelleen."
+            "value" : "Päiväkirjamerkintää ei voitu tallentaa. Yritä uudelleen."
           }
         },
         "fr" : {
@@ -13530,7 +13530,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det ble ikke lagret journalposten. Vennligst prøv igjen."
+            "value" : "Dagbokoppføringen kunne ikke lagres. Prøv igjen."
           }
         },
         "sv" : {
@@ -13722,7 +13722,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Δεν μπορούσα να φορτώσω φωτογραφία"
+            "value" : "Δεν ήταν δυνατή η φόρτωση της φωτογραφίας"
           }
         },
         "en" : {
@@ -13734,7 +13734,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En voinut ladata kuvaa"
+            "value" : "Kuvaa ei voitu ladata"
           }
         },
         "fr" : {
@@ -13764,7 +13764,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunde inte ladda upp bilden"
+            "value" : "Kunde inte läsa in bilden"
           }
         },
         "zh-Hans" : {
@@ -14026,7 +14026,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Αυτό το ολοκληρωμένο ημερολόγιο του έργου είναι μόνο για ανάγνωση."
+            "value" : "Το ημερολόγιο αυτού του ολοκληρωμένου έργου είναι μόνο για ανάγνωση."
           }
         },
         "en" : {
@@ -14038,7 +14038,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tämä valmistunut projektin päiväkirja on vain luettavissa."
+            "value" : "Tämän valmistuneen projektin päiväkirjaa voi vain tarkastella."
           }
         },
         "fr" : {
@@ -14062,13 +14062,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dagboken for dette ferdige prosjektet er kun lesbart."
+            "value" : "Dagboken for dette ferdige prosjektet er skrivebeskyttet."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Loggen för det slutförda projektet är endast läsbart."
+            "value" : "Dagboken för det slutförda projektet är skrivskyddad."
           }
         },
         "zh-Hans" : {
@@ -14178,7 +14178,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Περιοδικό πλεξίματος"
+            "value" : "Ημερολόγιο πλεξίματος"
           }
         },
         "en" : {
@@ -16093,7 +16093,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tätä valintaa käytetään automaattisesti pimeässä tilassa."
+            "value" : "Tätä valintaa käytetään automaattisesti tummassa tilassa."
           }
         },
         "fr" : {
@@ -16123,7 +16123,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Detta alternativ används automatiskt i mörk modus."
+            "value" : "Detta alternativ används automatiskt i mörkt läge."
           }
         },
         "zh-Hans" : {
@@ -16265,7 +16265,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "밤 외관 사용"
+            "value" : "야간 화면 사용"
           }
         },
         "nb" : {
@@ -16505,7 +16505,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öppna säkerhetskopieringsinställ"
+            "value" : "Öppna inställningar för säkerhetskopiering"
           }
         },
         "zh-Hans" : {
@@ -16539,7 +16539,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Κρατήστε τα Πρότυπά σας Ασφαλή"
+            "value" : "Διατηρήστε ασφαλή τα σχέδια πλεξίματός σας"
           }
         },
         "en" : {
@@ -16679,7 +16679,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "afvarsling"
+            "value" : "AC"
           }
         },
         "de" : {
@@ -16691,7 +16691,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Καθαρισμός όλων"
+            "value" : "AC"
           }
         },
         "en" : {
@@ -16703,7 +16703,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tyhjennä"
+            "value" : "AC"
           }
         },
         "fr" : {
@@ -16721,19 +16721,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "의 신호"
+            "value" : "AC"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alle klare"
+            "value" : "AC"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "faran över"
+            "value" : "AC"
           }
         },
         "zh-Hans" : {
@@ -16797,13 +16797,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "나누다"
+            "value" : "나누기"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "vannskille"
+            "value" : "Del"
           }
         },
         "sv" : {
@@ -16831,7 +16831,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ligner"
+            "value" : "Lig med"
           }
         },
         "de" : {
@@ -16843,7 +16843,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ισότητα"
+            "value" : "Ίσον"
           }
         },
         "en" : {
@@ -16855,7 +16855,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yhtä suuri"
+            "value" : "Yhtä kuin"
           }
         },
         "fr" : {
@@ -16879,13 +16879,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ligner på"
+            "value" : "Er lik"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Liknar"
+            "value" : "Lika med"
           }
         },
         "zh-Hans" : {
@@ -16995,7 +16995,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ανοίγει μια αριθμομηχανή χωρίς να αφήνει το σχέδιο"
+            "value" : "Ανοίγει αριθμομηχανή χωρίς να κλείσει το σχέδιο"
           }
         },
         "en" : {
@@ -17025,7 +17025,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "도안을 벗어나지 않고 계산기를 열다"
+            "value" : "도안을 닫지 않고 계산기를 엽니다."
           }
         },
         "nb" : {
@@ -17265,7 +17265,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "härröra"
+            "value" : "Resultat"
           }
         },
         "zh-Hans" : {
@@ -17375,7 +17375,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Υπολογισμός"
+            "value" : "Αριθμομηχανή"
           }
         },
         "en" : {
@@ -17451,7 +17451,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Τροποποίηση υπογραφής"
+            "value" : "Αλλαγή προσήμου"
           }
         },
         "en" : {
@@ -17481,7 +17481,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "표지판 변경"
+            "value" : "부호 변경"
           }
         },
         "nb" : {
@@ -17668,7 +17668,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "øget"
+            "value" : "Tilføjet"
           }
         },
         "de" : {
@@ -17710,19 +17710,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "추가된"
+            "value" : "추가됨"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "økt"
+            "value" : "Lagt til"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ökad"
+            "value" : "Tillagd"
           }
         },
         "zh-Hans" : {
@@ -17820,7 +17820,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permanent sletning af mønster"
+            "value" : "Slet mønsteret permanent"
           }
         },
         "de" : {
@@ -17868,13 +17868,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permanent sletting av mønster"
+            "value" : "Slett mønsteret permanent"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permanent radera mönster"
+            "value" : "Radera mönstret permanent"
           }
         },
         "zh-Hans" : {
@@ -18072,7 +18072,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Poista tämä ohje alla olevista hankkeista ennen sen poistamista."
+            "value" : "Poista tämän ohjeen linkitys alla olevista projekteista ennen ohjeen poistamista."
           }
         },
         "fr" : {
@@ -18546,7 +18546,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "다른 프로젝트 링크"
+            "value" : "다른 프로젝트 연결"
           }
         },
         "nb" : {
@@ -18580,7 +18580,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relaterede projekter"
+            "value" : "Tilknyttede projekter"
           }
         },
         "de" : {
@@ -18634,7 +18634,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Länknade projekt"
+            "value" : "Länkade projekt"
           }
         },
         "zh-Hans" : {
@@ -18668,7 +18668,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Δεν υπάρχουν άλλα σχέδια."
+            "value" : "Δεν υπάρχουν άλλα διαθέσιμα έργα."
           }
         },
         "en" : {
@@ -18820,7 +18820,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Προσθέστε ένα σχεδιαστή, κατάστημα, ή πηγαίο σημείωμα."
+            "value" : "Προσθέστε σημείωση για τον σχεδιαστή, το κατάστημα ή την πηγή."
           }
         },
         "en" : {
@@ -18832,7 +18832,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lisää suunnittelija, myymälä tai lähdelappu."
+            "value" : "Lisää muistiinpano suunnittelijasta, myymälästä tai lähteestä."
           }
         },
         "fr" : {
@@ -18850,13 +18850,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "디자이너, 상점 또는 소스 메모 추가하기."
+            "value" : "디자이너, 상점 또는 출처에 관한 메모를 추가하세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Legg til en notat om designer, butikk eller leverandør."
+            "value" : "Legg til et notat om designer, butikk eller kilde."
           }
         },
         "sv" : {
@@ -18884,7 +18884,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Åbent mønster"
+            "value" : "Åbn mønster"
           }
         },
         "de" : {
@@ -18926,19 +18926,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "개방 도안"
+            "value" : "도안 열기"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Åpent mønster"
+            "value" : "Åpne mønster"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öppet mönster"
+            "value" : "Öppna mönster"
           }
         },
         "zh-Hans" : {
@@ -19008,13 +19008,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Navneendringsmønster"
+            "value" : "Gi mønsteret nytt navn"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Namngivningsmönster"
+            "value" : "Byt namn på mönstret"
           }
         },
         "zh-Hans" : {
@@ -19188,7 +19188,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "fremhæve"
+            "value" : "Fremhævning"
           }
         },
         "de" : {
@@ -19236,13 +19236,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "høydepunkt"
+            "value" : "Utheving"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "höjdpunkt"
+            "value" : "Markering"
           }
         },
         "zh-Hans" : {
@@ -19382,7 +19382,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "수평의"
+            "value" : "가로"
           }
         },
         "nb" : {
@@ -19534,7 +19534,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "수직의"
+            "value" : "세로"
           }
         },
         "nb" : {
@@ -19622,7 +19622,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vertikal höjdpunkt"
+            "value" : "Vertikal markering"
           }
         },
         "zh-Hans" : {
@@ -19692,13 +19692,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fremheve-modus"
+            "value" : "Uthevingsmodus"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Höjdpunktsläge"
+            "value" : "Markeringsläge"
           }
         },
         "zh-Hans" : {
@@ -19844,13 +19844,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kamera mønster"
+            "value" : "Kameramønster"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kamera mönster"
+            "value" : "Kameramönster"
           }
         },
         "zh-Hans" : {
@@ -19990,7 +19990,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "수입이 취소되었습니다."
+            "value" : "가져오기가 취소되었습니다."
           }
         },
         "nb" : {
@@ -20148,13 +20148,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det valgte filen kunne ikke åpnes."
+            "value" : "Den valgte filen kunne ikke åpnes."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det valda filen kunde inte öppnas."
+            "value" : "Den valda filen kunde inte öppnas."
           }
         },
         "zh-Hans" : {
@@ -20200,7 +20200,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valitse voimassa oleva PDF- tai kuvatiedosto."
+            "value" : "Valitse kelvollinen PDF- tai kuvatiedosto."
           }
         },
         "fr" : {
@@ -20808,7 +20808,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tallennettu ohje liittyi tähän projektiin."
+            "value" : "Tallennettu ohje linkitettiin tähän projektiin."
           }
         },
         "fr" : {
@@ -20872,7 +20872,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Δεμένο σχέδιο"
+            "value" : "Το σχέδιο συνδέθηκε"
           }
         },
         "en" : {
@@ -20914,7 +20914,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mönsterlänkat"
+            "value" : "Mönster länkat"
           }
         },
         "zh-Hans" : {
@@ -21060,7 +21060,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Denne filen samsvarer med mer enn én lagret mønster. Velg ett, eller opprett en ny samling."
+            "value" : "Denne filen samsvarer med mer enn ett lagret mønster. Velg ett, eller opprett en ny samling."
           }
         },
         "sv" : {
@@ -21392,7 +21392,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delte mønster er ikke gemt."
+            "value" : "Delt mønster er ikke gemt."
           }
         },
         "de" : {
@@ -21416,7 +21416,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jaettu ohje ei tallennettu"
+            "value" : "Jaettua ohjetta ei tallennettu"
           }
         },
         "fr" : {
@@ -21440,13 +21440,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delte mønster er ikke lagret."
+            "value" : "Delt mønster er ikke lagret."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delnat mönster sparades inte"
+            "value" : "Delat mönster sparades inte"
           }
         },
         "zh-Hans" : {
@@ -21468,7 +21468,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delte mønster gemt"
+            "value" : "Delt mønster gemt"
           }
         },
         "de" : {
@@ -21480,7 +21480,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Αποθηκευμένο κοινόχρηστο σχέδιο"
+            "value" : "Το κοινόχρηστο σχέδιο αποθηκεύτηκε"
           }
         },
         "en" : {
@@ -21516,13 +21516,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delte mønster lagret"
+            "value" : "Delt mønster lagret"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delnat mönster sparat"
+            "value" : "Delat mönster sparat"
           }
         },
         "zh-Hans" : {
@@ -21772,7 +21772,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dette mønster er allerede i din bibliotek."
+            "value" : "Dette mønster er allerede i dit bibliotek."
           }
         },
         "de" : {
@@ -21826,7 +21826,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det här mönstret finns redan i din bibliotek."
+            "value" : "Det här mönstret finns redan i ditt bibliotek."
           }
         },
         "zh-Hans" : {
@@ -22152,7 +22152,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "image"
+            "value" : "Billede"
           }
         },
         "de" : {
@@ -22363,13 +22363,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-koblet prosjekt"
+                        "value" : "%lld koblet prosjekt"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-koblede prosjekter"
+                        "value" : "%lld koblede prosjekter"
                 }
               }
             }
@@ -22381,13 +22381,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-länkat projekt"
+                        "value" : "%lld länkat projekt"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld-länkade projekt"
+                        "value" : "%lld länkade projekt"
                 }
               }
             }
@@ -22524,7 +22524,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PDF, %lld sivut"
+            "value" : "PDF, %lld sivua"
           }
         },
         "fr" : {
@@ -22548,13 +22548,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PDF, %lld-sider"
+            "value" : "PDF, %lld sider"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PDF-, %lld-sidor"
+            "value" : "PDF, %lld sidor"
           }
         },
         "zh-Hans" : {
@@ -22652,7 +22652,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Søgemønstre"
+            "value" : "Søg i mønstre"
           }
         },
         "de" : {
@@ -22664,7 +22664,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Σχέδιο αναζήτησης"
+            "value" : "Αναζήτηση σχεδίων"
           }
         },
         "en" : {
@@ -22694,19 +22694,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "검색 도안"
+            "value" : "도안 검색"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Søkemønstre"
+            "value" : "Søk i mønstre"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sökmönster"
+            "value" : "Sök bland mönster"
           }
         },
         "zh-Hans" : {
@@ -22740,7 +22740,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ταξινόμηση προτύπων"
+            "value" : "Ταξινόμηση σχεδίων"
           }
         },
         "en" : {
@@ -23284,7 +23284,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kaikki kirjaston ohjeet ovat jo yhteydessä toisiinsa."
+            "value" : "Kaikki kirjaston ohjeet on jo linkitetty."
           }
         },
         "fr" : {
@@ -23336,7 +23336,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Link fra mønstrelibrariet"
+            "value" : "Link fra mønsterbiblioteket"
           }
         },
         "de" : {
@@ -23348,7 +23348,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Δεσμός από τη βιβλιοθήκη σχέδιο"
+            "value" : "Σύνδεση από τη βιβλιοθήκη σχεδίων"
           }
         },
         "en" : {
@@ -23360,7 +23360,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Linkki ohjekirjastosta"
+            "value" : "Linkitä ohjekirjastosta"
           }
         },
         "fr" : {
@@ -23378,7 +23378,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "도안 라이브러리에서 가져온 링크"
+            "value" : "도안 라이브러리에서 연결"
           }
         },
         "nb" : {
@@ -23412,7 +23412,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prisstigning"
+            "value" : "Markering"
           }
         },
         "de" : {
@@ -23436,7 +23436,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Merkitse"
+            "value" : "Merkinnät"
           }
         },
         "fr" : {
@@ -23454,19 +23454,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "가격 인상"
+            "value" : "마크업"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oppslag"
+            "value" : "Merking"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "prishöjning"
+            "value" : "Märkning"
           }
         },
         "zh-Hans" : {
@@ -23588,7 +23588,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tyhjensitkö tämän sivun?"
+            "value" : "Poistetaanko kaikki tämän sivun merkinnät?"
           }
         },
         "fr" : {
@@ -23759,7 +23759,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "검은"
+            "value" : "검정"
           }
         },
         "nb" : {
@@ -23836,7 +23836,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "푸른"
+            "value" : "파랑"
           }
         },
         "nb" : {
@@ -23990,7 +23990,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "빨간"
+            "value" : "빨강"
           }
         },
         "nb" : {
@@ -24024,7 +24024,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "tavlesvamp"
+            "value" : "Viskelæder"
           }
         },
         "de" : {
@@ -24148,13 +24148,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "kve"
+            "value" : "Penn"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "fålla"
+            "value" : "Penna"
           }
         },
         "zh-Hans" : {
@@ -24446,13 +24446,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "두꺼운"
+            "value" : "두꺼움"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "den tykke"
+            "value" : "Tykk"
           }
         },
         "sv" : {
@@ -24504,7 +24504,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ohuet"
+            "value" : "Ohut"
           }
         },
         "fr" : {
@@ -24522,13 +24522,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "얇은"
+            "value" : "얇음"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "tynne"
+            "value" : "Tynn"
           }
         },
         "sv" : {
@@ -24872,7 +24872,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Σελίδα %d Σημείωση"
+            "value" : "Σημείωση σελίδας %d"
           }
         },
         "en" : {
@@ -24884,7 +24884,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sivu %d Huomautus"
+            "value" : "Sivun %d muistiinpano"
           }
         },
         "fr" : {
@@ -24908,7 +24908,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Side %d Merk"
+            "value" : "Notat for side %d"
           }
         },
         "sv" : {
@@ -25024,7 +25024,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Επιλέξτε την πρόοδο ανάγνωσης του έργου για να συνεχίσετε."
+            "value" : "Επιλέξτε για ποιο έργο θέλετε να συνεχίσετε την πρόοδο ανάγνωσης."
           }
         },
         "en" : {
@@ -25036,7 +25036,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valitse mikä projekti on käsittelyssä etenemistä jatkaa."
+            "value" : "Valitse projekti, jonka lukemisen etenemistä haluat jatkaa."
           }
         },
         "fr" : {
@@ -25054,19 +25054,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "계속 진행할 프로젝트의 읽기 진행 상황을 선택하세요."
+            "value" : "읽기를 계속할 프로젝트를 선택하세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Velg hvilket prosjekt du vil fortsette å lese."
+            "value" : "Velg hvilket prosjekts lesefremdrift du vil fortsette."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Välj vilket projekt du vill fortsätta läsa."
+            "value" : "Välj vilket projekts läsförlopp du vill fortsätta."
           }
         },
         "zh-Hans" : {
@@ -25142,7 +25142,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Välj läsmiljö"
+            "value" : "Välj läskontext"
           }
         },
         "zh-Hans" : {
@@ -25240,7 +25240,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vil du slette din ugemeldte markering og genindlæse den seneste version?"
+            "value" : "Vil du slette dine ugemte markeringer og genindlæse den seneste version?"
           }
         },
         "de" : {
@@ -25294,7 +25294,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vill du överge din ospara markup och ladda om den senaste versionen?"
+            "value" : "Vill du överge dina osparade markeringar och ladda om den senaste versionen?"
           }
         },
         "zh-Hans" : {
@@ -25492,7 +25492,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sivu %1$lld %2$lld"
+            "value" : "Sivu %1$lld, yhteensä %2$lld"
           }
         },
         "fr" : {
@@ -25510,7 +25510,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%2$lld의 %1$lld 페이지"
+            "value" : "전체 %2$lld페이지 중 %1$lld페이지"
           }
         },
         "nb" : {
@@ -25632,7 +25632,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Διπλή ταμπέλα για να ανοίξει αυτή τη σελίδα."
+            "value" : "Πατήστε δύο φορές για να ανοίξετε αυτή τη σελίδα."
           }
         },
         "en" : {
@@ -25644,7 +25644,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kaksoisnapsi avataksesi tämän sivun."
+            "value" : "Avaa tämä sivu kaksoisnapauttamalla."
           }
         },
         "fr" : {
@@ -25668,13 +25668,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dobbeltklikk for å åpne denne siden."
+            "value" : "Dobbelttrykk for å åpne denne siden."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dubbelklicka för att öppna den här sidan."
+            "value" : "Tryck två gånger för att öppna den här sidan."
           }
         },
         "zh-Hans" : {
@@ -25738,19 +25738,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "연결 재설정"
+            "value" : "다시 연결"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opprette nytt lenke"
+            "value" : "Koble til på nytt"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Upplänka"
+            "value" : "Länka om"
           }
         },
         "zh-Hans" : {
@@ -25772,7 +25772,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fjern optagelse"
+            "value" : "Fjern post"
           }
         },
         "de" : {
@@ -25820,7 +25820,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fjern opptak"
+            "value" : "Fjern oppføring"
           }
         },
         "sv" : {
@@ -25860,7 +25860,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Πρότυπα έργου"
+            "value" : "Σχέδια πλεξίματος του έργου"
           }
         },
         "en" : {
@@ -26000,7 +26000,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mønsteret forbliver i din bibliotek, og de gemte læseoplysninger fra dette projekt bevares."
+            "value" : "Mønsteret forbliver i dit bibliotek, og de gemte læseoplysninger fra dette projekt bevares."
           }
         },
         "de" : {
@@ -26054,7 +26054,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mönstret förblir i din bibliotek och de sparade läsningsuppgifterna för detta projekt bevaras."
+            "value" : "Mönstret förblir i ditt bibliotek och de sparade läsningsuppgifterna för detta projekt bevaras."
           }
         },
         "zh-Hans" : {
@@ -26152,7 +26152,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "YouTube-videotilgængelighedsikon"
+            "value" : "Miniaturebillede til YouTube-video"
           }
         },
         "de" : {
@@ -26176,7 +26176,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "YouTube-videovideo"
+            "value" : "YouTube-videon pikkukuva"
           }
         },
         "fr" : {
@@ -26200,13 +26200,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "YouTube-videooverskriftsbilde"
+            "value" : "Miniatyrbilde for YouTube-video"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "YouTube-videotavla"
+            "value" : "Miniatyrbild för YouTube-video"
           }
         },
         "zh-Hans" : {
@@ -26544,7 +26544,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Το βίντεο δεν μπορεί να φορτωθεί. Εισάγετε έναν τίτλο για την αποθήκευση αυτού του συνδέσμου."
+            "value" : "Δεν ήταν δυνατή η φόρτωση των πληροφοριών του βίντεο. Εισαγάγετε έναν τίτλο για να αποθηκεύσετε αυτόν τον σύνδεσμο."
           }
         },
         "en" : {
@@ -26574,7 +26574,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "비디오 정보를 로드할 수 없습니다. 이 링크를 저장하려면 제목으로 입력하세요."
+            "value" : "동영상 정보를 불러올 수 없습니다. 이 링크를 저장하려면 제목을 입력하세요."
           }
         },
         "nb" : {
@@ -26632,7 +26632,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En saanut YouTubea auki. Yritä uudelleen."
+            "value" : "YouTubea ei voitu avata. Yritä uudelleen."
           }
         },
         "fr" : {
@@ -26696,7 +26696,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Το βίντεο δεν μπορεί να φορτωθεί. Εισάγετε έναν τίτλο για την αποθήκευση αυτού του συνδέσμου."
+            "value" : "Δεν ήταν δυνατή η φόρτωση των πληροφοριών του βίντεο. Εισαγάγετε έναν τίτλο για να αποθηκεύσετε αυτόν τον σύνδεσμο."
           }
         },
         "en" : {
@@ -26726,7 +26726,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "비디오 정보를 로드할 수 없습니다. 이 링크를 저장하려면 제목으로 입력하세요."
+            "value" : "동영상 정보를 불러올 수 없습니다. 이 링크를 저장하려면 제목을 입력하세요."
           }
         },
         "nb" : {
@@ -26848,7 +26848,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Σύνδεση στο YouTube"
+            "value" : "Σύνδεσμος YouTube"
           }
         },
         "en" : {
@@ -27000,7 +27000,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Το βίντεο δεν μπορεί να φορτωθεί. Εισάγετε έναν τίτλο για την αποθήκευση αυτού του συνδέσμου."
+            "value" : "Δεν ήταν δυνατή η φόρτωση των πληροφοριών του βίντεο. Εισαγάγετε έναν τίτλο για να αποθηκεύσετε αυτόν τον σύνδεσμο."
           }
         },
         "en" : {
@@ -27030,7 +27030,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "비디오 정보를 로드할 수 없습니다. 이 링크를 저장하려면 제목으로 입력하세요."
+            "value" : "동영상 정보를 불러올 수 없습니다. 이 링크를 저장하려면 제목을 입력하세요."
           }
         },
         "nb" : {
@@ -27182,7 +27182,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "비디오 정보를 읽어라"
+            "value" : "동영상 정보 읽기"
           }
         },
         "nb" : {
@@ -27521,7 +27521,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Udfyld en pind"
+            "value" : "Færdiggør en pind"
           }
         },
         "de" : {
@@ -27575,7 +27575,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fyll i en varv"
+            "value" : "Slutför ett varv"
           }
         },
         "zh-Hans" : {
@@ -27597,7 +27597,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "skabe"
+            "value" : "Opret"
           }
         },
         "de" : {
@@ -27639,19 +27639,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "만들어 내다"
+            "value" : "생성"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "skape"
+            "value" : "Opprett"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "skapa"
+            "value" : "Skapa"
           }
         },
         "zh-Hans" : {
@@ -27698,7 +27698,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Poistaa %@...? Tätä ei voi perua."
+            "value" : "Poistetaanko ”%@”? Tätä ei voi perua."
           }
         },
         "fr" : {
@@ -27722,7 +27722,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slette «%@»? Dette kan ikke angres."
+            "value" : "Slett «%@»? Dette kan ikke angres."
           }
         },
         "sv" : {
@@ -28522,7 +28522,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Λήψη φωτογραφιών"
+            "value" : "Λήψη φωτογραφίας"
           }
         },
         "en" : {
@@ -28903,7 +28903,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Σημείωση ως ολοκληρώθηκε"
+            "value" : "Σήμανση ως ολοκληρωμένο"
           }
         },
         "en" : {
@@ -28939,7 +28939,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Merke som fullført"
+            "value" : "Merk som fullført"
           }
         },
         "sv" : {
@@ -29015,7 +29015,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opprett prosjekt"
+            "value" : "Fortsett prosjekt"
           }
         },
         "sv" : {
@@ -29091,7 +29091,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "referat"
+            "value" : "Notater"
           }
         },
         "sv" : {
@@ -29283,7 +29283,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Τύπος εργαλείων"
+            "value" : "Τύπος εργαλείου"
           }
         },
         "en" : {
@@ -29347,7 +29347,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hæklekrog"
+            "value" : "Hæklenål"
           }
         },
         "de" : {
@@ -29587,7 +29587,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Άλλα"
+            "value" : "Άλλο"
           }
         },
         "en" : {
@@ -29617,7 +29617,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "다른"
+            "value" : "기타"
           }
         },
         "nb" : {
@@ -29880,7 +29880,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen garn registreret"
+            "value" : "Intet garn registreret"
           }
         },
         "de" : {
@@ -29928,7 +29928,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen garn registrert."
+            "value" : "Ikke noe garn registrert."
           }
         },
         "sv" : {
@@ -30032,7 +30032,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trådlinkene kunne ikke gemmes. Prøv igen."
+            "value" : "Garnlinkene kunne ikke gemmes. Prøv igen."
           }
         },
         "de" : {
@@ -30086,7 +30086,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trådlänkarna kunde inte sparas. Försök igen."
+            "value" : "Garnlänkarna kunde inte sparas. Försök igen."
           }
         },
         "zh-Hans" : {
@@ -30108,7 +30108,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En valgt garn er ikke længere tilgængelig. Gennemgå din valgmulighed og prøv igen."
+            "value" : "Et valgt garn er ikke længere tilgængeligt. Gennemgå dit valg, og prøv igen."
           }
         },
         "de" : {
@@ -30120,7 +30120,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ένα επιλεγμένο νήμα δεν είναι πλέον διαθέσιμο. Επανεξέτασε την επιλογή σου και προσπάθησε ξανά."
+            "value" : "Ένα επιλεγμένο νήμα δεν είναι πλέον διαθέσιμο. Ελέγξτε την επιλογή σας και δοκιμάστε ξανά."
           }
         },
         "en" : {
@@ -30150,13 +30150,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "선택한 실이 더 이상 사용할 수 없습니다. 선택을 검토하고 다시 시도하십시오."
+            "value" : "선택한 실을 더 이상 사용할 수 없습니다. 선택을 확인하고 다시 시도하세요."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En valgt garn er ikke lenger tilgjengelig. Vennligst se gjennom valget ditt og prøv igjen."
+            "value" : "Et valgt garn er ikke lenger tilgjengelig. Se gjennom valget og prøv igjen."
           }
         },
         "sv" : {
@@ -30232,13 +30232,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Legg først garn til i garnbiblioteket."
+            "value" : "Legg først til garn i garnbiblioteket."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lägg först garn till garnbiblioteket."
+            "value" : "Lägg först till garn i garnbiblioteket."
           }
         },
         "zh-Hans" : {
@@ -30260,7 +30260,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen garn endnu"
+            "value" : "Intet garn endnu"
           }
         },
         "de" : {
@@ -30308,7 +30308,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen garn ennå"
+            "value" : "Ikke noe garn ennå"
           }
         },
         "sv" : {
@@ -30466,7 +30466,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Begagnad garn"
+            "value" : "Använt garn"
           }
         },
         "zh-Hans" : {
@@ -30488,7 +30488,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tryk dobbelt på for at forbinde eller frakoble dette projekt."
+            "value" : "Tryk to gange for at forbinde eller frakoble dette projekt."
           }
         },
         "de" : {
@@ -30536,13 +30536,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dobbeltklikk for å koble til eller koble fra dette prosjektet."
+            "value" : "Trykk to ganger for å koble til eller koble fra dette prosjektet."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dubbelklicka för att länka eller koppla bort detta projekt."
+            "value" : "Tryck två gånger för att länka eller koppla bort detta projekt."
           }
         },
         "zh-Hans" : {
@@ -30640,7 +30640,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dette fjerner kun linket. Garnet forbliver i din garnbibliotek."
+            "value" : "Dette fjerner kun linket. Garnet forbliver i dit garnbibliotek."
           }
         },
         "de" : {
@@ -30682,7 +30682,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이것은 단지 링크를 제거합니다. 그 원사는 당신의 원사 라이브러리에 남아 있습니다."
+            "value" : "연결만 해제됩니다. 실은 실 라이브러리에 그대로 남습니다."
           }
         },
         "nb" : {
@@ -30694,7 +30694,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Detta tar bara bort länken. Garnet förblir i din garnbibliotek."
+            "value" : "Detta tar bara bort länken. Garnet förblir i ditt garnbibliotek."
           }
         },
         "zh-Hans" : {
@@ -30716,7 +30716,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fjern forbindelsen til denne garn?"
+            "value" : "Fjern forbindelsen til dette garn?"
           }
         },
         "de" : {
@@ -30740,7 +30740,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Irrota tämä lanka?"
+            "value" : "Poistetaanko tämän langan linkitys?"
           }
         },
         "fr" : {
@@ -30764,13 +30764,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fjern koblingen til denne garnet?"
+            "value" : "Fjern koblingen til dette garnet?"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ta bort länken till den här garnet?"
+            "value" : "Ta bort länken till det här garnet?"
           }
         },
         "zh-Hans" : {
@@ -30910,7 +30910,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "단 수를 세우기 시작할 프로젝트가 생성됩니다."
+            "value" : "프로젝트를 만들어 단 수를 세어 보세요."
           }
         },
         "nb" : {
@@ -31021,7 +31021,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min første tørklæde"
+            "value" : "Mit første tørklæde"
           }
         },
         "de" : {
@@ -31033,7 +31033,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Το Πρώτο μου Σημάδι"
+            "value" : "Το πρώτο μου κασκόλ"
           }
         },
         "en" : {
@@ -31069,7 +31069,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min første skjerf"
+            "value" : "Mitt første skjerf"
           }
         },
         "sv" : {
@@ -31145,13 +31145,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "omkring"
+            "value" : "Om"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "omkring i"
+            "value" : "Om"
           }
         },
         "zh-Hans" : {
@@ -31249,7 +31249,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "general"
+            "value" : "Generelt"
           }
         },
         "de" : {
@@ -31291,19 +31291,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "장군"
+            "value" : "일반"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "general"
+            "value" : "Generelt"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "allmän"
+            "value" : "Allmänt"
           }
         },
         "zh-Hans" : {
@@ -31553,7 +31553,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ (Bygning %2$@)"
+            "value" : "%1$@ (Build %2$@)"
           }
         },
         "de" : {
@@ -31565,7 +31565,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ (Χτισμένο %2$@)"
+            "value" : "%1$@ (build %2$@)"
           }
         },
         "en" : {
@@ -31629,7 +31629,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Luk låseindløsningsmuligheder"
+            "value" : "Luk muligheder for oplåsning"
           }
         },
         "de" : {
@@ -31677,13 +31677,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lukk opplåsesalternativer"
+            "value" : "Lukk alternativer for opplåsing"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stäng låsningsalternativ"
+            "value" : "Stäng upplåsningsalternativ"
           }
         },
         "zh-Hans" : {
@@ -31705,7 +31705,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Køb livslang låseslåning"
+            "value" : "Køb livstidsoplåsning"
           }
         },
         "de" : {
@@ -31753,7 +31753,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kjøp livslang låsningsfrig"
+            "value" : "Kjøp livstidsopplåsing"
           }
         },
         "sv" : {
@@ -31781,7 +31781,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Køb livstidslåsefrigivelse til %@."
+            "value" : "Køb livstidsoplåsning for %@."
           }
         },
         "de" : {
@@ -31829,7 +31829,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kjøp livstidslåseslipp for %@."
+            "value" : "Kjøp livstidsopplåsing for %@."
           }
         },
         "sv" : {
@@ -31905,13 +31905,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gjenbruk en App Store-kode."
+            "value" : "Løs inn en App Store-kode."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inlösen av en App Store-kod"
+            "value" : "Lös in en App Store-kod"
           }
         },
         "zh-Hans" : {
@@ -32009,7 +32009,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der blev ikke foretaget nogen køb."
+            "value" : "Der blev ikke foretaget noget køb."
           }
         },
         "de" : {
@@ -32589,13 +32589,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gjenbruk koden"
+            "value" : "Løs inn kode"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inlösenkod"
+            "value" : "Lös in kod"
           }
         },
         "zh-Hans" : {
@@ -32665,13 +32665,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gjør innløpet av denne koden i App Store på iPhone eller iPad, og oppdater deretter siden her."
+            "value" : "Løs inn denne koden i App Store på iPhone eller iPad, og oppdater deretter her."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gör inlösen av denna kod i App Store på iPhone eller iPad, och uppdatera sedan här."
+            "value" : "Lös in koden i App Store på iPhone eller iPad och uppdatera sedan här."
           }
         },
         "zh-Hans" : {
@@ -32817,7 +32817,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen livstidslåseslipp ble funnet for denne Apple-kontoen."
+            "value" : "Ingen livstidsopplåsing ble funnet for denne Apple-kontoen."
           }
         },
         "sv" : {
@@ -33541,7 +33541,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Προσθήκη χειροκίνητης"
+            "value" : "Χειροκίνητη προσθήκη"
           }
         },
         "en" : {
@@ -33647,7 +33647,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "섬유 정보 직접 입력하세요"
+            "value" : "실 정보를 직접 입력하세요."
           }
         },
         "nb" : {
@@ -34103,7 +34103,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "실 제거"
+            "value" : "실 삭제"
           }
         },
         "nb" : {
@@ -34137,7 +34137,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slet denne garn?"
+            "value" : "Slet dette garn?"
           }
         },
         "de" : {
@@ -34185,13 +34185,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slette dette garnet?"
+            "value" : "Slett dette garnet?"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ta bort den här garnet?"
+            "value" : "Ta bort det här garnet?"
           }
         },
         "zh-Hans" : {
@@ -34225,7 +34225,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Βαφή Παρτίδας"
+            "value" : "Παρτίδα βαφής"
           }
         },
         "en" : {
@@ -34267,7 +34267,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Färgprov"
+            "value" : "Färgbad"
           }
         },
         "zh-Hans" : {
@@ -34389,7 +34389,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lisää lanka pitää sen yksityiskohdat, valokuva, ja inventaario yhdessä."
+            "value" : "Lisää lanka, jotta sen tiedot, kuva ja varastosaldo pysyvät yhdessä."
           }
         },
         "fr" : {
@@ -34407,7 +34407,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "세부 사항, 사진 및 재고를 함께 유지하기 위해 실을 추가합니다."
+            "value" : "실을 추가해 정보, 사진, 재고를 함께 관리하세요."
           }
         },
         "nb" : {
@@ -34441,7 +34441,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen garn endnu"
+            "value" : "Intet garn endnu"
           }
         },
         "de" : {
@@ -34489,7 +34489,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingen garn ennå"
+            "value" : "Ikke noe garn ennå"
           }
         },
         "sv" : {
@@ -34517,7 +34517,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Din gemte bibliotek kunne ikke åbnes, så der blev ikke foretaget ændringer. Genopret det, eller genstart KnitNote, og prøv igen."
+            "value" : "Dit gemte bibliotek kunne ikke åbnes, så der blev ikke gemt ændringer. Gendan det, eller genstart KnitNote, og prøv igen."
           }
         },
         "de" : {
@@ -34565,13 +34565,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Den lagrede biblioteket ditt kunne ikke åpnes, så ingen endringer ble skrevet. Gjenskap det eller start KnitNote på nytt, og prøv igjen."
+            "value" : "Det lagrede biblioteket ditt kunne ikke åpnes, så ingen endringer ble lagret. Gjenopprett det eller start KnitNote på nytt, og prøv igjen."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Din sparade bibliotek kunde inte öppnas, så inga ändringar har skrivits. Återställ det eller starta om KnitNote och försök igen."
+            "value" : "Ditt sparade bibliotek kunde inte öppnas, så inga ändringar sparades. Återställ det eller starta om KnitNote och försök igen."
           }
         },
         "zh-Hans" : {
@@ -34593,7 +34593,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Denne garn er knyttet til et færdigt projekt og kan ikke slettes."
+            "value" : "Dette garn er knyttet til et færdigt projekt og kan ikke slettes."
           }
         },
         "de" : {
@@ -34641,13 +34641,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Denne garnet er knyttet til et ferdig prosjekt og kan ikke slettes."
+            "value" : "Dette garnet er knyttet til et ferdig prosjekt og kan ikke slettes."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Denna garn är kopplat till ett färdigt projekt och kan inte raderas."
+            "value" : "Detta garn är kopplat till ett färdigt projekt och kan inte raderas."
           }
         },
         "zh-Hans" : {
@@ -34669,7 +34669,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tråden blev ikke slettet. Prøv igen."
+            "value" : "Garnet blev ikke slettet. Prøv igen."
           }
         },
         "de" : {
@@ -34723,7 +34723,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tråden har inte raderats. Försök igen."
+            "value" : "Garnet raderades inte. Försök igen."
           }
         },
         "zh-Hans" : {
@@ -34821,7 +34821,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Indtast et gyldigt nummer."
+            "value" : "Indtast et gyldigt tal."
           }
         },
         "de" : {
@@ -34845,7 +34845,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anna voimassa oleva numero."
+            "value" : "Syötä kelvollinen luku."
           }
         },
         "fr" : {
@@ -34869,13 +34869,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Skriv inn et gyldig nummer."
+            "value" : "Skriv inn et gyldig tall."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ange ett giltigt nummer."
+            "value" : "Ange ett giltigt tal."
           }
         },
         "zh-Hans" : {
@@ -34897,7 +34897,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Én eller flere linkede projekter er ændret. Gennemgå projektlinkene, og prøv igen."
+            "value" : "Et eller flere tilknyttede projekter er ændret. Gennemgå projektlinkene, og prøv igen."
           }
         },
         "de" : {
@@ -34909,7 +34909,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ένα ή περισσότερα συνδεδεμένα έργα άλλαξαν. Επανεξέτασε τους συνδέσμους του έργου και προσπάθησε ξανά."
+            "value" : "Ένα ή περισσότερα συνδεδεμένα έργα άλλαξαν. Ελέγξτε τους συνδέσμους των έργων και δοκιμάστε ξανά."
           }
         },
         "en" : {
@@ -34945,7 +34945,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Én eller flere lenkede prosjekter har endret seg. Vennligst se prosjektlenkene og prøv igjen."
+            "value" : "Ett eller flere tilknyttede prosjekter er endret. Se gjennom prosjektkoblingene og prøv igjen."
           }
         },
         "sv" : {
@@ -35049,7 +35049,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke åbne den gemte bibliotek."
+            "value" : "Kunne ikke åbne det gemte bibliotek."
           }
         },
         "de" : {
@@ -35097,13 +35097,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke åpne lagret bibliotek."
+            "value" : "Kunne ikke åpne det lagrede biblioteket."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunde inte öppna sparade bibliotek."
+            "value" : "Kunde inte öppna det sparade biblioteket."
           }
         },
         "zh-Hans" : {
@@ -35125,7 +35125,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inventaret kan ikke være negativt."
+            "value" : "Lagerbeholdningen kan ikke være negativ."
           }
         },
         "de" : {
@@ -35173,13 +35173,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inventaret kan ikke være negativt."
+            "value" : "Lagerbeholdningen kan ikke være negativ."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inventariet får inte vara negativt."
+            "value" : "Lagersaldot får inte vara negativt."
           }
         },
         "zh-Hans" : {
@@ -35213,7 +35213,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Το KnitNote δεν μπορούσε να χρησιμοποιήσει αυτή τη φωτογραφία. Επιλέξτε άλλη φωτογραφία και προσπαθήστε ξανά."
+            "value" : "Το KnitNote δεν μπόρεσε να χρησιμοποιήσει αυτή τη φωτογραφία. Επιλέξτε άλλη φωτογραφία και δοκιμάστε ξανά."
           }
         },
         "en" : {
@@ -35301,7 +35301,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En voinut tallentaa muutoksiasi. Merkinnät ovat yhä täällä; yritä uudelleen."
+            "value" : "Muutoksia ei voitu tallentaa. Merkintäsi ovat edelleen täällä; yritä uudelleen."
           }
         },
         "fr" : {
@@ -35319,7 +35319,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "변경 사항을 저장할 수 없습니다. 귀하의 항목은 여전히 여기에 있습니다. 다시 시도해 주세요."
+            "value" : "변경 사항을 저장할 수 없습니다. 입력한 내용은 그대로 남아 있습니다. 다시 시도해 주세요."
           }
         },
         "nb" : {
@@ -35429,7 +35429,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restende bolde: %@"
+            "value" : "Resterende nøgler: %@"
           }
         },
         "de" : {
@@ -35453,7 +35453,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pallot jäljellä: %@"
+            "value" : "Keriä jäljellä: %@"
           }
         },
         "fr" : {
@@ -35471,19 +35471,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "남은 공: %@"
+            "value" : "남은 실뭉치: %@"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restende baller: %@"
+            "value" : "Nøster igjen: %@"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Återstående bollar: %@"
+            "value" : "Återstående nystan: %@"
           }
         },
         "zh-Hans" : {
@@ -35529,7 +35529,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gram jäljellä: %@"
+            "value" : "Grammoja jäljellä: %@"
           }
         },
         "fr" : {
@@ -35547,7 +35547,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "남은그램: %@"
+            "value" : "남은 그램: %@"
           }
         },
         "nb" : {
@@ -35605,7 +35605,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Merkin tiedot"
+            "value" : "Etiketin tiedot"
           }
         },
         "fr" : {
@@ -35681,7 +35681,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lanka etiketti kuva %lld"
+            "value" : "Langan etikettikuva %lld"
           }
         },
         "fr" : {
@@ -35833,7 +35833,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lankan etikettikuvat"
+            "value" : "Langan etikettikuvat"
           }
         },
         "fr" : {
@@ -35927,7 +35927,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이용할 수 없는"
+            "value" : "사용할 수 없음"
           }
         },
         "nb" : {
@@ -36079,7 +36079,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "실 도서관"
+            "value" : "실 라이브러리"
           }
         },
         "nb" : {
@@ -36113,7 +36113,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relaterede projekter"
+            "value" : "Tilknyttede projekter"
           }
         },
         "de" : {
@@ -36167,7 +36167,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Länknade projekt"
+            "value" : "Länkade projekt"
           }
         },
         "zh-Hans" : {
@@ -36313,7 +36313,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "referat"
+            "value" : "Notater"
           }
         },
         "sv" : {
@@ -36505,7 +36505,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Δεν μπόρεσε να φορτώσει την επιλεγμένη φωτογραφία."
+            "value" : "Δεν ήταν δυνατή η φόρτωση της επιλεγμένης φωτογραφίας."
           }
         },
         "en" : {
@@ -36517,7 +36517,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En voinut ladata valittua kuvaa."
+            "value" : "Valittua kuvaa ei voitu ladata."
           }
         },
         "fr" : {
@@ -36733,7 +36733,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Λήψη φωτογραφιών"
+            "value" : "Λήψη φωτογραφίας"
           }
         },
         "en" : {
@@ -36797,7 +36797,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "af"
+            "value" : "Fra"
           }
         },
         "de" : {
@@ -36885,7 +36885,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Προς"
+            "value" : "Έως"
           }
         },
         "en" : {
@@ -36949,7 +36949,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hæklekrog"
+            "value" : "Hæklenål"
           }
         },
         "de" : {
@@ -36973,7 +36973,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Virkkaa koukku"
+            "value" : "Virkkuukoukku"
           }
         },
         "fr" : {
@@ -37025,7 +37025,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hæklekrog, fra"
+            "value" : "Hæklenål, fra"
           }
         },
         "de" : {
@@ -37049,7 +37049,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Virkattu koukku, alkaen"
+            "value" : "Virkkuukoukku, alkaen"
           }
         },
         "fr" : {
@@ -37073,13 +37073,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hekke-krok, fra"
+            "value" : "Heklenål, fra"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Garnnål, från"
+            "value" : "Virknål, från"
           }
         },
         "zh-Hans" : {
@@ -37101,7 +37101,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hæklingstrik, til"
+            "value" : "Hæklenål, til"
           }
         },
         "de" : {
@@ -37113,7 +37113,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Βελονάκι, προς"
+            "value" : "Βελονάκι, έως"
           }
         },
         "en" : {
@@ -37125,7 +37125,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Virkattu koukku"
+            "value" : "Virkkuukoukku, saakka"
           }
         },
         "fr" : {
@@ -37149,13 +37149,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hekke-krok, til"
+            "value" : "Heklenål, til"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Garnnål, till"
+            "value" : "Virknål, till"
           }
         },
         "zh-Hans" : {
@@ -37177,7 +37177,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strikke nål"
+            "value" : "Strikkepind"
           }
         },
         "de" : {
@@ -37201,7 +37201,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neulonta Neula"
+            "value" : "Neulepuikko"
           }
         },
         "fr" : {
@@ -37253,7 +37253,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strikke nål, fra"
+            "value" : "Strikkepind, fra"
           }
         },
         "de" : {
@@ -37277,7 +37277,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neulontaneula, alkaen"
+            "value" : "Neulepuikko, alkaen"
           }
         },
         "fr" : {
@@ -37329,7 +37329,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strikke nål, til"
+            "value" : "Strikkepind, til"
           }
         },
         "de" : {
@@ -37341,7 +37341,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Βελόνα πλεξίματος, προς"
+            "value" : "Βελόνα πλεξίματος, έως"
           }
         },
         "en" : {
@@ -37353,7 +37353,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neulonta Neula"
+            "value" : "Neulepuikko, saakka"
           }
         },
         "fr" : {
@@ -37405,7 +37405,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restende bolde"
+            "value" : "Resterende nøgler"
           }
         },
         "de" : {
@@ -37453,13 +37453,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restende baller"
+            "value" : "Gjenværende nøster"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Återstående bollar"
+            "value" : "Återstående nystan"
           }
         },
         "zh-Hans" : {
@@ -37633,7 +37633,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Brug et eller to billedbilleder af etiketten og bekræft derefter de genkendte oplysninger."
+            "value" : "Brug et eller to billeder af etiketten, og bekræft derefter de genkendte oplysninger."
           }
         },
         "de" : {
@@ -37645,7 +37645,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Χρησιμοποιήστε μία ή δύο φωτογραφίες ετικέτα, στη συνέχεια, επιβεβαιώστε τις αναγνωρισμένες λεπτομέρειες"
+            "value" : "Χρησιμοποιήστε μία ή δύο φωτογραφίες της ετικέτας και, στη συνέχεια, επιβεβαιώστε τα αναγνωρισμένα στοιχεία"
           }
         },
         "en" : {
@@ -37675,7 +37675,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "한두장의 레이블 사진을 사용하고, 인식된 세부 사항을 확인합니다."
+            "value" : "라벨 사진 한두 장을 사용한 다음 인식된 정보를 확인하세요."
           }
         },
         "nb" : {
@@ -37809,7 +37809,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kameran käyttö On pois päältä"
+            "value" : "Kameran käyttö on pois päältä"
           }
         },
         "fr" : {
@@ -37833,7 +37833,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kameraåpningen er slått av."
+            "value" : "Kameratilgang er slått av."
           }
         },
         "sv" : {
@@ -37861,7 +37861,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Etiket kunne ikke genkendes."
+            "value" : "Etiketten kunne ikke genkendes."
           }
         },
         "de" : {
@@ -37961,7 +37961,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valitse etsinnästä"
+            "value" : "Valitse Finderista"
           }
         },
         "fr" : {
@@ -38025,7 +38025,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Η εικόνα δεν μπορούσε να ανοιχτεί. Δοκίμασε άλλη φωτογραφία."
+            "value" : "Δεν ήταν δυνατό να ανοίξει η εικόνα. Δοκιμάστε άλλη φωτογραφία."
           }
         },
         "en" : {
@@ -38241,7 +38241,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tilføj billede til etiketten"
+            "value" : "Tilføj etiketfotos"
           }
         },
         "de" : {
@@ -38359,7 +38359,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "섬유 라벨의 선명한 사진 하나를 또는 두 장을 선택하세요."
+            "value" : "실 라벨의 선명한 사진 한두 장을 선택하세요."
           }
         },
         "nb" : {
@@ -38393,7 +38393,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lad tom"
+            "value" : "Lad stå tomt"
           }
         },
         "de" : {
@@ -38447,7 +38447,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lämna tom"
+            "value" : "Lämna tomt"
           }
         },
         "zh-Hans" : {
@@ -38469,7 +38469,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Behover bekræftelse"
+            "value" : "Kræver bekræftelse"
           }
         },
         "de" : {
@@ -38773,7 +38773,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Genkendelse af etiketter…"
+            "value" : "Genkender etiketten…"
           }
         },
         "de" : {
@@ -38797,7 +38797,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tunnistetaan..."
+            "value" : "Tunnistetaan etikettiä…"
           }
         },
         "fr" : {
@@ -38815,19 +38815,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "라벨 인식하기..."
+            "value" : "라벨 인식 중…"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Merkelapp gjenkjennelse…"
+            "value" : "Gjenkjenner etiketten…"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erkänna etikett..."
+            "value" : "Identifierar etiketten…"
           }
         },
         "zh-Hans" : {
@@ -38861,7 +38861,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Επιλέξτε την αξία που εμφανίζεται στην ετικέτα του νήματος ή αφήστε την κενή."
+            "value" : "Επιλέξτε την τιμή που εμφανίζεται στην ετικέτα του νήματος ή αφήστε την κενή."
           }
         },
         "en" : {
@@ -38925,7 +38925,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bekræft anerkendte oplysninger"
+            "value" : "Bekræft genkendte oplysninger"
           }
         },
         "de" : {
@@ -38973,13 +38973,13 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bekreft anerkjente detaljer"
+            "value" : "Bekreft gjenkjente detaljer"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bekräfta erkända uppgifter"
+            "value" : "Bekräfta identifierade uppgifter"
           }
         },
         "zh-Hans" : {
@@ -39001,7 +39001,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anmeldelsesetiket"
+            "value" : "Gennemgå etiketten"
           }
         },
         "de" : {
@@ -39013,7 +39013,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ετικέτα αναθεώρησης"
+            "value" : "Έλεγχος ετικέτας"
           }
         },
         "en" : {
@@ -39229,7 +39229,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "inventar"
+            "value" : "Lagerbeholdning"
           }
         },
         "de" : {
@@ -39241,7 +39241,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Απογραφή"
+            "value" : "Απόθεμα"
           }
         },
         "en" : {
@@ -39253,7 +39253,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Luettelo"
+            "value" : "Varasto"
           }
         },
         "fr" : {
@@ -39271,19 +39271,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "재고 조사"
+            "value" : "재고"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "inventarliste"
+            "value" : "Lagerbeholdning"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "inventarieförteckning"
+            "value" : "Lagersaldo"
           }
         },
         "zh-Hans" : {
@@ -39317,7 +39317,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "& Σημειώσεις αποθήκευσης"
+            "value" : "Αποθήκευση και σημειώσεις"
           }
         },
         "en" : {
@@ -39329,7 +39329,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tallennus & muistiinpanot"
+            "value" : "Säilytys ja muistiinpanot"
           }
         },
         "fr" : {

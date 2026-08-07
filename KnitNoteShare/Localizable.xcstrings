@@ -202,7 +202,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "귀하의 기존 데이터는 안전합니다. 귀하의 체험 기간이 종료되었거나 KnitNote에서 귀하의 액세스를 새로 고쳐야 합니다. KnitNote를 열어 계속 진행하십시오."
+            "value" : "기존 데이터는 안전합니다. 체험 기간이 끝났거나 KnitNote에서 이용 권한을 새로 확인해야 합니다. 계속하려면 KnitNote를 여세요."
           }
         },
         "nb" : {
@@ -468,7 +468,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dette er ikke en gyldig PDF eller understøttet billede."
+            "value" : "Dette er ikke en gyldig PDF eller et understøttet billede."
           }
         },
         "de" : {
@@ -545,7 +545,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det delte fil kunne ikke indlæses."
+            "value" : "Den delte fil kunne ikke indlæses."
           }
         },
         "de" : {
@@ -557,7 +557,7 @@
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Δεν ήταν δυνατή η φόρτωση του κοινόχρηστου αρχείου."
+            "value" : "Δεν ήταν δυνατή η φόρτωση του κοινοποιημένου αρχείου."
           }
         },
         "en" : {
@@ -599,7 +599,7 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det delade filen kunde inte laddas."
+            "value" : "Den delade filen kunde inte läsas in."
           }
         },
         "zh-Hans" : {

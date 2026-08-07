@@ -67,6 +67,9 @@ import Testing
                     "nb": "Avbryt", "sv": "Avbryt", "fi": "Peruuta",
                     "da": "Annuller", "ko": "취소", "el": "Ακύρωση",
                 ],
+                "watch.entitlement.unlockOnIPhone": [
+                    "fi": "Avaa käyttöoikeus iPhonella",
+                ],
             ],
             "KnitNoteShare/Localizable.xcstrings": [
                 "share.cancel": [
@@ -84,6 +87,11 @@ import Testing
                 ],
                 "share.loading": [
                     "sv": "Sparar ditt mönster…",
+                ],
+                "share.error.load": [
+                    "sv": "Den delade filen kunde inte läsas in.",
+                    "da": "Den delte fil kunne ikke indlæses.",
+                    "el": "Δεν ήταν δυνατή η φόρτωση του κοινοποιημένου αρχείου.",
                 ],
             ],
         ]

@@ -1096,7 +1096,7 @@ import Testing
             ],
             "calculator.adjustment.failure.invalidCounts": [
                 "fi": "Syötä kelvollinen nykyinen silmukkamäärä ja tavoitesilmukkamäärä.",
-                "el": "Εισαγάγετε έγκυρο τρέχοντα και επιθυμητό αριθμό πόντων.",
+                "el": "Εισαγάγετε έγκυρους αριθμούς για τους τρέχοντες και τους επιθυμητούς πόντους.",
             ],
             "calculator.adjustment.interval.increase.singular": [
                 "fi": "Lisää 1 silmukka jokaisen silmukan jälkeen.",
@@ -1185,9 +1185,150 @@ import Testing
                 "da": "Læser videooplysninger…",
             ],
             "project.delete.message": [
-                "nb": "Slette «%@»? Dette kan ikke angres.",
+                "nb": "Slett «%@»? Dette kan ikke angres.",
                 "sv": "Radera ”%@”? Det går inte att ångra.",
                 "da": "Slet \"%@\"? Det kan ikke fortrydes.",
+            ],
+        ]
+
+        for (key, expectedTranslations) in expected {
+            for (language, expectedValue) in expectedTranslations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expectedValue)
+            }
+        }
+    }
+
+    @Test func version141ReviewedDomainActionsAndAccessibilityCopyStayCorrect() throws {
+        let strings = try catalogStrings()
+        let expected: [String: [String: String]] = [
+            "Ready": [
+                "nb": "Klar", "ko": "준비 완료", "el": "Έτοιμο",
+            ],
+            "art.familyHero.accessibility": [
+                "da": "En mor strikker under en akvarelhimmel ved siden af kaninen Lemon.",
+            ],
+            "project.delete.message": [
+                "fi": "Poistetaanko ”%@”? Tätä ei voi perua.",
+            ],
+            "journal.delete.confirm.title": [
+                "fi": "Poistetaanko päiväkirjamerkintä?",
+            ],
+            "journal.card.accessibility.withCaption.loading.format": [
+                "da": "Dagbogsindlæg, billede indlæses, %1$@, %2$@",
+                "el": "Καταχώριση ημερολογίου, φόρτωση φωτογραφίας, %1$@, %2$@",
+            ],
+            "journal.card.accessibility.withoutCaption.loading.format": [
+                "el": "Καταχώριση ημερολογίου, φόρτωση φωτογραφίας, %@",
+            ],
+            "journal.delete.confirm.message": [
+                "el": "Αυτή η καταχώριση ημερολογίου και οι φωτογραφίες της θα διαγραφούν οριστικά.",
+            ],
+            "yarn.addManually": [
+                "el": "Χειροκίνητη προσθήκη",
+            ],
+            "yarn.addManually.hint": [
+                "ko": "실 정보를 직접 입력하세요.",
+            ],
+            "yarn.empty.message": [
+                "fi": "Lisää lanka, jotta sen tiedot, kuva ja varastosaldo pysyvät yhdessä.",
+                "ko": "실을 추가해 정보, 사진, 재고를 함께 관리하세요.",
+            ],
+            "yarn.error.invalidNumber": [
+                "nb": "Skriv inn et gyldig tall.",
+                "sv": "Ange ett giltigt tal.",
+                "fi": "Syötä kelvollinen luku.",
+                "da": "Indtast et gyldigt tal.",
+            ],
+            "project.create": [
+                "nb": "Opprett", "sv": "Skapa", "da": "Opret", "ko": "생성",
+            ],
+            "project.status.resume": [
+                "nb": "Fortsett prosjekt",
+            ],
+            "projects.empty.message": [
+                "ko": "프로젝트를 만들어 단 수를 세어 보세요.",
+            ],
+            "calculator.adjustment.reservesEdgeStitches": [
+                "ko": "양쪽에 가장자리 코를 하나씩 남기세요.",
+            ],
+            "calculator.adjustment.interval.decrease.adjacent": [
+                "fi": "Kavenna vierekkäisiä silmukoita koko kerroksen ajan.",
+            ],
+            "calculator.adjustment.interval.decrease.singular": [
+                "nb": "Fell etter hver maske.",
+            ],
+            "calculator.adjustment.interval.increase.singular": [
+                "nb": "Øk etter hver maske.",
+            ],
+            "calculator.adjustment.rows.failure.symmetricEven": [
+                "nb": "For like endringer på begge sider må masketallet være et partall.",
+            ],
+            "calculator.adjustment.rows.interval.exact.format": [
+                "sv": "Med %lld varvs mellanrum",
+            ],
+            "calculator.adjustment.rows.summary.decrease.bothSides.range.format": [
+                "sv": "%@, minska 1 maska på varje sida. Justeringsvarv: %lld.",
+            ],
+            "journal.add.title": [
+                "da": "Nyt dagbogsindlæg",
+            ],
+            "yarn.range.lower": [
+                "da": "Fra",
+            ],
+            "patterns.calculator.clear": [
+                "nb": "AC", "sv": "AC", "fi": "AC", "da": "AC", "ko": "AC", "el": "AC",
+            ],
+            "patterns.calculator.divide": [
+                "nb": "Del",
+            ],
+            "patterns.calculator.equals": [
+                "nb": "Er lik", "sv": "Lika med", "da": "Lig med",
+            ],
+            "patterns.calculator.result": [
+                "sv": "Resultat",
+            ],
+            "patterns.calculator.toggleSign": [
+                "ko": "부호 변경", "el": "Αλλαγή προσήμου",
+            ],
+            "patterns.appearance.lightHint": [
+                "sv": "Detta alternativ används automatiskt i mörkt läge.",
+            ],
+            "patterns.markup": [
+                "nb": "Merking", "sv": "Märkning", "da": "Markering", "ko": "마크업",
+            ],
+            "patterns.markup.pen": [
+                "nb": "Penn", "sv": "Penna",
+            ],
+            "counter.defaultName": [
+                "ko": "카운터 %lld",
+            ],
+            "settings.general": [
+                "ko": "일반",
+            ],
+            "sample.projectName": [
+                "el": "Το πρώτο μου κασκόλ",
+            ],
+            "project.yarn.toggle.hint": [
+                "nb": "Trykk to ganger for å koble til eller koble fra dette prosjektet.",
+                "sv": "Tryck två gånger för att länka eller koppla bort detta projekt.",
+            ],
+            "yarn.inventory.balls": [
+                "nb": "Nøster igjen: %@",
+                "sv": "Återstående nystan: %@",
+                "da": "Resterende nøgler: %@",
+                "ko": "남은 실뭉치: %@",
+            ],
+            "yarn.recommendedHookMM": [
+                "fi": "Virkkuukoukku",
+            ],
+            "yarn.recommendedHookMM.lower.accessibility": [
+                "sv": "Virknål, från",
+            ],
+            "yarn.recommendedHookMM.upper.accessibility": [
+                "da": "Hæklenål, til",
+            ],
+            "yarn.recommendedNeedleMM": [
+                "fi": "Neulepuikko", "da": "Strikkepind",
             ],
         ]
 

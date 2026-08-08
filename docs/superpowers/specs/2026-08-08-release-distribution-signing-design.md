@@ -9,13 +9,14 @@ The machine already has a valid `Apple Distribution: Chen Chung Lung (9CFPAUL5N5
 ## Design
 
 1. Make `project.yml` the signing source of truth:
-   - Debug uses `Apple Development`.
-   - Release uses `Apple Distribution`.
+   - Debug uses automatic `Apple Development`.
+   - Release uses manual `Apple Distribution` and the already-installed Store provisioning profile for each shipping bundle.
+   - The multiplatform main target selects its iOS and macOS Store profiles with SDK-conditional settings; Watch and Share use their own iOS Store profiles.
    - The existing team remains `9CFPAUL5N5`.
 2. Regenerate `KnitNote.xcodeproj` so manual Xcode Archives inherit the same contract.
 3. Harden `create_release_candidate.sh`:
    - fail early unless the expected team's local Apple Distribution identity exists;
-   - pass `CODE_SIGN_STYLE=Automatic`, `DEVELOPMENT_TEAM=9CFPAUL5N5`, and `CODE_SIGN_IDENTITY=Apple Distribution` to both archive invocations;
+   - pass `CODE_SIGN_STYLE=Manual`, `DEVELOPMENT_TEAM=9CFPAUL5N5`, and `CODE_SIGN_IDENTITY=Apple Distribution` to both archive invocations;
    - do not download profiles or mutate signing assets.
 4. Extend source-contract tests before implementation, then rebuild and rerun the existing formal archive audit.
 
@@ -23,5 +24,6 @@ The machine already has a valid `Apple Distribution: Chen Chung Lung (9CFPAUL5N5
 
 - No App source, behavior, data, localization, version, or build-number changes.
 - No certificate/profile creation, download, network provisioning, upload, submission, pricing, or App Store Connect changes.
+- The workflow consumes the existing local Store profiles and fails if they are missing or incompatible.
 - The release audit remains fail-closed and is not weakened.
 - A signed Archive is not release approval; physical and App Store parity gates remain separate.

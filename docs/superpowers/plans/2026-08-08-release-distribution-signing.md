@@ -2,7 +2,7 @@
 
 **Goal:** Make the supported exact-commit candidate workflow create Apple Distribution-signed iOS/Watch/Share and macOS archives for team `9CFPAUL5N5`.
 
-**Architecture:** Declare per-configuration signing identities in `project.yml`, regenerate the Xcode project, and make the candidate creator preflight and explicitly pass the same Release signing contract.
+**Architecture:** Declare automatic Development signing for Debug and manual Distribution signing with the already-installed per-bundle Store profiles for Release, regenerate the Xcode project, and make the candidate creator explicitly pass the same manual Release signing contract.
 
 ## Global constraints
 
@@ -23,6 +23,19 @@
 - [ ] Implement the minimal settings/script changes and regenerate the project.
 - [ ] Run the focused test, Xcode project generation drift check, Bash syntax, and static release audit.
 - [ ] Commit the remediation.
+
+### Task 1B: Bind the installed Store profiles
+
+**Files:**
+- Modify: `Tests/KnitNoteCoreTests/ReleaseAuditLocalizationTests.swift`
+- Modify: `project.yml`
+- Regenerate: `KnitNote.xcodeproj/project.pbxproj`
+- Modify: `AppStore/Verification/create_release_candidate.sh`
+
+- [ ] Add failing assertions for Debug Automatic, Release Manual, SDK-conditional main App Store profiles, and Watch/Share Store profiles.
+- [ ] Replace the creator's Automatic override with Manual while retaining the expected team and Apple Distribution identity.
+- [ ] Regenerate and verify every shipping target's resolved build settings.
+- [ ] Run focused tests, Bash syntax, XcodeGen drift, static audit, and commit.
 
 ### Task 2: Rebuild and verify the immutable candidate
 

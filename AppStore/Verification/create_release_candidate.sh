@@ -41,12 +41,19 @@ mkdir "$ARTIFACTS"
 (cd "$WORKTREE" && AppStore/Verification/release_audit.sh --static-only)
 (cd "$WORKTREE" && xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$ARTIFACTS/KnitNote-iOS-Privacy.xcarchive" \
-  CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$EXPECTED_TEAM" CODE_SIGN_IDENTITY="Apple Distribution" \
   KNITNOTE_SOURCE_REVISION="$COMMIT" archive)
 (cd "$WORKTREE" && xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Release \
   -destination 'generic/platform=macOS' -archivePath "$ARTIFACTS/KnitNote-macOS-Privacy.xcarchive" \
-  CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$EXPECTED_TEAM" CODE_SIGN_IDENTITY="Apple Distribution" \
   KNITNOTE_SOURCE_REVISION="$COMMIT" archive)
+mkdir "$ARTIFACTS/Distribution"
+(cd "$WORKTREE" && xcodebuild -exportArchive \
+  -archivePath "$ARTIFACTS/KnitNote-iOS-Privacy.xcarchive" \
+  -exportPath "$ARTIFACTS/Distribution/iOS" \
+  -exportOptionsPlist "$WORKTREE/AppStore/Verification/ExportOptions-AppStore.plist")
+(cd "$WORKTREE" && xcodebuild -exportArchive \
+  -archivePath "$ARTIFACTS/KnitNote-macOS-Privacy.xcarchive" \
+  -exportPath "$ARTIFACTS/Distribution/macOS" \
+  -exportOptionsPlist "$WORKTREE/AppStore/Verification/ExportOptions-AppStore.plist")
 python3 "$WORKTREE/AppStore/Verification/release_archive_manifest.py" create \
   --archives "$ARTIFACTS" --source-commit "$COMMIT" --output "$ARTIFACTS/provenance.json"
 (cd "$WORKTREE" && AppStore/Verification/release_audit.sh --archives "$ARTIFACTS" \

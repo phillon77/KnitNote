@@ -528,19 +528,64 @@ import Testing
         #expect(!result.output.contains("RELEASE AUDIT: PASS"))
     }
 
-    @Test func supportedCandidateCreatorBindsBothSignedArchivesAndProvenanceBeforePublication() throws {
-        let script = try String(
-            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/create_release_candidate.sh"),
-            encoding: .utf8
+    @Test func localAppStoreExportOptionsAreAutomaticLocalAndPreserveBuildIdentity() throws {
+        let url = releaseAuditRepositoryRoot.appendingPathComponent(
+            "AppStore/Verification/ExportOptions-AppStore.plist"
         )
+        let data = try #require(try? Data(contentsOf: url))
+        let options = try #require(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+
+        #expect(Set(options.keys) == [
+            "destination",
+            "manageAppVersionAndBuildNumber",
+            "method",
+            "signingStyle",
+            "teamID",
+        ])
+        #expect(options["destination"] as? String == "export")
+        #expect(options["method"] as? String == "app-store-connect")
+        #expect(options["signingStyle"] as? String == "automatic")
+        #expect(options["teamID"] as? String == "9CFPAUL5N5")
+        #expect(options["manageAppVersionAndBuildNumber"] as? Bool == false)
+    }
+
+    @Test func supportedCandidateCreatorExportsBothArchivesBeforeProvenanceAuditAndPublication() throws {
+        let script = try candidateCreatorScript()
         #expect(script.contains("worktree add --detach"))
         #expect(script.components(separatedBy: "xcodebuild -project KnitNote.xcodeproj").count - 1 == 2)
+        #expect(script.components(separatedBy: "xcodebuild -exportArchive").count - 1 == 2)
         #expect(script.components(separatedBy: "KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive").count - 1 == 2)
+        let iOSArchive = try #require(releaseArchiveCommand(in: script, platform: "iOS"))
+        let macOSArchive = try #require(releaseArchiveCommand(in: script, platform: "macOS"))
+        let iOSExport = try #require(releaseExportCommand(in: script, platform: "iOS"))
+        let macOSExport = try #require(releaseExportCommand(in: script, platform: "macOS"))
+        let iOSArchiveRange = try #require(script.range(of: iOSArchive))
+        let macOSArchiveRange = try #require(script.range(of: macOSArchive))
+        let iOSExportRange = try #require(script.range(of: iOSExport))
+        let macOSExportRange = try #require(script.range(of: macOSExport))
         let provenance = try #require(script.range(of: "release_archive_manifest.py\" create"))
         let audit = try #require(script.range(of: "release_audit.sh --archives"))
         let publication = try #require(script.range(of: "mv \"$ARTIFACTS\" \"$FINAL\""))
+
+        #expect(iOSArchiveRange.lowerBound < iOSExportRange.lowerBound)
+        #expect(macOSArchiveRange.lowerBound < iOSExportRange.lowerBound)
+        #expect(iOSArchiveRange.lowerBound < macOSExportRange.lowerBound)
+        #expect(macOSArchiveRange.lowerBound < macOSExportRange.lowerBound)
+        #expect(iOSExportRange.lowerBound < provenance.lowerBound)
+        #expect(macOSExportRange.lowerBound < provenance.lowerBound)
         #expect(provenance.lowerBound < audit.lowerBound)
         #expect(audit.lowerBound < publication.lowerBound)
+    }
+
+    @Test func candidateCreatorForbidsUploadAndProvisioningUpdates() throws {
+        let script = executableBash(try candidateCreatorScript())
+        #expect(!script.contains("-allowProvisioningUpdates"))
+        #expect(!script.contains("destination=upload"))
+        #expect(!script.contains("CODE_SIGN_STYLE=Manual"))
+        #expect(!script.contains("CODE_SIGN_IDENTITY=\"Apple Distribution\""))
+        #expect(!script.contains("PROVISIONING_PROFILE_SPECIFIER"))
     }
 
     @Test func distributionSigningContractUsesTheExpectedTeamForEveryReleaseArchive() throws {
@@ -553,7 +598,7 @@ import Testing
         ).isEmpty)
     }
 
-    @Test func distributionSigningContractRejectsMisboundTargetsCommandsAndPreflight() throws {
+    @Test func distributionSigningContractRejectsMisboundAutomaticArchivesExportsAndPreflight() throws {
         let sources = try distributionSigningContractSources()
         let projectDebug = try #require(generatedBuildConfiguration(
             in: sources.generatedProject,
@@ -565,24 +610,9 @@ import Testing
             owner: #"PBXProject "KnitNote""#,
             configuration: "Release"
         ))
-        let appRelease = try #require(generatedBuildConfiguration(
-            in: sources.generatedProject,
-            owner: #"PBXNativeTarget "KnitNote""#,
-            configuration: "Release"
-        ))
-        let watchDebug = try #require(generatedBuildConfiguration(
-            in: sources.generatedProject,
-            owner: #"PBXNativeTarget "KnitNoteWatch""#,
-            configuration: "Debug"
-        ))
         let watchRelease = try #require(generatedBuildConfiguration(
             in: sources.generatedProject,
             owner: #"PBXNativeTarget "KnitNoteWatch""#,
-            configuration: "Release"
-        ))
-        let shareRelease = try #require(generatedBuildConfiguration(
-            in: sources.generatedProject,
-            owner: #"PBXNativeTarget "KnitNoteShare""#,
             configuration: "Release"
         ))
 
@@ -595,33 +625,15 @@ import Testing
             ),
             (
                 section: projectRelease,
-                setting: "CODE_SIGN_STYLE = Manual;",
-                replacement: "CODE_SIGN_STYLE = Automatic;",
+                setting: "CODE_SIGN_STYLE = Automatic;",
+                replacement: "CODE_SIGN_STYLE = Manual;",
                 issue: "project Release signing style"
             ),
             (
-                section: appRelease,
-                setting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\" = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote\";",
-                replacement: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\" = WrongProfile;",
-                issue: "KnitNote Release iOS provisioning profile"
-            ),
-            (
-                section: appRelease,
-                setting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\" = \"Mac Team Store Provisioning Profile: com.phillon.KnitNote\";",
-                replacement: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\" = WrongProfile;",
-                issue: "KnitNote Release macOS provisioning profile"
-            ),
-            (
                 section: watchRelease,
-                setting: "PROVISIONING_PROFILE_SPECIFIER = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch\";",
-                replacement: "PROVISIONING_PROFILE_SPECIFIER = WrongProfile;",
-                issue: "KnitNoteWatch Release provisioning profile"
-            ),
-            (
-                section: shareRelease,
-                setting: "PROVISIONING_PROFILE_SPECIFIER = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.share\";",
-                replacement: "PROVISIONING_PROFILE_SPECIFIER = WrongProfile;",
-                issue: "KnitNoteShare Release provisioning profile"
+                setting: "CODE_SIGN_IDENTITY = \"Apple Development\";",
+                replacement: "CODE_SIGN_IDENTITY = \"Apple Distribution\";",
+                issue: "KnitNoteWatch Release signing identity"
             ),
         ]
         for mutation in generatedMutations {
@@ -641,39 +653,26 @@ import Testing
             ).contains(mutation.issue))
         }
 
-        var swappedWatch = sources.generatedProject.replacingOccurrences(
-            of: watchDebug,
-            with: watchDebug.replacingOccurrences(of: "Apple Development", with: "Apple Distribution")
-        )
-        swappedWatch = swappedWatch.replacingOccurrences(
-            of: watchRelease,
-            with: watchRelease.replacingOccurrences(of: "Apple Distribution", with: "Apple Development")
-        )
-        let swappedIssues = distributionSigningContractIssues(
-            specification: sources.specification,
-            generatedProject: swappedWatch,
-            script: sources.script
-        )
-        #expect(swappedIssues.contains("KnitNoteWatch Debug signing identity"))
-        #expect(swappedIssues.contains("KnitNoteWatch Release signing identity"))
-
         let iOSCommand = try #require(releaseArchiveCommand(in: sources.script, platform: "iOS"))
         let macOSCommand = try #require(releaseArchiveCommand(in: sources.script, platform: "macOS"))
-        let overrides = "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
-        let automaticIOSCommand = iOSCommand.replacingOccurrences(
-            of: "CODE_SIGN_STYLE=Manual",
-            with: "CODE_SIGN_STYLE=Automatic"
+        let manualIOSCommand = iOSCommand.replacingOccurrences(
+            of: "KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive)",
+            with: "CODE_SIGN_STYLE=Manual KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive)"
         )
         #expect(distributionSigningContractIssues(
             specification: sources.specification,
             generatedProject: sources.generatedProject,
-            script: sources.script.replacingOccurrences(of: iOSCommand, with: automaticIOSCommand)
-        ).contains("iOS archive signing overrides"))
+            script: sources.script.replacingOccurrences(of: iOSCommand, with: manualIOSCommand)
+        ).contains("iOS archive signing override"))
+        let overrides = "CODE_SIGN_STYLE=Manual"
         let duplicateIOSCommand = iOSCommand.replacingOccurrences(
-            of: overrides,
-            with: "\(overrides) \\\n  \(overrides)"
+            of: "KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive)",
+            with: "\(overrides) \\\n  \(overrides) KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive)"
         )
-        let unsignedMacOSCommand = macOSCommand.replacingOccurrences(of: overrides, with: "")
+        let unsignedMacOSCommand = macOSCommand.replacingOccurrences(
+            of: "KNITNOTE_SOURCE_REVISION=\"$COMMIT\" ",
+            with: ""
+        )
         let globallyBalancedOverrides = sources.script
             .replacingOccurrences(of: iOSCommand, with: duplicateIOSCommand)
             .replacingOccurrences(of: macOSCommand, with: unsignedMacOSCommand)
@@ -683,8 +682,8 @@ import Testing
             generatedProject: sources.generatedProject,
             script: globallyBalancedOverrides
         )
-        #expect(commandIssues.contains("iOS archive signing overrides"))
-        #expect(commandIssues.contains("macOS archive signing overrides"))
+        #expect(commandIssues.contains("iOS archive signing override"))
+        #expect(commandIssues.contains("macOS archive source revision"))
 
         for decoy in [
             "# \(overrides)",
@@ -693,13 +692,34 @@ import Testing
             let decoyBalancedOverrides = sources.script
                 .replacingOccurrences(of: macOSCommand, with: unsignedMacOSCommand)
                 .appending("\n\(decoy)\n")
-            #expect(decoyBalancedOverrides.components(separatedBy: overrides).count - 1 == 2)
+            #expect(decoyBalancedOverrides.components(separatedBy: overrides).count - 1 == 1)
             #expect(distributionSigningContractIssues(
                 specification: sources.specification,
                 generatedProject: sources.generatedProject,
                 script: decoyBalancedOverrides
-            ).contains("macOS archive signing overrides"))
+            ).contains("macOS archive source revision"))
         }
+
+        let iOSExport = try #require(releaseExportCommand(in: sources.script, platform: "iOS"))
+        let macOSExport = try #require(releaseExportCommand(in: sources.script, platform: "macOS"))
+        let wrongIOSExportPath = iOSExport.replacingOccurrences(
+            of: "$ARTIFACTS/Distribution/iOS",
+            with: "$ARTIFACTS/Distribution/macOS"
+        )
+        #expect(distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: sources.script.replacingOccurrences(of: iOSExport, with: wrongIOSExportPath)
+        ).contains("iOS export command"))
+        let provisioningMacOSExport = macOSExport.replacingOccurrences(
+            of: "-exportArchive",
+            with: "-allowProvisioningUpdates -exportArchive"
+        )
+        #expect(distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: sources.script.replacingOccurrences(of: macOSExport, with: provisioningMacOSExport)
+        ).contains("forbidden upload or provisioning update flag"))
 
         let preflight = try #require(distributionIdentityPreflight(in: sources.script))
         let withoutPreflight = sources.script.replacingOccurrences(of: "\(preflight)\n\n", with: "")
@@ -739,7 +759,7 @@ import Testing
         #expect(issues.contains("macOS archive command"))
     }
 
-    @Test func distributionSigningContractRejectsTargetStyleOverridesAndDebugProfiles() throws {
+    @Test func distributionSigningContractRejectsTargetStyleOverridesAndProfilesInEveryConfiguration() throws {
         let sources = try distributionSigningContractSources()
         let targets = [
             (
@@ -763,12 +783,12 @@ import Testing
         ]
 
         for target in targets {
-            for (configuration, wrongStyle) in [("Debug", "Manual"), ("Release", "Automatic")] {
+            for configuration in ["Debug", "Release"] {
                 let generatedMutation = try #require(generatedProjectByAddingBuildSetting(
                     sources.generatedProject,
                     owner: target.generatedOwner,
                     configuration: configuration,
-                    setting: "CODE_SIGN_STYLE = \(wrongStyle);"
+                    setting: "CODE_SIGN_STYLE = Manual;"
                 ))
                 #expect(distributionSigningContractIssues(
                     specification: sources.specification,
@@ -781,7 +801,7 @@ import Testing
                     targetStart: target.specificationStart,
                     targetEnd: target.specificationEnd,
                     configuration: configuration,
-                    setting: "CODE_SIGN_STYLE: \(wrongStyle)"
+                    setting: "CODE_SIGN_STYLE: Manual"
                 ))
                 #expect(distributionSigningContractIssues(
                     specification: specificationMutation,
@@ -791,7 +811,7 @@ import Testing
             }
         }
 
-        let debugProfileMutations = [
+        let profileMutations = [
             (
                 target: targets[0],
                 generatedSetting: "PROVISIONING_PROFILE_SPECIFIER = WrongDebugProfile;",
@@ -818,31 +838,33 @@ import Testing
                 specificationSetting: "PROVISIONING_PROFILE_SPECIFIER: WrongDebugProfile"
             ),
         ]
-        for mutation in debugProfileMutations {
-            let generatedMutation = try #require(generatedProjectByAddingBuildSetting(
-                sources.generatedProject,
-                owner: mutation.target.generatedOwner,
-                configuration: "Debug",
-                setting: mutation.generatedSetting
-            ))
-            #expect(distributionSigningContractIssues(
-                specification: sources.specification,
-                generatedProject: generatedMutation,
-                script: sources.script
-            ).contains("\(mutation.target.label) Debug provisioning profile"))
+        for mutation in profileMutations {
+            for configuration in ["Debug", "Release"] {
+                let generatedMutation = try #require(generatedProjectByAddingBuildSetting(
+                    sources.generatedProject,
+                    owner: mutation.target.generatedOwner,
+                    configuration: configuration,
+                    setting: mutation.generatedSetting
+                ))
+                #expect(distributionSigningContractIssues(
+                    specification: sources.specification,
+                    generatedProject: generatedMutation,
+                    script: sources.script
+                ).contains("\(mutation.target.label) \(configuration) provisioning profile"))
 
-            let specificationMutation = try #require(specificationByAddingTargetBuildSetting(
-                sources.specification,
-                targetStart: mutation.target.specificationStart,
-                targetEnd: mutation.target.specificationEnd,
-                configuration: "Debug",
-                setting: mutation.specificationSetting
-            ))
-            #expect(distributionSigningContractIssues(
-                specification: specificationMutation,
-                generatedProject: sources.generatedProject,
-                script: sources.script
-            ).contains("\(mutation.target.label) Debug provisioning profile specification"))
+                let specificationMutation = try #require(specificationByAddingTargetBuildSetting(
+                    sources.specification,
+                    targetStart: mutation.target.specificationStart,
+                    targetEnd: mutation.target.specificationEnd,
+                    configuration: configuration,
+                    setting: mutation.specificationSetting
+                ))
+                #expect(distributionSigningContractIssues(
+                    specification: specificationMutation,
+                    generatedProject: sources.generatedProject,
+                    script: sources.script
+                ).contains("\(mutation.target.label) \(configuration) provisioning profile specification"))
+            }
         }
     }
 
@@ -872,6 +894,15 @@ private struct DistributionSigningContractSources {
     let script: String
 }
 
+private func candidateCreatorScript() throws -> String {
+    try String(
+        contentsOf: releaseAuditRepositoryRoot.appendingPathComponent(
+            "AppStore/Verification/create_release_candidate.sh"
+        ),
+        encoding: .utf8
+    )
+}
+
 private func distributionSigningContractSources() throws -> DistributionSigningContractSources {
     try DistributionSigningContractSources(
         specification: String(
@@ -897,7 +928,7 @@ private func distributionSigningContractIssues(
     var issues: [String] = []
     let expectedIdentities = [
         (configuration: "Debug", identity: "Apple Development"),
-        (configuration: "Release", identity: "Apple Distribution"),
+        (configuration: "Release", identity: "Apple Development"),
     ]
     let specificationOwners = [
         (label: "project", start: "settings:\n", end: "targets:\n"),
@@ -932,19 +963,10 @@ private func distributionSigningContractIssues(
             issues.append("project Debug signing style specification")
         }
         if !projectSpecification.contains(
-            "    Release:\n      CODE_SIGN_IDENTITY: Apple Distribution\n      CODE_SIGN_STYLE: Manual"
+            "    Release:\n      CODE_SIGN_IDENTITY: Apple Development\n      CODE_SIGN_STYLE: Automatic"
         ) {
             issues.append("project Release signing style specification")
         }
-    }
-    let profileSpecifications = [
-        "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\": \"iOS Team Store Provisioning Profile: com.phillon.KnitNote\"",
-        "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\": \"Mac Team Store Provisioning Profile: com.phillon.KnitNote\"",
-        "PROVISIONING_PROFILE_SPECIFIER: \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch\"",
-        "PROVISIONING_PROFILE_SPECIFIER: \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.share\"",
-    ]
-    for profile in profileSpecifications where !specification.contains(profile) {
-        issues.append("Store provisioning profile specification: \(profile)")
     }
     for owner in specificationOwners.dropFirst() {
         guard let ownerSection = sourceSection(
@@ -964,9 +986,8 @@ private func distributionSigningContractIssues(
             if configuration.contains("CODE_SIGN_STYLE:") {
                 issues.append("\(owner.label) \(configurationName) target signing style specification override")
             }
-            if configurationName == "Debug",
-               configuration.contains("PROVISIONING_PROFILE_SPECIFIER") {
-                issues.append("\(owner.label) Debug provisioning profile specification")
+            if configuration.contains("PROVISIONING_PROFILE_SPECIFIER") {
+                issues.append("\(owner.label) \(configurationName) provisioning profile specification")
             }
         }
     }
@@ -990,16 +1011,16 @@ private func distributionSigningContractIssues(
             if owner.label != "project", configuration?.contains("CODE_SIGN_STYLE") == true {
                 issues.append("\(owner.label) \(expected.configuration) target signing style override")
             }
-            if owner.label != "project", expected.configuration == "Debug",
+            if owner.label != "project",
                configuration?.contains("PROVISIONING_PROFILE_SPECIFIER") == true {
-                issues.append("\(owner.label) Debug provisioning profile")
+                issues.append("\(owner.label) \(expected.configuration) provisioning profile")
             }
         }
     }
 
     let projectStyles = [
         (configuration: "Debug", style: "Automatic"),
-        (configuration: "Release", style: "Manual"),
+        (configuration: "Release", style: "Automatic"),
     ]
     for expected in projectStyles {
         let configuration = generatedBuildConfiguration(
@@ -1039,7 +1060,7 @@ private func distributionSigningContractIssues(
             owner: expected.owner,
             configuration: "Release"
         )
-        if configuration?.contains(expected.setting) != true {
+        if configuration?.contains(expected.setting) == true {
             issues.append(expected.label)
         }
     }
@@ -1050,19 +1071,45 @@ private func distributionSigningContractIssues(
             continue
         }
         let normalized = normalizedExecutableBash(command)
-        let override = "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
         let expectedPath = platform == "iOS"
             ? "KnitNote-iOS-Privacy.xcarchive"
             : "KnitNote-macOS-Privacy.xcarchive"
-        if normalized.components(separatedBy: override).count - 1 != 1
-            || !normalized.contains("generic/platform=\(platform)")
-            || !normalized.contains(expectedPath)
-            || !normalized.contains("\(override) KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive)") {
-            issues.append("\(platform) archive signing overrides")
+        if !normalized.contains("generic/platform=\(platform)")
+            || !normalized.contains(expectedPath) {
+            issues.append("\(platform) archive command")
+        }
+        if !normalized.contains("KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive)") {
+            issues.append("\(platform) archive source revision")
+        }
+        if normalized.contains("CODE_SIGN_STYLE=")
+            || normalized.contains("CODE_SIGN_IDENTITY=")
+            || normalized.contains("PROVISIONING_PROFILE_SPECIFIER") {
+            issues.append("\(platform) archive signing override")
+        }
+    }
+
+    for platform in ["iOS", "macOS"] {
+        guard let command = releaseExportCommand(in: script, platform: platform) else {
+            issues.append("\(platform) export command")
+            continue
+        }
+        let normalized = normalizedExecutableBash(command)
+        let archiveName = platform == "iOS"
+            ? "KnitNote-iOS-Privacy.xcarchive"
+            : "KnitNote-macOS-Privacy.xcarchive"
+        if !normalized.contains("xcodebuild -exportArchive")
+            || !normalized.contains("-archivePath \"$ARTIFACTS/\(archiveName)\"")
+            || !normalized.contains("-exportPath \"$ARTIFACTS/Distribution/\(platform)\"")
+            || !normalized.contains("-exportOptionsPlist \"$WORKTREE/AppStore/Verification/ExportOptions-AppStore.plist\"") {
+            issues.append("\(platform) export command")
         }
     }
 
     let executableScript = executableBash(script)
+    if executableScript.contains("-allowProvisioningUpdates")
+        || executableScript.contains("destination=upload") {
+        issues.append("forbidden upload or provisioning update flag")
+    }
     if !executableScript.contains("EXPECTED_TEAM=9CFPAUL5N5") {
         issues.append("expected distribution signing team")
     }
@@ -1200,6 +1247,32 @@ private func releaseArchiveCommand(in script: String, platform: String) -> Strin
           let commandEnd = topLevelScript.range(
             of: "archive)",
             range: destinationRange.upperBound..<topLevelScript.endIndex
+          ) else {
+        return nil
+    }
+    return String(topLevelScript[commandStart.lowerBound..<commandEnd.upperBound])
+}
+
+private func releaseExportCommand(in script: String, platform: String) -> String? {
+    let archiveName = platform == "iOS"
+        ? "KnitNote-iOS-Privacy.xcarchive"
+        : "KnitNote-macOS-Privacy.xcarchive"
+    let archivePath = "-archivePath \"$ARTIFACTS/\(archiveName)\""
+    let exportPath = "-exportPath \"$ARTIFACTS/Distribution/\(platform)\""
+    let endMarker = "ExportOptions-AppStore.plist\")"
+    let topLevelScript = topLevelExecutableBash(script)
+    guard let exportRange = topLevelScript.range(of: exportPath),
+          let commandStart = topLevelScript[..<exportRange.lowerBound].range(
+            of: "(cd \"$WORKTREE\" && xcodebuild -exportArchive",
+            options: .backwards
+          ),
+          topLevelScript.range(
+            of: archivePath,
+            range: commandStart.upperBound..<exportRange.lowerBound
+          ) != nil,
+          let commandEnd = topLevelScript.range(
+            of: endMarker,
+            range: exportRange.upperBound..<topLevelScript.endIndex
           ) else {
         return nil
     }

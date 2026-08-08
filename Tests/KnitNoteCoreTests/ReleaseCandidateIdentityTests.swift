@@ -21,7 +21,7 @@ import Testing
         }
     }
 
-    @Test func generatedReleaseBuildSettingsUseCandidateIdentityForEveryShippingProduct() throws {
+    @Test func generatedReleaseBuildSettingsUseAutomaticDevelopmentSigningWithoutProfiles() throws {
         for product in shippingProductBuildSettings {
             let payload = try runReleaseIdentityJSONTool(
                 executable: "/usr/bin/xcodebuild",
@@ -43,10 +43,10 @@ import Testing
             #expect(settings["INFOPLIST_FILE"] as? String == product.infoPlist)
             #expect(settings["MARKETING_VERSION"] as? String == "1.4.1")
             #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "8")
-            #expect(settings["CODE_SIGN_STYLE"] as? String == "Manual")
-            #expect(settings["CODE_SIGN_IDENTITY"] as? String == "Apple Distribution")
+            #expect(settings["CODE_SIGN_STYLE"] as? String == "Automatic")
+            #expect(settings["CODE_SIGN_IDENTITY"] as? String == "Apple Development")
             #expect(settings["DEVELOPMENT_TEAM"] as? String == "9CFPAUL5N5")
-            #expect(settings["PROVISIONING_PROFILE_SPECIFIER"] as? String == product.releaseProfile)
+            #expect((settings["PROVISIONING_PROFILE_SPECIFIER"] as? String ?? "").isEmpty)
         }
     }
 
@@ -121,7 +121,6 @@ private struct ShippingProductBuildSettings {
     let sdk: String
     let bundleIdentifier: String
     let infoPlist: String
-    let releaseProfile: String
 }
 
 private let shippingTargetIdentities = [
@@ -147,29 +146,25 @@ private let shippingProductBuildSettings = [
         target: "KnitNote",
         sdk: "iphoneos",
         bundleIdentifier: "com.phillon.KnitNote",
-        infoPlist: "KnitNote/Info.plist",
-        releaseProfile: "iOS Team Store Provisioning Profile: com.phillon.KnitNote"
+        infoPlist: "KnitNote/Info.plist"
     ),
     ShippingProductBuildSettings(
         target: "KnitNote",
         sdk: "macosx",
         bundleIdentifier: "com.phillon.KnitNote",
-        infoPlist: "KnitNote/Info.plist",
-        releaseProfile: "Mac Team Store Provisioning Profile: com.phillon.KnitNote"
+        infoPlist: "KnitNote/Info.plist"
     ),
     ShippingProductBuildSettings(
         target: "KnitNoteWatch",
         sdk: "watchos",
         bundleIdentifier: "com.phillon.KnitNote.watch",
-        infoPlist: "KnitNoteWatch/Info.plist",
-        releaseProfile: "iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch"
+        infoPlist: "KnitNoteWatch/Info.plist"
     ),
     ShippingProductBuildSettings(
         target: "KnitNoteShare",
         sdk: "iphoneos",
         bundleIdentifier: "com.phillon.KnitNote.share",
-        infoPlist: "KnitNoteShare/Info.plist",
-        releaseProfile: "iOS Team Store Provisioning Profile: com.phillon.KnitNote.share"
+        infoPlist: "KnitNoteShare/Info.plist"
     ),
 ]
 

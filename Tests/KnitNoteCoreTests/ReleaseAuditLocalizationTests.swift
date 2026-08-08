@@ -403,6 +403,32 @@ import Testing
         #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
     }
 
+    @Test func archiveAuditAcceptsMacAppStoreProfileOmittingGetTaskAllow() throws {
+        let fixture = try makeArchiveFixture(macProfileGetTaskAllow: nil)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
+    }
+
+    @Test func archiveAuditRejectsMacAppStoreProfileGrantingGetTaskAllow() throws {
+        let fixture = try makeArchiveFixture(macProfileGetTaskAllow: true)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("provisioning profile is expired or is not App Store distribution"))
+    }
+
     @Test func productionAuditRejectsExtractionToolOverrides() throws {
         for variable in ["KNITNOTE_DITTO", "KNITNOTE_PKGUTIL"] {
             let result = try runReleaseAudit(
@@ -1601,6 +1627,7 @@ private func makeArchiveFixture(
     signingTeam: String = "9CFPAUL5N5",
     profileIdentifierOverride: String? = nil,
     profileCertificate: String = "certificate",
+    macProfileGetTaskAllow: Bool? = false,
     provenancePathOverride: String? = nil,
     gitHead: String = fixtureCommit,
     dirtySource: Bool = false,
@@ -1786,9 +1813,15 @@ private func makeArchiveFixture(
             ? item.bundle.appendingPathComponent("Contents/embedded.provisionprofile")
             : item.bundle.appendingPathComponent("embedded.mobileprovision")
         var profileEntitlements: [String: Any] = [
-            "get-task-allow": false,
             "application-identifier": profileIdentifierOverride ?? "9CFPAUL5N5.\(item.identifier)",
         ]
+        if item.name == "macOS" {
+            if let macProfileGetTaskAllow {
+                profileEntitlements["get-task-allow"] = macProfileGetTaskAllow
+            }
+        } else {
+            profileEntitlements["get-task-allow"] = false
+        }
         if item.name == "iOS" || item.name == "Share" {
             profileEntitlements["com.apple.security.application-groups"] = ["group.com.phillon.KnitNote"]
         }

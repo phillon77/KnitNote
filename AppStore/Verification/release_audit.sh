@@ -128,7 +128,7 @@ if isinstance(expiration, datetime.datetime) and expiration.tzinfo is None:
     expiration = expiration.replace(tzinfo=datetime.timezone.utc)
 valid = (
     profile.get("TeamIdentifier") == [team]
-    and entitlements.get("get-task-allow") is False
+    and entitlements.get("get-task-allow", False) is False
     and identifier == f"{team}.{bundle}"
     and groups == ([group] if group else [])
     and "ProvisionedDevices" not in profile

@@ -12,9 +12,11 @@ settings:
   configs:
     Debug:
       CODE_SIGN_IDENTITY: Apple Development
+      CODE_SIGN_STYLE: Automatic
       KNITNOTE_SOURCE_REVISION: UNSET
     Release:
       CODE_SIGN_IDENTITY: Apple Distribution
+      CODE_SIGN_STYLE: Manual
 targets:
   KnitNote:
     type: application
@@ -86,6 +88,8 @@ targets:
           CODE_SIGN_IDENTITY: Apple Development
         Release:
           CODE_SIGN_IDENTITY: Apple Distribution
+          "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]": "iOS Team Store Provisioning Profile: com.phillon.KnitNote"
+          "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Mac Team Store Provisioning Profile: com.phillon.KnitNote"
   KnitNoteWatch:
     type: application
     platform: watchOS
@@ -134,6 +138,7 @@ targets:
           CODE_SIGN_IDENTITY: Apple Development
         Release:
           CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: "iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch"
   KnitNoteShare:
     type: app-extension
     platform: iOS
@@ -189,6 +194,7 @@ targets:
           CODE_SIGN_IDENTITY: Apple Development
         Release:
           CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: "iOS Team Store Provisioning Profile: com.phillon.KnitNote.share"
   KnitNoteAppTests:
     type: bundle.unit-test
     platform: macOS

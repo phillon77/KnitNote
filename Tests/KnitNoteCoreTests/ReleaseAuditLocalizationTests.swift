@@ -555,6 +555,21 @@ import Testing
 
     @Test func distributionSigningContractRejectsMisboundTargetsCommandsAndPreflight() throws {
         let sources = try distributionSigningContractSources()
+        let projectDebug = try #require(generatedBuildConfiguration(
+            in: sources.generatedProject,
+            owner: #"PBXProject "KnitNote""#,
+            configuration: "Debug"
+        ))
+        let projectRelease = try #require(generatedBuildConfiguration(
+            in: sources.generatedProject,
+            owner: #"PBXProject "KnitNote""#,
+            configuration: "Release"
+        ))
+        let appRelease = try #require(generatedBuildConfiguration(
+            in: sources.generatedProject,
+            owner: #"PBXNativeTarget "KnitNote""#,
+            configuration: "Release"
+        ))
         let watchDebug = try #require(generatedBuildConfiguration(
             in: sources.generatedProject,
             owner: #"PBXNativeTarget "KnitNoteWatch""#,
@@ -565,6 +580,67 @@ import Testing
             owner: #"PBXNativeTarget "KnitNoteWatch""#,
             configuration: "Release"
         ))
+        let shareRelease = try #require(generatedBuildConfiguration(
+            in: sources.generatedProject,
+            owner: #"PBXNativeTarget "KnitNoteShare""#,
+            configuration: "Release"
+        ))
+
+        let generatedMutations = [
+            (
+                section: projectDebug,
+                setting: "CODE_SIGN_STYLE = Automatic;",
+                replacement: "CODE_SIGN_STYLE = Manual;",
+                issue: "project Debug signing style"
+            ),
+            (
+                section: projectRelease,
+                setting: "CODE_SIGN_STYLE = Manual;",
+                replacement: "CODE_SIGN_STYLE = Automatic;",
+                issue: "project Release signing style"
+            ),
+            (
+                section: appRelease,
+                setting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\" = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote\";",
+                replacement: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\" = WrongProfile;",
+                issue: "KnitNote Release iOS provisioning profile"
+            ),
+            (
+                section: appRelease,
+                setting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\" = \"Mac Team Store Provisioning Profile: com.phillon.KnitNote\";",
+                replacement: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\" = WrongProfile;",
+                issue: "KnitNote Release macOS provisioning profile"
+            ),
+            (
+                section: watchRelease,
+                setting: "PROVISIONING_PROFILE_SPECIFIER = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch\";",
+                replacement: "PROVISIONING_PROFILE_SPECIFIER = WrongProfile;",
+                issue: "KnitNoteWatch Release provisioning profile"
+            ),
+            (
+                section: shareRelease,
+                setting: "PROVISIONING_PROFILE_SPECIFIER = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.share\";",
+                replacement: "PROVISIONING_PROFILE_SPECIFIER = WrongProfile;",
+                issue: "KnitNoteShare Release provisioning profile"
+            ),
+        ]
+        for mutation in generatedMutations {
+            #expect(mutation.section.contains(mutation.setting))
+            let mutatedSection = mutation.section.replacingOccurrences(
+                of: mutation.setting,
+                with: mutation.replacement
+            )
+            let mutatedProject = sources.generatedProject.replacingOccurrences(
+                of: mutation.section,
+                with: mutatedSection
+            )
+            #expect(distributionSigningContractIssues(
+                specification: sources.specification,
+                generatedProject: mutatedProject,
+                script: sources.script
+            ).contains(mutation.issue))
+        }
+
         var swappedWatch = sources.generatedProject.replacingOccurrences(
             of: watchDebug,
             with: watchDebug.replacingOccurrences(of: "Apple Development", with: "Apple Distribution")
@@ -583,7 +659,16 @@ import Testing
 
         let iOSCommand = try #require(releaseArchiveCommand(in: sources.script, platform: "iOS"))
         let macOSCommand = try #require(releaseArchiveCommand(in: sources.script, platform: "macOS"))
-        let overrides = "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
+        let overrides = "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
+        let automaticIOSCommand = iOSCommand.replacingOccurrences(
+            of: "CODE_SIGN_STYLE=Manual",
+            with: "CODE_SIGN_STYLE=Automatic"
+        )
+        #expect(distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: sources.script.replacingOccurrences(of: iOSCommand, with: automaticIOSCommand)
+        ).contains("iOS archive signing overrides"))
         let duplicateIOSCommand = iOSCommand.replacingOccurrences(
             of: overrides,
             with: "\(overrides) \\\n  \(overrides)"
@@ -729,6 +814,31 @@ private func distributionSigningContractIssues(
     if !specification.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5") {
         issues.append("expected development team")
     }
+    if let projectSpecification = sourceSection(
+        in: specification,
+        start: "settings:\n",
+        end: "targets:\n"
+    ) {
+        if !projectSpecification.contains(
+            "    Debug:\n      CODE_SIGN_IDENTITY: Apple Development\n      CODE_SIGN_STYLE: Automatic"
+        ) {
+            issues.append("project Debug signing style specification")
+        }
+        if !projectSpecification.contains(
+            "    Release:\n      CODE_SIGN_IDENTITY: Apple Distribution\n      CODE_SIGN_STYLE: Manual"
+        ) {
+            issues.append("project Release signing style specification")
+        }
+    }
+    let profileSpecifications = [
+        "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\": \"iOS Team Store Provisioning Profile: com.phillon.KnitNote\"",
+        "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\": \"Mac Team Store Provisioning Profile: com.phillon.KnitNote\"",
+        "PROVISIONING_PROFILE_SPECIFIER: \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch\"",
+        "PROVISIONING_PROFILE_SPECIFIER: \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.share\"",
+    ]
+    for profile in profileSpecifications where !specification.contains(profile) {
+        issues.append("Store provisioning profile specification: \(profile)")
+    }
 
     let generatedOwners = [
         (label: "project", owner: #"PBXProject "KnitNote""#),
@@ -749,13 +859,60 @@ private func distributionSigningContractIssues(
         }
     }
 
+    let projectStyles = [
+        (configuration: "Debug", style: "Automatic"),
+        (configuration: "Release", style: "Manual"),
+    ]
+    for expected in projectStyles {
+        let configuration = generatedBuildConfiguration(
+            in: generatedProject,
+            owner: #"PBXProject "KnitNote""#,
+            configuration: expected.configuration
+        )
+        if configuration?.contains("CODE_SIGN_STYLE = \(expected.style);") != true {
+            issues.append("project \(expected.configuration) signing style")
+        }
+    }
+    let generatedProfiles = [
+        (
+            label: "KnitNote Release iOS provisioning profile",
+            owner: #"PBXNativeTarget "KnitNote""#,
+            setting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\" = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote\";"
+        ),
+        (
+            label: "KnitNote Release macOS provisioning profile",
+            owner: #"PBXNativeTarget "KnitNote""#,
+            setting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\" = \"Mac Team Store Provisioning Profile: com.phillon.KnitNote\";"
+        ),
+        (
+            label: "KnitNoteWatch Release provisioning profile",
+            owner: #"PBXNativeTarget "KnitNoteWatch""#,
+            setting: "PROVISIONING_PROFILE_SPECIFIER = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch\";"
+        ),
+        (
+            label: "KnitNoteShare Release provisioning profile",
+            owner: #"PBXNativeTarget "KnitNoteShare""#,
+            setting: "PROVISIONING_PROFILE_SPECIFIER = \"iOS Team Store Provisioning Profile: com.phillon.KnitNote.share\";"
+        ),
+    ]
+    for expected in generatedProfiles {
+        let configuration = generatedBuildConfiguration(
+            in: generatedProject,
+            owner: expected.owner,
+            configuration: "Release"
+        )
+        if configuration?.contains(expected.setting) != true {
+            issues.append(expected.label)
+        }
+    }
+
     for platform in ["iOS", "macOS"] {
         guard let command = releaseArchiveCommand(in: script, platform: platform) else {
             issues.append("\(platform) archive command")
             continue
         }
         let normalized = normalizedExecutableBash(command)
-        let override = "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
+        let override = "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
         let expectedPath = platform == "iOS"
             ? "KnitNote-iOS-Privacy.xcarchive"
             : "KnitNote-macOS-Privacy.xcarchive"

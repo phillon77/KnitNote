@@ -1740,6 +1740,7 @@
 				MARKETING_VERSION = 1.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
 				PRODUCT_NAME = KnitNoteWatch;
+				PROVISIONING_PROFILE_SPECIFIER = "iOS Team Store Provisioning Profile: com.phillon.KnitNote.watch";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -1801,6 +1802,7 @@
 				MARKETING_VERSION = 1.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.share;
 				PRODUCT_NAME = KnitNoteShare;
+				PROVISIONING_PROFILE_SPECIFIER = "iOS Team Store Provisioning Profile: com.phillon.KnitNote.share";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1824,6 +1826,8 @@
 				MARKETING_VERSION = 1.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote;
 				PRODUCT_NAME = KnitNote;
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "iOS Team Store Provisioning Profile: com.phillon.KnitNote";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "Mac Team Store Provisioning Profile: com.phillon.KnitNote";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
@@ -1910,6 +1914,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 9CFPAUL5N5;
@@ -1986,6 +1991,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 9CFPAUL5N5;

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 probe_screenshot_python() {
-  "$1" -c 'from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps' >/dev/null 2>&1
+  [[ "$("$1" -c 'from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps; from PIL import __version__; print(__version__)' 2>/dev/null)" == "11.3.0" ]]
 }
 
 select_screenshot_python() {

@@ -572,17 +572,20 @@ import Testing
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let incompatible = root.appending(path: "incompatible-python")
+        let wrongPillow = root.appending(path: "wrong-pillow-python")
         let compatible = root.appending(path: "compatible-python")
         try "#!/bin/sh\nexit 1\n".write(to: incompatible, atomically: true, encoding: .utf8)
-        try "#!/bin/sh\nif [ \"$1\" = -c ]; then exit 0; fi\nprintf 'compatible:%s\\n' \"$*\"\n"
+        try "#!/bin/sh\nif [ \"$1\" = -c ]; then case \"$2\" in *'__version__'*) printf '11.2.0\\n' ;; esac; exit 0; fi\nprintf 'wrong:%s\\n' \"$*\"\n"
+            .write(to: wrongPillow, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\nif [ \"$1\" = -c ]; then case \"$2\" in *'__version__'*) printf '11.3.0\\n' ;; esac; exit 0; fi\nprintf 'compatible:%s\\n' \"$*\"\n"
             .write(to: compatible, atomically: true, encoding: .utf8)
-        for path in [incompatible, compatible] {
+        for path in [incompatible, wrongPillow, compatible] {
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path.path)
         }
         let launcher = screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/python_runtime.sh")
         let result = try screenshotProcess(
             executable: "/bin/bash",
-            arguments: ["-c", "source \"$1\"; selected=$(select_screenshot_python \"$2\" \"$3\"); \"$selected\" payload", "test", launcher.path, incompatible.path, compatible.path]
+            arguments: ["-c", "source \"$1\"; selected=$(select_screenshot_python \"$2\" \"$3\" \"$4\"); \"$selected\" payload", "test", launcher.path, incompatible.path, wrongPillow.path, compatible.path]
         )
         #expect(result.status == 0)
         #expect(result.output.contains("compatible:payload"))

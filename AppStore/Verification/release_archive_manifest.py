@@ -11,22 +11,7 @@ import stat
 from pathlib import Path, PurePosixPath
 
 
-APP_ROOTS = (
-    Path("KnitNote-iOS-Privacy.xcarchive/Products/Applications/KnitNote.app"),
-    Path("KnitNote-macOS-Privacy.xcarchive/Products/Applications/KnitNote.app"),
-)
-ARCHIVE_PLISTS = (
-    Path("KnitNote-iOS-Privacy.xcarchive/Info.plist"),
-    Path("KnitNote-macOS-Privacy.xcarchive/Info.plist"),
-)
-EXPORTED_ARTIFACTS = (
-    Path("Distribution/iOS/KnitNote.ipa"),
-    Path("Distribution/macOS/KnitNote.pkg"),
-    Path("Distribution/iOS/DistributionSummary.plist"),
-    Path("Distribution/macOS/DistributionSummary.plist"),
-    Path("Distribution/iOS/ExportOptions.plist"),
-    Path("Distribution/macOS/ExportOptions.plist"),
-)
+CANONICAL_PROVENANCE = Path("provenance.json")
 DEFAULT_EXPORT_OPTIONS = Path(__file__).with_name("ExportOptions-AppStore.plist")
 
 
@@ -69,23 +54,15 @@ def inventory(root: Path) -> list[dict[str, str]]:
     if root.is_symlink() or not root.is_dir():
         raise ValueError("release archive root is missing or unsafe")
     candidates: list[Path] = []
-    for relative in (*ARCHIVE_PLISTS, *EXPORTED_ARTIFACTS):
-        require_regular_file(root / relative, relative.as_posix(), root)
+    for path in root.rglob("*"):
+        relative = path.relative_to(root)
+        if relative == CANONICAL_PROVENANCE:
+            continue
+        mode = path.lstat().st_mode
+        if stat.S_ISDIR(mode):
+            reject_lexical_symlink_components(root, path, relative.as_posix())
+            continue
         candidates.append(relative)
-    for relative_root in APP_ROOTS:
-        absolute_root = root / relative_root
-        reject_lexical_symlink_components(root, absolute_root, relative_root.as_posix())
-        if absolute_root.is_symlink() or not absolute_root.is_dir():
-            raise ValueError(f"missing release bundle: {relative_root.as_posix()}")
-        try:
-            absolute_root.resolve(strict=True).relative_to(root.resolve(strict=True))
-        except ValueError as error:
-            raise ValueError(f"release bundle escapes archive root: {relative_root.as_posix()}") from error
-        candidates.extend(
-            path.relative_to(root)
-            for path in absolute_root.rglob("*")
-            if path.is_symlink() or not path.is_dir()
-        )
     for relative in sorted(set(candidates), key=lambda value: value.as_posix().encode()):
         normalized = PurePosixPath(relative.as_posix())
         if normalized.is_absolute() or ".." in normalized.parts:

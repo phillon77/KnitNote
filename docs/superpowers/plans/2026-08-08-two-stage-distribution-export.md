@@ -46,3 +46,22 @@
 - [ ] Verify provenance and all four exported products' Distribution authority/team/profile/version/build/source/locales/privacy/entitlements.
 - [ ] Re-run the formal archive audit and require `RELEASE AUDIT: PASS`.
 - [ ] Stop before distribution and report remaining physical/App Store gates.
+
+### Task 4: Harden candidate publication and retained artifacts
+
+**Files:**
+- Modify: `AppStore/Verification/create_release_candidate.sh`
+- Modify: `AppStore/Verification/release_audit.sh`
+- Modify: `AppStore/Verification/release_archive_manifest.py`
+- Modify: `AppStore/Screenshots/python_runtime.sh`
+- Modify: `Tests/KnitNoteCoreTests/ReleaseAuditLocalizationTests.swift`
+- Modify: `Tests/KnitNoteCoreTests/StoreScreenshotFixturesTests.swift`
+- Modify: `docs/superpowers/specs/2026-08-08-two-stage-distribution-export-design.md`
+- Modify: release verification reports/runbook as needed
+
+- [x] Add RED coverage for raw Packaging.log exclusion, private candidate permissions, complete retained-artifact provenance, Mac pkg container signature, exclusive publication races, and wrong Pillow versions.
+- [x] Remove raw packaging logs before provenance; reject retained logs; inventory every retained candidate artifact except the canonical provenance file itself.
+- [x] Require a trusted Apple-issued Mac installer package signature for team `9CFPAUL5N5`, while retaining exported app bundle checks.
+- [x] Publish with same-filesystem atomic exclusive rename and fail closed if the destination appeared during the long build.
+- [x] Enforce the checked-in Pillow pin and document the truthful boundary: local export does not upload the app or use provisioning updates, but macOS export may contact authorized Apple developer services for managed package signing.
+- [x] Verify focused/full tests, static/formal audits, independent review, and leave the quarantined credential-bearing candidate untouched pending explicit authorization.

@@ -40,6 +40,54 @@ fail() {
   exit 1
 }
 
+verify_distribution_inventory() {
+  local archives="$1"
+  python3 - "$archives" <<'PY' || fail "Distribution inventory contains an unexpected or credential-bearing file"
+from pathlib import Path
+import stat
+import sys
+
+root = Path(sys.argv[1]).resolve(strict=True)
+expected = {
+    "Distribution/iOS/KnitNote.ipa",
+    "Distribution/iOS/DistributionSummary.plist",
+    "Distribution/iOS/ExportOptions.plist",
+    "Distribution/macOS/KnitNote.pkg",
+    "Distribution/macOS/DistributionSummary.plist",
+    "Distribution/macOS/ExportOptions.plist",
+}
+actual = set()
+for path in (root / "Distribution").rglob("*"):
+    relative = path.relative_to(root).as_posix()
+    mode = path.lstat().st_mode
+    if stat.S_ISDIR(mode):
+        continue
+    if path.is_symlink() or not stat.S_ISREG(mode):
+        raise SystemExit(1)
+    actual.add(relative)
+raise SystemExit(0 if actual == expected else 1)
+PY
+}
+
+verify_mac_package_signature() {
+  local package="$1" signature
+  signature="$("$PKGUTIL" --check-signature "$package" 2>&1)" \
+    || fail "macOS pkg is not signed by the required trusted Apple installer distribution"
+  python3 - "$EXPECTED_TEAM" "$signature" <<'PY' || fail "macOS pkg is not signed by the required trusted Apple installer distribution"
+import re
+import sys
+
+team, output = sys.argv[1:]
+valid = (
+    "Status: signed by a certificate trusted by macOS" in output
+    and re.search(r"3rd Party Mac Developer Installer:.*\(" + re.escape(team) + r"\)", output)
+    and "Apple Worldwide Developer Relations Certification Authority" in output
+    and "Apple Root CA" in output
+)
+raise SystemExit(0 if valid else 1)
+PY
+}
+
 verify_mac_security_entitlements() {
   local label="$1" plist="$2" mode="${3:-source}"
   "$PLUTIL" -convert json -o - "$plist" \
@@ -715,10 +763,12 @@ if [[ -n "$ARCHIVES" ]]; then
   python3 AppStore/Verification/release_archive_manifest.py verify \
     --archives "$ARCHIVES" --source-commit "$EXPECTED_COMMIT" --input "$PROVENANCE" \
     || fail "provenance sourceCommit or deterministic archive inventory mismatch"
+  verify_distribution_inventory "$ARCHIVES"
   IPA="$ARCHIVES/Distribution/iOS/KnitNote.ipa"
   PKG="$ARCHIVES/Distribution/macOS/KnitNote.pkg"
   [[ -f "$IPA" && ! -L "$IPA" ]] || fail "exported iOS IPA is missing or unsafe"
   [[ -f "$PKG" && ! -L "$PKG" ]] || fail "exported macOS pkg is missing or unsafe"
+  verify_mac_package_signature "$PKG"
   EXTRACTION_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/knitnote-release-products.XXXXXX")"
   IOS_EXTRACT="$EXTRACTION_ROOT/ios"
   MAC_EXTRACT="$EXTRACTION_ROOT/mac"

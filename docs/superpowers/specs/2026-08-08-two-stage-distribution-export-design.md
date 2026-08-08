@@ -7,7 +7,7 @@ Xcode-managed Store profiles cannot be selected by manual signing. Automatic Arc
 1. create an automatic development-signed Archive;
 2. run `xcodebuild -exportArchive` with `method=app-store-connect`, `destination=export`, and automatic export signing.
 
-The exported iOS IPA and macOS pkg use Apple Distribution and the correct existing Store profiles for the main app, Watch app, Share extension, and Mac app. No upload or profile update is required.
+The exported iOS IPA and macOS pkg use Apple Distribution and the correct existing Store profiles for the main app, Watch app, Share extension, and Mac app. No app upload or profile update is required. macOS export may contact authorized Apple developer services for managed installer-package signing; that remote signing boundary is not an App Store mutation.
 
 ## Design
 
@@ -35,5 +35,6 @@ The exported iOS IPA and macOS pkg use Apple Distribution and the correct existi
 - No App behavior, data, localization, version `1.4.1`, or build `8` changes.
 - No profile/certificate creation, download, mutation, provisioning update, upload, submission, pricing, build selection, or App Store Connect mutation.
 - Export must run with `destination=export`; `destination=upload` and `-allowProvisioningUpdates` are forbidden.
+- A local macOS export may use authorized Apple developer-service network access for managed package signing. It remains forbidden to upload the app, mutate App Store Connect, or request provisioning updates.
 - The original Archives are build inputs; the exported IPA/pkg are the Distribution-signed products that determine candidate clearance.
 - Physical acceptance and App Store parity remain separate after a formal audit passes.

@@ -448,7 +448,7 @@ import Testing
         )
         #expect(developerIssuedResult.status == 0, Comment(rawValue: developerIssuedResult.output))
 
-        for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "mixed-team", "untrusted", "arbitrary-status", "revoked-status", "error-status", "wrong-chain"] {
+        for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "mixed-team", "untrusted", "arbitrary-status", "revoked-status", "error-status", "wrong-chain", "allowed-plus-revoked", "wrong-intermediate-decoy", "repeated-leaf-one"] {
             let fixture = try makeArchiveFixture(packageSignature: signature)
             defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
             let result = try runReleaseAudit(
@@ -2343,6 +2343,9 @@ private func makeArchiveFixture(
         revoked-status) printf '%s\\n' 'Status: certificate has been revoked' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         error-status) printf '%s\\n' 'Status: unable to verify certificate' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-chain) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Example Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        allowed-plus-revoked) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Status: certificate has been revoked' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        wrong-intermediate-decoy) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Example Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        repeated-leaf-one) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (BADTEAM123)' ' 1. 3rd Party Mac Developer Installer: Decoy (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         unsigned) echo 'Status: no signature' >&2; exit 12 ;;
         tampered) echo 'Status: package signature is invalid' >&2; exit 13 ;;
         untrusted) echo 'Status: signed by a certificate not trusted by macOS' >&2; exit 14 ;;

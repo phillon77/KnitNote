@@ -30,3 +30,17 @@ The audit parser accepted only `Status: signed by a certificate trusted by macOS
 ## Scope
 
 This task changed only the package-status parser and its audit fixture coverage. It performed no Archive, Export, creator, candidate retry, network, App Store Connect, provisioning/profile/session mutation, push, or merge. The Task 5 candidate remains absent; no release or submission gate is cleared by this source-only repair.
+
+## Fix Round 1 — exclusive package output structure
+
+Review found that the first allowlist repair still searched the overall output: an accepted status plus a revoked status, an intermediate line containing the accepted name as a substring, or a bad leaf `1.` followed by a second correct `1.` could be falsely accepted.
+
+RED fixtures proved all three combinations passed the old parser (six expectation issues in the focused contract). The parser now requires all of the following together:
+
+- exactly one `Status:` line, equal to one of the two approved forms;
+- exactly one `Certificate Chain:` heading;
+- exactly three numbered chain entries, in order: leaf `1.` with exact installer label/team, exact WWDR entry `2.`, and exact Apple Root entry `3.`.
+
+Non-numbered post-chain details such as expiry or fingerprint lines remain irrelevant, while repeated or additional numbered certificate entries fail. The `pkgutil` exit-zero gate remains unchanged.
+
+Fix Round 1 verification: targeted package contract 1/1 passed in 53.628 seconds (`/tmp/KnitNoteTask6Fix1-green.log`); fresh full `ReleaseAuditLocalizationTests` 54/54 passed in 417.587 seconds (`/tmp/KnitNoteTask6Fix1-release-audit-full.log`); fresh `StoreScreenshotFixturesTests` 19/19 passed in 7.484 seconds (`/tmp/KnitNoteTask6Fix1-screenshots.log`). Static audit, Bash syntax, Python compilation, plist lint, and diff check passed. No Archive, Export, creator, candidate retry, network, or App Store operation occurred.

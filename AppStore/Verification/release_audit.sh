@@ -78,19 +78,31 @@ import re
 import sys
 
 team, output = sys.argv[1:]
+lines = output.splitlines()
 installer_leaf = re.compile(
-    r"^\s*1\.\s+3rd Party Mac Developer Installer:.+ \(" + re.escape(team) + r"\)\s*$",
-    re.MULTILINE,
+    r"1\.\s+3rd Party Mac Developer Installer:.+ \(" + re.escape(team) + r"\)",
 )
-accepted_status = re.compile(
-    r"^Status: (?:signed by a certificate trusted by macOS|signed by a developer certificate issued by Apple \(Development\))\s*$",
-    re.MULTILINE,
-)
+accepted_statuses = {
+    "Status: signed by a certificate trusted by macOS",
+    "Status: signed by a developer certificate issued by Apple (Development)",
+}
+status_lines = [line for line in lines if line.startswith("Status:")]
+chain_headers = [index for index, line in enumerate(lines) if line == "Certificate Chain:"]
+numbered_entries = []
+if len(chain_headers) == 1:
+    numbered_entries = [
+        line.strip()
+        for line in lines[chain_headers[0] + 1:]
+        if re.match(r"^\s*\d+\.\s+", line)
+    ]
 valid = (
-    accepted_status.search(output)
-    and installer_leaf.search(output)
-    and "Apple Worldwide Developer Relations Certification Authority" in output
-    and "Apple Root CA" in output
+    len(status_lines) == 1
+    and status_lines[0] in accepted_statuses
+    and len(chain_headers) == 1
+    and len(numbered_entries) == 3
+    and installer_leaf.fullmatch(numbered_entries[0])
+    and numbered_entries[1] == "2. Apple Worldwide Developer Relations Certification Authority"
+    and numbered_entries[2] == "3. Apple Root CA"
 )
 raise SystemExit(0 if valid else 1)
 PY

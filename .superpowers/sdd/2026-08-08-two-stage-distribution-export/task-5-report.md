@@ -61,3 +61,5 @@ The final path remained absent after cleanup, and the exact source HEAD/status r
 ## Follow-up: Task 6 audit compatibility repair
 
 Read-only inspection established that the local package verifier exited zero and reported the exact installer leaf, WWDR intermediate, and Apple Root CA, but used the precise status line `Status: signed by a developer certificate issued by Apple (Development)`. The old audit only accepted the different `trusted by macOS` line. Task 6 adds a narrow, tested status allowlist while retaining the zero exit, exact `1.` leaf/team, WWDR, and Apple Root requirements. No candidate was created or retried in that repair task.
+
+Task 6 Fix Round 1 then closed a parser-composition finding: matching a valid status or chain component anywhere could accept mixed status lines, a substring-bearing false intermediate, or a repeated leaf entry. The parser now requires exactly one approved status line and one exact three-entry certificate chain. No candidate was created or retried in that follow-up either.

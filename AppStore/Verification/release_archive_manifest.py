@@ -18,19 +18,47 @@ ARCHIVE_PLISTS = (
     Path("KnitNote-iOS-Privacy.xcarchive/Info.plist"),
     Path("KnitNote-macOS-Privacy.xcarchive/Info.plist"),
 )
+EXPORTED_ARTIFACTS = (
+    Path("Distribution/iOS/KnitNote.ipa"),
+    Path("Distribution/macOS/KnitNote.pkg"),
+    Path("Distribution/iOS/DistributionSummary.plist"),
+    Path("Distribution/macOS/DistributionSummary.plist"),
+    Path("Distribution/iOS/ExportOptions.plist"),
+    Path("Distribution/macOS/ExportOptions.plist"),
+)
+DEFAULT_EXPORT_OPTIONS = Path(__file__).with_name("ExportOptions-AppStore.plist")
 
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def require_regular_file(path: Path, label: str, root: Path | None = None) -> None:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"missing or unsafe release artifact: {label}")
+    if root is not None:
+        try:
+            path.resolve(strict=True).relative_to(root.resolve(strict=True))
+        except ValueError as error:
+            raise ValueError(f"release artifact escapes archive root: {label}") from error
+
+
 def inventory(root: Path) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
-    candidates: list[Path] = list(ARCHIVE_PLISTS)
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("release archive root is missing or unsafe")
+    candidates: list[Path] = []
+    for relative in (*ARCHIVE_PLISTS, *EXPORTED_ARTIFACTS):
+        require_regular_file(root / relative, relative.as_posix(), root)
+        candidates.append(relative)
     for relative_root in APP_ROOTS:
         absolute_root = root / relative_root
-        if not absolute_root.is_dir():
+        if absolute_root.is_symlink() or not absolute_root.is_dir():
             raise ValueError(f"missing release bundle: {relative_root.as_posix()}")
+        try:
+            absolute_root.resolve(strict=True).relative_to(root.resolve(strict=True))
+        except ValueError as error:
+            raise ValueError(f"release bundle escapes archive root: {relative_root.as_posix()}") from error
         candidates.extend(
             path.relative_to(root)
             for path in absolute_root.rglob("*")
@@ -56,10 +84,23 @@ def inventory(root: Path) -> list[dict[str, str]]:
     return entries
 
 
-def payload(root: Path, commit: str) -> dict:
+def export_options_record(path: Path) -> dict[str, str]:
+    require_regular_file(path, "AppStore/Verification/ExportOptions-AppStore.plist")
+    return {
+        "path": "AppStore/Verification/ExportOptions-AppStore.plist",
+        "sha256": digest(path.read_bytes()),
+    }
+
+
+def payload(root: Path, commit: str, export_options: Path) -> dict:
     if len(commit) != 40 or any(character not in "0123456789abcdef" for character in commit):
         raise ValueError("source commit must be forty lowercase hexadecimal characters")
-    return {"schemaVersion": 1, "sourceCommit": commit, "inventory": inventory(root)}
+    return {
+        "schemaVersion": 2,
+        "sourceCommit": commit,
+        "exportOptions": export_options_record(export_options),
+        "inventory": inventory(root),
+    }
 
 
 def canonical(value: dict) -> bytes:
@@ -73,12 +114,20 @@ def main() -> int:
     create.add_argument("--archives", type=Path, required=True)
     create.add_argument("--source-commit", required=True)
     create.add_argument("--output", type=Path, required=True)
+    create.add_argument("--export-options", type=Path, default=DEFAULT_EXPORT_OPTIONS)
     verify = subparsers.add_parser("verify")
     verify.add_argument("--archives", type=Path, required=True)
     verify.add_argument("--source-commit", required=True)
     verify.add_argument("--input", type=Path, required=True)
+    verify.add_argument("--export-options", type=Path, default=DEFAULT_EXPORT_OPTIONS)
     arguments = parser.parse_args()
-    expected = payload(arguments.archives.resolve(), arguments.source_commit)
+    if arguments.archives.is_symlink():
+        raise SystemExit("release archive root must not be a symlink")
+    expected = payload(
+        arguments.archives.resolve(),
+        arguments.source_commit,
+        arguments.export_options,
+    )
     if arguments.command == "create":
         temporary = arguments.output.with_name(f".{arguments.output.name}.tmp.{os.getpid()}")
         temporary.write_bytes(canonical(expected))

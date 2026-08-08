@@ -25,6 +25,8 @@ CODESIGN=/usr/bin/codesign
 SECURITY=/usr/bin/security
 PLUTIL=/usr/bin/plutil
 SWIFT=/usr/bin/swift
+DITTO=/usr/bin/ditto
+PKGUTIL=/usr/sbin/pkgutil
 XCODEGEN=/opt/homebrew/bin/xcodegen
 EXPECTED_TEAM="9CFPAUL5N5"
 RELEASE_140_SOURCE_BASELINE="ca3014146f2b9156b71b5104f7fea7e5fbd02839"
@@ -177,6 +179,66 @@ PY
     verify_mac_security_entitlements "macOS signed" "$signed_json" signed
   fi
   rm -f "$cert_prefix"* "$profile_json" "$signed_json"
+}
+
+require_safe_directory() {
+  local label="$1" root="$2" candidate="$3"
+  python3 - "$label" "$root" "$candidate" <<'PY'
+from pathlib import Path
+import sys
+
+label, root_arg, candidate_arg = sys.argv[1:]
+root = Path(root_arg)
+candidate = Path(candidate_arg)
+try:
+    root_resolved = root.resolve(strict=True)
+    candidate_resolved = candidate.resolve(strict=True)
+    relative = candidate_resolved.relative_to(root_resolved)
+except (FileNotFoundError, ValueError):
+    raise SystemExit(f"release audit: {label} is missing or escapes its extraction root")
+current = root_resolved
+for part in relative.parts:
+    current = current / part
+    if current.is_symlink():
+        raise SystemExit(f"release audit: {label} contains an unsafe symlink")
+if not candidate.is_dir() or candidate.is_symlink():
+    raise SystemExit(f"release audit: {label} is not a real directory")
+print(candidate_resolved)
+PY
+}
+
+find_unique_mac_app() {
+  local root="$1"
+  python3 - "$root" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+root = Path(sys.argv[1])
+try:
+    resolved_root = root.resolve(strict=True)
+except FileNotFoundError:
+    raise SystemExit("release audit: exported macOS app root is missing")
+candidates = []
+for directory, names, _ in os.walk(resolved_root, followlinks=False):
+    base = Path(directory)
+    for name in names:
+        path = base / name
+        if name == "KnitNote.app" and path.parent.name == "Payload":
+            if path.is_symlink():
+                raise SystemExit("release audit: exported macOS app root contains an unsafe symlink")
+            candidates.append(path)
+if len(candidates) != 1:
+    raise SystemExit(
+        f"release audit: expected exactly one exported macOS app root, found {len(candidates)}"
+    )
+candidate = candidates[0].resolve(strict=True)
+try:
+    candidate.relative_to(resolved_root)
+except ValueError:
+    raise SystemExit("release audit: exported macOS app root escapes its extraction root")
+print(candidate)
+PY
 }
 
 verify_project_inventory() {
@@ -477,6 +539,8 @@ if [[ "$TEST_ONLY" == 1 ]]; then
   CODESIGN="${KNITNOTE_CODESIGN:-$CODESIGN}"
   SECURITY="${KNITNOTE_SECURITY:-$SECURITY}"
   SWIFT="${KNITNOTE_SWIFT:-$SWIFT}"
+  DITTO="${KNITNOTE_DITTO:-$DITTO}"
+  PKGUTIL="${KNITNOTE_PKGUTIL:-$PKGUTIL}"
 else
   for variable in ${!KNITNOTE_@}; do
     fail "production audit rejects override $variable; use --test-only only for fixtures"
@@ -499,7 +563,14 @@ if [[ "$MODE" == "archives" ]]; then
 fi
 
 SPEC_JSON="$(mktemp "${TMPDIR:-/tmp}/knitnote-release-spec.XXXXXX")"
-trap 'rm -f "$SPEC_JSON"' EXIT
+EXTRACTION_ROOT=""
+cleanup_release_audit() {
+  rm -f "$SPEC_JSON"
+  if [[ -n "$EXTRACTION_ROOT" ]]; then
+    rm -rf "$EXTRACTION_ROOT"
+  fi
+}
+trap cleanup_release_audit EXIT
 "$XCODEGEN" dump --type parsed-json >"$SPEC_JSON"
 verify_project_regions
 verify_project_inventory
@@ -633,13 +704,26 @@ if [[ -n "$ARCHIVES" ]]; then
   python3 AppStore/Verification/release_archive_manifest.py verify \
     --archives "$ARCHIVES" --source-commit "$EXPECTED_COMMIT" --input "$PROVENANCE" \
     || fail "provenance sourceCommit or deterministic archive inventory mismatch"
-  IOS="$ARCHIVES/KnitNote-iOS-Privacy.xcarchive/Products/Applications/KnitNote.app"
-  MAC="$ARCHIVES/KnitNote-macOS-Privacy.xcarchive/Products/Applications/KnitNote.app"
+  IPA="$ARCHIVES/Distribution/iOS/KnitNote.ipa"
+  PKG="$ARCHIVES/Distribution/macOS/KnitNote.pkg"
+  [[ -f "$IPA" && ! -L "$IPA" ]] || fail "exported iOS IPA is missing or unsafe"
+  [[ -f "$PKG" && ! -L "$PKG" ]] || fail "exported macOS pkg is missing or unsafe"
+  EXTRACTION_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/knitnote-release-products.XXXXXX")"
+  IOS_EXTRACT="$EXTRACTION_ROOT/ios"
+  MAC_EXTRACT="$EXTRACTION_ROOT/mac"
+  mkdir "$IOS_EXTRACT" "$MAC_EXTRACT"
+  "$DITTO" -x -k "$IPA" "$IOS_EXTRACT" || fail "iOS IPA extraction failed"
+  "$PKGUTIL" --expand-full "$PKG" "$MAC_EXTRACT" || fail "macOS pkg expansion failed"
+  IOS="$(require_safe_directory "exported iOS app root" "$IOS_EXTRACT" "$IOS_EXTRACT/Payload/KnitNote.app")" \
+    || fail "exported iOS app root is missing or unsafe"
+  MAC="$(find_unique_mac_app "$MAC_EXTRACT")" \
+    || fail "expected exactly one exported macOS app root"
   WATCH="$IOS/Watch/KnitNoteWatch.app"
   SHARE="$IOS/PlugIns/KnitNoteShare.appex"
-  for path in "$IOS" "$WATCH" "$SHARE" "$MAC"; do
-    [[ -d "$path" ]] || { echo "release audit: missing app bundle: $path" >&2; exit 1; }
-  done
+  WATCH="$(require_safe_directory "exported Watch app root" "$IOS_EXTRACT" "$WATCH")" \
+    || fail "exported Watch app root is missing or unsafe"
+  SHARE="$(require_safe_directory "exported Share extension root" "$IOS_EXTRACT" "$SHARE")" \
+    || fail "exported Share extension root is missing or unsafe"
   verify_bundle_localizations "iOS" "$IOS/Info.plist" "$IOS" "KnitNote/Localization/Localizable.xcstrings"
   verify_bundle_localizations "Watch" "$WATCH/Info.plist" "$WATCH" "KnitNoteWatch/Localizable.xcstrings"
   verify_bundle_localizations "Share" "$SHARE/Info.plist" "$SHARE" "KnitNoteShare/Localizable.xcstrings"

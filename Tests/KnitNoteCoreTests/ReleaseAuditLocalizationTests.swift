@@ -264,6 +264,131 @@ import Testing
         #expect(result.status == 0)
         #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
         #expect(!result.output.split(separator: "\n").contains("RELEASE AUDIT: PASS"))
+        let extractedDirectories = try String(contentsOf: fixture.extractionLog, encoding: .utf8)
+            .split(separator: "\n")
+            .map { URL(fileURLWithPath: String($0)) }
+        #expect(extractedDirectories.count == 2)
+        #expect(extractedDirectories.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
+    }
+
+    @Test func archiveAuditBindsEveryExportedDistributionArtifactInProvenance() throws {
+        let artifacts = [
+            "Distribution/iOS/KnitNote.ipa",
+            "Distribution/macOS/KnitNote.pkg",
+            "Distribution/iOS/DistributionSummary.plist",
+            "Distribution/macOS/DistributionSummary.plist",
+            "Distribution/iOS/ExportOptions.plist",
+            "Distribution/macOS/ExportOptions.plist",
+        ]
+        for artifact in artifacts {
+            let fixture = try makeArchiveFixture(mutateDistributionAfterProvenance: artifact)
+            defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+            let result = try runReleaseAudit(
+                archives: fixture.archives,
+                environment: ["PATH": fixture.commandPath]
+            )
+
+            #expect(result.status != 0)
+            #expect(result.output.contains("deterministic archive inventory mismatch"))
+        }
+    }
+
+    @Test func archiveAuditRejectsMissingExportedIPAAndPkg() throws {
+        for artifact in ["Distribution/iOS/KnitNote.ipa", "Distribution/macOS/KnitNote.pkg"] {
+            let fixture = try makeArchiveFixture(removeDistributionAfterProvenance: artifact)
+            defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+            let result = try runReleaseAudit(
+                archives: fixture.archives,
+                environment: ["PATH": fixture.commandPath]
+            )
+
+            #expect(result.status != 0)
+            #expect(result.output.contains("deterministic archive inventory mismatch"))
+        }
+    }
+
+    @Test func archiveAuditRejectsSymlinkedDistributionArtifactAndExtractedAppRoot() throws {
+        let artifactFixture = try makeArchiveFixture(
+            symlinkDistributionAfterProvenance: "Distribution/iOS/KnitNote.ipa"
+        )
+        defer { try? FileManager.default.removeItem(at: artifactFixture.temporaryRoot) }
+        let artifactResult = try runReleaseAudit(
+            archives: artifactFixture.archives,
+            environment: ["PATH": artifactFixture.commandPath]
+        )
+        #expect(artifactResult.status != 0)
+        #expect(artifactResult.output.contains("deterministic archive inventory mismatch"))
+
+        let rootFixture = try makeArchiveFixture(symlinkPreparedExportRoot: "iOS")
+        defer { try? FileManager.default.removeItem(at: rootFixture.temporaryRoot) }
+        let rootResult = try runReleaseAudit(
+            archives: rootFixture.archives,
+            environment: ["PATH": rootFixture.commandPath]
+        )
+        #expect(rootResult.status != 0)
+        #expect(rootResult.output.contains("exported iOS app root is missing or unsafe"))
+    }
+
+    @Test func archiveAuditInspectsExtractedProductsAndRejectsExtractionFailuresOrAmbiguity() throws {
+        let passing = try makeArchiveFixture(rejectArchiveCodesign: true)
+        defer { try? FileManager.default.removeItem(at: passing.temporaryRoot) }
+        let passingResult = try runReleaseAudit(
+            archives: passing.archives,
+            environment: ["PATH": passing.commandPath]
+        )
+        #expect(passingResult.status == 0, Comment(rawValue: passingResult.output))
+
+        let cases: [(ArchiveFixture, String)] = [
+            (try makeArchiveFixture(extractionFailure: "iOS"), "iOS IPA extraction failed"),
+            (try makeArchiveFixture(extractionFailure: "macOS"), "macOS pkg expansion failed"),
+            (try makeArchiveFixture(omitPreparedExportRoot: "iOS"), "exported iOS app root"),
+            (try makeArchiveFixture(omitPreparedExportRoot: "macOS"), "exported macOS app root"),
+            (try makeArchiveFixture(ambiguousMacApps: true), "exactly one exported macOS app root"),
+        ]
+        for (fixture, expected) in cases {
+            defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+            let result = try runReleaseAudit(
+                archives: fixture.archives,
+                environment: ["PATH": fixture.commandPath]
+            )
+            #expect(result.status != 0)
+            #expect(result.output.contains(expected), Comment(rawValue: result.output))
+            if FileManager.default.fileExists(atPath: fixture.extractionLog.path) {
+                let paths = try String(contentsOf: fixture.extractionLog, encoding: .utf8)
+                    .split(separator: "\n")
+                    .map { URL(fileURLWithPath: String($0)) }
+                #expect(paths.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
+            }
+        }
+    }
+
+    @Test func productionAuditRejectsExtractionToolOverrides() throws {
+        for variable in ["KNITNOTE_DITTO", "KNITNOTE_PKGUTIL"] {
+            let result = try runReleaseAudit(
+                arguments: ["--static-only"],
+                environment: [:],
+                productionEnvironment: [variable: "/tmp/fixture-tool"]
+            )
+            #expect(result.status != 0)
+            #expect(result.output.contains("production audit rejects override \(variable)"))
+            #expect(!result.output.contains("RELEASE AUDIT: PASS"))
+        }
+    }
+
+    @Test func provenanceBindsTheCheckedInExportOptionsTemplate() throws {
+        let fixture = try makeArchiveFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let options = fixture.temporaryRoot.appendingPathComponent("ExportOptions-AppStore.plist")
+        try FileManager.default.copyItem(
+            at: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/ExportOptions-AppStore.plist"),
+            to: options
+        )
+        let provenance = fixture.temporaryRoot.appendingPathComponent("template-provenance.json")
+        #expect(try runManifest("create", archives: fixture.archives, provenance: provenance, exportOptions: options) == 0)
+        try Data("mutated options".utf8).write(to: options)
+        #expect(try runManifest("verify", archives: fixture.archives, provenance: provenance, exportOptions: options) != 0)
     }
 
     @Test func archiveAuditRejectsMissingMacInfoPlistTable() throws {
@@ -1341,6 +1466,7 @@ private struct ArchiveFixture {
     let archives: URL
     let commandPath: String
     let provenance: URL
+    let extractionLog: URL
 }
 
 private let fixtureCommit = String(repeating: "a", count: 40)
@@ -1382,6 +1508,8 @@ private func runReleaseAudit(
         environment["KNITNOTE_CODESIGN"] = "\(commandPath)/codesign"
         environment["KNITNOTE_SECURITY"] = "\(commandPath)/security"
         environment["KNITNOTE_SWIFT"] = "\(commandPath)/swift"
+        environment["KNITNOTE_DITTO"] = "\(commandPath)/ditto"
+        environment["KNITNOTE_PKGUTIL"] = "\(commandPath)/pkgutil"
     }
     process.environment = environment
     let output = Pipe()
@@ -1397,6 +1525,28 @@ private func runReleaseAudit(
             encoding: .utf8
         ) ?? ""
     )
+}
+
+private func runManifest(
+    _ command: String,
+    archives: URL,
+    provenance: URL,
+    exportOptions: URL
+) throws -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = [
+        "python3",
+        releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/release_archive_manifest.py").path,
+        command,
+        "--archives", archives.path,
+        "--source-commit", fixtureCommit,
+        command == "create" ? "--output" : "--input", provenance.path,
+        "--export-options", exportOptions.path,
+    ]
+    try process.run()
+    process.waitUntilExit()
+    return process.terminationStatus
 }
 
 private func makeArchiveFixture(
@@ -1429,7 +1579,15 @@ private func makeArchiveFixture(
     misplacedEnglishInfoPlistFallback: (target: String, key: String)? = nil,
     missingMacSignedEntitlement: String? = nil,
     changedMacSignedEntitlement: String? = nil,
-    extraMacSignedEntitlement: String? = nil
+    extraMacSignedEntitlement: String? = nil,
+    mutateDistributionAfterProvenance: String? = nil,
+    removeDistributionAfterProvenance: String? = nil,
+    extractionFailure: String? = nil,
+    omitPreparedExportRoot: String? = nil,
+    ambiguousMacApps: Bool = false,
+    rejectArchiveCodesign: Bool = false,
+    symlinkDistributionAfterProvenance: String? = nil,
+    symlinkPreparedExportRoot: String? = nil
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
@@ -1614,6 +1772,62 @@ private func makeArchiveFixture(
         try Data("binary".utf8).write(to: file)
     }
 
+    if profileMissing {
+        try fileManager.removeItem(at: iOSApp.appendingPathComponent("embedded.mobileprovision"))
+    }
+
+    let preparedIOS = temporaryRoot.appendingPathComponent("prepared-ios")
+    let preparedIOSApp = preparedIOS.appendingPathComponent("Payload/KnitNote.app")
+    let preparedMac = temporaryRoot.appendingPathComponent("prepared-mac")
+    let preparedMacApp = preparedMac.appendingPathComponent(
+        "com.phillon.KnitNote.pkg/Payload/KnitNote.app"
+    )
+    try fileManager.createDirectory(at: preparedIOS, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: preparedMac, withIntermediateDirectories: true)
+    if omitPreparedExportRoot != "iOS" {
+        try fileManager.createDirectory(
+            at: preparedIOSApp.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fileManager.copyItem(at: iOSApp, to: preparedIOSApp)
+    }
+    if omitPreparedExportRoot != "macOS" {
+        try fileManager.createDirectory(
+            at: preparedMacApp.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fileManager.copyItem(at: macApp, to: preparedMacApp)
+    }
+    if ambiguousMacApps {
+        let second = preparedMac.appendingPathComponent("other.pkg/Payload/KnitNote.app")
+        try fileManager.createDirectory(at: second.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fileManager.copyItem(at: macApp, to: second)
+    }
+    if symlinkPreparedExportRoot == "iOS" {
+        try fileManager.removeItem(at: preparedIOSApp)
+        try fileManager.createSymbolicLink(at: preparedIOSApp, withDestinationURL: iOSApp)
+    } else if symlinkPreparedExportRoot == "macOS" {
+        try fileManager.removeItem(at: preparedMacApp)
+        try fileManager.createSymbolicLink(at: preparedMacApp, withDestinationURL: macApp)
+    }
+
+    let distributionIOS = archives.appendingPathComponent("Distribution/iOS")
+    let distributionMac = archives.appendingPathComponent("Distribution/macOS")
+    try fileManager.createDirectory(at: distributionIOS, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: distributionMac, withIntermediateDirectories: true)
+    try Data("fixture ipa bytes".utf8).write(to: distributionIOS.appendingPathComponent("KnitNote.ipa"))
+    try Data("fixture pkg bytes".utf8).write(to: distributionMac.appendingPathComponent("KnitNote.pkg"))
+    for directory in [distributionIOS, distributionMac] {
+        try writePlist(
+            ["teamID": "9CFPAUL5N5", "signingCertificate": "Apple Distribution"],
+            to: directory.appendingPathComponent("DistributionSummary.plist")
+        )
+        try fileManager.copyItem(
+            at: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/ExportOptions-AppStore.plist"),
+            to: directory.appendingPathComponent("ExportOptions.plist")
+        )
+    }
+
     let fakeBin = temporaryRoot.appendingPathComponent("bin")
     try fileManager.createDirectory(at: fakeBin, withIntermediateDirectories: true)
     let codesign = fakeBin.appendingPathComponent("codesign")
@@ -1630,6 +1844,9 @@ private func makeArchiveFixture(
     }.joined() + (extraMacSignedEntitlement.map { "<key>\($0)</key><true/>" } ?? "")
     try """
     #!/bin/sh
+    case "$*" in
+      *.xcarchive*) [ "\(rejectArchiveCodesign ? "yes" : "no")" = "yes" ] && exit 91 ;;
+    esac
     if [ "${1:-}" = "--verify" ] && [ "\(shouldFailCodesign)" = "yes" ]; then
       exit 1
     elif [ "${1:-}" = "-dvv" ]; then
@@ -1644,7 +1861,7 @@ private func makeArchiveFixture(
       case "${4:-${3:-}}" in
         *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; group='' ;;
         *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
-        *macOS*) bundle='com.phillon.KnitNote'; group='\(macSecurityEntitlements)' ;;
+        *macOS*|*/mac/*) bundle='com.phillon.KnitNote'; group='\(macSecurityEntitlements)' ;;
         *) bundle='com.phillon.KnitNote'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
       esac
       signed_id='\(fixtureSignedIdentifier)'
@@ -1682,6 +1899,27 @@ private func makeArchiveFixture(
         [.posixPermissions: NSNumber(value: 0o755)],
         ofItemAtPath: swift.path
     )
+    let extractionLog = temporaryRoot.appendingPathComponent("extraction-paths.log")
+    let ditto = fakeBin.appendingPathComponent("ditto")
+    try """
+    #!/bin/sh
+    [ "\(extractionFailure == "iOS" ? "yes" : "no")" = "yes" ] && exit 93
+    destination="$4"
+    printf '%s\n' "$destination" >> '\(extractionLog.path)'
+    mkdir -p "$destination"
+    cp -R '\(preparedIOS.path)/.' "$destination/"
+    """.write(to: ditto, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: ditto.path)
+    let pkgutil = fakeBin.appendingPathComponent("pkgutil")
+    try """
+    #!/bin/sh
+    [ "\(extractionFailure == "macOS" ? "yes" : "no")" = "yes" ] && exit 94
+    destination="$3"
+    printf '%s\n' "$destination" >> '\(extractionLog.path)'
+    mkdir -p "$destination"
+    cp -R '\(preparedMac.path)/.' "$destination/"
+    """.write(to: pkgutil, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: pkgutil.path)
     let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
     let provenance = temporaryRoot.appendingPathComponent("provenance.json")
     for archiveName in ["KnitNote-iOS-Privacy.xcarchive", "KnitNote-macOS-Privacy.xcarchive"] {
@@ -1704,22 +1942,28 @@ private func makeArchiveFixture(
     if mutateAfterProvenance {
         try Data("mutated".utf8).write(to: artifacts[0].1)
     }
-    if profileMissing {
-        try fileManager.removeItem(at: iOSApp.appendingPathComponent("embedded.mobileprovision"))
-        let regenerate = Process()
-        regenerate.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        regenerate.arguments = [
-            "python3", releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/release_archive_manifest.py").path,
-            "create", "--archives", archives.path, "--source-commit", fixtureCommit, "--output", provenance.path,
-        ]
-        try regenerate.run()
-        regenerate.waitUntilExit()
+    if let relative = mutateDistributionAfterProvenance {
+        try Data("mutated distribution artifact".utf8).write(
+            to: archives.appendingPathComponent(relative)
+        )
+    }
+    if let relative = removeDistributionAfterProvenance {
+        try fileManager.removeItem(at: archives.appendingPathComponent(relative))
+    }
+    if let relative = symlinkDistributionAfterProvenance {
+        let artifact = archives.appendingPathComponent(relative)
+        try fileManager.removeItem(at: artifact)
+        try fileManager.createSymbolicLink(
+            at: artifact,
+            withDestinationURL: archives.appendingPathComponent("Distribution/iOS/ExportOptions.plist")
+        )
     }
     return ArchiveFixture(
         temporaryRoot: temporaryRoot,
         archives: archives,
         commandPath: "\(fakeBin.path):\(existingPath)",
-        provenance: provenance
+        provenance: provenance,
+        extractionLog: extractionLog
     )
 }
 

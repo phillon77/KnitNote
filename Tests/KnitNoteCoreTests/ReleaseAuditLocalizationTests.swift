@@ -440,7 +440,7 @@ import Testing
         )
         #expect(acceptedResult.status == 0, Comment(rawValue: acceptedResult.output))
 
-        for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "untrusted"] {
+        for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "mixed-team", "untrusted"] {
             let fixture = try makeArchiveFixture(packageSignature: signature)
             defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
             let result = try runReleaseAudit(
@@ -931,6 +931,13 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: cleanupFailure.final.path))
         let cleanupRemaining = try FileManager.default.contentsOfDirectory(atPath: cleanupFailure.parent.path)
         #expect(!cleanupRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") || $0.hasPrefix(".KnitNote-1.4.1.worktree.") }))
+
+        let secondMktempFailure = try runCreatorFixture(raceDestination: false, secondMktempFailure: true)
+        defer { try? FileManager.default.removeItem(at: secondMktempFailure.root) }
+        #expect(secondMktempFailure.result.status != 0)
+        #expect(!FileManager.default.fileExists(atPath: secondMktempFailure.final.path))
+        let mktempRemaining = try FileManager.default.contentsOfDirectory(atPath: secondMktempFailure.parent.path)
+        #expect(!mktempRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") || $0.hasPrefix(".KnitNote-1.4.1.worktree.") }))
     }
 
     @Test func distributionSigningContractUsesTheExpectedTeamForEveryReleaseArchive() throws {
@@ -1068,7 +1075,7 @@ import Testing
 
         let preflight = try #require(distributionIdentityPreflight(in: sources.script))
         let withoutPreflight = sources.script.replacingOccurrences(of: "\(preflight)\n\n", with: "")
-        let staging = try #require(withoutPreflight.range(of: "ARTIFACTS=\"$(mktemp"))
+        let staging = try #require(withoutPreflight.range(of: "ARTIFACTS=\"$(\"$MKTEMP\""))
         let stagingLineEnd = try #require(withoutPreflight.range(
             of: "\n",
             range: staging.upperBound..<withoutPreflight.endIndex
@@ -1486,7 +1493,7 @@ private func distributionSigningContractIssues(
     }
     let dirtyGuard = "[[ -z \"$($GIT -C \"$ROOT\" status --porcelain --untracked-files=normal)\" ]] || { echo \"candidate worktree is dirty\" >&2; exit 1; }"
     let parent = "PARENT=\"$(cd \"$(dirname \"$OUTPUT\")\" && pwd -P)\""
-    let staging = "ARTIFACTS=\"$(mktemp"
+    let staging = "ARTIFACTS=\"$(\"$MKTEMP\""
     if let dirtyRange = executableScript.range(of: dirtyGuard),
        let preflight = distributionIdentityPreflight(in: executableScript),
        let preflightRange = executableScript.range(of: preflight),
@@ -1810,7 +1817,7 @@ private func runAtomicPublish(staging: URL, final: URL) throws -> AuditResult {
     )
 }
 
-private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = false) throws -> (result: AuditResult, root: URL, parent: URL, final: URL) {
+private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = false, secondMktempFailure: Bool = false) throws -> (result: AuditResult, root: URL, parent: URL, final: URL) {
     let fileManager = FileManager.default
     let root = fileManager.temporaryDirectory.appendingPathComponent("knitnote-creator-fixture-\(UUID().uuidString)")
     let parent = root.appendingPathComponent("output")
@@ -1876,6 +1883,13 @@ private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = fal
     exec /usr/bin/python3 "$@"
     """)
     let hook = try executable("race", "#!/bin/sh\nmkdir -p \"$1\"\n")
+    let mktemp = try executable("mktemp", """
+    #!/bin/bash
+    count='\(root.path)/mktemp-count'
+    if [ -e "$count" ]; then exit 74; fi
+    : > "$count"
+    exec /usr/bin/mktemp "$@"
+    """)
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/bash")
     process.arguments = [
@@ -1889,6 +1903,7 @@ private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = fal
     environment["KNITNOTE_CREATOR_SECURITY"] = security.path
     environment["KNITNOTE_CREATOR_XCODEBUILD"] = xcodebuild.path
     environment["KNITNOTE_CREATOR_PYTHON"] = python.path
+    if secondMktempFailure { environment["KNITNOTE_CREATOR_MKTEMP"] = mktemp.path }
     if raceDestination { environment["KNITNOTE_CREATOR_TEST_BEFORE_PUBLISH"] = hook.path }
     process.environment = environment
     let output = Pipe()
@@ -2301,6 +2316,7 @@ private func makeArchiveFixture(
         wrong-team) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (BADTEAM123)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-prefix) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (X9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-suffix) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5X)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        mixed-team) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (BADTEAM123)' ' 2. 3rd Party Mac Developer Installer: Decoy (9CFPAUL5N5)' ' 3. Apple Worldwide Developer Relations Certification Authority' ' 4. Apple Root CA'; exit 0 ;;
         unsigned) echo 'Status: no signature' >&2; exit 12 ;;
         tampered) echo 'Status: package signature is invalid' >&2; exit 13 ;;
         untrusted) echo 'Status: signed by a certificate not trusted by macOS' >&2; exit 14 ;;

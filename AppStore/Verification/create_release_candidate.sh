@@ -7,6 +7,7 @@ GIT=/usr/bin/git
 SECURITY=/usr/bin/security
 XCODEBUILD=/usr/bin/xcodebuild
 PYTHON=python3
+MKTEMP=mktemp
 EXPECTED_TEAM=9CFPAUL5N5
 TEST_ONLY=0
 if [[ "${1:-}" == "--test-only" ]]; then
@@ -19,6 +20,7 @@ if [[ "$TEST_ONLY" == 1 ]]; then
   SECURITY="${KNITNOTE_CREATOR_SECURITY:-$SECURITY}"
   XCODEBUILD="${KNITNOTE_CREATOR_XCODEBUILD:-$XCODEBUILD}"
   PYTHON="${KNITNOTE_CREATOR_PYTHON:-$PYTHON}"
+  MKTEMP="${KNITNOTE_CREATOR_MKTEMP:-$MKTEMP}"
 else
   for variable in ${!KNITNOTE_@}; do
     echo "release candidate creation rejects override $variable" >&2
@@ -44,15 +46,20 @@ FINAL="$PARENT/$(basename "$OUTPUT")"
 case "$FINAL/" in
   "$ROOT/"*) echo "candidate output must be outside the source checkout" >&2; exit 1 ;;
 esac
-ARTIFACTS="$(mktemp -d "$PARENT/.KnitNote-1.4.1.staging.XXXXXX")"
-WORKROOT="$(mktemp -d "$PARENT/.KnitNote-1.4.1.worktree.XXXXXX")"
-WORKTREE="$WORKROOT/source"
-PUBLISHER="$WORKROOT/atomic_publish.py"
+ARTIFACTS=""
+WORKROOT=""
+WORKTREE=""
+PUBLISHER=""
 cleanup() {
-  "$GIT" -C "$ROOT" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
-  rm -rf "$WORKROOT" "$ARTIFACTS"
+  [[ -z "$WORKTREE" ]] || "$GIT" -C "$ROOT" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
+  [[ -z "$WORKROOT" ]] || rm -rf "$WORKROOT"
+  [[ -z "$ARTIFACTS" ]] || rm -rf "$ARTIFACTS"
 }
 trap cleanup EXIT
+ARTIFACTS="$("$MKTEMP" -d "$PARENT/.KnitNote-1.4.1.staging.XXXXXX")"
+WORKROOT="$("$MKTEMP" -d "$PARENT/.KnitNote-1.4.1.worktree.XXXXXX")"
+WORKTREE="$WORKROOT/source"
+PUBLISHER="$WORKROOT/atomic_publish.py"
 
 "$GIT" -C "$ROOT" worktree add --detach "$WORKTREE" "$COMMIT"
 (cd "$WORKTREE" && AppStore/Verification/release_audit.sh --static-only)

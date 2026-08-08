@@ -79,7 +79,7 @@ import sys
 
 team, output = sys.argv[1:]
 installer_leaf = re.compile(
-    r"^\s*\d+\.\s+3rd Party Mac Developer Installer:.+ \(" + re.escape(team) + r"\)\s*$",
+    r"^\s*1\.\s+3rd Party Mac Developer Installer:.+ \(" + re.escape(team) + r"\)\s*$",
     re.MULTILINE,
 )
 valid = (

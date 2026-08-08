@@ -78,9 +78,13 @@ import re
 import sys
 
 team, output = sys.argv[1:]
+installer_leaf = re.compile(
+    r"^\s*\d+\.\s+3rd Party Mac Developer Installer:.+ \(" + re.escape(team) + r"\)\s*$",
+    re.MULTILINE,
+)
 valid = (
     "Status: signed by a certificate trusted by macOS" in output
-    and re.search(r"3rd Party Mac Developer Installer:.*\(" + re.escape(team) + r"\)", output)
+    and installer_leaf.search(output)
     and "Apple Worldwide Developer Relations Certification Authority" in output
     and "Apple Root CA" in output
 )
@@ -760,6 +764,10 @@ if [[ -n "$ARCHIVES" ]]; then
     || fail "expected source revision does not match repository HEAD"
   [[ -z "$("$GIT" -C "$ROOT" status --porcelain --untracked-files=normal)" ]] \
     || fail "source worktree is dirty"
+  [[ "$PROVENANCE" == "$ARCHIVES/provenance.json" && -f "$PROVENANCE" && ! -L "$PROVENANCE" ]] \
+    || fail "provenance must be the canonical candidate-root provenance.json"
+  [[ ! -e "$ARCHIVES/.TEST_FIXTURE_NOT_FOR_RELEASE" ]] \
+    || fail "candidate contains the test fixture sentinel"
   python3 AppStore/Verification/release_archive_manifest.py verify \
     --archives "$ARCHIVES" --source-commit "$EXPECTED_COMMIT" --input "$PROVENANCE" \
     || fail "provenance sourceCommit or deterministic archive inventory mismatch"

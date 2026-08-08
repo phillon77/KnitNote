@@ -440,7 +440,7 @@ import Testing
         )
         #expect(acceptedResult.status == 0, Comment(rawValue: acceptedResult.output))
 
-        for signature in ["unsigned", "tampered", "wrong-team", "untrusted"] {
+        for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "untrusted"] {
             let fixture = try makeArchiveFixture(packageSignature: signature)
             defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
             let result = try runReleaseAudit(
@@ -465,6 +465,41 @@ import Testing
         let retained = fixture.archives.appendingPathComponent("KnitNote-iOS-Privacy.xcarchive/dSYMs/KnitNote.dSYM")
         try Data("mutated symbol data".utf8).write(to: retained)
         #expect(try runManifest("verify", archives: fixture.archives, provenance: fixture.provenance, exportOptions: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/ExportOptions-AppStore.plist")) != 0)
+    }
+
+    @Test func provenanceRequiresBothRetainedArchivesAndTheirInfoPlists() throws {
+        for missing in [
+            "KnitNote-iOS-Privacy.xcarchive",
+            "KnitNote-macOS-Privacy.xcarchive",
+            "KnitNote-iOS-Privacy.xcarchive/Info.plist",
+            "KnitNote-macOS-Privacy.xcarchive/Info.plist",
+        ] {
+            let fixture = try makeArchiveFixture()
+            defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+            try FileManager.default.removeItem(at: fixture.archives.appendingPathComponent(missing))
+            #expect(try runManifest("create", archives: fixture.archives, provenance: fixture.provenance, exportOptions: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/ExportOptions-AppStore.plist")) != 0)
+        }
+    }
+
+    @Test func archiveAuditRequiresCanonicalCandidateRootProvenance() throws {
+        let fixture = try makeArchiveFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let alternate = fixture.temporaryRoot.appendingPathComponent("alternate-provenance.json")
+        try FileManager.default.copyItem(at: fixture.provenance, to: alternate)
+        let result = try runReleaseAudit(
+            arguments: ["--archives", fixture.archives.path, "--expected-commit", fixtureCommit, "--provenance", alternate.path],
+            environment: ["PATH": fixture.commandPath]
+        )
+        #expect(result.status != 0)
+        #expect(result.output.contains("provenance must be the canonical candidate-root provenance.json"))
+    }
+
+    @Test func archiveAuditRejectsTheTestFixtureSentinelBeforePublication() throws {
+        let fixture = try makeArchiveFixture(testFixtureSentinelBeforeProvenance: true)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let result = try runReleaseAudit(archives: fixture.archives, environment: ["PATH": fixture.commandPath])
+        #expect(result.status != 0)
+        #expect(result.output.contains("candidate contains the test fixture sentinel"))
     }
 
     @Test func archiveAuditRejectsMacAppStoreProfileGrantingGetTaskAllow() throws {
@@ -808,7 +843,7 @@ import Testing
         let macOSExportRange = try #require(script.range(of: macOSExport))
         let provenance = try #require(script.range(of: "release_archive_manifest.py\" create"))
         let audit = try #require(script.range(of: "release_audit.sh --archives"))
-        let publication = try #require(script.range(of: "atomic_publish.py\" \"$ARTIFACTS\" \"$FINAL\""))
+        let publication = try #require(script.range(of: "\"$PUBLISHER\" --cleanup-dir \"$WORKROOT\" \"$ARTIFACTS\" \"$FINAL\""))
 
         #expect(iOSArchiveRange.lowerBound < iOSExportRange.lowerBound)
         #expect(macOSArchiveRange.lowerBound < iOSExportRange.lowerBound)
@@ -869,10 +904,12 @@ import Testing
         let successful = try runCreatorFixture(raceDestination: false)
         defer { try? FileManager.default.removeItem(at: successful.root) }
         #expect(successful.result.status == 0, Comment(rawValue: successful.result.output))
-        #expect(successful.result.output.contains("Release candidate created at"))
+        #expect(successful.result.output.contains("TEST ONLY: release candidate fixture created at"))
+        #expect(!successful.result.output.contains("Release candidate created at"))
         #expect(FileManager.default.fileExists(atPath: successful.final.path))
         #expect(!FileManager.default.fileExists(atPath: successful.final.appendingPathComponent("Distribution/iOS/Packaging.log").path))
         #expect(!FileManager.default.fileExists(atPath: successful.final.appendingPathComponent("Distribution/macOS/Packaging.log").path))
+        #expect(FileManager.default.fileExists(atPath: successful.final.appendingPathComponent(".TEST_FIXTURE_NOT_FOR_RELEASE").path))
         let permissions = try #require(
             FileManager.default.attributesOfItem(atPath: successful.final.path)[.posixPermissions] as? NSNumber
         )
@@ -886,6 +923,14 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: raced.final.appendingPathComponent("artifacts").path))
         let remaining = try FileManager.default.contentsOfDirectory(atPath: raced.parent.path)
         #expect(!remaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") }))
+
+        let cleanupFailure = try runCreatorFixture(raceDestination: false, cleanupFailure: true)
+        defer { try? FileManager.default.removeItem(at: cleanupFailure.root) }
+        #expect(cleanupFailure.result.status != 0)
+        #expect(!cleanupFailure.result.output.contains("Release candidate created at"))
+        #expect(!FileManager.default.fileExists(atPath: cleanupFailure.final.path))
+        let cleanupRemaining = try FileManager.default.contentsOfDirectory(atPath: cleanupFailure.parent.path)
+        #expect(!cleanupRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") || $0.hasPrefix(".KnitNote-1.4.1.worktree.") }))
     }
 
     @Test func distributionSigningContractUsesTheExpectedTeamForEveryReleaseArchive() throws {
@@ -1023,7 +1068,7 @@ import Testing
 
         let preflight = try #require(distributionIdentityPreflight(in: sources.script))
         let withoutPreflight = sources.script.replacingOccurrences(of: "\(preflight)\n\n", with: "")
-        let staging = try #require(withoutPreflight.range(of: "STAGING=\"$(mktemp"))
+        let staging = try #require(withoutPreflight.range(of: "ARTIFACTS=\"$(mktemp"))
         let stagingLineEnd = try #require(withoutPreflight.range(
             of: "\n",
             range: staging.upperBound..<withoutPreflight.endIndex
@@ -1441,7 +1486,7 @@ private func distributionSigningContractIssues(
     }
     let dirtyGuard = "[[ -z \"$($GIT -C \"$ROOT\" status --porcelain --untracked-files=normal)\" ]] || { echo \"candidate worktree is dirty\" >&2; exit 1; }"
     let parent = "PARENT=\"$(cd \"$(dirname \"$OUTPUT\")\" && pwd -P)\""
-    let staging = "STAGING=\"$(mktemp"
+    let staging = "ARTIFACTS=\"$(mktemp"
     if let dirtyRange = executableScript.range(of: dirtyGuard),
        let preflight = distributionIdentityPreflight(in: executableScript),
        let preflightRange = executableScript.range(of: preflight),
@@ -1692,7 +1737,7 @@ private func runReleaseAudit(
     let modeArguments = arguments ?? archives.map {
         ["--archives", $0.path,
          "--expected-commit", fixtureCommit,
-         "--provenance", $0.deletingLastPathComponent().appendingPathComponent("provenance.json").path]
+         "--provenance", $0.appendingPathComponent("provenance.json").path]
     } ?? ["--static-only"]
     let isFixture = productionEnvironment == nil && (archives != nil || !overrides.isEmpty)
     process.arguments = ["AppStore/Verification/release_audit.sh"] + (isFixture ? ["--test-only"] : []) + modeArguments
@@ -1765,7 +1810,7 @@ private func runAtomicPublish(staging: URL, final: URL) throws -> AuditResult {
     )
 }
 
-private func runCreatorFixture(raceDestination: Bool) throws -> (result: AuditResult, root: URL, parent: URL, final: URL) {
+private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = false) throws -> (result: AuditResult, root: URL, parent: URL, final: URL) {
     let fileManager = FileManager.default
     let root = fileManager.temporaryDirectory.appendingPathComponent("knitnote-creator-fixture-\(UUID().uuidString)")
     let parent = root.appendingPathComponent("output")
@@ -1774,6 +1819,12 @@ private func runCreatorFixture(raceDestination: Bool) throws -> (result: AuditRe
     try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
     try fileManager.createDirectory(at: bin, withIntermediateDirectories: true)
     let realRoot = releaseAuditRepositoryRoot.path
+    let fixtureVerification = root.appendingPathComponent("AppStore/Verification")
+    try fileManager.createDirectory(at: fixtureVerification, withIntermediateDirectories: true)
+    try fileManager.copyItem(
+        at: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/atomic_publish.py"),
+        to: fixtureVerification.appendingPathComponent("atomic_publish.py")
+    )
     let commit = fixtureCommit
     func executable(_ name: String, _ body: String) throws -> URL {
         let path = bin.appendingPathComponent(name)
@@ -1793,7 +1844,10 @@ private func runCreatorFixture(raceDestination: Bool) throws -> (result: AuditRe
         cp '\(realRoot)/AppStore/Verification/atomic_publish.py' "$worktree/AppStore/Verification/atomic_publish.py"
         printf '#!/bin/sh\\nexit 0\\n' > "$worktree/AppStore/Verification/release_audit.sh"
         chmod 700 "$worktree/AppStore/Verification/release_audit.sh" ;;
-      *"worktree remove"*) : ;;
+      *"worktree remove"*)
+        [ "\(cleanupFailure ? "yes" : "no")" = "yes" ] && exit 73
+        worktree="${@: -1}"
+        rm -rf "$worktree" ;;
       *) exit 64 ;;
     esac
     """)
@@ -1888,6 +1942,7 @@ private func makeArchiveFixture(
     pkgutilRejectsExistingDestination: Bool = false,
     packageSignature: String = "valid",
     extraDistributionBeforeProvenance: String? = nil,
+    testFixtureSentinelBeforeProvenance: Bool = false,
     omitPreparedExportRoot: String? = nil,
     ambiguousMacApps: Bool = false,
     rejectArchiveCodesign: Bool = false,
@@ -2151,6 +2206,9 @@ private func makeArchiveFixture(
         try fileManager.createDirectory(at: artifact.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("fixture retained artifact".utf8).write(to: artifact)
     }
+    if testFixtureSentinelBeforeProvenance {
+        try Data().write(to: archives.appendingPathComponent(".TEST_FIXTURE_NOT_FOR_RELEASE"))
+    }
 
     let fakeBin = temporaryRoot.appendingPathComponent("bin")
     try fileManager.createDirectory(at: fakeBin, withIntermediateDirectories: true)
@@ -2241,6 +2299,8 @@ private func makeArchiveFixture(
       case "\(packageSignature)" in
         valid) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-team) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (BADTEAM123)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        wrong-prefix) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (X9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        wrong-suffix) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5X)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         unsigned) echo 'Status: no signature' >&2; exit 12 ;;
         tampered) echo 'Status: package signature is invalid' >&2; exit 13 ;;
         untrusted) echo 'Status: signed by a certificate not trusted by macOS' >&2; exit 14 ;;
@@ -2255,7 +2315,7 @@ private func makeArchiveFixture(
     """.write(to: pkgutil, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: pkgutil.path)
     let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
-    let provenance = temporaryRoot.appendingPathComponent("provenance.json")
+    let provenance = archives.appendingPathComponent("provenance.json")
     for archiveName in ["KnitNote-iOS-Privacy.xcarchive", "KnitNote-macOS-Privacy.xcarchive"] {
         try writePlist(["Fixture": true], to: archives.appendingPathComponent("\(archiveName)/Info.plist"))
     }

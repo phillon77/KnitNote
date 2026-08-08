@@ -44,17 +44,17 @@ FINAL="$PARENT/$(basename "$OUTPUT")"
 case "$FINAL/" in
   "$ROOT/"*) echo "candidate output must be outside the source checkout" >&2; exit 1 ;;
 esac
-STAGING="$(mktemp -d "$PARENT/.KnitNote-1.4.1.staging.XXXXXX")"
-WORKTREE="$STAGING/source"
-ARTIFACTS="$STAGING/artifacts"
+ARTIFACTS="$(mktemp -d "$PARENT/.KnitNote-1.4.1.staging.XXXXXX")"
+WORKROOT="$(mktemp -d "$PARENT/.KnitNote-1.4.1.worktree.XXXXXX")"
+WORKTREE="$WORKROOT/source"
+PUBLISHER="$WORKROOT/atomic_publish.py"
 cleanup() {
   "$GIT" -C "$ROOT" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
-  rm -rf "$STAGING"
+  rm -rf "$WORKROOT" "$ARTIFACTS"
 }
 trap cleanup EXIT
 
 "$GIT" -C "$ROOT" worktree add --detach "$WORKTREE" "$COMMIT"
-mkdir "$ARTIFACTS"
 (cd "$WORKTREE" && AppStore/Verification/release_audit.sh --static-only)
 (cd "$WORKTREE" && "$XCODEBUILD" -project KnitNote.xcodeproj -scheme KnitNote -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$ARTIFACTS/KnitNote-iOS-Privacy.xcarchive" \
@@ -76,6 +76,9 @@ if find "$ARTIFACTS/Distribution" -type f -name Packaging.log -print -quit | /us
   echo "unexpected credential-bearing Packaging.log remains after export" >&2
   exit 1
 fi
+if [[ "$TEST_ONLY" == 1 ]]; then
+  : > "$ARTIFACTS/.TEST_FIXTURE_NOT_FOR_RELEASE"
+fi
 "$PYTHON" "$WORKTREE/AppStore/Verification/release_archive_manifest.py" create \
   --archives "$ARTIFACTS" --source-commit "$COMMIT" --output "$ARTIFACTS/provenance.json"
 (cd "$WORKTREE" && AppStore/Verification/release_audit.sh --archives "$ARTIFACTS" \
@@ -85,8 +88,15 @@ fi
 if [[ "$TEST_ONLY" == 1 && -n "${KNITNOTE_CREATOR_TEST_BEFORE_PUBLISH:-}" ]]; then
   "$KNITNOTE_CREATOR_TEST_BEFORE_PUBLISH" "$FINAL"
 fi
-"$PYTHON" "$WORKTREE/AppStore/Verification/atomic_publish.py" "$ARTIFACTS" "$FINAL"
+cp "$WORKTREE/AppStore/Verification/atomic_publish.py" "$PUBLISHER"
+chmod 700 "$PUBLISHER"
 "$GIT" -C "$ROOT" worktree remove "$WORKTREE"
-chmod 700 "$FINAL"
-trap - EXIT
-echo "Release candidate created at $FINAL for $COMMIT"
+chmod 700 "$ARTIFACTS"
+if [[ "$TEST_ONLY" == 1 ]]; then
+  SUCCESS_MESSAGE="TEST ONLY: release candidate fixture created at $FINAL for $COMMIT"
+else
+  SUCCESS_MESSAGE="Release candidate created at $FINAL for $COMMIT"
+fi
+"$PYTHON" "$PUBLISHER" --cleanup-dir "$WORKROOT" "$ARTIFACTS" "$FINAL"
+trap - EXIT || :
+printf '%s\n' "$SUCCESS_MESSAGE" || :

@@ -24,3 +24,11 @@ The creator still forbids app upload, App Store mutation, `destination=upload`, 
 - `release_audit.sh --static-only`, Bash syntax, Python compilation, plist lint, and `git diff --check` all passed.
 
 No candidate bytes were modified or deleted. The earlier candidate remains quarantined.
+
+## Fix Round 1 — publication terminality
+
+Review found that the earlier creator invoked worktree removal and `chmod` after the atomic rename, which could report failure after `FINAL` already existed and left the empty staging parent behind. The creator now uses a separate same-filesystem artifact staging directory and worktree temporary root. It removes the worktree, removes the empty worktree root, and applies restrictive permissions before `renameatx_np`; after the rename it only clears the trap and emits the result marker.
+
+The executable fixture proves successful test-only publication has no staging/worktree residue, while a forced pre-publish worktree-cleanup failure publishes nothing. The publisher is copied from the exact detached worktree before worktree removal, removes its own empty temporary root before rename, and is therefore the final fallible publication operation. The destination-race fixture remains fail-closed with no nested artifacts. Test-only success is explicitly labelled `TEST ONLY`, carries `.TEST_FIXTURE_NOT_FOR_RELEASE`, and the production audit rejects that sentinel. Installer certificate parsing now anchors the complete installer-leaf team identifier, with wrong-prefix and wrong-suffix team fixtures rejected. Full provenance again requires both retained xcarchives, their `Info.plist` files, and product app roots; formal audit requires canonical candidate-root `provenance.json`.
+
+Fresh Fix Round 1 verification: `ReleaseAuditLocalizationTests` exited 0 with 54 tests in 1 suite passing in 268.989 seconds (`/tmp/KnitNoteTask4Fix1-final3-release.log`); `StoreScreenshotFixturesTests` exited 0 with 19 tests in 1 suite passing in 8.759 seconds (`/tmp/KnitNoteTask4Fix1-final-screenshots.log`). Static audit, Bash syntax, Python compilation, plist lint, and diff check passed.

@@ -34,7 +34,7 @@ AppStore/Verification/create_release_candidate.sh \
   /tmp/KnitNoteRelease-1.4.1-Build8-58e9789
 ```
 
-No `-allowProvisioningUpdates`, `destination=upload`, profile/certificate/signing override, network/App Store, or source/config change was used.
+No `-allowProvisioningUpdates`, `destination=upload`, profile/certificate/signing override, App Store Connect mutation, or source/config change was used. macOS export may use authorized Apple developer-service network access for managed package signing; this is not an app upload or App Store mutation.
 
 The creator reached its internal formal archive audit after archive/export/provenance staging. Its internal source verification reported `1365 tests in 122 suites passed`, and metadata plus commercial checks passed. The audit then stopped with this exact failure:
 
@@ -78,7 +78,7 @@ No candidate was rebuilt in this follow-up: the failed `58e9789` candidate remai
   release audit: macOS provisioning profile is expired or is not App Store distribution for 9CFPAUL5N5
   ```
 
-- The final candidate directory remains absent after creator cleanup; therefore no IPA/pkg/provenance/export record was published or independently inspectable. No alternate signing/profile command, retry, Archive/Export action outside the supported creator, upload, network, or App Store action occurred.
+- The final candidate directory remains absent after creator cleanup; therefore no IPA/pkg/provenance/export record was published or independently inspectable. No alternate signing/profile command, retry, Archive/Export action outside the supported creator, upload, App Store Connect mutation, or `-allowProvisioningUpdates` occurred. macOS export may use authorized Apple developer-service network access for managed package signing.
 
 ## Follow-up: Fix Round 3
 

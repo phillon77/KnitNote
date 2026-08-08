@@ -12,6 +12,18 @@ from pathlib import Path, PurePosixPath
 
 
 CANONICAL_PROVENANCE = Path("provenance.json")
+REQUIRED_ARCHIVE_ROOTS = (
+    Path("KnitNote-iOS-Privacy.xcarchive"),
+    Path("KnitNote-macOS-Privacy.xcarchive"),
+)
+REQUIRED_ARCHIVE_INFO_PLISTS = (
+    Path("KnitNote-iOS-Privacy.xcarchive/Info.plist"),
+    Path("KnitNote-macOS-Privacy.xcarchive/Info.plist"),
+)
+REQUIRED_ARCHIVE_APP_ROOTS = (
+    Path("KnitNote-iOS-Privacy.xcarchive/Products/Applications/KnitNote.app"),
+    Path("KnitNote-macOS-Privacy.xcarchive/Products/Applications/KnitNote.app"),
+)
 DEFAULT_EXPORT_OPTIONS = Path(__file__).with_name("ExportOptions-AppStore.plist")
 
 
@@ -53,6 +65,13 @@ def inventory(root: Path) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     if root.is_symlink() or not root.is_dir():
         raise ValueError("release archive root is missing or unsafe")
+    for relative in REQUIRED_ARCHIVE_ROOTS + REQUIRED_ARCHIVE_APP_ROOTS:
+        path = root / relative
+        reject_lexical_symlink_components(root, path, relative.as_posix())
+        if path.is_symlink() or not path.is_dir():
+            raise ValueError(f"missing release archive directory: {relative.as_posix()}")
+    for relative in REQUIRED_ARCHIVE_INFO_PLISTS:
+        require_regular_file(root / relative, relative.as_posix(), root)
     candidates: list[Path] = []
     for path in root.rglob("*"):
         relative = path.relative_to(root)

@@ -78,7 +78,7 @@ import re
 import sys
 
 team, output = sys.argv[1:]
-lines = output.splitlines()
+lines = [line.strip() for line in output.splitlines()]
 installer_leaf = re.compile(
     r"1\.\s+3rd Party Mac Developer Installer:.+ \(" + re.escape(team) + r"\)",
 )
@@ -91,9 +91,9 @@ chain_headers = [index for index, line in enumerate(lines) if line == "Certifica
 numbered_entries = []
 if len(chain_headers) == 1:
     numbered_entries = [
-        line.strip()
+        line
         for line in lines[chain_headers[0] + 1:]
-        if re.match(r"^\s*\d+\.\s+", line)
+        if re.match(r"^\d+\.\s+", line)
     ]
 valid = (
     len(status_lines) == 1

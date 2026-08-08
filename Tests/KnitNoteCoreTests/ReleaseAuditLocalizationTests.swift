@@ -448,6 +448,14 @@ import Testing
         )
         #expect(developerIssuedResult.status == 0, Comment(rawValue: developerIssuedResult.output))
 
+        let indented = try makeArchiveFixture(packageSignature: "indented-valid")
+        defer { try? FileManager.default.removeItem(at: indented.temporaryRoot) }
+        let indentedResult = try runReleaseAudit(
+            archives: indented.archives,
+            environment: ["PATH": indented.commandPath]
+        )
+        #expect(indentedResult.status == 0, Comment(rawValue: indentedResult.output))
+
         for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "mixed-team", "untrusted", "arbitrary-status", "revoked-status", "error-status", "wrong-chain", "allowed-plus-revoked", "wrong-intermediate-decoy", "repeated-leaf-one"] {
             let fixture = try makeArchiveFixture(packageSignature: signature)
             defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
@@ -2334,6 +2342,7 @@ private func makeArchiveFixture(
     if [ "${1:-}" = "--check-signature" ]; then
       case "\(packageSignature)" in
         valid) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        indented-valid) printf '%s\\n' '   Status: signed by a developer certificate issued by Apple (Development)   ' '   Certificate Chain:   ' '    1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)   ' '    2. Apple Worldwide Developer Relations Certification Authority   ' '    3. Apple Root CA   '; exit 0 ;;
         developer-issued) printf '%s\\n' 'Status: signed by a developer certificate issued by Apple (Development)' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-team) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (BADTEAM123)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-prefix) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (X9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;

@@ -544,31 +544,96 @@ import Testing
     }
 
     @Test func distributionSigningContractUsesTheExpectedTeamForEveryReleaseArchive() throws {
-        let specification = try String(
-            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("project.yml"),
-            encoding: .utf8
-        )
-        let script = try String(
-            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/create_release_candidate.sh"),
-            encoding: .utf8
-        )
-        let generatedProject = try String(
-            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
-            encoding: .utf8
-        )
+        let sources = try distributionSigningContractSources()
 
-        #expect(specification.contains("  configs:\n    Debug:\n      CODE_SIGN_IDENTITY: Apple Development"))
-        #expect(specification.contains("    Release:\n      CODE_SIGN_IDENTITY: Apple Distribution"))
-        #expect(specification.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
-        #expect(!generatedProject.contains("CODE_SIGN_IDENTITY = \"iPhone Developer\";"))
-        #expect(generatedProject.components(separatedBy: "CODE_SIGN_IDENTITY = \"Apple Development\";").count - 1 == 4)
-        #expect(generatedProject.components(separatedBy: "CODE_SIGN_IDENTITY = \"Apple Distribution\";").count - 1 == 4)
-        #expect(script.contains("EXPECTED_TEAM=9CFPAUL5N5"))
-        #expect(script.contains("/usr/bin/security find-identity -v -p codesigning"))
-        #expect(script.contains("Apple Distribution:.*\\($EXPECTED_TEAM\\)"))
-        #expect(script.components(separatedBy: "CODE_SIGN_STYLE=Automatic").count - 1 == 2)
-        #expect(script.components(separatedBy: "DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\"").count - 1 == 2)
-        #expect(script.components(separatedBy: "CODE_SIGN_IDENTITY=\"Apple Distribution\"").count - 1 == 2)
+        #expect(distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: sources.script
+        ).isEmpty)
+    }
+
+    @Test func distributionSigningContractRejectsMisboundTargetsCommandsAndPreflight() throws {
+        let sources = try distributionSigningContractSources()
+        let watchDebug = try #require(generatedBuildConfiguration(
+            in: sources.generatedProject,
+            owner: #"PBXNativeTarget "KnitNoteWatch""#,
+            configuration: "Debug"
+        ))
+        let watchRelease = try #require(generatedBuildConfiguration(
+            in: sources.generatedProject,
+            owner: #"PBXNativeTarget "KnitNoteWatch""#,
+            configuration: "Release"
+        ))
+        var swappedWatch = sources.generatedProject.replacingOccurrences(
+            of: watchDebug,
+            with: watchDebug.replacingOccurrences(of: "Apple Development", with: "Apple Distribution")
+        )
+        swappedWatch = swappedWatch.replacingOccurrences(
+            of: watchRelease,
+            with: watchRelease.replacingOccurrences(of: "Apple Distribution", with: "Apple Development")
+        )
+        let swappedIssues = distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: swappedWatch,
+            script: sources.script
+        )
+        #expect(swappedIssues.contains("KnitNoteWatch Debug signing identity"))
+        #expect(swappedIssues.contains("KnitNoteWatch Release signing identity"))
+
+        let iOSCommand = try #require(releaseArchiveCommand(in: sources.script, platform: "iOS"))
+        let macOSCommand = try #require(releaseArchiveCommand(in: sources.script, platform: "macOS"))
+        let overrides = "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
+        let duplicateIOSCommand = iOSCommand.replacingOccurrences(
+            of: overrides,
+            with: "\(overrides) \\\n  \(overrides)"
+        )
+        let unsignedMacOSCommand = macOSCommand.replacingOccurrences(of: overrides, with: "")
+        let globallyBalancedOverrides = sources.script
+            .replacingOccurrences(of: iOSCommand, with: duplicateIOSCommand)
+            .replacingOccurrences(of: macOSCommand, with: unsignedMacOSCommand)
+        #expect(globallyBalancedOverrides.components(separatedBy: overrides).count - 1 == 2)
+        let commandIssues = distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: globallyBalancedOverrides
+        )
+        #expect(commandIssues.contains("iOS archive signing overrides"))
+        #expect(commandIssues.contains("macOS archive signing overrides"))
+
+        for decoy in [
+            "# \(overrides)",
+            "if false; then\n  : '\(overrides)'\nfi",
+        ] {
+            let decoyBalancedOverrides = sources.script
+                .replacingOccurrences(of: macOSCommand, with: unsignedMacOSCommand)
+                .appending("\n\(decoy)\n")
+            #expect(decoyBalancedOverrides.components(separatedBy: overrides).count - 1 == 2)
+            #expect(distributionSigningContractIssues(
+                specification: sources.specification,
+                generatedProject: sources.generatedProject,
+                script: decoyBalancedOverrides
+            ).contains("macOS archive signing overrides"))
+        }
+
+        let preflight = try #require(distributionIdentityPreflight(in: sources.script))
+        let withoutPreflight = sources.script.replacingOccurrences(of: "\(preflight)\n\n", with: "")
+        let staging = try #require(withoutPreflight.range(of: "STAGING=\"$(mktemp"))
+        let stagingLineEnd = try #require(withoutPreflight.range(
+            of: "\n",
+            range: staging.upperBound..<withoutPreflight.endIndex
+        ))
+        let latePreflight = String(withoutPreflight[..<staging.lowerBound])
+            + "# /usr/bin/security find-identity -v -p codesigning\n"
+            + String(withoutPreflight[staging.lowerBound..<stagingLineEnd.upperBound])
+            + "\(preflight)\n"
+            + String(withoutPreflight[stagingLineEnd.upperBound...])
+        let preflightIssues = distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: latePreflight
+        )
+        #expect(preflightIssues.contains("distribution identity preflight before staging"))
     }
 
     @Test func auditRejectsMissingContradictoryAndRepeatedModes() throws {
@@ -589,6 +654,207 @@ import Testing
             #expect(!outputLines.contains("RELEASE AUDIT: PASS"))
         }
     }
+}
+
+private struct DistributionSigningContractSources {
+    let specification: String
+    let generatedProject: String
+    let script: String
+}
+
+private func distributionSigningContractSources() throws -> DistributionSigningContractSources {
+    try DistributionSigningContractSources(
+        specification: String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        ),
+        generatedProject: String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        ),
+        script: String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/create_release_candidate.sh"),
+            encoding: .utf8
+        )
+    )
+}
+
+private func distributionSigningContractIssues(
+    specification: String,
+    generatedProject: String,
+    script: String
+) -> [String] {
+    var issues: [String] = []
+    let expectedIdentities = [
+        (configuration: "Debug", identity: "Apple Development"),
+        (configuration: "Release", identity: "Apple Distribution"),
+    ]
+    let specificationOwners = [
+        (label: "project", start: "settings:\n", end: "targets:\n"),
+        (label: "KnitNote", start: "  KnitNote:\n", end: "  KnitNoteWatch:\n"),
+        (label: "KnitNoteWatch", start: "  KnitNoteWatch:\n", end: "  KnitNoteShare:\n"),
+        (label: "KnitNoteShare", start: "  KnitNoteShare:\n", end: "  KnitNoteAppTests:\n"),
+    ]
+    for owner in specificationOwners {
+        guard let ownerSection = sourceSection(in: specification, start: owner.start, end: owner.end) else {
+            issues.append("\(owner.label) signing specification section")
+            continue
+        }
+        for expected in expectedIdentities where !ownerSection.contains(
+            "    \(expected.configuration):\n      CODE_SIGN_IDENTITY: \(expected.identity)"
+        ) && !ownerSection.contains(
+            "        \(expected.configuration):\n          CODE_SIGN_IDENTITY: \(expected.identity)"
+        ) {
+            issues.append("\(owner.label) \(expected.configuration) signing specification")
+        }
+    }
+    if !specification.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5") {
+        issues.append("expected development team")
+    }
+
+    let generatedOwners = [
+        (label: "project", owner: #"PBXProject "KnitNote""#),
+        (label: "KnitNote", owner: #"PBXNativeTarget "KnitNote""#),
+        (label: "KnitNoteWatch", owner: #"PBXNativeTarget "KnitNoteWatch""#),
+        (label: "KnitNoteShare", owner: #"PBXNativeTarget "KnitNoteShare""#),
+    ]
+    for owner in generatedOwners {
+        for expected in expectedIdentities {
+            let configuration = generatedBuildConfiguration(
+                in: generatedProject,
+                owner: owner.owner,
+                configuration: expected.configuration
+            )
+            if configuration?.contains("CODE_SIGN_IDENTITY = \"\(expected.identity)\";") != true {
+                issues.append("\(owner.label) \(expected.configuration) signing identity")
+            }
+        }
+    }
+
+    for platform in ["iOS", "macOS"] {
+        guard let command = releaseArchiveCommand(in: script, platform: platform) else {
+            issues.append("\(platform) archive command")
+            continue
+        }
+        let normalized = normalizedExecutableBash(command)
+        let override = "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
+        let expectedPath = platform == "iOS"
+            ? "KnitNote-iOS-Privacy.xcarchive"
+            : "KnitNote-macOS-Privacy.xcarchive"
+        if normalized.components(separatedBy: override).count - 1 != 1
+            || !normalized.contains("generic/platform=\(platform)")
+            || !normalized.contains(expectedPath)
+            || !normalized.contains("\(override) KNITNOTE_SOURCE_REVISION=\"$COMMIT\" archive)") {
+            issues.append("\(platform) archive signing overrides")
+        }
+    }
+
+    let executableScript = executableBash(script)
+    if !executableScript.contains("EXPECTED_TEAM=9CFPAUL5N5") {
+        issues.append("expected distribution signing team")
+    }
+    if distributionIdentityPreflight(in: executableScript)?.contains(
+        #"/usr/bin/grep -Eq "Apple Distribution:.*\($EXPECTED_TEAM\)""#
+    ) != true {
+        issues.append("expected distribution identity predicate")
+    }
+    let dirtyGuard = "[[ -z \"$($GIT -C \"$ROOT\" status --porcelain --untracked-files=normal)\" ]] || { echo \"candidate worktree is dirty\" >&2; exit 1; }"
+    let parent = "PARENT=\"$(cd \"$(dirname \"$OUTPUT\")\" && pwd -P)\""
+    let staging = "STAGING=\"$(mktemp"
+    if let dirtyRange = executableScript.range(of: dirtyGuard),
+       let preflight = distributionIdentityPreflight(in: executableScript),
+       let preflightRange = executableScript.range(of: preflight),
+       let parentRange = executableScript.range(of: parent),
+       let stagingRange = executableScript.range(of: staging),
+       dirtyRange.upperBound < preflightRange.lowerBound,
+       preflightRange.upperBound < parentRange.lowerBound,
+       parentRange.upperBound < stagingRange.lowerBound,
+       executableScript[dirtyRange.upperBound..<preflightRange.lowerBound]
+           .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+       executableScript[preflightRange.upperBound..<parentRange.lowerBound]
+           .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        // The executable preflight is top-level and precedes staging.
+    } else {
+        issues.append("distribution identity preflight before staging")
+    }
+    return issues
+}
+
+private func sourceSection(in source: String, start: String, end: String) -> String? {
+    guard let startRange = source.range(of: start),
+          let endRange = source.range(of: end, range: startRange.upperBound..<source.endIndex) else {
+        return nil
+    }
+    return String(source[startRange.lowerBound..<endRange.lowerBound])
+}
+
+private func generatedBuildConfiguration(
+    in project: String,
+    owner: String,
+    configuration: String
+) -> String? {
+    let listMarker = "/* Build configuration list for \(owner) */ = {"
+    guard let listStart = project.range(of: listMarker),
+          let listEnd = project.range(
+            of: "\n\t\t};",
+            range: listStart.upperBound..<project.endIndex
+          ) else {
+        return nil
+    }
+    let list = project[listStart.lowerBound..<listEnd.upperBound]
+    guard let configurationLine = list.split(separator: "\n").first(where: {
+        $0.contains("/* \(configuration) */")
+    }), let identifier = configurationLine.split(whereSeparator: { $0.isWhitespace }).first else {
+        return nil
+    }
+    let configurationMarker = "\t\t\(identifier) /* \(configuration) */ = {"
+    guard let configurationStart = project.range(of: configurationMarker),
+          let configurationEnd = project.range(
+            of: "\n\t\t};",
+            range: configurationStart.upperBound..<project.endIndex
+          ) else {
+        return nil
+    }
+    return String(project[configurationStart.lowerBound..<configurationEnd.upperBound])
+}
+
+private func releaseArchiveCommand(in script: String, platform: String) -> String? {
+    let destination = "-destination 'generic/platform=\(platform)'"
+    guard let destinationRange = script.range(of: destination),
+          let commandStart = script[..<destinationRange.lowerBound].range(
+            of: "(cd \"$WORKTREE\" && xcodebuild",
+            options: .backwards
+          ),
+          let commandEnd = script.range(
+            of: "archive)",
+            range: destinationRange.upperBound..<script.endIndex
+          ) else {
+        return nil
+    }
+    return String(script[commandStart.lowerBound..<commandEnd.upperBound])
+}
+
+private func distributionIdentityPreflight(in script: String) -> String? {
+    let start = "if ! /usr/bin/security find-identity -v -p codesigning"
+    guard let startRange = script.range(of: start),
+          let endRange = script.range(of: "\nfi", range: startRange.upperBound..<script.endIndex) else {
+        return nil
+    }
+    return String(script[startRange.lowerBound..<endRange.upperBound])
+}
+
+private func executableBash(_ source: String) -> String {
+    source.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+        let sourceLine = String(line)
+        return sourceLine.trimmingCharacters(in: .whitespaces).hasPrefix("#") ? "" : sourceLine
+    }.joined(separator: "\n")
+}
+
+private func normalizedExecutableBash(_ source: String) -> String {
+    executableBash(source)
+        .replacingOccurrences(of: "\\\n", with: " ")
+        .split(whereSeparator: { $0.isWhitespace })
+        .joined(separator: " ")
 }
 
 private struct AuditResult {

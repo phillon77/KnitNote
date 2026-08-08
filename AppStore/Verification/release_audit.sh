@@ -82,8 +82,12 @@ installer_leaf = re.compile(
     r"^\s*1\.\s+3rd Party Mac Developer Installer:.+ \(" + re.escape(team) + r"\)\s*$",
     re.MULTILINE,
 )
+accepted_status = re.compile(
+    r"^Status: (?:signed by a certificate trusted by macOS|signed by a developer certificate issued by Apple \(Development\))\s*$",
+    re.MULTILINE,
+)
 valid = (
-    "Status: signed by a certificate trusted by macOS" in output
+    accepted_status.search(output)
     and installer_leaf.search(output)
     and "Apple Worldwide Developer Relations Certification Authority" in output
     and "Apple Root CA" in output

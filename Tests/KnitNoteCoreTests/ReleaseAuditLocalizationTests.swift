@@ -440,7 +440,15 @@ import Testing
         )
         #expect(acceptedResult.status == 0, Comment(rawValue: acceptedResult.output))
 
-        for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "mixed-team", "untrusted"] {
+        let developerIssued = try makeArchiveFixture(packageSignature: "developer-issued")
+        defer { try? FileManager.default.removeItem(at: developerIssued.temporaryRoot) }
+        let developerIssuedResult = try runReleaseAudit(
+            archives: developerIssued.archives,
+            environment: ["PATH": developerIssued.commandPath]
+        )
+        #expect(developerIssuedResult.status == 0, Comment(rawValue: developerIssuedResult.output))
+
+        for signature in ["unsigned", "tampered", "wrong-team", "wrong-prefix", "wrong-suffix", "mixed-team", "untrusted", "arbitrary-status", "revoked-status", "error-status", "wrong-chain"] {
             let fixture = try makeArchiveFixture(packageSignature: signature)
             defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
             let result = try runReleaseAudit(
@@ -2326,10 +2334,15 @@ private func makeArchiveFixture(
     if [ "${1:-}" = "--check-signature" ]; then
       case "\(packageSignature)" in
         valid) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        developer-issued) printf '%s\\n' 'Status: signed by a developer certificate issued by Apple (Development)' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-team) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (BADTEAM123)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-prefix) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (X9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         wrong-suffix) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5X)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         mixed-team) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (BADTEAM123)' ' 2. 3rd Party Mac Developer Installer: Decoy (9CFPAUL5N5)' ' 3. Apple Worldwide Developer Relations Certification Authority' ' 4. Apple Root CA'; exit 0 ;;
+        arbitrary-status) printf '%s\\n' 'Status: package signed under an arbitrary policy' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        revoked-status) printf '%s\\n' 'Status: certificate has been revoked' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        error-status) printf '%s\\n' 'Status: unable to verify certificate' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Apple Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
+        wrong-chain) printf '%s\\n' 'Status: signed by a certificate trusted by macOS' 'Certificate Chain:' ' 1. 3rd Party Mac Developer Installer: KnitNote (9CFPAUL5N5)' ' 2. Example Worldwide Developer Relations Certification Authority' ' 3. Apple Root CA'; exit 0 ;;
         unsigned) echo 'Status: no signature' >&2; exit 12 ;;
         tampered) echo 'Status: package signature is invalid' >&2; exit 13 ;;
         untrusted) echo 'Status: signed by a certificate not trusted by macOS' >&2; exit 14 ;;

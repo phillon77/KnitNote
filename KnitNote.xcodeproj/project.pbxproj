@@ -1734,6 +1734,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
 				MARKETING_VERSION = 1.4.1;
@@ -1750,6 +1751,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1788,6 +1790,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1811,7 +1814,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "KnitNote/KnitNote-macOS.entitlements";
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1854,7 +1857,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "KnitNote/KnitNote-macOS.entitlements";
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1906,6 +1909,7 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 9CFPAUL5N5;
@@ -1981,6 +1985,7 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 9CFPAUL5N5;
@@ -2018,6 +2023,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 8;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
 				MARKETING_VERSION = 1.4.1;

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 GIT=/usr/bin/git
+EXPECTED_TEAM=9CFPAUL5N5
 for variable in ${!KNITNOTE_@}; do
   echo "release candidate creation rejects override $variable" >&2
   exit 1
@@ -16,6 +17,10 @@ OUTPUT="${1:-}"
 COMMIT="$($GIT -C "$ROOT" rev-parse HEAD)"
 [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "HEAD is not a full commit identifier" >&2; exit 1; }
 [[ -z "$($GIT -C "$ROOT" status --porcelain --untracked-files=normal)" ]] || { echo "candidate worktree is dirty" >&2; exit 1; }
+if ! /usr/bin/security find-identity -v -p codesigning | /usr/bin/grep -Eq "Apple Distribution:.*\($EXPECTED_TEAM\)"; then
+  echo "missing local Apple Distribution signing identity for team $EXPECTED_TEAM" >&2
+  exit 1
+fi
 
 PARENT="$(cd "$(dirname "$OUTPUT")" && pwd -P)"
 FINAL="$PARENT/$(basename "$OUTPUT")"
@@ -36,9 +41,11 @@ mkdir "$ARTIFACTS"
 (cd "$WORKTREE" && AppStore/Verification/release_audit.sh --static-only)
 (cd "$WORKTREE" && xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$ARTIFACTS/KnitNote-iOS-Privacy.xcarchive" \
+  CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$EXPECTED_TEAM" CODE_SIGN_IDENTITY="Apple Distribution" \
   KNITNOTE_SOURCE_REVISION="$COMMIT" archive)
 (cd "$WORKTREE" && xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Release \
   -destination 'generic/platform=macOS' -archivePath "$ARTIFACTS/KnitNote-macOS-Privacy.xcarchive" \
+  CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$EXPECTED_TEAM" CODE_SIGN_IDENTITY="Apple Distribution" \
   KNITNOTE_SOURCE_REVISION="$COMMIT" archive)
 python3 "$WORKTREE/AppStore/Verification/release_archive_manifest.py" create \
   --archives "$ARTIFACTS" --source-commit "$COMMIT" --output "$ARTIFACTS/provenance.json"

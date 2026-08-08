@@ -11,7 +11,10 @@ settings:
     DEVELOPMENT_TEAM: 9CFPAUL5N5
   configs:
     Debug:
+      CODE_SIGN_IDENTITY: Apple Development
       KNITNOTE_SOURCE_REVISION: UNSET
+    Release:
+      CODE_SIGN_IDENTITY: Apple Distribution
 targets:
   KnitNote:
     type: application
@@ -78,6 +81,11 @@ targets:
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": KnitNote/KnitNote-macOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": KnitNote/KnitNote-iOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": KnitNote/KnitNote-iOS.entitlements
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: Apple Development
+        Release:
+          CODE_SIGN_IDENTITY: Apple Distribution
   KnitNoteWatch:
     type: application
     platform: watchOS
@@ -121,6 +129,11 @@ targets:
         CURRENT_PROJECT_VERSION: 8
         PRODUCT_NAME: KnitNoteWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: Apple Development
+        Release:
+          CODE_SIGN_IDENTITY: Apple Distribution
   KnitNoteShare:
     type: app-extension
     platform: iOS
@@ -171,6 +184,11 @@ targets:
         PRODUCT_NAME: KnitNoteShare
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: Apple Development
+        Release:
+          CODE_SIGN_IDENTITY: Apple Distribution
   KnitNoteAppTests:
     type: bundle.unit-test
     platform: macOS

@@ -543,6 +543,34 @@ import Testing
         #expect(audit.lowerBound < publication.lowerBound)
     }
 
+    @Test func distributionSigningContractUsesTheExpectedTeamForEveryReleaseArchive() throws {
+        let specification = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+        let script = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("AppStore/Verification/create_release_candidate.sh"),
+            encoding: .utf8
+        )
+        let generatedProject = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+
+        #expect(specification.contains("  configs:\n    Debug:\n      CODE_SIGN_IDENTITY: Apple Development"))
+        #expect(specification.contains("    Release:\n      CODE_SIGN_IDENTITY: Apple Distribution"))
+        #expect(specification.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
+        #expect(!generatedProject.contains("CODE_SIGN_IDENTITY = \"iPhone Developer\";"))
+        #expect(generatedProject.components(separatedBy: "CODE_SIGN_IDENTITY = \"Apple Development\";").count - 1 == 4)
+        #expect(generatedProject.components(separatedBy: "CODE_SIGN_IDENTITY = \"Apple Distribution\";").count - 1 == 4)
+        #expect(script.contains("EXPECTED_TEAM=9CFPAUL5N5"))
+        #expect(script.contains("/usr/bin/security find-identity -v -p codesigning"))
+        #expect(script.contains("Apple Distribution:.*\\($EXPECTED_TEAM\\)"))
+        #expect(script.components(separatedBy: "CODE_SIGN_STYLE=Automatic").count - 1 == 2)
+        #expect(script.components(separatedBy: "DEVELOPMENT_TEAM=\"$EXPECTED_TEAM\"").count - 1 == 2)
+        #expect(script.components(separatedBy: "CODE_SIGN_IDENTITY=\"Apple Distribution\"").count - 1 == 2)
+    }
+
     @Test func auditRejectsMissingContradictoryAndRepeatedModes() throws {
         for arguments in [
             [],

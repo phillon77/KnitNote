@@ -185,25 +185,36 @@ require_safe_directory() {
   local label="$1" root="$2" candidate="$3"
   python3 - "$label" "$root" "$candidate" <<'PY'
 from pathlib import Path
+import stat
 import sys
 
 label, root_arg, candidate_arg = sys.argv[1:]
 root = Path(root_arg)
 candidate = Path(candidate_arg)
 try:
+    lexical_root = root.absolute()
+    lexical_candidate = candidate.absolute()
+    lexical_relative = lexical_candidate.relative_to(lexical_root)
+except ValueError:
+    raise SystemExit(f"release audit: {label} is missing or escapes its extraction root")
+current = lexical_root
+for part in lexical_relative.parts:
+    current = current / part
+    try:
+        mode = current.lstat().st_mode
+    except FileNotFoundError:
+        raise SystemExit(f"release audit: {label} is missing or escapes its extraction root")
+    if stat.S_ISLNK(mode):
+        raise SystemExit(f"release audit: {label} contains an unsafe symlink")
+try:
     root_resolved = root.resolve(strict=True)
     candidate_resolved = candidate.resolve(strict=True)
-    relative = candidate_resolved.relative_to(root_resolved)
+    candidate_resolved.relative_to(root_resolved)
 except (FileNotFoundError, ValueError):
     raise SystemExit(f"release audit: {label} is missing or escapes its extraction root")
-current = root_resolved
-for part in relative.parts:
-    current = current / part
-    if current.is_symlink():
-        raise SystemExit(f"release audit: {label} contains an unsafe symlink")
 if not candidate.is_dir() or candidate.is_symlink():
     raise SystemExit(f"release audit: {label} is not a real directory")
-print(candidate_resolved)
+print(lexical_candidate)
 PY
 }
 

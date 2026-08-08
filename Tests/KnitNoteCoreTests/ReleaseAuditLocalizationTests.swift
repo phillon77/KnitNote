@@ -331,6 +331,32 @@ import Testing
         #expect(rootResult.output.contains("exported iOS app root is missing or unsafe"))
     }
 
+    @Test func archiveAuditRejectsIntermediatePayloadSymlinkInsideExtractionRoot() throws {
+        let fixture = try makeArchiveFixture(symlinkPreparedIOSPayloadToReal: true)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("exported iOS app root is missing or unsafe"))
+    }
+
+    @Test func provenanceRejectsIntermediateDistributionDirectorySymlink() throws {
+        let fixture = try makeArchiveFixture(symlinkDistributionParentAfterProvenance: true)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("deterministic archive inventory mismatch"))
+    }
+
     @Test func archiveAuditInspectsExtractedProductsAndRejectsExtractionFailuresOrAmbiguity() throws {
         let passing = try makeArchiveFixture(rejectArchiveCodesign: true)
         defer { try? FileManager.default.removeItem(at: passing.temporaryRoot) }
@@ -1587,7 +1613,9 @@ private func makeArchiveFixture(
     ambiguousMacApps: Bool = false,
     rejectArchiveCodesign: Bool = false,
     symlinkDistributionAfterProvenance: String? = nil,
-    symlinkPreparedExportRoot: String? = nil
+    symlinkPreparedExportRoot: String? = nil,
+    symlinkPreparedIOSPayloadToReal: Bool = false,
+    symlinkDistributionParentAfterProvenance: Bool = false
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
@@ -1803,6 +1831,12 @@ private func makeArchiveFixture(
         try fileManager.createDirectory(at: second.deletingLastPathComponent(), withIntermediateDirectories: true)
         try fileManager.copyItem(at: macApp, to: second)
     }
+    if symlinkPreparedIOSPayloadToReal {
+        let payload = preparedIOS.appendingPathComponent("Payload")
+        let real = preparedIOS.appendingPathComponent("real")
+        try fileManager.moveItem(at: payload, to: real)
+        try fileManager.createSymbolicLink(atPath: payload.path, withDestinationPath: "real")
+    }
     if symlinkPreparedExportRoot == "iOS" {
         try fileManager.removeItem(at: preparedIOSApp)
         try fileManager.createSymbolicLink(at: preparedIOSApp, withDestinationURL: iOSApp)
@@ -1957,6 +1991,13 @@ private func makeArchiveFixture(
             at: artifact,
             withDestinationURL: archives.appendingPathComponent("Distribution/iOS/ExportOptions.plist")
         )
+    }
+    if symlinkDistributionParentAfterProvenance {
+        let distribution = archives.appendingPathComponent("Distribution")
+        let original = distribution.appendingPathComponent("iOS")
+        let real = distribution.appendingPathComponent("iOS-real")
+        try fileManager.moveItem(at: original, to: real)
+        try fileManager.createSymbolicLink(atPath: original.path, withDestinationPath: "iOS-real")
     }
     return ArchiveFixture(
         temporaryRoot: temporaryRoot,

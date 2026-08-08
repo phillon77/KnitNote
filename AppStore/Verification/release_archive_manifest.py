@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path, PurePosixPath
 
 
@@ -33,7 +34,27 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def reject_lexical_symlink_components(root: Path, path: Path, label: str) -> None:
+    lexical_root = root.absolute()
+    lexical_path = path.absolute()
+    try:
+        relative = lexical_path.relative_to(lexical_root)
+    except ValueError as error:
+        raise ValueError(f"release artifact escapes archive root: {label}") from error
+    current = lexical_root
+    for component in relative.parts:
+        current = current / component
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError as error:
+            raise ValueError(f"missing release artifact: {label}") from error
+        if stat.S_ISLNK(mode):
+            raise ValueError(f"release artifact contains an unsafe symlink: {label}")
+
+
 def require_regular_file(path: Path, label: str, root: Path | None = None) -> None:
+    if root is not None:
+        reject_lexical_symlink_components(root, path, label)
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"missing or unsafe release artifact: {label}")
     if root is not None:
@@ -53,6 +74,7 @@ def inventory(root: Path) -> list[dict[str, str]]:
         candidates.append(relative)
     for relative_root in APP_ROOTS:
         absolute_root = root / relative_root
+        reject_lexical_symlink_components(root, absolute_root, relative_root.as_posix())
         if absolute_root.is_symlink() or not absolute_root.is_dir():
             raise ValueError(f"missing release bundle: {relative_root.as_posix()}")
         try:

@@ -23,9 +23,18 @@ The final-review source fix is `9adc8fe` (`fix: keep completed-project deletion 
 | Metadata validator | PASS | `python3 AppStore/Verification/metadata_check.py AppStore/Metadata` emitted `METADATA CHECK: PASS`. |
 | Static release audit | PASS | `bash AppStore/Verification/release_audit.sh --static-only` emitted `METADATA CHECK: PASS`, `COMMERCIAL RELEASE CHECK: PASS (offline)`, and `STATIC RELEASE AUDIT: PASS`. |
 
-### New-candidate physical acceptance — PENDING
+### Exact `9e50a2d` iPhone physical acceptance — PASS
 
-The prior `efb801e86e9a3c196603548be9aca8c0b957c2c0` iPhone PASS below is historical evidence only. It does not accept the new entitlement-policy candidate. After the exact containing commit is overlay-installed without uninstalling or erasing data, the user must repeat the disposable-project in-progress deletion, completed-project rejection, resume-without-unlock-or-trial-start, resumed deletion, relaunch persistence, Traditional-Chinese VoiceOver, and non-disposable-project preservation checks. Until the user supplies those results, the new candidate decision is **PENDING** and the release decision remains **STOP**.
+The user reported the following sequential PASS results on the physical iPhone 17 Pro Max (`iPhone18,2`) running iOS 26.6 (`23G71`), using the overlay-installed exact Debug candidate `9e50a2dfc28358f18c646a5a62557367b4d2f287`, `com.phillon.KnitNote` `1.4.1 (8)`. The app interface locale was Traditional Chinese (`zh-Hant`) throughout this acceptance. This is scoped user physical evidence for this exact candidate; it does not accept another commit, platform, locale, signed archive, or release gate.
+
+1. **PASS — In-progress deletion:** the disposable in-progress project's Delete control was enabled; confirmation appeared; deletion succeeded; the app returned to the project list.
+2. **PASS — Completed direct-delete protection:** after completion, Delete was disabled, the `zh-Hant` resume guidance was visible, and the disposable project remained after leaving and reopening the app.
+3. **PASS — Entitlement-neutral resume:** Resume presented no unlock sheet and caused no trial start or trial-status change.
+4. **PASS — Resume then delete:** after Resume, deletion succeeded and the disposable project remained absent after app relaunch.
+5. **PASS — Traditional-Chinese VoiceOver:** separately from the `zh-Hant` app-interface result, VoiceOver operating in Traditional Chinese announced the disabled Delete control and its guidance.
+6. **PASS — Existing-data preservation:** all existing non-disposable/formal projects remained present and unchanged.
+
+The prior `efb801e86e9a3c196603548be9aca8c0b957c2c0` iPhone PASS below remains historical evidence only and is not used to accept `9e50a2d`. This scoped `9e50a2d` PASS closes only the final entitlement-neutral resume candidate's requested iPhone deletion checks. The overall release decision remains **STOP** because the signed-archive, full platform/locale matrix, native-speaker, screenshot, data-neutrality, and App Store Connect gates below remain incomplete.
 
 ## Historical 2026-08-08 Task 4: completed-project deletion protection evidence
 
@@ -171,7 +180,7 @@ The separate prerequisite blocker remains unresolved: `ca3014146f2b9156b71b5104f
 
 ## Physical and native acceptance
 
-For the broad localization/platform matrix below, no acceptance device was used. The scoped Task 4 iPhone deletion and Traditional-Chinese VoiceOver acceptance above is the sole recorded exception; it does not establish the remaining surfaces, locales, or workflows.
+For the broad localization/platform matrix below, no acceptance device was used. The scoped historical `efb801e` Task 4 acceptance and the scoped exact `9e50a2d` final entitlement-fix acceptance above are the only recorded exceptions; neither establishes the remaining surfaces, locales, or workflows.
 
 | Surface | Existing locales: `en`, `zh-Hant`, `zh-Hans`, `de`, `fr`, `ja` | New locales: `nb`, `sv`, `fi`, `da`, `ko`, `el` |
 | --- | --- | --- |
@@ -197,7 +206,8 @@ All twelve metadata source packages pass repository validation. Live App Store C
 
 | Role | Name | Device/OS | Exact candidate | Decision |
 | --- | --- | --- | --- | --- |
-| iPhone/iPad tester | User (Task 4 scope) | iPhone 17 Pro Max / iOS 26.6 | Debug `efb801e86e9a3c196603548be9aca8c0b957c2c0`, `1.4.1 (8)` | PASS — four deletion/Traditional-Chinese VoiceOver assertions only; all remaining iPhone/iPad matrix items PENDING |
+| iPhone deletion tester (final entitlement fix) | User | iPhone 17 Pro Max / iOS 26.6 | Debug `9e50a2dfc28358f18c646a5a62557367b4d2f287`, `1.4.1 (8)` | PASS — six scoped deletion, entitlement-neutral resume, `zh-Hant` app-interface, separate Traditional-Chinese VoiceOver, and formal-project preservation checks only; all remaining iPhone matrix items PENDING |
+| iPhone/iPad tester (historical Task 4 scope) | User | iPhone 17 Pro Max / iOS 26.6 | Debug `efb801e86e9a3c196603548be9aca8c0b957c2c0`, `1.4.1 (8)` | HISTORICAL PASS — four deletion/Traditional-Chinese VoiceOver assertions only; not acceptance for `9e50a2d`; all remaining iPhone/iPad matrix items PENDING |
 | Mac tester | NOT ASSIGNED | NOT RECORDED | NOT INSTALLED | PENDING |
 | Watch tester | NOT ASSIGNED | NOT RECORDED | NOT INSTALLED | PENDING |
 | Share Extension tester | NOT ASSIGNED | NOT RECORDED | NOT INSTALLED | PENDING |

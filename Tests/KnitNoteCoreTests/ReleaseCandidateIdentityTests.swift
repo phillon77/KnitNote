@@ -13,10 +13,11 @@ import Testing
         for identity in shippingTargetIdentities {
             let target = try #require(targets[identity.target] as? [String: Any])
             let settings = try #require(target["settings"] as? [String: Any])
+            let baseSettings = try #require(settings["base"] as? [String: Any])
 
-            #expect(settings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == identity.bundleIdentifier)
-            #expect(settings["MARKETING_VERSION"] as? String == "1.4.1")
-            #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "8")
+            #expect(baseSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == identity.bundleIdentifier)
+            #expect(baseSettings["MARKETING_VERSION"] as? String == "1.4.1")
+            #expect(baseSettings["CURRENT_PROJECT_VERSION"] as? String == "8")
         }
     }
 

@@ -636,6 +636,24 @@ import Testing
         #expect(preflightIssues.contains("distribution identity preflight before staging"))
     }
 
+    @Test func distributionSigningContractRejectsAnArchiveCommandInAnUnreachableBranch() throws {
+        let sources = try distributionSigningContractSources()
+        let macOSCommand = try #require(releaseArchiveCommand(in: sources.script, platform: "macOS"))
+        let deadMacOSArchive = "if false; then\n  \(macOSCommand)\nfi"
+        let scriptWithDeadMacOSArchive = sources.script.replacingOccurrences(
+            of: macOSCommand,
+            with: deadMacOSArchive
+        )
+
+        let issues = distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: scriptWithDeadMacOSArchive
+        )
+
+        #expect(issues.contains("macOS archive command"))
+    }
+
     @Test func auditRejectsMissingContradictoryAndRepeatedModes() throws {
         for arguments in [
             [],
@@ -820,18 +838,19 @@ private func generatedBuildConfiguration(
 
 private func releaseArchiveCommand(in script: String, platform: String) -> String? {
     let destination = "-destination 'generic/platform=\(platform)'"
-    guard let destinationRange = script.range(of: destination),
-          let commandStart = script[..<destinationRange.lowerBound].range(
+    let topLevelScript = topLevelExecutableBash(script)
+    guard let destinationRange = topLevelScript.range(of: destination),
+          let commandStart = topLevelScript[..<destinationRange.lowerBound].range(
             of: "(cd \"$WORKTREE\" && xcodebuild",
             options: .backwards
           ),
-          let commandEnd = script.range(
+          let commandEnd = topLevelScript.range(
             of: "archive)",
-            range: destinationRange.upperBound..<script.endIndex
+            range: destinationRange.upperBound..<topLevelScript.endIndex
           ) else {
         return nil
     }
-    return String(script[commandStart.lowerBound..<commandEnd.upperBound])
+    return String(topLevelScript[commandStart.lowerBound..<commandEnd.upperBound])
 }
 
 private func distributionIdentityPreflight(in script: String) -> String? {
@@ -848,6 +867,35 @@ private func executableBash(_ source: String) -> String {
         let sourceLine = String(line)
         return sourceLine.trimmingCharacters(in: .whitespaces).hasPrefix("#") ? "" : sourceLine
     }.joined(separator: "\n")
+}
+
+private func topLevelExecutableBash(_ source: String) -> String {
+    var controlDepth = 0
+    return executableBash(source)
+        .split(separator: "\n", omittingEmptySubsequences: false)
+        .map { line in
+            let sourceLine = String(line)
+            let trimmed = sourceLine.trimmingCharacters(in: .whitespaces)
+            if ["fi", "done", "esac", "}"].contains(trimmed) {
+                controlDepth = max(0, controlDepth - 1)
+                return ""
+            }
+            if isBashControlBlockStart(trimmed) {
+                controlDepth += 1
+                return ""
+            }
+            return controlDepth == 0 ? sourceLine : ""
+        }
+        .joined(separator: "\n")
+}
+
+private func isBashControlBlockStart(_ line: String) -> Bool {
+    line.hasPrefix("if ")
+        || line.hasPrefix("for ")
+        || line.hasPrefix("while ")
+        || line.hasPrefix("until ")
+        || line.hasPrefix("case ")
+        || line.hasSuffix("() {")
 }
 
 private func normalizedExecutableBash(_ source: String) -> String {

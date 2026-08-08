@@ -722,7 +722,8 @@ if [[ -n "$ARCHIVES" ]]; then
   EXTRACTION_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/knitnote-release-products.XXXXXX")"
   IOS_EXTRACT="$EXTRACTION_ROOT/ios"
   MAC_EXTRACT="$EXTRACTION_ROOT/mac"
-  mkdir "$IOS_EXTRACT" "$MAC_EXTRACT"
+  mkdir "$IOS_EXTRACT"
+  [[ ! -e "$MAC_EXTRACT" ]] || fail "macOS pkg expansion destination already exists"
   "$DITTO" -x -k "$IPA" "$IOS_EXTRACT" || fail "iOS IPA extraction failed"
   "$PKGUTIL" --expand-full "$PKG" "$MAC_EXTRACT" || fail "macOS pkg expansion failed"
   IOS="$(require_safe_directory "exported iOS app root" "$IOS_EXTRACT" "$IOS_EXTRACT/Payload/KnitNote.app")" \

@@ -390,6 +390,19 @@ import Testing
         }
     }
 
+    @Test func archiveAuditUsesANonexistentDestinationForPkgutilExpansion() throws {
+        let fixture = try makeArchiveFixture(pkgutilRejectsExistingDestination: true)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
+    }
+
     @Test func productionAuditRejectsExtractionToolOverrides() throws {
         for variable in ["KNITNOTE_DITTO", "KNITNOTE_PKGUTIL"] {
             let result = try runReleaseAudit(
@@ -1609,6 +1622,7 @@ private func makeArchiveFixture(
     mutateDistributionAfterProvenance: String? = nil,
     removeDistributionAfterProvenance: String? = nil,
     extractionFailure: String? = nil,
+    pkgutilRejectsExistingDestination: Bool = false,
     omitPreparedExportRoot: String? = nil,
     ambiguousMacApps: Bool = false,
     rejectArchiveCodesign: Bool = false,
@@ -1950,7 +1964,8 @@ private func makeArchiveFixture(
     [ "\(extractionFailure == "macOS" ? "yes" : "no")" = "yes" ] && exit 94
     destination="$3"
     printf '%s\n' "$destination" >> '\(extractionLog.path)'
-    mkdir -p "$destination"
+    [ "\(pkgutilRejectsExistingDestination ? "yes" : "no")" = "yes" ] && [ -e "$destination" ] && exit 95
+    mkdir "$destination"
     cp -R '\(preparedMac.path)/.' "$destination/"
     """.write(to: pkgutil, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: pkgutil.path)

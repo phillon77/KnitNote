@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+PYTHON_RUNTIME="$ROOT/python_runtime.sh"
 MANIFEST="$ROOT/manifest.json"
 TEST_ONLY=0
 if [[ "${1:-}" == "--test-only" ]]; then
@@ -35,7 +36,7 @@ if [[ "${1:-}" == "--all-locales" ]]; then
   STAGING="$(mktemp -d "$(dirname "$RAW_ROOT")/.Raw.staging.XXXXXX")"
   PREVIOUS="$(dirname "$RAW_ROOT")/.Raw.previous.$$"
   SNAPSHOT="$STAGING/.product-snapshot.json"
-  python3 "$ROOT/provenance.py" snapshot --commit "$EXPECTED_COMMIT" --version "$EXPECTED_VERSION" --build "$EXPECTED_BUILD" \
+  "$PYTHON_RUNTIME" "$ROOT/provenance.py" snapshot --commit "$EXPECTED_COMMIT" --version "$EXPECTED_VERSION" --build "$EXPECTED_BUILD" \
     --ios-app "$IOS_APP" --watch-app "$WATCH_APP" --macos-app "$MAC_APP" --output "$SNAPSHOT"
   published=0
   cleanup_all_locales() {
@@ -52,11 +53,11 @@ if [[ "${1:-}" == "--all-locales" ]]; then
   done
   [[ "$(git rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] || { echo "candidate HEAD changed during capture" >&2; exit 1; }
   [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || { echo "candidate worktree changed during capture" >&2; exit 1; }
-  python3 "$ROOT/provenance.py" create-raw --manifest "$MANIFEST" --raw-root "$STAGING" \
+  "$PYTHON_RUNTIME" "$ROOT/provenance.py" create-raw --manifest "$MANIFEST" --raw-root "$STAGING" \
     --commit "$EXPECTED_COMMIT" --version "$EXPECTED_VERSION" --build "$EXPECTED_BUILD" \
     --ios-app "$IOS_APP" --watch-app "$WATCH_APP" --macos-app "$MAC_APP" \
     --output "$STAGING/candidate-provenance.json"
-  python3 - "$SNAPSHOT" "$STAGING/candidate-provenance.json" <<'PY'
+  "$PYTHON_RUNTIME" - "$SNAPSHOT" "$STAGING/candidate-provenance.json" <<'PY'
 import json, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
 after = json.load(open(sys.argv[2], encoding="utf-8"))["products"]
@@ -89,7 +90,7 @@ if [[ "$LOCALE" == "--release-plan" ]]; then
     echo "usage: $0 --release-plan $LOCALE_USAGE" >&2
     exit 2
   fi
-  python3 - "$MANIFEST" "$LOCALE" <<'PY'
+  "$PYTHON_RUNTIME" - "$MANIFEST" "$LOCALE" <<'PY'
 import json, sys
 manifest, locale = sys.argv[1:]
 storyboard = [
@@ -124,7 +125,7 @@ require_variable() {
 
 verify_dedicated_device() {
   local udid="$1" platform="$2"
-  python3 - "$udid" "$platform" <<'PY'
+  "$PYTHON_RUNTIME" - "$udid" "$platform" <<'PY'
 import json, subprocess, sys
 udid, platform = sys.argv[1:]
 payload = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "--json"]))
@@ -323,7 +324,7 @@ while IFS=$'\t' read -r platform scene filename width height; do
   else
     capture_simulator "$platform" "$scene" "$output" "$width" "$height"
   fi
-done < <(python3 - "$MANIFEST" "$LOCALE" <<'PY'
+done < <("$PYTHON_RUNTIME" - "$MANIFEST" "$LOCALE" <<'PY'
 import json, sys
 manifest, locale = sys.argv[1:]
 localized = [

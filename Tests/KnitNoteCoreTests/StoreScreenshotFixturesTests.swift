@@ -283,9 +283,8 @@ import Testing
         }
 
         let validation = try screenshotProcess(
-            executable: "/usr/bin/env",
+            executable: screenshotPythonRuntime.path,
             arguments: [
-                "python3",
                 "AppStore/Screenshots/validate.py",
                 "AppStore/Screenshots/manifest.json",
                 "--manifest-only",
@@ -295,9 +294,8 @@ import Testing
         #expect(validation.output.contains("168 screenshot definitions valid"))
 
         let missingCandidateIdentity = try screenshotProcess(
-            executable: "/usr/bin/env",
+            executable: screenshotPythonRuntime.path,
             arguments: [
-                "python3",
                 "AppStore/Screenshots/validate.py",
                 "AppStore/Screenshots/manifest.json",
             ]
@@ -375,9 +373,9 @@ import Testing
             .write(to: manifest)
 
         let provenanceSetup = try screenshotProcess(
-            executable: "/usr/bin/env",
+            executable: screenshotPythonRuntime.path,
             arguments: [
-                "python3", "-c",
+                "-c",
                 "import sys; sys.path.insert(0, sys.argv[1]); from provenance import *; m=Path(sys.argv[2]); r=Path(sys.argv[3]); c='" + String(repeating: "a", count: 40) + "'; h='" + String(repeating: "b", count: 64) + "'; p={n:{'bundleIdentifier':PRODUCT_IDS[n],'version':'1.4.1','build':'8','sourceRevision':c,'executable':PRODUCT_EXECUTABLES[n],'executableSHA256':h} for n in PRODUCT_IDS}; atomic_write(r/'candidate-provenance.json', create_raw(m,r,c,'1.4.1','8',p))",
                 screenshotRepositoryRoot.appending(path: "AppStore/Screenshots").path,
                 manifest.path,
@@ -388,9 +386,8 @@ import Testing
         #expect(provenanceSetup.status == 0, Comment(rawValue: provenanceSetup.output))
 
         let result = try screenshotProcess(
-            executable: "/usr/bin/env",
+            executable: screenshotPythonRuntime.path,
             arguments: [
-                "python3",
                 screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/compose.py").path,
                 manifest.path,
             ],
@@ -408,9 +405,9 @@ import Testing
         let generatedProvenance = root.appending(path: "Generated/candidate-provenance.json")
         #expect(FileManager.default.fileExists(atPath: generatedProvenance.path))
         let staleCandidateVerification = try screenshotProcess(
-            executable: "/usr/bin/env",
+            executable: screenshotPythonRuntime.path,
             arguments: [
-                "python3", "-c",
+                "-c",
                 "import sys; sys.path.insert(0,sys.argv[1]); from provenance import verify_generated; from pathlib import Path; verify_generated(Path(sys.argv[2]),Path(sys.argv[3]),Path(sys.argv[4]),Path(sys.argv[5]),expected_commit='" + String(repeating: "c", count: 40) + "',expected_version='1.4.1',expected_build='8')",
                 screenshotRepositoryRoot.appending(path: "AppStore/Screenshots").path,
                 manifest.path,
@@ -425,9 +422,9 @@ import Testing
         let mutated = root.appending(path: "Generated/en/iphone/01.png")
         try Data("mutated".utf8).write(to: mutated)
         let verification = try screenshotProcess(
-            executable: "/usr/bin/env",
+            executable: screenshotPythonRuntime.path,
             arguments: [
-                "python3", "-c",
+                "-c",
                 "import sys; sys.path.insert(0,sys.argv[1]); from provenance import verify_generated; from pathlib import Path; verify_generated(Path(sys.argv[2]),Path(sys.argv[3]),Path(sys.argv[4]),Path(sys.argv[5]))",
                 screenshotRepositoryRoot.appending(path: "AppStore/Screenshots").path,
                 manifest.path,
@@ -442,9 +439,9 @@ import Testing
 
     @Test func koreanCompositorRendersHangulAsDistinctNonTofuGlyphPixels() throws {
         let result = try screenshotProcess(
-            executable: "/usr/bin/env",
+            executable: screenshotPythonRuntime.path,
             arguments: [
-                "python3", "-m", "unittest", "AppStore.Screenshots.compose_test",
+                "-m", "unittest", "AppStore.Screenshots.compose_test",
             ]
         )
 
@@ -502,7 +499,7 @@ import Testing
         #!/bin/sh
         echo "$1" >> "${LOCALE_LOG:?}"
         [ "$1" != "${FAIL_LOCALE:-}" ] || exit 1
-        python3 - "$1" <<'PY'
+        "${SCREENSHOT_PYTHON_RUNTIME:?}" - "$1" <<'PY'
         import json, os, pathlib, sys
         locale = sys.argv[1]
         manifest = json.load(open(os.environ["SCREENSHOT_MANIFEST"], encoding="utf-8"))
@@ -527,6 +524,7 @@ import Testing
         environment["WATCH_APP"] = watchApp.path
         environment["MAC_APP"] = macApp.path
         environment["SCREENSHOT_MANIFEST"] = screenshotRepositoryRoot.appending(path: "AppStore/Screenshots/manifest.json").path
+        environment["SCREENSHOT_PYTHON_RUNTIME"] = screenshotPythonRuntime.path
         var result = try screenshotProcess(
             executable: "/bin/bash",
             arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.4.1", "8"],
@@ -588,6 +586,17 @@ import Testing
         )
         #expect(result.status == 0)
         #expect(result.output.contains("compatible:payload"))
+    }
+
+    @Test func screenshotWorkflowsUseTheCheckedInPythonRuntime() throws {
+        let capture = try screenshotSourceText("AppStore/Screenshots/capture.sh")
+        let tests = try screenshotSourceText("Tests/KnitNoteCoreTests/StoreScreenshotFixturesTests.swift")
+
+        #expect(capture.contains("PYTHON_RUNTIME=\"$ROOT/python_runtime.sh\""))
+        #expect(!capture.contains("python3 \"$ROOT/"))
+        #expect(!tests.contains("\"python3\","))
+        let ambientRunnerInvocation = "        " + "python3 - \"$1\" <<'PY'"
+        #expect(!tests.contains(ambientRunnerInvocation))
     }
 }
 
@@ -677,6 +686,9 @@ private let screenshotRepositoryRoot = URL(filePath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     .deletingLastPathComponent()
+
+private let screenshotPythonRuntime = screenshotRepositoryRoot
+    .appending(path: "AppStore/Screenshots/python_runtime.sh")
 
 private let releaseScreenshotLocales = [
     "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",

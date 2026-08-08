@@ -4,13 +4,7 @@ This directory produces 168 screenshot definitions: 14 each for English, Traditi
 
 ## One-time setup
 
-1. Install Python dependencies into a temporary virtual environment:
-
-   ```bash
-   python3 -m venv /tmp/knitnote-screenshots-venv
-   /tmp/knitnote-screenshots-venv/bin/python -m pip install --upgrade pip
-   /tmp/knitnote-screenshots-venv/bin/pip install -r AppStore/Screenshots/requirements.txt
-   ```
+1. Ensure a trusted local Python 3 runtime with Pillow is already installed. `python_runtime.sh` selects the first compatible interpreter from its fixed trusted-path list, entirely offline; it neither downloads packages nor modifies a Python installation. `requirements.txt` remains the dependency declaration for externally managed environments.
 
 2. Create dedicated iPhone 17 Pro Max, iPad Pro 13-inch (M4/M5), and Apple Watch Series 10/11 46mm simulators. Their names must begin with `KnitNote Store` (for example, `KnitNote Store iPhone`). The capture script refuses any other simulator and erases these dedicated devices before each locale, so never point the variables at a personal test simulator.
 
@@ -44,8 +38,8 @@ CANDIDATE_COMMIT="$(git rev-parse HEAD)"
 CANDIDATE_VERSION='1.4.1'
 CANDIDATE_BUILD='8'
 AppStore/Screenshots/capture.sh --all-locales "$CANDIDATE_COMMIT" "$CANDIDATE_VERSION" "$CANDIDATE_BUILD"
-/tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/compose.py AppStore/Screenshots/manifest.json
-/tmp/knitnote-screenshots-venv/bin/python AppStore/Screenshots/validate.py \
+AppStore/Screenshots/python_runtime.sh AppStore/Screenshots/compose.py AppStore/Screenshots/manifest.json
+AppStore/Screenshots/python_runtime.sh AppStore/Screenshots/validate.py \
   AppStore/Screenshots/manifest.json \
   --expected-commit "$CANDIDATE_COMMIT" \
   --expected-version "$CANDIDATE_VERSION" \

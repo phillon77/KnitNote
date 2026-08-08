@@ -739,6 +739,113 @@ import Testing
         #expect(issues.contains("macOS archive command"))
     }
 
+    @Test func distributionSigningContractRejectsTargetStyleOverridesAndDebugProfiles() throws {
+        let sources = try distributionSigningContractSources()
+        let targets = [
+            (
+                label: "KnitNote",
+                generatedOwner: #"PBXNativeTarget "KnitNote""#,
+                specificationStart: "  KnitNote:\n",
+                specificationEnd: "  KnitNoteWatch:\n"
+            ),
+            (
+                label: "KnitNoteWatch",
+                generatedOwner: #"PBXNativeTarget "KnitNoteWatch""#,
+                specificationStart: "  KnitNoteWatch:\n",
+                specificationEnd: "  KnitNoteShare:\n"
+            ),
+            (
+                label: "KnitNoteShare",
+                generatedOwner: #"PBXNativeTarget "KnitNoteShare""#,
+                specificationStart: "  KnitNoteShare:\n",
+                specificationEnd: "  KnitNoteAppTests:\n"
+            ),
+        ]
+
+        for target in targets {
+            for (configuration, wrongStyle) in [("Debug", "Manual"), ("Release", "Automatic")] {
+                let generatedMutation = try #require(generatedProjectByAddingBuildSetting(
+                    sources.generatedProject,
+                    owner: target.generatedOwner,
+                    configuration: configuration,
+                    setting: "CODE_SIGN_STYLE = \(wrongStyle);"
+                ))
+                #expect(distributionSigningContractIssues(
+                    specification: sources.specification,
+                    generatedProject: generatedMutation,
+                    script: sources.script
+                ).contains("\(target.label) \(configuration) target signing style override"))
+
+                let specificationMutation = try #require(specificationByAddingTargetBuildSetting(
+                    sources.specification,
+                    targetStart: target.specificationStart,
+                    targetEnd: target.specificationEnd,
+                    configuration: configuration,
+                    setting: "CODE_SIGN_STYLE: \(wrongStyle)"
+                ))
+                #expect(distributionSigningContractIssues(
+                    specification: specificationMutation,
+                    generatedProject: sources.generatedProject,
+                    script: sources.script
+                ).contains("\(target.label) \(configuration) target signing style specification override"))
+            }
+        }
+
+        let debugProfileMutations = [
+            (
+                target: targets[0],
+                generatedSetting: "PROVISIONING_PROFILE_SPECIFIER = WrongDebugProfile;",
+                specificationSetting: "PROVISIONING_PROFILE_SPECIFIER: WrongDebugProfile"
+            ),
+            (
+                target: targets[0],
+                generatedSetting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\" = WrongDebugProfile;",
+                specificationSetting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]\": WrongDebugProfile"
+            ),
+            (
+                target: targets[0],
+                generatedSetting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\" = WrongDebugProfile;",
+                specificationSetting: "\"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]\": WrongDebugProfile"
+            ),
+            (
+                target: targets[1],
+                generatedSetting: "PROVISIONING_PROFILE_SPECIFIER = WrongDebugProfile;",
+                specificationSetting: "PROVISIONING_PROFILE_SPECIFIER: WrongDebugProfile"
+            ),
+            (
+                target: targets[2],
+                generatedSetting: "PROVISIONING_PROFILE_SPECIFIER = WrongDebugProfile;",
+                specificationSetting: "PROVISIONING_PROFILE_SPECIFIER: WrongDebugProfile"
+            ),
+        ]
+        for mutation in debugProfileMutations {
+            let generatedMutation = try #require(generatedProjectByAddingBuildSetting(
+                sources.generatedProject,
+                owner: mutation.target.generatedOwner,
+                configuration: "Debug",
+                setting: mutation.generatedSetting
+            ))
+            #expect(distributionSigningContractIssues(
+                specification: sources.specification,
+                generatedProject: generatedMutation,
+                script: sources.script
+            ).contains("\(mutation.target.label) Debug provisioning profile"))
+
+            let specificationMutation = try #require(specificationByAddingTargetBuildSetting(
+                sources.specification,
+                targetStart: mutation.target.specificationStart,
+                targetEnd: mutation.target.specificationEnd,
+                configuration: "Debug",
+                setting: mutation.specificationSetting
+            ))
+            #expect(distributionSigningContractIssues(
+                specification: specificationMutation,
+                generatedProject: sources.generatedProject,
+                script: sources.script
+            ).contains("\(mutation.target.label) Debug provisioning profile specification"))
+        }
+    }
+
     @Test func auditRejectsMissingContradictoryAndRepeatedModes() throws {
         for arguments in [
             [],
@@ -839,6 +946,30 @@ private func distributionSigningContractIssues(
     for profile in profileSpecifications where !specification.contains(profile) {
         issues.append("Store provisioning profile specification: \(profile)")
     }
+    for owner in specificationOwners.dropFirst() {
+        guard let ownerSection = sourceSection(
+            in: specification,
+            start: owner.start,
+            end: owner.end
+        ) else {
+            continue
+        }
+        for configurationName in ["Debug", "Release"] {
+            guard let configuration = sourceTargetBuildConfiguration(
+                in: ownerSection,
+                configuration: configurationName
+            ) else {
+                continue
+            }
+            if configuration.contains("CODE_SIGN_STYLE:") {
+                issues.append("\(owner.label) \(configurationName) target signing style specification override")
+            }
+            if configurationName == "Debug",
+               configuration.contains("PROVISIONING_PROFILE_SPECIFIER") {
+                issues.append("\(owner.label) Debug provisioning profile specification")
+            }
+        }
+    }
 
     let generatedOwners = [
         (label: "project", owner: #"PBXProject "KnitNote""#),
@@ -855,6 +986,13 @@ private func distributionSigningContractIssues(
             )
             if configuration?.contains("CODE_SIGN_IDENTITY = \"\(expected.identity)\";") != true {
                 issues.append("\(owner.label) \(expected.configuration) signing identity")
+            }
+            if owner.label != "project", configuration?.contains("CODE_SIGN_STYLE") == true {
+                issues.append("\(owner.label) \(expected.configuration) target signing style override")
+            }
+            if owner.label != "project", expected.configuration == "Debug",
+               configuration?.contains("PROVISIONING_PROFILE_SPECIFIER") == true {
+                issues.append("\(owner.label) Debug provisioning profile")
             }
         }
     }
@@ -963,6 +1101,27 @@ private func sourceSection(in source: String, start: String, end: String) -> Str
     return String(source[startRange.lowerBound..<endRange.lowerBound])
 }
 
+private func sourceTargetBuildConfiguration(
+    in targetSection: String,
+    configuration: String
+) -> String? {
+    let marker = "        \(configuration):\n"
+    guard let start = targetSection.range(of: marker) else {
+        return nil
+    }
+    let end: String.Index
+    if configuration == "Debug",
+       let release = targetSection.range(
+           of: "        Release:\n",
+           range: start.upperBound..<targetSection.endIndex
+       ) {
+        end = release.lowerBound
+    } else {
+        end = targetSection.endIndex
+    }
+    return String(targetSection[start.lowerBound..<end])
+}
+
 private func generatedBuildConfiguration(
     in project: String,
     owner: String,
@@ -991,6 +1150,43 @@ private func generatedBuildConfiguration(
         return nil
     }
     return String(project[configurationStart.lowerBound..<configurationEnd.upperBound])
+}
+
+private func generatedProjectByAddingBuildSetting(
+    _ project: String,
+    owner: String,
+    configuration: String,
+    setting: String
+) -> String? {
+    guard let original = generatedBuildConfiguration(
+        in: project,
+        owner: owner,
+        configuration: configuration
+    ), let insertion = original.range(of: "buildSettings = {\n") else {
+        return nil
+    }
+    var mutated = original
+    mutated.insert(contentsOf: "\t\t\t\t\(setting)\n", at: insertion.upperBound)
+    return project.replacingOccurrences(of: original, with: mutated)
+}
+
+private func specificationByAddingTargetBuildSetting(
+    _ specification: String,
+    targetStart: String,
+    targetEnd: String,
+    configuration: String,
+    setting: String
+) -> String? {
+    guard let original = sourceSection(
+        in: specification,
+        start: targetStart,
+        end: targetEnd
+    ), let insertion = original.range(of: "        \(configuration):\n") else {
+        return nil
+    }
+    var mutated = original
+    mutated.insert(contentsOf: "          \(setting)\n", at: insertion.upperBound)
+    return specification.replacingOccurrences(of: original, with: mutated)
 }
 
 private func releaseArchiveCommand(in script: String, platform: String) -> String? {

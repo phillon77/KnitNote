@@ -867,11 +867,14 @@ import Testing
     @Test func candidateCreatorBindsProductionXcodebuildAndPermitsOverridesOnlyInTestMode() throws {
         let script = try candidateCreatorScript()
         #expect(script.contains("XCODEBUILD=/usr/bin/xcodebuild"))
+        #expect(script.contains("MKTEMP=mktemp"))
         #expect(script.contains("if [[ \"$TEST_ONLY\" == 1 ]]; then"))
         #expect(script.contains("XCODEBUILD=\"${KNITNOTE_CREATOR_XCODEBUILD:-$XCODEBUILD}\""))
-        let production = try runCandidateCreator(arguments: ["/tmp/unused-candidate"], environment: ["KNITNOTE_CREATOR_XCODEBUILD": "/tmp/override"])
-        #expect(production.status != 0)
-        #expect(production.output.contains("release candidate creation rejects override KNITNOTE_CREATOR_XCODEBUILD"))
+        for variable in ["KNITNOTE_CREATOR_XCODEBUILD", "KNITNOTE_CREATOR_MKTEMP"] {
+            let production = try runCandidateCreator(arguments: ["/tmp/unused-candidate"], environment: [variable: "/tmp/override"])
+            #expect(production.status != 0)
+            #expect(production.output.contains("release candidate creation rejects override \(variable)"))
+        }
     }
 
     @Test func atomicPublicationNeverNestsArtifactsAndRejectsDestinationRace() throws {
@@ -910,6 +913,8 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: successful.final.appendingPathComponent("Distribution/iOS/Packaging.log").path))
         #expect(!FileManager.default.fileExists(atPath: successful.final.appendingPathComponent("Distribution/macOS/Packaging.log").path))
         #expect(FileManager.default.fileExists(atPath: successful.final.appendingPathComponent(".TEST_FIXTURE_NOT_FOR_RELEASE").path))
+        let successfulRemaining = try FileManager.default.contentsOfDirectory(atPath: successful.parent.path)
+        #expect(!successfulRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") || $0.hasPrefix(".KnitNote-1.4.1.worktree.") }))
         let permissions = try #require(
             FileManager.default.attributesOfItem(atPath: successful.final.path)[.posixPermissions] as? NSNumber
         )
@@ -948,6 +953,11 @@ import Testing
             generatedProject: sources.generatedProject,
             script: sources.script
         ).isEmpty)
+        #expect(distributionSigningContractIssues(
+            specification: sources.specification,
+            generatedProject: sources.generatedProject,
+            script: sources.script.replacingOccurrences(of: "MKTEMP=mktemp", with: "MKTEMP=/tmp/mktemp")
+        ).contains("production temporary directory tool"))
     }
 
     @Test func distributionSigningContractRejectsMisboundAutomaticArchivesExportsAndPreflight() throws {
@@ -1477,6 +1487,9 @@ private func distributionSigningContractIssues(
     let executableScript = executableBash(script)
     if !executableScript.contains("XCODEBUILD=/usr/bin/xcodebuild") {
         issues.append("production Xcode build tool")
+    }
+    if !executableScript.contains("MKTEMP=mktemp") {
+        issues.append("production temporary directory tool")
     }
     if executableScript.contains("-allowProvisioningUpdates")
         || executableScript.contains("destination=upload") {

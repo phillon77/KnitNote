@@ -40,3 +40,7 @@ The installer certificate parser now accepts only the actual chain leaf numbered
 Scope note: this closes only local creator/audit tooling review findings. It does not create, modify, retire, upload, or promote a candidate and does not clear physical or App Store gates.
 
 Fresh Fix Round 2 verification: `ReleaseAuditLocalizationTests` exited 0 with 54 tests in 1 suite passing in 270.504 seconds (`/tmp/KnitNoteTask4Fix2-final-release.log`); `StoreScreenshotFixturesTests` exited 0 with 19 tests in 1 suite passing in 9.294 seconds (`/tmp/KnitNoteTask4Fix2-screenshots.log`). Static audit, Bash syntax, Python compilation, plist lint, and diff check passed.
+
+## Fix Round 3 evidence
+
+The successful creator fixture now reads its parent directory directly and proves no staging or worktree residue. Production contract coverage requires `MKTEMP=mktemp`, rejects a production `KNITNOTE_CREATOR_MKTEMP` override, and proves a mutated binding fails the signing contract. The three targeted tests passed: production-binding/override rejection (0.011 seconds), successful-parent-residue inspection (3.923 seconds), and the signing-contract mutation (0.225 seconds). Static audit, Bash syntax, Python compilation, plist lint, and diff check passed. No production code changed, so the Fix Round 2 full-suite evidence remains applicable.

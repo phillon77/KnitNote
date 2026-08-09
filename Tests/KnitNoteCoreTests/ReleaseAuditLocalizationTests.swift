@@ -70,7 +70,7 @@ import Testing
         )
 
         #expect(result.status != 0)
-        #expect(result.output.contains("iOS product build is 7, expected 8"))
+        #expect(result.output.contains("iOS product build is 8, expected 9"))
     }
 
     @Test func staticAuditRejectsGeneratedProjectMissingOneReleaseRegion() throws {

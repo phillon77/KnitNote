@@ -43,7 +43,7 @@ FORBIDDEN_PATTERNS = (
             r"automatisk[ -]+oversættelse|ai[ -]+oversættelse|"
             r"αυτόματη[ -]+μετάφραση|"
             r"μετάφραση[ -]+με[ -]+τεχνητή[ -]+νοημοσύνη|"
-            r"ai[ -]+vertaling|vertaling[ -]+met[ -]+kunstmatige[ -]+intelligentie"
+            r"ai[ -]+vertaling(?:en)?|vertaling[ -]+met[ -]+kunstmatige[ -]+intelligentie"
             r")(?!\w)|"
             r"(?:ai[ -]*(?:翻譯|翻译|翻訳|による[ -]*翻訳)|"
             r"(?:人工智慧|人工智能|人工知能)[ -]*(?:翻譯|翻译|翻訳)|"
@@ -58,7 +58,7 @@ FORBIDDEN_PATTERNS = (
             r"cloud[ -]*synchronis(?:ation|ierung)|"
             r"synchronisation[ -]+(?:dans[ -]+le[ -]+)?cloud|"
             r"cloud[ -]+synchronisation|"
-            r"cloudsynchronisatie|synchronisatie[ -]+met[ -]+de[ -]+cloud"
+            r"cloudsynchronisatie(?:s)?|synchronisatie[ -]+met[ -]+de[ -]+cloud"
             r")(?!\w)|(?:雲端|云端)[ -]*同步|クラウド[ -]*同期"
         ),
     ),
@@ -79,7 +79,7 @@ FORBIDDEN_PATTERNS = (
         "subscription",
         re.compile(
             r"(?<!\w)(?:"
-            r"subscriptions?|abonnements?|abonnementsdienst|prenumeration|tilaus|συνδρομή"
+            r"subscriptions?|abonnement(?:en|sdienst|s)?|prenumeration|tilaus|συνδρομή"
             r")(?!\w)|"
             r"訂閱|订阅|サブスクリプション|定期購入|구독"
         ),
@@ -96,13 +96,13 @@ FORBIDDEN_PATTERNS = (
     (
         "price",
         re.compile(
-            r"(?<!\w)(?:pris|prijs|kosten|hinta|τιμή)(?!\w)|가격"
+            r"(?<!\w)(?:pris|prijs|prijzen|kosten|hinta|τιμή)(?!\w)|가격"
         ),
     ),
     (
         "purchase",
         re.compile(
-            r"(?<!\w)(?:kjøp|köp|aankoop|kopen|osto|køb|αγορά)(?!\w)|구매"
+            r"(?<!\w)(?:kjøp|köp|aankoop|aankopen|koop|koopt|kopen|osto|køb|αγορά)(?!\w)|구매"
         ),
     ),
     (
@@ -111,7 +111,7 @@ FORBIDDEN_PATTERNS = (
             r"(?<!\w)(?:"
             r"skysynkronisering|molnsynkronisering|pilvisynkronointi|"
             r"fjärrtjänst|etäpalvelu|ekstern[ -]+tjeneste|"
-            r"externe[ -]+dienst|service[ -]+op[ -]+afstand|"
+            r"externe[ -]+dienst(?:en)?|service[ -]+op[ -]+afstand|"
             r"συγχρονισμόσ[ -]+στο[ -]+(?:cloud|νέφοσ)|"
             r"απομακρυσμένη[ -]+υπηρεσία"
             r")(?!\w)|(?:클라우드[ -]*동기화|원격[ -]*서비스)"
@@ -128,7 +128,8 @@ FORBIDDEN_PATTERNS = (
             r"borttagna[ -]+projekt.{0,120}återställ\w*|"
             r"poistetut[ -]+projektit.{0,120}palaut\w*|"
             r"slettede[ -]+projekter.{0,120}gendann\w*|"
-            r"verwijderd[ -]+project.{0,120}(?:herstel\w*|terugzet\w*)|"
+            r"(?:herstel\w*|terugzet\w*)[ -]+(?:een[ -]+)?verwijderd(?:e)?[ -]+project(?:en)?|"
+            r"verwijderd(?:e)?[ -]+project(?:en)?(?:[ -]+(?:kan|kunnen|weer|worden|wordt))*[ -]+(?:herstel\w*|terugzet\w*)|"
             r"τα[ -]+διαγραμμένα[ -]+έργα.{0,120}(?:ανακτηθ\w*|επαναφερ\w*)"
             r")(?!\w)|"
             r"已刪除的?作品.{0,80}(?:復原|恢復)|"
@@ -144,7 +145,7 @@ FORBIDDEN_PATTERNS = (
             r"social[ -]+network(?:s|ing)?|"
             r"sozial(?:e|er|es|en)[ -]+netzwerk(?:e)?|"
             r"réseaux?[ -]+(?:social|sociaux)|"
-            r"sociaal[ -]+netwerk|sociale[ -]+netwerksite"
+            r"sociaal[ -]+netwerk(?:en)?|sociale[ -]+netwerk(?:en|site(?:s)?)"
             r")(?!\w)|"
             r"社群網路|社交網路|社交网络|"
             r"ソーシャルネットワーク"
@@ -155,7 +156,7 @@ FORBIDDEN_PATTERNS = (
         re.compile(
             r"(?<!\w)(?:"
             r"market[ -]*places?|marktpl(?:atz|ätze)|"
-            r"places?[ -]+de[ -]+marché|marktplaats"
+            r"places?[ -]+de[ -]+marché|marktplaats(?:en)?"
             r")(?!\w)|"
             r"市集|商城|市場平台|市场平台|マーケットプレイス"
         ),
@@ -176,7 +177,8 @@ FORBIDDEN_PATTERNS = (
             r"(?:delningstillägget|delningsvyerna).{0,120}systemspråket|"
             r"(?:jakolaajennus|jakonäkymät).{0,120}järjestelmän[ -]+kieltä|"
             r"(?:delingsudvidelsen|delingsvisningerne).{0,120}systemets[ -]+sprog|"
-            r"(?:deel[ -]+extensie|deelschermen?).{0,120}gebruik(?:t|en).{0,30}systeemtaal|"
+            r"(?:deel[ -]+extensie|deelscherm(?:en)?).{0,120}"
+            r"(?:gebruik(?:t|en)|werk(?:t|en)|volg(?:t|en)).{0,30}systeemtaal|"
             r"(?:공유[ -]+확장[ -]+프로그램|공유[ -]+화면).{0,80}시스템[ -]+언어|"
             r"(?:επέκταση|προβολέσ)[ -]+κοινήσ[ -]+χρήσησ.{0,120}"
             r"γλώσσα[ -]+του[ -]+συστήματοσ"

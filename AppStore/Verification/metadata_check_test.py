@@ -586,8 +586,35 @@ class MetadataValidationTests(unittest.TestCase):
             ("marketplace", "Marktplaats"),
             ("Share system-only language", "Deel-extensie gebruikt de systeemtaal"),
             ("Share system-only language", "Deelschermen gebruiken de systeemtaal"),
+            ("AI translation", "AI-vertalingen voor patronen"),
+            ("cloud sync", "Cloudsynchronisaties voor al je apparaten"),
+            ("cloud/remote service", "Werkt met externe diensten"),
+            ("subscription", "Kies uit meerdere abonnementen"),
+            ("price", "Vergelijk prijzen voordat je koopt"),
+            ("purchase", "Beheer aankopen vanuit de app"),
+            ("deleted project recovery", "Herstel een verwijderd project"),
+            ("deleted project recovery", "Verwijderde projecten herstellen"),
+            ("social network", "Maak verbinding met sociale netwerken"),
+            ("social network", "Deel via sociale netwerksites"),
+            ("marketplace", "Ontdek marktplaatsen voor patronen"),
+            ("Share system-only language", "Deel-extensie werkt uitsluitend in de systeemtaal"),
+            ("Share system-only language", "Het deelscherm volgt de systeemtaal"),
         )
         self.assert_forbidden_claims_by_concept(claims)
+
+    def test_dutch_backup_restore_decoys_are_not_deleted_project_recovery(self) -> None:
+        for description in (
+            "Een verwijderd project blijft verwijderd; alleen een gekozen "
+            "reservekopie kan worden hersteld.",
+            "Een verwijderd project blijft verwijderd. Herstel alleen de "
+            "reservekopie die je zelf kiest.",
+        ):
+            with self.subTest(description=description):
+                path = self.write_metadata(Description=description)
+                self.assertNotIn(
+                    f"{path}: copy: forbidden release claim: deleted project recovery",
+                    validate(path),
+                )
 
     def test_v141_offline_watch_transfer_and_explicit_backup_wording_is_allowed(self) -> None:
         safe_copy = (

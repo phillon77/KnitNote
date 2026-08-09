@@ -7,14 +7,14 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.5 maakt het gebruik van tellers eenvoudiger met instelbare herinneringen en een betere afstemming met Apple Watch. Nederlands is nu beschikbaar en de titel Projecten volgt je gekozen app-taal.
+- What's New: KnitNote 1.5 maakt het gebruik van tellers eenvoudiger met herinneringen en een betere afstemming met je Apple Watch. Nederlands is nu beschikbaar en de titel Projecten volgt je gekozen app-taal.
 - Description: |
-  Blijf bij het garen in je handen. KnitNote brengt breiprojecten, zes tellers, patronen en notities samen in een rustige, overzichtelijke werkruimte.
+  Houd de draad in handen. KnitNote brengt breiprojecten, zes tellers, patronen en notities samen in een rustige, overzichtelijke werkruimte.
 
   Tel eenvoudig
   • Geef elke teller een eigen naam
-  • Tik om één toe te voegen; houd ingedrukt om te verminderen, op nul te zetten of de naam te wijzigen
-  • Stel instelbare herinneringen in voor een teller
+  • Tik om een toer erbij te tellen; houd ingedrukt om één toer af te trekken, de teller op nul te zetten of de naam te wijzigen
+  • Stel herinneringen in voor een teller
   • Een voltooid project vergrendelt de tellers en het breidagboek totdat je het weer voortzet
 
   Lees patronen duidelijk
@@ -31,7 +31,7 @@
 
   Tel vanaf je pols
   • Bekijk projecten en alle zes tellers op Apple Watch
-  • Tellers en herinneringen worden afgestemd met Apple Watch
+  • Je tellers en herinneringen worden gesynchroniseerd met je Apple Watch
 
   Gebruik KnitNote in je taal
   • Kies Engels, Traditioneel Chinees, Vereenvoudigd Chinees, Duits, Frans, Japans, Noors Bokmål, Zweeds, Fins, Deens, Koreaans, Grieks of Nederlands in Instellingen

@@ -110,7 +110,7 @@ import Testing
             generatedAt: now
         )
 
-        #expect(snapshot.schemaVersion == 2)
+        #expect(snapshot.schemaVersion == 3)
         #expect(snapshot.entitlement == WatchEntitlementSnapshot(
             kind: .trial,
             expiresAt: expiry,

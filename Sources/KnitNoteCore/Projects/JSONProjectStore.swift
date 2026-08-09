@@ -966,6 +966,27 @@ final class PatternLibraryDeletionTransaction {
             $0.updateCounter(id: counterID, name: name, value: value)
         }
     }
+    @discardableResult
+    public func manageCounter(
+        projectID: UUID,
+        counterID: UUID,
+        name: String?,
+        value: Int,
+        reminder: CounterReminderEdit
+    ) throws -> StoredProjectCounterMutationResult? {
+        try requireAccess(.changeCounter)
+        guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              !projects[projectIndex].isCompleted else { return nil }
+        var stagedProjects = projects
+        guard let result = stagedProjects[projectIndex].manageCounter(
+            id: counterID,
+            name: name,
+            value: value,
+            reminder: reminder
+        ) else { return nil }
+        try persist(projects: stagedProjects, yarns: yarns)
+        return result
+    }
     public func configureCounterReminder(
         projectID: UUID,
         counterID: UUID,

@@ -110,10 +110,22 @@ import Testing
     @Test func projectCounterManagerKeepsItsSheetOpenWithTheSelectedAppLanguageWhenTheStoreRejects() throws {
         let source = try projectSource(named: "ProjectDetailView")
 
-        #expect(source.contains("guard let _ = try store.updateCounter("))
+        #expect(source.contains("guard let _ = try store.manageCounter("))
         #expect(source.contains("LocaleAwareText.string(\"counter.error.notSaved\", locale: locale)"))
         #expect(!source.contains("String(localized: \"counter.error.notSaved\")"))
         #expect(!source.contains("try store.updateCounter(projectID:"))
+    }
+
+    @Test func projectCounterManagerPersistsValueNameAndReminderInOneTransaction() throws {
+        let source = try projectSource(named: "ProjectDetailView")
+
+        #expect(source.contains("try store.manageCounter("))
+        #expect(source.contains("projectID: projectID"))
+        #expect(source.contains("counterID: counter.id"))
+        #expect(source.contains("name: save.name"))
+        #expect(source.contains("value: save.value"))
+        #expect(source.contains("reminder: save.reminderEdit"))
+        #expect(!source.contains("try store.configureCounterReminder("))
     }
 
     @Test func completionUIShowsStatusAndLocksProjectCounters() throws {

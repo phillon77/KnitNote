@@ -6,6 +6,14 @@ import Testing
 import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
+private enum DirectCounterManagerArchiveWriteError: Error {
+    case failed
+}
+
+private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
+    var shouldFail = false
+}
+
 @MainActor @Test func persistsProjectsAcrossStoreInstances() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let first = JSONProjectStore(url: url)
@@ -96,6 +104,83 @@ import UniformTypeIdentifiers
     let stopped = try #require(JSONProjectStore(url: url).project(id: project.id)?.counters[0])
     #expect(stopped.reminder?.isActive == false)
     #expect(stopped.reminder?.nextTarget == nil)
+}
+
+@MainActor @Test func directCounterManagerPersistsNameValueAndReminderInOneMutation() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Cardigan")
+    let project = try #require(store.projects.first)
+    let counterID = project.counters[0].id
+
+    let result = try store.manageCounter(
+        projectID: project.id,
+        counterID: counterID,
+        name: "Body",
+        value: 7,
+        reminder: .replace(.repeating(interval: 3, limit: 2, message: "Turn"))
+    )
+
+    let mutation = try #require(result)
+    let reopened = try #require(JSONProjectStore(url: url).project(id: project.id)?.counters[0])
+    #expect(mutation.counter == reopened)
+    #expect(reopened.customName == "Body")
+    #expect(reopened.value == 7)
+    #expect(reopened.reminder?.anchorValue == 7)
+    #expect(reopened.reminder?.rule == .repeating(interval: 3, limit: 2))
+    #expect(reopened.reminder?.message == "Turn")
+}
+
+@MainActor @Test func rejectedDirectCounterManagerMutationPublishesNothing() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Cardigan")
+    let project = try #require(store.projects.first)
+    try store.markCompleted(projectID: project.id)
+    let projectsBefore = store.projects
+    let generationBefore = store.dataGeneration
+    let archiveBefore = try Data(contentsOf: url)
+
+    let result = try store.manageCounter(
+        projectID: project.id,
+        counterID: project.counters[0].id,
+        name: "Changed",
+        value: 9,
+        reminder: .replace(.oneTime(target: 10, message: nil))
+    )
+
+    #expect(result == nil)
+    #expect(store.projects == projectsBefore)
+    #expect(store.dataGeneration == generationBefore)
+    #expect(try Data(contentsOf: url) == archiveBefore)
+}
+
+@MainActor @Test func failedDirectCounterManagerMutationPublishesNothing() throws {
+    let gate = DirectCounterManagerArchiveWriteGate()
+    let harness = try PatternImportHarness(archiveWrite: { data, destination in
+        if gate.shouldFail { throw DirectCounterManagerArchiveWriteError.failed }
+        try data.write(to: destination, options: .atomic)
+    })
+    try harness.store.add(name: "Cardigan")
+    let project = try #require(harness.store.projects.first)
+    let projectsBefore = harness.store.projects
+    let generationBefore = harness.store.dataGeneration
+    let archiveBefore = try Data(contentsOf: harness.archiveURL)
+    gate.shouldFail = true
+
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        try harness.store.manageCounter(
+            projectID: project.id,
+            counterID: project.counters[0].id,
+            name: "Changed",
+            value: 9,
+            reminder: .replace(.oneTime(target: 10, message: nil))
+        )
+    }
+
+    #expect(harness.store.projects == projectsBefore)
+    #expect(harness.store.dataGeneration == generationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
 }
 
 @MainActor @Test func rejectedDirectReminderOperationsPublishNothing() throws {

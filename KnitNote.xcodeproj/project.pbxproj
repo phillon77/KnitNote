@@ -14,6 +14,7 @@
 		01D00DEA0C7D49522B7DAD3D /* YarnEditorDraftLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE24E4A7CD8BA12753F7AFA /* YarnEditorDraftLabelTests.swift */; };
 		02288F6B6BDCDFC985672ED6 /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		02A8AC06B5EB1AE99351FED1 /* CreateYarnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */; };
+		02EBFD2FF1DC1BA100A4C33F /* CounterReminderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F95B1315DBA157D63E7BED8 /* CounterReminderCard.swift */; };
 		0328CEE941C5F6C87629FEEC /* WatchOptimisticState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */; };
 		0383C350EB8EE615B729A4B5 /* MacFormLayoutSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1B84617CFE68892DFBBD66 /* MacFormLayoutSmokeTests.swift */; };
 		0397F283110D3D83BA57F59F /* ProjectCoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB51A2457EA062265F81BF42 /* ProjectCoverView.swift */; };
@@ -28,6 +29,7 @@
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
 		0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
 		0CE9C1460396F8117ACFAA74 /* YouTubePatternThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */; };
+		0E37E75C52CD15253AEF1486 /* CounterReminderEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEC924D48527095C7B979B7 /* CounterReminderEditor.swift */; };
 		0EB4F5AA1F727A8B7EFAF0CA /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */; };
 		0F220D5DEEB9FA643A9CAC70 /* MacYarnEditorLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C9AFA4B7ADBFDEC2DF1FE9 /* MacYarnEditorLayoutTests.swift */; };
 		0FCF6F4C5C2D193C026D0737 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
@@ -403,6 +405,7 @@
 		09EC1CADA36E1BA0B45FF3D2 /* PatternPDFViewportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPDFViewportState.swift; sourceTree = "<group>"; };
 		0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternLinkIndex.swift; sourceTree = "<group>"; };
 		0E519BC9B336EF9AA75CC7DA /* StoreScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreScreenshotMode.swift; sourceTree = "<group>"; };
+		0F95B1315DBA157D63E7BED8 /* CounterReminderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterReminderCard.swift; sourceTree = "<group>"; };
 		0FE40BDDBFA4B660D0A7F517 /* PatternPageThumbnailPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPageThumbnailPresentation.swift; sourceTree = "<group>"; };
 		1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingCalculatorsView.swift; sourceTree = "<group>"; };
 		10731080016109C7138AA562 /* UnlockSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockSheet.swift; sourceTree = "<group>"; };
@@ -597,6 +600,7 @@
 		C9C17AF6B6756E61DCAE3970 /* KnitNote-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KnitNote-iOS.entitlements"; sourceTree = "<group>"; };
 		C9DEB55BFC29EE9E020BD06A /* PatternLibraryIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryIndex.swift; sourceTree = "<group>"; };
 		CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternAsset.swift; sourceTree = "<group>"; };
+		CCEC924D48527095C7B979B7 /* CounterReminderEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterReminderEditor.swift; sourceTree = "<group>"; };
 		CF86FAD0384C737E658266E3 /* EntitlementProjectionWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementProjectionWriter.swift; sourceTree = "<group>"; };
 		D0E6961F211EFFD011BEDFE6 /* YarnLabelImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelImagePicker.swift; sourceTree = "<group>"; };
 		D10455BC3195B85049B3524D /* PatternReaderContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderContext.swift; sourceTree = "<group>"; };
@@ -647,6 +651,7 @@
 				0921465E1F24F5FB8C1A449E /* ChooseLibraryPatternView.swift */,
 				1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */,
 				2A4DC78289ACE6594449E656 /* ChoosePatternReadingContextView.swift */,
+				0F95B1315DBA157D63E7BED8 /* CounterReminderCard.swift */,
 				84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */,
 				9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */,
 				45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */,
@@ -839,6 +844,7 @@
 				3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */,
 				95621B1B43D280EDA70A3589 /* ChooseProjectYarnsView.swift */,
 				6BFC677552F642E4F42E1B1A /* CounterManagerView.swift */,
+				CCEC924D48527095C7B979B7 /* CounterReminderEditor.swift */,
 				33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */,
 				78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */,
 				75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */,
@@ -1411,6 +1417,8 @@
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
 				BCA209B015AA3F4D86B281EF /* CounterManagerView.swift in Sources */,
 				805E093B4363B9EAA8F3A84F /* CounterReminder.swift in Sources */,
+				02EBFD2FF1DC1BA100A4C33F /* CounterReminderCard.swift in Sources */,
+				0E37E75C52CD15253AEF1486 /* CounterReminderEditor.swift in Sources */,
 				C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */,
 				225745081B10256F761B5769 /* CounterValueInput.swift in Sources */,
 				A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */,

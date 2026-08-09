@@ -30,6 +30,15 @@ struct CounterManagerView: View {
     @State private var hasEditedName = false
     @State private var hasInvalidValue = false
     @State private var confirmingValueReset = false
+    @State private var reminderDraft: CounterReminderDraft?
+    @State private var showingReminderEditor = false
+    @State private var confirmingReminderReplacement = false
+
+    init(counter: ProjectCounter, onSave: @escaping (CounterManagerSave) -> Bool) {
+        self.counter = counter
+        self.onSave = onSave
+        _reminderDraft = State(initialValue: Self.draft(from: counter.reminder))
+    }
 
     var body: some View {
         NavigationStack {
@@ -54,6 +63,7 @@ struct CounterManagerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("common.done") { save() }
+                        .disabled(!hasValidReminderEdit)
                 }
             }
         }
@@ -62,6 +72,17 @@ struct CounterManagerView: View {
                 valueText = "0"
             }
             Button("common.cancel", role: .cancel) {}
+        }
+        .confirmationDialog("counter.reminder.replace", isPresented: $confirmingReminderReplacement,
+            titleVisibility: .visible
+        ) {
+            Button("counter.reminder.replace", role: .destructive) {
+                persistCurrentDraft()
+            }
+            Button("common.cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showingReminderEditor) {
+            CounterReminderEditor(draft: $reminderDraft, counterValue: currentValue ?? counter.value)
         }
 #if os(macOS)
         .frame(
@@ -137,6 +158,13 @@ struct CounterManagerView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text(reminderSummary))
             .accessibilityValue(Text(reminderSummary))
+
+            Button {
+                showingReminderEditor = true
+            } label: {
+                Label("counter.reminder.edit", systemImage: "bell.badge")
+            }
+            .frame(minHeight: 44)
         }
         .frame(minWidth: 280, maxWidth: .infinity, alignment: .leading)
     }
@@ -206,6 +234,26 @@ struct CounterManagerView: View {
         return message?.isEmpty == false ? "\(message!) · \(target)" : target
     }
 
+    private var reminderEdit: CounterReminderEdit {
+        let originalDraft = Self.draft(from: counter.reminder)
+        if originalDraft == reminderDraft { return .unchanged }
+        if let reminderDraft { return .replace(reminderDraft) }
+        return .remove(expectedReminderID: counter.reminder?.id)
+    }
+
+    private var replacementNeedsConfirmation: Bool {
+        guard case .replace = reminderEdit,
+              counter.reminder?.isActive == true else { return false }
+        return (counter.reminder?.acknowledgedCount ?? 0) > 0
+            || counter.reminder?.pending != nil
+    }
+
+    private var hasValidReminderEdit: Bool {
+        guard case let .replace(draft) = reminderEdit else { return true }
+        guard let value = currentValue else { return false }
+        return CounterReminder(draft: draft, anchorValue: value) != nil
+    }
+
     private func loadDraft() {
         guard !hasLoaded else { return }
         defaultName = projectCounterDisplayName(counter, locale: locale)
@@ -229,19 +277,42 @@ struct CounterManagerView: View {
     }
 
     private func save() {
+        guard let savedCounter = currentSave() else { return }
+        if replacementNeedsConfirmation {
+            confirmingReminderReplacement = true
+            return
+        }
+        if onSave(savedCounter) { dismiss() }
+    }
+
+    private func persistCurrentDraft() {
+        guard let savedCounter = currentSave() else { return }
+        if onSave(savedCounter) { dismiss() }
+    }
+
+    private func currentSave() -> CounterManagerSave? {
         guard let value = currentValue else {
             hasInvalidValue = true
-            return
+            return nil
         }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let savedName = counter.customName == nil && !hasEditedName && trimmedName == defaultName
             ? ""
             : trimmedName
-        let savedCounter = CounterManagerSave(
+        return CounterManagerSave(
             name: savedName,
             value: value,
-            reminderEdit: .unchanged
+            reminderEdit: reminderEdit
         )
-        if onSave(savedCounter) { dismiss() }
+    }
+
+    private static func draft(from reminder: CounterReminder?) -> CounterReminderDraft? {
+        guard let reminder, reminder.isActive else { return nil }
+        switch reminder.rule {
+        case let .oneTime(target):
+            return .oneTime(target: target, message: reminder.message)
+        case let .repeating(interval, limit):
+            return .repeating(interval: interval, limit: limit, message: reminder.message)
+        }
     }
 }

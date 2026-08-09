@@ -213,11 +213,12 @@ struct ProjectDetailView: View {
 
     private func saveCounter(_ counter: ProjectCounter, save: CounterManagerSave) -> Bool {
         do {
-            guard let _ = try store.updateCounter(
+            guard let _ = try store.manageCounter(
                 projectID: projectID,
                 counterID: counter.id,
                 name: save.name,
-                value: save.value
+                value: save.value,
+                reminder: save.reminderEdit
             ) else {
                 counterSaveError = LocaleAwareText.string("counter.error.notSaved", locale: locale)
                 return false

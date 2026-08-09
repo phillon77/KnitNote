@@ -1,6 +1,7 @@
 #if os(watchOS)
 import Combine
 import Foundation
+import WatchKit
 
 @MainActor
 final class WatchSyncCoordinator: ObservableObject {
@@ -87,6 +88,30 @@ final class WatchSyncCoordinator: ObservableObject {
 
     func reset(projectID: UUID, counterID: UUID) {
         enqueue(projectID: projectID, counterID: counterID, operation: .reset)
+    }
+
+    func completeReminder(
+        projectID: UUID,
+        counterID: UUID,
+        reminderID: UUID,
+        observedPendingCount: Int
+    ) {
+        enqueue(
+            projectID: projectID,
+            counterID: counterID,
+            operation: .completeReminder,
+            reminderID: reminderID,
+            observedPendingCount: observedPendingCount
+        )
+    }
+
+    func stopReminder(projectID: UUID, counterID: UUID, reminderID: UUID) {
+        enqueue(
+            projectID: projectID,
+            counterID: counterID,
+            operation: .stopReminder,
+            reminderID: reminderID
+        )
     }
 
     func hasPending(projectID: UUID, counterID: UUID) -> Bool {
@@ -189,12 +214,17 @@ final class WatchSyncCoordinator: ObservableObject {
     private func enqueue(
         projectID: UUID,
         counterID: UUID,
-        operation: WatchCounterOperation
+        operation: WatchCounterOperation,
+        reminderID: UUID? = nil,
+        observedPendingCount: Int? = nil
     ) {
+        let previouslyVisibleReminderIDs = Self.visiblePendingReminderIDs(in: state.snapshot)
         let command = WatchCounterCommand(
             projectID: projectID,
             counterID: counterID,
             operation: operation,
+            reminderID: reminderID,
+            observedPendingCount: observedPendingCount,
             createdAt: now()
         )
         var candidate = state
@@ -202,8 +232,13 @@ final class WatchSyncCoordinator: ObservableObject {
             setError(rejection)
             return
         }
+        let newlyVisibleReminderIDs = Self.visiblePendingReminderIDs(in: candidate.snapshot)
 
         guard persistThenPublish(candidate) else { return }
+        if operation == .increment,
+           !newlyVisibleReminderIDs.subtracting(previouslyVisibleReminderIDs).isEmpty {
+            WKInterfaceDevice.current().play(.notification)
+        }
         clearError()
 
         if reachableHandshakeCompleted {
@@ -211,6 +246,14 @@ final class WatchSyncCoordinator: ObservableObject {
         } else {
             beginHandshakeAndReplay()
         }
+    }
+
+    private static func visiblePendingReminderIDs(
+        in snapshot: WatchSyncSnapshot?
+    ) -> Set<UUID> {
+        Set(snapshot?.projects.flatMap(\.counters).compactMap {
+            $0.reminder?.pending?.reminderID
+        } ?? [])
     }
 
     @discardableResult
@@ -404,6 +447,8 @@ private extension WatchCommandRejection {
             "watch.sync.error.projectMissing"
         case .counterMissing:
             "watch.sync.error.counterMissing"
+        case .reminderMismatch:
+            "watch.sync.error.reminderMismatch"
         case .projectCompleted:
             "watch.sync.error.projectCompleted"
         case .entitlementRequired:

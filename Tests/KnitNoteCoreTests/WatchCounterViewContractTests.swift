@@ -106,6 +106,41 @@ import Testing
         #expect(coordinator.contains("state.nextDeliverableCommand(now: now())"))
     }
 
+    @Test func pendingReminderConfirmationHasOnlyCompleteAndStopActions() throws {
+        let source = try source("KnitNoteWatch/ProjectCountersView.swift")
+        let confirmation = try #require(sourceSection(
+            source,
+            from: "private func reminderConfirmation(",
+            to: "private func activeCounterRow"
+        ))
+
+        #expect(confirmation.contains("reminder.pending"))
+        #expect(confirmation.contains("Text(verbatim: message)"))
+        #expect(confirmation.contains("Button(\"counter.reminder.complete\")"))
+        #expect(confirmation.contains("Button(\"counter.reminder.stop\", role: .destructive)"))
+        #expect(confirmation.components(separatedBy: "Button(").count - 1 == 2)
+        #expect(confirmation.contains("observedPendingCount: pending.occurrenceCount"))
+        #expect(!confirmation.localizedCaseInsensitiveContains("snooze"))
+    }
+
+    @Test func localIncrementCrossingPlaysOneNotificationHapticAfterPersistence() throws {
+        let source = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+        let enqueue = try #require(sourceSection(
+            source,
+            from: "private func enqueue(",
+            to: "private func persistThenPublish"
+        ))
+
+        #expect(source.contains("import WatchKit"))
+        #expect(enqueue.contains("let previouslyVisibleReminderIDs"))
+        #expect(enqueue.contains("let newlyVisibleReminderIDs"))
+        #expect(enqueue.contains("guard persistThenPublish(candidate) else { return }"))
+        #expect(enqueue.contains("WKInterfaceDevice.current().play(.notification)"))
+        let persistence = try #require(enqueue.range(of: "guard persistThenPublish(candidate) else { return }"))
+        let haptic = try #require(enqueue.range(of: "WKInterfaceDevice.current().play(.notification)"))
+        #expect(persistence.lowerBound < haptic.lowerBound)
+    }
+
     @Test func unlockGuidanceIsLocalizedInEnglishAndTraditionalChinese() throws {
         let data = try Data(contentsOf: rootURL().appending(
             path: "KnitNoteWatch/Localizable.xcstrings"
@@ -121,6 +156,19 @@ import Testing
 
     private func source(_ path: String) throws -> String {
         try String(contentsOf: rootURL().appending(path: path), encoding: .utf8)
+    }
+
+    private func sourceSection(
+        _ source: String,
+        from start: String,
+        to end: String
+    ) -> Substring? {
+        guard let startRange = source.range(of: start),
+              let endRange = source.range(
+                  of: end,
+                  range: startRange.upperBound..<source.endIndex
+              ) else { return nil }
+        return source[startRange.lowerBound..<endRange.lowerBound]
     }
 
     private func rootURL() -> URL {

@@ -38,6 +38,35 @@ import Testing
         #expect(mapped.counters[0].name == "Counter 1")
     }
 
+    @Test @MainActor func snapshotMapsOnlyTheReminderStateWatchNeeds() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.configureCounterReminder(
+            projectID: project.id,
+            counterID: counterID,
+            draft: .repeating(interval: 2, limit: 4, message: "Change yarn")
+        )
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+
+        let snapshot = try WatchSnapshotBuilder.make(
+            projects: fixture.store.projects,
+            entitlement: .permanentlyUnlocked,
+            locale: Locale(identifier: "en"),
+            generatedAt: fixture.now
+        )
+        let reminder = try #require(snapshot.projects[0].counters[0].reminder)
+
+        #expect(reminder.id == fixture.store.projects[0].counters[0].reminder?.id)
+        #expect(reminder.nextTarget == 4)
+        #expect(reminder.pending?.occurrenceCount == 1)
+        #expect(reminder.pending?.firstTarget == 2)
+        #expect(reminder.pending?.lastTarget == 2)
+        #expect(reminder.message == "Change yarn")
+        #expect(reminder.isActive)
+    }
+
     @Test func counterDisplayNameUsesCustomNameOrLocalizedDefaultFormat() {
         let unnamed = ProjectCounter(defaultOrdinal: 4)
         let named = ProjectCounter(defaultOrdinal: 4, customName: "  Cuff  ")
@@ -152,6 +181,97 @@ import Testing
         #expect(duplicate.rejection == nil)
         #expect(duplicate.snapshot.projects[0].counters[0].value == 2)
         #expect(ledger.entries.count == 1)
+    }
+
+    @Test @MainActor func duplicateReminderAcknowledgementCannotCompleteTwice() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.configureCounterReminder(
+            projectID: project.id,
+            counterID: counterID,
+            draft: .oneTime(target: 1, message: nil)
+        )
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        let reminder = try #require(fixture.store.project(id: project.id)?.counters[0].reminder)
+        var ledger = ProcessedWatchCommandLedger()
+        let command = WatchCounterCommand(
+            id: UUID(),
+            projectID: project.id,
+            counterID: counterID,
+            operation: .completeReminder,
+            reminderID: reminder.id,
+            observedPendingCount: 1
+        )
+
+        _ = try fixture.store.applyWatchCommand(command, ledger: &ledger, now: fixture.now)
+        let afterFirst = fixture.store.project(id: project.id)?.counters[0].reminder?.acknowledgedCount
+        _ = try fixture.store.applyWatchCommand(command, ledger: &ledger, now: fixture.now)
+
+        #expect(afterFirst == 1)
+        #expect(fixture.store.project(id: project.id)?.counters[0].reminder?.acknowledgedCount == afterFirst)
+        #expect(ledger.entries.count == 1)
+    }
+
+    @Test @MainActor func staleReminderIDIsRejectedWithoutMutation() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.configureCounterReminder(
+            projectID: project.id,
+            counterID: counterID,
+            draft: .oneTime(target: 1, message: nil)
+        )
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        var ledger = ProcessedWatchCommandLedger()
+        let command = WatchCounterCommand(
+            projectID: project.id,
+            counterID: counterID,
+            operation: .completeReminder,
+            reminderID: UUID(),
+            observedPendingCount: 1
+        )
+
+        let acknowledgement = try fixture.store.applyWatchCommand(
+            command,
+            ledger: &ledger,
+            now: fixture.now
+        )
+
+        #expect(acknowledgement.rejection == .reminderMismatch)
+        #expect(fixture.store.project(id: project.id)?.counters[0].reminder?.pending?.occurrenceCount == 1)
+    }
+
+    @Test @MainActor func stopWinsOverStaleReminderCompletion() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.configureCounterReminder(
+            projectID: project.id,
+            counterID: counterID,
+            draft: .repeating(interval: 1, limit: nil, message: nil)
+        )
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        let reminder = try #require(fixture.store.project(id: project.id)?.counters[0].reminder)
+        var ledger = ProcessedWatchCommandLedger()
+
+        _ = try fixture.store.applyWatchCommand(.init(
+            projectID: project.id,
+            counterID: counterID,
+            operation: .stopReminder,
+            reminderID: reminder.id
+        ), ledger: &ledger, now: fixture.now)
+        let staleCompletion = try fixture.store.applyWatchCommand(.init(
+            projectID: project.id,
+            counterID: counterID,
+            operation: .completeReminder,
+            reminderID: reminder.id,
+            observedPendingCount: 1
+        ), ledger: &ledger, now: fixture.now)
+
+        #expect(staleCompletion.rejection == .reminderMismatch)
+        #expect(fixture.store.project(id: project.id)?.counters[0].reminder?.isActive == false)
+        #expect(fixture.store.project(id: project.id)?.counters[0].reminder?.acknowledgedCount == 0)
     }
 
     @Test @MainActor func incrementDecrementFloorAndResetUseAuthoritativeCurrentValue() throws {

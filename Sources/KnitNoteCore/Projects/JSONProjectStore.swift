@@ -1200,15 +1200,38 @@ final class PatternLibraryDeletionTransaction {
         }
 
         let rejection: WatchCommandRejection?
-        if command.schemaVersion != WatchCounterCommand.currentSchemaVersion {
+        if command.schemaVersion != WatchCounterCommand.currentSchemaVersion
+            || !command.hasValidPayload {
             rejection = .unsupportedSchema
         } else if let project = project(id: command.projectID) {
-            if !project.counters.contains(where: { $0.id == command.counterID }) {
-                rejection = .counterMissing
-            } else if project.isCompleted {
-                rejection = .projectCompleted
+            if let counter = project.counters.first(where: { $0.id == command.counterID }) {
+                if project.isCompleted {
+                    rejection = .projectCompleted
+                } else {
+                    rejection = switch command.operation {
+                    case .increment, .decrement, .reset:
+                        nil
+                    case .completeReminder:
+                        if let reminderID = command.reminderID,
+                           let observedPendingCount = command.observedPendingCount,
+                           counter.reminder?.id == reminderID,
+                           counter.reminder?.pending?.occurrenceCount == observedPendingCount {
+                            nil
+                        } else {
+                            .reminderMismatch
+                        }
+                    case .stopReminder:
+                        if let reminderID = command.reminderID,
+                           counter.reminder?.id == reminderID,
+                           counter.reminder?.isActive == true {
+                            nil
+                        } else {
+                            .reminderMismatch
+                        }
+                    }
+                }
             } else {
-                rejection = nil
+                rejection = .counterMissing
             }
         } else {
             rejection = .projectMissing
@@ -1232,6 +1255,24 @@ final class PatternLibraryDeletionTransaction {
                 project.decrementCounter(id: command.counterID, now: now)
             case .reset:
                 project.resetCounter(id: command.counterID, now: now)
+            case .completeReminder:
+                if let reminderID = command.reminderID,
+                   let observedPendingCount = command.observedPendingCount {
+                    project.completeCounterReminder(
+                        id: command.counterID,
+                        reminderID: reminderID,
+                        observedCount: observedPendingCount,
+                        now: now
+                    )
+                }
+            case .stopReminder:
+                if let reminderID = command.reminderID {
+                    project.stopCounterReminder(
+                        id: command.counterID,
+                        reminderID: reminderID,
+                        now: now
+                    )
+                }
             }
         }
         ledger.record(command.id, at: now)

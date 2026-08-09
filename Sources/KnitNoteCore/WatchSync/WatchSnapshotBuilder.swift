@@ -31,7 +31,16 @@ public enum WatchSnapshotBuilder {
                         WatchCounterSnapshot(
                             id: counter.id,
                             name: counter.displayName(locale: locale),
-                            value: counter.value
+                            value: counter.value,
+                            reminder: counter.reminder.map {
+                                WatchCounterReminderSnapshot(
+                                    id: $0.id,
+                                    nextTarget: $0.nextTarget,
+                                    pending: $0.pending,
+                                    message: $0.message,
+                                    isActive: $0.isActive
+                                )
+                            }
                         )
                     },
                     selectedCounterID: project.selectedCounterID

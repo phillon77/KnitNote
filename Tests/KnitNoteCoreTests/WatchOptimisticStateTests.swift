@@ -3,6 +3,47 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchOptimisticStateTests {
+    @Test func incrementCrossingKnownTargetCreatesOneOptimisticPendingReminder() throws {
+        let fixture = try Fixture(value: 4, reminderTarget: 5)
+        var state = WatchOptimisticState(cache: fixture.cache)
+
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+
+        let reminder = try #require(
+            state.snapshot?.projects[0].counters[0].reminder
+        )
+        #expect(reminder.pending?.reminderID == fixture.reminderID)
+        #expect(reminder.pending?.occurrenceCount == 1)
+        #expect(reminder.pending?.firstTarget == 5)
+        #expect(reminder.pending?.lastTarget == 5)
+        #expect(reminder.nextTarget == nil)
+    }
+
+    @Test func incrementWithoutReminderSnapshotDoesNotInventReminder() throws {
+        let fixture = try Fixture(value: 4)
+        var state = WatchOptimisticState(cache: fixture.cache)
+
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+
+        #expect(state.snapshot?.projects[0].counters[0].value == 5)
+        #expect(state.snapshot?.projects[0].counters[0].reminder == nil)
+    }
+
+    @Test func optimisticReminderCompletionUsesTheObservedPendingCount() throws {
+        let fixture = try Fixture(value: 5, reminderTarget: 5, pendingReminder: true)
+        var state = WatchOptimisticState(cache: fixture.cache)
+        let command = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .completeReminder,
+            reminderID: fixture.reminderID,
+            observedPendingCount: 1
+        )
+
+        #expect(state.enqueue(command) == nil)
+
+        #expect(state.snapshot?.projects[0].counters[0].reminder?.pending == nil)
+    }
     @Test func optimisticCounterMutationPreservesSelectedLanguage() throws {
         let fixture = try Fixture(value: 4, languageCode: "ja")
         var state = WatchOptimisticState(cache: fixture.cache)
@@ -524,6 +565,7 @@ private struct Fixture {
     let counterIDs = (0..<6).map { _ in UUID() }
     let snapshot: WatchSyncSnapshot
     let languageCode: String?
+    let reminderID: UUID
 
     var counterID: UUID { counterIDs[0] }
 
@@ -539,11 +581,34 @@ private struct Fixture {
     init(
         value: Int,
         isCompleted: Bool = false,
-        languageCode: String? = nil
+        languageCode: String? = nil,
+        reminderTarget: Int? = nil,
+        pendingReminder: Bool = false
     ) throws {
         self.languageCode = languageCode
+        let reminderID = UUID()
+        self.reminderID = reminderID
         let counters = counterIDs.enumerated().map { index, id in
-            WatchCounterSnapshot(id: id, name: "Counter \(index + 1)", value: index == 0 ? value : 0)
+            let reminder = index == 0 ? reminderTarget.map { target in
+                WatchCounterReminderSnapshot(
+                    id: reminderID,
+                    nextTarget: pendingReminder ? nil : target,
+                    pending: pendingReminder ? CounterReminderPending(
+                        reminderID: reminderID,
+                        occurrenceCount: 1,
+                        firstTarget: target,
+                        lastTarget: target
+                    ) : nil,
+                    message: "Turn",
+                    isActive: true
+                )
+            } : nil
+            return WatchCounterSnapshot(
+                id: id,
+                name: "Counter \(index + 1)",
+                value: index == 0 ? value : 0,
+                reminder: reminder
+            )
         }
         let project = try WatchProjectSnapshot(
             id: projectID,

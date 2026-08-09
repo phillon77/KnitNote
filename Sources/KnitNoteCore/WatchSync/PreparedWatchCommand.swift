@@ -275,6 +275,8 @@ private extension PreparedWatchCommand {
             expectedCounterValue == Int.max
         case .decrement, .reset:
             expectedCounterValue == 0
+        case .completeReminder, .stopReminder:
+            false
         }
     }
 }

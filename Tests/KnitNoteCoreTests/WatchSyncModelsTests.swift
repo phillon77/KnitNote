@@ -20,14 +20,14 @@ import Testing
             from: WatchSyncCodec.encode(snapshot)
         )
 
-        #expect(decoded.schemaVersion == 2)
+        #expect(decoded.schemaVersion == 3)
         #expect(decoded.languageCode == "ja")
     }
 
-    @Test func versionTwoSnapshotWithoutLanguageStillDecodes() throws {
-        let legacyVersionTwoSnapshotJSON = Data(#"""
+    @Test func currentSnapshotWithoutLanguageStillDecodes() throws {
+        let currentSnapshotJSON = Data(#"""
         {
-          "schemaVersion": 2,
+          "schemaVersion": 3,
           "generatedAt": 101000,
           "entitlement": {
             "kind": "permanentlyUnlocked",
@@ -39,11 +39,19 @@ import Testing
 
         let decoded = try WatchSyncCodec.decode(
             WatchSyncSnapshot.self,
-            from: legacyVersionTwoSnapshotJSON
+            from: currentSnapshotJSON
         )
 
-        #expect(decoded.schemaVersion == 2)
+        #expect(decoded.schemaVersion == 3)
         #expect(decoded.languageCode == nil)
+    }
+
+    @Test func priorSnapshotSchemaIsRejectedAfterReminderProtocolUpgrade() {
+        let data = Data(#"{"schemaVersion":2,"generatedAt":0,"entitlement":{"kind":"permanentlyUnlocked","generatedAt":0},"projects":[]}"#.utf8)
+
+        #expect(throws: WatchSyncValidationError.unsupportedSchema) {
+            _ = try WatchSyncCodec.decode(WatchSyncSnapshot.self, from: data)
+        }
     }
 
     @Test func snapshotBuilderCarriesSelectedLanguage() throws {
@@ -131,6 +139,27 @@ import Testing
         }
     }
 
+    @Test func reminderTargetBehindCounterDecodesAsAbsentWithoutLosingCounter() throws {
+        let data = Data(#"""
+        {
+          "id":"00000000-0000-0000-0000-000000000001",
+          "name":"Body",
+          "value":5,
+          "reminder":{
+            "id":"00000000-0000-0000-0000-000000000002",
+            "nextTarget":3,
+            "message":"Turn",
+            "isActive":true
+          }
+        }
+        """#.utf8)
+
+        let counter = try WatchSyncCodec.decode(WatchCounterSnapshot.self, from: data)
+
+        #expect(counter.value == 5)
+        #expect(counter.reminder == nil)
+    }
+
     @Test func unsupportedSchemaIsRejected() throws {
         let data = Data(#"{"schemaVersion":99,"generatedAt":0,"projects":[]}"#.utf8)
         #expect(throws: WatchSyncValidationError.unsupportedSchema) {
@@ -147,6 +176,104 @@ import Testing
             WatchCounterCommand.self,
             from: WatchSyncCodec.encode(command)
         ) == command)
+    }
+
+    @Test func reminderSnapshotAndCommandPayloadRoundTrip() throws {
+        let reminderID = UUID()
+        let reminder = WatchCounterReminderSnapshot(
+            id: reminderID,
+            nextTarget: 24,
+            pending: CounterReminderPending(
+                reminderID: reminderID,
+                occurrenceCount: 2,
+                firstTarget: 16,
+                lastTarget: 20
+            ),
+            message: "Change yarn",
+            isActive: true
+        )
+        let counter = WatchCounterSnapshot(
+            id: UUID(),
+            name: "Body",
+            value: 20,
+            reminder: reminder
+        )
+        let command = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: counter.id,
+            operation: .completeReminder,
+            reminderID: reminderID,
+            observedPendingCount: 2,
+            createdAt: Date(timeIntervalSince1970: 42)
+        )
+
+        #expect(try WatchSyncCodec.decode(
+            WatchCounterSnapshot.self,
+            from: WatchSyncCodec.encode(counter)
+        ) == counter)
+        #expect(try WatchSyncCodec.decode(
+            WatchCounterCommand.self,
+            from: WatchSyncCodec.encode(command)
+        ) == command)
+    }
+
+    @Test func commandDecoderRejectsReminderPayloadForCounterValueOperation() throws {
+        let command = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .increment,
+            reminderID: UUID(),
+            observedPendingCount: 1
+        )
+
+        #expect(throws: WatchSyncValidationError.invalidCommandPayload) {
+            _ = try WatchSyncCodec.decode(
+                WatchCounterCommand.self,
+                from: WatchSyncCodec.encode(command)
+            )
+        }
+    }
+
+    @Test(arguments: [0, -1])
+    func completeReminderDecoderRequiresPositiveObservedCount(_ observedCount: Int) throws {
+        let command = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .completeReminder,
+            reminderID: UUID(),
+            observedPendingCount: observedCount
+        )
+
+        #expect(throws: WatchSyncValidationError.invalidCommandPayload) {
+            _ = try WatchSyncCodec.decode(
+                WatchCounterCommand.self,
+                from: WatchSyncCodec.encode(command)
+            )
+        }
+    }
+
+    @Test func stopReminderDecoderRequiresAnIDAndNoObservedCount() throws {
+        let missingID = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .stopReminder
+        )
+        let unexpectedCount = WatchCounterCommand(
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .stopReminder,
+            reminderID: UUID(),
+            observedPendingCount: 1
+        )
+
+        for command in [missingID, unexpectedCount] {
+            #expect(throws: WatchSyncValidationError.invalidCommandPayload) {
+                _ = try WatchSyncCodec.decode(
+                    WatchCounterCommand.self,
+                    from: WatchSyncCodec.encode(command)
+                )
+            }
+        }
     }
 
     @Test func directCommandDecodingRejectsUnsupportedSchema() {

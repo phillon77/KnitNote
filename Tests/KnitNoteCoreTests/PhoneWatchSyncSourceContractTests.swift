@@ -146,6 +146,18 @@ import Testing
         #expect(coordinator.contains("publishLatestSnapshotIfChanged()"))
     }
 
+    @Test func watchReminderActionsUseTheExistingDurableCommandQueue() throws {
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+
+        #expect(coordinator.contains("func completeReminder("))
+        #expect(coordinator.contains("operation: .completeReminder"))
+        #expect(coordinator.contains("observedPendingCount: observedPendingCount"))
+        #expect(coordinator.contains("func stopReminder("))
+        #expect(coordinator.contains("operation: .stopReminder"))
+        #expect(coordinator.contains("reminderID: reminderID"))
+        #expect(coordinator.components(separatedBy: "candidate.enqueue(command").count - 1 == 1)
+    }
+
     @Test func startupSeparatesOneTimeSetupFromRetryableActivation() throws {
         let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
 

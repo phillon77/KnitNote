@@ -80,15 +80,31 @@ public struct WatchOptimisticState: Equatable, Sendable {
         guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion else {
             return .unsupportedSchema
         }
+        guard command.hasValidPayload else { return .unsupportedSchema }
         guard canMutate(now: now) else { return .entitlementRequired }
-        guard let project = authoritativeSnapshot?.projects.first(where: {
+        guard let project = snapshot?.projects.first(where: {
             $0.id == command.projectID
         }) else {
             return .projectMissing
         }
         guard !project.isCompleted else { return .projectCompleted }
-        guard project.counters.contains(where: { $0.id == command.counterID }) else {
+        guard let counter = project.counters.first(where: { $0.id == command.counterID }) else {
             return .counterMissing
+        }
+        switch command.operation {
+        case .increment, .decrement, .reset:
+            break
+        case .completeReminder:
+            guard let reminderID = command.reminderID,
+                  let observedPendingCount = command.observedPendingCount,
+                  counter.reminder?.id == reminderID,
+                  counter.reminder?.pending?.occurrenceCount == observedPendingCount
+            else { return .reminderMismatch }
+        case .stopReminder:
+            guard let reminderID = command.reminderID,
+                  counter.reminder?.id == reminderID,
+                  counter.reminder?.isActive == true
+            else { return .reminderMismatch }
         }
         guard !pendingCommands.contains(where: { $0.id == command.id }) else { return nil }
 
@@ -180,15 +196,64 @@ public struct WatchOptimisticState: Equatable, Sendable {
 
             let counters = project.counters.map { counter in
                 guard counter.id == command.counterID else { return counter }
-                let value = switch command.operation {
+                var value = counter.value
+                var reminder = counter.reminder
+                switch command.operation {
                 case .increment:
-                    counter.value == Int.max ? Int.max : counter.value + 1
+                    value = counter.value == Int.max ? Int.max : counter.value + 1
+                    if let current = reminder,
+                       current.isActive,
+                       current.pending == nil,
+                       let target = current.nextTarget,
+                       target <= value {
+                        reminder = WatchCounterReminderSnapshot(
+                            id: current.id,
+                            nextTarget: nil,
+                            pending: CounterReminderPending(
+                                reminderID: current.id,
+                                occurrenceCount: 1,
+                                firstTarget: target,
+                                lastTarget: target
+                            ),
+                            message: current.message,
+                            isActive: true
+                        )
+                    }
                 case .decrement:
-                    max(0, counter.value - 1)
+                    value = max(0, counter.value - 1)
                 case .reset:
-                    0
+                    value = 0
+                case .completeReminder:
+                    if let current = reminder,
+                       current.id == command.reminderID,
+                       current.pending?.occurrenceCount == command.observedPendingCount {
+                        reminder = WatchCounterReminderSnapshot(
+                            id: current.id,
+                            nextTarget: current.nextTarget,
+                            pending: nil,
+                            message: current.message,
+                            isActive: current.isActive
+                        )
+                    }
+                case .stopReminder:
+                    if let current = reminder,
+                       current.id == command.reminderID,
+                       current.isActive {
+                        reminder = WatchCounterReminderSnapshot(
+                            id: current.id,
+                            nextTarget: nil,
+                            pending: nil,
+                            message: current.message,
+                            isActive: false
+                        )
+                    }
                 }
-                return WatchCounterSnapshot(id: counter.id, name: counter.name, value: value)
+                return WatchCounterSnapshot(
+                    id: counter.id,
+                    name: counter.name,
+                    value: value,
+                    reminder: reminder
+                )
             }
 
             return (try? WatchProjectSnapshot(

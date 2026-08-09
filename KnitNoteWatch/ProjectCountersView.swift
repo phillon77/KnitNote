@@ -85,7 +85,18 @@ struct ProjectCountersView: View {
                     .padding(.horizontal, 8)
                 }
                 ForEach(project.counters) { counter in
-                    counterRow(counter, in: project, canMutate: canMutate)
+                    VStack(spacing: 6) {
+                        counterRow(counter, in: project, canMutate: canMutate)
+                        if let reminder = counter.reminder,
+                           reminder.pending != nil {
+                            reminderConfirmation(
+                                reminder,
+                                counter: counter,
+                                project: project,
+                                canMutate: canMutate
+                            )
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 4)
@@ -176,6 +187,63 @@ struct ProjectCountersView: View {
         }
     }
 
+    private func reminderConfirmation(
+        _ reminder: WatchCounterReminderSnapshot,
+        counter: WatchCounterSnapshot,
+        project: WatchProjectSnapshot,
+        canMutate: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let message = reminder.message {
+                Text(verbatim: message)
+                    .font(.callout.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let pending = reminder.pending {
+                HStack(spacing: 4) {
+                    Text("counter.reminder.reached")
+                    Text(pending.lastTarget, format: .number)
+                }
+                .font(.caption)
+                if pending.occurrenceCount > 1 {
+                    HStack(spacing: 4) {
+                        Text("counter.reminder.crossedCount")
+                        Text(pending.occurrenceCount, format: .number)
+                    }
+                    .font(.caption2)
+                }
+
+                Button("counter.reminder.complete") {
+                    coordinator.completeReminder(
+                        projectID: project.id,
+                        counterID: counter.id,
+                        reminderID: reminder.id,
+                        observedPendingCount: pending.occurrenceCount
+                    )
+                }
+                Button("counter.reminder.stop", role: .destructive) {
+                    coordinator.stopReminder(
+                        projectID: project.id,
+                        counterID: counter.id,
+                        reminderID: reminder.id
+                    )
+                }
+            }
+        }
+        .foregroundStyle(WatchWatercolorTheme.ink)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            WatchWatercolorTheme.softWhite.opacity(0.96),
+            in: .rect(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(WatchWatercolorTheme.berry.opacity(0.65), lineWidth: 1)
+        }
+        .disabled(!canMutate || project.isCompleted)
+    }
+
     private func activeCounterRow<Row: View>(
         _ row: Row,
         counter: WatchCounterSnapshot
@@ -250,6 +318,8 @@ struct ProjectCountersView: View {
             coordinator.decrement(projectID: project.id, counterID: counterID)
         case .reset:
             coordinator.reset(projectID: project.id, counterID: counterID)
+        case .completeReminder, .stopReminder:
+            return
         }
         actionCounterID = nil
     }

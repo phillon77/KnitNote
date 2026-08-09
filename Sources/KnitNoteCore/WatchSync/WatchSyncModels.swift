@@ -5,17 +5,92 @@ public enum WatchSyncValidationError: Error, Equatable {
     case invalidCounterCount
     case duplicateCounterID
     case invalidSelectedCounter
+    case invalidReminderSnapshot
+    case invalidCommandPayload
+}
+
+public struct WatchCounterReminderSnapshot: Codable, Equatable, Sendable {
+    public let id: UUID
+    public let nextTarget: Int?
+    public let pending: CounterReminderPending?
+    public let message: String?
+    public let isActive: Bool
+
+    public init(
+        id: UUID,
+        nextTarget: Int?,
+        pending: CounterReminderPending?,
+        message: String?,
+        isActive: Bool
+    ) {
+        self.id = id
+        self.nextTarget = nextTarget
+        self.pending = pending
+        self.message = message
+        self.isActive = isActive
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(UUID.self, forKey: .id)
+        let nextTarget = try container.decodeIfPresent(Int.self, forKey: .nextTarget)
+        let pending = try container.decodeIfPresent(CounterReminderPending.self, forKey: .pending)
+        let isActive = try container.decode(Bool.self, forKey: .isActive)
+        guard nextTarget.map({ $0 >= 0 }) ?? true,
+              pending.map({
+                  $0.reminderID == id
+                      && $0.occurrenceCount > 0
+                      && $0.firstTarget >= 0
+                      && $0.lastTarget >= $0.firstTarget
+              }) ?? true,
+              isActive || (nextTarget == nil && pending == nil)
+        else {
+            throw WatchSyncValidationError.invalidReminderSnapshot
+        }
+
+        self.id = id
+        self.nextTarget = nextTarget
+        self.pending = pending
+        self.message = try container.decodeIfPresent(String.self, forKey: .message)
+        self.isActive = isActive
+    }
 }
 
 public struct WatchCounterSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     public let name: String
     public var value: Int
+    public var reminder: WatchCounterReminderSnapshot?
 
-    public init(id: UUID, name: String, value: Int) {
+    public init(
+        id: UUID,
+        name: String,
+        value: Int,
+        reminder: WatchCounterReminderSnapshot? = nil
+    ) {
         self.id = id
         self.name = name
-        self.value = max(0, value)
+        let normalizedValue = max(0, value)
+        self.value = normalizedValue
+        self.reminder = reminder.flatMap { candidate in
+            guard candidate.nextTarget.map({ $0 > normalizedValue }) ?? true,
+                  candidate.pending.map({ $0.lastTarget <= normalizedValue }) ?? true
+            else { return nil }
+            return candidate
+        }
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(UUID.self, forKey: .id),
+            name: try container.decode(String.self, forKey: .name),
+            value: try container.decode(Int.self, forKey: .value),
+            reminder: try? container.decodeIfPresent(
+                WatchCounterReminderSnapshot.self,
+                forKey: .reminder
+            )
+        )
     }
 }
 
@@ -99,7 +174,7 @@ public struct WatchEntitlementSnapshot: Codable, Equatable, Sendable {
 }
 
 public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 3
 
     public let schemaVersion: Int
     public let generatedAt: Date
@@ -143,16 +218,20 @@ public enum WatchCounterOperation: String, Codable, Equatable, Sendable {
     case increment
     case decrement
     case reset
+    case completeReminder
+    case stopReminder
 }
 
 public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public let schemaVersion: Int
     public let id: UUID
     public let projectID: UUID
     public let counterID: UUID
     public let operation: WatchCounterOperation
+    public let reminderID: UUID?
+    public let observedPendingCount: Int?
     public let createdAt: Date
 
     public init(
@@ -161,6 +240,8 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         projectID: UUID,
         counterID: UUID,
         operation: WatchCounterOperation,
+        reminderID: UUID? = nil,
+        observedPendingCount: Int? = nil,
         createdAt: Date = .now
     ) {
         self.schemaVersion = schemaVersion
@@ -168,7 +249,20 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         self.projectID = projectID
         self.counterID = counterID
         self.operation = operation
+        self.reminderID = reminderID
+        self.observedPendingCount = observedPendingCount
         self.createdAt = createdAt
+    }
+
+    public var hasValidPayload: Bool {
+        switch operation {
+        case .increment, .decrement, .reset:
+            reminderID == nil && observedPendingCount == nil
+        case .completeReminder:
+            reminderID != nil && observedPendingCount.map({ $0 > 0 }) == true
+        case .stopReminder:
+            reminderID != nil && observedPendingCount == nil
+        }
     }
 
     public init(from decoder: any Decoder) throws {
@@ -178,12 +272,25 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
             throw WatchSyncValidationError.unsupportedSchema
         }
 
-        self.schemaVersion = schemaVersion
-        self.id = try container.decode(UUID.self, forKey: .id)
-        self.projectID = try container.decode(UUID.self, forKey: .projectID)
-        self.counterID = try container.decode(UUID.self, forKey: .counterID)
-        self.operation = try container.decode(WatchCounterOperation.self, forKey: .operation)
-        self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+        let operation = try container.decode(WatchCounterOperation.self, forKey: .operation)
+        let reminderID = try container.decodeIfPresent(UUID.self, forKey: .reminderID)
+        let observedPendingCount = try container.decodeIfPresent(
+            Int.self,
+            forKey: .observedPendingCount
+        )
+        self.init(
+            schemaVersion: schemaVersion,
+            id: try container.decode(UUID.self, forKey: .id),
+            projectID: try container.decode(UUID.self, forKey: .projectID),
+            counterID: try container.decode(UUID.self, forKey: .counterID),
+            operation: operation,
+            reminderID: reminderID,
+            observedPendingCount: observedPendingCount,
+            createdAt: try container.decode(Date.self, forKey: .createdAt)
+        )
+        guard hasValidPayload else {
+            throw WatchSyncValidationError.invalidCommandPayload
+        }
     }
 }
 
@@ -191,6 +298,7 @@ public enum WatchCommandRejection: String, Codable, Equatable, Sendable {
     case unsupportedSchema
     case projectMissing
     case counterMissing
+    case reminderMismatch
     case projectCompleted
     case entitlementRequired
     case storageFailure

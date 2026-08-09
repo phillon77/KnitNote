@@ -999,6 +999,10 @@ import Testing
                 "language.korean",
                 "language.greek",
                 "project.delete.requiresResume",
+                "counter.error.notSaved",
+                "counter.reminder.nextTarget",
+                "counter.reminder.none",
+                "counter.value.invalid",
             ]
         )
         try assertCompleteCatalog(
@@ -1965,13 +1969,13 @@ import Testing
     }
 
     @Test func editingAnUntouchedDefaultNameRestoresTheLocalizedDefault() throws {
-        let source = try projectSource(named: "EditCounterNameView")
+        let source = try projectSource(named: "CounterManagerView")
 
         #expect(source.contains("@Environment(\\.locale) private var locale"))
         #expect(source.contains("@State private var hasEditedName = false"))
         #expect(source.contains("counter.customName == nil && !hasEditedName"))
-        #expect(source.contains("counter.customName == nil && !hasEditedName"))
-        #expect(source.contains("onDone(savedName, value)"))
+        #expect(source.contains("CounterManagerSave("))
+        #expect(source.contains("if onSave(savedCounter) { dismiss() }"))
     }
 
     @Test func traditionalChineseUsesKnittingPatternTerminology() throws {

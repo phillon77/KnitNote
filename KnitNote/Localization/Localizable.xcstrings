@@ -10741,6 +10741,22 @@
         }
       }
     },
+    "counter.error.notSaved" : {
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Denne tæller er ikke længere tilgængelig. Åbn projektet igen, og prøv igen." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Dieser Zähler ist nicht mehr verfügbar. Öffne das Projekt erneut und versuche es noch einmal." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αυτός ο μετρητής δεν είναι πλέον διαθέσιμος. Ανοίξτε ξανά το έργο και δοκιμάστε πάλι." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This counter is no longer available. Reopen the project and try again." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Tämä laskuri ei ole enää käytettävissä. Avaa projekti uudelleen ja yritä uudelleen." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce compteur n’est plus disponible. Rouvrez le projet et réessayez." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカウンターは利用できなくなりました。作品を開き直して、もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 카운터는 더 이상 사용할 수 없습니다. 작품을 다시 연 후 다시 시도하세요." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Denne telleren er ikke lenger tilgjengelig. Åpne prosjektet på nytt og prøv igjen." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Den här räknaren är inte längre tillgänglig. Öppna projektet igen och försök igen." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此计数器已无法使用。请重新打开作品后重试。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此計數器已無法使用。請重新開啟作品後再試一次。" } }
+      }
+    },
     "counter.increment" : {
       "localizations" : {
         "da" : {
@@ -10967,6 +10983,38 @@
             "value" : "減 1"
           }
         }
+      }
+    },
+    "counter.reminder.nextTarget" : {
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Næste mål" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nächstes Ziel" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επόμενος στόχος" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next target" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Seuraava tavoite" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Prochain objectif" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の目標" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 목표" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Neste mål" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Nästa mål" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一个目标" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一個目標" } }
+      }
+    },
+    "counter.reminder.none" : {
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Ingen aktiv påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Keine aktive Erinnerung" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Δεν υπάρχει ενεργή υπενθύμιση" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No active reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Ei aktiivista muistutusta" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucun rappel actif" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効なリマインダーはありません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "활성 알림 없음" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Ingen aktiv påminnelse" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ingen aktiv påminnelse" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有启用的提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有啟用的提醒" } }
       }
     },
     "counter.name" : {
@@ -11271,6 +11319,22 @@
             "value" : "六個作品計數器"
           }
         }
+      }
+    },
+    "counter.value.invalid" : {
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Indtast et ikke-negativt heltal." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib eine nichtnegative ganze Zahl ein." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Εισαγάγετε έναν μη αρνητικό ακέραιο αριθμό." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a non-negative whole number." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Anna ei-negatiivinen kokonaisluku." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez un nombre entier positif ou nul." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "0以上の整数を入力してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "0 이상의 정수를 입력하세요." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Skriv inn et ikke-negativt heltall." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ange ett icke-negativt heltal." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入非负整数。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入非負整數。" } }
       }
     },
     "counter.value" : {

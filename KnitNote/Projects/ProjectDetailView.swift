@@ -89,11 +89,11 @@ struct ProjectDetailView: View {
                                 selectedCounterID: project.selectedCounterID,
                                 isEnabled: !project.isCompleted,
                                 onIncrement: { counterID in
-                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
-                                    try? store.incrementCounter(projectID: projectID, counterID: counterID)
+                                    _ = try? store.selectCounter(projectID: projectID, counterID: counterID)
+                                    _ = try? store.incrementCounter(projectID: projectID, counterID: counterID)
                                 },
                                 onManage: { counterID in
-                                    try? store.selectCounter(projectID: projectID, counterID: counterID)
+                                    _ = try? store.selectCounter(projectID: projectID, counterID: counterID)
                                     managingCounter = project.counters.first { $0.id == counterID }
                                 }
                             )
@@ -213,12 +213,15 @@ struct ProjectDetailView: View {
 
     private func saveCounter(_ counter: ProjectCounter, save: CounterManagerSave) -> Bool {
         do {
-            try store.updateCounter(
+            guard let _ = try store.updateCounter(
                 projectID: projectID,
                 counterID: counter.id,
                 name: save.name,
                 value: save.value
-            )
+            ) else {
+                counterSaveError = String(localized: "counter.error.notSaved")
+                return false
+            }
             return true
         } catch {
             counterSaveError = error.localizedDescription

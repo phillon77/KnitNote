@@ -185,6 +185,8 @@ import Testing
         #expect(reader.contains("private func savePageNoteDirectly() -> Bool"))
         #expect(reader.contains("private func manageCounter(_ counter: ProjectCounter, save: CounterManagerSave) -> Bool"))
         #expect(reader.contains("mutation: .manage(name: save.name, value: save.value, reminder: save.reminderEdit)"))
+        #expect(reader.contains("guard nextGeneration > expectedDataGeneration else"))
+        #expect(reader.contains("saveError = .key(\"counter.error.notSaved\")"))
     }
 
     @Test func readerDisablesWriteControlsOnlyForStructurallyReadOnlyContexts() throws {

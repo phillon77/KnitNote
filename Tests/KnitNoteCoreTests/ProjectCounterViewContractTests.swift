@@ -77,8 +77,42 @@ import Testing
         #expect(source.contains("TextField(\"counter.value\""))
         #expect(source.contains("ViewThatFits"))
         #expect(source.contains("Button(\"counter.minusOne\""))
+        #expect(source.contains("Button(\"counter.increment\""))
         #expect(source.contains("Button(\"counter.reset\""))
         #expect(!source.contains(".presentationDetents([.medium])"))
+    }
+
+    @Test func counterManagerUsesExplicitPlatformSizingWithoutScrollDependentEssentials() throws {
+        let source = try projectSource(named: "CounterManagerView")
+
+        #expect(source.contains("private enum CounterManagerPresentationPolicy"))
+        #expect(source.contains("static let iPadWidth: CGFloat = 720"))
+        #expect(source.contains("static let iPadHeight: CGFloat = 560"))
+        #expect(source.contains("UIDevice.current.userInterfaceIdiom == .pad"))
+        #expect(source.contains("CounterManagerPresentationPolicy.iPadWidth"))
+        #expect(source.contains("CounterManagerPresentationPolicy.iPhoneWidth"))
+        #expect(source.contains("CounterManagerPresentationPolicy.macMinimumWidth"))
+        #expect(!source.contains("ScrollView"))
+    }
+
+    @Test func counterManagerConfirmsResetAndExposesSemanticValidationAndReminderContent() throws {
+        let source = try projectSource(named: "CounterManagerView")
+
+        #expect(source.contains("@State private var confirmingValueReset = false"))
+        #expect(source.contains(".confirmationDialog(\"counter.reset\""))
+        #expect(source.contains("Text(\"counter.value.invalid\")"))
+        #expect(source.contains(".accessibilityLabel(Text(reminderSummary))"))
+        #expect(source.contains(".accessibilityValue(Text(reminderSummary))"))
+        #expect(source.contains("counter.reminder.none"))
+        #expect(source.contains("counter.reminder.nextTarget"))
+    }
+
+    @Test func projectCounterManagerKeepsItsSheetOpenWhenTheStoreRejectsTheTransaction() throws {
+        let source = try projectSource(named: "ProjectDetailView")
+
+        #expect(source.contains("guard let _ = try store.updateCounter("))
+        #expect(source.contains("counterSaveError = String(localized: \"counter.error.notSaved\")"))
+        #expect(!source.contains("try store.updateCounter(projectID:"))
     }
 
     @Test func completionUIShowsStatusAndLocksProjectCounters() throws {

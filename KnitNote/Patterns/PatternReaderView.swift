@@ -878,13 +878,18 @@ struct PatternReaderView: View {
         do {
             guard let usageID = context.usageID,
                   let expectedDataGeneration else { return false }
-            self.expectedDataGeneration = try store.mutatePatternReaderCounter(
+            let nextGeneration = try store.mutatePatternReaderCounter(
                 usageID: usageID,
                 counterID: counter.id,
                 mutation: .manage(name: save.name, value: save.value, reminder: save.reminderEdit),
                 expectedDataGeneration: expectedDataGeneration
             )
-            revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)
+            guard nextGeneration > expectedDataGeneration else {
+                saveError = .key("counter.error.notSaved")
+                return false
+            }
+            self.expectedDataGeneration = nextGeneration
+            revisionCoordinator.confirmMutation(generation: nextGeneration)
             return true
         } catch {
             saveError = .key("error.saveFailed")

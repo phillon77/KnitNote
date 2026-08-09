@@ -58,6 +58,7 @@
 		214000B049624E0C0588F1C7 /* JSONProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */; };
 		21AE8142598C234C733C0A24 /* KnitNoteBackupManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2B7038D08F6C6E76229D7F /* KnitNoteBackupManifest.swift */; };
 		2241F4A5D2BCBA395ED3DBF9 /* YouTubePatternLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D946E82169D361DB029610 /* YouTubePatternLink.swift */; };
+		225745081B10256F761B5769 /* CounterValueInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */; };
 		240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		25130DA1168FBFEFC1B472D7 /* YarnLabelScanLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 417621C761C9ACB8A4C96CD7 /* YarnLabelScanLauncher.swift */; };
@@ -136,9 +137,9 @@
 		62268C21FBF4DF88D3D3A092 /* GaugeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157077494138E6450BAC49F /* GaugeCalculator.swift */; };
 		625C39A0B9A33D2FADACCA3E /* WatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */; };
 		62BCA7D27A65D36BC9BFDE9A /* YouTubePatternAddCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEC91FEB50303032D9924E3 /* YouTubePatternAddCoordinator.swift */; };
+		6345EDF609A796A784E5E63C /* CounterReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225F5466B6FA5D1F71F94F2E /* CounterReminder.swift */; };
 		6495C02F7B77E988D6CF3330 /* YarnLabelDraftSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */; };
 		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
-		660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600A5A211EF6682DED675574 /* EditCounterNameView.swift */; };
 		66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
 		6786A9F0609EA2C72C5611A4 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB235B6DC453F8BE362501B /* AppVersionInfo.swift */; };
 		68362824FB4BC12615282608 /* PatternReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C207C026A98D9C668822C9A /* PatternReaderView.swift */; };
@@ -178,6 +179,7 @@
 		7F14E1E0F9D246A1EA1B30BA /* PatternCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678690B366F62DE0AA40CE8B /* PatternCalculatorView.swift */; };
 		7F7B568C98FE122977CAA5D9 /* MacSettingsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */; };
 		8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */; };
+		805E093B4363B9EAA8F3A84F /* CounterReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225F5466B6FA5D1F71F94F2E /* CounterReminder.swift */; };
 		80AC78B0116DADEF95D8C444 /* PatternShareInboxEnqueuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */; };
 		816E08F2B937791F0F1FF8C7 /* AtomicWatchSyncFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B50375391FAE4E84A86BCF /* AtomicWatchSyncFile.swift */; };
 		81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5F160074737C554D783176A /* LaunchScreen.storyboard */; platformFilters = (ios, ); };
@@ -208,6 +210,7 @@
 		997DEDA5DBCE086E364F52E3 /* BackupSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */; };
 		99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		9A4065300F7AEBA87D9E0778 /* EntitlementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */; };
+		9E7C59B1AE4F3E8DE6AA88BA /* CounterValueInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */; };
 		9EA4FA60DF752696354AF18A /* PatternListThumbnailLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98B102AE0A743E9DD32BE2F /* PatternListThumbnailLayout.swift */; };
 		A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */; };
 		A4B18C855C5E8E2E9A5F1421 /* FeatureAccessPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560C63535489050C1E0E523E /* FeatureAccessPolicy.swift */; };
@@ -237,6 +240,7 @@
 		B6CE950838570266698107C9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */; };
 		BAFAF8C2E97A15BD42353132 /* PatternInboxProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */; };
 		BC5C3B53D64CF73C1A5AB71D /* PatternSystemAppearanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */; };
+		BCA209B015AA3F4D86B281EF /* CounterManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BFC677552F642E4F42E1B1A /* CounterManagerView.swift */; };
 		BCA2F5D135FB115F9E282FF7 /* RowNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE75A4BC6F25D9138B684ADF /* RowNote.swift */; };
 		BCABCE9445D746253F48F7D2 /* PatternReaderContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10455BC3195B85049B3524D /* PatternReaderContext.swift */; };
 		BD22ADF8A183958BC1DC22CE /* LanguageSelectionProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */; };
@@ -418,6 +422,7 @@
 		20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectDeletionActionTests.swift; sourceTree = "<group>"; };
 		2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsLayout.swift; sourceTree = "<group>"; };
 		2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupExportPackage.swift; sourceTree = "<group>"; };
+		225F5466B6FA5D1F71F94F2E /* CounterReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterReminder.swift; sourceTree = "<group>"; };
 		260C2E24AB236712E5FE22CC /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
 		272DA3224A6D58E46E647BC3 /* UnlockPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockPresentation.swift; sourceTree = "<group>"; };
 		27833C8F0AB80A6C0C8F223F /* PatternLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryView.swift; sourceTree = "<group>"; };
@@ -454,6 +459,7 @@
 		3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCaptureView.swift; sourceTree = "<group>"; };
 		417621C761C9ACB8A4C96CD7 /* YarnLabelScanLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelScanLauncher.swift; sourceTree = "<group>"; };
 		431158CF5C9EC212EABD87BA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterValueInput.swift; sourceTree = "<group>"; };
 		4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkup.swift; sourceTree = "<group>"; };
 		44B50375391FAE4E84A86BCF /* AtomicWatchSyncFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomicWatchSyncFile.swift; sourceTree = "<group>"; };
 		451B0A168DC2F848CEE98A74 /* YarnDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnDetailView.swift; sourceTree = "<group>"; };
@@ -479,7 +485,6 @@
 		5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectJournalEntryView.swift; sourceTree = "<group>"; };
 		5D0CCE222E5B3D6656AA2345 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStore.swift; sourceTree = "<group>"; };
-		600A5A211EF6682DED675574 /* EditCounterNameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditCounterNameView.swift; sourceTree = "<group>"; };
 		6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupFileService.swift; sourceTree = "<group>"; };
 		6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceObservation.swift; sourceTree = "<group>"; };
 		6494124F909E997E16F5BB08 /* ShareImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportView.swift; sourceTree = "<group>"; };
@@ -493,6 +498,7 @@
 		6A809FA0EA2975C2A10383B6 /* RowIntervalAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentView.swift; sourceTree = "<group>"; };
 		6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnEditorAccessibilityUITests.swift; sourceTree = "<group>"; };
 		6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupService.swift; sourceTree = "<group>"; };
+		6BFC677552F642E4F42E1B1A /* CounterManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterManagerView.swift; sourceTree = "<group>"; };
 		6C5BFE725AAAEE35A72A5778 /* ProjectYarnSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectYarnSection.swift; sourceTree = "<group>"; };
 		6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSelectionProjection.swift; sourceTree = "<group>"; };
 		6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentCalculator.swift; sourceTree = "<group>"; };
@@ -832,10 +838,10 @@
 				7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */,
 				3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */,
 				95621B1B43D280EDA70A3589 /* ChooseProjectYarnsView.swift */,
+				6BFC677552F642E4F42E1B1A /* CounterManagerView.swift */,
 				33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */,
 				78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */,
 				75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */,
-				600A5A211EF6682DED675574 /* EditCounterNameView.swift */,
 				5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */,
 				2B159464A91F0F008CBAD167 /* EditProjectView.swift */,
 				3620C73CD8D7A61B1C59473E /* EditRowNoteView.swift */,
@@ -1034,6 +1040,8 @@
 			isa = PBXGroup;
 			children = (
 				4F090AE80DF42E6A406946AB /* CameraCapturePhotoEncoder.swift */,
+				225F5466B6FA5D1F71F94F2E /* CounterReminder.swift */,
+				43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */,
 				5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */,
 				1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */,
 				9A51559E4B7599CA640466E3 /* ProjectCounter.swift */,
@@ -1401,12 +1409,14 @@
 				AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */,
 				57736CDDC618972A5516C3AF /* ChooseProjectYarnsView.swift in Sources */,
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
+				BCA209B015AA3F4D86B281EF /* CounterManagerView.swift in Sources */,
+				805E093B4363B9EAA8F3A84F /* CounterReminder.swift in Sources */,
 				C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */,
+				225745081B10256F761B5769 /* CounterValueInput.swift in Sources */,
 				A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */,
 				52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */,
 				35F17DF35D8E6A1DAE9CBC81 /* CreateYarnEntryView.swift in Sources */,
 				02A8AC06B5EB1AE99351FED1 /* CreateYarnView.swift in Sources */,
-				660E953AA38F192B30BB538A /* EditCounterNameView.swift in Sources */,
 				F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */,
 				774C92AA4520877CB17C1614 /* EditProjectJournalEntryView.swift in Sources */,
 				585606C343A35128411BC2E1 /* EditProjectView.swift in Sources */,
@@ -1587,6 +1597,8 @@
 				816E08F2B937791F0F1FF8C7 /* AtomicWatchSyncFile.swift in Sources */,
 				5967A246A135737FB7B89795 /* BackupHistory.swift in Sources */,
 				2117BE8DBD549F7B8C10181C /* CameraCapturePhotoEncoder.swift in Sources */,
+				6345EDF609A796A784E5E63C /* CounterReminder.swift in Sources */,
+				9E7C59B1AE4F3E8DE6AA88BA /* CounterValueInput.swift in Sources */,
 				EB5591BC653A43107284F01C /* EntitlementProjection.swift in Sources */,
 				9A4065300F7AEBA87D9E0778 /* EntitlementResolver.swift in Sources */,
 				05BB894D6B30394B9092A98A /* EntitlementSnapshot.swift in Sources */,

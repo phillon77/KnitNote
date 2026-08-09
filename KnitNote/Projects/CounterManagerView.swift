@@ -1,4 +1,16 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
+
+private enum CounterManagerPresentationPolicy {
+    static let iPhoneWidth: CGFloat = 340
+    static let iPhoneHeight: CGFloat = 420
+    static let iPadWidth: CGFloat = 720
+    static let iPadHeight: CGFloat = 560
+    static let macMinimumWidth: CGFloat = 560
+    static let macMinimumHeight: CGFloat = 420
+}
 
 struct CounterManagerSave {
     let name: String
@@ -17,24 +29,23 @@ struct CounterManagerView: View {
     @State private var hasLoaded = false
     @State private var hasEditedName = false
     @State private var hasInvalidValue = false
+    @State private var confirmingValueReset = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 24) {
-                        nameEditor
-                        valueEditor
-                    }
-                    VStack(spacing: 20) {
-                        nameEditor
-                        valueEditor
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 24) {
+                    nameEditor
+                    valueEditor
                 }
-                .padding()
-                .frame(maxWidth: 680)
-                .frame(maxWidth: .infinity)
+                VStack(spacing: 20) {
+                    nameEditor
+                    valueEditor
+                }
             }
+            .padding()
+            .frame(maxWidth: usesLargeIPadPresentation ? CounterManagerPresentationPolicy.iPadWidth : .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(WatercolorBackground())
             .navigationTitle("counter.manage")
             .toolbar {
@@ -46,10 +57,33 @@ struct CounterManagerView: View {
                 }
             }
         }
+        .confirmationDialog("counter.reset", isPresented: $confirmingValueReset, titleVisibility: .visible) {
+            Button("counter.reset", role: .destructive) {
+                valueText = "0"
+            }
+            Button("common.cancel", role: .cancel) {}
+        }
 #if os(macOS)
-        .frame(minWidth: 560, minHeight: 420)
+        .frame(
+            minWidth: CounterManagerPresentationPolicy.macMinimumWidth,
+            minHeight: CounterManagerPresentationPolicy.macMinimumHeight
+        )
+#elseif os(iOS)
+        .frame(
+            minWidth: usesLargeIPadPresentation
+                ? CounterManagerPresentationPolicy.iPadWidth
+                : CounterManagerPresentationPolicy.iPhoneWidth,
+            idealWidth: usesLargeIPadPresentation ? CounterManagerPresentationPolicy.iPadWidth : nil,
+            minHeight: usesLargeIPadPresentation
+                ? CounterManagerPresentationPolicy.iPadHeight
+                : CounterManagerPresentationPolicy.iPhoneHeight,
+            idealHeight: usesLargeIPadPresentation ? CounterManagerPresentationPolicy.iPadHeight : nil
+        )
 #else
-        .frame(minWidth: 340, minHeight: 420)
+        .frame(
+            minWidth: CounterManagerPresentationPolicy.iPhoneWidth,
+            minHeight: CounterManagerPresentationPolicy.iPhoneHeight
+        )
 #endif
         .tint(WatercolorTheme.actionBerry)
         .onAppear(perform: loadDraft)
@@ -84,10 +118,10 @@ struct CounterManagerView: View {
                 .onChange(of: valueText) { _, _ in hasInvalidValue = false }
 
             if hasInvalidValue {
-                Text("counter.value")
+                Text("counter.value.invalid")
                     .font(.footnote)
                     .foregroundStyle(.red)
-                    .accessibilityHint(Text("counter.value"))
+                    .accessibilityLabel(Text("counter.value.invalid"))
             }
 
             valueControls
@@ -100,7 +134,9 @@ struct CounterManagerView: View {
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
-            .accessibilityLabel(Text("counter.manage"))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(reminderSummary))
+            .accessibilityValue(Text(reminderSummary))
         }
         .frame(minWidth: 280, maxWidth: .infinity, alignment: .leading)
     }
@@ -140,7 +176,7 @@ struct CounterManagerView: View {
 
     private var resetButton: some View {
         Button("counter.reset", systemImage: "arrow.counterclockwise", role: .destructive) {
-            valueText = "0"
+            confirmingValueReset = true
         }
         .buttonStyle(.borderless)
         .disabled(currentValue == 0)
@@ -151,9 +187,21 @@ struct CounterManagerView: View {
         try? CounterValueInput.parse(valueText)
     }
 
+    private var usesLargeIPadPresentation: Bool {
+#if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+#else
+        false
+#endif
+    }
+
     private var reminderSummary: String {
-        guard let reminder = counter.reminder else { return "—" }
-        let target = reminder.nextTarget.map { String($0) } ?? "—"
+        guard let reminder = counter.reminder, reminder.isActive else {
+            return LocaleAwareText.string("counter.reminder.none", locale: locale)
+        }
+        let target = reminder.nextTarget.map {
+                "\(LocaleAwareText.string("counter.reminder.nextTarget", locale: locale)) \($0.formatted(.number.locale(locale)))"
+        } ?? LocaleAwareText.string("counter.reminder.none", locale: locale)
         let message = reminder.message?.trimmingCharacters(in: .whitespacesAndNewlines)
         return message?.isEmpty == false ? "\(message!) · \(target)" : target
     }

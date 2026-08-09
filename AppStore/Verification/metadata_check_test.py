@@ -599,6 +599,14 @@ class MetadataValidationTests(unittest.TestCase):
             ("marketplace", "Ontdek marktplaatsen voor patronen"),
             ("Share system-only language", "Deel-extensie werkt uitsluitend in de systeemtaal"),
             ("Share system-only language", "Het deelscherm volgt de systeemtaal"),
+            ("AI translation", "Vertalingen met kunstmatige intelligentie"),
+            ("cloud sync", "Synchronisaties met de cloud"),
+            ("cloud/remote service", "Services op afstand"),
+            ("subscription", "Kies uit abonnementsdiensten"),
+            ("trial/free", "Proefversies zijn beschikbaar"),
+            ("deleted project recovery", "Verwijderde projecten eenvoudig herstellen"),
+            ("deleted project recovery", "Zet een verwijderd project terug"),
+            ("Share system-only language", "Het deelscherm staat uitsluitend in de systeemtaal"),
         )
         self.assert_forbidden_claims_by_concept(claims)
 

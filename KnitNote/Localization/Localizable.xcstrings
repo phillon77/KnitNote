@@ -6643,7 +6643,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Minder de volgende 2 steken tot 1 steek."
+            "value" : "Brei de volgende 2 steken samen tot 1 steek."
           }
         },
         "sv" : {
@@ -8531,7 +8531,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hoogte van proeflapje"
+            "value" : "Hoogte van het proeflapje"
           }
         },
         "sv" : {
@@ -8613,7 +8613,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Toeren in proeflapje"
+            "value" : "Toeren in het proeflapje"
           }
         },
         "sv" : {
@@ -8695,7 +8695,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Steken in proeflapje"
+            "value" : "Steken in het proeflapje"
           }
         },
         "sv" : {
@@ -8777,7 +8777,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Breedte van proeflapje"
+            "value" : "Breedte van het proeflapje"
           }
         },
         "sv" : {
@@ -39360,7 +39360,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Foto's van garenlabels"
+            "value" : "Foto's van het garenlabel"
           }
         },
         "sv" : {

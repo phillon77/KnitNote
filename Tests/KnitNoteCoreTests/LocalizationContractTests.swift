@@ -303,6 +303,35 @@ import Testing
         }
     }
 
+    @Test func completeCatalogRejectsMissingDutchPluralOne() throws {
+        var localizations = version141PluralFixtureLocalizations()
+        localizations["nl"] = fixturePluralLocalization(
+            one: "%lld item",
+            other: "%lld items"
+        )
+        var dutch = try #require(localizations["nl"] as? [String: Any])
+        var variations = try #require(dutch["variations"] as? [String: Any])
+        var plural = try #require(variations["plural"] as? [String: Any])
+        plural.removeValue(forKey: "one")
+        variations["plural"] = plural
+        dutch["variations"] = variations
+        localizations["nl"] = dutch
+        let catalog = try makeCatalogFixture(localizations: localizations)
+
+        #expect(
+            throws: StringCatalogContractError.missingVariationPath(
+                key: "feature.count.format",
+                language: "nl",
+                path: "variations.plural.one"
+            )
+        ) {
+            try assertCompleteCatalog(
+                at: catalog,
+                requiredLanguages: SupportedLocalization.v150Identifiers
+            )
+        }
+    }
+
     @Test func completeCatalogRejectsMissingKoreanPluralOther() throws {
         var localizations = version141PluralFixtureLocalizations()
         localizations["ko"] = fixturePluralLocalization(
@@ -1204,11 +1233,45 @@ import Testing
 
         #expect(try localizedValue("language.dutch", language: "nl", strings: strings) == "Nederlands")
         #expect(try localizedValue("nav.projects", language: "nl", strings: strings) == "Projecten")
-        #expect(try localizedValue("calculator.adjustment.step.decreaseOne", language: "nl", strings: strings) == "Minder de volgende 2 steken tot 1 steek.")
         #expect(try localizedValue("patterns.import.cameraName", language: "nl", strings: strings) == "Gefotografeerd patroon")
         #expect(try localizedValue("patterns.markup.undo", language: "nl", strings: strings) == "Ongedaan maken")
         #expect(try localizedValue("project.undo", language: "nl", strings: strings) == "Ongedaan maken")
         #expect(try localizedValue("yarn.labelPhoto.accessibility %lld", language: "nl", strings: strings) == "Foto %lld van het garenlabel")
+    }
+
+    @Test func DutchGaugeFieldLabelsUseTheDefiniteArticleForTheSampleSwatch() throws {
+        let strings = try catalogStrings()
+        let expected = [
+            "calculator.gauge.sampleHeight": "Hoogte van het proeflapje",
+            "calculator.gauge.sampleRows": "Toeren in het proeflapje",
+            "calculator.gauge.sampleStitches": "Steken in het proeflapje",
+            "calculator.gauge.sampleWidth": "Breedte van het proeflapje",
+        ]
+
+        for (key, value) in expected {
+            #expect(try localizedValue(key, language: "nl", strings: strings) == value)
+        }
+    }
+
+    @Test func DutchDecreaseInstructionUnambiguouslyJoinsTwoStitchesIntoOne() throws {
+        let strings = try catalogStrings()
+
+        #expect(
+            try localizedValue(
+                "calculator.adjustment.step.decreaseOne",
+                language: "nl",
+                strings: strings
+            ) == "Brei de volgende 2 steken samen tot 1 steek."
+        )
+    }
+
+    @Test func DutchYarnLabelPhotoTitleKeepsTheSingleLabelContext() throws {
+        let strings = try catalogStrings()
+
+        #expect(
+            try localizedValue("yarn.labelPhotos", language: "nl", strings: strings)
+                == "Foto's van het garenlabel"
+        )
     }
 
     @Test func completedProjectDeletionGuidanceUsesExactCopyInEveryRuntimeLanguage() throws {

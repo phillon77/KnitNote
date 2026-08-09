@@ -161,7 +161,7 @@ private func validateRequiredVariationPaths(
     let expectedPaths: Set<String>
     if usesPluralVariations {
         switch language {
-        case "en", "de", "fr", "nb", "sv", "fi", "da", "el":
+        case "en", "de", "fr", "nb", "sv", "fi", "da", "el", "nl":
             expectedPaths = ["variations.plural.one", "variations.plural.other"]
         case "zh-Hant", "zh-Hans", "ja", "ko":
             expectedPaths = ["variations.plural.other"]

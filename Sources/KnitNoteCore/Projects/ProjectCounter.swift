@@ -52,6 +52,7 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
     public private(set) var value: Int
     public private(set) var mutationRevision: UInt64
     public private(set) var rowNotes: [RowNote]
+    public private(set) var reminder: CounterReminder?
 
     public init(
         id: UUID = UUID(),
@@ -59,7 +60,8 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
         customName: String? = nil,
         value: Int = 0,
         mutationRevision: UInt64 = 0,
-        rowNotes: [RowNote] = []
+        rowNotes: [RowNote] = [],
+        reminder: CounterReminder? = nil
     ) {
         let cleanName = customName?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.id = id
@@ -68,10 +70,11 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
         self.value = max(0, value)
         self.mutationRevision = mutationRevision
         self.rowNotes = rowNotes
+        self.reminder = reminder.flatMap { CounterReminder.isValid($0) ? $0 : nil }
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, defaultOrdinal, customName, value, mutationRevision, rowNotes
+        case id, defaultOrdinal, customName, value, mutationRevision, rowNotes, reminder
     }
 
     public init(from decoder: Decoder) throws {
@@ -85,7 +88,8 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
                 UInt64.self,
                 forKey: .mutationRevision
             ) ?? 0,
-            rowNotes: try container.decode([RowNote].self, forKey: .rowNotes)
+            rowNotes: try container.decode([RowNote].self, forKey: .rowNotes),
+            reminder: try container.decodeIfPresent(CounterReminder.self, forKey: .reminder)
         )
     }
 
@@ -132,6 +136,49 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
             mutationRevision &+= 1
         }
         return didRename || didChangeValue
+    }
+
+    public mutating func applyValue(_ value: Int) -> CounterMutationOutcome? {
+        let oldValue = self.value
+        let newValue = max(0, value)
+        guard oldValue != newValue else { return nil }
+
+        self.value = newValue
+        if let reminder {
+            let evaluation = CounterReminderEvaluator.applyingUpwardChange(
+                from: oldValue,
+                to: newValue,
+                reminder: reminder
+            )
+            self.reminder = evaluation.updatedReminder
+            mutationRevision &+= 1
+            return CounterMutationOutcome(
+                oldValue: oldValue,
+                newValue: newValue,
+                pendingReminder: evaluation.newlyPending
+            )
+        }
+
+        mutationRevision &+= 1
+        return CounterMutationOutcome(oldValue: oldValue, newValue: newValue, pendingReminder: nil)
+    }
+
+    public mutating func configureReminder(_ draft: CounterReminderDraft) {
+        reminder = CounterReminder(draft: draft, anchorValue: value)
+    }
+
+    public mutating func completePendingReminder(id: UUID, observedCount: Int) -> Bool {
+        guard var reminder, reminder.completePending(id: id, observedCount: observedCount) else {
+            return false
+        }
+        self.reminder = reminder
+        return true
+    }
+
+    public mutating func stopReminder(id: UUID) -> Bool {
+        guard var reminder, reminder.stop(id: id) else { return false }
+        self.reminder = reminder
+        return true
     }
 
     mutating func rename(to name: String?) -> Bool {

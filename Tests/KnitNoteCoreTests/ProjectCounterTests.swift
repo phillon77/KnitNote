@@ -211,6 +211,22 @@ import Testing
         #expect(decoded.value == 0)
     }
 
+    @Test func legacyCounterWithoutReminderDecodesUnchanged() throws {
+        let original = ProjectCounter(defaultOrdinal: 1, value: 42)
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+        )
+        object.removeValue(forKey: "reminder")
+
+        let decoded = try JSONDecoder().decode(
+            ProjectCounter.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        #expect(decoded.value == 42)
+        #expect(decoded.reminder == nil)
+    }
+
     @Test func counterGridLayoutUsesExactPhoneAndPadColumnCounts() {
         #expect(
             CounterGridLayoutPolicy.columnCount(

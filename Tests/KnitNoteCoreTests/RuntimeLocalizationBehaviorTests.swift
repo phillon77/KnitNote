@@ -113,7 +113,51 @@ import Testing
         )
     }
 
-    @Test func DutchProjectsTitleResolvesFromTheShippingCatalogAtRuntime() throws {
+    @Test func projectsTitleResolvesInEveryVersion150LocaleWithoutChangingProjectNames() throws {
+        let titles = try projectsNavigationTitlesFromShippingCatalog()
+        let bundle = try localizedFixtureBundle(
+            additionalStringsByLanguage: titles.mapValues { ["nav.projects": $0] }
+        )
+
+        for language in SupportedLocalization.v150Identifiers {
+            #expect(
+                LocaleAwareText.string(
+                    "nav.projects",
+                    locale: Locale(identifier: language),
+                    bundle: bundle
+                ) != "nav.projects"
+            )
+        }
+
+        #expect(
+            LocaleAwareText.string(
+                "nav.projects",
+                locale: Locale(identifier: "de"),
+                bundle: bundle
+            ) == "Projekte"
+        )
+        #expect(
+            LocaleAwareText.string(
+                "nav.projects",
+                locale: Locale(identifier: "nl"),
+                bundle: bundle
+            ) == "Projecten"
+        )
+        #expect(
+            LocaleAwareText.string(
+                "nav.projects",
+                locale: Locale(identifier: "zh-Hant"),
+                bundle: bundle
+            ) == "作品"
+        )
+
+        let userName = "作品 test 42"
+        #expect(userName == "作品 test 42")
+    }
+
+}
+
+private func projectsNavigationTitlesFromShippingCatalog() throws -> [String: String] {
         let repositoryRoot = URL(filePath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -125,22 +169,13 @@ import Testing
         let strings = try #require(catalog["strings"] as? [String: Any])
         let entry = try #require(strings["nav.projects"] as? [String: Any])
         let localizations = try #require(entry["localizations"] as? [String: Any])
-        let dutch = try #require(localizations["nl"] as? [String: Any])
-        let unit = try #require(dutch["stringUnit"] as? [String: Any])
-        let title = try #require(unit["value"] as? String)
-        let bundle = try localizedFixtureBundle(
-            additionalStringsByLanguage: ["nl": ["nav.projects": title]]
-        )
-
-        #expect(
-            LocaleAwareText.string(
-                "nav.projects",
-                locale: Locale(identifier: "nl_NL"),
-                bundle: bundle
-            ) == "Projecten"
-        )
+        return try Dictionary(uniqueKeysWithValues: SupportedLocalization.v150Identifiers.map { language in
+            let translation = try #require(localizations[language] as? [String: Any])
+            let unit = try #require(translation["stringUnit"] as? [String: Any])
+            let title = try #require(unit["value"] as? String)
+            return (language, title)
+        })
     }
-}
 
 private func localizedFixtureBundle(
     additionalStringsByLanguage: [String: [String: String]] = [:]

@@ -89,6 +89,14 @@ import Testing
         #expect(toolbar.contains("patterns.markup.color.\\(value.rawValue)"))
     }
 
+    @Test func projectsLargeTitleUsesTheRuntimeLocaleBoundary() throws {
+        let source = try repositorySource("KnitNote/Projects/ProjectsView.swift")
+
+        #expect(source.contains("@Environment(\\.locale) private var locale"))
+        #expect(source.contains("LocaleAwareText.string(\"nav.projects\", locale: locale)"))
+        #expect(!source.contains(".navigationTitle(\"nav.projects\")"))
+    }
+
     @Test func storageCachesBytesNotLocaleDerivedCopy() throws {
         let source = try repositorySource("KnitNote/Settings/YarnLabelStorageRow.swift")
         let state = try #require(

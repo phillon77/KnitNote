@@ -64,6 +64,14 @@ import Testing
         }
     }
 
+    @Test func projectsScreenshotSceneUsesTheLocaleAwareProjectsTitle() throws {
+        let root = try sourceText("KnitNote/App/StoreScreenshotRootView.swift")
+        let projects = try sourceText("KnitNote/Projects/ProjectsView.swift")
+
+        #expect(root.contains("case .projects:\n                ProjectsView()"))
+        #expect(projects.contains("LocaleAwareText.string(\"nav.projects\", locale: locale)"))
+    }
+
     @Test func patternScenesOpenTheirPromisedPresentation() throws {
         let root = try sourceText("KnitNote/App/StoreScreenshotRootView.swift")
         let reader = try sourceText("KnitNote/Patterns/PatternReaderView.swift")

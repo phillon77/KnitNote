@@ -54,7 +54,7 @@ struct ProjectsView: View {
             .background {
                 ProjectsPaintingBackground()
             }
-            .navigationTitle("nav.projects")
+            .navigationTitle(LocaleAwareText.string("nav.projects", locale: locale))
             .navigationDestination(for: UUID.self) { ProjectDetailView(projectID: $0) }
             .toolbar {
                 Button(

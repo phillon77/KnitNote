@@ -630,6 +630,41 @@ class MetadataValidationTests(unittest.TestCase):
                 "Zet een verwijderd project eenvoudig terug",
             ),
             (
+                "contrast restores project instead of backup",
+                "deleted project recovery",
+                "Herstel geen reservekopie maar een verwijderd project.",
+            ),
+            (
+                "contrast restores project instead of named backup",
+                "deleted project recovery",
+                "Herstel niet de reservekopie maar een verwijderd project.",
+            ),
+            (
+                "not-only contrast restores project",
+                "deleted project recovery",
+                "Een verwijderd project niet alleen bekijken maar herstellen.",
+            ),
+            (
+                "contrast with backup modifier restores project",
+                "deleted project recovery",
+                "Herstel geen oude reservekopie maar een verwijderd project.",
+            ),
+            (
+                "not-only contrast with modifiers restores project",
+                "deleted project recovery",
+                "Een verwijderd project niet alleen rustig bekijken maar daarna herstellen.",
+            ),
+            (
+                "backup via source restores project",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen via een reservekopie.",
+            ),
+            (
+                "backup uit source restores project",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen uit een reservekopie.",
+            ),
+            (
                 "system-language display",
                 "Share system-only language",
                 "Het deelscherm toont uitsluitend de systeemtaal",
@@ -648,6 +683,36 @@ class MetadataValidationTests(unittest.TestCase):
                 "passive system-language display",
                 "Share system-only language",
                 "Het deelscherm wordt uitsluitend weergegeven in de systeemtaal",
+            ),
+            (
+                "Share contrast uses system language",
+                "Share system-only language",
+                "Het deelscherm gebruikt niet de app-taal maar uitsluitend de systeemtaal.",
+            ),
+            (
+                "Share contrast follows system language",
+                "Share system-only language",
+                "Het deelscherm volgt niet de app-taal maar de systeemtaal.",
+            ),
+            (
+                "Share passive contrast displays system language",
+                "Share system-only language",
+                "Het deelscherm wordt niet in de app-taal maar uitsluitend in de systeemtaal weergegeven.",
+            ),
+            (
+                "Share configuration contrast sets system language",
+                "Share system-only language",
+                "De deel-extensie is niet ingesteld op de app-taal maar op de systeemtaal.",
+            ),
+            (
+                "Share contrast display modifier",
+                "Share system-only language",
+                "Het deelscherm toont niet de app-taal maar altijd de systeemtaal.",
+            ),
+            (
+                "Share not-only contrast uses system language",
+                "Share system-only language",
+                "Het deelscherm gebruikt niet alleen de app-taal maar ook de systeemtaal.",
             ),
         )
         for label, concept, description in forbidden_cases:

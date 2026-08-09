@@ -307,6 +307,8 @@ DUTCH_RECOVERY_WINDOW = 8
 DUTCH_SHARE_WINDOW = 12
 DUTCH_NEGATION_WINDOW = 3
 DUTCH_NEGATION_TOKENS = {"geen", "niet"}
+DUTCH_CONTRAST_TOKEN = "maar"
+DUTCH_BACKUP_SOURCE_MARKERS = {"met", "vanuit", "via", "uit"}
 DUTCH_SHARE_STATE_VERBS = {
     "gebruikt", "gebruiken", "werkt", "werken", "volgt", "volgen",
     "staat", "staan", "toont", "tonen", "weergegeven",
@@ -351,17 +353,61 @@ def dutch_claim_clauses(value: str) -> list[list[str]]:
     ]
 
 
-def dutch_relation_is_negated(tokens: list[str], *relation_indices: int) -> bool:
-    """Return whether a bounded claim relationship is negated.
+def dutch_contrast_branch_bounds(tokens: list[str], index: int) -> tuple[int, int]:
+    """Return the bounded branch that contains an index in a ``maar`` contrast."""
+    start = 0
+    for candidate in range(index - 1, -1, -1):
+        if tokens[candidate] == DUTCH_CONTRAST_TOKEN:
+            start = candidate + 1
+            break
+
+    end = len(tokens)
+    for candidate in range(index + 1, len(tokens)):
+        if tokens[candidate] == DUTCH_CONTRAST_TOKEN:
+            end = candidate
+            break
+    return start, end
+
+
+def dutch_branch_is_negated(
+    tokens: list[str], branch_start: int, branch_end: int, *relation_indices: int,
+) -> bool:
+    """Return whether a bounded relation is negated inside one contrast branch.
 
     Dutch places ``niet`` either beside a predicate or after its object, while
-    ``geen`` can precede the restored object.  Limiting the scan to the
-    relationship plus three adjacent modifier tokens keeps a separate clause
-    from changing the polarity of this claim.
+    ``geen`` can precede the restored object.  The scan stays within its
+    ``maar`` branch, so a negated alternative cannot erase a positive branch.
     """
-    start = max(0, min(relation_indices) - DUTCH_NEGATION_WINDOW)
-    end = min(len(tokens), max(relation_indices) + DUTCH_NEGATION_WINDOW + 1)
+    start = max(branch_start, min(relation_indices) - DUTCH_NEGATION_WINDOW)
+    end = min(branch_end, max(relation_indices) + DUTCH_NEGATION_WINDOW + 1)
     return any(token in DUTCH_NEGATION_TOKENS for token in tokens[start:end])
+
+
+def dutch_relation_is_positive(
+    tokens: list[str], predicate_index: int, object_index: int,
+) -> bool:
+    """Evaluate a predicate/object relation without crossing ``maar`` polarity.
+
+    A simple relation is safe only when its own branch negates it.  If a
+    contrast divides the predicate and object, its right-hand endpoint is the
+    asserted alternative; inspect that branch independently.  This covers
+    both ``niet X maar Y`` and ``niet alleen X maar Y`` without treating the
+    left-side negation as a whole-clause denial.
+    """
+    predicate_branch = dutch_contrast_branch_bounds(tokens, predicate_index)
+    object_branch = dutch_contrast_branch_bounds(tokens, object_index)
+    if predicate_branch == object_branch:
+        return not dutch_branch_is_negated(
+            tokens, *predicate_branch, predicate_index, object_index,
+        )
+
+    asserted_index = (
+        predicate_index
+        if predicate_branch[0] > object_branch[0]
+        else object_index
+    )
+    asserted_branch = dutch_contrast_branch_bounds(tokens, asserted_index)
+    return not dutch_branch_is_negated(tokens, *asserted_branch, asserted_index)
 
 
 def dutch_action_targets_backup(
@@ -369,11 +415,16 @@ def dutch_action_targets_backup(
 ) -> bool:
     """Return whether a recovery action's object is a backup, not a project.
 
-    A backup between an action and the deleted project is its direct object.
-    When the project introduces the clause, inspect the bounded tokens after
-    the action instead.  ``met`` and ``vanuit`` denote a backup source, so
-    those constructions still describe restoring the project and must block.
+    A backup in the action's branch is its direct object unless the deleted
+    project is the right-hand contrast alternative. When the project
+    introduces the clause, inspect the bounded tokens after the action.
+    ``met``, ``vanuit``, ``via``, and ``uit`` denote a backup source, so those
+    constructions still describe restoring the project and must block.
     """
+    action_branch = dutch_contrast_branch_bounds(tokens, action_index)
+    project_branch = dutch_contrast_branch_bounds(tokens, project_index)
+    if action_branch[0] < project_branch[0]:
+        return False
     if action_index < project_index:
         end = project_index
     else:
@@ -382,8 +433,10 @@ def dutch_action_targets_backup(
     for backup_index in range(action_index + 1, end):
         if not tokens[backup_index].startswith("reservekopie"):
             continue
+        if dutch_contrast_branch_bounds(tokens, backup_index) != action_branch:
+            continue
         before_backup = tokens[action_index + 1:backup_index]
-        return not any(token in {"met", "vanuit"} for token in before_backup)
+        return not any(token in DUTCH_BACKUP_SOURCE_MARKERS for token in before_backup)
     return False
 
 
@@ -422,7 +475,7 @@ def dutch_deleted_project_recovery_claim(value: str) -> bool:
             for action_index in action_indices:
                 if not 0 < abs(action_index - project_index) <= DUTCH_RECOVERY_WINDOW:
                     continue
-                if dutch_relation_is_negated(tokens, action_index, project_index):
+                if not dutch_relation_is_positive(tokens, action_index, project_index):
                     continue
                 if dutch_project_explicitly_remains_deleted(
                     tokens, project_index, action_index,
@@ -448,6 +501,27 @@ def dutch_share_predicate_indices(tokens: list[str]) -> list[int]:
     return predicates
 
 
+def dutch_share_subject_is_excluded(
+    tokens: list[str], share_index: int, predicate_index: int, language_index: int,
+) -> bool:
+    """Keep ``Niet het deelscherm maar ...`` out of Share claim detection."""
+    share_branch = dutch_contrast_branch_bounds(tokens, share_index)
+    if (
+        share_branch == dutch_contrast_branch_bounds(tokens, predicate_index)
+        or share_branch == dutch_contrast_branch_bounds(tokens, language_index)
+    ):
+        return False
+    if any(
+        tokens[index:index + 2] == ["niet", "alleen"]
+        for index in range(share_branch[0], share_branch[1] - 1)
+    ):
+        return False
+    return any(
+        token in DUTCH_NEGATION_TOKENS
+        for token in tokens[share_branch[0]:share_index]
+    )
+
+
 def dutch_share_system_language_claim(value: str) -> bool:
     """Detect a Share surface using or being set to the system language."""
     for tokens in dutch_claim_clauses(value):
@@ -466,13 +540,17 @@ def dutch_share_system_language_claim(value: str) -> bool:
         ]
         for share_index in share_indices:
             for language_index in system_language_indices:
-                start, end = sorted((share_index, language_index))
-                if end - start > DUTCH_SHARE_WINDOW:
+                if abs(share_index - language_index) > DUTCH_SHARE_WINDOW:
                     continue
                 if any(
-                    start <= predicate_index <= end
-                    and not dutch_relation_is_negated(
+                    max(share_index, predicate_index, language_index)
+                    - min(share_index, predicate_index, language_index)
+                    <= DUTCH_SHARE_WINDOW
+                    and not dutch_share_subject_is_excluded(
                         tokens, share_index, predicate_index, language_index,
+                    )
+                    and dutch_relation_is_positive(
+                        tokens, predicate_index, language_index,
                     )
                     for predicate_index in dutch_share_predicate_indices(tokens)
                 ):

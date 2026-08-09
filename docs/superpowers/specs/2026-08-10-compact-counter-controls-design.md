@@ -1,6 +1,6 @@
 # Compact Counter Controls Design
 
-**Date:** 2026-08-10  
+**Date:** 2026-08-10
 **Target:** KnitNote 1.5.0 (Build 9)
 
 ## Problem
@@ -32,4 +32,3 @@ The compact symbols are deliberately language-neutral. No String Catalog entries
 - Prove both compact buttons retain at least a 44-point target and equal sizing.
 - Run focused counter-view and localization contracts, then iOS and macOS builds.
 - Repeat the iPhone counter-manager physical check before continuing reminder acceptance.
-

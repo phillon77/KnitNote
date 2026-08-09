@@ -166,6 +166,11 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     ) -> StoredProjectCounterMutationResult? {
         guard !isCompleted,
               let index = counters.firstIndex(where: { $0.id == id }) else { return nil }
+        if case let .remove(expectedReminderID) = edit,
+           let expectedReminderID,
+           counters[index].reminder?.id != expectedReminderID {
+            return nil
+        }
         let original = counters[index]
         _ = counters[index].rename(to: name)
         let valueOutcome = counters[index].applyValue(value)

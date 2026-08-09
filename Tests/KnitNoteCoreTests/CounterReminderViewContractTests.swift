@@ -77,6 +77,13 @@ import Testing
         #expect(source.contains("return \"\\(reachedCopy) · \\(crossedCountCopy)\""))
     }
 
+    @Test func reminderCardNeverRendersTheReachedFormatKeyWithoutItsRowArgument() throws {
+        let source = try sourceFile("KnitNote/Patterns/CounterReminderCard.swift")
+
+        #expect(!source.contains("Label(\"counter.reminder.reached\""))
+        #expect(source.contains("Text(localizedCopy(key: \"counter.reminder.reached\", value: pending.lastTarget))"))
+    }
+
     private func sourceFile(_ path: String) throws -> String {
         let repositoryRoot = URL(filePath: #filePath)
             .deletingLastPathComponent()

@@ -131,6 +131,48 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     #expect(reopened.reminder?.message == "Turn")
 }
 
+@MainActor @Test func staleDirectReminderRemovalRejectsTheWholeManagerTransaction() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Cardigan")
+    let project = try #require(store.projects.first)
+    let counterID = project.counters[0].id
+    try store.configureCounterReminder(
+        projectID: project.id,
+        counterID: counterID,
+        draft: .oneTime(target: 3, message: "First")
+    )
+    let staleReminderID = try #require(store.project(id: project.id)?.counters[0].reminder?.id)
+    try store.configureCounterReminder(
+        projectID: project.id,
+        counterID: counterID,
+        draft: .oneTime(target: 4, message: "Replacement")
+    )
+    let selectedCounterID = project.counters[1].id
+    try store.selectCounter(projectID: project.id, counterID: selectedCounterID)
+    let projectsBefore = store.projects
+    let generationBefore = store.dataGeneration
+    let archiveBefore = try Data(contentsOf: url)
+
+    let result = try store.manageCounter(
+        projectID: project.id,
+        counterID: counterID,
+        name: "Changed",
+        value: 2,
+        reminder: .remove(expectedReminderID: staleReminderID)
+    )
+
+    #expect(result == nil)
+    #expect(store.projects == projectsBefore)
+    #expect(store.project(id: project.id)?.selectedCounterID == selectedCounterID)
+    #expect(store.dataGeneration == generationBefore)
+    #expect(try Data(contentsOf: url) == archiveBefore)
+    let replacement = try #require(store.project(id: project.id)?.counters[0])
+    #expect(replacement.customName == nil)
+    #expect(replacement.value == 0)
+    #expect(replacement.reminder?.message == "Replacement")
+}
+
 @MainActor @Test func rejectedDirectCounterManagerMutationPublishesNothing() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store = JSONProjectStore(url: url)

@@ -62,6 +62,34 @@ import Testing
         #expect(result.counter.reminder?.pending == result.outcome?.pendingReminder)
     }
 
+    @Test func staleReminderRemovalRejectsTheWholeStoredProjectManagerSave() throws {
+        let start = Date(timeIntervalSince1970: 10)
+        let rejectedAt = Date(timeIntervalSince1970: 20)
+        var project = try StoredProject(name: "Cardigan", now: start)
+        let counterID = project.counters[0].id
+        project.configureCounterReminder(
+            id: counterID,
+            draft: .oneTime(target: 3, message: "First")
+        )
+        let staleReminderID = try #require(project.counters[0].reminder?.id)
+        project.configureCounterReminder(
+            id: counterID,
+            draft: .oneTime(target: 4, message: "Replacement")
+        )
+        let projectBefore = project
+
+        let result = project.manageCounter(
+            id: counterID,
+            name: "Changed",
+            value: 2,
+            reminder: .remove(expectedReminderID: staleReminderID),
+            now: rejectedAt
+        )
+
+        #expect(result == nil)
+        #expect(project == projectBefore)
+    }
+
     @Test func completedProjectLocksCountersUntilResumed() throws {
         let completed = Date(timeIntervalSince1970: 100)
         let resumed = Date(timeIntervalSince1970: 200)

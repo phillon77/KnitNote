@@ -128,6 +128,20 @@ import Testing
         #expect(!source.contains("try store.configureCounterReminder("))
     }
 
+    @Test func rejectedDirectReminderSaveKeepsTheManagerOpen() throws {
+        let detail = try projectSource(named: "ProjectDetailView")
+        let manager = try projectSource(named: "CounterManagerView")
+        let save = try #require(sourceSection(
+            detail,
+            from: "private func saveCounter(",
+            to: "private var hasActivePatterns"
+        ))
+
+        #expect(save.contains("guard let _ = try store.manageCounter("))
+        #expect(save.contains("return false"))
+        #expect(manager.contains("if onSave(savedCounter) { dismiss() }"))
+    }
+
     @Test func completionUIShowsStatusAndLocksProjectCounters() throws {
         let edit = try projectSource(named: "EditProjectView")
         let detail = try projectSource(named: "ProjectDetailView")
@@ -174,5 +188,13 @@ import Testing
             contentsOf: repositoryRoot.appending(path: "KnitNote/Projects/\(name).swift"),
             encoding: .utf8
         )
+    }
+
+    private func sourceSection(_ source: String, from start: String, to end: String) -> String? {
+        guard let startRange = source.range(of: start),
+              let endRange = source.range(of: end, range: startRange.upperBound..<source.endIndex) else {
+            return nil
+        }
+        return String(source[startRange.lowerBound..<endRange.lowerBound])
     }
 }

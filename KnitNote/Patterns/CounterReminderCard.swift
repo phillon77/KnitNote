@@ -10,8 +10,12 @@ struct CounterReminderCard: View {
     var body: some View {
         WatercolorCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("counter.reminder.reached", systemImage: "bell.fill")
-                    .font(.headline)
+                Label {
+                    Text(localizedCopy(key: "counter.reminder.reached", value: pending.lastTarget))
+                } icon: {
+                    Image(systemName: "bell.fill")
+                }
+                .font(.headline)
 
                 if let message, !message.isEmpty {
                     Text(verbatim: message)

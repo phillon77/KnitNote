@@ -26,6 +26,7 @@
 		<string>da</string>
 		<string>ko</string>
 		<string>el</string>
+		<string>nl</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>

@@ -30,6 +30,7 @@ import Testing
             .danish: "language.danish",
             .korean: "language.korean",
             .greek: "language.greek",
+            .dutch: "language.dutch",
         ]
 
         #expect(expectedKeys.count == LanguageSelection.allCases.count)

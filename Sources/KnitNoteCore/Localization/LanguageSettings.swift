@@ -54,6 +54,7 @@ public final class LanguageSettings {
         case "da": return .danish
         case "ko": return .korean
         case "el": return .greek
+        case "nl": return .dutch
         default: return .english
         }
     }

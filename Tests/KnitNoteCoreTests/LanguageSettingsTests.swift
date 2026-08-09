@@ -32,6 +32,21 @@ import Testing
             .resolvedLanguage(systemLanguages: [identifier]) == expected)
     }
 
+    @Test func dutchSystemLanguagesResolveToDutch() {
+        #expect(LanguageSettings().resolvedLanguage(systemLanguages: ["nl-NL"]) == .dutch)
+        #expect(LanguageSettings().resolvedLanguage(systemLanguages: ["nl-BE"]) == .dutch)
+    }
+
+    @Test func explicitDutchSelectionUsesDutchLocale() {
+        let settings = LanguageSettings(selection: .dutch)
+
+        #expect(settings.resolvedLanguage(systemLanguages: ["de-DE"]) == .dutch)
+        #expect(
+            settings.resolvedLocale(regionLocale: Locale(identifier: "nl_NL"))
+                .language.languageCode?.identifier == "nl"
+        )
+    }
+
     @Test func unsupportedSystemLanguageFallsBackToEnglish() {
         #expect(LanguageSettings(selection: .system)
             .resolvedLanguage(systemLanguages: ["it-IT"]) == .english)

@@ -3,6 +3,13 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct StringCatalogLocalizationContractTests {
+    @Test func version150LocalizationContractAddsDutchLast() {
+        #expect(SupportedLocalization.v150Identifiers == [
+            "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+            "nb", "sv", "fi", "da", "ko", "el", "nl",
+        ])
+    }
+
     @Test func version140LocalizationContractNamesTheCompleteLanguageDomain() {
         #expect(
             SupportedLocalization.v140Identifiers

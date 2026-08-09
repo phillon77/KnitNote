@@ -13,6 +13,7 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
     case danish = "da"
     case korean = "ko"
     case greek = "el"
+    case dutch = "nl"
 }
 
 public enum LanguageSelection: String, CaseIterable, Codable, Sendable {
@@ -29,6 +30,7 @@ public enum LanguageSelection: String, CaseIterable, Codable, Sendable {
     case danish
     case korean
     case greek
+    case dutch
 
     public var explicitLanguage: AppLanguage? {
         switch self {
@@ -58,6 +60,8 @@ public enum LanguageSelection: String, CaseIterable, Codable, Sendable {
             .korean
         case .greek:
             .greek
+        case .dutch:
+            .dutch
         }
     }
 
@@ -76,6 +80,7 @@ public enum LanguageSelection: String, CaseIterable, Codable, Sendable {
         case .danish: "language.danish"
         case .korean: "language.korean"
         case .greek: "language.greek"
+        case .dutch: "language.dutch"
         }
     }
 }

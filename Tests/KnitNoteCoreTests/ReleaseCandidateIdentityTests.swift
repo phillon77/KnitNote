@@ -85,7 +85,7 @@ import Testing
         let targets = try #require(project["targets"] as? [String: Any])
         let expectedLocales = [
             "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
-            "nb", "sv", "fi", "da", "ko", "el",
+            "nb", "sv", "fi", "da", "ko", "el", "nl",
         ]
 
         for identity in shippingTargetIdentities {
@@ -107,6 +107,21 @@ import Testing
             #expect(generated["CFBundleVersion"] as? String == "$(CURRENT_PROJECT_VERSION)")
             #expect(generated["CFBundleLocalizations"] as? [String] == expectedLocales)
         }
+    }
+
+    // TODO(Task 2): Dutch String Catalog resources must be added before extending this list with "nl".
+    // This fail-closed assertion keeps XcodeGen's catalog-derived regions intentional until then.
+    @Test func generatedProjectKnownRegionsMatchTheCurrentCatalogResources() throws {
+        let project = try String(
+            contentsOf: releaseCandidateIdentityRepositoryRoot
+                .appending(path: "KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+
+        #expect(projectKnownRegions(in: project) == [
+            "Base", "da", "de", "el", "en", "fi", "fr", "ja", "ko", "nb", "sv",
+            "zh-Hans", "zh-Hant",
+        ])
     }
 }
 
@@ -200,3 +215,17 @@ private let releaseCandidateIdentityRepositoryRoot = URL(filePath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     .deletingLastPathComponent()
+
+private func projectKnownRegions(in project: String) -> [String] {
+    guard let regionBlock = project.components(separatedBy: "knownRegions = (").dropFirst().first,
+          let end = regionBlock.range(of: ");")
+    else {
+        return []
+    }
+
+    return regionBlock[..<end.lowerBound]
+        .split(separator: "\n")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ",\"")) }
+        .filter { !$0.isEmpty }
+}

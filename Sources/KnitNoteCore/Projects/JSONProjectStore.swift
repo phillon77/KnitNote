@@ -138,6 +138,14 @@ public enum PatternReaderCounterMutation: Sendable {
     case increment
     case reset
     case update(name: String?, value: Int)
+    case manage(name: String?, value: Int, reminder: CounterReminderEdit)
+    case completeReminder(reminderID: UUID, observedCount: Int)
+    case stopReminder(reminderID: UUID)
+}
+
+public struct PatternReaderCounterMutationResult: Equatable, Sendable {
+    public let generation: UInt64
+    public let outcome: CounterMutationOutcome?
 }
 
 enum ProjectJournalPhotoReferencePolicy {
@@ -922,21 +930,76 @@ final class PatternLibraryDeletionTransaction {
         try requireAccess(.changeCounter)
         try mutate(id: projectID) { $0.selectCounter(id: counterID) }
     }
-    public func incrementCounter(projectID: UUID, counterID: UUID) throws {
+    @discardableResult
+    public func incrementCounter(
+        projectID: UUID,
+        counterID: UUID
+    ) throws -> StoredProjectCounterMutationResult? {
         try requireAccess(.changeCounter)
-        try mutate(id: projectID) { $0.incrementCounter(id: counterID) }
+        return try mutateCounter(id: projectID) { $0.incrementCounter(id: counterID) }
     }
-    public func decrementCounter(projectID: UUID, counterID: UUID) throws {
+    @discardableResult
+    public func decrementCounter(
+        projectID: UUID,
+        counterID: UUID
+    ) throws -> StoredProjectCounterMutationResult? {
         try requireAccess(.changeCounter)
-        try mutate(id: projectID) { $0.decrementCounter(id: counterID) }
+        return try mutateCounter(id: projectID) { $0.decrementCounter(id: counterID) }
     }
-    public func resetCounter(projectID: UUID, counterID: UUID) throws {
+    @discardableResult
+    public func resetCounter(
+        projectID: UUID,
+        counterID: UUID
+    ) throws -> StoredProjectCounterMutationResult? {
         try requireAccess(.changeCounter)
-        try mutate(id: projectID) { $0.resetCounter(id: counterID) }
+        return try mutateCounter(id: projectID) { $0.resetCounter(id: counterID) }
     }
-    public func updateCounter(projectID: UUID, counterID: UUID, name: String?, value: Int) throws {
+    @discardableResult
+    public func updateCounter(
+        projectID: UUID,
+        counterID: UUID,
+        name: String?,
+        value: Int
+    ) throws -> StoredProjectCounterMutationResult? {
         try requireAccess(.changeCounter)
-        try mutate(id: projectID) { $0.updateCounter(id: counterID, name: name, value: value) }
+        return try mutateCounter(id: projectID) {
+            $0.updateCounter(id: counterID, name: name, value: value)
+        }
+    }
+    public func configureCounterReminder(
+        projectID: UUID,
+        counterID: UUID,
+        draft: CounterReminderDraft
+    ) throws {
+        try requireAccess(.changeCounter)
+        try mutateActiveCounterProject(id: projectID) {
+            $0.configureCounterReminder(id: counterID, draft: draft)
+        }
+    }
+    public func completeCounterReminder(
+        projectID: UUID,
+        counterID: UUID,
+        reminderID: UUID,
+        observedCount: Int
+    ) throws {
+        try requireAccess(.changeCounter)
+        try mutateActiveCounterProject(id: projectID) {
+            $0.completeCounterReminder(
+                id: counterID,
+                reminderID: reminderID,
+                observedCount: observedCount
+            )
+        }
+    }
+    public func stopCounterReminder(
+        projectID: UUID,
+        counterID: UUID,
+        reminderID: UUID
+    ) throws {
+        try requireAccess(.changeCounter)
+        try mutateActiveCounterProject(id: projectID) {
+            $0.stopCounterReminder(id: counterID, reminderID: reminderID)
+        }
     }
 
     /// Performs one reader-originated counter mutation and returns the exact
@@ -948,6 +1011,20 @@ final class PatternLibraryDeletionTransaction {
         mutation: PatternReaderCounterMutation,
         expectedDataGeneration: UInt64
     ) throws -> UInt64 {
+        try mutatePatternReaderCounterWithOutcome(
+            usageID: usageID,
+            counterID: counterID,
+            mutation: mutation,
+            expectedDataGeneration: expectedDataGeneration
+        ).generation
+    }
+
+    public func mutatePatternReaderCounterWithOutcome(
+        usageID: UUID,
+        counterID: UUID,
+        mutation: PatternReaderCounterMutation,
+        expectedDataGeneration: UInt64
+    ) throws -> PatternReaderCounterMutationResult {
         try requireAccess(.changeCounter)
         try validateExpectedDataGeneration(expectedDataGeneration)
         let usageIndex = try mutableUsageIndex(usageID: usageID)
@@ -957,16 +1034,44 @@ final class PatternLibraryDeletionTransaction {
         }
         var stagedProjects = projects
         stagedProjects[projectIndex].selectCounter(id: counterID)
+        let result: StoredProjectCounterMutationResult?
         switch mutation {
         case .increment:
-            stagedProjects[projectIndex].incrementCounter(id: counterID)
+            result = stagedProjects[projectIndex].incrementCounter(id: counterID)
         case .reset:
-            stagedProjects[projectIndex].resetCounter(id: counterID)
+            result = stagedProjects[projectIndex].resetCounter(id: counterID)
         case let .update(name, value):
-            stagedProjects[projectIndex].updateCounter(id: counterID, name: name, value: value)
+            result = stagedProjects[projectIndex].updateCounter(
+                id: counterID,
+                name: name,
+                value: value
+            )
+        case let .manage(name, value, reminder):
+            result = stagedProjects[projectIndex].manageCounter(
+                id: counterID,
+                name: name,
+                value: value,
+                reminder: reminder
+            )
+        case let .completeReminder(reminderID, observedCount):
+            stagedProjects[projectIndex].completeCounterReminder(
+                id: counterID,
+                reminderID: reminderID,
+                observedCount: observedCount
+            )
+            result = nil
+        case let .stopReminder(reminderID):
+            stagedProjects[projectIndex].stopCounterReminder(
+                id: counterID,
+                reminderID: reminderID
+            )
+            result = nil
         }
         try persist(projects: stagedProjects, yarns: yarns)
-        return dataGeneration
+        return PatternReaderCounterMutationResult(
+            generation: dataGeneration,
+            outcome: result?.outcome
+        )
     }
     public func renameCounter(projectID: UUID, counterID: UUID, name: String?) throws {
         try requireAccess(.changeCounter)
@@ -2301,6 +2406,30 @@ final class PatternLibraryDeletionTransaction {
         guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
         var staged = projects
         try body(&staged[index])
+        try persist(projects: staged, yarns: yarns)
+    }
+
+    private func mutateCounter(
+        id: UUID,
+        _ body: (inout StoredProject) -> StoredProjectCounterMutationResult?
+    ) throws -> StoredProjectCounterMutationResult? {
+        guard let index = projects.firstIndex(where: { $0.id == id }) else { return nil }
+        var staged = projects
+        let result = body(&staged[index])
+        try persist(projects: staged, yarns: yarns)
+        return result
+    }
+
+    private func mutateActiveCounterProject(
+        id: UUID,
+        _ body: (inout StoredProject) -> Void
+    ) throws {
+        guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
+        guard !projects[index].isCompleted else {
+            throw PatternLibraryMutationError.projectCompleted
+        }
+        var staged = projects
+        body(&staged[index])
         try persist(projects: staged, yarns: yarns)
     }
 

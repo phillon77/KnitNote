@@ -56,6 +56,48 @@ import UniformTypeIdentifiers
     #expect(reloaded.note(counterID: counterID, row: 4) == nil)
 }
 
+@MainActor @Test func storePersistsReminderConfigurationCompletionAndStop() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Cardigan")
+    let project = try #require(store.projects.first)
+    let counterID = project.counters[0].id
+    try store.configureCounterReminder(
+        projectID: project.id,
+        counterID: counterID,
+        draft: .repeating(interval: 2, limit: nil, message: "Turn")
+    )
+
+    let persisted = try store.updateCounter(
+        projectID: project.id,
+        counterID: counterID,
+        name: nil,
+        value: 5
+    )
+    let mutation = try #require(persisted)
+    let pending = try #require(mutation.outcome?.pendingReminder)
+    #expect(mutation.counter == store.project(id: project.id)?.counters[0])
+    try store.completeCounterReminder(
+        projectID: project.id,
+        counterID: counterID,
+        reminderID: pending.reminderID,
+        observedCount: pending.occurrenceCount
+    )
+
+    let completed = try #require(JSONProjectStore(url: url).project(id: project.id)?.counters[0])
+    #expect(completed.reminder?.pending == nil)
+    #expect(completed.reminder?.acknowledgedCount == 2)
+    try store.stopCounterReminder(
+        projectID: project.id,
+        counterID: counterID,
+        reminderID: pending.reminderID
+    )
+
+    let stopped = try #require(JSONProjectStore(url: url).project(id: project.id)?.counters[0])
+    #expect(stopped.reminder?.isActive == false)
+    #expect(stopped.reminder?.nextTarget == nil)
+}
+
 @MainActor @Test func storePersistsCompletionAndResume() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store = JSONProjectStore(url: url)

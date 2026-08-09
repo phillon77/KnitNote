@@ -43,6 +43,25 @@ import Testing
         #expect(project.counters[0].value == 1)
     }
 
+    @Test func storedProjectMutationReturnsTheExactReminderAwareCounter() throws {
+        var project = try StoredProject(name: "Cardigan")
+        let counterID = project.counters[0].id
+        project.configureCounterReminder(
+            id: counterID,
+            draft: .oneTime(target: 2, message: "Change yarn")
+        )
+
+        let mutation = project.updateCounter(id: counterID, name: "Body", value: 3)
+        let result = try #require(mutation)
+
+        #expect(result.counter == project.counters[0])
+        #expect(result.counter.customName == "Body")
+        #expect(result.outcome?.oldValue == 0)
+        #expect(result.outcome?.newValue == 3)
+        #expect(result.outcome?.pendingReminder?.occurrenceCount == 1)
+        #expect(result.counter.reminder?.pending == result.outcome?.pendingReminder)
+    }
+
     @Test func completedProjectLocksCountersUntilResumed() throws {
         let completed = Date(timeIntervalSince1970: 100)
         let resumed = Date(timeIntervalSince1970: 200)

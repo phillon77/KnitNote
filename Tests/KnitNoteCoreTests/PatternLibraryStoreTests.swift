@@ -336,6 +336,74 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     #expect(try reopened.loadPatternMarkup(usageID: usage.id, pageIndex: 5) == markup)
 }
 
+@MainActor @Test func readerMutationPublishesGenerationAndReminderTogether() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let counterID = try #require(harness.store.project(id: harness.projectID)?.counters[0].id)
+    try harness.store.configureCounterReminder(
+        projectID: harness.projectID,
+        counterID: counterID,
+        draft: .oneTime(target: 2, message: nil)
+    )
+
+    let result = try harness.store.mutatePatternReaderCounterWithOutcome(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .update(name: nil, value: 3),
+        expectedDataGeneration: harness.store.dataGeneration
+    )
+
+    #expect(result.generation == harness.store.dataGeneration)
+    #expect(result.outcome?.pendingReminder?.occurrenceCount == 1)
+    let reopened = try harness.reopenedStore()
+    #expect(reopened.project(id: harness.projectID)?.counters[0].reminder?.pending != nil)
+}
+
+@MainActor @Test func staleReaderReminderActionPublishesNothing() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
+    let counterID = try #require(harness.store.project(id: harness.projectID)?.counters[0].id)
+    let configuredGeneration = harness.store.dataGeneration
+    let managed = try harness.store.mutatePatternReaderCounterWithOutcome(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .manage(
+            name: "Body",
+            value: 2,
+            reminder: .replace(.oneTime(target: 3, message: nil))
+        ),
+        expectedDataGeneration: configuredGeneration
+    )
+    let due = try harness.store.mutatePatternReaderCounterWithOutcome(
+        usageID: usage.id,
+        counterID: counterID,
+        mutation: .increment,
+        expectedDataGeneration: managed.generation
+    )
+    let pending = try #require(due.outcome?.pendingReminder)
+
+    #expect(throws: ProjectStoreError.staleDataGeneration) {
+        try harness.store.mutatePatternReaderCounterWithOutcome(
+            usageID: usage.id,
+            counterID: counterID,
+            mutation: .completeReminder(
+                reminderID: pending.reminderID,
+                observedCount: pending.occurrenceCount
+            ),
+            expectedDataGeneration: configuredGeneration
+        )
+    }
+
+    #expect(harness.store.dataGeneration == due.generation)
+    #expect(
+        harness.store.project(id: harness.projectID)?.counters[0].reminder?.pending == pending
+    )
+    #expect(
+        try harness.reopenedStore().project(id: harness.projectID)?
+            .counters[0].reminder?.pending == pending
+    )
+}
+
 @MainActor @Test func readerUsageMutationKeepsExternalOptimisticConcurrencyRejection() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
     let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)

@@ -25,6 +25,11 @@ public func patternGroups(from projects: [StoredProject]) -> [PatternProjectGrou
     }
 }
 
+public struct StoredProjectCounterMutationResult: Equatable, Sendable {
+    public let counter: ProjectCounter
+    public let outcome: CounterMutationOutcome?
+}
+
 public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String
@@ -111,21 +116,131 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         selectedCounterID = id
         updatedAt = now
     }
-    public mutating func incrementCounter(id: UUID, now: Date = .now) {
-        guard !isCompleted else { return }
-        mutateCounter(id: id, now: now) { $0.increment() }
+    @discardableResult
+    public mutating func incrementCounter(
+        id: UUID,
+        now: Date = .now
+    ) -> StoredProjectCounterMutationResult? {
+        mutateCounterWithOutcome(id: id, now: now) { counter in
+            guard counter.value < Int.max else { return nil }
+            return counter.applyValue(counter.value + 1)
+        }
     }
-    public mutating func decrementCounter(id: UUID, now: Date = .now) {
-        guard !isCompleted else { return }
-        mutateCounter(id: id, now: now) { $0.decrement() }
+    @discardableResult
+    public mutating func decrementCounter(
+        id: UUID,
+        now: Date = .now
+    ) -> StoredProjectCounterMutationResult? {
+        mutateCounterWithOutcome(id: id, now: now) { counter in
+            counter.applyValue(counter.value - 1)
+        }
     }
-    public mutating func resetCounter(id: UUID, now: Date = .now) {
-        guard !isCompleted else { return }
-        mutateCounter(id: id, now: now) { $0.reset() }
+    @discardableResult
+    public mutating func resetCounter(
+        id: UUID,
+        now: Date = .now
+    ) -> StoredProjectCounterMutationResult? {
+        mutateCounterWithOutcome(id: id, now: now) { counter in
+            counter.applyValue(0)
+        }
     }
-    public mutating func updateCounter(id: UUID, name: String?, value: Int, now: Date = .now) {
-        guard !isCompleted else { return }
-        mutateCounter(id: id, now: now) { $0.update(name: name, value: value) }
+    @discardableResult
+    public mutating func updateCounter(
+        id: UUID,
+        name: String?,
+        value: Int,
+        now: Date = .now
+    ) -> StoredProjectCounterMutationResult? {
+        mutateCounterWithOutcome(id: id, now: now) { counter in
+            _ = counter.rename(to: name)
+            return counter.applyValue(value)
+        }
+    }
+    @discardableResult
+    public mutating func manageCounter(
+        id: UUID,
+        name: String?,
+        value: Int,
+        reminder edit: CounterReminderEdit,
+        now: Date = .now
+    ) -> StoredProjectCounterMutationResult? {
+        guard !isCompleted,
+              let index = counters.firstIndex(where: { $0.id == id }) else { return nil }
+        let original = counters[index]
+        _ = counters[index].rename(to: name)
+        let valueOutcome = counters[index].applyValue(value)
+        switch edit {
+        case .unchanged:
+            break
+        case let .replace(draft):
+            counters[index].configureReminder(draft)
+        case let .remove(expectedReminderID):
+            if expectedReminderID == nil || counters[index].reminder?.id == expectedReminderID {
+                counters[index] = ProjectCounter(
+                    id: counters[index].id,
+                    defaultOrdinal: counters[index].defaultOrdinal,
+                    customName: counters[index].customName,
+                    value: counters[index].value,
+                    mutationRevision: counters[index].mutationRevision,
+                    rowNotes: counters[index].rowNotes
+                )
+            }
+        }
+        guard counters[index] != original else {
+            return StoredProjectCounterMutationResult(counter: counters[index], outcome: nil)
+        }
+        updatedAt = now
+        let persistedPending = counters[index].reminder?.pending
+        let outcome = valueOutcome.map {
+            CounterMutationOutcome(
+                oldValue: $0.oldValue,
+                newValue: $0.newValue,
+                pendingReminder: $0.pendingReminder == persistedPending ? $0.pendingReminder : nil
+            )
+        }
+        return StoredProjectCounterMutationResult(counter: counters[index], outcome: outcome)
+    }
+    @discardableResult
+    public mutating func configureCounterReminder(
+        id: UUID,
+        draft: CounterReminderDraft,
+        now: Date = .now
+    ) -> Bool {
+        guard !isCompleted,
+              let index = counters.firstIndex(where: { $0.id == id }) else { return false }
+        let original = counters[index]
+        counters[index].configureReminder(draft)
+        guard counters[index] != original else { return false }
+        updatedAt = now
+        return true
+    }
+    @discardableResult
+    public mutating func completeCounterReminder(
+        id: UUID,
+        reminderID: UUID,
+        observedCount: Int,
+        now: Date = .now
+    ) -> Bool {
+        guard !isCompleted,
+              let index = counters.firstIndex(where: { $0.id == id }),
+              counters[index].completePendingReminder(
+                  id: reminderID,
+                  observedCount: observedCount
+              ) else { return false }
+        updatedAt = now
+        return true
+    }
+    @discardableResult
+    public mutating func stopCounterReminder(
+        id: UUID,
+        reminderID: UUID,
+        now: Date = .now
+    ) -> Bool {
+        guard !isCompleted,
+              let index = counters.firstIndex(where: { $0.id == id }),
+              counters[index].stopReminder(id: reminderID) else { return false }
+        updatedAt = now
+        return true
     }
     public mutating func renameCounter(id: UUID, to name: String?, now: Date = .now) {
         guard !isCompleted else { return }
@@ -296,6 +411,19 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         updatedAt = now
     }
 
+    private mutating func mutateCounterWithOutcome(
+        id: UUID,
+        now: Date,
+        _ mutation: (inout ProjectCounter) -> CounterMutationOutcome?
+    ) -> StoredProjectCounterMutationResult? {
+        guard !isCompleted,
+              let index = counters.firstIndex(where: { $0.id == id }) else { return nil }
+        let original = counters[index]
+        let outcome = mutation(&counters[index])
+        if counters[index] != original { updatedAt = now }
+        return StoredProjectCounterMutationResult(counter: counters[index], outcome: outcome)
+    }
+
     private static func selectedID(_ requestedID: UUID?, in counters: [ProjectCounter]) -> UUID {
         guard let requestedID, counters.contains(where: { $0.id == requestedID }) else { return counters[0].id }
         return requestedID
@@ -356,7 +484,8 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
                 customName: candidate?.customName,
                 value: candidate?.value ?? 0,
                 mutationRevision: candidate?.mutationRevision ?? 0,
-                rowNotes: candidate?.rowNotes ?? []
+                rowNotes: candidate?.rowNotes ?? [],
+                reminder: candidate?.reminder
             )
         }
     }

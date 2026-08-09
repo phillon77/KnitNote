@@ -3,17 +3,35 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct KnittingTerminologyContractTests {
-    @Test func terminologyContainsEveryVersion141LanguageAndUniqueKey() throws {
+    @Test func terminologyContainsEveryVersion150LanguageAndUniqueKey() throws {
         let table = try TerminologyTable.load(from: terminologyURL)
 
         #expect(table.headers == [
             "key", "catalogKeys", "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
-            "nb", "sv", "fi", "da", "ko", "el",
+            "nb", "sv", "fi", "da", "ko", "el", "nl",
         ])
         #expect(Set(table.rows.map(\.key)).count == table.rows.count)
         #expect(table.rows.allSatisfy { row in
             table.headers.dropFirst().allSatisfy { !(row[$0] ?? "").isEmpty }
         })
+    }
+
+    @Test func DutchCoreTermsUseReviewedKnittingLanguage() throws {
+        let table = try TerminologyTable.load(from: terminologyURL)
+        let expected = [
+            "project": "Project*",
+            "pattern": "Patroon|Patronen",
+            "yarn": "Garen",
+            "counter": "Toerenteller",
+            "row": "Toer|Toeren",
+            "stitch": "Steek|Steken",
+            "knittingNeedle": "Breinaald",
+            "crochetHook": "Haaknaald",
+        ]
+
+        for (key, value) in expected {
+            #expect(table[key]?["nl"] == value)
+        }
     }
 
     @Test func terminologyRowsGovernApprovedRuntimeCatalogKeyFamilies() throws {

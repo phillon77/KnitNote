@@ -76,9 +76,7 @@ import Testing
         }
     }
 
-    // TODO(Task 2): atomically add real Dutch catalogs, this shipping declaration, regenerated
-    // PBX known regions, and the release-audit locale contracts and fixtures.
-    @Test func generatedInfoPlistsPreserveCandidateIdentityAndCurrentCatalogReleaseLocales() throws {
+    @Test func generatedInfoPlistsPreserveCandidateIdentityAndVersion150ReleaseLocales() throws {
         let payload = try runReleaseIdentityJSONTool(
             executable: "/usr/bin/env",
             arguments: ["xcodegen", "dump", "--type", "parsed-json"]
@@ -87,7 +85,7 @@ import Testing
         let targets = try #require(project["targets"] as? [String: Any])
         let expectedLocales = [
             "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
-            "nb", "sv", "fi", "da", "ko", "el",
+            "nb", "sv", "fi", "da", "ko", "el", "nl",
         ]
 
         for identity in shippingTargetIdentities {
@@ -111,9 +109,7 @@ import Testing
         }
     }
 
-    // TODO(Task 2): extend this exact list with "nl" in the same atomic localization transition.
-    // This fail-closed assertion keeps XcodeGen's catalog-derived regions intentional until then.
-    @Test func generatedProjectKnownRegionsMatchTheCurrentCatalogResources() throws {
+    @Test func generatedProjectKnownRegionsMatchTheVersion150CatalogResources() throws {
         let project = try String(
             contentsOf: releaseCandidateIdentityRepositoryRoot
                 .appending(path: "KnitNote.xcodeproj/project.pbxproj"),
@@ -121,7 +117,7 @@ import Testing
         )
 
         #expect(projectKnownRegions(in: project) == [
-            "Base", "da", "de", "el", "en", "fi", "fr", "ja", "ko", "nb", "sv",
+            "Base", "da", "de", "el", "en", "fi", "fr", "ja", "ko", "nb", "nl", "sv",
             "zh-Hans", "zh-Hant",
         ])
     }

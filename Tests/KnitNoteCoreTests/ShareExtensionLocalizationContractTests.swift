@@ -21,7 +21,7 @@ import Testing
         for key in requiredKeys {
             let entry = try #require(strings[key] as? [String: Any])
             let localizations = try #require(entry["localizations"] as? [String: Any])
-            #expect(Set(localizations.keys) == Set(SupportedLocalization.v141Identifiers))
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v150Identifiers))
             let comment = (entry["comment"] as? String)?.lowercased() ?? ""
             #expect(comment.contains("row") && comment.contains("counter"))
         }
@@ -47,16 +47,38 @@ import Testing
         )
     }
 
-    @Test func watchAndShareCatalogsAreCompleteForVersion141Languages() throws {
+    @Test func watchAndShareCatalogsAreCompleteForVersion150Languages() throws {
         for path in [
             "KnitNoteWatch/Localizable.xcstrings",
             "KnitNoteShare/Localizable.xcstrings",
         ] {
             try assertCompleteCatalog(
                 at: patternLibraryRepositoryURL(path),
-                requiredLanguages: SupportedLocalization.v141Identifiers
+                requiredLanguages: SupportedLocalization.v150Identifiers
             )
         }
+    }
+
+    @Test func DutchWatchAndShareCoreActionsUseReviewedCopy() throws {
+        try assertExactTranslations(
+            catalog: "KnitNoteWatch/Localizable.xcstrings",
+            language: "nl",
+            expected: [
+                "watch.counter.decrement": "Verminder met één",
+                "watch.counter.reset": "Zet op nul",
+                "watch.counter.cancel": "Annuleer",
+            ]
+        )
+        try assertExactTranslations(
+            catalog: "KnitNoteShare/Localizable.xcstrings",
+            language: "nl",
+            expected: [
+                "share.title": "Voeg toe aan KnitNote",
+                "share.cancel": "Annuleer",
+                "share.close": "Sluit",
+                "share.error.unsupported": "Deel één PDF-bestand of één ondersteund afbeeldingsbestand.",
+            ]
+        )
     }
 
     @Test func shareExtensionHasExactEnglishAndTraditionalChineseCopy() throws {
@@ -182,5 +204,19 @@ import Testing
         let variation = try #require(plural[category] as? [String: Any])
         let unit = try #require(variation["stringUnit"] as? [String: Any])
         return try #require(unit["value"] as? String)
+    }
+
+    private func assertExactTranslations(
+        catalog path: String,
+        language: String,
+        expected: [String: String]
+    ) throws {
+        let data = try Data(contentsOf: patternLibraryRepositoryURL(path))
+        let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try #require(root["strings"] as? [String: Any])
+
+        for (key, value) in expected {
+            #expect(try directValue(key, language: language, strings: strings) == value)
+        }
     }
 }

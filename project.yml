@@ -28,7 +28,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         KnitNoteSourceRevision: $(KNITNOTE_SOURCE_REVISION)
-        CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el]
+        CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el, nl]
         CFBundleURLTypes:
           - CFBundleURLName: com.phillon.KnitNote
             CFBundleURLSchemes:
@@ -98,7 +98,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         KnitNoteSourceRevision: $(KNITNOTE_SOURCE_REVISION)
-        CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el]
+        CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el, nl]
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.phillon.KnitNote
     sources:
@@ -146,7 +146,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         KnitNoteSourceRevision: $(KNITNOTE_SOURCE_REVISION)
-        CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el]
+        CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el, nl]
         NSExtension:
           NSExtensionAttributes:
             NSExtensionActivationRule: 'extensionItems.@count == 1 AND SUBQUERY(extensionItems, $extensionItem, $extensionItem.attachments.@count == 1 AND SUBQUERY($extensionItem.attachments, $attachment, ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.png" OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.jpeg" OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.heic").@count == 1).@count == 1'

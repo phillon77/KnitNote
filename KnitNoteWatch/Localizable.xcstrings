@@ -13,6 +13,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーを完了" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림 완료" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Fullfør denne påminnelsen" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze herinnering voltooien"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Slutför den här påminnelsen" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成此提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成這個提醒" } }
@@ -30,6 +36,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "通過した段を確認します。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "지나간 단을 확인합니다." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Bekrefter passerte rader." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bevestigt de gepasseerde toeren."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Bekräftar passerade varv." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认已跨过的行数。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認已跨過的段數。" } }
@@ -72,6 +84,24 @@
           "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passert" } },
           "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passert" } }
         } } },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld herinnering gepasseerd"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld herinneringen gepasseerd"
+                }
+              }
+            }
+          }
+        },
         "sv" : { "variations" : { "plural" : {
           "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passerad" } },
           "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passerade" } }
@@ -96,6 +126,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 段目に到達しました。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld단에 도달했습니다." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Nådde rad %lld." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toer %lld bereikt."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Nådde varv %lld." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已到达第 %lld 行。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已到達第 %lld 段。" } }
@@ -113,6 +149,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを停止" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 중지" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stopp påminnelsen" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herinnering stoppen"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa påminnelsen" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } }
@@ -130,6 +172,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーをオフにして保留中の段を消去します。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림을 끄고 대기 중인 단을 지웁니다." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Slår av påminnelsen og fjerner ventende rader." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schakelt deze herinnering uit en wist alle openstaande toerherinneringen."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stänger av påminnelsen och rensar väntande varv." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭此提醒，并清除待处理的行数。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉這個提醒，並清除待處理的段數。" } }
@@ -190,6 +238,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tellerhandlinger"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acties voor de toerenteller"
           }
         },
         "sv" : {
@@ -269,6 +323,12 @@
             "value" : "Avbryt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuleer"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -343,6 +403,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reduser med 1"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verminder met één"
           }
         },
         "sv" : {
@@ -421,6 +487,12 @@
             "value" : "Øk med 1"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vermeerder met één"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -495,6 +567,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tilbakestill til null"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zet op nul"
           }
         },
         "sv" : {
@@ -573,6 +651,12 @@
             "value" : "Lås opp på iPhone"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontgrendel op iPhone"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -649,6 +733,12 @@
             "value" : "Fullført"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voltooid"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -723,6 +813,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ingen prosjekter ennå."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen projecten"
           }
         },
         "sv" : {
@@ -802,6 +898,12 @@
             "value" : "Prosjekter"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projecten"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -877,6 +979,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Denne telleren er ikke lenger tilgjengelig."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze toerenteller is niet meer beschikbaar."
           }
         },
         "sv" : {
@@ -955,6 +1063,12 @@
             "value" : "Fullført prosjekt; tellerne er skrivebeskyttet."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voltooid project; toerentellers kunnen niet worden gewijzigd."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1029,6 +1143,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dette prosjektet er ikke lenger tilgjengelig."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit project is niet meer beschikbaar."
           }
         },
         "sv" : {
@@ -1108,6 +1228,12 @@
             "value" : "Det var ikke mulig å lagre denne endringen i telleren."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze wijziging aan de toerenteller kon niet worden opgeslagen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1185,6 +1311,12 @@
             "value" : "Oppdater KnitNote på iPhone og Apple Watch for å fortsette synkroniseringen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werk KnitNote op je iPhone en Apple Watch bij om door te gaan met synchroniseren."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1259,6 +1391,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Venter på synkronisering."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wachten op synchronisatie"
           }
         },
         "sv" : {

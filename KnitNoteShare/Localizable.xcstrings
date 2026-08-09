@@ -58,6 +58,12 @@
             "value" : "Avbryt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuleer"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -135,6 +141,12 @@
             "value" : "Lukk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sluit"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -209,6 +221,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dine eksisterende data er trygge. Prøvetiden din er over, eller KnitNote må oppdatere tilgangen din. Åpne KnitNote for å fortsette."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je bestaande gegevens zijn veilig. Je proefperiode is afgelopen of KnitNote moet je toegang opnieuw controleren. Open KnitNote om door te gaan."
           }
         },
         "sv" : {
@@ -288,6 +306,12 @@
             "value" : "KnitNote kunne ikke få tilgang til denne filen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote kreeg geen toegang tot dit bestand."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -363,6 +387,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delingen ble kansellert."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het delen is geannuleerd."
           }
         },
         "sv" : {
@@ -442,6 +472,12 @@
             "value" : "Denne filen er tom."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit bestand is leeg."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -517,6 +553,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dette er ikke en gyldig PDF-fil eller et støttet bilde."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit is geen geldige PDF of ondersteunde afbeelding."
           }
         },
         "sv" : {
@@ -596,6 +638,12 @@
             "value" : "Den delte filen kunne ikke lastes inn."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het gedeelde bestand kon niet worden geladen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -671,6 +719,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Del én mønsterfil om gangen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deel één patroonbestand tegelijk."
           }
         },
         "sv" : {
@@ -750,6 +804,12 @@
             "value" : "Mønsteret kunne ikke lagres. Vennligst prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het patroon kon niet worden opgeslagen. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -825,6 +885,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Filen tok for lang tid å laste inn. Vennligst prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het laden van het bestand duurde te lang. Probeer het opnieuw."
           }
         },
         "sv" : {
@@ -904,6 +970,12 @@
             "value" : "Denne filen er for stor til å legges til."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit bestand is te groot om toe te voegen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -979,6 +1051,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønsteret kunne ikke legges til. Vennligst prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het patroon kon niet worden toegevoegd. Probeer het opnieuw."
           }
         },
         "sv" : {
@@ -1058,6 +1136,12 @@
             "value" : "Del en PDF-fil eller en støttet bildefil."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deel één PDF-bestand of één ondersteund afbeeldingsbestand."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1135,6 +1219,12 @@
             "value" : "Lagrer mønsteret ditt..."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je patroon wordt opgeslagen…"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1209,6 +1299,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Åpne KnitNote"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open KnitNote"
           }
         },
         "sv" : {
@@ -1288,6 +1384,12 @@
             "value" : "Lagt til i KnitNote"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toegevoegd aan KnitNote"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1362,6 +1464,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til i KnitNote"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg toe aan KnitNote"
           }
         },
         "sv" : {

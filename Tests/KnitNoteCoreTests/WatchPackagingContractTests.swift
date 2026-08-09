@@ -28,6 +28,17 @@ import Testing
         )
     }
 
+    @Test func appWatchAndSharePlistsDeclareExactVersion150Localizations() throws {
+        let expectedLocales = [
+            "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+            "nb", "sv", "fi", "da", "ko", "el", "nl",
+        ]
+
+        for path in ["KnitNote/Info.plist", "KnitNoteWatch/Info.plist", "KnitNoteShare/Info.plist"] {
+            #expect(try plist(path)["CFBundleLocalizations"] as? [String] == expectedLocales)
+        }
+    }
+
     @Test func projectGeneratesDynamicReleaseMetadataForEveryBundle() throws {
         let project = try source("project.yml")
 

@@ -362,7 +362,7 @@ import Testing
         let url = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")
         try assertCompleteCatalog(
             at: url,
-            requiredLanguages: SupportedLocalization.v141Identifiers
+            requiredLanguages: SupportedLocalization.v150Identifiers
         )
 
         let catalog = try #require(
@@ -391,7 +391,7 @@ import Testing
         for key in requiredKeys {
             let entry = try #require(strings[key] as? [String: Any])
             let localizations = try #require(entry["localizations"] as? [String: Any])
-            #expect(Set(localizations.keys) == Set(SupportedLocalization.v141Identifiers))
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v150Identifiers))
             let comment = (entry["comment"] as? String)?.lowercased() ?? ""
             #expect(comment.contains("row") && comment.contains("counter"))
         }
@@ -965,6 +965,7 @@ import Testing
             "da": "Genoptag projektet, før du sletter det.",
             "ko": "이 프로젝트를 삭제하려면 먼저 진행 중으로 되돌리세요.",
             "el": "Επαναφέρετε πρώτα το έργο σε εξέλιξη για να το διαγράψετε.",
+            "nl": "Zet dit project terug op ‘In uitvoering’ voordat je het verwijdert.",
         ],
     ]
 
@@ -1066,7 +1067,7 @@ import Testing
         "calculator.adjustment.rows.failure.exceedsSupportedLimit.format": ["en": "Enter 100,000 or fewer (maximum %lld).", "zh-Hant": "請輸入不超過 100,000（上限 %lld）。"],
     ]
 
-    @Test func mainAppCatalogIsCompleteForVersion141Languages() throws {
+    @Test func mainAppCatalogIsCompleteForVersion150Languages() throws {
         try assertCatalogMatchesOracle(
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/Localizable.xcstrings"
@@ -1083,6 +1084,7 @@ import Testing
                 "language.danish",
                 "language.korean",
                 "language.greek",
+                "language.dutch",
                 "project.delete.requiresResume",
                 "counter.error.notSaved",
                 "counter.reminder.nextTarget",
@@ -1110,7 +1112,7 @@ import Testing
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/Localizable.xcstrings"
             ),
-            requiredLanguages: SupportedLocalization.v141Identifiers
+            requiredLanguages: SupportedLocalization.v150Identifiers
         )
     }
 
@@ -1121,11 +1123,11 @@ import Testing
         for key in requiredReminderKeys {
             let entry = try #require(strings[key] as? [String: Any])
             let localizations = try #require(entry["localizations"] as? [String: Any])
-            #expect(Set(localizations.keys) == Set(SupportedLocalization.v141Identifiers))
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v150Identifiers))
             let comment = (entry["comment"] as? String)?.lowercased() ?? ""
             #expect(comment.contains("row") && comment.contains("counter"))
 
-            for language in SupportedLocalization.v141Identifiers {
+            for language in SupportedLocalization.v150Identifiers {
                 let translation = try #require(localizations[language] as? [String: Any])
                 let units = stringUnitValues(in: translation)
                 #expect(!units.isEmpty)
@@ -1157,7 +1159,7 @@ import Testing
         )
     }
 
-    @Test func infoPlistCatalogIsCompleteForVersion141Languages() throws {
+    @Test func infoPlistCatalogIsCompleteForVersion150Languages() throws {
         try assertCatalogMatchesOracle(
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/InfoPlist.xcstrings"
@@ -1172,11 +1174,11 @@ import Testing
             at: repositoryRoot.appending(
                 path: "KnitNote/Localization/InfoPlist.xcstrings"
             ),
-            requiredLanguages: SupportedLocalization.v141Identifiers
+            requiredLanguages: SupportedLocalization.v150Identifiers
         )
     }
 
-    @Test func version141LanguagePickerKeysExistAndAreCompleteInEveryLanguage() throws {
+    @Test func version150LanguagePickerKeysExistAndAreCompleteInEveryLanguage() throws {
         let strings = try catalogStrings()
         let expectedEnglish = [
             "language.norwegianBokmal": "Norwegian Bokmål",
@@ -1185,23 +1187,36 @@ import Testing
             "language.danish": "Danish",
             "language.korean": "Korean",
             "language.greek": "Greek",
+            "language.dutch": "Dutch",
         ]
 
         for (key, english) in expectedEnglish {
             #expect(try localizedValue(key, language: "en", strings: strings) == english)
-            for language in SupportedLocalization.v141Identifiers {
+            for language in SupportedLocalization.v150Identifiers {
                 let value = try localizedValue(key, language: language, strings: strings)
                 #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }
 
+    @Test func DutchLanguagePickerAndProjectNavigationHaveReviewedCopy() throws {
+        let strings = try catalogStrings()
+
+        #expect(try localizedValue("language.dutch", language: "nl", strings: strings) == "Nederlands")
+        #expect(try localizedValue("nav.projects", language: "nl", strings: strings) == "Projecten")
+        #expect(try localizedValue("calculator.adjustment.step.decreaseOne", language: "nl", strings: strings) == "Minder de volgende 2 steken tot 1 steek.")
+        #expect(try localizedValue("patterns.import.cameraName", language: "nl", strings: strings) == "Gefotografeerd patroon")
+        #expect(try localizedValue("patterns.markup.undo", language: "nl", strings: strings) == "Ongedaan maken")
+        #expect(try localizedValue("project.undo", language: "nl", strings: strings) == "Ongedaan maken")
+        #expect(try localizedValue("yarn.labelPhoto.accessibility %lld", language: "nl", strings: strings) == "Foto %lld van het garenlabel")
+    }
+
     @Test func completedProjectDeletionGuidanceUsesExactCopyInEveryRuntimeLanguage() throws {
         let strings = try catalogStrings()
 
         for (key, expectedTranslations) in requiredCompletedProjectDeletionGuidanceTranslations {
-            #expect(Set(expectedTranslations.keys) == Set(SupportedLocalization.v141Identifiers))
-            for language in SupportedLocalization.v141Identifiers {
+            #expect(Set(expectedTranslations.keys) == Set(SupportedLocalization.v150Identifiers))
+            for language in SupportedLocalization.v150Identifiers {
                 #expect(
                     try localizedValue(key, language: language, strings: strings)
                         == expectedTranslations[language]
@@ -1779,6 +1794,10 @@ import Testing
             try infoPlistLocalizedValue("zh-Hant", localizations: localizations)
                 == "拍攝照片加入你的編織作品、編織日記與毛線標籤。"
         )
+        #expect(
+            try infoPlistLocalizedValue("nl", localizations: localizations)
+                == "Maak foto's voor breiprojecten, dagboekitems en garenlabels."
+        )
     }
 
     @Test func journalCardAccessibilityFormatsKeepTheirExactPlaceholderContracts() throws {
@@ -2229,13 +2248,14 @@ import Testing
             "ko": "지나간 단을 확인합니다.",
             "nb": "Bekrefter passerte rader.",
             "sv": "Bekräftar passerade varv.",
+            "nl": "Bevestigt de gepasseerde toeren.",
             "zh-Hans": "确认已跨过的行数。",
             "zh-Hant": "確認已跨過的段數。",
         ]
         let catalogs = try [catalogStrings(), watchCatalogStrings()]
 
         for strings in catalogs {
-            for language in SupportedLocalization.v141Identifiers {
+            for language in SupportedLocalization.v150Identifiers {
                 #expect(
                     try localizedValue(
                         "counter.reminder.complete.hint",

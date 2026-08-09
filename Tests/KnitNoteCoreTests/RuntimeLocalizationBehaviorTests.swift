@@ -112,9 +112,39 @@ import Testing
             ) == "1,5 MB"
         )
     }
+
+    @Test func DutchProjectsTitleResolvesFromTheShippingCatalogAtRuntime() throws {
+        let repositoryRoot = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let data = try Data(contentsOf: repositoryRoot.appending(
+            path: "KnitNote/Localization/Localizable.xcstrings"
+        ))
+        let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let entry = try #require(strings["nav.projects"] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        let dutch = try #require(localizations["nl"] as? [String: Any])
+        let unit = try #require(dutch["stringUnit"] as? [String: Any])
+        let title = try #require(unit["value"] as? String)
+        let bundle = try localizedFixtureBundle(
+            additionalStringsByLanguage: ["nl": ["nav.projects": title]]
+        )
+
+        #expect(
+            LocaleAwareText.string(
+                "nav.projects",
+                locale: Locale(identifier: "nl_NL"),
+                bundle: bundle
+            ) == "Projecten"
+        )
+    }
 }
 
-private func localizedFixtureBundle() throws -> Bundle {
+private func localizedFixtureBundle(
+    additionalStringsByLanguage: [String: [String: String]] = [:]
+) throws -> Bundle {
     let root = FileManager.default.temporaryDirectory
         .appending(path: "RuntimeLocalization-\(UUID().uuidString).bundle", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -132,7 +162,7 @@ private func localizedFixtureBundle() throws -> Bundle {
     )
     try infoData.write(to: root.appending(path: "Info.plist"))
 
-    let stringsByLanguage = [
+    var stringsByLanguage = [
         "en": [
             "english.format": "English Page %d",
             "english.only": "English only",
@@ -144,6 +174,9 @@ private func localizedFixtureBundle() throws -> Bundle {
             "page.title": "Notiz zu Seite %d",
         ],
     ]
+    for (language, additionalStrings) in additionalStringsByLanguage {
+        stringsByLanguage[language, default: [:]].merge(additionalStrings) { _, new in new }
+    }
     for (language, strings) in stringsByLanguage {
         let directory = root.appending(path: "\(language).lproj", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -162,7 +162,7 @@ import Testing
         )
 
         #expect(result.status != 0)
-        #expect(result.output.contains("InfoPlist.xcstrings has an incomplete twelve-locale variation"))
+        #expect(result.output.contains("InfoPlist.xcstrings has an incomplete thirteen-locale variation"))
     }
 
     @Test func staticAuditRejectsInfoPlistCatalogWithExtraSpanishLocalization() throws {
@@ -200,7 +200,7 @@ import Testing
         #expect(result.output.contains("InfoPlist.xcstrings localization key domain does not match"))
     }
 
-    @Test func staticAuditRejectsSourceInfoPlistWithoutTwelveDeclaredLocalizations() throws {
+    @Test func staticAuditRejectsSourceInfoPlistWithoutThirteenDeclaredLocalizations() throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("knitnote-source-info-plists-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: temporaryRoot) }
@@ -252,7 +252,7 @@ import Testing
         #expect(result.output.contains("source Mac entitlements do not match the production security contract"))
     }
 
-    @Test func archiveAuditAcceptsTwelveMatchingLocalizationsPlusBaseOnEveryShippingBundle() throws {
+    @Test func archiveAuditAcceptsThirteenMatchingLocalizationsPlusBaseOnEveryShippingBundle() throws {
         let fixture = try makeArchiveFixture()
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
 
@@ -1759,7 +1759,7 @@ private struct BundleFixture {
 
 private let releaseLocales = [
     "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
-    "nb", "sv", "fi", "da", "ko", "el",
+    "nb", "sv", "fi", "da", "ko", "el", "nl",
 ]
 
 private func runReleaseAudit(

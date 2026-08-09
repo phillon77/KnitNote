@@ -175,6 +175,22 @@ import Testing
         #expect(localizedValue("zh-Hant", in: localizations) == "請在 iPhone 上解鎖")
     }
 
+    @Test func DutchWatchCounterRemindersUseReviewedCompactCopy() throws {
+        let data = try Data(contentsOf: rootURL().appending(
+            path: "KnitNoteWatch/Localizable.xcstrings"
+        ))
+        let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+
+        #expect(try directCatalogValue("counter.reminder.complete", language: "nl", strings: strings) == "Deze herinnering voltooien")
+        #expect(try directCatalogValue("counter.reminder.complete.hint", language: "nl", strings: strings) == "Bevestigt de gepasseerde toeren.")
+        #expect(try directCatalogValue("counter.reminder.stop", language: "nl", strings: strings) == "Herinnering stoppen")
+        #expect(try directCatalogValue("counter.reminder.stop.hint", language: "nl", strings: strings) == "Schakelt deze herinnering uit en wist alle openstaande toerherinneringen.")
+        #expect(try directCatalogValue("counter.reminder.reached", language: "nl", strings: strings) == "Toer %lld bereikt.")
+        #expect(try pluralCatalogValue("counter.reminder.crossedCount", language: "nl", category: "one", strings: strings) == "%lld herinnering gepasseerd")
+        #expect(try pluralCatalogValue("counter.reminder.crossedCount", language: "nl", category: "other", strings: strings) == "%lld herinneringen gepasseerd")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: rootURL().appending(path: path), encoding: .utf8)
     }
@@ -206,5 +222,31 @@ import Testing
         let localization = localizations?[language] as? [String: Any]
         let unit = localization?["stringUnit"] as? [String: Any]
         return unit?["value"] as? String
+    }
+
+    private func directCatalogValue(
+        _ key: String,
+        language: String,
+        strings: [String: Any]
+    ) throws -> String {
+        let entry = try #require(strings[key] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        return try #require(localizedValue(language, in: localizations))
+    }
+
+    private func pluralCatalogValue(
+        _ key: String,
+        language: String,
+        category: String,
+        strings: [String: Any]
+    ) throws -> String {
+        let entry = try #require(strings[key] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        let localization = try #require(localizations[language] as? [String: Any])
+        let variations = try #require(localization["variations"] as? [String: Any])
+        let plural = try #require(variations["plural"] as? [String: Any])
+        let variation = try #require(plural[category] as? [String: Any])
+        let unit = try #require(variation["stringUnit"] as? [String: Any])
+        return try #require(unit["value"] as? String)
     }
 }

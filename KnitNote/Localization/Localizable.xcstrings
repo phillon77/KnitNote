@@ -59,6 +59,12 @@
             "value" : ", "
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -137,6 +143,12 @@
             "value" : "Klar"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gereed"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -211,6 +223,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "En mor strikker i et akvarellhimmelbilde ved siden av kaninen Lemon."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een moeder die onder een aquarelhemel breit, naast het konijn Lemon."
           }
         },
         "sv" : {
@@ -290,6 +308,12 @@
             "value" : "Kaninen Lemon hviler på et nøste lavendelfarget garn."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het konijn Lemon rust op een bol lavendelkleurig garen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -361,6 +385,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
@@ -442,6 +472,12 @@
             "value" : "Avbryt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuleer"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -516,6 +552,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote klarte ikke å lage en sikkerhetskopi. Vennligst prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote kon geen reservekopie maken. Probeer het opnieuw."
           }
         },
         "sv" : {
@@ -594,6 +636,12 @@
             "value" : "Denne sikkerhetskopien er skadet eller ufullstendig og kan ikke gjenopprettes."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze reservekopie is beschadigd of onvolledig en kan niet worden teruggezet."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -668,6 +716,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "En annen databehandling er allerede i gang. Vennligst vent og prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er wordt al een andere gegevensbewerking uitgevoerd. Wacht even en probeer het opnieuw."
           }
         },
         "sv" : {
@@ -746,6 +800,12 @@
             "value" : "KnitNote kunne ikke få tilgang til sikkerhetskopien, eller det er ikke nok lagringsplass."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote had geen toegang tot de reservekopie of er is onvoldoende opslagruimte."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -820,6 +880,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Denne sikkerhetskopien ble opprettet av en nyere versjon av KnitNote. Oppdater appen før du gjenoppretter den."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze reservekopie is gemaakt met een nieuwere versie van KnitNote. Werk de app bij voordat je deze terugzet."
           }
         },
         "sv" : {
@@ -898,6 +964,12 @@
             "value" : "Eksporter fullstendig sikkerhetskopi"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volledige reservekopie exporteren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -972,6 +1044,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eksporter en fullstendig KnitNote-sikkerhetskopi."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een volledige KnitNote-reservekopie exporteren"
           }
         },
         "sv" : {
@@ -1050,6 +1128,12 @@
             "value" : "Sikkerhetskopi eksportert."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reservekopie geëxporteerd."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1124,6 +1208,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Siste vellykkede sikkerhetskopi"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laatste geslaagde reservekopie"
           }
         },
         "sv" : {
@@ -1202,6 +1292,12 @@
             "value" : "aldri"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nooit"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1278,6 +1374,12 @@
             "value" : "Forbereder sikkerhetskopi…"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reservekopie voorbereiden…"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1352,6 +1454,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sikkerhetskopi opprettet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reservekopie gemaakt"
           }
         },
         "sv" : {
@@ -1521,6 +1629,24 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld prosjekter"
+                }
+              }
+            }
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld project"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld projecten"
                 }
               }
             }
@@ -1722,6 +1848,24 @@
             }
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld garen"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld garens"
+                }
+              }
+            }
+          }
+        },
         "sv" : {
           "variations" : {
             "plural" : {
@@ -1822,6 +1966,12 @@
             "value" : "Sikkerhetskopieringsoperasjonen pågår."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reservekopie wordt verwerkt"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1896,6 +2046,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gjenoppretting vil erstatte alle nåværende KnitNote-data."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bij het terugzetten worden alle huidige KnitNote-gegevens vervangen."
           }
         },
         "sv" : {
@@ -1974,6 +2130,12 @@
             "value" : "Gjenopprett fra backup"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terugzetten uit reservekopie"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2048,6 +2210,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg en KnitNote-sikkerhetskopi som skal gjenopprettes."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een KnitNote-reservekopie om terug te zetten"
           }
         },
         "sv" : {
@@ -2126,6 +2294,12 @@
             "value" : "Erstatt og gjenopprett"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervangen en terugzetten"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2200,6 +2374,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gjenopprettingen mislyktes. De opprinnelige dataene ble bevart."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terugzetten mislukt. Je oorspronkelijke gegevens zijn behouden."
           }
         },
         "sv" : {
@@ -2278,6 +2458,12 @@
             "value" : "Både gjenoppretting og tilbakeføring mislyktes. Slutt å bruke KnitNote og gjenopprett appdataene fra en sikkerhetskopi av enheten."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terugzetten en gegevensherstel zijn beide mislukt. Gebruik KnitNote niet totdat je de appgegevens uit een reservekopie van het apparaat hebt hersteld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2352,6 +2538,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sikkerhetskopien er gjenopprettet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reservekopie teruggezet."
           }
         },
         "sv" : {
@@ -2430,6 +2622,12 @@
             "value" : "Gjenoppretter sikkerhetskopi…"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reservekopie terugzetten…"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2506,6 +2704,12 @@
             "value" : "Datasikkerhetskopiering"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reservekopie van gegevens"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2577,6 +2781,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %@"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ %@"
@@ -2658,6 +2868,12 @@
             "value" : "%@ %@ %@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %@ %@"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2729,6 +2945,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %@"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ %@"
@@ -2810,6 +3032,12 @@
             "value" : "Nåværende masker"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Huidig aantal steken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2884,6 +3112,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "På hver side er det reservert én kantmaske."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aan elke kant wordt één kantsteek vrijgehouden."
           }
         },
         "sv" : {
@@ -2962,6 +3196,12 @@
             "value" : "Denne justeringen kan ikke bevare en kantmaske på hver side."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bij deze aanpassing kan niet aan elke kant één kantsteek worden vrijgehouden."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3036,6 +3276,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Skriv inn 100 000 masker eller færre (maks. %lld)."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer maximaal 100.000 steken in (maximum: %lld)."
           }
         },
         "sv" : {
@@ -3114,6 +3360,12 @@
             "value" : "Skriv inn gyldig nåværende og ønsket masketall."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer geldige huidige en gewenste aantallen steken in."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3188,6 +3440,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Denne justeringen kan ikke fullføres jevnt på én rad. Del den opp i flere rader."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze aanpassing kan niet gelijkmatig in één toer worden uitgevoerd. Verdeel deze over meerdere toeren."
           }
         },
         "sv" : {
@@ -3266,6 +3524,12 @@
             "value" : "Masketall"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aantal steken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3340,6 +3604,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reduser de tilstøtende maskene i hele raden."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minder de hele toer door steeds twee aangrenzende steken samen te breien."
           }
         },
         "sv" : {
@@ -3418,6 +3688,12 @@
             "value" : "Fell med %@ maskers mellomrom."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minder na elke %@ steken."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3492,6 +3768,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fell med %lld maskers mellomrom."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minder na elke %lld steken."
           }
         },
         "sv" : {
@@ -3570,6 +3852,12 @@
             "value" : "Fell etter hver maske."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minder na elke steek."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3644,6 +3932,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Øk med %@ maskers mellomrom."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerder na elke %@ steken."
           }
         },
         "sv" : {
@@ -3722,6 +4016,12 @@
             "value" : "Øk med %lld maskers mellomrom."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerder na elke %lld steken."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3798,6 +4098,12 @@
             "value" : "Øk etter hver maske."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerder na elke steek."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3869,6 +4175,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@–%@"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@–%@"
@@ -3950,6 +4262,12 @@
             "value" : "Over flere rader"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over meerdere toeren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4024,6 +4342,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "En rad"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eén toer"
           }
         },
         "sv" : {
@@ -4102,6 +4426,12 @@
             "value" : "Reserver én kantmaske på hver side."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aan elke kant één kantsteek vrijhouden"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4176,6 +4506,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rad %lld."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toer %lld."
           }
         },
         "sv" : {
@@ -4254,6 +4590,12 @@
             "value" : "Vis justeringsrader"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toeren met aanpassingen tonen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4328,6 +4670,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Skriv inn 100 000 eller færre (maks. %lld)."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer maximaal 100.000 in (maximum: %lld)."
           }
         },
         "sv" : {
@@ -4406,6 +4754,12 @@
             "value" : "Det er ikke nok rader til å fordele disse endringene én gang per rad."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er zijn niet genoeg toeren om deze wijzigingen eenmaal per toer te verdelen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4480,6 +4834,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "For like endringer på begge sider må masketallet være et partall."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer voor gelijke wijzigingen aan beide kanten een even aantal steken in."
           }
         },
         "sv" : {
@@ -4558,6 +4918,12 @@
             "value" : "Radfordeling"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verdeling over toeren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4632,6 +4998,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hver rad"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elke toer"
           }
         },
         "sv" : {
@@ -4710,6 +5082,12 @@
             "value" : "Hver %lld. rad"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elke %lld toeren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4784,6 +5162,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Omtrent hver %@ rad"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ongeveer elke %@ toeren"
           }
         },
         "sv" : {
@@ -4862,6 +5246,12 @@
             "value" : "Handling"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewerking"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4936,6 +5326,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Felling"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minderen"
           }
         },
         "sv" : {
@@ -5014,6 +5410,12 @@
             "value" : "økning"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerderen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5085,6 +5487,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld–%lld"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld–%lld"
@@ -5166,6 +5574,12 @@
             "value" : "Tilpasningsstil"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manier van aanpassen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5240,6 +5654,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 maske på hver side"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 steek aan elke kant"
           }
         },
         "sv" : {
@@ -5318,6 +5738,12 @@
             "value" : "1 maske hver gang."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elke keer 1 steek"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5392,6 +5818,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, fell 1 maske på hver side. Justeringsrader: %lld."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, minder aan elke kant 1 steek. Toeren met aanpassingen: %lld."
           }
         },
         "sv" : {
@@ -5470,6 +5902,12 @@
             "value" : "%@, fell 1 maske på hver side. Justeringsrader: %lld."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, minder aan elke kant 1 steek. Toeren met aanpassingen: %lld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5544,6 +5982,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, fell 1 maske på én side. Justeringsrader: %lld."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, minder aan één kant 1 steek. Toeren met aanpassingen: %lld."
           }
         },
         "sv" : {
@@ -5622,6 +6066,12 @@
             "value" : "%@, fell 1 maske på én side. Justeringsrader: %lld."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, minder aan één kant 1 steek. Toeren met aanpassingen: %lld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5696,6 +6146,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, øk 1 maske på hver side. Justeringsrader: %lld."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, meerder aan elke kant 1 steek. Toeren met aanpassingen: %lld."
           }
         },
         "sv" : {
@@ -5774,6 +6230,12 @@
             "value" : "%@, øk 1 maske på hver side. Justeringsrader: %lld."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, meerder aan elke kant 1 steek. Toeren met aanpassingen: %lld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5848,6 +6310,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, øk 1 maske på den ene siden. Justeringsrader: %lld."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, meerder aan één kant 1 steek. Toeren met aanpassingen: %lld."
           }
         },
         "sv" : {
@@ -5926,6 +6394,12 @@
             "value" : "%@, øk 1 maske på den ene siden. Justeringsrader: %lld."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, meerder aan één kant 1 steek. Toeren met aanpassingen: %lld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6000,6 +6474,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Totalt antall rader"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Totaal aantal toeren"
           }
         },
         "sv" : {
@@ -6078,6 +6558,12 @@
             "value" : "Totalt antall masker som må endres"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Totaal aantal te wijzigen steken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6152,6 +6638,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reduser de neste 2 maskene til 1."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minder de volgende 2 steken tot 1 steek."
           }
         },
         "sv" : {
@@ -6230,6 +6722,12 @@
             "value" : "Strikk %lld kantmaske"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brei %lld kantsteek"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6304,6 +6802,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Øk 1 maske"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerder 1 steek"
           }
         },
         "sv" : {
@@ -6382,6 +6886,12 @@
             "value" : "Strikk %lld masker"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brei %lld steken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6456,6 +6966,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strikk 1 maske"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brei 1 steek"
           }
         },
         "sv" : {
@@ -6534,6 +7050,12 @@
             "value" : "Vis alle trinn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle stappen tonen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6608,6 +7130,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fell %lld masker jevnt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minder %lld steken gelijkmatig verdeeld."
           }
         },
         "sv" : {
@@ -6686,6 +7214,12 @@
             "value" : "Fell 1 maske jevnt."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minder 1 steek gelijkmatig verdeeld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6760,6 +7294,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Øk %lld masker jevnt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerder %lld steken gelijkmatig verdeeld."
           }
         },
         "sv" : {
@@ -6838,6 +7378,12 @@
             "value" : "Øk 1 maske jevnt."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerder 1 steek gelijkmatig verdeeld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6912,6 +7458,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ingen økninger eller fellinger er nødvendige."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meerderen of minderen is niet nodig."
           }
         },
         "sv" : {
@@ -6990,6 +7542,12 @@
             "value" : "Ønsket masketall"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewenst aantal steken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7064,6 +7622,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jevn økning / felling"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelijkmatig meerderen/minderen"
           }
         },
         "sv" : {
@@ -7142,6 +7706,12 @@
             "value" : "Skriv inn et heltall større enn 0."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer een geheel getal groter dan 0 in."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7216,6 +7786,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strikkefasthet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stekenverhouding"
           }
         },
         "sv" : {
@@ -7294,6 +7870,12 @@
             "value" : "Nøyaktig resultat"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exact resultaat"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7368,6 +7950,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anbefalt: %lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aanbevolen: %lld"
           }
         },
         "sv" : {
@@ -7447,6 +8035,12 @@
             "value" : "Anbefalt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aanbevolen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7521,6 +8115,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ rader per centimeter"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ toeren per centimeter"
           }
         },
         "sv" : {
@@ -7599,6 +8199,12 @@
             "value" : "%@ rader per tomme"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ toeren per inch"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7673,6 +8279,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Radberegning (valgfritt)"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toeren berekenen (optioneel)"
           }
         },
         "sv" : {
@@ -7752,6 +8364,12 @@
             "value" : "Anbefalte rader"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aanbevolen aantal toeren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7826,6 +8444,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anbefalte rader: %lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aanbevolen toeren: %lld"
           }
         },
         "sv" : {
@@ -7904,6 +8528,12 @@
             "value" : "Strikkeprøvens høyde"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hoogte van proeflapje"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7978,6 +8608,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rader i strikkeprøven"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toeren in proeflapje"
           }
         },
         "sv" : {
@@ -8056,6 +8692,12 @@
             "value" : "Masker i strikkeprøven"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steken in proeflapje"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8130,6 +8772,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strikkeprøvens bredde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breedte van proeflapje"
           }
         },
         "sv" : {
@@ -8208,6 +8856,12 @@
             "value" : "Maskeberegning"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steken berekenen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8284,6 +8938,12 @@
             "value" : "%@ masker per centimeter"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ steken per centimeter"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8358,6 +9018,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ masker per tomme"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ steken per inch"
           }
         },
         "sv" : {
@@ -8437,6 +9103,12 @@
             "value" : "Anbefalte masker"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aanbevolen aantal steken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8511,6 +9183,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anbefalte masker: %lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aanbevolen steken: %lld"
           }
         },
         "sv" : {
@@ -8589,6 +9267,12 @@
             "value" : "Målhøyde"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewenste hoogte"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8663,6 +9347,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Målbredde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewenste breedte"
           }
         },
         "sv" : {
@@ -8741,6 +9431,12 @@
             "value" : "Strikkefasthetskalkulator"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stekenverhouding berekenen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8815,6 +9511,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "enhet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eenheid"
           }
         },
         "sv" : {
@@ -8893,6 +9595,12 @@
             "value" : "Sentimeter"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Centimeters"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8967,6 +9675,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tommer"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inches"
           }
         },
         "sv" : {
@@ -9045,6 +9759,12 @@
             "value" : "Strikkeberegninger"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breicalculators"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9119,6 +9839,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Skriv inn en verdi større enn 0."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer een waarde groter dan 0 in."
           }
         },
         "sv" : {
@@ -9197,6 +9923,12 @@
             "value" : "Legg til"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg toe"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9271,6 +10003,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avbryt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuleer"
           }
         },
         "sv" : {
@@ -9350,6 +10088,12 @@
             "value" : "Dette kommer i en fremtidig oppdatering."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschikbaar in een toekomstige update."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9424,6 +10168,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Slett"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwijder"
           }
         },
         "sv" : {
@@ -9502,6 +10252,12 @@
             "value" : "Ferdig"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gereed"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9578,6 +10334,12 @@
             "value" : "Laster inn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laden"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9649,6 +10411,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
@@ -9730,6 +10498,12 @@
             "value" : "Prøv igjen"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probeer opnieuw"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9804,6 +10578,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lagre"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewaar"
           }
         },
         "sv" : {
@@ -9882,6 +10662,12 @@
             "value" : "Skjul kontroller for %@, nåværende verdi %lld"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bediening voor %@ inklappen, huidige waarde %lld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -9956,6 +10742,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reduser %@, nåværende verdi %lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ verlagen, huidige waarde %lld"
           }
         },
         "sv" : {
@@ -10034,6 +10826,12 @@
             "value" : "Utvid kontrollene for %@, nåværende verdi %lld."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bediening voor %@ uitklappen, huidige waarde %lld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10108,6 +10906,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Øk %@, nåværende verdi %lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ verhogen, huidige waarde %lld"
           }
         },
         "sv" : {
@@ -10186,6 +10990,12 @@
             "value" : "Rediger notat for %@, nåværende verdi %lld"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notitie voor %@ bewerken, huidige waarde %lld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10260,6 +11070,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Telleren er skrivebeskyttet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De toerenteller is alleen-lezen."
           }
         },
         "sv" : {
@@ -10338,6 +11154,12 @@
             "value" : "Gi %@ nytt navn, nåværende verdi %lld"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hernoemen, huidige waarde %lld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10412,6 +11234,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Trykk for å øke med én. Trykk og hold for å justere."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tik om met één te verhogen. Houd ingedrukt om te beheren."
           }
         },
         "sv" : {
@@ -10491,6 +11319,12 @@
             "value" : "Skjul tellere"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerentellers inklappen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10568,6 +11402,12 @@
             "value" : "Reduser teller"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerenteller verlagen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10642,6 +11482,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Teller %lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerenteller %lld"
           }
         },
         "sv" : {
@@ -10721,6 +11567,12 @@
             "value" : "Vis tellere"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerentellers uitklappen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10752,6 +11604,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカウンターは利用できなくなりました。作品を開き直して、もう一度お試しください。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 카운터는 더 이상 사용할 수 없습니다. 작품을 다시 연 후 다시 시도하세요." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Denne telleren er ikke lenger tilgjengelig. Åpne prosjektet på nytt og prøv igjen." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze toerenteller is niet meer beschikbaar. Open het project opnieuw en probeer het nogmaals."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Den här räknaren är inte längre tillgänglig. Öppna projektet igen och försök igen." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此计数器已无法使用。请重新打开作品后重试。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此計數器已無法使用。請重新開啟作品後再試一次。" } }
@@ -10811,6 +11669,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Øk teller"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerenteller verhogen"
           }
         },
         "sv" : {
@@ -10889,6 +11753,12 @@
             "value" : "Administrer teller"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerenteller beheren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10965,6 +11835,12 @@
             "value" : "Reduser med 1"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Met 1 verlagen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10997,6 +11873,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーを完了" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림 완료" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Fullfør denne påminnelsen" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze herinnering voltooien"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Slutför den här påminnelsen" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成此提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成這個提醒" } }
@@ -11014,6 +11896,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "通過した段を確認します。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "지나간 단을 확인합니다." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Bekrefter passerte rader." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bevestigt de gepasseerde toeren."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Bekräftar passerade varv." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认已跨过的行数。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認已跨過的段數。" } }
@@ -11056,6 +11944,24 @@
           "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passert" } },
           "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passert" } }
         } } },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld herinnering gepasseerd"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld herinneringen gepasseerd"
+                }
+              }
+            }
+          }
+        },
         "sv" : { "variations" : { "plural" : {
           "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passerad" } },
           "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passerade" } }
@@ -11080,6 +11986,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを編集" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 편집" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rediger påminnelse" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herinnering bewerken"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera påminnelse" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯提醒" } }
@@ -11097,6 +12009,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "段の間隔" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "단 간격" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Radintervall" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerinterval"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Varvintervall" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "间隔行数" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "間隔段數" } }
@@ -11114,6 +12032,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "繰り返し回数の上限" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "반복 횟수 제한" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Gjentakelsesgrense" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herhalingslimiet"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Upprepningsgräns" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重复次数上限" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重複次數上限" } }
@@ -11131,6 +12055,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "メッセージ（任意）" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "메시지(선택 사항)" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Melding (valgfritt)" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bericht (optioneel)"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Meddelande (valfritt)" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "消息（可选）" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訊息（選填）" } }
@@ -11148,6 +12078,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーの種類" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 유형" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsestype" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type herinnering"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsetyp" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒类型" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒類型" } }
@@ -11165,6 +12101,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "1回" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "한 번" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Én gang" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eenmalig"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "En gång" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单次" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單次" } }
@@ -11182,6 +12124,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "繰り返し" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "반복" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Gjentakende" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herhalend"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Återkommande" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重复" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重複" } }
@@ -11199,6 +12147,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 段目に到達しました。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld단에 도달했습니다." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Nådde rad %lld." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toer %lld bereikt."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Nådde varv %lld." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已到达第 %lld 行。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已到達第 %lld 段。" } }
@@ -11216,6 +12170,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを置き換える" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 교체" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Erstatt påminnelsen" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herinnering vervangen"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ersätt påminnelsen" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "替换提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "替換提醒" } }
@@ -11233,6 +12193,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを停止" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 중지" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stopp påminnelsen" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herinnering stoppen"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa påminnelsen" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } }
@@ -11250,6 +12216,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーをオフにして保留中の段を消去します。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림을 끄고 대기 중인 단을 지웁니다." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Slår av påminnelsen og fjerner ventende rader." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schakelt deze herinnering uit en wist alle openstaande toerherinneringen."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stänger av påminnelsen och rensar väntande varv." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭此提醒，并清除待处理的行数。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉這個提醒，並清除待處理的段數。" } }
@@ -11267,6 +12239,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "目標段" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "목표 단" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Målrad" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doeltoer"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Målvarv" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标行数" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目標段數" } }
@@ -11283,6 +12261,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の目標" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 목표" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Neste mål" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volgend doel"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Nästa mål" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一个目标" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一個目標" } }
@@ -11299,6 +12283,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効なリマインダーはありません" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "활성 알림 없음" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Ingen aktiv påminnelse" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geen actieve herinnering"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ingen aktiv påminnelse" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有启用的提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有啟用的提醒" } }
@@ -11358,6 +12348,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "navn"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naam"
           }
         },
         "sv" : {
@@ -11436,6 +12432,12 @@
             "value" : "Gi telleren nytt navn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toerenteller hernoemen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11510,6 +12512,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tilbakestill til null"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Op nul zetten"
           }
         },
         "sv" : {
@@ -11588,6 +12596,12 @@
             "value" : "Seks prosjekttellere"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zes toerentellers voor het project"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11620,6 +12634,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "カウンターの値を編集" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "카운터 값 편집" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rediger tellerverdi" } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waarde van de toerenteller bewerken"
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera räknarens värde" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑计数器数值" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯計數器數值" } }
@@ -11637,6 +12657,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "0以上の整数を入力してください。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "0 이상의 정수를 입력하세요." } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Skriv inn et ikke-negativt heltall." } },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer een niet-negatief geheel getal in."
+          }
+        },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ange ett icke-negativt heltal." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入非负整数。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入非負整數。" } }
@@ -11696,6 +12722,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "verdi"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waarde"
           }
         },
         "sv" : {
@@ -11774,6 +12806,12 @@
             "value" : "Kunne ikke lagre"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewaren mislukt"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -11848,6 +12886,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til journalpost"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem toevoegen"
           }
         },
         "sv" : {
@@ -11926,6 +12970,12 @@
             "value" : "Foto av dagbokoppføring"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto bij dagboekitem"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12000,6 +13050,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Foto av dagbokoppføring"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto bij dagboekitem"
           }
         },
         "sv" : {
@@ -12078,6 +13134,12 @@
             "value" : "Legg til journalpost"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem toevoegen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12152,6 +13214,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ny journalpost"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieuw dagboekitem"
           }
         },
         "sv" : {
@@ -12230,6 +13298,12 @@
             "value" : "Tittel (valgfritt)"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bijschrift (optioneel)"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12304,6 +13378,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til en merknad om denne fremgangen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg een notitie over deze voortgang toe"
           }
         },
         "sv" : {
@@ -12382,6 +13462,12 @@
             "value" : "Dagbokoppføring, %1$@, %2$@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem, %1$@, %2$@"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12456,6 +13542,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dagbokoppføring, bildet lastes inn, %1$@, %2$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem, foto wordt geladen, %1$@, %2$@"
           }
         },
         "sv" : {
@@ -12534,6 +13626,12 @@
             "value" : "Dagbokoppføring, bilde ikke tilgjengelig, %1$@, %2$@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem, foto niet beschikbaar, %1$@, %2$@"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12608,6 +13706,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dagbokoppføring, %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem, %@"
           }
         },
         "sv" : {
@@ -12686,6 +13790,12 @@
             "value" : "Dagbokoppføring, bildet lastes inn, %@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem, foto wordt geladen, %@"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12760,6 +13870,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dagbokoppføring, bilde ikke tilgjengelig, %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem, foto niet beschikbaar, %@"
           }
         },
         "sv" : {
@@ -12838,6 +13954,12 @@
             "value" : "Slett"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwijder"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -12912,6 +14034,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Denne journalposten og bildene vil bli permanent slettet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit dagboekitem en de foto's worden definitief verwijderd."
           }
         },
         "sv" : {
@@ -12990,6 +14118,12 @@
             "value" : "Slett journalpost?"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem verwijderen?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13064,6 +14198,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dagbokoppføring"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem"
           }
         },
         "sv" : {
@@ -13142,6 +14282,12 @@
             "value" : "Rediger"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewerk"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13216,6 +14362,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rediger dagbokoppføring"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem bewerken"
           }
         },
         "sv" : {
@@ -13294,6 +14446,12 @@
             "value" : "Registrer den første fremgangen med dette prosjektet."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leg de eerste voortgang van dit project vast."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13368,6 +14526,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ingen journaloppføringer ble registrert."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er zijn geen dagboekitems vastgelegd."
           }
         },
         "sv" : {
@@ -13446,6 +14610,12 @@
             "value" : "Klarte ikke å slette journalposten."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem kon niet worden verwijderd"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13520,6 +14690,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Det var ikke mulig å slette journalposten. Vennligst prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het dagboekitem kon niet worden verwijderd. Probeer het opnieuw."
           }
         },
         "sv" : {
@@ -13598,6 +14774,12 @@
             "value" : "Velg et gyldig bilde og prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een geldige afbeelding en probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13672,6 +14854,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Denne journalposten er ikke lenger tilgjengelig."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit dagboekitem is niet meer beschikbaar."
           }
         },
         "sv" : {
@@ -13750,6 +14938,12 @@
             "value" : "Dagboken for dette ferdige prosjektet er skrivebeskyttet."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het dagboek van dit voltooide project is alleen-lezen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13824,6 +15018,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kunne ikke lagre journaloppføring."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem kon niet worden bewaard"
           }
         },
         "sv" : {
@@ -13902,6 +15102,12 @@
             "value" : "Dagbokoppføringen kunne ikke lagres. Prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het dagboekitem kon niet worden bewaard. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -13976,6 +15182,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "kamera"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
           }
         },
         "sv" : {
@@ -14054,6 +15266,12 @@
             "value" : "Fotobibliotek"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotobibliotheek"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14128,6 +15346,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kunne ikke laste inn bildet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto kon niet worden geladen"
           }
         },
         "sv" : {
@@ -14206,6 +15430,12 @@
             "value" : "Laster bilde"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto laden"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14280,6 +15510,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg et bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecteer een foto"
           }
         },
         "sv" : {
@@ -14358,6 +15594,12 @@
             "value" : "Bilde ikke tilgjengelig"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto niet beschikbaar"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14432,6 +15674,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dagboken for dette ferdige prosjektet er skrivebeskyttet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het dagboek van dit voltooide project is alleen-lezen."
           }
         },
         "sv" : {
@@ -14510,6 +15758,12 @@
             "value" : "Lagrer journalinnlegg"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dagboekitem bewaren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14584,6 +15838,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strikkejournal"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breidagboek"
           }
         },
         "sv" : {
@@ -14662,6 +15922,12 @@
             "value" : "Dansk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deens"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14678,6 +15944,88 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "丹麥文"
+          }
+        }
+      }
+    },
+    "language.dutch" : {
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nederlandsk"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niederländisch"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ολλανδικά"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dutch"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hollanti"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Néerlandais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オランダ語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "네덜란드어"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nederlandsk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nederlands"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nederländska"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "荷兰语"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "荷蘭文"
           }
         }
       }
@@ -14736,6 +16084,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Engelsk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Engels"
           }
         },
         "sv" : {
@@ -14814,6 +16168,12 @@
             "value" : "Finsk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fins"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -14888,6 +16248,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fransk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frans"
           }
         },
         "sv" : {
@@ -14966,6 +16332,12 @@
             "value" : "Tysk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duits"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15040,6 +16412,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gresk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grieks"
           }
         },
         "sv" : {
@@ -15118,6 +16496,12 @@
             "value" : "Japansk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Japans"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15192,6 +16576,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Koreansk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koreaans"
           }
         },
         "sv" : {
@@ -15270,6 +16660,12 @@
             "value" : "Norsk bokmål"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noors (Bokmål)"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15344,6 +16740,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forenklet kinesisk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vereenvoudigd Chinees"
           }
         },
         "sv" : {
@@ -15422,6 +16824,12 @@
             "value" : "Svensk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zweeds"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15496,6 +16904,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Følg systemet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volg het systeem"
           }
         },
         "sv" : {
@@ -15574,6 +16988,12 @@
             "value" : "Tradisjonell kinesisk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditioneel Chinees"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15648,6 +17068,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønstre"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patronen"
           }
         },
         "sv" : {
@@ -15726,6 +17152,12 @@
             "value" : "Prosjekter"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projecten"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15800,6 +17232,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Innstillinger"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instellingen"
           }
         },
         "sv" : {
@@ -15878,6 +17316,12 @@
             "value" : "garn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15952,6 +17396,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Alle notater"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle notities"
           }
         },
         "sv" : {
@@ -16030,6 +17480,12 @@
             "value" : "antegnelse"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notitie"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16104,6 +17560,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nylige notater"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recente notities"
           }
         },
         "sv" : {
@@ -16183,6 +17645,12 @@
             "value" : "rad"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toer"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16259,6 +17727,12 @@
             "value" : "rad %d"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toer %d"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16333,6 +17807,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til mønster"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon toevoegen"
           }
         },
         "sv" : {
@@ -16412,6 +17892,12 @@
             "value" : "Endrer kun dette mønsteret."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wijzigt alleen dit patroon."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16487,6 +17973,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dette alternativet brukes automatisk i mørk modus."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze keuze wordt automatisch gebruikt in de donkere modus."
           }
         },
         "sv" : {
@@ -16566,6 +18058,12 @@
             "value" : "Vis originale farger"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Originele kleuren tonen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16641,6 +18139,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bruk nattutseende"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachtweergave gebruiken"
           }
         },
         "sv" : {
@@ -16719,6 +18223,12 @@
             "value" : "Ikke nå"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niet nu"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16793,6 +18303,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønstre lagres kun på denne enheten. For å lagre en separat kopi, eksporter en manuell sikkerhetskopi fra Innstillinger."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patronen worden alleen op dit apparaat bewaard. Exporteer via Instellingen een handmatige reservekopie om een aparte kopie te bewaren."
           }
         },
         "sv" : {
@@ -16871,6 +18387,12 @@
             "value" : "Åpne sikkerhetskopieringsinnstillinger"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instellingen voor reservekopieën openen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -16945,6 +18467,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hold mønstrene dine trygge."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bescherm je patronen"
           }
         },
         "sv" : {
@@ -17023,6 +18551,12 @@
             "value" : "Legg til"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optellen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17097,6 +18631,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AC"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alles wissen"
           }
         },
         "sv" : {
@@ -17175,6 +18715,12 @@
             "value" : "Del"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17249,6 +18795,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Er lik"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Is gelijk aan"
           }
         },
         "sv" : {
@@ -17327,6 +18879,12 @@
             "value" : "feil"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fout"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17401,6 +18959,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Åpner en kalkulator uten å forlate mønsteret."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opent een rekenmachine zonder het patroon te verlaten"
           }
         },
         "sv" : {
@@ -17479,6 +19043,12 @@
             "value" : "gange"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vermenigvuldigen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17553,6 +19123,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prosent"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Percentage"
           }
         },
         "sv" : {
@@ -17631,6 +19207,12 @@
             "value" : "resultat"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resultaat"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17705,6 +19287,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "subtrahere"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aftrekken"
           }
         },
         "sv" : {
@@ -17783,6 +19371,12 @@
             "value" : "kalkulator"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rekenmachine"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17859,6 +19453,12 @@
             "value" : "Endre tegn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teken wijzigen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -17933,6 +19533,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg prosjekt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project kiezen"
           }
         },
         "sv" : {
@@ -18012,6 +19618,12 @@
             "value" : "Slett mønster?"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon verwijderen?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18086,6 +19698,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lagt til"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toegevoegd"
           }
         },
         "sv" : {
@@ -18164,6 +19782,12 @@
             "value" : "Velg et prosjekt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een project"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18238,6 +19862,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Slett mønsteret permanent"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon definitief verwijderen"
           }
         },
         "sv" : {
@@ -18316,6 +19946,12 @@
             "value" : "Den originale filen og lagrede lesedataen vil bli slettet. Dette kan ikke angres."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het oorspronkelijke bestand en de bewaarde leesgegevens worden verwijderd. Dit kan niet ongedaan worden gemaakt."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18390,6 +20026,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vil du permanent slette dette mønsteret?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit patroon definitief verwijderen?"
           }
         },
         "sv" : {
@@ -18468,6 +20110,12 @@
             "value" : "Før du sletter dette mønsteret, må du først koble det fra prosjektene nedenfor."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontkoppel dit patroon van de onderstaande projecten voordat je het verwijdert."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18542,6 +20190,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rediger notat"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notitie bewerken"
           }
         },
         "sv" : {
@@ -18620,6 +20274,12 @@
             "value" : "Del originalfilen"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oorspronkelijk bestand delen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18694,6 +20354,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Filstørrelse"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestandsgrootte"
           }
         },
         "sv" : {
@@ -18772,6 +20438,12 @@
             "value" : "Filtype"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestandstype"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18846,6 +20518,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Filinformasjon"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestandsinformatie"
           }
         },
         "sv" : {
@@ -18924,6 +20602,12 @@
             "value" : "Lenke til et annet prosjekt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog een project koppelen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -18998,6 +20682,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lenkte prosjekter"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gekoppelde projecten"
           }
         },
         "sv" : {
@@ -19076,6 +20766,12 @@
             "value" : "Ingen andre prosjekter er tilgjengelige."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er zijn geen andere projecten beschikbaar."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19150,6 +20846,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "antegnelse"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notitie"
           }
         },
         "sv" : {
@@ -19228,6 +20930,12 @@
             "value" : "Legg til et notat om designer, butikk eller kilde."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg een notitie toe over de ontwerper, winkel of bron."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19302,6 +21010,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Åpne mønster"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon openen"
           }
         },
         "sv" : {
@@ -19380,6 +21094,12 @@
             "value" : "Gi mønsteret nytt navn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon hernoemen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19454,6 +21174,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fjern kobling"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontkoppelen"
           }
         },
         "sv" : {
@@ -19532,6 +21258,12 @@
             "value" : "Mønsterfeil"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroonfout"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19606,6 +21338,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utheving"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markering"
           }
         },
         "sv" : {
@@ -19684,6 +21422,12 @@
             "value" : "kors"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kruis"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19758,6 +21502,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "vannrett linje"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizontaal"
           }
         },
         "sv" : {
@@ -19836,6 +21586,12 @@
             "value" : "Horisontal fremheving"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizontale markering"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19910,6 +21666,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "vertikal"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verticaal"
           }
         },
         "sv" : {
@@ -19988,6 +21750,12 @@
             "value" : "Vertikal fremheving"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verticale markering"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20062,6 +21830,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Uthevingsmodus"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markeringsmodus"
           }
         },
         "sv" : {
@@ -20140,6 +21914,12 @@
             "value" : "kamera"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20214,6 +21994,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kameramønster"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gefotografeerd patroon"
           }
         },
         "sv" : {
@@ -20292,6 +22078,12 @@
             "value" : "Velg det lagrede mønsteret."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies het bewaarde patroon"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20366,6 +22158,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Importen ble kansellert."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het importeren is geannuleerd."
           }
         },
         "sv" : {
@@ -20444,6 +22242,12 @@
             "value" : "Denne filen er tom."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit bestand is leeg."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20518,6 +22322,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Den valgte filen kunne ikke åpnes."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het geselecteerde bestand kon niet worden geopend."
           }
         },
         "sv" : {
@@ -20596,6 +22406,12 @@
             "value" : "Velg en gyldig PDF- eller bildefil."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een geldig PDF- of afbeeldingsbestand."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20670,6 +22486,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dette prosjektet er ikke lenger tilgjengelig."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit project is niet meer beschikbaar."
           }
         },
         "sv" : {
@@ -20748,6 +22570,12 @@
             "value" : "Mønsteret kunne ikke lagres. Vennligst prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het patroon kon niet worden bewaard. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20822,6 +22650,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Denne filen er for stor til å importeres."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit bestand is te groot om te importeren."
           }
         },
         "sv" : {
@@ -20900,6 +22734,12 @@
             "value" : "Mønsteret kunne ikke importeres. Vennligst prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het patroon kon niet worden geïmporteerd. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -20974,6 +22814,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg fil"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies bestand"
           }
         },
         "sv" : {
@@ -21052,6 +22898,12 @@
             "value" : "Importerer mønster"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon importeren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21126,6 +22978,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønsteret er lagret og knyttet til dette prosjektet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het patroon is bewaard en aan dit project gekoppeld."
           }
         },
         "sv" : {
@@ -21204,6 +23062,12 @@
             "value" : "Det lagrede mønsteret er knyttet til dette prosjektet."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het bewaarde patroon is aan dit project gekoppeld."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21278,6 +23142,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønster koblet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon gekoppeld"
           }
         },
         "sv" : {
@@ -21356,6 +23226,12 @@
             "value" : "Importer nytt mønster"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieuw patroon importeren"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21430,6 +23306,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Denne filen samsvarer med mer enn ett lagret mønster. Velg ett, eller opprett en ny samling."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit bestand komt overeen met meerdere bewaarde patronen. Kies er één of maak een nieuwe verzameling."
           }
         },
         "sv" : {
@@ -21508,6 +23390,12 @@
             "value" : "Velg et mønster"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een patroon"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21582,6 +23470,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opprett ny samling"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieuwe verzameling maken"
           }
         },
         "sv" : {
@@ -21660,6 +23554,12 @@
             "value" : "Slett fil"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestand verwijderen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21734,6 +23634,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote klarte ikke å lagre det delte mønsteret. Prøv igjen, eller slett denne filen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote kon het gedeelde patroon niet bewaren. Probeer het opnieuw of verwijder dit bestand."
           }
         },
         "sv" : {
@@ -21812,6 +23718,12 @@
             "value" : "Delt mønster er ikke lagret."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gedeeld patroon niet bewaard"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -21886,6 +23798,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delt mønster lagret"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gedeeld patroon bewaard"
           }
         },
         "sv" : {
@@ -21964,6 +23882,12 @@
             "value" : "senere"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22038,6 +23962,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prøv igjen"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probeer opnieuw"
           }
         },
         "sv" : {
@@ -22116,6 +24046,12 @@
             "value" : "Kan ikke lese mønsteret"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon kan niet worden gelezen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22190,6 +24126,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dette mønsteret finnes allerede i biblioteket ditt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit patroon staat al in je bibliotheek."
           }
         },
         "sv" : {
@@ -22268,6 +24210,12 @@
             "value" : "Allerede lagret"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al bewaard"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22342,6 +24290,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Se lagret mønster"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewaard patroon bekijken"
           }
         },
         "sv" : {
@@ -22420,6 +24374,12 @@
             "value" : "Legg til ditt første PDF- eller bildemønster."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg je eerste PDF- of afbeeldingspatroon toe."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22496,6 +24456,12 @@
             "value" : "Ingen mønstre ennå"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen patronen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22570,6 +24536,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afbeelding"
           }
         },
         "sv" : {
@@ -22744,6 +24716,24 @@
             }
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld gekoppeld project"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld gekoppelde projecten"
+                }
+              }
+            }
+          }
+        },
         "sv" : {
           "variations" : {
             "plural" : {
@@ -22844,6 +24834,12 @@
             "value" : "PDF-fil"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22920,6 +24916,12 @@
             "value" : "PDF, %lld sider"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF, aantal pagina's: %lld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -22991,6 +24993,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@, %3$@"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@, %2$@, %3$@"
@@ -23072,6 +25080,12 @@
             "value" : "Søk i mønstre"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patronen zoeken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23146,6 +25160,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sorter mønstre"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patronen sorteren"
           }
         },
         "sv" : {
@@ -23224,6 +25244,12 @@
             "value" : "navn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naam"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23298,6 +25324,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nylig lagt til"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onlangs toegevoegd"
           }
         },
         "sv" : {
@@ -23376,6 +25408,12 @@
             "value" : "Mønsterforhåndsvisning"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroonvoorbeeld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23452,6 +25490,12 @@
             "value" : "Ikke brukt ennå"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog niet gebruikt"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23523,6 +25567,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube-video"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "YouTube-video"
@@ -23604,6 +25654,12 @@
             "value" : "Velg et mønster"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een patroon"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23678,6 +25734,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Alle bibliotekmønstre er allerede koblet til."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle patronen in de bibliotheek zijn al gekoppeld."
           }
         },
         "sv" : {
@@ -23756,6 +25818,12 @@
             "value" : "Lenke fra mønsterbiblioteket"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koppelen vanuit patronenbibliotheek"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23830,6 +25898,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Merking"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekenen"
           }
         },
         "sv" : {
@@ -23908,6 +25982,12 @@
             "value" : "Tøm side"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekeningen wissen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -23984,6 +26064,12 @@
             "value" : "Fjern alle markeringer på denne siden?"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle tekeningen op deze pagina wissen?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24058,6 +26144,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Farge"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleur"
           }
         },
         "sv" : {
@@ -24137,6 +26229,12 @@
             "value" : "svart"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwart"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24212,6 +26310,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "blått"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blauw"
           }
         },
         "sv" : {
@@ -24291,6 +26395,12 @@
             "value" : "grønt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Groen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24366,6 +26476,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rødt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rood"
           }
         },
         "sv" : {
@@ -24444,6 +26560,12 @@
             "value" : "viskelær"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gum"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24518,6 +26640,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Penn"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pen"
           }
         },
         "sv" : {
@@ -24596,6 +26724,12 @@
             "value" : "Angre"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ongedaan maken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24670,6 +26804,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "bredde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dikte"
           }
         },
         "sv" : {
@@ -24748,6 +26888,12 @@
             "value" : "middel"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normaal"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24822,6 +26968,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tykk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dik"
           }
         },
         "sv" : {
@@ -24900,6 +27052,12 @@
             "value" : "Tynn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dun"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24974,6 +27132,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønsterfil mangler."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroonbestand ontbreekt"
           }
         },
         "sv" : {
@@ -25052,6 +27216,12 @@
             "value" : "Neste side"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volgende pagina"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -25126,6 +27296,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønstre"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patronen"
           }
         },
         "sv" : {
@@ -25204,6 +27380,12 @@
             "value" : "Sidebemerkning"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paginanotitie"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -25278,6 +27460,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notat for side %d"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notitie bij pagina %d"
           }
         },
         "sv" : {
@@ -25356,6 +27544,12 @@
             "value" : "Forrige side"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorige pagina"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -25430,6 +27624,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg hvilket prosjekts lesefremdrift du vil fortsette."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies bij welk project je verder wilt lezen."
           }
         },
         "sv" : {
@@ -25508,6 +27708,12 @@
             "value" : "Velg lesekontekst"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leescontext kiezen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -25582,6 +27788,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mønsteret endret seg et annet sted"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroon is elders gewijzigd"
           }
         },
         "sv" : {
@@ -25660,6 +27872,12 @@
             "value" : "Vil du slette den ulagrede markeringen og laste inn den nyeste versjonen?"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wil je de niet-bewaarde tekeningen wissen en de nieuwste versie opnieuw laden?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -25734,6 +27952,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kast og last inn på nytt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niet bewaren en opnieuw laden"
           }
         },
         "sv" : {
@@ -25812,6 +28036,12 @@
             "value" : "Kun lesemodus"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alleen-lezen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -25886,6 +28116,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Side %1$lld av %2$lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pagina %1$lld van %2$lld"
           }
         },
         "sv" : {
@@ -25964,6 +28200,12 @@
             "value" : "Nåværende side"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Huidige pagina"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26038,6 +28280,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dobbelttrykk for å åpne denne siden."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tik dubbel om deze pagina te openen."
           }
         },
         "sv" : {
@@ -26116,6 +28364,12 @@
             "value" : "Koble til på nytt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opnieuw koppelen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26190,6 +28444,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fjern oppføring"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patroonvermelding verwijderen"
           }
         },
         "sv" : {
@@ -26268,6 +28528,12 @@
             "value" : "Prosjektmønstre"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projectpatronen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26342,6 +28608,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fjern kobling"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontkoppelen"
           }
         },
         "sv" : {
@@ -26420,6 +28692,12 @@
             "value" : "Mønsteret forblir i biblioteket ditt, og lesedataene som er lagret for dette prosjektet beholdes."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het patroon blijft in je bibliotheek en de bewaarde leesgegevens van dit project blijven behouden."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26494,6 +28772,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Koble fra dette mønsteret?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit patroon ontkoppelen?"
           }
         },
         "sv" : {
@@ -26572,6 +28856,12 @@
             "value" : "Miniatyrbilde for YouTube-video"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Miniatuur van YouTube-video"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26646,6 +28936,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til YouTube-lenke"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube-link toevoegen"
           }
         },
         "sv" : {
@@ -26724,6 +29020,12 @@
             "value" : "Klarte ikke å lagre YouTube-lenken. Vennligst prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De YouTube-link kon niet worden bewaard. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26798,6 +29100,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Videodetaljer"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videogegevens"
           }
         },
         "sv" : {
@@ -26876,6 +29184,12 @@
             "value" : "Skriv inn en gyldig YouTube-lenke."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer een geldige YouTube-link in."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26950,6 +29264,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Videoinformasjonen kunne ikke lastes inn. Skriv inn en tittel for å lagre denne lenken."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De videogegevens konden niet worden geladen. Voer een titel in om deze link te bewaren."
           }
         },
         "sv" : {
@@ -27028,6 +29348,12 @@
             "value" : "Klarte ikke å åpne YouTube. Vennligst prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube kon niet worden geopend. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27102,6 +29428,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Videoinformasjonen kunne ikke lastes inn. Skriv inn en tittel for å lagre denne lenken."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De videogegevens konden niet worden geladen. Voer een titel in om deze link te bewaren."
           }
         },
         "sv" : {
@@ -27180,6 +29512,12 @@
             "value" : "Skriv inn en gyldig YouTube-lenke."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer een geldige YouTube-link in."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27254,6 +29592,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "YouTube-lenke"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube-link"
           }
         },
         "sv" : {
@@ -27332,6 +29676,12 @@
             "value" : "Leser videoinformasjon…"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videogegevens lezen…"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27406,6 +29756,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Videoinformasjonen kunne ikke lastes inn. Skriv inn en tittel for å lagre denne lenken."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De videogegevens konden niet worden geladen. Voer een titel in om deze link te bewaren."
           }
         },
         "sv" : {
@@ -27484,6 +29840,12 @@
             "value" : "Åpne på YouTube"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Openen in YouTube"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27558,6 +29920,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les videoinformasjon"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videogegevens lezen"
           }
         },
         "sv" : {
@@ -27636,6 +30004,12 @@
             "value" : "Status for videoinformasjon"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status van videogegevens"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27710,6 +30084,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "tittel"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titel"
           }
         },
         "sv" : {
@@ -27788,6 +30168,12 @@
             "value" : "YouTube-video"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube-video"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -27859,6 +30245,12 @@
           }
         },
         "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube-URL"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "YouTube-URL"
@@ -27941,6 +30333,12 @@
             "value" : "Fullfør en rad"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een toer voltooien"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28015,6 +30413,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opprett"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maak aan"
           }
         },
         "sv" : {
@@ -28094,6 +30498,12 @@
             "value" : "Slett «%@»? Dette kan ikke angres."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘%@’ verwijderen? Dit kan niet ongedaan worden gemaakt."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28168,6 +30578,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gjenoppta prosjektet før du sletter det."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zet dit project terug op ‘In uitvoering’ voordat je het verwijdert."
           }
         },
         "sv" : {
@@ -28246,6 +30662,12 @@
             "value" : "Slett prosjekt?"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project verwijderen?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28320,6 +30742,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rediger prosjekt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project bewerken"
           }
         },
         "sv" : {
@@ -28398,6 +30826,12 @@
             "value" : "Prosjektnavn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projectnaam"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28472,6 +30906,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prosjektfoto"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projectfoto"
           }
         },
         "sv" : {
@@ -28550,6 +30990,12 @@
             "value" : "Prosjektfoto"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projectfoto"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28624,6 +31070,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto kiezen"
           }
         },
         "sv" : {
@@ -28702,6 +31154,12 @@
             "value" : "Bildet kunne ikke lastes inn. Vennligst prøv et annet bilde."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De foto kon niet worden geladen. Probeer een andere foto."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28776,6 +31234,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prosjektfoto (valgfritt)"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projectfoto (optioneel)"
           }
         },
         "sv" : {
@@ -28854,6 +31318,12 @@
             "value" : "Fjern bilde"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto verwijderen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28930,6 +31400,12 @@
             "value" : "Erstatt bilde"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto vervangen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -29004,6 +31480,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ta bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto maken"
           }
         },
         "sv" : {
@@ -29083,6 +31565,12 @@
             "value" : "Gi nytt navn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hernoem"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -29157,6 +31645,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prosjektstatus"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projectstatus"
           }
         },
         "sv" : {
@@ -29235,6 +31729,12 @@
             "value" : "ferdig"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voltooid"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -29309,6 +31809,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "i gang"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In uitvoering"
           }
         },
         "sv" : {
@@ -29387,6 +31893,12 @@
             "value" : "Merk som fullført"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markeer als voltooid"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -29461,6 +31973,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fortsett prosjekt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project hervatten"
           }
         },
         "sv" : {
@@ -29539,6 +32057,12 @@
             "value" : "Notater"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notities"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -29613,6 +32137,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verktøy"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gereedschap"
           }
         },
         "sv" : {
@@ -29691,6 +32221,12 @@
             "value" : "størrelse"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maat"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -29765,6 +32301,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verktøytype"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type gereedschap"
           }
         },
         "sv" : {
@@ -29843,6 +32385,12 @@
             "value" : "heklenål"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haaknaald"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -29917,6 +32465,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strikkepinner"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breinaalden"
           }
         },
         "sv" : {
@@ -29995,6 +32549,12 @@
             "value" : "Ikke satt"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niet ingesteld"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30069,6 +32629,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "annen"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overig"
           }
         },
         "sv" : {
@@ -30148,6 +32714,12 @@
             "value" : "Angre"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ongedaan maken"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30222,6 +32794,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg garn"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garen kiezen"
           }
         },
         "sv" : {
@@ -30300,6 +32878,12 @@
             "value" : "Garnlenkene for ferdige prosjekter er kun lesbare."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garenkoppelingen voor voltooide projecten zijn alleen-lezen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30374,6 +32958,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ikke noe garn registrert."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geen garen vastgelegd"
           }
         },
         "sv" : {
@@ -30452,6 +33042,12 @@
             "value" : "Dette prosjektet er ikke lenger tilgjengelig."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit project is niet meer beschikbaar."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30526,6 +33122,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lenkene til garnene kunne ikke lagres. Vennligst prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De garenkoppelingen konden niet worden bewaard. Probeer het opnieuw."
           }
         },
         "sv" : {
@@ -30604,6 +33206,12 @@
             "value" : "Et valgt garn er ikke lenger tilgjengelig. Se gjennom valget og prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een geselecteerd garen is niet meer beschikbaar. Controleer je selectie en probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30678,6 +33286,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg først til garn i garnbiblioteket."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg eerst garen toe aan de garenbibliotheek."
           }
         },
         "sv" : {
@@ -30756,6 +33370,12 @@
             "value" : "Ikke noe garn ennå"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen garen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30830,6 +33450,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Administrer"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beheer"
           }
         },
         "sv" : {
@@ -30908,6 +33534,12 @@
             "value" : "Brukt garn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebruikt garen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -30982,6 +33614,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Trykk to ganger for å koble til eller koble fra dette prosjektet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tik dubbel om dit project te koppelen of te ontkoppelen."
           }
         },
         "sv" : {
@@ -31060,6 +33698,12 @@
             "value" : "Fjern kobling"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontkoppelen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -31134,6 +33778,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dette fjerner bare lenken. Garnet forblir i garnbiblioteket ditt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hiermee wordt alleen de koppeling verwijderd. Het garen blijft in je garenbibliotheek."
           }
         },
         "sv" : {
@@ -31212,6 +33862,12 @@
             "value" : "Fjern koblingen til dette garnet?"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit garen ontkoppelen?"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -31286,6 +33942,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nytt prosjekt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieuw project"
           }
         },
         "sv" : {
@@ -31364,6 +34026,12 @@
             "value" : "Opprett et prosjekt for å begynne å telle rader."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maak een project om toeren te gaan tellen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -31438,6 +34106,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ingen prosjekter ennå"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen projecten"
           }
         },
         "sv" : {
@@ -31517,6 +34191,12 @@
             "value" : "Mitt første skjerf"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mijn eerste sjaal"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -31591,6 +34271,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Om"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over KnitNote"
           }
         },
         "sv" : {
@@ -31669,6 +34355,12 @@
             "value" : "data"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gegevens"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -31743,6 +34435,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Generelt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algemeen"
           }
         },
         "sv" : {
@@ -31821,6 +34519,12 @@
             "value" : "språk"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taal"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -31895,6 +34599,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "lagring"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opslag"
           }
         },
         "sv" : {
@@ -31973,6 +34683,12 @@
             "value" : "versjon"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versie"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -32047,6 +34763,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ (Bygg %2$@)"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (build %2$@)"
           }
         },
         "sv" : {
@@ -32125,6 +34847,12 @@
             "value" : "Lukk alternativer for opplåsing"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontgrendelingsopties sluiten"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -32199,6 +34927,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kjøp livstidsopplåsing"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Levenslange toegang kopen"
           }
         },
         "sv" : {
@@ -32277,6 +35011,12 @@
             "value" : "Kjøp livstidsopplåsing for %@."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Levenslange toegang kopen voor %@"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -32351,6 +35091,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Løs inn en App Store-kode."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een App Store-code inwisselen"
           }
         },
         "sv" : {
@@ -32429,6 +35175,12 @@
             "value" : "Gjenopprett et tidligere kjøp"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een eerdere aankoop herstellen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -32503,6 +35255,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ingen kjøp ble foretatt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er is geen aankoop gedaan."
           }
         },
         "sv" : {
@@ -32581,6 +35339,12 @@
             "value" : "Dine prosjekter, mønstre og notater er trygge. Lås opp for å fortsette å redigere."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je projecten, patronen en notities zijn veilig. Ontgrendel om te blijven bewerken."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -32655,6 +35419,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Med ett kjøp får du KnitNote for livet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Met één aankoop ontgrendel je KnitNote voor altijd."
           }
         },
         "sv" : {
@@ -32733,6 +35503,12 @@
             "value" : "Kjøpet venter på godkjenning. Du kan komme tilbake hit senere."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De aankoop wacht op goedkeuring. Je kunt hier later terugkomen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -32807,6 +35583,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lås opp for %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontgrendel voor %@"
           }
         },
         "sv" : {
@@ -32885,6 +35667,12 @@
             "value" : "Sjekk pris og lås opp."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prijs controleren en ontgrendelen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -32959,6 +35747,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Du kan fortsatt se og eksportere arbeidet ditt selv om redigeringen er låst."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je kunt je werk nog steeds bekijken en exporteren, ook als je het niet kunt bewerken."
           }
         },
         "sv" : {
@@ -33037,6 +35831,12 @@
             "value" : "Løs inn kode"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code inwisselen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -33111,6 +35911,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Løs inn denne koden i App Store på iPhone eller iPad, og oppdater deretter her."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wissel deze code in de App Store op je iPhone of iPad in en vernieuw deze weergave daarna."
           }
         },
         "sv" : {
@@ -33189,6 +35995,12 @@
             "value" : "Gjenopprett kjøp"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aankoop herstellen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -33263,6 +36075,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ingen livstidsopplåsing ble funnet for denne Apple-kontoen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er is voor deze Apple Account geen levenslange toegang gevonden."
           }
         },
         "sv" : {
@@ -33341,6 +36159,12 @@
             "value" : "Noe gikk galt. Vennligst prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er is iets misgegaan. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -33415,6 +36239,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fortsett å skape med KnitNote."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blijf creëren met KnitNote"
           }
         },
         "sv" : {
@@ -33493,6 +36323,12 @@
             "value" : "Prøveperiode, %lld dager igjen. Åpne opplåsingstilbud."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proefperiode, nog %lld dagen. Open de ontgrendelingsopties."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -33567,6 +36403,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prøveperiode, 1 dag igjen. Åpne alternativ for å låse opp."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proefperiode, nog 1 dag. Open de ontgrendelingsopties."
           }
         },
         "sv" : {
@@ -33645,6 +36487,12 @@
             "value" : "%lld dager igjen i prøvetiden"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog %lld dagen in de proefperiode"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -33719,6 +36567,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 dag igjen i prøvetiden."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog 1 dag in de proefperiode"
           }
         },
         "sv" : {
@@ -33797,6 +36651,12 @@
             "value" : "Lås opp på iPhone, iPad eller Mac. Apple Watch følger med på din KnitNote-tilgang."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontgrendel op iPhone, iPad of Mac. Apple Watch gebruikt dezelfde KnitNote-toegang."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -33871,6 +36731,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Garn: %@%@%@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garen: %@%@%@"
           }
         },
         "sv" : {
@@ -33949,6 +36815,12 @@
             "value" : "Garnfoto"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garenfoto"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -34023,6 +36895,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til manuelt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handmatig toevoegen"
           }
         },
         "sv" : {
@@ -34101,6 +36979,12 @@
             "value" : "Skriv inn garninformasjonen selv."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer zelf de gegevens van het garen in"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -34175,6 +37059,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nøstevekt (g)"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewicht per bol (g)"
           }
         },
         "sv" : {
@@ -34253,6 +37143,12 @@
             "value" : "Merke"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merk"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -34327,6 +37223,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Farge"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleur"
           }
         },
         "sv" : {
@@ -34405,6 +37307,12 @@
             "value" : "Fargekode"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleurcode"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -34479,6 +37387,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til garn"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garen toevoegen"
           }
         },
         "sv" : {
@@ -34557,6 +37471,12 @@
             "value" : "Slett garn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garen verwijderen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -34631,6 +37551,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Slett dette garnet?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit garen verwijderen?"
           }
         },
         "sv" : {
@@ -34709,6 +37635,12 @@
             "value" : "Fargebatch"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verfbadnummer"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -34783,6 +37715,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rediger garn"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garen bewerken"
           }
         },
         "sv" : {
@@ -34861,6 +37799,12 @@
             "value" : "Legg til garn for å holde detaljene, bildet og lagerbeholdningen sammen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg garen toe om de gegevens, foto en voorraad bij elkaar te houden."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -34935,6 +37879,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ikke noe garn ennå"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen garen"
           }
         },
         "sv" : {
@@ -35013,6 +37963,12 @@
             "value" : "Det lagrede biblioteket ditt kunne ikke åpnes, så ingen endringer ble lagret. Gjenopprett det eller start KnitNote på nytt, og prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je bewaarde bibliotheek kon niet worden geopend, dus er zijn geen wijzigingen opgeslagen. Herstel de bibliotheek of start KnitNote opnieuw en probeer het nogmaals."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -35087,6 +38043,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dette garnet er knyttet til et ferdig prosjekt og kan ikke slettes."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit garen is gekoppeld aan een voltooid project en kan niet worden verwijderd."
           }
         },
         "sv" : {
@@ -35165,6 +38127,12 @@
             "value" : "Garnet ble ikke slettet. Prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het garen is niet verwijderd. Probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -35239,6 +38207,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kunne ikke slette garnet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garen kon niet worden verwijderd"
           }
         },
         "sv" : {
@@ -35317,6 +38291,12 @@
             "value" : "Skriv inn et gyldig tall."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voer een geldig getal in."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -35391,6 +38371,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ett eller flere tilknyttede prosjekter er endret. Se gjennom prosjektkoblingene og prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een of meer gekoppelde projecten zijn gewijzigd. Controleer de projectkoppelingen en probeer het opnieuw."
           }
         },
         "sv" : {
@@ -35469,6 +38455,12 @@
             "value" : "KnitNote vil ikke vise et tomt bibliotek eller lagre endringer mens arkivet er ulestelig. Gjenopprett tilgang til den lagrede filen, og prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote toont geen lege bibliotheek en bewaart geen wijzigingen zolang het archief onleesbaar is. Herstel de toegang tot het bewaarde bestand en probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -35543,6 +38535,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kunne ikke åpne det lagrede biblioteket."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewaarde bibliotheek kon niet worden geopend"
           }
         },
         "sv" : {
@@ -35621,6 +38619,12 @@
             "value" : "Lagerbeholdningen kan ikke være negativ."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De voorraad kan niet negatief zijn."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -35695,6 +38699,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote kunne ikke bruke det bildet. Velg et annet bilde og prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote kon die foto niet gebruiken. Kies een andere foto en probeer het opnieuw."
           }
         },
         "sv" : {
@@ -35773,6 +38783,12 @@
             "value" : "Kunne ikke lagre endringene dine. Innleggene dine er fortsatt her; prøv igjen."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je wijzigingen konden niet worden bewaard. Je invoer staat er nog; probeer het opnieuw."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -35847,6 +38863,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fiberinnhold"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezelsamenstelling"
           }
         },
         "sv" : {
@@ -35925,6 +38947,12 @@
             "value" : "Nøster igjen: %@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resterende bollen: %@"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -35999,6 +39027,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gram igjen: %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resterende grammen: %@"
           }
         },
         "sv" : {
@@ -36077,6 +39111,12 @@
             "value" : "Etikettdetaljer"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Labelgegevens"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -36151,6 +39191,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Foto av garnetikett %lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto %lld van het garenlabel"
           }
         },
         "sv" : {
@@ -36229,6 +39275,12 @@
             "value" : "Fjern bilde"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto verwijderen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -36303,6 +39355,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bilder av garnetiketter"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto's van garenlabels"
           }
         },
         "sv" : {
@@ -36381,6 +39439,12 @@
             "value" : "ikke tilgjengelig"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niet beschikbaar"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -36455,6 +39519,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lengde (m)"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lengte (m)"
           }
         },
         "sv" : {
@@ -36533,6 +39603,12 @@
             "value" : "Garnbibliotek"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garenbibliotheek"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -36607,6 +39683,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lenkte prosjekter"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gekoppelde projecten"
           }
         },
         "sv" : {
@@ -36685,6 +39767,12 @@
             "value" : "navn"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naam"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -36759,6 +39847,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notater"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notities"
           }
         },
         "sv" : {
@@ -36837,6 +39931,12 @@
             "value" : "foto"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -36911,6 +40011,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto kiezen"
           }
         },
         "sv" : {
@@ -36989,6 +40095,12 @@
             "value" : "Det var ikke mulig å laste inn det valgte bildet."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De geselecteerde foto kon niet worden geladen."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37063,6 +40175,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fjern bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto verwijderen"
           }
         },
         "sv" : {
@@ -37141,6 +40259,12 @@
             "value" : "Erstatt bilde"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto vervangen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37215,6 +40339,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ta bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto maken"
           }
         },
         "sv" : {
@@ -37293,6 +40423,12 @@
             "value" : "Fra"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Van"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37367,6 +40503,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Til"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tot"
           }
         },
         "sv" : {
@@ -37445,6 +40587,12 @@
             "value" : "heklenål"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haaknaald"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37519,6 +40667,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Heklenål, fra"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haaknaald, van"
           }
         },
         "sv" : {
@@ -37597,6 +40751,12 @@
             "value" : "Heklenål, til"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haaknaald, tot"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37671,6 +40831,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strikkepinne"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breinaald"
           }
         },
         "sv" : {
@@ -37749,6 +40915,12 @@
             "value" : "Strikkepinne, fra"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breinaald, van"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37823,6 +40995,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strikkepinne, til"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breinaald, tot"
           }
         },
         "sv" : {
@@ -37901,6 +41079,12 @@
             "value" : "Gjenværende nøster"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resterende bollen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37975,6 +41159,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gram igjen"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resterende grammen"
           }
         },
         "sv" : {
@@ -38053,6 +41243,12 @@
             "value" : "Skann garnetiketten"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garenlabel scannen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -38127,6 +41323,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bruk ett eller to etikettbilder, og bekreft deretter de gjenkjente detaljene."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebruik één of twee foto's van het label en bevestig daarna de herkende gegevens"
           }
         },
         "sv" : {
@@ -38205,6 +41407,12 @@
             "value" : "kamera"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -38279,6 +41487,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kameratilgang er slått av."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cameratoegang staat uit"
           }
         },
         "sv" : {
@@ -38357,6 +41571,12 @@
             "value" : "Etiketten kunne ikke gjenkjennes."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het label kon niet worden herkend."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -38431,6 +41651,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg fra Finder"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies in Finder"
           }
         },
         "sv" : {
@@ -38509,6 +41735,12 @@
             "value" : "Bildet kunne ikke åpnes. Prøv et annet bilde."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De afbeelding kon niet worden geopend. Probeer een andere foto."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -38583,6 +41815,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fjern etikettbilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Labelfoto verwijderen"
           }
         },
         "sv" : {
@@ -38661,6 +41899,12 @@
             "value" : "Fjerner dette bildet før det blir gjenkjent."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwijdert deze foto vóór de herkenning."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -38735,6 +41979,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Legg til etikettbilder"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Labelfoto's toevoegen"
           }
         },
         "sv" : {
@@ -38813,6 +42063,12 @@
             "value" : "Velg ett eller to klare bilder av garnetiketten."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies één of twee duidelijke foto's van het garenlabel."
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -38887,6 +42143,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La stå tomt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leeg laten"
           }
         },
         "sv" : {
@@ -38965,6 +42227,12 @@
             "value" : "Trenger bekreftelse."
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bevestiging nodig"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39039,6 +42307,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Åpne innstillinger"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instellingen openen"
           }
         },
         "sv" : {
@@ -39117,6 +42391,12 @@
             "value" : "Fotobibliotek"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotobibliotheek"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39191,6 +42471,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gjenkjenn"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herkennen"
           }
         },
         "sv" : {
@@ -39269,6 +42555,12 @@
             "value" : "Gjenkjenner etiketten…"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Label herkennen…"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39343,6 +42635,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Velg verdien som vises på garnetiketten, eller la den stå tom."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies de waarde op het garenlabel of laat het veld leeg."
           }
         },
         "sv" : {
@@ -39421,6 +42719,12 @@
             "value" : "Bekreft gjenkjente detaljer"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herkende gegevens bevestigen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39495,6 +42799,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kontroller etiketten"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Label controleren"
           }
         },
         "sv" : {
@@ -39573,6 +42883,12 @@
             "value" : "Skann garnetiketten"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garenlabel scannen"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39647,6 +42963,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Grunnleggende detaljer"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Basisgegevens"
           }
         },
         "sv" : {
@@ -39725,6 +43047,12 @@
             "value" : "Lagerbeholdning"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voorraad"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39799,6 +43127,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oppbevaring og notater"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opslag en notities"
           }
         },
         "sv" : {
@@ -39877,6 +43211,12 @@
             "value" : "serie"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -39951,6 +43291,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lagringssted"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opslaglocatie"
           }
         },
         "sv" : {

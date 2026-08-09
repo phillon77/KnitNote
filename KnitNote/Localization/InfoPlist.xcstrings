@@ -59,6 +59,12 @@
             "value" : "KnitNote"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -137,6 +143,12 @@
             "value" : "KnitNote"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote"
+          }
+        },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
@@ -205,6 +217,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KnitNote-sikkerhetskopi"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KnitNote-reservekopie"
           }
         },
         "sv" : {
@@ -282,6 +300,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ta bilder til strikkeprosjekter, dagbokoppføringer og garnetiketter."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maak foto's voor breiprojecten, dagboekitems en garenlabels."
           }
         },
         "sv" : {

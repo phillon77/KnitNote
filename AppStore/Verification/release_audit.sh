@@ -9,8 +9,8 @@ EXPECTED_COMMIT=""
 PROVENANCE=""
 MODE=""
 TEST_ONLY=0
-EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el)
-EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja","nb","sv","fi","da","ko","el"]'
+EXPECTED_LOCALES=(en zh-Hant zh-Hans de fr ja nb sv fi da ko el nl)
+EXPECTED_LOCALES_JSON='["en","zh-Hant","zh-Hans","de","fr","ja","nb","sv","fi","da","ko","el","nl"]'
 IOS_INFO_PLIST_KEYS_JSON='["CFBundleDisplayName","CFBundleName","KnitNote Backup","NSCameraUsageDescription"]'
 MAC_INFO_PLIST_KEYS_JSON='["CFBundleDisplayName","CFBundleName","KnitNote Backup","NSCameraUsageDescription"]'
 PROJECT_FILE="KnitNote.xcodeproj/project.pbxproj"
@@ -394,7 +394,7 @@ verify_declared_localizations() {
       (.CFBundleLocalizations | type == "array")
       and ((.CFBundleLocalizations | sort) == ($expected | sort))
     ' >/dev/null \
-    || fail "$label CFBundleLocalizations do not match the twelve release locales"
+    || fail "$label CFBundleLocalizations do not match the thirteen release locales"
 }
 
 verify_bundle_localizations() {
@@ -741,7 +741,7 @@ for catalog in \
         )
     )
   ' "$catalog" >/dev/null \
-    || fail "$catalog has an incomplete twelve-locale variation"
+    || fail "$catalog has an incomplete thirteen-locale variation"
   jq -e --argjson expected "$EXPECTED_LOCALES_JSON" '
     .sourceLanguage as $source
     | ($source == "en")
@@ -758,7 +758,7 @@ for catalog in \
         )) | sort) == ($expected | sort)
     )
   ' "$catalog" >/dev/null \
-    || fail "$catalog localization key domain does not match the twelve release locales"
+    || fail "$catalog localization key domain does not match the thirteen release locales"
 done
 
 python3 AppStore/Verification/metadata_check.py AppStore/Metadata

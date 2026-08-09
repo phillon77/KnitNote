@@ -1305,6 +1305,7 @@
 				ja,
 				ko,
 				nb,
+				nl,
 				sv,
 				"zh-Hans",
 				"zh-Hant",

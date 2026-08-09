@@ -665,6 +665,26 @@ class MetadataValidationTests(unittest.TestCase):
                 "Verwijderde projecten herstellen uit een reservekopie.",
             ),
             (
+                "completed recovery relation before not-only contrast",
+                "deleted project recovery",
+                "Herstel een verwijderd project niet alleen snel maar ook veilig.",
+            ),
+            (
+                "completed plural recovery relation before not-only contrast",
+                "deleted project recovery",
+                "Verwijderde projecten herstel je niet alleen snel maar ook volledig.",
+            ),
+            (
+                "backup met source attached to noun phrase",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen met een reservekopie.",
+            ),
+            (
+                "backup vanuit source attached to adjective phrase",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen vanuit de oude reservekopie.",
+            ),
+            (
                 "system-language display",
                 "Share system-only language",
                 "Het deelscherm toont uitsluitend de systeemtaal",
@@ -714,6 +734,16 @@ class MetadataValidationTests(unittest.TestCase):
                 "Share system-only language",
                 "Het deelscherm gebruikt niet alleen de app-taal maar ook de systeemtaal.",
             ),
+            (
+                "completed Share relation before not-only contrast",
+                "Share system-only language",
+                "De deel-extensie gebruikt uitsluitend de systeemtaal niet alleen voor titels maar ook voor knoppen.",
+            ),
+            (
+                "completed Share display before not-only contrast",
+                "Share system-only language",
+                "Het deelscherm toont uitsluitend de systeemtaal niet alleen in menu's maar ook in meldingen.",
+            ),
         )
         for label, concept, description in forbidden_cases:
             with self.subTest(label=label):
@@ -741,6 +771,9 @@ class MetadataValidationTests(unittest.TestCase):
             "Een verwijderd project kan vandaag echt niet worden hersteld.",
             "Herstel vandaag geen verwijderd project.",
             "Bij een verwijderd project herstel je direct de reservekopie.",
+            "Bij een verwijderd project herstel je met één tik de reservekopie.",
+            "Bij een verwijderd project herstel je via het menu de reservekopie.",
+            "Bij een verwijderd project herstel je uit voorzorg de reservekopie.",
         )
         for description in safe_recovery_cases:
             with self.subTest(kind="recovery safe", description=description):

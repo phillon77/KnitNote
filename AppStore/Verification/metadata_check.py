@@ -309,6 +309,10 @@ DUTCH_NEGATION_WINDOW = 3
 DUTCH_NEGATION_TOKENS = {"geen", "niet"}
 DUTCH_CONTRAST_TOKEN = "maar"
 DUTCH_BACKUP_SOURCE_MARKERS = {"met", "vanuit", "via", "uit"}
+DUTCH_BACKUP_DETERMINERS = {
+    "de", "den", "der", "des", "dit", "die", "een", "het", "mijn", "onze", "uw", "zijn",
+}
+DUTCH_BACKUP_NOUN_PHRASE_WINDOW = 2
 DUTCH_SHARE_STATE_VERBS = {
     "gebruikt", "gebruiken", "werkt", "werken", "volgt", "volgen",
     "staat", "staan", "toont", "tonen", "weergegeven",
@@ -380,7 +384,28 @@ def dutch_branch_is_negated(
     """
     start = max(branch_start, min(relation_indices) - DUTCH_NEGATION_WINDOW)
     end = min(branch_end, max(relation_indices) + DUTCH_NEGATION_WINDOW + 1)
-    return any(token in DUTCH_NEGATION_TOKENS for token in tokens[start:end])
+    return any(
+        token in DUTCH_NEGATION_TOKENS
+        and not dutch_is_completed_additive_negation(
+            tokens, index, branch_end, relation_indices,
+        )
+        for index, token in enumerate(tokens[start:end], start)
+    )
+
+
+def dutch_is_completed_additive_negation(
+    tokens: list[str], negation_index: int, branch_end: int,
+    relation_indices: tuple[int, ...],
+) -> bool:
+    """Recognize ``niet alleen ... maar ook`` after a completed relation."""
+    return (
+        tokens[negation_index:negation_index + 2] == ["niet", "alleen"]
+        and negation_index > max(relation_indices)
+        and branch_end < len(tokens)
+        and tokens[branch_end] == DUTCH_CONTRAST_TOKEN
+        and branch_end + 1 < len(tokens)
+        and tokens[branch_end + 1] == "ook"
+    )
 
 
 def dutch_relation_is_positive(
@@ -435,8 +460,31 @@ def dutch_action_targets_backup(
             continue
         if dutch_contrast_branch_bounds(tokens, backup_index) != action_branch:
             continue
-        before_backup = tokens[action_index + 1:backup_index]
-        return not any(token in DUTCH_BACKUP_SOURCE_MARKERS for token in before_backup)
+        return not dutch_backup_has_source_attachment(
+            tokens, action_index, backup_index,
+        )
+    return False
+
+
+def dutch_backup_has_source_attachment(
+    tokens: list[str], action_index: int, backup_index: int,
+) -> bool:
+    """Return whether a source preposition directly introduces a backup phrase.
+
+    The preposition may be followed by a backup noun directly or by an
+    article/possessive and one adjective.  A longer phrase, or one not headed
+    by a determiner, is an intervening manner/menu/precaution phrase instead.
+    """
+    for marker_index in range(backup_index - 1, action_index, -1):
+        if tokens[marker_index] not in DUTCH_BACKUP_SOURCE_MARKERS:
+            continue
+        noun_phrase = tokens[marker_index + 1:backup_index]
+        if not noun_phrase:
+            return True
+        return (
+            len(noun_phrase) <= DUTCH_BACKUP_NOUN_PHRASE_WINDOW
+            and noun_phrase[0] in DUTCH_BACKUP_DETERMINERS
+        )
     return False
 
 

@@ -227,6 +227,81 @@ import Testing
         #expect(decoded.reminder == nil)
     }
 
+    @Test func malformedPresentReminderDecodesAsNilWithoutDiscardingCounter() throws {
+        var original = ProjectCounter(defaultOrdinal: 1, value: 42)
+        original.configureReminder(.repeating(interval: 10, limit: nil, message: nil))
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+        )
+        var reminder = try #require(object["reminder"] as? [String: Any])
+        reminder.removeValue(forKey: "id")
+        object["reminder"] = reminder
+
+        let decoded = try JSONDecoder().decode(
+            ProjectCounter.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        #expect(decoded.value == 42)
+        #expect(decoded.reminder == nil)
+    }
+
+    @Test func reminderBehindCounterValueDecodesAsNilToPreventFalseCrossings() throws {
+        var original = ProjectCounter(defaultOrdinal: 1, value: 42)
+        original.configureReminder(.repeating(interval: 10, limit: nil, message: nil))
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+        )
+        var reminder = try #require(object["reminder"] as? [String: Any])
+        reminder["nextTarget"] = 5
+        object["reminder"] = reminder
+
+        var decoded = try JSONDecoder().decode(
+            ProjectCounter.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        let outcome = decoded.applyValue(43)
+
+        #expect(decoded.reminder == nil)
+        #expect(outcome?.pendingReminder == nil)
+    }
+
+    @Test func counterWithReminderRoundTripsItsProgress() throws {
+        var original = ProjectCounter(defaultOrdinal: 1)
+        original.configureReminder(.repeating(interval: 10, limit: nil, message: "Turn"))
+        _ = original.applyValue(20)
+
+        let decoded = try JSONDecoder().decode(
+            ProjectCounter.self,
+            from: JSONEncoder().encode(original)
+        )
+
+        #expect(decoded == original)
+    }
+
+    @Test func finiteReminderWithMoreScheduledOccurrencesThanItsLimitDecodesAsNil() throws {
+        var original = ProjectCounter(defaultOrdinal: 1, value: 4)
+        original.configureReminder(.repeating(interval: 5, limit: 2, message: nil))
+        _ = original.applyValue(14)
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+        )
+        var reminder = try #require(object["reminder"] as? [String: Any])
+        var pending = try #require(reminder["pending"] as? [String: Any])
+        pending["occurrenceCount"] = 3
+        pending["lastTarget"] = 19
+        reminder["pending"] = pending
+        object["reminder"] = reminder
+
+        let decoded = try JSONDecoder().decode(
+            ProjectCounter.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        #expect(decoded.value == 14)
+        #expect(decoded.reminder == nil)
+    }
+
     @Test func counterGridLayoutUsesExactPhoneAndPadColumnCounts() {
         #expect(
             CounterGridLayoutPolicy.columnCount(

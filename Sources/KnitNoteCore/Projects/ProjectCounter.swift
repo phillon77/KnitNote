@@ -70,7 +70,9 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
         self.value = max(0, value)
         self.mutationRevision = mutationRevision
         self.rowNotes = rowNotes
-        self.reminder = reminder.flatMap { CounterReminder.isValid($0) ? $0 : nil }
+        self.reminder = reminder.flatMap {
+            CounterReminder.isValid($0, at: self.value) ? $0 : nil
+        }
     }
 
     enum CodingKeys: String, CodingKey {
@@ -79,6 +81,12 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let reminder: CounterReminder?
+        do {
+            reminder = try container.decodeIfPresent(CounterReminder.self, forKey: .reminder)
+        } catch {
+            reminder = nil
+        }
         self.init(
             id: try container.decode(UUID.self, forKey: .id),
             defaultOrdinal: try container.decode(Int.self, forKey: .defaultOrdinal),
@@ -89,7 +97,7 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
                 forKey: .mutationRevision
             ) ?? 0,
             rowNotes: try container.decode([RowNote].self, forKey: .rowNotes),
-            reminder: try container.decodeIfPresent(CounterReminder.self, forKey: .reminder)
+            reminder: reminder
         )
     }
 

@@ -61,22 +61,36 @@ public struct CounterReminder: Codable, Hashable, Sendable {
         self.mutationRevision = 0
     }
 
-    static func isValid(_ reminder: CounterReminder) -> Bool {
-        guard reminder.anchorValue >= 0,
+    static func isValid(_ reminder: CounterReminder, at counterValue: Int) -> Bool {
+        guard counterValue >= 0,
+              reminder.anchorValue >= 0,
               Self.isValid(
                   rule: reminder.rule,
                   anchorValue: reminder.anchorValue,
                   acknowledgedCount: reminder.acknowledgedCount
-              )
+              ),
+              let scheduledCount = reminder.scheduledCount,
+              reminder.rule.limit.map({ scheduledCount <= $0 }) ?? true
         else { return false }
 
         if let pending = reminder.pending {
             guard pending.reminderID == reminder.id,
                   pending.occurrenceCount > 0,
-                  pending.firstTarget <= pending.lastTarget
+                  let expectedFirstTarget = reminder.targetAfterScheduledCount(reminder.acknowledgedCount),
+                  let expectedLastTarget = reminder.target(forOccurrence: scheduledCount),
+                  pending.firstTarget == expectedFirstTarget,
+                  pending.lastTarget == expectedLastTarget
             else { return false }
         }
-        return true
+
+        if !reminder.isActive {
+            return reminder.pending == nil && reminder.nextTarget == nil
+        }
+
+        let expectedNextTarget = reminder.targetAfterScheduledCount(scheduledCount)
+        return reminder.nextTarget == expectedNextTarget
+            && (reminder.pending != nil || reminder.nextTarget != nil)
+            && (reminder.nextTarget.map { $0 > counterValue } ?? true)
     }
 
     private static func isValid(
@@ -108,43 +122,46 @@ public struct CounterReminder: Codable, Hashable, Sendable {
     }
 
     mutating func applyUpwardChange(to newValue: Int) -> CounterReminderPending? {
-        guard isActive else { return nil }
+        guard isActive,
+              let firstTarget = nextTarget,
+              firstTarget <= newValue,
+              let priorScheduledCount = scheduledCount,
+              let occurrenceCount = crossedOccurrenceCount(from: firstTarget, through: newValue)
+        else { return nil }
 
-        var firstTarget: Int?
-        var lastTarget: Int?
-        var occurrenceCount = 0
-
-        while let target = nextTarget, target <= newValue {
-            if let limit = rule.limit, acknowledgedCount + pendingOccurrenceCount + occurrenceCount >= limit {
-                nextTarget = nil
-                break
-            }
-
-            firstTarget = firstTarget ?? target
-            lastTarget = target
-            occurrenceCount += 1
-            nextTarget = followingTarget(after: target)
+        let availableOccurrenceCount: Int
+        if let limit = rule.limit {
+            availableOccurrenceCount = limit - priorScheduledCount
+        } else {
+            availableOccurrenceCount = occurrenceCount
         }
-
-        guard let firstTarget, let lastTarget else { return nil }
+        let addedOccurrenceCount = min(occurrenceCount, availableOccurrenceCount)
+        let (updatedScheduledCount, scheduledCountOverflow) = priorScheduledCount.addingReportingOverflow(
+            addedOccurrenceCount
+        )
+        guard addedOccurrenceCount > 0,
+              !scheduledCountOverflow,
+              let lastTarget = target(after: firstTarget, occurrenceCount: addedOccurrenceCount)
+        else { return nil }
 
         let newlyPending: CounterReminderPending
         if let pending {
             newlyPending = CounterReminderPending(
                 reminderID: id,
-                occurrenceCount: pending.occurrenceCount + occurrenceCount,
+                occurrenceCount: pending.occurrenceCount + addedOccurrenceCount,
                 firstTarget: pending.firstTarget,
                 lastTarget: lastTarget
             )
         } else {
             newlyPending = CounterReminderPending(
                 reminderID: id,
-                occurrenceCount: occurrenceCount,
+                occurrenceCount: addedOccurrenceCount,
                 firstTarget: firstTarget,
                 lastTarget: lastTarget
             )
         }
         pending = newlyPending
+        nextTarget = targetAfterScheduledCount(updatedScheduledCount)
         mutationRevision &+= 1
         return newlyPending
     }
@@ -166,6 +183,7 @@ public struct CounterReminder: Codable, Hashable, Sendable {
         guard id == self.id, isActive else { return false }
         isActive = false
         pending = nil
+        nextTarget = nil
         mutationRevision &+= 1
         return true
     }
@@ -174,13 +192,52 @@ public struct CounterReminder: Codable, Hashable, Sendable {
         pending?.occurrenceCount ?? 0
     }
 
-    private func followingTarget(after target: Int) -> Int? {
+    private var scheduledCount: Int? {
+        let (count, overflow) = acknowledgedCount.addingReportingOverflow(pendingOccurrenceCount)
+        return overflow ? nil : count
+    }
+
+    private func targetAfterScheduledCount(_ scheduledCount: Int) -> Int? {
+        if let limit = rule.limit, scheduledCount >= limit { return nil }
+        let (nextOccurrence, overflow) = scheduledCount.addingReportingOverflow(1)
+        guard !overflow else { return nil }
+        return target(forOccurrence: nextOccurrence)
+    }
+
+    private func target(forOccurrence occurrence: Int) -> Int? {
+        guard occurrence > 0 else { return nil }
+        switch rule {
+        case let .oneTime(target):
+            return occurrence == 1 ? target : nil
+        case let .repeating(interval, _):
+            let (offset, multiplyOverflow) = interval.multipliedReportingOverflow(by: occurrence)
+            guard !multiplyOverflow else { return nil }
+            let (target, addOverflow) = anchorValue.addingReportingOverflow(offset)
+            return addOverflow ? nil : target
+        }
+    }
+
+    private func crossedOccurrenceCount(from target: Int, through newValue: Int) -> Int? {
         switch rule {
         case .oneTime:
-            return nil
+            return 1
         case let .repeating(interval, _):
-            let (next, overflow) = target.addingReportingOverflow(interval)
-            return overflow ? nil : next
+            let delta = newValue - target
+            let (count, overflow) = (delta / interval).addingReportingOverflow(1)
+            return overflow ? nil : count
+        }
+    }
+
+    private func target(after target: Int, occurrenceCount: Int) -> Int? {
+        guard occurrenceCount > 0 else { return nil }
+        switch rule {
+        case .oneTime:
+            return target
+        case let .repeating(interval, _):
+            let (offset, multiplyOverflow) = interval.multipliedReportingOverflow(by: occurrenceCount - 1)
+            guard !multiplyOverflow else { return nil }
+            let (lastTarget, addOverflow) = target.addingReportingOverflow(offset)
+            return addOverflow ? nil : lastTarget
         }
     }
 }

@@ -34,6 +34,15 @@ import Testing
         }
     }
 
+    @Test func DutchDecreaseTermsRejectUnrelatedSamenCopy() throws {
+        let table = try TerminologyTable.load(from: terminologyURL)
+        let approved = try #require(table["decrease"]?["nl"])
+            .split(separator: "|")
+            .map(String.init)
+
+        #expect(!approved.contains { matchesApprovedTerm($0, in: "Samen wandelen") })
+    }
+
     @Test func terminologyRowsGovernApprovedRuntimeCatalogKeyFamilies() throws {
         let table = try TerminologyTable.load(from: terminologyURL)
         let catalog = try RuntimeCatalog.load(from: catalogURL)

@@ -123,6 +123,25 @@ import Testing
         #expect(!confirmation.localizedCaseInsensitiveContains("snooze"))
     }
 
+    @Test func pendingReminderCountsUseLocaleAwareIntegerFormattingAndPluralSelection() throws {
+        let source = try source("KnitNoteWatch/ProjectCountersView.swift")
+        let confirmation = try #require(sourceSection(
+            source,
+            from: "private func reminderConfirmation(",
+            to: "private func activeCounterRow"
+        ))
+
+        #expect(source.contains("@Environment(\\.locale)"))
+        #expect(confirmation.contains("LocaleAwareText.format("))
+        #expect(confirmation.contains("\"counter.reminder.reached\""))
+        #expect(confirmation.contains("pending.lastTarget"))
+        #expect(confirmation.contains("LocaleAwareText.interpolated("))
+        #expect(confirmation.contains("\"counter.reminder.crossedCount\""))
+        #expect(confirmation.contains("pending.occurrenceCount"))
+        #expect(!confirmation.contains("Text(\"counter.reminder.reached\")"))
+        #expect(!confirmation.contains("Text(\"counter.reminder.crossedCount\")"))
+    }
+
     @Test func localIncrementCrossingPlaysOneNotificationHapticAfterPersistence() throws {
         let source = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
         let enqueue = try #require(sourceSection(

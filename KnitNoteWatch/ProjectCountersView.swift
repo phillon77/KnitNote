@@ -4,6 +4,7 @@ struct ProjectCountersView: View {
     let projectID: UUID
     @ObservedObject var coordinator: WatchSyncCoordinator
     let onStoreScreenshotReady: @MainActor @Sendable () -> Void
+    @Environment(\.locale) private var locale
     @State private var actionCounterID: UUID?
 
     private var project: WatchProjectSnapshot? {
@@ -200,16 +201,18 @@ struct ProjectCountersView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let pending = reminder.pending {
-                HStack(spacing: 4) {
-                    Text("counter.reminder.reached")
-                    Text(pending.lastTarget, format: .number)
-                }
+                Text(verbatim: LocaleAwareText.format(
+                    "counter.reminder.reached",
+                    locale: locale,
+                    pending.lastTarget
+                ))
                 .font(.caption)
                 if pending.occurrenceCount > 1 {
-                    HStack(spacing: 4) {
-                        Text("counter.reminder.crossedCount")
-                        Text(pending.occurrenceCount, format: .number)
-                    }
+                    Text(verbatim: LocaleAwareText.interpolated(
+                        "counter.reminder.crossedCount",
+                        defaultValue: "\(pending.occurrenceCount) reminders crossed",
+                        locale: locale
+                    ))
                     .font(.caption2)
                 }
 

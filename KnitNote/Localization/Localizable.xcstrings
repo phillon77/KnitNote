@@ -11003,20 +11003,20 @@
       }
     },
     "counter.reminder.complete.hint" : {
-      "comment" : "VoiceOver hint for completing a row-counter reminder; it acknowledges crossed rows and advances the target.",
+      "comment" : "VoiceOver hint for completing a row-counter reminder; it acknowledges the crossed rows represented by the pending reminder.",
       "localizations" : {
-        "da" : { "stringUnit" : { "state" : "translated", "value" : "Bekræfter passerede pinde og går til næste mål." } },
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bestätigt die überschrittenen Reihen und geht zum nächsten Ziel." } },
-        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επιβεβαιώνει τις σειρές που ξεπεράστηκαν και προχωρά στον επόμενο στόχο." } },
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledges the crossed rows and advances to the next target." } },
-        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kuittaa ohitetut kerrokset ja siirtyy seuraavaan tavoitteeseen." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Confirme les rangs franchis et passe à la prochaine cible." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "通過した段を確認し、次の目標へ進みます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "지나간 단을 확인하고 다음 목표로 이동합니다." } },
-        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Bekrefter passerte rader og går til neste mål." } },
-        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Bekräftar passerade varv och går till nästa mål." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认已跨过的行数，并前往下一个目标。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認已跨過的段數，並前往下一個目標。" } }
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Bekræfter de passerede pinde." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bestätigt die überschrittenen Reihen." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επιβεβαιώνει τις σειρές που ξεπεράστηκαν." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledges the crossed rows." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kuittaa ohitetut kerrokset." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Confirme les rangs franchis." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "通過した段を確認します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "지나간 단을 확인합니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Bekrefter passerte rader." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Bekräftar passerade varv." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认已跨过的行数。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認已跨過的段數。" } }
       }
     },
     "counter.reminder.crossedCount" : {
@@ -11620,7 +11620,7 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "カウンターの値を編集" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "카운터 값 편집" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rediger tellerverdi" } },
-        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera räknarvärde" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera räknarens värde" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑计数器数值" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯計數器數值" } }
       }

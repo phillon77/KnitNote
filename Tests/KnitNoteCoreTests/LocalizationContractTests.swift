@@ -2210,6 +2210,36 @@ import Testing
         }
     }
 
+    @Test func completeHintAcknowledgesCrossedRowsWithoutPromisingAnotherTarget() throws {
+        let expectedCopy = [
+            "da": "Bekræfter de passerede pinde.",
+            "de": "Bestätigt die überschrittenen Reihen.",
+            "el": "Επιβεβαιώνει τις σειρές που ξεπεράστηκαν.",
+            "en": "Acknowledges the crossed rows.",
+            "fi": "Kuittaa ohitetut kerrokset.",
+            "fr": "Confirme les rangs franchis.",
+            "ja": "通過した段を確認します。",
+            "ko": "지나간 단을 확인합니다.",
+            "nb": "Bekrefter passerte rader.",
+            "sv": "Bekräftar passerade varv.",
+            "zh-Hans": "确认已跨过的行数。",
+            "zh-Hant": "確認已跨過的段數。",
+        ]
+        let catalogs = try [catalogStrings(), watchCatalogStrings()]
+
+        for strings in catalogs {
+            for language in SupportedLocalization.v141Identifiers {
+                #expect(
+                    try localizedValue(
+                        "counter.reminder.complete.hint",
+                        language: language,
+                        strings: strings
+                    ) == expectedCopy[language]
+                )
+            }
+        }
+    }
+
     private func catalogStrings() throws -> [String: Any] {
         let root = repositoryRoot
         let catalogURL = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")

@@ -219,7 +219,7 @@ struct ProjectDetailView: View {
                 name: save.name,
                 value: save.value
             ) else {
-                counterSaveError = String(localized: "counter.error.notSaved")
+                counterSaveError = LocaleAwareText.string("counter.error.notSaved", locale: locale)
                 return false
             }
             return true

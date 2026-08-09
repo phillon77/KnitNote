@@ -107,11 +107,12 @@ import Testing
         #expect(source.contains("counter.reminder.nextTarget"))
     }
 
-    @Test func projectCounterManagerKeepsItsSheetOpenWhenTheStoreRejectsTheTransaction() throws {
+    @Test func projectCounterManagerKeepsItsSheetOpenWithTheSelectedAppLanguageWhenTheStoreRejects() throws {
         let source = try projectSource(named: "ProjectDetailView")
 
         #expect(source.contains("guard let _ = try store.updateCounter("))
-        #expect(source.contains("counterSaveError = String(localized: \"counter.error.notSaved\")"))
+        #expect(source.contains("LocaleAwareText.string(\"counter.error.notSaved\", locale: locale)"))
+        #expect(!source.contains("String(localized: \"counter.error.notSaved\")"))
         #expect(!source.contains("try store.updateCounter(projectID:"))
     }
 

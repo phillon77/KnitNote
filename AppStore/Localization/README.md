@@ -11,3 +11,7 @@ For Dutch, use `project`, `patroon`, `garen`, `toerenteller`, `toer`, `steek`, `
 `catalogKeys` binds each row to runtime catalog content. `*` governs every runtime key whose English string or variation contains one of the row's approved English terms. Separate narrower explicit keys with `;`; a trailing `.*` filters that English-term match to one semantic key family. Use `-` only when the English term is absent from the runtime catalog. Separate approved inflections or context-dependent variants within a language cell with `|`; suffix a reviewed inflection stem with `*`. Every governed runtime string and variation must match one approved term or stem.
 
 When adding a row, use a stable semantic key, provide a non-empty value in every required language, and avoid duplicating a spelling for a different meaning. Keep the same term family for the same meaning across all governed UI surfaces. Update `catalogKeys` and the approved variants with the runtime String Catalog change so `KnittingTerminologyContractTests` can reject drift.
+
+## App Store metadata source
+
+`AppStore/Metadata` is the repository-owned source for localized App Store copy. `nl-NL.md` uses the same verified public URLs as the other locale packages and must pass `AppStore/Verification/metadata_check.py` before it is considered ready for manual App Store preparation. It records source copy only; it does not represent or edit live App Store Connect metadata.

@@ -42,7 +42,8 @@ FORBIDDEN_PATTERNS = (
             r"automaattinen[ -]+käännös|tekoälykäännös|"
             r"automatisk[ -]+oversættelse|ai[ -]+oversættelse|"
             r"αυτόματη[ -]+μετάφραση|"
-            r"μετάφραση[ -]+με[ -]+τεχνητή[ -]+νοημοσύνη"
+            r"μετάφραση[ -]+με[ -]+τεχνητή[ -]+νοημοσύνη|"
+            r"ai[ -]+vertaling|vertaling[ -]+met[ -]+kunstmatige[ -]+intelligentie"
             r")(?!\w)|"
             r"(?:ai[ -]*(?:翻譯|翻译|翻訳|による[ -]*翻訳)|"
             r"(?:人工智慧|人工智能|人工知能)[ -]*(?:翻譯|翻译|翻訳)|"
@@ -56,7 +57,8 @@ FORBIDDEN_PATTERNS = (
             r"i?cloud[ -]+(?:sync(?:s|ed|ing)?|synchronization)|"
             r"cloud[ -]*synchronis(?:ation|ierung)|"
             r"synchronisation[ -]+(?:dans[ -]+le[ -]+)?cloud|"
-            r"cloud[ -]+synchronisation"
+            r"cloud[ -]+synchronisation|"
+            r"cloudsynchronisatie|synchronisatie[ -]+met[ -]+de[ -]+cloud"
             r")(?!\w)|(?:雲端|云端)[ -]*同步|クラウド[ -]*同期"
         ),
     ),
@@ -66,7 +68,8 @@ FORBIDDEN_PATTERNS = (
             r"(?<!\w)(?:"
             r"automatic[ -]+stitch[ -]+(?:recognition|detection)|"
             r"automatische[ -]+maschenerkennung|"
-            r"reconnaissance[ -]+automatique[ -]+des[ -]+mailles"
+            r"reconnaissance[ -]+automatique[ -]+des[ -]+mailles|"
+            r"automatische[ -]+steekherkenning"
             r")(?!\w)|"
             r"自動辨識針目|自动识别针目|"
             r"編み目の自動認識|自動編み目認識"
@@ -76,7 +79,7 @@ FORBIDDEN_PATTERNS = (
         "subscription",
         re.compile(
             r"(?<!\w)(?:"
-            r"subscriptions?|abonnements?|prenumeration|tilaus|συνδρομή"
+            r"subscriptions?|abonnements?|abonnementsdienst|prenumeration|tilaus|συνδρομή"
             r")(?!\w)|"
             r"訂閱|订阅|サブスクリプション|定期購入|구독"
         ),
@@ -85,7 +88,7 @@ FORBIDDEN_PATTERNS = (
         "trial/free",
         re.compile(
             r"(?<!\w)(?:"
-            r"gratis|prøveperiode|provperiod|ilmainen|ilmaiseksi|kokeilujakso|"
+            r"gratis|proefversie|prøveperiode|provperiod|ilmainen|ilmaiseksi|kokeilujakso|"
             r"δωρεάν|δοκιμαστική[ -]+περίοδοσ"
             r")(?!\w)|(?:무료(?:[ -]*체험)?|체험[ -]*기간)"
         ),
@@ -93,13 +96,13 @@ FORBIDDEN_PATTERNS = (
     (
         "price",
         re.compile(
-            r"(?<!\w)(?:pris|hinta|τιμή)(?!\w)|가격"
+            r"(?<!\w)(?:pris|prijs|kosten|hinta|τιμή)(?!\w)|가격"
         ),
     ),
     (
         "purchase",
         re.compile(
-            r"(?<!\w)(?:kjøp|köp|osto|køb|αγορά)(?!\w)|구매"
+            r"(?<!\w)(?:kjøp|köp|aankoop|kopen|osto|køb|αγορά)(?!\w)|구매"
         ),
     ),
     (
@@ -108,6 +111,7 @@ FORBIDDEN_PATTERNS = (
             r"(?<!\w)(?:"
             r"skysynkronisering|molnsynkronisering|pilvisynkronointi|"
             r"fjärrtjänst|etäpalvelu|ekstern[ -]+tjeneste|"
+            r"externe[ -]+dienst|service[ -]+op[ -]+afstand|"
             r"συγχρονισμόσ[ -]+στο[ -]+(?:cloud|νέφοσ)|"
             r"απομακρυσμένη[ -]+υπηρεσία"
             r")(?!\w)|(?:클라우드[ -]*동기화|원격[ -]*서비스)"
@@ -124,6 +128,7 @@ FORBIDDEN_PATTERNS = (
             r"borttagna[ -]+projekt.{0,120}återställ\w*|"
             r"poistetut[ -]+projektit.{0,120}palaut\w*|"
             r"slettede[ -]+projekter.{0,120}gendann\w*|"
+            r"verwijderd[ -]+project.{0,120}(?:herstel\w*|terugzet\w*)|"
             r"τα[ -]+διαγραμμένα[ -]+έργα.{0,120}(?:ανακτηθ\w*|επαναφερ\w*)"
             r")(?!\w)|"
             r"已刪除的?作品.{0,80}(?:復原|恢復)|"
@@ -138,7 +143,8 @@ FORBIDDEN_PATTERNS = (
             r"(?<!\w)(?:"
             r"social[ -]+network(?:s|ing)?|"
             r"sozial(?:e|er|es|en)[ -]+netzwerk(?:e)?|"
-            r"réseaux?[ -]+(?:social|sociaux)"
+            r"réseaux?[ -]+(?:social|sociaux)|"
+            r"sociaal[ -]+netwerk|sociale[ -]+netwerksite"
             r")(?!\w)|"
             r"社群網路|社交網路|社交网络|"
             r"ソーシャルネットワーク"
@@ -149,7 +155,7 @@ FORBIDDEN_PATTERNS = (
         re.compile(
             r"(?<!\w)(?:"
             r"market[ -]*places?|marktpl(?:atz|ätze)|"
-            r"places?[ -]+de[ -]+marché"
+            r"places?[ -]+de[ -]+marché|marktplaats"
             r")(?!\w)|"
             r"市集|商城|市場平台|市场平台|マーケットプレイス"
         ),
@@ -170,6 +176,7 @@ FORBIDDEN_PATTERNS = (
             r"(?:delningstillägget|delningsvyerna).{0,120}systemspråket|"
             r"(?:jakolaajennus|jakonäkymät).{0,120}järjestelmän[ -]+kieltä|"
             r"(?:delingsudvidelsen|delingsvisningerne).{0,120}systemets[ -]+sprog|"
+            r"(?:deel[ -]+extensie|deelschermen?).{0,120}gebruik(?:t|en).{0,30}systeemtaal|"
             r"(?:공유[ -]+확장[ -]+프로그램|공유[ -]+화면).{0,80}시스템[ -]+언어|"
             r"(?:επέκταση|προβολέσ)[ -]+κοινήσ[ -]+χρήσησ.{0,120}"
             r"γλώσσα[ -]+του[ -]+συστήματοσ"
@@ -191,6 +198,7 @@ EXPECTED_LOCALES = V140_LOCALES + (
     "da-DK.md",
     "ko-KR.md",
     "el-GR.md",
+    "nl-NL.md",
 )
 LANGUAGE_CONTRACTS = {
     "en-US.md": {
@@ -278,6 +286,18 @@ LANGUAGE_CONTRACTS = {
             "δανικά", "κορεατικά", "ελληνικά",
         ),
         "surfaces": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
+    },
+    "nl-NL.md": {
+        "languages": (
+            "Engels", "Traditioneel Chinees", "Vereenvoudigd Chinees", "Duits", "Frans", "Japans",
+            "Noors Bokmål", "Zweeds", "Fins", "Deens", "Koreaans", "Grieks", "Nederlands",
+        ),
+        "surfaces": ("Instellingen", "Apple Watch", "deelschermen"),
+        "version": "1.5",
+        "whats_new_languages": (),
+        "whats_new_tokens": (
+            "gebruik van tellers", "herinneringen", "Apple Watch", "Nederlands", "Projecten", "app-taal",
+        ),
     },
 }
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
@@ -370,11 +390,15 @@ def validate(path: Path) -> list[str]:
         whats_new = fields.get("What's New", "")
         description = fields.get("Description", "")
         versions = re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new)
-        if versions != ["1.4.1"]:
-            errors.append(f"{path}: What's New: must identify KnitNote 1.4.1 exactly")
-        for language in contract["languages"][6:]:
+        version = contract.get("version", "1.4.1")
+        if versions != [version]:
+            errors.append(f"{path}: What's New: must identify KnitNote {version} exactly")
+        for language in contract.get("whats_new_languages", contract["languages"][6:]):
             if language.casefold() not in whats_new.casefold():
                 errors.append(f"{path}: What's New: missing added language: {language}")
+        for token in contract.get("whats_new_tokens", ()):
+            if token.casefold() not in whats_new.casefold():
+                errors.append(f"{path}: What's New: missing implemented 1.5 behavior: {token}")
         for language in contract["languages"]:
             if language.casefold() not in description.casefold():
                 errors.append(f"{path}: Description: missing supported language: {language}")

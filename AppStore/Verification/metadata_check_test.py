@@ -27,7 +27,9 @@ EXPECTED_LOCALES = V140_LOCALES + (
     "da-DK.md",
     "ko-KR.md",
     "el-GR.md",
+    "nl-NL.md",
 )
+V141_METADATA_LOCALES = EXPECTED_LOCALES[:-1]
 LANGUAGE_NAMES = {
     "en-US.md": (
         "English", "Traditional Chinese", "Simplified Chinese", "German", "French", "Japanese",
@@ -79,6 +81,10 @@ LANGUAGE_NAMES = {
         "γαλλικά", "ιαπωνικά", "νορβηγικά μποκμάλ", "σουηδικά", "φινλανδικά",
         "δανικά", "κορεατικά", "ελληνικά",
     ),
+    "nl-NL.md": (
+        "Engels", "Traditioneel Chinees", "Vereenvoudigd Chinees", "Duits", "Frans", "Japans",
+        "Noors Bokmål", "Zweeds", "Fins", "Deens", "Koreaans", "Grieks", "Nederlands",
+    ),
 }
 SETTINGS_AND_SURFACE_TOKENS = {
     "en-US.md": ("Settings", "Apple Watch", "sharing"),
@@ -93,6 +99,7 @@ SETTINGS_AND_SURFACE_TOKENS = {
     "da-DK.md": ("indstillingerne", "Apple Watch", "delings"),
     "ko-KR.md": ("설정", "Apple Watch", "공유"),
     "el-GR.md": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
+    "nl-NL.md": ("Instellingen", "Apple Watch", "deelschermen"),
 }
 DELETION_PROTECTION_COPY = {
     "en-US.md": "Completed projects are now protected from accidental deletion; restore one to in progress before deleting it.",
@@ -121,6 +128,7 @@ DELETED_PROJECT_RECOVERY_CLAIMS = {
     "da-DK.md": "Slettede projekter kan gendannes fra papirkurven.",
     "ko-KR.md": "삭제된 프로젝트는 휴지통에서 복원할 수 있습니다.",
     "el-GR.md": "Τα διαγραμμένα έργα μπορούν να ανακτηθούν από τον κάδο απορριμμάτων.",
+    "nl-NL.md": "Een verwijderd project kan worden hersteld.",
 }
 
 
@@ -130,13 +138,13 @@ class MetadataLocaleTests(unittest.TestCase):
         self.addCleanup(self.temporary_directory.cleanup)
         self.fixture_index = 0
 
-    def test_every_v141_locale_is_valid(self) -> None:
+    def test_every_expected_locale_is_valid(self) -> None:
         for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename):
                 self.assertEqual(validate(METADATA / filename), [])
 
     def test_every_package_describes_one_v141_twelve_language_settings_contract(self) -> None:
-        for filename in EXPECTED_LOCALES:
+        for filename in V141_METADATA_LOCALES:
             with self.subTest(filename=filename):
                 fields = parse(METADATA / filename)
                 whats_new = fields["What's New"]
@@ -153,7 +161,7 @@ class MetadataLocaleTests(unittest.TestCase):
                     self.assertIn(token, description)
 
     def test_every_v141_whats_new_describes_completed_project_deletion_protection(self) -> None:
-        for filename in EXPECTED_LOCALES:
+        for filename in V141_METADATA_LOCALES:
             with self.subTest(filename=filename):
                 whats_new = parse(METADATA / filename)["What's New"]
                 self.assertIn(DELETION_PROTECTION_COPY[filename], whats_new)
@@ -169,8 +177,30 @@ class MetadataLocaleTests(unittest.TestCase):
                     validate(path),
                 )
 
+    def test_expected_locales_include_dutch_last(self) -> None:
+        self.assertEqual(EXPECTED_LOCALES[-1], "nl-NL.md")
+        self.assertEqual(len(EXPECTED_LOCALES), 13)
+
+    def test_dutch_package_describes_only_implemented_v150_behavior(self) -> None:
+        fields = parse(METADATA / "nl-NL.md")
+        self.assertEqual(
+            re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", fields["What's New"]),
+            ["1.5"],
+        )
+        for token in (
+            "gebruik van tellers", "herinneringen", "Apple Watch", "Nederlands", "Projecten", "app-taal",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, fields["What's New"])
+        for language in LANGUAGE_NAMES["nl-NL.md"]:
+            with self.subTest(language=language):
+                self.assertIn(language, fields["Description"])
+        for token in SETTINGS_AND_SURFACE_TOKENS["nl-NL.md"]:
+            with self.subTest(surface=token):
+                self.assertIn(token, fields["Description"])
+
     def test_validator_rejects_wrong_version_and_missing_language_semantics_for_every_package(self) -> None:
-        for filename in EXPECTED_LOCALES:
+        for filename in V141_METADATA_LOCALES:
             with self.subTest(filename=filename, mutation="version"):
                 fields = parse(METADATA / filename)
                 fields["What's New"] = fields["What's New"].replace("1.4.1", "1.4.0")
@@ -532,6 +562,33 @@ class MetadataValidationTests(unittest.TestCase):
         )
         self.assert_forbidden_claims("Share system-only language", claims)
 
+    def test_dutch_forbidden_claims_are_rejected(self) -> None:
+        claims = (
+            ("AI translation", "AI-vertaling"),
+            ("AI translation", "Vertaling met kunstmatige intelligentie"),
+            ("cloud sync", "Cloudsynchronisatie"),
+            ("cloud sync", "Synchronisatie met de cloud"),
+            ("cloud/remote service", "Externe dienst"),
+            ("cloud/remote service", "Service op afstand"),
+            ("automatic stitch recognition", "Automatische steekherkenning"),
+            ("subscription", "Abonnement"),
+            ("subscription", "Abonnementsdienst"),
+            ("trial/free", "Gratis proefperiode"),
+            ("trial/free", "Proefversie"),
+            ("price", "Prijs"),
+            ("price", "Kosten"),
+            ("purchase", "Aankoop"),
+            ("purchase", "Kopen"),
+            ("deleted project recovery", "Een verwijderd project herstellen"),
+            ("deleted project recovery", "Een verwijderd project terugzetten"),
+            ("social network", "Sociaal netwerk"),
+            ("social network", "Sociale netwerksite"),
+            ("marketplace", "Marktplaats"),
+            ("Share system-only language", "Deel-extensie gebruikt de systeemtaal"),
+            ("Share system-only language", "Deelschermen gebruiken de systeemtaal"),
+        )
+        self.assert_forbidden_claims_by_concept(claims)
+
     def test_v141_offline_watch_transfer_and_explicit_backup_wording_is_allowed(self) -> None:
         safe_copy = (
             (
@@ -616,6 +673,18 @@ class MetadataValidationTests(unittest.TestCase):
     ) -> None:
         for locale, claim in claims:
             with self.subTest(concept=concept, locale=locale, claim=claim):
+                path = self.write_metadata(Description=claim)
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: {concept}",
+                    validate(path),
+                )
+
+    def assert_forbidden_claims_by_concept(
+        self,
+        claims: tuple[tuple[str, str], ...],
+    ) -> None:
+        for concept, claim in claims:
+            with self.subTest(concept=concept, claim=claim):
                 path = self.write_metadata(Description=claim)
                 self.assertIn(
                     f"{path}: copy: forbidden release claim: {concept}",

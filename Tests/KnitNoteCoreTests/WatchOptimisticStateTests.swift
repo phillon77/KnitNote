@@ -29,6 +29,73 @@ import Testing
         #expect(state.snapshot?.projects[0].counters[0].reminder == nil)
     }
 
+    @Test func incrementCrossingKnownTargetMergesIntoExistingPendingReminder() throws {
+        let fixture = try Fixture(
+            value: 1,
+            reminderTarget: 1,
+            pendingReminder: true,
+            pendingNextTarget: 2
+        )
+        var state = WatchOptimisticState(cache: fixture.cache)
+
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+
+        let reminder = try #require(state.snapshot?.projects[0].counters[0].reminder)
+        #expect(reminder.id == fixture.reminderID)
+        #expect(reminder.pending?.occurrenceCount == 2)
+        #expect(reminder.pending?.firstTarget == 1)
+        #expect(reminder.pending?.lastTarget == 2)
+        #expect(reminder.nextTarget == nil)
+        #expect(reminder.message == "Turn")
+        #expect(reminder.isActive)
+    }
+
+    @Test func combinedPendingReminderSurvivesWatchCacheReload() throws {
+        let fixture = try Fixture(
+            value: 1,
+            reminderTarget: 1,
+            pendingReminder: true,
+            pendingNextTarget: 2
+        )
+        var state = WatchOptimisticState(cache: fixture.cache)
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+
+        let reloaded = WatchOptimisticState(cache: try roundTrip(state.cache))
+        let reminder = try #require(reloaded.snapshot?.projects[0].counters[0].reminder)
+
+        #expect(reminder.pending?.occurrenceCount == 2)
+        #expect(reminder.pending?.firstTarget == 1)
+        #expect(reminder.pending?.lastTarget == 2)
+        #expect(reminder.message == "Turn")
+    }
+
+    @Test func combinedPendingReminderPreparesCompleteWithObservedCountTwo() throws {
+        let fixture = try Fixture(
+            value: 1,
+            reminderTarget: 1,
+            pendingReminder: true,
+            pendingNextTarget: 2
+        )
+        var state = WatchOptimisticState(cache: fixture.cache)
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+        let pending = try #require(state.snapshot?.projects[0].counters[0].reminder?.pending)
+        let complete = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .completeReminder,
+            reminderID: fixture.reminderID,
+            observedPendingCount: pending.occurrenceCount,
+            createdAt: Date(timeIntervalSince1970: 30)
+        )
+
+        #expect(state.enqueue(complete) == nil)
+        let reloaded = WatchOptimisticState(cache: try roundTrip(state.cache))
+
+        #expect(reloaded.pendingCommands.last == complete)
+        #expect(reloaded.pendingCommands.last?.observedPendingCount == 2)
+        #expect(reloaded.snapshot?.projects[0].counters[0].reminder?.pending == nil)
+    }
+
     @Test func optimisticReminderCompletionUsesTheObservedPendingCount() throws {
         let fixture = try Fixture(value: 5, reminderTarget: 5, pendingReminder: true)
         var state = WatchOptimisticState(cache: fixture.cache)
@@ -583,7 +650,8 @@ private struct Fixture {
         isCompleted: Bool = false,
         languageCode: String? = nil,
         reminderTarget: Int? = nil,
-        pendingReminder: Bool = false
+        pendingReminder: Bool = false,
+        pendingNextTarget: Int? = nil
     ) throws {
         self.languageCode = languageCode
         let reminderID = UUID()
@@ -592,7 +660,7 @@ private struct Fixture {
             let reminder = index == 0 ? reminderTarget.map { target in
                 WatchCounterReminderSnapshot(
                     id: reminderID,
-                    nextTarget: pendingReminder ? nil : target,
+                    nextTarget: pendingReminder ? pendingNextTarget : target,
                     pending: pendingReminder ? CounterReminderPending(
                         reminderID: reminderID,
                         occurrenceCount: 1,
@@ -670,4 +738,11 @@ private struct Fixture {
             languageCode: languageCode
         )
     }
+}
+
+private func roundTrip(_ cache: WatchSyncCache) throws -> WatchSyncCache {
+    try WatchSyncCodec.decode(
+        WatchSyncCache.self,
+        from: WatchSyncCodec.encode(cache)
+    )
 }

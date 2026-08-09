@@ -203,21 +203,35 @@ public struct WatchOptimisticState: Equatable, Sendable {
                     value = counter.value == Int.max ? Int.max : counter.value + 1
                     if let current = reminder,
                        current.isActive,
-                       current.pending == nil,
                        let target = current.nextTarget,
                        target <= value {
-                        reminder = WatchCounterReminderSnapshot(
-                            id: current.id,
-                            nextTarget: nil,
-                            pending: CounterReminderPending(
+                        let mergedPending: CounterReminderPending?
+                        if let pending = current.pending {
+                            let (occurrenceCount, overflow) = pending.occurrenceCount
+                                .addingReportingOverflow(1)
+                            mergedPending = overflow ? nil : CounterReminderPending(
+                                reminderID: current.id,
+                                occurrenceCount: occurrenceCount,
+                                firstTarget: pending.firstTarget,
+                                lastTarget: target
+                            )
+                        } else {
+                            mergedPending = CounterReminderPending(
                                 reminderID: current.id,
                                 occurrenceCount: 1,
                                 firstTarget: target,
                                 lastTarget: target
-                            ),
-                            message: current.message,
-                            isActive: true
-                        )
+                            )
+                        }
+                        if let mergedPending {
+                            reminder = WatchCounterReminderSnapshot(
+                                id: current.id,
+                                nextTarget: nil,
+                                pending: mergedPending,
+                                message: current.message,
+                                isActive: current.isActive
+                            )
+                        }
                     }
                 case .decrement:
                     value = max(0, counter.value - 1)

@@ -40,9 +40,11 @@ struct CounterReminderCard: View {
         Button("counter.reminder.complete", action: onComplete)
             .buttonStyle(.borderedProminent)
             .frame(minHeight: 44)
+            .accessibilityHint(Text("counter.reminder.complete.hint"))
         Button("counter.reminder.stop", role: .destructive, action: onStop)
             .buttonStyle(.bordered)
             .frame(minHeight: 44)
+            .accessibilityHint(Text("counter.reminder.stop.hint"))
     }
 
     private var pendingCopy: String {

@@ -142,6 +142,37 @@ import Testing
         #expect(manager.contains("if onSave(savedCounter) { dismiss() }"))
     }
 
+    @Test func reminderAccessibilityKeepsLocalizedSemanticsActionsAndAdaptiveHeight() throws {
+        let manager = try projectSource(named: "CounterManagerView")
+        let card = try source("KnitNote/Patterns/CounterReminderCard.swift")
+        let watch = try source("KnitNoteWatch/ProjectCountersView.swift")
+
+        #expect(manager.contains(".accessibilityLabel(Text(\"counter.value.edit\"))"))
+        #expect(!manager.contains(".accessibilityLabel(Text(\"counter.value\"))"))
+        #expect(manager.contains("counter.reminder.nextTarget"))
+        #expect(manager.contains(".accessibilityValue(Text(reminderSummary))"))
+
+        #expect(card.contains("return \"\\(reachedCopy) · \\(crossedCountCopy)\""))
+        #expect(card.contains(".accessibilityHint(Text(\"counter.reminder.complete.hint\"))"))
+        #expect(card.contains(".accessibilityHint(Text(\"counter.reminder.stop.hint\"))"))
+        #expect(card.components(separatedBy: ".frame(minHeight: 44)").count - 1 == 2)
+        #expect(card.contains("ViewThatFits(in: .horizontal)"))
+        #expect(!card.contains(".frame(height:"))
+        #expect(card.contains("Text(verbatim: message)"))
+
+        let watchReminder = try #require(sourceSection(
+            watch,
+            from: "private func reminderConfirmation(",
+            to: "private func activeCounterRow"
+        ))
+        #expect(watchReminder.contains(".accessibilityHint(Text(\"counter.reminder.complete.hint\"))"))
+        #expect(watchReminder.contains(".accessibilityHint(Text(\"counter.reminder.stop.hint\"))"))
+        #expect(watchReminder.components(separatedBy: ".frame(minHeight: 44)").count - 1 == 2)
+        #expect(!watchReminder.contains(".frame(height:"))
+        #expect(!watchReminder.contains(".lineLimit("))
+        #expect(watchReminder.contains("Text(verbatim: message)"))
+    }
+
     @Test func completionUIShowsStatusAndLocksProjectCounters() throws {
         let edit = try projectSource(named: "EditProjectView")
         let detail = try projectSource(named: "ProjectDetailView")
@@ -184,10 +215,11 @@ import Testing
     }
 
     private func projectSource(named name: String) throws -> String {
-        try String(
-            contentsOf: repositoryRoot.appending(path: "KnitNote/Projects/\(name).swift"),
-            encoding: .utf8
-        )
+        try source("KnitNote/Projects/\(name).swift")
+    }
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: repositoryRoot.appending(path: path), encoding: .utf8)
     }
 
     private func sourceSection(_ source: String, from start: String, to end: String) -> String? {

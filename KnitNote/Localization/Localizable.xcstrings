@@ -10985,6 +10985,293 @@
         }
       }
     },
+    "counter.reminder.complete" : {
+      "comment" : "Action label that acknowledges every row-counter reminder occurrence shown on the pending card.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Fuldfør denne påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung abschließen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ολοκλήρωση αυτής της υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete this reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Suorita tämä muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminer ce rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーを完了" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림 완료" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Fullfør denne påminnelsen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Slutför den här påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成此提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成這個提醒" } }
+      }
+    },
+    "counter.reminder.complete.hint" : {
+      "comment" : "VoiceOver hint for completing a row-counter reminder; it acknowledges crossed rows and advances the target.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Bekræfter passerede pinde og går til næste mål." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bestätigt die überschrittenen Reihen und geht zum nächsten Ziel." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επιβεβαιώνει τις σειρές που ξεπεράστηκαν και προχωρά στον επόμενο στόχο." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledges the crossed rows and advances to the next target." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kuittaa ohitetut kerrokset ja siirtyy seuraavaan tavoitteeseen." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Confirme les rangs franchis et passe à la prochaine cible." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "通過した段を確認し、次の目標へ進みます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "지나간 단을 확인하고 다음 목표로 이동합니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Bekrefter passerte rader og går til neste mål." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Bekräftar passerade varv och går till nästa mål." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认已跨过的行数，并前往下一个目标。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認已跨過的段數，並前往下一個目標。" } }
+      }
+    },
+    "counter.reminder.crossedCount" : {
+      "comment" : "Pluralized count of row-counter reminder occurrences crossed by one upward value change.",
+      "localizations" : {
+        "da" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påmindelse passeret" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påmindelser passeret" } }
+        } } },
+        "de" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld Erinnerung überschritten" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld Erinnerungen überschritten" } }
+        } } },
+        "el" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "Έγινε υπέρβαση %lld υπενθύμισης" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "Έγινε υπέρβαση %lld υπενθυμίσεων" } }
+        } } },
+        "en" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld reminder crossed" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld reminders crossed" } }
+        } } },
+        "fi" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld muistutus ohitettu" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld muistutusta ohitettu" } }
+        } } },
+        "fr" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld rappel franchi" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld rappels franchis" } }
+        } } },
+        "ja" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld 件のリマインダーを通過" } }
+        } } },
+        "ko" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "알림 %lld개를 지났습니다" } }
+        } } },
+        "nb" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passert" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passert" } }
+        } } },
+        "sv" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passerad" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passerade" } }
+        } } },
+        "zh-Hans" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "已跨过 %lld 个提醒" } }
+        } } },
+        "zh-Hant" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "已跨過 %lld 個提醒" } }
+        } } }
+      }
+    },
+    "counter.reminder.edit" : {
+      "comment" : "Action label that opens the row-counter reminder editor.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Rediger påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung bearbeiten" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επεξεργασία υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muokkaa muistutusta" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modifier le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを編集" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 편집" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rediger påminnelse" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera påminnelse" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯提醒" } }
+      }
+    },
+    "counter.reminder.interval" : {
+      "comment" : "Field label for the number of rows between repeating row-counter reminders.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Pindeinterval" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihenintervall" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διάστημα σειρών" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Row interval" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerrosväli" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Intervalle de rangs" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "段の間隔" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "단 간격" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Radintervall" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Varvintervall" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "间隔行数" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "間隔段數" } }
+      }
+    },
+    "counter.reminder.limit" : {
+      "comment" : "Field label for the optional maximum number of repeating row-counter reminders.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Gentagelsesgrænse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wiederholungslimit" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Όριο επαναλήψεων" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Repetition limit" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Toistojen enimmäismäärä" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Limite de répétitions" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "繰り返し回数の上限" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "반복 횟수 제한" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Gjentakelsesgrense" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Upprepningsgräns" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重复次数上限" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重複次數上限" } }
+      }
+    },
+    "counter.reminder.message" : {
+      "comment" : "Optional user-authored message field for a row-counter reminder; saved content is never localized.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Besked (valgfri)" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nachricht (optional)" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Μήνυμα (προαιρετικό)" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Message (optional)" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Viesti (valinnainen)" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Message (facultatif)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "メッセージ（任意）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "메시지(선택 사항)" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Melding (valgfritt)" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Meddelande (valfritt)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "消息（可选）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訊息（選填）" } }
+      }
+    },
+    "counter.reminder.mode" : {
+      "comment" : "Picker label for choosing a one-time or repeating row-counter reminder type.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelsestype" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungstyp" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Τύπος υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reminder type" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistutuksen tyyppi" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Type de rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーの種類" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 유형" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsestype" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsetyp" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒类型" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒類型" } }
+      }
+    },
+    "counter.reminder.mode.oneTime" : {
+      "comment" : "Mode label for a row-counter reminder that fires once at one target row.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Én gang" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmalig" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Μία φορά" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "One Time" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerran" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Une fois" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1回" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "한 번" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Én gang" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "En gång" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单次" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單次" } }
+      }
+    },
+    "counter.reminder.mode.repeating" : {
+      "comment" : "Mode label for a row-counter reminder that repeats at a row interval.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Gentagende" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wiederholend" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επαναλαμβανόμενη" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Repeating" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Toistuva" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Répétitif" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "繰り返し" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "반복" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Gjentakende" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Återkommande" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重复" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重複" } }
+      }
+    },
+    "counter.reminder.reached" : {
+      "comment" : "Default row-counter reminder message. The %lld token is the latest reached row and must remain unchanged.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Nåede pind %lld." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihe %lld erreicht." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Έφτασε στη σειρά %lld." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reached row %lld." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerros %lld saavutettu." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rang %lld atteint." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 段目に到達しました。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld단에 도달했습니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Nådde rad %lld." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Nådde varv %lld." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已到达第 %lld 行。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已到達第 %lld 段。" } }
+      }
+    },
+    "counter.reminder.replace" : {
+      "comment" : "Destructive confirmation action that replaces an active row-counter reminder and its progress.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Erstat påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung ersetzen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αντικατάσταση υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replace Reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Korvaa muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Remplacer le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを置き換える" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 교체" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Erstatt påminnelsen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ersätt påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "替换提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "替換提醒" } }
+      }
+    },
+    "counter.reminder.stop" : {
+      "comment" : "Destructive action label that disables a row-counter reminder and clears pending occurrences.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Stop påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung stoppen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διακοπή υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lopeta muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Arrêter le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを停止" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 중지" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stopp påminnelsen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } }
+      }
+    },
+    "counter.reminder.stop.hint" : {
+      "comment" : "VoiceOver hint for stopping a row-counter reminder and clearing its pending rows.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Slår påmindelsen fra og rydder ventende pinde." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schaltet diese Erinnerung aus und löscht ausstehende Reihen." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Απενεργοποιεί την υπενθύμιση και διαγράφει τις σειρές σε αναμονή." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turns off this reminder and clears its pending rows." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Poistaa muistutuksen käytöstä ja tyhjentää odottavat kerrokset." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Désactive ce rappel et efface les rangs en attente." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーをオフにして保留中の段を消去します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림을 끄고 대기 중인 단을 지웁니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Slår av påminnelsen og fjerner ventende rader." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stänger av påminnelsen och rensar väntande varv." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭此提醒，并清除待处理的行数。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉這個提醒，並清除待處理的段數。" } }
+      }
+    },
+    "counter.reminder.target" : {
+      "comment" : "Field label for the future row where a one-time row-counter reminder fires.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Målpind" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zielreihe" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Σειρά-στόχος" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Target row" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Tavoitekerros" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rang cible" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "目標段" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "목표 단" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Målrad" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Målvarv" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标行数" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目標段數" } }
+      }
+    },
     "counter.reminder.nextTarget" : {
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Næste mål" } },
@@ -11321,7 +11608,25 @@
         }
       }
     },
+    "counter.value.edit" : {
+      "comment" : "Accessibility label for editing the row counter's current numeric value.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Rediger tællerværdi" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zählerwert bearbeiten" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επεξεργασία τιμής μετρητή" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit counter value" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muokkaa laskurin arvoa" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modifier la valeur du compteur" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カウンターの値を編集" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "카운터 값 편집" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rediger tellerverdi" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera räknarvärde" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑计数器数值" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯計數器數值" } }
+      }
+    },
     "counter.value.invalid" : {
+      "comment" : "Validation message for a row counter value that is not a non-negative whole number.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Indtast et ikke-negativt heltal." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib eine nichtnegative ganze Zahl ein." } },

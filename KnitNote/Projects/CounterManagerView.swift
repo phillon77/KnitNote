@@ -135,7 +135,7 @@ struct CounterManagerView: View {
                 .monospacedDigit()
                 .multilineTextAlignment(.center)
                 .textFieldStyle(.roundedBorder)
-                .accessibilityLabel(Text("counter.value"))
+                .accessibilityLabel(Text("counter.value.edit"))
                 .onChange(of: valueText) { _, _ in hasInvalidValue = false }
 
             if hasInvalidValue {

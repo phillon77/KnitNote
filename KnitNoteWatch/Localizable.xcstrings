@@ -1,6 +1,140 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "counter.reminder.complete" : {
+      "comment" : "Compact action label that acknowledges every row-counter reminder occurrence shown on Apple Watch.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Fuldfør denne påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung abschließen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ολοκλήρωση αυτής της υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete this reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Suorita tämä muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminer ce rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーを完了" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림 완료" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Fullfør denne påminnelsen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Slutför den här påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成此提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成這個提醒" } }
+      }
+    },
+    "counter.reminder.complete.hint" : {
+      "comment" : "VoiceOver hint for completing a row-counter reminder on Apple Watch.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Bekræfter passerede pinde og går til næste mål." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bestätigt die überschrittenen Reihen und geht zum nächsten Ziel." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επιβεβαιώνει τις σειρές που ξεπεράστηκαν και προχωρά στον επόμενο στόχο." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledges the crossed rows and advances to the next target." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kuittaa ohitetut kerrokset ja siirtyy seuraavaan tavoitteeseen." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Confirme les rangs franchis et passe à la prochaine cible." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "通過した段を確認し、次の目標へ進みます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "지나간 단을 확인하고 다음 목표로 이동합니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Bekrefter passerte rader og går til neste mål." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Bekräftar passerade varv och går till nästa mål." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认已跨过的行数，并前往下一个目标。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認已跨過的段數，並前往下一個目標。" } }
+      }
+    },
+    "counter.reminder.crossedCount" : {
+      "comment" : "Compact pluralized count of row-counter reminder occurrences crossed on Apple Watch.",
+      "localizations" : {
+        "da" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påmindelse passeret" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påmindelser passeret" } }
+        } } },
+        "de" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld Erinnerung überschritten" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld Erinnerungen überschritten" } }
+        } } },
+        "el" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "Έγινε υπέρβαση %lld υπενθύμισης" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "Έγινε υπέρβαση %lld υπενθυμίσεων" } }
+        } } },
+        "en" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld reminder crossed" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld reminders crossed" } }
+        } } },
+        "fi" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld muistutus ohitettu" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld muistutusta ohitettu" } }
+        } } },
+        "fr" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld rappel franchi" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld rappels franchis" } }
+        } } },
+        "ja" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld 件のリマインダーを通過" } }
+        } } },
+        "ko" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "알림 %lld개를 지났습니다" } }
+        } } },
+        "nb" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passert" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passert" } }
+        } } },
+        "sv" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelse passerad" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld påminnelser passerade" } }
+        } } },
+        "zh-Hans" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "已跨过 %lld 个提醒" } }
+        } } },
+        "zh-Hant" : { "variations" : { "plural" : {
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "已跨過 %lld 個提醒" } }
+        } } }
+      }
+    },
+    "counter.reminder.reached" : {
+      "comment" : "Compact row-counter reminder message on Apple Watch; %lld is the latest reached row.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Nåede pind %lld." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihe %lld erreicht." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Έφτασε στη σειρά %lld." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reached row %lld." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerros %lld saavutettu." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rang %lld atteint." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 段目に到達しました。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld단에 도달했습니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Nådde rad %lld." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Nådde varv %lld." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已到达第 %lld 行。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已到達第 %lld 段。" } }
+      }
+    },
+    "counter.reminder.stop" : {
+      "comment" : "Compact destructive action label that disables a row-counter reminder on Apple Watch.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Stop påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung stoppen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διακοπή υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lopeta muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Arrêter le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを停止" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 중지" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stopp påminnelsen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } }
+      }
+    },
+    "counter.reminder.stop.hint" : {
+      "comment" : "VoiceOver hint for stopping a row-counter reminder on Apple Watch.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Slår påmindelsen fra og rydder ventende pinde." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schaltet diese Erinnerung aus und löscht ausstehende Reihen." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Απενεργοποιεί την υπενθύμιση και διαγράφει τις σειρές σε αναμονή." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turns off this reminder and clears its pending rows." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Poistaa muistutuksen käytöstä ja tyhjentää odottavat kerrokset." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Désactive ce rappel et efface les rangs en attente." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーをオフにして保留中の段を消去します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림을 끄고 대기 중인 단을 지웁니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Slår av påminnelsen og fjerner ventende rader." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stänger av påminnelsen och rensar väntande varv." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭此提醒，并清除待处理的行数。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉這個提醒，並清除待處理的段數。" } }
+      }
+    },
     "watch.counter.actions" : {
       "extractionState" : "stale",
       "localizations" : {

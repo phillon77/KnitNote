@@ -3,6 +3,50 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct ShareExtensionLocalizationContractTests {
+    @Test func watchReminderCopyIsCompleteCompactAndTokenSafeForEveryRuntimeLanguage() throws {
+        let url = patternLibraryRepositoryURL("KnitNoteWatch/Localizable.xcstrings")
+        let root = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        let strings = try #require(root["strings"] as? [String: Any])
+        let requiredKeys = [
+            "counter.reminder.complete",
+            "counter.reminder.complete.hint",
+            "counter.reminder.stop",
+            "counter.reminder.stop.hint",
+            "counter.reminder.reached",
+            "counter.reminder.crossedCount",
+        ]
+
+        for key in requiredKeys {
+            let entry = try #require(strings[key] as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v141Identifiers))
+            let comment = (entry["comment"] as? String)?.lowercased() ?? ""
+            #expect(comment.contains("row") && comment.contains("counter"))
+        }
+
+        #expect(try directValue("counter.reminder.complete", language: "en", strings: strings) == "Complete this reminder")
+        #expect(try directValue("counter.reminder.stop", language: "en", strings: strings) == "Stop reminder")
+        #expect(try directValue("counter.reminder.reached", language: "en", strings: strings) == "Reached row %lld.")
+        #expect(
+            try pluralValue(
+                "counter.reminder.crossedCount",
+                language: "en",
+                category: "one",
+                strings: strings
+            ) == "%lld reminder crossed"
+        )
+        #expect(
+            try pluralValue(
+                "counter.reminder.crossedCount",
+                language: "en",
+                category: "other",
+                strings: strings
+            ) == "%lld reminders crossed"
+        )
+    }
+
     @Test func watchAndShareCatalogsAreCompleteForVersion141Languages() throws {
         for path in [
             "KnitNoteWatch/Localizable.xcstrings",
@@ -110,5 +154,33 @@ import Testing
                 }
             }
         }
+    }
+
+    private func directValue(
+        _ key: String,
+        language: String,
+        strings: [String: Any]
+    ) throws -> String {
+        let entry = try #require(strings[key] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        let localization = try #require(localizations[language] as? [String: Any])
+        let unit = try #require(localization["stringUnit"] as? [String: Any])
+        return try #require(unit["value"] as? String)
+    }
+
+    private func pluralValue(
+        _ key: String,
+        language: String,
+        category: String,
+        strings: [String: Any]
+    ) throws -> String {
+        let entry = try #require(strings[key] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        let localization = try #require(localizations[language] as? [String: Any])
+        let variations = try #require(localization["variations"] as? [String: Any])
+        let plural = try #require(variations["plural"] as? [String: Any])
+        let variation = try #require(plural[category] as? [String: Any])
+        let unit = try #require(variation["stringUnit"] as? [String: Any])
+        return try #require(unit["value"] as? String)
     }
 }

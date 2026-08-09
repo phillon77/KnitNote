@@ -347,6 +347,49 @@ import Testing
         }
     }
 
+    @Test func shippingMainCatalogRequiresTheExactCounterReminderKeyDomain() throws {
+        let root = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let url = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")
+        try assertCompleteCatalog(
+            at: url,
+            requiredLanguages: SupportedLocalization.v141Identifiers
+        )
+
+        let catalog = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let requiredKeys = [
+            "counter.value.edit",
+            "counter.value.invalid",
+            "counter.reminder.edit",
+            "counter.reminder.mode",
+            "counter.reminder.mode.oneTime",
+            "counter.reminder.mode.repeating",
+            "counter.reminder.target",
+            "counter.reminder.interval",
+            "counter.reminder.limit",
+            "counter.reminder.message",
+            "counter.reminder.complete",
+            "counter.reminder.stop",
+            "counter.reminder.reached",
+            "counter.reminder.replace",
+            "counter.reminder.crossedCount",
+        ]
+
+        #expect(Set(requiredKeys).isSubset(of: Set(strings.keys)))
+        for key in requiredKeys {
+            let entry = try #require(strings[key] as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v141Identifiers))
+            let comment = (entry["comment"] as? String)?.lowercased() ?? ""
+            #expect(comment.contains("row") && comment.contains("counter"))
+        }
+    }
+
     private func completeFixtureLocalizations() -> [String: Any] {
         [
             "en": fixtureLocalization(value: "%lld items"),
@@ -471,6 +514,41 @@ import Testing
 }
 
 @Suite struct LocalizationContractTests {
+    private let requiredReminderKeys = [
+        "counter.value.edit",
+        "counter.value.invalid",
+        "counter.reminder.edit",
+        "counter.reminder.mode",
+        "counter.reminder.mode.oneTime",
+        "counter.reminder.mode.repeating",
+        "counter.reminder.target",
+        "counter.reminder.interval",
+        "counter.reminder.limit",
+        "counter.reminder.message",
+        "counter.reminder.complete",
+        "counter.reminder.stop",
+        "counter.reminder.reached",
+        "counter.reminder.replace",
+        "counter.reminder.crossedCount",
+    ]
+
+    private let reminderEnglishCopy = [
+        "counter.value.edit": "Edit counter value",
+        "counter.value.invalid": "Enter a non-negative whole number.",
+        "counter.reminder.edit": "Edit Reminder",
+        "counter.reminder.mode": "Reminder type",
+        "counter.reminder.mode.oneTime": "One Time",
+        "counter.reminder.mode.repeating": "Repeating",
+        "counter.reminder.target": "Target row",
+        "counter.reminder.interval": "Row interval",
+        "counter.reminder.limit": "Repetition limit",
+        "counter.reminder.message": "Message (optional)",
+        "counter.reminder.complete": "Complete this reminder",
+        "counter.reminder.stop": "Stop reminder",
+        "counter.reminder.reached": "Reached row %lld.",
+        "counter.reminder.replace": "Replace Reminder",
+    ]
+
     private let requiredWatchTranslations = [
         "watch.projects.title": ["en": "Projects", "zh-Hant": "作品"],
         "watch.projects.empty": ["en": "No projects yet", "zh-Hant": "尚無作品"],
@@ -1003,6 +1081,22 @@ import Testing
                 "counter.reminder.nextTarget",
                 "counter.reminder.none",
                 "counter.value.invalid",
+                "counter.value.edit",
+                "counter.reminder.edit",
+                "counter.reminder.mode",
+                "counter.reminder.mode.oneTime",
+                "counter.reminder.mode.repeating",
+                "counter.reminder.target",
+                "counter.reminder.interval",
+                "counter.reminder.limit",
+                "counter.reminder.message",
+                "counter.reminder.complete",
+                "counter.reminder.complete.hint",
+                "counter.reminder.stop",
+                "counter.reminder.stop.hint",
+                "counter.reminder.reached",
+                "counter.reminder.replace",
+                "counter.reminder.crossedCount",
             ]
         )
         try assertCompleteCatalog(
@@ -1010,6 +1104,49 @@ import Testing
                 path: "KnitNote/Localization/Localizable.xcstrings"
             ),
             requiredLanguages: SupportedLocalization.v141Identifiers
+        )
+    }
+
+    @Test func reminderKeyDomainHasReviewedCopyCommentsAndPluralTokensForEveryRuntimeLanguage() throws {
+        let strings = try catalogStrings()
+
+        #expect(Set(requiredReminderKeys).isSubset(of: Set(strings.keys)))
+        for key in requiredReminderKeys {
+            let entry = try #require(strings[key] as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v141Identifiers))
+            let comment = (entry["comment"] as? String)?.lowercased() ?? ""
+            #expect(comment.contains("row") && comment.contains("counter"))
+
+            for language in SupportedLocalization.v141Identifiers {
+                let translation = try #require(localizations[language] as? [String: Any])
+                let units = stringUnitValues(in: translation)
+                #expect(!units.isEmpty)
+                #expect(units.allSatisfy {
+                    !$0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty
+                })
+                #expect(units.allSatisfy { $0 != key })
+            }
+        }
+
+        for (key, expected) in reminderEnglishCopy {
+            #expect(try localizedValue(key, language: "en", strings: strings) == expected)
+        }
+        #expect(
+            try pluralizedValue(
+                "counter.reminder.crossedCount",
+                language: "en",
+                count: 1,
+                strings: strings
+            ) == "1 reminder crossed"
+        )
+        #expect(
+            try pluralizedValue(
+                "counter.reminder.crossedCount",
+                language: "en",
+                count: 2,
+                strings: strings
+            ) == "2 reminders crossed"
         )
     }
 

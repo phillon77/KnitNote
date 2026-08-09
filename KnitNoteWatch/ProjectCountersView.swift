@@ -221,6 +221,8 @@ struct ProjectCountersView: View {
                         observedPendingCount: pending.occurrenceCount
                     )
                 }
+                .frame(minHeight: 44)
+                .accessibilityHint(Text("counter.reminder.complete.hint"))
                 Button("counter.reminder.stop", role: .destructive) {
                     coordinator.stopReminder(
                         projectID: project.id,
@@ -228,6 +230,8 @@ struct ProjectCountersView: View {
                         reminderID: reminder.id
                     )
                 }
+                .frame(minHeight: 44)
+                .accessibilityHint(Text("counter.reminder.stop.hint"))
             }
         }
         .foregroundStyle(WatchWatercolorTheme.ink)

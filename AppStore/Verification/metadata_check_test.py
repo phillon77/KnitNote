@@ -610,12 +610,52 @@ class MetadataValidationTests(unittest.TestCase):
         )
         self.assert_forbidden_claims_by_concept(claims)
 
-    def test_dutch_backup_restore_decoys_are_not_deleted_project_recovery(self) -> None:
+    def test_dutch_recovery_and_share_concept_matrix(self) -> None:
+        forbidden_cases = (
+            ("action first", "deleted project recovery", "Herstel een verwijderd project"),
+            (
+                "action first with modifier",
+                "deleted project recovery",
+                "Herstel met één tik een verwijderd project",
+            ),
+            ("plural modifier", "deleted project recovery", "Verwijderde projecten snel herstellen"),
+            (
+                "project first with source",
+                "deleted project recovery",
+                "Verwijderde projecten vanuit een reservekopie herstellen",
+            ),
+            (
+                "separable verb with modifier",
+                "deleted project recovery",
+                "Zet een verwijderd project eenvoudig terug",
+            ),
+            (
+                "system-language display",
+                "Share system-only language",
+                "Het deelscherm toont uitsluitend de systeemtaal",
+            ),
+            (
+                "system-language configuration",
+                "Share system-only language",
+                "De deel-extensie is ingesteld op de systeemtaal",
+            ),
+        )
+        for label, concept, description in forbidden_cases:
+            with self.subTest(label=label):
+                path = self.write_metadata(Description=description)
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: {concept}",
+                    validate(path),
+                )
+
         for description in (
             "Een verwijderd project blijft verwijderd; alleen een gekozen "
             "reservekopie kan worden hersteld.",
             "Een verwijderd project blijft verwijderd. Herstel alleen de "
             "reservekopie die je zelf kiest.",
+            "Herstel een reservekopie van een verwijderd project.",
+            "Zet een reservekopie terug; een verwijderd project blijft verwijderd.",
+            "Verwijderde projecten blijven verwijderd en herstel alleen een reservekopie.",
         ):
             with self.subTest(description=description):
                 path = self.write_metadata(Description=description)

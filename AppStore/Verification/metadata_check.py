@@ -128,9 +128,6 @@ FORBIDDEN_PATTERNS = (
             r"borttagna[ -]+projekt.{0,120}återställ\w*|"
             r"poistetut[ -]+projektit.{0,120}palaut\w*|"
             r"slettede[ -]+projekter.{0,120}gendann\w*|"
-            r"(?:herstel\w*|terugzet\w*)[ -]+(?:een[ -]+)?verwijderd(?:e)?[ -]+project(?:en)?|"
-            r"verwijderd(?:e)?[ -]+project(?:en)?(?:[ -]+(?:kan|kunnen|weer|worden|wordt|eenvoudig))*[ -]+(?:herstel\w*|terugzet\w*)|"
-            r"zet[ -]+(?:een[ -]+)?verwijderd(?:e)?[ -]+project(?:en)?[ -]+terug|"
             r"τα[ -]+διαγραμμένα[ -]+έργα.{0,120}(?:ανακτηθ\w*|επαναφερ\w*)"
             r")(?!\w)|"
             r"已刪除的?作品.{0,80}(?:復原|恢復)|"
@@ -178,8 +175,6 @@ FORBIDDEN_PATTERNS = (
             r"(?:delningstillägget|delningsvyerna).{0,120}systemspråket|"
             r"(?:jakolaajennus|jakonäkymät).{0,120}järjestelmän[ -]+kieltä|"
             r"(?:delingsudvidelsen|delingsvisningerne).{0,120}systemets[ -]+sprog|"
-            r"(?:deel[ -]+extensie|deelscherm(?:en)?).{0,120}"
-            r"(?:gebruik(?:t|en)|werk(?:t|en)|volg(?:t|en)|sta(?:at|an)).{0,30}systeemtaal|"
             r"(?:공유[ -]+확장[ -]+프로그램|공유[ -]+화면).{0,80}시스템[ -]+언어|"
             r"(?:επέκταση|προβολέσ)[ -]+κοινήσ[ -]+χρήσησ.{0,120}"
             r"γλώσσα[ -]+του[ -]+συστήματοσ"
@@ -306,6 +301,14 @@ LANGUAGE_CONTRACTS = {
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")
 CLAIM_DASH = re.compile(r"[\u2010-\u2015\u2212]")
+DUTCH_CLAUSE_BOUNDARY = re.compile(r"[.;:!?]+")
+DUTCH_TOKEN = re.compile(r"\w+")
+DUTCH_RECOVERY_WINDOW = 8
+DUTCH_SHARE_WINDOW = 12
+DUTCH_SHARE_STATE_VERBS = {
+    "gebruikt", "gebruiken", "werkt", "werken", "volgt", "volgen",
+    "staat", "staan", "toont", "tonen",
+}
 
 
 def parse(path: Path) -> dict[str, str]:
@@ -335,6 +338,80 @@ def normalized_claim_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold()
     normalized = CLAIM_DASH.sub("-", normalized)
     return CLAIM_WHITESPACE.sub(" ", normalized)
+
+
+def dutch_claim_clauses(value: str) -> list[list[str]]:
+    """Split normalized Dutch copy into bounded token windows."""
+    return [
+        DUTCH_TOKEN.findall(clause)
+        for clause in DUTCH_CLAUSE_BOUNDARY.split(value)
+        if clause
+    ]
+
+
+def dutch_deleted_project_recovery_claim(value: str) -> bool:
+    """Detect a deleted-project plus restore/put-back relationship per clause."""
+    for tokens in dutch_claim_clauses(value):
+        project_indices = [
+            index + 1
+            for index in range(len(tokens) - 1)
+            if tokens[index] in {"verwijderd", "verwijderde"}
+            and tokens[index + 1] in {"project", "projecten"}
+        ]
+        action_indices = [
+            index
+            for index, token in enumerate(tokens)
+            if token.startswith(("herstel", "terugzet"))
+            or (
+                token == "zet"
+                and "terug" in tokens[index + 1:index + DUTCH_RECOVERY_WINDOW + 1]
+            )
+        ]
+        for project_index in project_indices:
+            for action_index in action_indices:
+                if 0 < action_index - project_index <= DUTCH_RECOVERY_WINDOW:
+                    between = tokens[project_index + 1:action_index]
+                    if not any(
+                        between[index] in {"blijft", "blijven"}
+                        and between[index + 1] in {"verwijderd", "verwijderde"}
+                        for index in range(len(between) - 1)
+                    ):
+                        return True
+                if 0 < project_index - action_index <= DUTCH_RECOVERY_WINDOW:
+                    if not any(
+                        token.startswith("reservekopie")
+                        for token in tokens[action_index + 1:project_index]
+                    ):
+                        return True
+    return False
+
+
+def dutch_share_system_language_claim(value: str) -> bool:
+    """Detect a Share surface using or being set to the system language."""
+    for tokens in dutch_claim_clauses(value):
+        share_indices = [
+            index
+            for index, token in enumerate(tokens)
+            if token in {"deelscherm", "deelschermen"}
+            or (token == "deel" and index + 1 < len(tokens) and tokens[index + 1] == "extensie")
+        ]
+        system_language_indices = [
+            index for index, token in enumerate(tokens) if token == "systeemtaal"
+        ]
+        for share_index in share_indices:
+            for language_index in system_language_indices:
+                start, end = sorted((share_index, language_index))
+                if end - start > DUTCH_SHARE_WINDOW:
+                    continue
+                window = tokens[start:end + 1]
+                has_state_verb = any(token in DUTCH_SHARE_STATE_VERBS for token in window)
+                has_configuration = any(
+                    window[index:index + 3] in (["is", "ingesteld", "op"], ["zijn", "ingesteld", "op"])
+                    for index in range(len(window) - 2)
+                )
+                if has_state_verb or has_configuration:
+                    return True
+    return False
 
 
 def validate(path: Path) -> list[str]:
@@ -382,6 +459,10 @@ def validate(path: Path) -> list[str]:
     for concept, pattern in FORBIDDEN_PATTERNS:
         if pattern.search(searchable):
             errors.append(f"{path}: copy: forbidden release claim: {concept}")
+    if dutch_deleted_project_recovery_claim(searchable):
+        errors.append(f"{path}: copy: forbidden release claim: deleted project recovery")
+    if dutch_share_system_language_claim(searchable):
+        errors.append(f"{path}: copy: forbidden release claim: Share system-only language")
 
     for name in ("Support URL", "Marketing URL", "Privacy URL"):
         value = fields.get(name, "")

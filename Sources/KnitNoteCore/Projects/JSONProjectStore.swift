@@ -1033,19 +1033,22 @@ final class PatternLibraryDeletionTransaction {
             throw PatternLibraryMutationError.projectNotFound
         }
         var stagedProjects = projects
-        stagedProjects[projectIndex].selectCounter(id: counterID)
         let result: StoredProjectCounterMutationResult?
+        let didAcceptMutation: Bool
         switch mutation {
         case .increment:
             result = stagedProjects[projectIndex].incrementCounter(id: counterID)
+            didAcceptMutation = result != nil
         case .reset:
             result = stagedProjects[projectIndex].resetCounter(id: counterID)
+            didAcceptMutation = result != nil
         case let .update(name, value):
             result = stagedProjects[projectIndex].updateCounter(
                 id: counterID,
                 name: name,
                 value: value
             )
+            didAcceptMutation = result != nil
         case let .manage(name, value, reminder):
             result = stagedProjects[projectIndex].manageCounter(
                 id: counterID,
@@ -1053,20 +1056,25 @@ final class PatternLibraryDeletionTransaction {
                 value: value,
                 reminder: reminder
             )
+            didAcceptMutation = result != nil
         case let .completeReminder(reminderID, observedCount):
-            stagedProjects[projectIndex].completeCounterReminder(
+            didAcceptMutation = stagedProjects[projectIndex].completeCounterReminder(
                 id: counterID,
                 reminderID: reminderID,
                 observedCount: observedCount
             )
             result = nil
         case let .stopReminder(reminderID):
-            stagedProjects[projectIndex].stopCounterReminder(
+            didAcceptMutation = stagedProjects[projectIndex].stopCounterReminder(
                 id: counterID,
                 reminderID: reminderID
             )
             result = nil
         }
+        guard didAcceptMutation else {
+            return PatternReaderCounterMutationResult(generation: dataGeneration, outcome: nil)
+        }
+        stagedProjects[projectIndex].selectCounter(id: counterID)
         try persist(projects: stagedProjects, yarns: yarns)
         return PatternReaderCounterMutationResult(
             generation: dataGeneration,
@@ -2422,14 +2430,14 @@ final class PatternLibraryDeletionTransaction {
 
     private func mutateActiveCounterProject(
         id: UUID,
-        _ body: (inout StoredProject) -> Void
+        _ body: (inout StoredProject) -> Bool
     ) throws {
         guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
         guard !projects[index].isCompleted else {
             throw PatternLibraryMutationError.projectCompleted
         }
         var staged = projects
-        body(&staged[index])
+        guard body(&staged[index]) else { return }
         try persist(projects: staged, yarns: yarns)
     }
 

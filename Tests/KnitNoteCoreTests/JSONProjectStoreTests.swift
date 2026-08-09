@@ -98,6 +98,121 @@ import UniformTypeIdentifiers
     #expect(stopped.reminder?.nextTarget == nil)
 }
 
+@MainActor @Test func rejectedDirectReminderOperationsPublishNothing() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Cardigan")
+    let project = try #require(store.projects.first)
+    let counterID = project.counters[0].id
+    try store.configureCounterReminder(
+        projectID: project.id,
+        counterID: counterID,
+        draft: .oneTime(target: 2, message: nil)
+    )
+    _ = try store.updateCounter(
+        projectID: project.id,
+        counterID: counterID,
+        name: nil,
+        value: 2
+    )
+    let pending = try #require(store.project(id: project.id)?.counters[0].reminder?.pending)
+    let rejectedOperations: [() throws -> Void] = [
+        {
+            try store.configureCounterReminder(
+                projectID: project.id,
+                counterID: UUID(),
+                draft: .oneTime(target: 3, message: nil)
+            )
+        },
+        {
+            try store.completeCounterReminder(
+                projectID: project.id,
+                counterID: counterID,
+                reminderID: pending.reminderID,
+                observedCount: pending.occurrenceCount + 1
+            )
+        },
+        {
+            try store.stopCounterReminder(
+                projectID: project.id,
+                counterID: counterID,
+                reminderID: UUID()
+            )
+        },
+    ]
+
+    for operation in rejectedOperations {
+        let projectsBefore = store.projects
+        let generationBefore = store.dataGeneration
+        let archiveBefore = try Data(contentsOf: url)
+
+        try operation()
+
+        #expect(store.projects == projectsBefore)
+        #expect(store.project(id: project.id)?.selectedCounterID == project.selectedCounterID)
+        #expect(store.dataGeneration == generationBefore)
+        #expect(try Data(contentsOf: url) == archiveBefore)
+    }
+}
+
+@MainActor @Test func completedProjectRejectsDirectReminderOperationsWithoutPublishing() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let store = JSONProjectStore(url: url)
+    try store.add(name: "Cardigan")
+    let project = try #require(store.projects.first)
+    let counterID = project.counters[0].id
+    try store.configureCounterReminder(
+        projectID: project.id,
+        counterID: counterID,
+        draft: .oneTime(target: 1, message: nil)
+    )
+    _ = try store.updateCounter(
+        projectID: project.id,
+        counterID: counterID,
+        name: nil,
+        value: 1
+    )
+    let pending = try #require(store.project(id: project.id)?.counters[0].reminder?.pending)
+    try store.markCompleted(projectID: project.id)
+    let operations: [() throws -> Void] = [
+        {
+            try store.configureCounterReminder(
+                projectID: project.id,
+                counterID: counterID,
+                draft: .oneTime(target: 2, message: nil)
+            )
+        },
+        {
+            try store.completeCounterReminder(
+                projectID: project.id,
+                counterID: counterID,
+                reminderID: pending.reminderID,
+                observedCount: pending.occurrenceCount
+            )
+        },
+        {
+            try store.stopCounterReminder(
+                projectID: project.id,
+                counterID: counterID,
+                reminderID: pending.reminderID
+            )
+        },
+    ]
+
+    for operation in operations {
+        let projectsBefore = store.projects
+        let generationBefore = store.dataGeneration
+        let archiveBefore = try Data(contentsOf: url)
+
+        #expect(throws: PatternLibraryMutationError.projectCompleted) {
+            try operation()
+        }
+        #expect(store.projects == projectsBefore)
+        #expect(store.dataGeneration == generationBefore)
+        #expect(try Data(contentsOf: url) == archiveBefore)
+    }
+}
+
 @MainActor @Test func storePersistsCompletionAndResume() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let store = JSONProjectStore(url: url)

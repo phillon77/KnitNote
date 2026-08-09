@@ -606,6 +606,28 @@ import UniformTypeIdentifiers
             )
         },
         {
+            try $0.configureCounterReminder(
+                projectID: fixture.projectID,
+                counterID: fixture.counterID,
+                draft: .oneTime(target: 1, message: nil)
+            )
+        },
+        {
+            try $0.completeCounterReminder(
+                projectID: fixture.projectID,
+                counterID: fixture.counterID,
+                reminderID: UUID(),
+                observedCount: 1
+            )
+        },
+        {
+            try $0.stopCounterReminder(
+                projectID: fixture.projectID,
+                counterID: fixture.counterID,
+                reminderID: UUID()
+            )
+        },
+        {
             try $0.renameCounter(
                 projectID: fixture.projectID,
                 counterID: fixture.counterID,
@@ -620,11 +642,20 @@ import UniformTypeIdentifiers
                 expectedDataGeneration: $0.dataGeneration
             )
         },
+        {
+            _ = try $0.mutatePatternReaderCounterWithOutcome(
+                usageID: fixture.usageID,
+                counterID: fixture.counterID,
+                mutation: .completeReminder(reminderID: UUID(), observedCount: 1),
+                expectedDataGeneration: $0.dataGeneration
+            )
+        },
     ]
 
     for operation in operations {
         fixture.authorizer.reset()
         let projectsBefore = fixture.store.projects
+        let generationBefore = fixture.store.dataGeneration
         let archiveBefore = try Data(contentsOf: fixture.archiveURL)
 
         #expect(throws: ProjectStoreError.accessRestricted) {
@@ -632,6 +663,7 @@ import UniformTypeIdentifiers
         }
         #expect(fixture.authorizer.mutations == [.changeCounter])
         #expect(fixture.store.projects == projectsBefore)
+        #expect(fixture.store.dataGeneration == generationBefore)
         #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
     }
 }

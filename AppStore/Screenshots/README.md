@@ -35,8 +35,8 @@ export IPHONE_UDID='<dedicated iPhone 17 Pro Max UDID>'
 export IPAD_UDID='<dedicated iPad Pro 13-inch UDID>'
 export WATCH_UDID='<dedicated Apple Watch 46mm UDID>'
 CANDIDATE_COMMIT="$(git rev-parse HEAD)"
-CANDIDATE_VERSION='1.4.1'
-CANDIDATE_BUILD='8'
+CANDIDATE_VERSION='1.5.0'
+CANDIDATE_BUILD='9'
 AppStore/Screenshots/capture.sh --all-locales "$CANDIDATE_COMMIT" "$CANDIDATE_VERSION" "$CANDIDATE_BUILD"
 AppStore/Screenshots/python_runtime.sh AppStore/Screenshots/compose.py AppStore/Screenshots/manifest.json
 AppStore/Screenshots/python_runtime.sh AppStore/Screenshots/validate.py \
@@ -46,7 +46,7 @@ AppStore/Screenshots/python_runtime.sh AppStore/Screenshots/validate.py \
   --expected-build "$CANDIDATE_BUILD"
 ```
 
-The all-locales command refuses a dirty or different revision and requires canonical identifiers plus exact `1.4.1 (8)` and `KnitNoteSourceRevision` in the iOS, Watch, and Mac products. It hashes all three executables before capture, rechecks product identity and hashes afterward, binds all 168 raw files and the exact manifest bytes, then atomically publishes `Raw/` with its provenance. Composition authenticates that evidence, renders into staging, and atomically publishes `Generated/` with durable provenance and hashes for all 168 upload images. Full validation independently requires the expected immutable commit, version, and build, so a self-consistent screenshot set from an older candidate is rejected. A failed capture or composition preserves the prior complete directory.
+The all-locales command refuses a dirty or different revision and requires canonical identifiers plus exact `1.5.0 (9)` and `KnitNoteSourceRevision` in the iOS, Watch, and Mac products. It hashes all three executables before capture, rechecks product identity and hashes afterward, binds all 168 raw files and the exact manifest bytes, then atomically publishes `Raw/` with its provenance. Composition authenticates that evidence, renders into staging, and atomically publishes `Generated/` with durable provenance and hashes for all 168 upload images. Full validation independently requires the expected immutable commit, version, and build, so a self-consistent screenshot set from an older candidate is rejected. A failed capture or composition preserves the prior complete directory.
 
 `KNITNOTE_SCREENSHOT_CAPTURE_RUNNER` is a test-only fault-injection seam. Production capture rejects it; repository tests must opt in with `capture.sh --test-only`.
 

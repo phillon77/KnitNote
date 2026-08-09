@@ -57,11 +57,11 @@ import Testing
         )
 
         #expect(result.status != 0)
-        #expect(result.output.contains("iOS product version is 1.3.1, expected 1.4.1"))
+        #expect(result.output.contains("iOS product version is 1.3.1, expected 1.5.0"))
     }
 
     @Test func archiveAuditRejectsPreviousBuildAcrossShippingProducts() throws {
-        let fixture = try makeArchiveFixture(version: "1.4.1", build: "7")
+        let fixture = try makeArchiveFixture(version: "1.5.0", build: "8")
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
 
         let result = try runReleaseAudit(
@@ -930,7 +930,7 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: successful.final.appendingPathComponent("Distribution/macOS/Packaging.log").path))
         #expect(FileManager.default.fileExists(atPath: successful.final.appendingPathComponent(".TEST_FIXTURE_NOT_FOR_RELEASE").path))
         let successfulRemaining = try FileManager.default.contentsOfDirectory(atPath: successful.parent.path)
-        #expect(!successfulRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") || $0.hasPrefix(".KnitNote-1.4.1.worktree.") }))
+        #expect(!successfulRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.5.0.staging.") || $0.hasPrefix(".KnitNote-1.5.0.worktree.") }))
         let permissions = try #require(
             FileManager.default.attributesOfItem(atPath: successful.final.path)[.posixPermissions] as? NSNumber
         )
@@ -943,7 +943,7 @@ import Testing
         #expect(raced.result.output.contains("candidate destination appeared during exclusive publication"))
         #expect(!FileManager.default.fileExists(atPath: raced.final.appendingPathComponent("artifacts").path))
         let remaining = try FileManager.default.contentsOfDirectory(atPath: raced.parent.path)
-        #expect(!remaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") }))
+        #expect(!remaining.contains(where: { $0.hasPrefix(".KnitNote-1.5.0.staging.") }))
 
         let cleanupFailure = try runCreatorFixture(raceDestination: false, cleanupFailure: true)
         defer { try? FileManager.default.removeItem(at: cleanupFailure.root) }
@@ -951,14 +951,14 @@ import Testing
         #expect(!cleanupFailure.result.output.contains("Release candidate created at"))
         #expect(!FileManager.default.fileExists(atPath: cleanupFailure.final.path))
         let cleanupRemaining = try FileManager.default.contentsOfDirectory(atPath: cleanupFailure.parent.path)
-        #expect(!cleanupRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") || $0.hasPrefix(".KnitNote-1.4.1.worktree.") }))
+        #expect(!cleanupRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.5.0.staging.") || $0.hasPrefix(".KnitNote-1.5.0.worktree.") }))
 
         let secondMktempFailure = try runCreatorFixture(raceDestination: false, secondMktempFailure: true)
         defer { try? FileManager.default.removeItem(at: secondMktempFailure.root) }
         #expect(secondMktempFailure.result.status != 0)
         #expect(!FileManager.default.fileExists(atPath: secondMktempFailure.final.path))
         let mktempRemaining = try FileManager.default.contentsOfDirectory(atPath: secondMktempFailure.parent.path)
-        #expect(!mktempRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.4.1.staging.") || $0.hasPrefix(".KnitNote-1.4.1.worktree.") }))
+        #expect(!mktempRemaining.contains(where: { $0.hasPrefix(".KnitNote-1.5.0.staging.") || $0.hasPrefix(".KnitNote-1.5.0.worktree.") }))
     }
 
     @Test func distributionSigningContractUsesTheExpectedTeamForEveryReleaseArchive() throws {
@@ -1952,8 +1952,8 @@ private func makeArchiveFixture(
     omittingDirectory: (target: String, locale: String)? = nil,
     extraDirectory: (target: String, locale: String)? = nil,
     localizationOverrides: [String: [String]] = [:],
-    version: String = "1.4.1",
-    build: String = "8",
+    version: String = "1.5.0",
+    build: String = "9",
     sourceRevision: String = fixtureCommit,
     emptyResource: (String, String)? = nil,
     privacyTracking: Bool = false,

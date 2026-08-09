@@ -55,38 +55,38 @@ import Testing
         #expect(project.contains("WKCompanionAppBundleIdentifier: com.phillon.KnitNote"))
     }
 
-    @Test func releaseCandidateUsesBuildEightAcrossEveryBundle() throws {
+    @Test func releaseCandidateUsesBuildNineAcrossEveryBundle() throws {
         let specification = try source("project.yml")
         let generatedProject = try source("KnitNote.xcodeproj/project.pbxproj")
 
         #expect(
             specification.components(
-                separatedBy: "CURRENT_PROJECT_VERSION: 8"
+                separatedBy: "CURRENT_PROJECT_VERSION: 9"
             ).count == 4
         )
         #expect(
             generatedProject.components(
-                separatedBy: "CURRENT_PROJECT_VERSION = 8;"
+                separatedBy: "CURRENT_PROJECT_VERSION = 9;"
             ).count == 7
         )
-        #expect(!generatedProject.contains("CURRENT_PROJECT_VERSION = 7;"))
+        #expect(!generatedProject.contains("CURRENT_PROJECT_VERSION = 8;"))
     }
 
-    @Test func releaseCandidateUsesVersionOnePointFourPointOneAcrossEveryBundle() throws {
+    @Test func releaseCandidateUsesVersionOnePointFivePointZeroAcrossEveryBundle() throws {
         let specification = try source("project.yml")
         let generatedProject = try source("KnitNote.xcodeproj/project.pbxproj")
 
         #expect(
             specification.components(
-                separatedBy: "MARKETING_VERSION: 1.4.1"
+                separatedBy: "MARKETING_VERSION: 1.5.0"
             ).count == 4
         )
         #expect(
             generatedProject.components(
-                separatedBy: "MARKETING_VERSION = 1.4.1;"
+                separatedBy: "MARKETING_VERSION = 1.5.0;"
             ).count == 7
         )
-        #expect(!generatedProject.contains("MARKETING_VERSION = 1.4.0;"))
+        #expect(!generatedProject.contains("MARKETING_VERSION = 1.4.1;"))
     }
 
     @Test func watchInfoMarksTheEmbeddedProductAsAWatchApplication() throws {

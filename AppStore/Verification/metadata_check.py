@@ -291,7 +291,7 @@ LANGUAGE_CONTRACTS = {
             "Noors Bokmål", "Zweeds", "Fins", "Deens", "Koreaans", "Grieks", "Nederlands",
         ),
         "surfaces": ("Instellingen", "Apple Watch", "deelschermen"),
-        "version": "1.5",
+        "version": "1.5.0",
         "whats_new_languages": (),
         "whats_new_tokens": (
             "gebruik van tellers", "herinneringen", "Apple Watch", "Nederlands", "Projecten", "app-taal",

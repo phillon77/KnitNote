@@ -167,9 +167,9 @@ Expected: focused suites PASS and generated project is stable.
 
 First complete the original Task 2 main/InfoPlist catalog and terminology work and the original Task 3 Watch/Share catalog work. Before committing, add `nl` to all three `CFBundleLocalizations` declarations in `project.yml`, regenerate the Info plists and PBX project, and update `release_audit.sh`, `ReleaseAuditLocalizationTests`, and `ReleaseCandidateIdentityTests` to the exact thirteen-locale contract. Run the release-audit suite and the full Swift suite green in the same task; do not commit a source, catalog, configuration, generated-project, or audit-only intermediate state.
 
-- [ ] **Step 1: Change catalog contracts to require Dutch and witness RED**
+- [ ] **Step 1: Change every shipping catalog contract to require Dutch and witness RED**
 
-For the production main and InfoPlist catalog assertions, replace the v1.4.1 set with `SupportedLocalization.v150Identifiers`. Add an explicit semantic-key test:
+For the production main, InfoPlist, Watch, and Share catalog assertions, replace the v1.4.1 set with `SupportedLocalization.v150Identifiers`. Add explicit main, Watch, and Share semantic-key tests:
 
 ```swift
 @Test func DutchLanguagePickerAndProjectNavigationHaveReviewedCopy() throws {
@@ -185,10 +185,35 @@ For the production main and InfoPlist catalog assertions, replace the v1.4.1 set
 }
 ```
 
+```swift
+@Test func DutchWatchAndShareCoreActionsUseReviewedCopy() throws {
+    try assertExactTranslations(
+        catalog: "KnitNoteWatch/Localizable.xcstrings",
+        language: "nl",
+        expected: [
+            "watch.counter.decrement": "Verminder met één",
+            "watch.counter.reset": "Zet op nul",
+            "watch.counter.cancel": "Annuleer",
+        ]
+    )
+    try assertExactTranslations(
+        catalog: "KnitNoteShare/Localizable.xcstrings",
+        language: "nl",
+        expected: [
+            "share.title": "Voeg toe aan KnitNote",
+            "share.cancel": "Annuleer",
+            "share.close": "Sluit",
+        ]
+    )
+}
+```
+
 Run:
 
 ```bash
 swift test --disable-sandbox --filter StringCatalogLocalizationContractTests
+swift test --disable-sandbox --filter ShareExtensionLocalizationContractTests
+swift test --disable-sandbox --filter WatchPackagingContractTests
 ```
 
 Expected: FAIL for missing `nl` values.
@@ -216,9 +241,9 @@ swift test --disable-sandbox --filter KnittingTerminologyContractTests
 
 Expected before CSV update: FAIL for missing Dutch column/values.
 
-- [ ] **Step 3: Add complete Dutch catalog values**
+- [ ] **Step 3: Add complete Dutch values to every shipping catalog**
 
-Add a non-empty, non-stale `nl` `stringUnit` or variation for every source key in `Localizable.xcstrings` and `InfoPlist.xcstrings`. Preserve numbered format argument types and plural categories. Translate UI/system copy only; keep examples that represent user-authored content explicitly marked as examples rather than runtime rewriting.
+Add a non-empty, non-stale `nl` `stringUnit` or variation for every source key in `Localizable.xcstrings`, `InfoPlist.xcstrings`, `KnitNoteWatch/Localizable.xcstrings`, and `KnitNoteShare/Localizable.xcstrings`. Preserve numbered format argument types and plural categories. Translate UI/system copy only; keep examples that represent user-authored content explicitly marked as examples rather than runtime rewriting. Keep Watch accessibility labels short but unambiguous, Share copy specific to file import, and all user-created project/counter/reminder content verbatim.
 
 For reminder copy from the counter-reminder plan, use reviewed equivalents based on these meanings:
 
@@ -229,94 +254,33 @@ Stop reminder = Herinnering stoppen
 %lld reminders crossed = %lld herinneringen gepasseerd
 ```
 
-- [ ] **Step 4: Run behavior and terminology checks**
+- [ ] **Step 4: Run focused checks and the atomic release gate**
 
 ```bash
 swift test --disable-sandbox --filter StringCatalogLocalizationContractTests
 swift test --disable-sandbox --filter KnittingTerminologyContractTests
 swift test --disable-sandbox --filter RuntimeLocalizationBehaviorTests
+swift test --disable-sandbox --filter ShareExtensionLocalizationContractTests
+swift test --disable-sandbox --filter WatchPackagingContractTests
+swift test --disable-sandbox --filter WatchCounterViewContractTests
+swift test --disable-sandbox --filter ReleaseAuditLocalizationTests
+swift test --disable-sandbox
 ```
 
-Expected: all focused suites PASS; format/plural tokens match English source intent.
+Expected: all focused suites, the release-audit suite, and the full Swift suite PASS immediately before the one atomic commit; format/plural tokens match English source intent.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add KnitNote/Localization/Localizable.xcstrings KnitNote/Localization/InfoPlist.xcstrings AppStore/Localization/KnittingTerminology.csv AppStore/Localization/README.md Tests/KnitNoteCoreTests/LocalizationContractTests.swift Tests/KnitNoteCoreTests/KnittingTerminologyContractTests.swift Tests/KnitNoteCoreTests/RuntimeLocalizationBehaviorTests.swift
-git commit -m "feat: add reviewed Dutch app localization"
+git add KnitNote/Localization/Localizable.xcstrings KnitNote/Localization/InfoPlist.xcstrings KnitNoteWatch/Localizable.xcstrings KnitNoteShare/Localizable.xcstrings AppStore/Localization/KnittingTerminology.csv AppStore/Localization/README.md project.yml KnitNote/Info.plist KnitNoteWatch/Info.plist KnitNoteShare/Info.plist KnitNote.xcodeproj/project.pbxproj AppStore/Verification/release_audit.sh Tests/KnitNoteCoreTests/LocalizationContractTests.swift Tests/KnitNoteCoreTests/KnittingTerminologyContractTests.swift Tests/KnitNoteCoreTests/RuntimeLocalizationBehaviorTests.swift Tests/KnitNoteCoreTests/ShareExtensionLocalizationContractTests.swift Tests/KnitNoteCoreTests/WatchPackagingContractTests.swift Tests/KnitNoteCoreTests/WatchCounterViewContractTests.swift Tests/KnitNoteCoreTests/ReleaseAuditLocalizationTests.swift Tests/KnitNoteCoreTests/ReleaseCandidateIdentityTests.swift
+git commit -m "feat: add complete Dutch shipping localization"
 ```
 
 ---
 
 ### Task 3: Superseded by Task 2 atomic transition
 
-Do not execute this task independently. Its catalog work and verification are part of Task 2 so the release-audit contract never has an intentionally red intermediate state.
-
-**Files:**
-- Modify: `KnitNoteWatch/Localizable.xcstrings`
-- Modify: `KnitNoteShare/Localizable.xcstrings`
-- Modify: `Tests/KnitNoteCoreTests/ShareExtensionLocalizationContractTests.swift`
-- Modify: `Tests/KnitNoteCoreTests/WatchPackagingContractTests.swift`
-- Modify: `Tests/KnitNoteCoreTests/WatchCounterViewContractTests.swift`
-
-**Interfaces:**
-- Consumes: Task 1 locale set and Task 2 terminology.
-- Produces: complete Dutch Watch and Share catalogs.
-
-- [ ] **Step 1: Write failing completeness and exact-copy tests**
-
-```swift
-@Test func watchAndShareCatalogsAreCompleteForVersion150Languages() throws {
-    for path in ["KnitNoteWatch/Localizable.xcstrings", "KnitNoteShare/Localizable.xcstrings"] {
-        try assertCompleteCatalog(
-            at: patternLibraryRepositoryURL(path),
-            requiredLanguages: SupportedLocalization.v150Identifiers
-        )
-    }
-}
-
-@Test func DutchWatchAndShareCoreActionsUseReviewedCopy() throws {
-    try assertExactTranslations(
-        catalog: "KnitNoteWatch/Localizable.xcstrings",
-        language: "nl",
-        expected: [
-            "watch.counter.decrement": "Verminder met één",
-            "watch.counter.reset": "Zet op nul",
-            "watch.counter.cancel": "Annuleer",
-        ]
-    )
-    try assertExactTranslations(
-        catalog: "KnitNoteShare/Localizable.xcstrings",
-        language: "nl",
-        expected: [
-            "share.title": "Voeg toe aan KnitNote",
-            "share.cancel": "Annuleer",
-            "share.close": "Sluit",
-        ]
-    )
-}
-```
-
-- [ ] **Step 2: Run RED**
-
-```bash
-swift test --disable-sandbox --filter ShareExtensionLocalizationContractTests
-swift test --disable-sandbox --filter WatchPackagingContractTests
-```
-
-- [ ] **Step 3: Add all Dutch Watch and Share values**
-
-Translate every key and variation using compact Watch wording and file-import semantics for Share. Preserve custom project/counter/reminder text as verbatim data. Keep all Watch accessibility labels short but unambiguous.
-
-- [ ] **Step 4: Verify and commit**
-
-```bash
-swift test --disable-sandbox --filter ShareExtensionLocalizationContractTests
-swift test --disable-sandbox --filter WatchPackagingContractTests
-swift test --disable-sandbox --filter WatchCounterViewContractTests
-git add KnitNoteWatch/Localizable.xcstrings KnitNoteShare/Localizable.xcstrings Tests/KnitNoteCoreTests/ShareExtensionLocalizationContractTests.swift Tests/KnitNoteCoreTests/WatchPackagingContractTests.swift Tests/KnitNoteCoreTests/WatchCounterViewContractTests.swift
-git commit -m "feat: localize Watch and Share in Dutch"
-```
+- [ ] **No execution/commit: delivered and reviewed inside Task 2.**
 
 ---
 

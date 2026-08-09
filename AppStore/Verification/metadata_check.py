@@ -305,9 +305,11 @@ DUTCH_CLAUSE_BOUNDARY = re.compile(r"[.;:!?]+")
 DUTCH_TOKEN = re.compile(r"\w+")
 DUTCH_RECOVERY_WINDOW = 8
 DUTCH_SHARE_WINDOW = 12
+DUTCH_NEGATION_WINDOW = 3
+DUTCH_NEGATION_TOKENS = {"geen", "niet"}
 DUTCH_SHARE_STATE_VERBS = {
     "gebruikt", "gebruiken", "werkt", "werken", "volgt", "volgen",
-    "staat", "staan", "toont", "tonen",
+    "staat", "staan", "toont", "tonen", "weergegeven",
 }
 
 
@@ -349,6 +351,55 @@ def dutch_claim_clauses(value: str) -> list[list[str]]:
     ]
 
 
+def dutch_relation_is_negated(tokens: list[str], *relation_indices: int) -> bool:
+    """Return whether a bounded claim relationship is negated.
+
+    Dutch places ``niet`` either beside a predicate or after its object, while
+    ``geen`` can precede the restored object.  Limiting the scan to the
+    relationship plus three adjacent modifier tokens keeps a separate clause
+    from changing the polarity of this claim.
+    """
+    start = max(0, min(relation_indices) - DUTCH_NEGATION_WINDOW)
+    end = min(len(tokens), max(relation_indices) + DUTCH_NEGATION_WINDOW + 1)
+    return any(token in DUTCH_NEGATION_TOKENS for token in tokens[start:end])
+
+
+def dutch_action_targets_backup(
+    tokens: list[str], action_index: int, project_index: int,
+) -> bool:
+    """Return whether a recovery action's object is a backup, not a project.
+
+    A backup between an action and the deleted project is its direct object.
+    When the project introduces the clause, inspect the bounded tokens after
+    the action instead.  ``met`` and ``vanuit`` denote a backup source, so
+    those constructions still describe restoring the project and must block.
+    """
+    if action_index < project_index:
+        end = project_index
+    else:
+        end = min(len(tokens), action_index + DUTCH_RECOVERY_WINDOW + 1)
+
+    for backup_index in range(action_index + 1, end):
+        if not tokens[backup_index].startswith("reservekopie"):
+            continue
+        before_backup = tokens[action_index + 1:backup_index]
+        return not any(token in {"met", "vanuit"} for token in before_backup)
+    return False
+
+
+def dutch_project_explicitly_remains_deleted(
+    tokens: list[str], project_index: int, action_index: int,
+) -> bool:
+    """Preserve safe copy that says a deleted project remains deleted."""
+    start, end = sorted((project_index, action_index))
+    relationship = tokens[start:end + 1]
+    return any(
+        relationship[index] in {"blijft", "blijven"}
+        and relationship[index + 1] in {"verwijderd", "verwijderde"}
+        for index in range(len(relationship) - 1)
+    )
+
+
 def dutch_deleted_project_recovery_claim(value: str) -> bool:
     """Detect a deleted-project plus restore/put-back relationship per clause."""
     for tokens in dutch_claim_clauses(value):
@@ -369,21 +420,32 @@ def dutch_deleted_project_recovery_claim(value: str) -> bool:
         ]
         for project_index in project_indices:
             for action_index in action_indices:
-                if 0 < action_index - project_index <= DUTCH_RECOVERY_WINDOW:
-                    between = tokens[project_index + 1:action_index]
-                    if not any(
-                        between[index] in {"blijft", "blijven"}
-                        and between[index + 1] in {"verwijderd", "verwijderde"}
-                        for index in range(len(between) - 1)
-                    ):
-                        return True
-                if 0 < project_index - action_index <= DUTCH_RECOVERY_WINDOW:
-                    if not any(
-                        token.startswith("reservekopie")
-                        for token in tokens[action_index + 1:project_index]
-                    ):
-                        return True
+                if not 0 < abs(action_index - project_index) <= DUTCH_RECOVERY_WINDOW:
+                    continue
+                if dutch_relation_is_negated(tokens, action_index, project_index):
+                    continue
+                if dutch_project_explicitly_remains_deleted(
+                    tokens, project_index, action_index,
+                ):
+                    continue
+                if dutch_action_targets_backup(tokens, action_index, project_index):
+                    continue
+                return True
     return False
+
+
+def dutch_share_predicate_indices(tokens: list[str]) -> list[int]:
+    """Return bounded Share-language predicates, including passive display."""
+    predicates = [
+        index for index, token in enumerate(tokens)
+        if token in DUTCH_SHARE_STATE_VERBS
+    ]
+    for index, token in enumerate(tokens):
+        if token != "ingesteld" or "op" not in tokens[index + 1:index + 3]:
+            continue
+        if any(marker in {"is", "zijn"} for marker in tokens[max(0, index - 3):index]):
+            predicates.append(index)
+    return predicates
 
 
 def dutch_share_system_language_claim(value: str) -> bool:
@@ -393,7 +455,11 @@ def dutch_share_system_language_claim(value: str) -> bool:
             index
             for index, token in enumerate(tokens)
             if token in {"deelscherm", "deelschermen"}
-            or (token == "deel" and index + 1 < len(tokens) and tokens[index + 1] == "extensie")
+            or (
+                token == "deel"
+                and index + 1 < len(tokens)
+                and tokens[index + 1] in {"extensie", "extensies"}
+            )
         ]
         system_language_indices = [
             index for index, token in enumerate(tokens) if token == "systeemtaal"
@@ -403,13 +469,13 @@ def dutch_share_system_language_claim(value: str) -> bool:
                 start, end = sorted((share_index, language_index))
                 if end - start > DUTCH_SHARE_WINDOW:
                     continue
-                window = tokens[start:end + 1]
-                has_state_verb = any(token in DUTCH_SHARE_STATE_VERBS for token in window)
-                has_configuration = any(
-                    window[index:index + 3] in (["is", "ingesteld", "op"], ["zijn", "ingesteld", "op"])
-                    for index in range(len(window) - 2)
-                )
-                if has_state_verb or has_configuration:
+                if any(
+                    start <= predicate_index <= end
+                    and not dutch_relation_is_negated(
+                        tokens, share_index, predicate_index, language_index,
+                    )
+                    for predicate_index in dutch_share_predicate_indices(tokens)
+                ):
                     return True
     return False
 

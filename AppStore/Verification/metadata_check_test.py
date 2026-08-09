@@ -639,6 +639,16 @@ class MetadataValidationTests(unittest.TestCase):
                 "Share system-only language",
                 "De deel-extensie is ingesteld op de systeemtaal",
             ),
+            (
+                "plural Share extension",
+                "Share system-only language",
+                "De deel-extensies gebruiken uitsluitend de systeemtaal",
+            ),
+            (
+                "passive system-language display",
+                "Share system-only language",
+                "Het deelscherm wordt uitsluitend weergegeven in de systeemtaal",
+            ),
         )
         for label, concept, description in forbidden_cases:
             with self.subTest(label=label):
@@ -648,7 +658,7 @@ class MetadataValidationTests(unittest.TestCase):
                     validate(path),
                 )
 
-        for description in (
+        safe_recovery_cases = (
             "Een verwijderd project blijft verwijderd; alleen een gekozen "
             "reservekopie kan worden hersteld.",
             "Een verwijderd project blijft verwijderd. Herstel alleen de "
@@ -656,11 +666,40 @@ class MetadataValidationTests(unittest.TestCase):
             "Herstel een reservekopie van een verwijderd project.",
             "Zet een reservekopie terug; een verwijderd project blijft verwijderd.",
             "Verwijderde projecten blijven verwijderd en herstel alleen een reservekopie.",
-        ):
-            with self.subTest(description=description):
+            "Een verwijderd project kan niet worden hersteld.",
+            "Verwijderde projecten zijn niet te herstellen.",
+            "Herstel geen verwijderd project.",
+            "Zet geen verwijderd project terug.",
+            "Een verwijderd project hoeft niet te worden hersteld.",
+            "Bij een verwijderd project herstel je alleen de reservekopie.",
+            "Bij een verwijderd project zet je alleen de reservekopie terug.",
+            "Een verwijderd project kan vandaag echt niet worden hersteld.",
+            "Herstel vandaag geen verwijderd project.",
+            "Bij een verwijderd project herstel je direct de reservekopie.",
+        )
+        for description in safe_recovery_cases:
+            with self.subTest(kind="recovery safe", description=description):
                 path = self.write_metadata(Description=description)
                 self.assertNotIn(
                     f"{path}: copy: forbidden release claim: deleted project recovery",
+                    validate(path),
+                )
+
+        safe_share_cases = (
+            "Het deelscherm gebruikt niet de systeemtaal.",
+            "De deel-extensie staat niet op de systeemtaal.",
+            "Het deelscherm volgt de systeemtaal niet.",
+            "Het deelscherm volgt de gekozen app-taal, niet de systeemtaal.",
+            "Het deelscherm gebruikt absoluut niet de systeemtaal.",
+            "De deel-extensie is helemaal niet ingesteld op de systeemtaal.",
+            "Het deelscherm wordt niet uitsluitend weergegeven in de systeemtaal.",
+            "Niet het deelscherm maar de app gebruikt de systeemtaal.",
+        )
+        for description in safe_share_cases:
+            with self.subTest(kind="Share safe", description=description):
+                path = self.write_metadata(Description=description)
+                self.assertNotIn(
+                    f"{path}: copy: forbidden release claim: Share system-only language",
                     validate(path),
                 )
 

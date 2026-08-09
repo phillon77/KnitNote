@@ -3,7 +3,7 @@
 ## Implementation commit
 
 - `7c26a34 feat: register Dutch as a shipping language`
-- Round 1 reconciliation commit: pending verification and commit.
+- `2ba3ee3 fix: defer Dutch shipping locale transition`
 
 ## Delivered scope
 

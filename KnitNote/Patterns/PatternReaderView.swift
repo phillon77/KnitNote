@@ -512,8 +512,8 @@ struct PatternReaderView: View {
                 }
             }
             .sheet(item: $managingCounter) { counter in
-                EditCounterNameView(counter: counter) { name, value in
-                    updateCounter(counter, name: name, value: value)
+                CounterManagerView(counter: counter) { save in
+                    manageCounter(counter, save: save)
                 }
             }
             .confirmationDialog("patterns.markup.clear.confirm", isPresented: $confirmingMarkupClear) {
@@ -870,7 +870,7 @@ struct PatternReaderView: View {
     }
 
     @discardableResult
-    private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool {
+    private func manageCounter(_ counter: ProjectCounter, save: CounterManagerSave) -> Bool {
         guard requestReaderWriteAccess() else { return false }
         guard readerSession.canPersist,
               readerSession.identity == readerContextIdentity,
@@ -881,7 +881,7 @@ struct PatternReaderView: View {
             self.expectedDataGeneration = try store.mutatePatternReaderCounter(
                 usageID: usageID,
                 counterID: counter.id,
-                mutation: .update(name: name, value: value),
+                mutation: .manage(name: save.name, value: save.value, reminder: save.reminderEdit),
                 expectedDataGeneration: expectedDataGeneration
             )
             revisionCoordinator.confirmMutation(generation: self.expectedDataGeneration ?? expectedDataGeneration)

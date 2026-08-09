@@ -71,11 +71,14 @@ import Testing
         #expect(source.contains("onManage(counter.id)"))
     }
 
-    @Test func counterManagementButtonsHaveIndependentFormRowActions() throws {
-        let source = try projectSource(named: "EditCounterNameView")
-        let independentStyles = source.components(separatedBy: ".buttonStyle(.borderless)").count - 1
+    @Test func counterManagerKeepsValueEditingAndEssentialControlsVisible() throws {
+        let source = try projectSource(named: "CounterManagerView")
 
-        #expect(independentStyles == 2)
+        #expect(source.contains("TextField(\"counter.value\""))
+        #expect(source.contains("ViewThatFits"))
+        #expect(source.contains("Button(\"counter.minusOne\""))
+        #expect(source.contains("Button(\"counter.reset\""))
+        #expect(!source.contains(".presentationDetents([.medium])"))
     }
 
     @Test func completionUIShowsStatusAndLocksProjectCounters() throws {

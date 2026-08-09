@@ -176,14 +176,15 @@ import Testing
     @Test func readerEditorsDismissOnlyAfterTheirMutationSucceeds() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
         let noteEditor = try sourceFile("KnitNote/Patterns/EditPatternPageNoteView.swift")
-        let counterEditor = try sourceFile("KnitNote/Projects/EditCounterNameView.swift")
+        let counterEditor = try sourceFile("KnitNote/Projects/CounterManagerView.swift")
 
         #expect(noteEditor.contains("let onSave: () -> Bool"))
         #expect(noteEditor.contains("if onSave() { dismiss() }"))
-        #expect(counterEditor.contains("let onDone: (String, Int) -> Bool"))
-        #expect(counterEditor.contains("if onDone(savedName, value) { dismiss() }"))
+        #expect(counterEditor.contains("let onSave: (CounterManagerSave) -> Bool"))
+        #expect(counterEditor.contains("if onSave(savedCounter) { dismiss() }"))
         #expect(reader.contains("private func savePageNoteDirectly() -> Bool"))
-        #expect(reader.contains("private func updateCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool"))
+        #expect(reader.contains("private func manageCounter(_ counter: ProjectCounter, save: CounterManagerSave) -> Bool"))
+        #expect(reader.contains("mutation: .manage(name: save.name, value: save.value, reminder: save.reminderEdit)"))
     }
 
     @Test func readerDisablesWriteControlsOnlyForStructurallyReadOnlyContexts() throws {

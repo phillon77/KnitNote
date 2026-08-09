@@ -170,8 +170,8 @@ struct ProjectDetailView: View {
                 }
             }
             .sheet(item: $managingCounter) { counter in
-                EditCounterNameView(counter: counter) { name, value in
-                    saveCounter(counter, name: name, value: value)
+                CounterManagerView(counter: counter) { save in
+                    saveCounter(counter, save: save)
                 }
             }
             .sheet(item: $editingNote) { selection in
@@ -211,9 +211,14 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func saveCounter(_ counter: ProjectCounter, name: String, value: Int) -> Bool {
+    private func saveCounter(_ counter: ProjectCounter, save: CounterManagerSave) -> Bool {
         do {
-            try store.updateCounter(projectID: projectID, counterID: counter.id, name: name, value: value)
+            try store.updateCounter(
+                projectID: projectID,
+                counterID: counter.id,
+                name: save.name,
+                value: save.value
+            )
             return true
         } catch {
             counterSaveError = error.localizedDescription

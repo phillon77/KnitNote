@@ -76,10 +76,19 @@ import Testing
 
         #expect(source.contains("TextField(\"counter.value\""))
         #expect(source.contains("ViewThatFits"))
-        #expect(source.contains("Button(\"counter.minusOne\""))
-        #expect(source.contains("Button(\"counter.increment\""))
         #expect(source.contains("Button(\"counter.reset\""))
         #expect(!source.contains(".presentationDetents([.medium])"))
+    }
+
+    @Test func counterManagerUsesCompactEqualWidthValueControlsWithFullAccessibilityLabels() throws {
+        let source = try projectSource(named: "CounterManagerView")
+
+        #expect(source.contains("Text(\"−1\")"))
+        #expect(source.contains("Text(\"+1\")"))
+        #expect(source.components(separatedBy: ".frame(minWidth: 52, minHeight: 44)").count - 1 == 2)
+        #expect(source.contains(".accessibilityLabel(Text(\"counter.minusOne\"))"))
+        #expect(source.contains(".accessibilityLabel(Text(\"counter.increment\"))"))
+        #expect(source.contains("Button(\"counter.reset\", systemImage: \"arrow.counterclockwise\", role: .destructive)"))
     }
 
     @Test func counterManagerUsesExplicitPlatformSizingWithoutScrollDependentEssentials() throws {

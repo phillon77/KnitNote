@@ -185,8 +185,13 @@ struct CounterManagerView: View {
     }
 
     private var decrementButton: some View {
-        Button("counter.minusOne", systemImage: "minus") {
+        Button {
             adjustValue(by: -1)
+        } label: {
+            Text("−1")
+                .font(.headline)
+                .monospacedDigit()
+                .frame(minWidth: 52, minHeight: 44)
         }
         .buttonStyle(.borderless)
         .disabled(currentValue == 0)
@@ -194,8 +199,13 @@ struct CounterManagerView: View {
     }
 
     private var incrementButton: some View {
-        Button("counter.increment", systemImage: "plus") {
+        Button {
             adjustValue(by: 1)
+        } label: {
+            Text("+1")
+                .font(.headline)
+                .monospacedDigit()
+                .frame(minWidth: 52, minHeight: 44)
         }
         .buttonStyle(.borderless)
         .disabled(currentValue == .max)

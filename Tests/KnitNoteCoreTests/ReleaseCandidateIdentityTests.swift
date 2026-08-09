@@ -76,7 +76,9 @@ import Testing
         }
     }
 
-    @Test func generatedInfoPlistsPreserveCandidateIdentityAndExactReleaseLocales() throws {
+    // TODO(Task 2): atomically add real Dutch catalogs, this shipping declaration, regenerated
+    // PBX known regions, and the release-audit locale contracts and fixtures.
+    @Test func generatedInfoPlistsPreserveCandidateIdentityAndCurrentCatalogReleaseLocales() throws {
         let payload = try runReleaseIdentityJSONTool(
             executable: "/usr/bin/env",
             arguments: ["xcodegen", "dump", "--type", "parsed-json"]
@@ -85,7 +87,7 @@ import Testing
         let targets = try #require(project["targets"] as? [String: Any])
         let expectedLocales = [
             "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
-            "nb", "sv", "fi", "da", "ko", "el", "nl",
+            "nb", "sv", "fi", "da", "ko", "el",
         ]
 
         for identity in shippingTargetIdentities {
@@ -109,7 +111,7 @@ import Testing
         }
     }
 
-    // TODO(Task 2): Dutch String Catalog resources must be added before extending this list with "nl".
+    // TODO(Task 2): extend this exact list with "nl" in the same atomic localization transition.
     // This fail-closed assertion keeps XcodeGen's catalog-derived regions intentional until then.
     @Test func generatedProjectKnownRegionsMatchTheCurrentCatalogResources() throws {
         let project = try String(

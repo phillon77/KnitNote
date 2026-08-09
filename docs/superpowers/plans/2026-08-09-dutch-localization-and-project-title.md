@@ -20,14 +20,12 @@
 
 ---
 
-### Task 1: Register Dutch in runtime and shipping configuration
+### Task 1: Register Dutch in runtime configuration
 
 **Files:**
 - Modify: `Sources/KnitNoteCore/Localization/SupportedLocalization.swift`
 - Modify: `Sources/KnitNoteCore/Localization/AppLanguage.swift`
 - Modify: `Sources/KnitNoteCore/Localization/LanguageSettings.swift`
-- Modify: `project.yml`
-- Regenerate: `KnitNote.xcodeproj/project.pbxproj`
 - Modify: `Tests/KnitNoteCoreTests/LanguageSettingsTests.swift`
 - Modify: `Tests/KnitNoteCoreTests/LocalizationContractTests.swift`
 - Modify: `Tests/KnitNoteCoreTests/ReleaseCandidateIdentityTests.swift`
@@ -110,23 +108,27 @@ Map `.dutch` to `AppLanguage.dutch`, map its picker key to `language.dutch`, and
 public static let v150Identifiers = v141Identifiers + ["nl"]
 ```
 
-- [ ] **Step 4: Add Dutch to all shipping build settings and regenerate**
+- [ ] **Step 4: Keep the shipping contract at the current complete catalog set**
 
-Append `nl` to each main/Watch/Share `CFBundleLocalizations` array and the project known regions in `project.yml`. Regenerate only from the checked-in specification:
+Do not add `nl` to main/Watch/Share `CFBundleLocalizations`, generated Info plists, or PBX `knownRegions` in this task. XcodeGen derives known regions from real localized resources; fake resources and direct generated-project edits are prohibited. Keep the current twelve-locale shipping contract fail-closed while Task 1 registers the runtime language.
+
+The next implementation task combines the original Tasks 2 and 3 with the locale-count/release-audit transition. It must atomically add complete real Dutch main, InfoPlist, Watch, and Share catalogs; add `nl` to project/plist declarations; regenerate PBX known regions; and update release-audit contracts and fixtures. No intermediate red release-audit state is allowed.
+
+Regenerate only from the checked-in specification:
 
 ```bash
 xcodegen generate
 git diff --check
 ```
 
-Update `ReleaseCandidateIdentityTests` to require the exact thirteen-locale order in both source specification and generated project. Regenerate a second time and compare the generated project hash to prove no drift.
+Keep `ReleaseCandidateIdentityTests` exact for the current twelve shipping locales and catalog-derived known regions. Regenerate a second time and compare the generated project hash to prove no drift.
 
 - [ ] **Step 5: Verify and commit**
 
 ```bash
 swift test --disable-sandbox --filter LanguageSettingsTests
 swift test --disable-sandbox --filter ReleaseCandidateIdentityTests
-git add Sources/KnitNoteCore/Localization/SupportedLocalization.swift Sources/KnitNoteCore/Localization/AppLanguage.swift Sources/KnitNoteCore/Localization/LanguageSettings.swift project.yml KnitNote.xcodeproj/project.pbxproj Tests/KnitNoteCoreTests/LanguageSettingsTests.swift Tests/KnitNoteCoreTests/LocalizationContractTests.swift Tests/KnitNoteCoreTests/ReleaseCandidateIdentityTests.swift
+git add Sources/KnitNoteCore/Localization/SupportedLocalization.swift Sources/KnitNoteCore/Localization/AppLanguage.swift Sources/KnitNoteCore/Localization/LanguageSettings.swift Tests/KnitNoteCoreTests/LanguageSettingsTests.swift Tests/KnitNoteCoreTests/LanguagePickerContractTests.swift Tests/KnitNoteCoreTests/LocalizationContractTests.swift Tests/KnitNoteCoreTests/ReleaseCandidateIdentityTests.swift
 git commit -m "feat: register Dutch as a shipping language"
 ```
 
@@ -134,20 +136,36 @@ Expected: focused suites PASS and generated project is stable.
 
 ---
 
-### Task 2: Dutch main-app, InfoPlist, and terminology coverage
+### Task 2: Dutch catalogs and atomic shipping transition
 
 **Files:**
 - Modify: `KnitNote/Localization/Localizable.xcstrings`
 - Modify: `KnitNote/Localization/InfoPlist.xcstrings`
+- Modify: `KnitNoteWatch/Localizable.xcstrings`
+- Modify: `KnitNoteShare/Localizable.xcstrings`
+- Modify: `project.yml`
+- Regenerate: `KnitNote.xcodeproj/project.pbxproj`
+- Modify: `AppStore/Verification/release_audit.sh`
 - Modify: `AppStore/Localization/KnittingTerminology.csv`
 - Modify: `AppStore/Localization/README.md`
 - Modify: `Tests/KnitNoteCoreTests/LocalizationContractTests.swift`
 - Modify: `Tests/KnitNoteCoreTests/KnittingTerminologyContractTests.swift`
 - Modify: `Tests/KnitNoteCoreTests/RuntimeLocalizationBehaviorTests.swift`
+- Modify: `Tests/KnitNoteCoreTests/ShareExtensionLocalizationContractTests.swift`
+- Modify: `Tests/KnitNoteCoreTests/WatchPackagingContractTests.swift`
+- Modify: `Tests/KnitNoteCoreTests/WatchCounterViewContractTests.swift`
+- Modify: `Tests/KnitNoteCoreTests/ReleaseAuditLocalizationTests.swift`
+- Modify: `Tests/KnitNoteCoreTests/ReleaseCandidateIdentityTests.swift`
 
 **Interfaces:**
 - Consumes: Task 1 `SupportedLocalization.v150Identifiers` and `language.dutch`.
-- Produces: reviewed Dutch values for every main and InfoPlist source key, format variation, and plural variation.
+- Produces: reviewed Dutch values for every shipping catalog plus one atomic thirteen-locale project, PBX, and release-audit transition.
+
+**Atomic transition:** This task absorbs the original Task 3 and the locale-count/release-audit transition formerly assigned to Task 6. Do not declare `nl` in any shipping plist or audit contract until every main, InfoPlist, Watch, and Share Dutch catalog is complete. Then update all source/generated product declarations, PBX known regions, audit contracts, and fixtures in the same change.
+
+- [ ] **Step 0: Complete and verify the atomic transition in one task**
+
+First complete the original Task 2 main/InfoPlist catalog and terminology work and the original Task 3 Watch/Share catalog work. Before committing, add `nl` to all three `CFBundleLocalizations` declarations in `project.yml`, regenerate the Info plists and PBX project, and update `release_audit.sh`, `ReleaseAuditLocalizationTests`, and `ReleaseCandidateIdentityTests` to the exact thirteen-locale contract. Run the release-audit suite and the full Swift suite green in the same task; do not commit a source, catalog, configuration, generated-project, or audit-only intermediate state.
 
 - [ ] **Step 1: Change catalog contracts to require Dutch and witness RED**
 
@@ -230,7 +248,9 @@ git commit -m "feat: add reviewed Dutch app localization"
 
 ---
 
-### Task 3: Dutch Watch and Share Extension coverage
+### Task 3: Superseded by Task 2 atomic transition
+
+Do not execute this task independently. Its catalog work and verification are part of Task 2 so the release-audit contract never has an intentionally red intermediate state.
 
 **Files:**
 - Modify: `KnitNoteWatch/Localizable.xcstrings`
@@ -435,33 +455,30 @@ Expected: checker and tests PASS. This commit prepares source metadata only; it 
 
 ---
 
-### Task 6: Thirteen-locale release contracts, builds, and linguistic acceptance
+### Task 6: Final thirteen-locale validation, builds, and linguistic acceptance
 
 **Files:**
-- Modify: `AppStore/Verification/release_audit.sh`
-- Modify: `Tests/KnitNoteCoreTests/ReleaseAuditLocalizationTests.swift`
-- Modify: `Tests/KnitNoteCoreTests/ReleaseCandidateIdentityTests.swift`
 - Create: `AppStore/Verification/Localization150Verification.md`
 
 **Interfaces:**
 - Consumes: Tasks 1–5 and the counter-reminder plan’s final catalog key domain.
-- Produces: fail-closed thirteen-locale source/build audit and an evidence record.
+- Produces: final verification evidence for the atomic thirteen-locale source/build audit completed in Task 2.
 
-- [ ] **Step 1: Write failing thirteen-locale audit fixtures**
+**Sequencing:** The release-locale transition and its RED/GREEN audit fixtures moved to Task 2. Task 6 verifies that completed transition; it does not introduce the first thirteen-locale shipping declaration.
 
-Update fixtures to require exact known regions, source `CFBundleLocalizations`, built `CFBundleLocalizations`, and packaged `.lproj` sets for thirteen locales. Add mutations that remove Dutch separately from main, Watch, Share, and InfoPlist output and assert each fails with a product-specific message.
+The old release-contract mutation steps are superseded by Task 2. Retain the final build, packaging, linguistic, and physical acceptance work only after Task 2 has already made every automated locale contract green.
 
-- [ ] **Step 2: Run RED**
+- [ ] **Step 1: Verify Task 2's already-green thirteen-locale contracts**
+
+Do not modify audit fixtures or locale declarations here. Confirm Task 2 already covers exact known regions, source/generated/built `CFBundleLocalizations`, and packaged `.lproj` sets for all thirteen locales.
+
+- [ ] **Step 2: Run the existing audit GREEN**
 
 ```bash
 swift test --disable-sandbox --filter ReleaseAuditLocalizationTests
 ```
 
-Expected: FAIL because production audit still expects twelve locales.
-
-- [ ] **Step 3: Update the production audit and static contracts**
-
-Change the single release locale source of truth to include `nl`; update count wording from twelve to thirteen. Keep exact-set comparison, catalog key-domain checks, format/plural checks, source/generated project parity, and product-by-product `.lproj` checks fail-closed.
+Expected: PASS; a failure is a blocker to final validation, not permission to split the release transition.
 
 - [ ] **Step 4: Run focused and full verification**
 
@@ -492,7 +509,7 @@ Record native or qualified Dutch review for knitting terminology, reminder copy,
 - [ ] **Step 7: Commit the evidence record**
 
 ```bash
-git add AppStore/Verification/release_audit.sh Tests/KnitNoteCoreTests/ReleaseAuditLocalizationTests.swift Tests/KnitNoteCoreTests/ReleaseCandidateIdentityTests.swift AppStore/Verification/Localization150Verification.md
+git add AppStore/Verification/Localization150Verification.md
 git commit -m "test: verify Dutch localization across products"
 ```
 

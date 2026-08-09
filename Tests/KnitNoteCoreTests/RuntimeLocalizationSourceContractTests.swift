@@ -93,7 +93,9 @@ import Testing
         let source = try repositorySource("KnitNote/Projects/ProjectsView.swift")
 
         #expect(source.contains("@Environment(\\.locale) private var locale"))
-        #expect(source.contains("LocaleAwareText.string(\"nav.projects\", locale: locale)"))
+        #expect(source.contains(
+            ".navigationTitle(LocaleAwareText.string(\"nav.projects\", locale: locale))"
+        ))
         #expect(!source.contains(".navigationTitle(\"nav.projects\")"))
     }
 

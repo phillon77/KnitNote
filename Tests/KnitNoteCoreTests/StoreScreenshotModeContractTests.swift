@@ -69,7 +69,9 @@ import Testing
         let projects = try sourceText("KnitNote/Projects/ProjectsView.swift")
 
         #expect(root.contains("case .projects:\n                ProjectsView()"))
-        #expect(projects.contains("LocaleAwareText.string(\"nav.projects\", locale: locale)"))
+        #expect(projects.contains(
+            ".navigationTitle(LocaleAwareText.string(\"nav.projects\", locale: locale))"
+        ))
     }
 
     @Test func patternScenesOpenTheirPromisedPresentation() throws {

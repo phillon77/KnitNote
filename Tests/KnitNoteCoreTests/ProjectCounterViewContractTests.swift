@@ -132,6 +132,21 @@ import Testing
         #expect(!source.contains("ScrollView"))
     }
 
+    @Test func counterManagerStacksFullWidthNameAndValueEditorsOnIPad() throws {
+        let source = try projectSource(named: "CounterManagerView")
+        let layout = try #require(sourceSection(
+            source,
+            from: "private var editorLayout:",
+            to: "private var nameEditor:"
+        ))
+
+        #expect(layout.contains("if usesLargeIPadPresentation"))
+        #expect(layout.contains("VStack(alignment: .leading, spacing: 20)"))
+        #expect(layout.contains("nameEditor\n                valueEditor"))
+        #expect(layout.contains("else {\n            ViewThatFits(in: .horizontal)"))
+        #expect(source.contains("editorLayout\n            .padding()"))
+    }
+
     @Test func counterManagerConfirmsResetAndExposesSemanticValidationAndReminderContent() throws {
         let source = try projectSource(named: "CounterManagerView")
 

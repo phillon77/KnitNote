@@ -42,16 +42,7 @@ struct CounterManagerView: View {
 
     var body: some View {
         NavigationStack {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 24) {
-                    nameEditor
-                    valueEditor
-                }
-                VStack(spacing: 20) {
-                    nameEditor
-                    valueEditor
-                }
-            }
+            editorLayout
             .padding()
             .frame(maxWidth: usesLargeIPadPresentation ? CounterManagerPresentationPolicy.iPadWidth : .infinity)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -108,6 +99,27 @@ struct CounterManagerView: View {
 #endif
         .tint(WatercolorTheme.actionBerry)
         .onAppear(perform: loadDraft)
+    }
+
+    @ViewBuilder
+    private var editorLayout: some View {
+        if usesLargeIPadPresentation {
+            VStack(alignment: .leading, spacing: 20) {
+                nameEditor
+                valueEditor
+            }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 24) {
+                    nameEditor
+                    valueEditor
+                }
+                VStack(spacing: 20) {
+                    nameEditor
+                    valueEditor
+                }
+            }
+        }
     }
 
     private var nameEditor: some View {

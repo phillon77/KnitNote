@@ -34,7 +34,6 @@ EXPECTED_LOCALES = V140_LOCALES + (
     "el-GR.md",
     "nl-NL.md",
 )
-V141_METADATA_LOCALES = EXPECTED_LOCALES[:-1]
 LANGUAGE_NAMES = {
     "en-US.md": (
         "English", "Traditional Chinese", "Simplified Chinese", "German", "French", "Japanese",
@@ -106,19 +105,20 @@ SETTINGS_AND_SURFACE_TOKENS = {
     "el-GR.md": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
     "nl-NL.md": ("Instellingen", "Apple Watch", "deelschermen"),
 }
-DELETION_PROTECTION_COPY = {
-    "en-US.md": "Completed projects are now protected from accidental deletion; restore one to in progress before deleting it.",
-    "zh-Hant.md": "已完成作品現在有防誤刪保護；如需刪除，請先恢復為進行中。",
-    "zh-Hans.md": "已完成作品现在有防误删保护；如需删除，请先恢复为进行中。",
-    "de-DE.md": "Abgeschlossene Projekte sind jetzt vor versehentlichem Löschen geschützt. Setze ein Projekt vor dem Löschen zuerst auf „In Bearbeitung“ zurück.",
-    "fr-FR.md": "Les projets terminés sont désormais protégés contre les suppressions accidentelles. Remettez-les en cours avant de les supprimer.",
-    "ja-JP.md": "完了した作品の誤削除を防ぐ保護を追加しました。削除するには、先に「進行中」に戻してください。",
-    "nb-NO.md": "Fullførte prosjekter er nå beskyttet mot utilsiktet sletting. Gjenoppta et prosjekt før du sletter det.",
-    "sv-SE.md": "Slutförda projekt skyddas nu mot oavsiktlig radering. Återuppta ett projekt innan du tar bort det.",
-    "fi-FI.md": "Valmiit projektit on nyt suojattu tahattomalta poistamiselta. Jatka projektia ennen kuin poistat sen.",
-    "da-DK.md": "Afsluttede projekter er nu beskyttet mod utilsigtet sletning. Genoptag et projekt, før du sletter det.",
-    "ko-KR.md": "완료된 프로젝트를 실수로 삭제하지 않도록 보호합니다. 삭제하려면 먼저 진행 중으로 되돌리세요.",
-    "el-GR.md": "Τα ολοκληρωμένα έργα προστατεύονται πλέον από κατά λάθος διαγραφή. Επαναφέρετε πρώτα ένα έργο σε εξέλιξη για να το διαγράψετε.",
+V150_WHATS_NEW_TOKENS = {
+    "en-US.md": ("counter reminders", "direct value entry", "iPad", "Apple Watch", "Dutch", "Projects", "app language"),
+    "zh-Hant.md": ("計數器提醒", "數值直接輸入", "iPad", "Apple Watch", "荷蘭文", "作品", "App 語言"),
+    "zh-Hans.md": ("计数器提醒", "数值直接输入", "iPad", "Apple Watch", "荷兰语", "作品", "App 语言"),
+    "de-DE.md": ("Zählererinnerungen", "direkte Eingabe", "iPad", "Apple Watch", "Niederländisch", "Projekte", "gewählten App-Sprache"),
+    "fr-FR.md": ("rappels de compteur", "saisie directe", "iPad", "Apple Watch", "néerlandais", "Projets", "langue choisie dans l’app"),
+    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPad", "Apple Watch", "オランダ語", "作品", "Appで選択した言語"),
+    "nb-NO.md": ("påminnelser for tellere", "direkte inntasting", "iPad", "Apple Watch", "Nederlandsk", "Prosjekter", "valgt i appen"),
+    "sv-SE.md": ("påminnelser för räknare", "direkt inmatning", "iPad", "Apple Watch", "Nederländska", "Projekt", "valt i appen"),
+    "fi-FI.md": ("laskurimuistutukset", "suoran syötön", "iPad", "Apple Watch", "Hollannin kieli", "Projektit", "sovelluksessa valittua kieltä"),
+    "da-DK.md": ("påmindelser til tællere", "direkte indtastning", "iPad", "Apple Watch", "Hollandsk", "Projekter", "valgt i appen"),
+    "ko-KR.md": ("카운터 알림", "값 직접 입력", "iPad", "Apple Watch", "네덜란드어", "프로젝트", "앱에서 선택한 언어"),
+    "el-GR.md": ("υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "iPad", "Apple Watch", "ολλανδικά", "Έργα", "γλώσσα που επιλέγετε στην εφαρμογή"),
+    "nl-NL.md": ("tellerherinneringen", "rechtstreekse invoer", "iPad", "Apple Watch", "Nederlands", "Projecten", "in de app hebt gekozen"),
 }
 DELETED_PROJECT_RECOVERY_CLAIMS = {
     "en-US.md": "Deleted projects can be restored from Trash.",
@@ -148,28 +148,22 @@ class MetadataLocaleTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertEqual(validate(METADATA / filename), [])
 
-    def test_every_package_describes_one_v141_twelve_language_settings_contract(self) -> None:
-        for filename in V141_METADATA_LOCALES:
+    def test_every_package_describes_v150_release_and_supported_languages(self) -> None:
+        for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename):
                 fields = parse(METADATA / filename)
                 whats_new = fields["What's New"]
                 description = fields["Description"]
                 self.assertEqual(
                     re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new),
-                    ["1.4.1"],
+                    ["1.5.0"],
                 )
-                for language in LANGUAGE_NAMES[filename][6:]:
-                    self.assertIn(language, whats_new)
+                for token in V150_WHATS_NEW_TOKENS[filename]:
+                    self.assertIn(token, whats_new)
                 for language in LANGUAGE_NAMES[filename]:
                     self.assertIn(language, description)
                 for token in SETTINGS_AND_SURFACE_TOKENS[filename]:
                     self.assertIn(token, description)
-
-    def test_every_v141_whats_new_describes_completed_project_deletion_protection(self) -> None:
-        for filename in V141_METADATA_LOCALES:
-            with self.subTest(filename=filename):
-                whats_new = parse(METADATA / filename)["What's New"]
-                self.assertIn(DELETION_PROTECTION_COPY[filename], whats_new)
 
     def test_validator_rejects_deleted_project_recovery_claims_in_every_locale(self) -> None:
         for filename in EXPECTED_LOCALES:
@@ -186,34 +180,28 @@ class MetadataLocaleTests(unittest.TestCase):
         self.assertEqual(EXPECTED_LOCALES[-1], "nl-NL.md")
         self.assertEqual(len(EXPECTED_LOCALES), 13)
 
-    def test_dutch_package_describes_only_implemented_v150_behavior(self) -> None:
-        fields = parse(METADATA / "nl-NL.md")
-        self.assertEqual(
-            re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", fields["What's New"]),
-            ["1.5.0"],
-        )
-        for token in (
-            "gebruik van tellers", "herinneringen", "Apple Watch", "Nederlands", "Projecten", "app-taal",
-        ):
-            with self.subTest(token=token):
-                self.assertIn(token, fields["What's New"])
-        for language in LANGUAGE_NAMES["nl-NL.md"]:
-            with self.subTest(language=language):
-                self.assertIn(language, fields["Description"])
-        for token in SETTINGS_AND_SURFACE_TOKENS["nl-NL.md"]:
-            with self.subTest(surface=token):
-                self.assertIn(token, fields["Description"])
-
-    def test_validator_rejects_wrong_version_and_missing_language_semantics_for_every_package(self) -> None:
-        for filename in V141_METADATA_LOCALES:
+    def test_validator_rejects_stale_or_incomplete_v150_release_notes(self) -> None:
+        for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename, mutation="version"):
                 fields = parse(METADATA / filename)
-                fields["What's New"] = fields["What's New"].replace("1.4.1", "1.4.0")
+                fields["What's New"] = fields["What's New"].replace("1.5.0", "1.4.1")
                 path = self.write_named_metadata(filename, fields)
-                self.assertTrue(
-                    any("What's New: must identify KnitNote 1.4.1" in error for error in validate(path)),
+                self.assertIn(
+                    f"{path}: What's New: must identify KnitNote 1.5.0 exactly",
                     validate(path),
                 )
+            for token in V150_WHATS_NEW_TOKENS[filename]:
+                with self.subTest(filename=filename, missing=token):
+                    fields = parse(METADATA / filename)
+                    fields["What's New"] = fields["What's New"].replace(token, "")
+                    path = self.write_named_metadata(filename, fields)
+                    self.assertIn(
+                        f"{path}: What's New: missing implemented 1.5 behavior: {token}",
+                        validate(path),
+                    )
+
+    def test_validator_rejects_missing_supported_language_for_every_package(self) -> None:
+        for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename, mutation="language"):
                 fields = parse(METADATA / filename)
                 missing = LANGUAGE_NAMES[filename][-1]

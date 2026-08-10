@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4.1에 노르웨이어(보크몰), 스웨덴어, 핀란드어, 덴마크어, 한국어, 그리스어 인터페이스가 추가되었습니다. 설정에서 선택한 언어는 Apple Watch와 공유 화면에도 적용됩니다. 완료된 프로젝트를 실수로 삭제하지 않도록 보호합니다. 삭제하려면 먼저 진행 중으로 되돌리세요.
+- What's New: KnitNote 1.5.0에 카운터 알림과 값 직접 입력 기능이 추가되고, iPad 카운터 레이아웃과 Apple Watch 연동이 개선되었습니다. 이제 네덜란드어를 완전히 지원하며, ‘프로젝트’ 제목도 앱에서 선택한 언어로 표시됩니다.
 - Description: |
   손에 든 실에 집중하세요. KnitNote는 뜨개질 프로젝트, 6개 카운터, 도안과 메모를 차분하고 보기 쉬운 작업 공간에 모아 줍니다.
 

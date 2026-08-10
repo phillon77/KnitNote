@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.5.0 maakt het gebruik van tellers eenvoudiger met herinneringen en een betere afstemming met je Apple Watch. Nederlands is nu beschikbaar en de titel Projecten volgt je gekozen app-taal.
+- What's New: KnitNote 1.5.0 voegt tellerherinneringen en rechtstreekse invoer van waarden toe, met een verbeterde tellerindeling op iPad en betere afstemming met Apple Watch. Nederlands wordt nu volledig ondersteund en de titel Projecten volgt de taal die je in de app hebt gekozen.
 - Description: |
   Houd de draad in handen. KnitNote brengt breiprojecten, zes tellers, patronen en notities samen in een rustige, overzichtelijke werkruimte.
 

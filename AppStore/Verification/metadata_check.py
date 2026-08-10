@@ -291,13 +291,29 @@ LANGUAGE_CONTRACTS = {
             "Noors Bokmål", "Zweeds", "Fins", "Deens", "Koreaans", "Grieks", "Nederlands",
         ),
         "surfaces": ("Instellingen", "Apple Watch", "deelschermen"),
-        "version": "1.5.0",
-        "whats_new_languages": (),
-        "whats_new_tokens": (
-            "gebruik van tellers", "herinneringen", "Apple Watch", "Nederlands", "Projecten", "app-taal",
-        ),
     },
 }
+V150_WHATS_NEW_TOKENS = {
+    "en-US.md": ("counter reminders", "direct value entry", "iPad", "Apple Watch", "Dutch", "Projects", "app language"),
+    "zh-Hant.md": ("計數器提醒", "數值直接輸入", "iPad", "Apple Watch", "荷蘭文", "作品", "App 語言"),
+    "zh-Hans.md": ("计数器提醒", "数值直接输入", "iPad", "Apple Watch", "荷兰语", "作品", "App 语言"),
+    "de-DE.md": ("Zählererinnerungen", "direkte Eingabe", "iPad", "Apple Watch", "Niederländisch", "Projekte", "gewählten App-Sprache"),
+    "fr-FR.md": ("rappels de compteur", "saisie directe", "iPad", "Apple Watch", "néerlandais", "Projets", "langue choisie dans l’app"),
+    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPad", "Apple Watch", "オランダ語", "作品", "Appで選択した言語"),
+    "nb-NO.md": ("påminnelser for tellere", "direkte inntasting", "iPad", "Apple Watch", "Nederlandsk", "Prosjekter", "valgt i appen"),
+    "sv-SE.md": ("påminnelser för räknare", "direkt inmatning", "iPad", "Apple Watch", "Nederländska", "Projekt", "valt i appen"),
+    "fi-FI.md": ("laskurimuistutukset", "suoran syötön", "iPad", "Apple Watch", "Hollannin kieli", "Projektit", "sovelluksessa valittua kieltä"),
+    "da-DK.md": ("påmindelser til tællere", "direkte indtastning", "iPad", "Apple Watch", "Hollandsk", "Projekter", "valgt i appen"),
+    "ko-KR.md": ("카운터 알림", "값 직접 입력", "iPad", "Apple Watch", "네덜란드어", "프로젝트", "앱에서 선택한 언어"),
+    "el-GR.md": ("υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "iPad", "Apple Watch", "ολλανδικά", "Έργα", "γλώσσα που επιλέγετε στην εφαρμογή"),
+    "nl-NL.md": ("tellerherinneringen", "rechtstreekse invoer", "iPad", "Apple Watch", "Nederlands", "Projecten", "in de app hebt gekozen"),
+}
+for filename, tokens in V150_WHATS_NEW_TOKENS.items():
+    LANGUAGE_CONTRACTS[filename].update({
+        "version": "1.5.0",
+        "whats_new_languages": (),
+        "whats_new_tokens": tokens,
+    })
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")
 CLAIM_DASH = re.compile(r"[\u2010-\u2015\u2212]")

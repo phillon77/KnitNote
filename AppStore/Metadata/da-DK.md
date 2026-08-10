@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4.1 har nu en komplet brugerflade på norsk bokmål, svensk, finsk, dansk, koreansk og græsk. Det sprog, du vælger i indstillingerne, bruges også på Apple Watch og i delingsvisningerne. Afsluttede projekter er nu beskyttet mod utilsigtet sletning. Genoptag et projekt, før du sletter det.
+- What's New: KnitNote 1.5.0 tilføjer påmindelser til tællere og direkte indtastning af værdier samt forbedrer tællervisningen på iPad og samspillet med Apple Watch. Hollandsk understøttes nu fuldt ud, og titlen “Projekter” følger det sprog, du har valgt i appen.
 - Description: |
   Bevar fokus på garnet i hænderne. KnitNote samler strikkeprojekter, seks tællere, opskrifter og noter i et roligt og overskueligt arbejdsområde.
 

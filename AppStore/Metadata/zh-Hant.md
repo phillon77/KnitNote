@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.4.1 新增完整的挪威博克馬爾文、瑞典文、芬蘭文、丹麥文、韓文與希臘文介面。在設定中選擇的語言也會套用至 Apple Watch 與分享畫面。已完成作品現在有防誤刪保護；如需刪除，請先恢復為進行中。
+- What's New: KnitNote 1.5.0 新增計數器提醒與數值直接輸入，並改善 iPad 計數器版面及 Apple Watch 協作。現在也完整支援荷蘭文，「作品」標題會依照所選 App 語言顯示。
 - Description: |
   把注意力留給手上的毛線。KnitNote 把 Apple Watch 計數、作品進度、六組計數器與 PDF 織圖放在清楚、安靜的畫面裡。
 

@@ -7,7 +7,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from AppStore.Verification.metadata_check import parse, validate
+from AppStore.Verification.metadata_check import (
+    dutch_backup_has_source_attachment,
+    dutch_is_completed_additive_negation,
+    parse,
+    validate,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -609,6 +614,38 @@ class MetadataValidationTests(unittest.TestCase):
             ("Share system-only language", "Het deelscherm staat uitsluitend in de systeemtaal"),
         )
         self.assert_forbidden_claims_by_concept(claims)
+
+    def test_dutch_allowlists_reject_unapproved_boundary_tokens(self) -> None:
+        with self.subTest(kind="unapproved additive modifier"):
+            self.assertFalse(
+                dutch_is_completed_additive_negation(
+                    ["herstel", "project", "niet", "alleen", "snel", "maar", "soms", "ook"],
+                    2,
+                    5,
+                    (0, 1),
+                )
+            )
+        with self.subTest(kind="multiple additive modifiers"):
+            self.assertFalse(
+                dutch_is_completed_additive_negation(
+                    ["herstel", "project", "niet", "alleen", "snel", "maar", "nu", "vooral", "ook"],
+                    2,
+                    5,
+                    (0, 1),
+                )
+            )
+        with self.subTest(kind="unapproved backup adjective"):
+            self.assertFalse(
+                dutch_backup_has_source_attachment(
+                    ["herstellen", "via", "deze", "nieuwe", "reservekopie"], 0, 4,
+                )
+            )
+        with self.subTest(kind="backup phrase beyond determiner plus adjective"):
+            self.assertFalse(
+                dutch_backup_has_source_attachment(
+                    ["herstellen", "via", "deze", "oude", "veilige", "reservekopie"], 0, 5,
+                )
+            )
 
     def test_dutch_recovery_and_share_concept_matrix(self) -> None:
         forbidden_cases = (

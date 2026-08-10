@@ -315,7 +315,6 @@ DUTCH_BACKUP_DETERMINERS = {
     "je", "jouw", "hun", "deze",
 }
 DUTCH_BACKUP_ADJECTIVES = frozenset({"oude"})
-DUTCH_BACKUP_NOUN_PHRASE_WINDOW = 2
 DUTCH_SHARE_STATE_VERBS = {
     "gebruikt", "gebruiken", "werkt", "werken", "volgt", "volgen",
     "staat", "staan", "toont", "tonen", "weergegeven",

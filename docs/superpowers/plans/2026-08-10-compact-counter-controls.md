@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the counter manager’s uneven localized decrement and increment titles with equal-width `−1` and `+1` controls while preserving complete localized VoiceOver labels and existing behavior.
+**Goal:** Replace the counter manager’s uneven localized value-action titles with equal-width `−1`, `+1`, and `↶ 0` controls while preserving complete localized VoiceOver labels and existing behavior.
 
 **Architecture:** Keep the change inside `CounterManagerView`; use language-neutral visible symbols and retain the existing String Catalog keys only as accessibility labels. Source contracts bind the visible labels, equal sizing, minimum target height, reset behavior, and accessibility boundary.
 
@@ -12,9 +12,9 @@
 
 - Candidate identity remains KnitNote `1.5.0` (Build `9`) at the implementation commit.
 - Visible decrement and increment labels are exactly `−1` and `+1`.
-- The two compact controls use identical sizing and at least a 44-point interactive height.
-- Reset remains visually and behaviorally unchanged and retains its confirmation dialog.
-- VoiceOver retains the full localized `counter.minusOne` and `counter.increment` labels.
+- All three compact controls use identical sizing and at least a 44-point interactive height.
+- Reset displays `arrow.counterclockwise` plus `0`, and retains its destructive role and confirmation dialog.
+- VoiceOver retains the full localized `counter.minusOne`, `counter.increment`, and `counter.reset` labels.
 - No counter arithmetic, persistence, reminders, Watch synchronization, catalogs, project data, or user-created/imported content changes.
 - Preserve untracked `.superpowers/brainstorm/`, `AppStore/Verification/CounterReminders150Verification.md`, and `build/`.
 - Do not archive, export, upload, modify App Store Connect, merge, or push.
@@ -134,13 +134,101 @@ Expected: commit contains only the view and its source contract; preserved untra
 
 ---
 
-### Task 2: Physical iPhone re-acceptance
+### Task 2: Compact visible reset control
+
+**Files:**
+- Modify: `KnitNote/Projects/CounterManagerView.swift`
+- Modify: `Tests/KnitNoteCoreTests/ProjectCounterViewContractTests.swift`
+
+**Interfaces:**
+- Consumes: the scoped decrement/increment/reset source blocks created and hardened in Task 1.
+- Produces: a reset label containing the existing `arrow.counterclockwise` symbol and visible `0`, with the same `52 × 44` minimum frame as `−1` and `+1`.
+
+- [ ] **Step 1: Write the failing scoped reset contract**
+
+Extend the existing block-scoped compact-controls test so the reset block requires:
+
+```swift
+#expect(reset.contains("Image(systemName: \"arrow.counterclockwise\")"))
+#expect(reset.contains("Text(\"0\")"))
+#expect(reset.components(separatedBy: ".frame(minWidth: 52, minHeight: 44)").count - 1 == 1)
+#expect(reset.contains("role: .destructive"))
+#expect(reset.contains("confirmingValueReset = true"))
+#expect(reset.contains(".accessibilityLabel(Text(\"counter.reset\"))"))
+```
+
+Also require the complete manager source to contain exactly three `52 × 44` compact frames.
+
+- [ ] **Step 2: Run RED**
+
+Run:
+
+```bash
+swift test --disable-sandbox --filter ProjectCounterViewContractTests
+```
+
+Expected: FAIL because reset still exposes the localized visible reset title and has no compact frame.
+
+- [ ] **Step 3: Implement the compact reset label**
+
+Replace only `resetButton`’s visible label construction:
+
+```swift
+private var resetButton: some View {
+    Button(role: .destructive) {
+        confirmingValueReset = true
+    } label: {
+        Label {
+            Text("0")
+                .monospacedDigit()
+        } icon: {
+            Image(systemName: "arrow.counterclockwise")
+        }
+        .font(.headline)
+        .frame(minWidth: 52, minHeight: 44)
+    }
+    .buttonStyle(.borderless)
+    .disabled(currentValue == 0)
+    .accessibilityLabel(Text("counter.reset"))
+}
+```
+
+Do not change the confirmation dialog, reset action, catalog values, decrement/increment blocks, or counter logic.
+
+- [ ] **Step 4: Run GREEN and build safeguards**
+
+Run:
+
+```bash
+swift test --disable-sandbox --filter ProjectCounterViewContractTests
+swift test --disable-sandbox --filter LocalizationContractTests
+xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -configuration Debug -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO build
+```
+
+Expected: all tests PASS and both builds end with `** BUILD SUCCEEDED **`.
+
+- [ ] **Step 5: Verify scope and commit**
+
+Run:
+
+```bash
+git diff --check
+git add KnitNote/Projects/CounterManagerView.swift Tests/KnitNoteCoreTests/ProjectCounterViewContractTests.swift
+git commit -m "fix: compact counter reset control"
+```
+
+Expected: the commit changes only the reset label and its scoped source contract.
+
+---
+
+### Task 3: Physical iPhone re-acceptance
 
 **Files:**
 - Modify only after user evidence: `AppStore/Verification/CounterReminders150Verification.md`
 
 **Interfaces:**
-- Consumes: exact committed Task 1 Debug product, bundle `com.phillon.KnitNote`, version `1.5.0` (Build `9`).
+- Consumes: exact committed Task 2 Debug product, bundle `com.phillon.KnitNote`, version `1.5.0` (Build `9`).
 - Produces: scoped physical evidence for compact controls only; it does not accept reminders, Watch, iPad, Mac, metadata, archive, or release gates.
 
 - [ ] **Step 1: Build the exact committed iPhone candidate**
@@ -173,7 +261,7 @@ Do not uninstall or erase the app. Query the installed app again and require `1.
 Ask the user to verify:
 
 1. Existing projects remain present.
-2. The manager displays aligned `−1`, `+1`, and reset actions without wrapping.
+2. The manager displays aligned `−1`, `+1`, and `↶ 0` actions without wrapping.
 3. `−1`, `+1`, and reset still behave correctly.
 4. VoiceOver announces full decrement, increment, and reset actions.
 

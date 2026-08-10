@@ -167,55 +167,90 @@ import Testing
 
     @Test func projectDetailShowsSelectedPendingReminderBelowCounters() throws {
         let source = try projectSource(named: "ProjectDetailView")
-        let reminderSection = try #require(sourceSection(
-            source,
-            from: "CounterSelectorGrid(",
-            to: "ProjectYarnSection("
+        let tokens = executableSwiftTokens(in: source)
+        let reminderSection = try #require(executableSection(
+            tokens,
+            from: "CounterSelectorGrid",
+            to: "ProjectYarnSection"
         ))
 
-        #expect(reminderSection.contains("project.selectedCounter.reminder"))
-        #expect(reminderSection.contains("if let pending = reminder.pending"))
-        #expect(reminderSection.contains("CounterReminderCard("))
-        #expect(reminderSection.contains("pending: pending"))
-        #expect(reminderSection.contains("message: reminder.message"))
-        #expect(reminderSection.contains("completeProjectCounterReminder("))
-        #expect(reminderSection.contains("stopProjectCounterReminder("))
-
-        let card = try #require(sourceSection(
-            source,
-            from: "CounterReminderCard(",
-            to: "WatercolorCard {\n                            ProjectYarnSection("
+        #expect(containsTokenSequence(
+            reminderSection,
+            ["project", ".", "selectedCounter", ".", "reminder"]
         ))
-        let normalizedCard = normalized(card)
-        #expect(normalizedCard.contains("pending:pending,message:reminder.message,onComplete:{completeProjectCounterReminder(counterID:counterID,pending:pending)},onStop:{stopProjectCounterReminder(counterID:counterID,pending:pending)}"))
-        #expect(card.components(separatedBy: "completeProjectCounterReminder(").count - 1 == 1)
-        #expect(card.components(separatedBy: "stopProjectCounterReminder(").count - 1 == 1)
+        #expect(containsTokenSequence(
+            reminderSection,
+            ["if", "let", "pending", "=", "reminder", ".", "pending"]
+        ))
+        #expect(containsTokenSequence(
+            reminderSection,
+            [
+                "CounterReminderCard", "(",
+                "pending", ":", "pending", ",",
+                "message", ":", "reminder", ".", "message", ",",
+                "onComplete", ":", "{",
+                "completeProjectCounterReminder", "(",
+                "counterID", ":", "counterID", ",",
+                "pending", ":", "pending", ")", "}", ",",
+                "onStop", ":", "{",
+                "stopProjectCounterReminder", "(",
+                "counterID", ":", "counterID", ",",
+                "pending", ":", "pending", ")", "}", ")",
+            ]
+        ))
+        #expect(tokenSequenceCount(reminderSection, matching: ["CounterReminderCard", "("]) == 1)
     }
 
     @Test func projectDetailReminderActionsAreStoreBackedAndFailClosed() throws {
         let source = try projectSource(named: "ProjectDetailView")
-        let complete = normalized(try #require(sourceSection(
-            source,
-            from: "private func completeProjectCounterReminder(",
-            to: "private func stopProjectCounterReminder("
-        )))
-        let stop = normalized(try #require(sourceSection(
-            source,
-            from: "private func stopProjectCounterReminder(",
-            to: "private func reminderActionFailed("
-        )))
+        let tokens = executableSwiftTokens(in: source)
+        let complete = try #require(executableFunction(
+            named: "completeProjectCounterReminder",
+            in: tokens
+        ))
+        let stop = try #require(executableFunction(
+            named: "stopProjectCounterReminder",
+            in: tokens
+        ))
 
-        #expect(complete.contains("guardletcurrentProject=store.project(id:projectID),currentProject.selectedCounterID==counterID,letcurrentCounter=currentProject.counters.first(where:{$0.id==counterID}),currentCounter.id==counterID,letcurrentReminder=currentCounter.reminder,currentReminder.id==pending.reminderID,letcurrentPending=currentReminder.pending,currentPending.reminderID==pending.reminderID,currentPending.occurrenceCount==pending.occurrenceCountelse{reminderActionFailed()return}"))
-        #expect(complete.contains("letdataGenerationBefore=store.dataGenerationtrystore.completeCounterReminder(projectID:projectID,counterID:counterID,reminderID:pending.reminderID,observedCount:pending.occurrenceCount)guardstore.dataGeneration>dataGenerationBefore,letupdatedProject=store.project(id:projectID),updatedProject.selectedCounterID==counterID,letupdatedCounter=updatedProject.counters.first(where:{$0.id==counterID}),updatedCounter.id==counterID,letupdatedReminder=updatedCounter.reminder,updatedReminder.id==pending.reminderID,updatedReminder.pending==nilelse{reminderActionFailed()return}"))
-        #expect(complete.contains("catch{counterSaveError=error.localizedDescription}"))
-        #expect(complete.components(separatedBy: "trystore.completeCounterReminder(").count - 1 == 1)
-        #expect(complete.components(separatedBy: "reminderActionFailed()").count - 1 == 2)
+        #expect(hasFailClosedPrecondition(in: complete, requiresActiveReminder: false))
+        #expect(containsTokenSequence(
+            complete,
+            [
+                "let", "dataGenerationBefore", "=", "store", ".", "dataGeneration",
+                "try", "store", ".", "completeCounterReminder", "(",
+                "projectID", ":", "projectID", ",",
+                "counterID", ":", "counterID", ",",
+                "reminderID", ":", "pending", ".", "reminderID", ",",
+                "observedCount", ":", "pending", ".", "occurrenceCount", ")",
+            ]
+        ))
+        #expect(hasFailClosedPostcondition(in: complete, requiresInactiveReminder: false))
+        #expect(hasErrorRetention(in: complete))
+        #expect(tokenSequenceCount(
+            complete,
+            matching: ["try", "store", ".", "completeCounterReminder", "("]
+        ) == 1)
+        #expect(complete.filter { $0 == "reminderActionFailed" }.count == 2)
 
-        #expect(stop.contains("guardletcurrentProject=store.project(id:projectID),currentProject.selectedCounterID==counterID,letcurrentCounter=currentProject.counters.first(where:{$0.id==counterID}),currentCounter.id==counterID,letcurrentReminder=currentCounter.reminder,currentReminder.id==pending.reminderID,currentReminder.isActive==true,letcurrentPending=currentReminder.pending,currentPending.reminderID==pending.reminderID,currentPending.occurrenceCount==pending.occurrenceCountelse{reminderActionFailed()return}"))
-        #expect(stop.contains("letdataGenerationBefore=store.dataGenerationtrystore.stopCounterReminder(projectID:projectID,counterID:counterID,reminderID:pending.reminderID)guardstore.dataGeneration>dataGenerationBefore,letupdatedProject=store.project(id:projectID),updatedProject.selectedCounterID==counterID,letupdatedCounter=updatedProject.counters.first(where:{$0.id==counterID}),updatedCounter.id==counterID,letupdatedReminder=updatedCounter.reminder,updatedReminder.id==pending.reminderID,updatedReminder.pending==nil,updatedReminder.isActive!=trueelse{reminderActionFailed()return}"))
-        #expect(stop.contains("catch{counterSaveError=error.localizedDescription}"))
-        #expect(stop.components(separatedBy: "trystore.stopCounterReminder(").count - 1 == 1)
-        #expect(stop.components(separatedBy: "reminderActionFailed()").count - 1 == 2)
+        #expect(hasFailClosedPrecondition(in: stop, requiresActiveReminder: true))
+        #expect(containsTokenSequence(
+            stop,
+            [
+                "let", "dataGenerationBefore", "=", "store", ".", "dataGeneration",
+                "try", "store", ".", "stopCounterReminder", "(",
+                "projectID", ":", "projectID", ",",
+                "counterID", ":", "counterID", ",",
+                "reminderID", ":", "pending", ".", "reminderID", ")",
+            ]
+        ))
+        #expect(hasFailClosedPostcondition(in: stop, requiresInactiveReminder: true))
+        #expect(hasErrorRetention(in: stop))
+        #expect(tokenSequenceCount(
+            stop,
+            matching: ["try", "store", ".", "stopCounterReminder", "("]
+        ) == 1)
+        #expect(stop.filter { $0 == "reminderActionFailed" }.count == 2)
     }
 
     @Test func rejectedDirectReminderSaveKeepsTheManagerOpen() throws {
@@ -320,7 +355,197 @@ import Testing
         return String(source[startRange.lowerBound..<endRange.lowerBound])
     }
 
-    private func normalized(_ source: String) -> String {
-        String(source.filter { !$0.isWhitespace })
+    private func executableSwiftTokens(in source: String) -> [String] {
+        let characters = Array(source)
+        var tokens: [String] = []
+        var index = 0
+
+        while index < characters.count {
+            if characters[index].isWhitespace {
+                index += 1
+            } else if startsLineComment(characters, at: index) {
+                index = firstIndexAfterLineComment(in: characters, from: index + 2)
+            } else if startsBlockComment(characters, at: index) {
+                index = firstIndexAfterBlockComment(in: characters, from: index + 2)
+            } else if characters[index] == "\"" {
+                index = firstIndexAfterStringLiteral(in: characters, from: index)
+            } else if isIdentifierStart(characters[index]) {
+                let start = index
+                index += 1
+                while index < characters.count, isIdentifierContinuation(characters[index]) {
+                    index += 1
+                }
+                tokens.append(String(characters[start..<index]))
+            } else if "=!<>+-*/%&|?".contains(characters[index]) {
+                let start = index
+                index += 1
+                while index < characters.count, "=!<>+-*/%&|?".contains(characters[index]) {
+                    index += 1
+                }
+                tokens.append(String(characters[start..<index]))
+            } else {
+                tokens.append(String(characters[index]))
+                index += 1
+            }
+        }
+
+        return tokens
+    }
+
+    private func executableSection(
+        _ tokens: [String],
+        from start: String,
+        to end: String
+    ) -> [String]? {
+        guard let startIndex = tokens.firstIndex(of: start),
+              let endIndex = tokens[(startIndex + 1)...].firstIndex(of: end)
+        else { return nil }
+        return Array(tokens[startIndex..<endIndex])
+    }
+
+    private func executableFunction(named name: String, in tokens: [String]) -> [String]? {
+        guard let startIndex = tokens.indices.first(where: {
+            tokens[$0] == "func" && $0 + 1 < tokens.count && tokens[$0 + 1] == name
+        }), let openingBrace = tokens[startIndex...].firstIndex(of: "{")
+        else { return nil }
+
+        var depth = 0
+        for index in openingBrace..<tokens.count {
+            switch tokens[index] {
+            case "{": depth += 1
+            case "}":
+                depth -= 1
+                if depth == 0 { return Array(tokens[startIndex...index]) }
+            default: break
+            }
+        }
+        return nil
+    }
+
+    private func hasFailClosedPrecondition(
+        in tokens: [String],
+        requiresActiveReminder: Bool
+    ) -> Bool {
+        var expected = [
+            "guard", "let", "currentProject", "=", "store", ".", "project", "(", "id", ":", "projectID", ")", ",",
+            "currentProject", ".", "selectedCounterID", "==", "counterID", ",",
+            "let", "currentCounter", "=", "currentProject", ".", "counters", ".", "first", "(", "where", ":", "{", "$0", ".", "id", "==", "counterID", "}", ")", ",",
+            "currentCounter", ".", "id", "==", "counterID", ",",
+            "let", "currentReminder", "=", "currentCounter", ".", "reminder", ",",
+            "currentReminder", ".", "id", "==", "pending", ".", "reminderID", ",",
+        ]
+        if requiresActiveReminder {
+            expected += ["currentReminder", ".", "isActive", "==", "true", ","]
+        }
+        expected += [
+            "let", "currentPending", "=", "currentReminder", ".", "pending", ",",
+            "currentPending", ".", "reminderID", "==", "pending", ".", "reminderID", ",",
+            "currentPending", ".", "occurrenceCount", "==", "pending", ".", "occurrenceCount",
+            "else", "{", "reminderActionFailed", "(", ")", "return", "}",
+        ]
+        return containsTokenSequence(tokens, expected)
+    }
+
+    private func hasFailClosedPostcondition(
+        in tokens: [String],
+        requiresInactiveReminder: Bool
+    ) -> Bool {
+        var expected = [
+            "guard", "store", ".", "dataGeneration", ">", "dataGenerationBefore", ",",
+            "let", "updatedProject", "=", "store", ".", "project", "(", "id", ":", "projectID", ")", ",",
+            "updatedProject", ".", "selectedCounterID", "==", "counterID", ",",
+            "let", "updatedCounter", "=", "updatedProject", ".", "counters", ".", "first", "(", "where", ":", "{", "$0", ".", "id", "==", "counterID", "}", ")", ",",
+            "updatedCounter", ".", "id", "==", "counterID", ",",
+            "let", "updatedReminder", "=", "updatedCounter", ".", "reminder", ",",
+            "updatedReminder", ".", "id", "==", "pending", ".", "reminderID", ",",
+            "updatedReminder", ".", "pending", "==", "nil",
+        ]
+        if requiresInactiveReminder {
+            expected += [",", "updatedReminder", ".", "isActive", "!=", "true"]
+        }
+        expected += ["else", "{", "reminderActionFailed", "(", ")", "return", "}"]
+        return containsTokenSequence(tokens, expected)
+    }
+
+    private func hasErrorRetention(in tokens: [String]) -> Bool {
+        containsTokenSequence(tokens, [
+            "catch", "{", "counterSaveError", "=", "error", ".", "localizedDescription", "}",
+        ])
+    }
+
+    private func containsTokenSequence(_ tokens: [String], _ expected: [String]) -> Bool {
+        tokenSequenceCount(tokens, matching: expected) > 0
+    }
+
+    private func tokenSequenceCount(_ tokens: [String], matching expected: [String]) -> Int {
+        guard !expected.isEmpty, tokens.count >= expected.count else { return 0 }
+        return (0...(tokens.count - expected.count)).reduce(into: 0) { count, index in
+            if Array(tokens[index..<(index + expected.count)]) == expected {
+                count += 1
+            }
+        }
+    }
+
+    private func startsLineComment(_ characters: [Character], at index: Int) -> Bool {
+        index + 1 < characters.count && characters[index] == "/" && characters[index + 1] == "/"
+    }
+
+    private func startsBlockComment(_ characters: [Character], at index: Int) -> Bool {
+        index + 1 < characters.count && characters[index] == "/" && characters[index + 1] == "*"
+    }
+
+    private func firstIndexAfterLineComment(in characters: [Character], from index: Int) -> Int {
+        var index = index
+        while index < characters.count, characters[index] != "\n" { index += 1 }
+        return index
+    }
+
+    private func firstIndexAfterBlockComment(in characters: [Character], from index: Int) -> Int {
+        var index = index
+        var depth = 1
+        while index < characters.count, depth > 0 {
+            if startsBlockComment(characters, at: index) {
+                depth += 1
+                index += 2
+            } else if index + 1 < characters.count, characters[index] == "*", characters[index + 1] == "/" {
+                depth -= 1
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+        return index
+    }
+
+    private func firstIndexAfterStringLiteral(in characters: [Character], from index: Int) -> Int {
+        let isMultiline = index + 2 < characters.count
+            && characters[index + 1] == "\""
+            && characters[index + 2] == "\""
+        var index = index + (isMultiline ? 3 : 1)
+        while index < characters.count {
+            if isMultiline,
+               index + 2 < characters.count,
+               characters[index] == "\"",
+               characters[index + 1] == "\"",
+               characters[index + 2] == "\"" {
+                return index + 3
+            }
+            if !isMultiline, characters[index] == "\\" {
+                index += 2
+            } else if !isMultiline, characters[index] == "\"" {
+                return index + 1
+            } else {
+                index += 1
+            }
+        }
+        return index
+    }
+
+    private func isIdentifierStart(_ character: Character) -> Bool {
+        character.isLetter || character == "_" || character == "$"
+    }
+
+    private func isIdentifierContinuation(_ character: Character) -> Bool {
+        isIdentifierStart(character) || character.isNumber
     }
 }

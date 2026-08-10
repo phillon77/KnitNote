@@ -165,6 +165,49 @@ import Testing
         #expect(!source.contains("try store.configureCounterReminder("))
     }
 
+    @Test func projectDetailShowsSelectedPendingReminderBelowCounters() throws {
+        let source = try projectSource(named: "ProjectDetailView")
+        let reminderSection = try #require(sourceSection(
+            source,
+            from: "CounterSelectorGrid(",
+            to: "ProjectYarnSection("
+        ))
+
+        #expect(reminderSection.contains("project.selectedCounter.reminder"))
+        #expect(reminderSection.contains("if let pending = reminder.pending"))
+        #expect(reminderSection.contains("CounterReminderCard("))
+        #expect(reminderSection.contains("pending: pending"))
+        #expect(reminderSection.contains("message: reminder.message"))
+        #expect(reminderSection.contains("completeProjectCounterReminder("))
+        #expect(reminderSection.contains("stopProjectCounterReminder("))
+    }
+
+    @Test func projectDetailReminderActionsAreStoreBackedAndFailClosed() throws {
+        let source = try projectSource(named: "ProjectDetailView")
+        let complete = try #require(sourceSection(
+            source,
+            from: "private func completeProjectCounterReminder(",
+            to: "private func stopProjectCounterReminder("
+        ))
+        let stop = try #require(sourceSection(
+            source,
+            from: "private func stopProjectCounterReminder(",
+            to: "private func reminderActionFailed("
+        ))
+
+        #expect(complete.contains("try store.completeCounterReminder("))
+        #expect(complete.contains("reminderID: pending.reminderID"))
+        #expect(complete.contains("observedCount: pending.occurrenceCount"))
+        #expect(complete.contains("store.project(id: projectID)"))
+        #expect(complete.contains("reminderActionFailed()"))
+        #expect(stop.contains("try store.stopCounterReminder("))
+        #expect(stop.contains("reminderID: pending.reminderID"))
+        #expect(stop.contains("store.project(id: projectID)"))
+        #expect(stop.contains("reminderActionFailed()"))
+        #expect(!complete.contains("pending = nil"))
+        #expect(!stop.contains("pending = nil"))
+    }
+
     @Test func rejectedDirectReminderSaveKeepsTheManagerOpen() throws {
         let detail = try projectSource(named: "ProjectDetailView")
         let manager = try projectSource(named: "CounterManagerView")

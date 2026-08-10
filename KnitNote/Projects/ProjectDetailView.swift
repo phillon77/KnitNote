@@ -99,6 +99,22 @@ struct ProjectDetailView: View {
                             )
                         }
 
+                        if let reminder = project.selectedCounter.reminder {
+                            if let pending = reminder.pending {
+                                let counterID = project.selectedCounterID
+                                CounterReminderCard(
+                                    pending: pending,
+                                    message: reminder.message,
+                                    onComplete: {
+                                        completeProjectCounterReminder(counterID: counterID, pending: pending)
+                                    },
+                                    onStop: {
+                                        stopProjectCounterReminder(counterID: counterID, pending: pending)
+                                    }
+                                )
+                            }
+                        }
+
                         WatercolorCard {
                             ProjectYarnSection(
                                 projectID: projectID,
@@ -228,6 +244,51 @@ struct ProjectDetailView: View {
             counterSaveError = error.localizedDescription
             return false
         }
+    }
+
+    private func completeProjectCounterReminder(
+        counterID: UUID,
+        pending: CounterReminderPending
+    ) {
+        do {
+            try store.completeCounterReminder(
+                projectID: projectID,
+                counterID: counterID,
+                reminderID: pending.reminderID,
+                observedCount: pending.occurrenceCount
+            )
+            guard let counter = store.project(id: projectID)?.counters.first(where: { $0.id == counterID }),
+                  counter.reminder?.pending?.reminderID != pending.reminderID else {
+                reminderActionFailed()
+                return
+            }
+        } catch {
+            counterSaveError = error.localizedDescription
+        }
+    }
+
+    private func stopProjectCounterReminder(
+        counterID: UUID,
+        pending: CounterReminderPending
+    ) {
+        do {
+            try store.stopCounterReminder(
+                projectID: projectID,
+                counterID: counterID,
+                reminderID: pending.reminderID
+            )
+            guard let counter = store.project(id: projectID)?.counters.first(where: { $0.id == counterID }),
+                  counter.reminder?.id != pending.reminderID || counter.reminder?.isActive != true else {
+                reminderActionFailed()
+                return
+            }
+        } catch {
+            counterSaveError = error.localizedDescription
+        }
+    }
+
+    private func reminderActionFailed() {
+        counterSaveError = LocaleAwareText.string("counter.error.notSaved", locale: locale)
     }
 
     private var hasActivePatterns: Bool {

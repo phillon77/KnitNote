@@ -82,13 +82,35 @@ import Testing
 
     @Test func counterManagerUsesCompactEqualWidthValueControlsWithFullAccessibilityLabels() throws {
         let source = try projectSource(named: "CounterManagerView")
+        let decrement = try #require(sourceSection(
+            source,
+            from: "private var decrementButton:",
+            to: "private var incrementButton:"
+        ))
+        let increment = try #require(sourceSection(
+            source,
+            from: "private var incrementButton:",
+            to: "private var resetButton:"
+        ))
+        let reset = try #require(sourceSection(
+            source,
+            from: "private var resetButton:",
+            to: "private var currentValue:"
+        ))
 
-        #expect(source.contains("Text(\"−1\")"))
-        #expect(source.contains("Text(\"+1\")"))
-        #expect(source.components(separatedBy: ".frame(minWidth: 52, minHeight: 44)").count - 1 == 2)
-        #expect(source.contains(".accessibilityLabel(Text(\"counter.minusOne\"))"))
-        #expect(source.contains(".accessibilityLabel(Text(\"counter.increment\"))"))
-        #expect(source.contains("Button(\"counter.reset\", systemImage: \"arrow.counterclockwise\", role: .destructive)"))
+        #expect(decrement.contains("adjustValue(by: -1)"))
+        #expect(decrement.contains("Text(\"−1\")"))
+        #expect(decrement.components(separatedBy: ".frame(minWidth: 52, minHeight: 44)").count - 1 == 1)
+        #expect(decrement.contains(".disabled(currentValue == 0)"))
+        #expect(decrement.contains(".accessibilityLabel(Text(\"counter.minusOne\"))"))
+
+        #expect(increment.contains("adjustValue(by: 1)"))
+        #expect(increment.contains("Text(\"+1\")"))
+        #expect(increment.components(separatedBy: ".frame(minWidth: 52, minHeight: 44)").count - 1 == 1)
+        #expect(increment.contains(".disabled(currentValue == .max)"))
+        #expect(increment.contains(".accessibilityLabel(Text(\"counter.increment\"))"))
+
+        #expect(reset.contains("Button(\"counter.reset\", systemImage: \"arrow.counterclockwise\", role: .destructive)"))
     }
 
     @Test func counterManagerUsesExplicitPlatformSizingWithoutScrollDependentEssentials() throws {

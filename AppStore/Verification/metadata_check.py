@@ -217,7 +217,7 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
         "native acceptance",
         _phrase_pattern(
             "reviewed by native speakers", "native-speaker reviewed", "native reviewed",
-            "native Dutch acceptance is complete",
+            "native Dutch acceptance is complete", "native acceptance has passed",
             "母語人士審核", "母语人士审核", "von Muttersprachlern geprüft",
             "relues par des locuteurs natifs", "ネイティブスピーカーがレビュー",
             "gjennomgått av morsmålsbrukere", "granskats av modersmålstalare",
@@ -229,7 +229,7 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
         "physical acceptance",
         _phrase_pattern(
             "physical-device acceptance", "physical device acceptance", "tested on physical devices",
-            "physical acceptance on every device is complete",
+            "physical acceptance on every device is complete", "physical acceptance has passed",
             "實機驗收", "实机验收", "Abnahme auf echten Geräten",
             "validation sur appareils physiques", "実機験収", "Godkjenning på fysiske enheter",
             "Godkännandet på fysiska enheter", "Fyysisten laitteiden hyväksyntä",
@@ -237,11 +237,6 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
             "αποδοχή σε φυσικές συσκευές", "acceptatie op fysieke apparaten",
         ),
     ),
-)
-V150_WHATS_NEW_NEGATION = re.compile(
-    r"(?<!\w)(?:no|not|false|without|nicht|kein(?:e|en|er|es)?|pas|aucun(?:e)?|"
-    r"ikke|inte|ingen|utan|ei|eivät|ilman|δεν|μη|niet|geen|zonder|onjuist)(?!\w)|"
-    r"不|未|沒有|没有|並非|并非|ない|ません|않|아닙니다|없"
 )
 V140_LOCALES = (
     "en-US.md",
@@ -370,11 +365,27 @@ V150_WHATS_NEW_RELATIONSHIPS = {
     "el-GR.md": ("προσθέτει υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "βελτιωμένη διάταξη μετρητών στο iPad", "καλύτερο συντονισμό με το Apple Watch", "πλέον πλήρως τα ολλανδικά", "τίτλος «Έργα» ακολουθεί τη γλώσσα που επιλέγετε στην εφαρμογή"),
     "nl-NL.md": ("voegt tellerherinneringen", "rechtstreekse invoer van waarden toe", "verbeterde tellerindeling op iPad", "betere afstemming met Apple Watch", "Nederlands wordt nu volledig ondersteund", "titel Projecten volgt de taal die je in de app hebt gekozen"),
 }
+V150_APPROVED_WHATS_NEW = {
+    "en-US.md": "KnitNote 1.5.0 adds counter reminders and direct value entry, with an improved iPad counter layout and Apple Watch coordination. Dutch is now fully supported, and the Projects title follows your selected app language.",
+    "zh-Hant.md": "KnitNote 1.5.0 新增計數器提醒與數值直接輸入，並改善 iPad 計數器版面及 Apple Watch 協作。現在也完整支援荷蘭文，「作品」標題會依照所選 App 語言顯示。",
+    "zh-Hans.md": "KnitNote 1.5.0 新增计数器提醒和数值直接输入，并改进 iPad 计数器布局及 Apple Watch 协作。现已完整支持荷兰语，“作品”标题会按照所选 App 语言显示。",
+    "de-DE.md": "KnitNote 1.5.0 ergänzt Zählererinnerungen und die direkte Eingabe von Zählerwerten und verbessert das Zählerlayout auf dem iPad sowie die Abstimmung mit der Apple Watch. Niederländisch wird jetzt vollständig unterstützt, und der Titel „Projekte“ folgt der gewählten App-Sprache.",
+    "fr-FR.md": "KnitNote 1.5.0 ajoute des rappels de compteur et la saisie directe des valeurs, avec une meilleure présentation des compteurs sur iPad et une meilleure coordination avec l’Apple Watch. L’interface est désormais entièrement disponible en néerlandais, et le titre « Projets » suit la langue choisie dans l’app.",
+    "ja-JP.md": "KnitNote 1.5.0では、カウンターのリマインダーと数値の直接入力を追加し、iPadのカウンター画面とApple Watchとの連携を改善しました。オランダ語に完全対応し、「作品」タイトルもAppで選択した言語に合わせて表示されます。",
+    "nb-NO.md": "KnitNote 1.5.0 legger til påminnelser for tellere og direkte inntasting av verdier, med et forbedret telleroppsett på iPad og bedre samspill med Apple Watch. Nederlandsk støttes nå fullt ut, og tittelen «Prosjekter» følger språket du har valgt i appen.",
+    "sv-SE.md": "KnitNote 1.5.0 lägger till påminnelser för räknare och direkt inmatning av värden, med en förbättrad räknarlayout på iPad och bättre samspel med Apple Watch. Nederländska stöds nu fullt ut, och rubriken ”Projekt” följer språket du har valt i appen.",
+    "fi-FI.md": "KnitNote 1.5.0 lisää laskurimuistutukset ja arvojen suoran syötön sekä parantaa iPadin laskurinäkymää ja toimintaa Apple Watchin kanssa. Hollannin kieli on nyt täysin tuettu, ja Projektit-otsikko noudattaa sovelluksessa valittua kieltä.",
+    "da-DK.md": "KnitNote 1.5.0 tilføjer påmindelser til tællere og direkte indtastning af værdier samt forbedrer tællervisningen på iPad og samspillet med Apple Watch. Hollandsk understøttes nu fuldt ud, og titlen “Projekter” følger det sprog, du har valgt i appen.",
+    "ko-KR.md": "KnitNote 1.5.0에 카운터 알림과 값 직접 입력 기능이 추가되고, iPad 카운터 레이아웃과 Apple Watch 연동이 개선되었습니다. 이제 네덜란드어를 완전히 지원하며, ‘프로젝트’ 제목도 앱에서 선택한 언어로 표시됩니다.",
+    "el-GR.md": "Το KnitNote 1.5.0 προσθέτει υπενθυμίσεις μετρητών και άμεση εισαγωγή τιμών, με βελτιωμένη διάταξη μετρητών στο iPad και καλύτερο συντονισμό με το Apple Watch. Υποστηρίζονται πλέον πλήρως τα ολλανδικά και ο τίτλος «Έργα» ακολουθεί τη γλώσσα που επιλέγετε στην εφαρμογή.",
+    "nl-NL.md": "KnitNote 1.5.0 voegt tellerherinneringen en rechtstreekse invoer van waarden toe, met een verbeterde tellerindeling op iPad en betere afstemming met Apple Watch. Nederlands wordt nu volledig ondersteund en de titel Projecten volgt de taal die je in de app hebt gekozen.",
+}
 for filename, relationships in V150_WHATS_NEW_RELATIONSHIPS.items():
     LANGUAGE_CONTRACTS[filename].update({
         "version": "1.5.0",
         "whats_new_languages": (),
         "whats_new_relationships": relationships,
+        "approved_whats_new": V150_APPROVED_WHATS_NEW[filename],
     })
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")
@@ -764,8 +775,10 @@ def validate(path: Path) -> list[str]:
         version = contract.get("version", "1.4.1")
         if versions != [version]:
             errors.append(f"{path}: What's New: must identify KnitNote {version} exactly")
-        if V150_WHATS_NEW_NEGATION.search(normalized_whats_new):
-            errors.append(f"{path}: What's New: must not negate approved 1.5 behavior")
+        if whats_new != contract.get("approved_whats_new", whats_new):
+            errors.append(
+                f"{path}: What's New: must match the approved {version} release note exactly"
+            )
         for language in contract.get("whats_new_languages", contract["languages"][6:]):
             if language.casefold() not in whats_new.casefold():
                 errors.append(f"{path}: What's New: missing added language: {language}")

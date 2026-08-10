@@ -233,8 +233,38 @@ class MetadataLocaleTests(unittest.TestCase):
         path = self.write_named_metadata("en-US.md", fields)
 
         self.assertIn(
-            f"{path}: What's New: must not negate approved 1.5 behavior",
+            f"{path}: What's New: must match the approved 1.5.0 release note exactly",
             validate(path),
+        )
+
+    def test_validator_rejects_adjacent_negation_synonyms(self) -> None:
+        fields = parse(METADATA / "en-US.md")
+        fields["What's New"] = (
+            "The claim 'KnitNote 1.5.0 adds counter reminders' isn't true. "
+            "Direct value entry is disabled. Improved iPad counter layout is unavailable. "
+            "Apple Watch coordination is absent. 'Dutch is now fully supported' is incorrect. "
+            "'Projects title follows your selected app language' is a myth."
+        )
+        path = self.write_named_metadata("en-US.md", fields)
+        exact_error = f"{path}: What's New: must match the approved 1.5.0 release note exactly"
+        self.assertIn(exact_error, validate(path))
+
+    def test_validator_treats_additive_not_only_as_noncanonical_not_negative(self) -> None:
+        fields = parse(METADATA / "en-US.md")
+        fields["What's New"] = (
+            "KnitNote 1.5.0 not only adds counter reminders and direct value entry, but also has "
+            "an improved iPad counter layout and Apple Watch coordination. Dutch is now fully "
+            "supported, and the Projects title follows your selected app language."
+        )
+        path = self.write_named_metadata("en-US.md", fields)
+        errors = validate(path)
+        self.assertIn(
+            f"{path}: What's New: must match the approved 1.5.0 release note exactly",
+            errors,
+        )
+        self.assertNotIn(
+            f"{path}: What's New: must not negate approved 1.5 behavior",
+            errors,
         )
 
     def test_validator_rejects_missing_supported_language_for_every_package(self) -> None:
@@ -490,8 +520,10 @@ class MetadataValidationTests(unittest.TestCase):
             ("publication", "Publication is complete."),
             ("native acceptance", "All translations were reviewed by native speakers."),
             ("native acceptance", "Native Dutch acceptance is complete."),
+            ("native acceptance", "Native acceptance has passed."),
             ("physical acceptance", "All features passed physical-device acceptance."),
             ("physical acceptance", "Physical acceptance on every device is complete."),
+            ("physical acceptance", "Physical acceptance has passed."),
         )
 
         for concept, claim in claims:

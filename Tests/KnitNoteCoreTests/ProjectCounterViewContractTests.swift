@@ -180,32 +180,42 @@ import Testing
         #expect(reminderSection.contains("message: reminder.message"))
         #expect(reminderSection.contains("completeProjectCounterReminder("))
         #expect(reminderSection.contains("stopProjectCounterReminder("))
+
+        let card = try #require(sourceSection(
+            source,
+            from: "CounterReminderCard(",
+            to: "WatercolorCard {\n                            ProjectYarnSection("
+        ))
+        let normalizedCard = normalized(card)
+        #expect(normalizedCard.contains("pending:pending,message:reminder.message,onComplete:{completeProjectCounterReminder(counterID:counterID,pending:pending)},onStop:{stopProjectCounterReminder(counterID:counterID,pending:pending)}"))
+        #expect(card.components(separatedBy: "completeProjectCounterReminder(").count - 1 == 1)
+        #expect(card.components(separatedBy: "stopProjectCounterReminder(").count - 1 == 1)
     }
 
     @Test func projectDetailReminderActionsAreStoreBackedAndFailClosed() throws {
         let source = try projectSource(named: "ProjectDetailView")
-        let complete = try #require(sourceSection(
+        let complete = normalized(try #require(sourceSection(
             source,
             from: "private func completeProjectCounterReminder(",
             to: "private func stopProjectCounterReminder("
-        ))
-        let stop = try #require(sourceSection(
+        )))
+        let stop = normalized(try #require(sourceSection(
             source,
             from: "private func stopProjectCounterReminder(",
             to: "private func reminderActionFailed("
-        ))
+        )))
 
-        #expect(complete.contains("try store.completeCounterReminder("))
-        #expect(complete.contains("reminderID: pending.reminderID"))
-        #expect(complete.contains("observedCount: pending.occurrenceCount"))
-        #expect(complete.contains("store.project(id: projectID)"))
-        #expect(complete.contains("reminderActionFailed()"))
-        #expect(stop.contains("try store.stopCounterReminder("))
-        #expect(stop.contains("reminderID: pending.reminderID"))
-        #expect(stop.contains("store.project(id: projectID)"))
-        #expect(stop.contains("reminderActionFailed()"))
-        #expect(!complete.contains("pending = nil"))
-        #expect(!stop.contains("pending = nil"))
+        #expect(complete.contains("guardletcurrentProject=store.project(id:projectID),currentProject.selectedCounterID==counterID,letcurrentCounter=currentProject.counters.first(where:{$0.id==counterID}),currentCounter.id==counterID,letcurrentReminder=currentCounter.reminder,currentReminder.id==pending.reminderID,letcurrentPending=currentReminder.pending,currentPending.reminderID==pending.reminderID,currentPending.occurrenceCount==pending.occurrenceCountelse{reminderActionFailed()return}"))
+        #expect(complete.contains("letdataGenerationBefore=store.dataGenerationtrystore.completeCounterReminder(projectID:projectID,counterID:counterID,reminderID:pending.reminderID,observedCount:pending.occurrenceCount)guardstore.dataGeneration>dataGenerationBefore,letupdatedProject=store.project(id:projectID),updatedProject.selectedCounterID==counterID,letupdatedCounter=updatedProject.counters.first(where:{$0.id==counterID}),updatedCounter.id==counterID,letupdatedReminder=updatedCounter.reminder,updatedReminder.id==pending.reminderID,updatedReminder.pending==nilelse{reminderActionFailed()return}"))
+        #expect(complete.contains("catch{counterSaveError=error.localizedDescription}"))
+        #expect(complete.components(separatedBy: "trystore.completeCounterReminder(").count - 1 == 1)
+        #expect(complete.components(separatedBy: "reminderActionFailed()").count - 1 == 2)
+
+        #expect(stop.contains("guardletcurrentProject=store.project(id:projectID),currentProject.selectedCounterID==counterID,letcurrentCounter=currentProject.counters.first(where:{$0.id==counterID}),currentCounter.id==counterID,letcurrentReminder=currentCounter.reminder,currentReminder.id==pending.reminderID,currentReminder.isActive==true,letcurrentPending=currentReminder.pending,currentPending.reminderID==pending.reminderID,currentPending.occurrenceCount==pending.occurrenceCountelse{reminderActionFailed()return}"))
+        #expect(stop.contains("letdataGenerationBefore=store.dataGenerationtrystore.stopCounterReminder(projectID:projectID,counterID:counterID,reminderID:pending.reminderID)guardstore.dataGeneration>dataGenerationBefore,letupdatedProject=store.project(id:projectID),updatedProject.selectedCounterID==counterID,letupdatedCounter=updatedProject.counters.first(where:{$0.id==counterID}),updatedCounter.id==counterID,letupdatedReminder=updatedCounter.reminder,updatedReminder.id==pending.reminderID,updatedReminder.pending==nil,updatedReminder.isActive!=trueelse{reminderActionFailed()return}"))
+        #expect(stop.contains("catch{counterSaveError=error.localizedDescription}"))
+        #expect(stop.components(separatedBy: "trystore.stopCounterReminder(").count - 1 == 1)
+        #expect(stop.components(separatedBy: "reminderActionFailed()").count - 1 == 2)
     }
 
     @Test func rejectedDirectReminderSaveKeepsTheManagerOpen() throws {
@@ -308,5 +318,9 @@ import Testing
             return nil
         }
         return String(source[startRange.lowerBound..<endRange.lowerBound])
+    }
+
+    private func normalized(_ source: String) -> String {
+        String(source.filter { !$0.isWhitespace })
     }
 }

@@ -251,14 +251,33 @@ struct ProjectDetailView: View {
         pending: CounterReminderPending
     ) {
         do {
+            guard let currentProject = store.project(id: projectID),
+                  currentProject.selectedCounterID == counterID,
+                  let currentCounter = currentProject.counters.first(where: { $0.id == counterID }),
+                  currentCounter.id == counterID,
+                  let currentReminder = currentCounter.reminder,
+                  currentReminder.id == pending.reminderID,
+                  let currentPending = currentReminder.pending,
+                  currentPending.reminderID == pending.reminderID,
+                  currentPending.occurrenceCount == pending.occurrenceCount else {
+                reminderActionFailed()
+                return
+            }
+            let dataGenerationBefore = store.dataGeneration
             try store.completeCounterReminder(
                 projectID: projectID,
                 counterID: counterID,
                 reminderID: pending.reminderID,
                 observedCount: pending.occurrenceCount
             )
-            guard let counter = store.project(id: projectID)?.counters.first(where: { $0.id == counterID }),
-                  counter.reminder?.pending?.reminderID != pending.reminderID else {
+            guard store.dataGeneration > dataGenerationBefore,
+                  let updatedProject = store.project(id: projectID),
+                  updatedProject.selectedCounterID == counterID,
+                  let updatedCounter = updatedProject.counters.first(where: { $0.id == counterID }),
+                  updatedCounter.id == counterID,
+                  let updatedReminder = updatedCounter.reminder,
+                  updatedReminder.id == pending.reminderID,
+                  updatedReminder.pending == nil else {
                 reminderActionFailed()
                 return
             }
@@ -272,13 +291,34 @@ struct ProjectDetailView: View {
         pending: CounterReminderPending
     ) {
         do {
+            guard let currentProject = store.project(id: projectID),
+                  currentProject.selectedCounterID == counterID,
+                  let currentCounter = currentProject.counters.first(where: { $0.id == counterID }),
+                  currentCounter.id == counterID,
+                  let currentReminder = currentCounter.reminder,
+                  currentReminder.id == pending.reminderID,
+                  currentReminder.isActive == true,
+                  let currentPending = currentReminder.pending,
+                  currentPending.reminderID == pending.reminderID,
+                  currentPending.occurrenceCount == pending.occurrenceCount else {
+                reminderActionFailed()
+                return
+            }
+            let dataGenerationBefore = store.dataGeneration
             try store.stopCounterReminder(
                 projectID: projectID,
                 counterID: counterID,
                 reminderID: pending.reminderID
             )
-            guard let counter = store.project(id: projectID)?.counters.first(where: { $0.id == counterID }),
-                  counter.reminder?.id != pending.reminderID || counter.reminder?.isActive != true else {
+            guard store.dataGeneration > dataGenerationBefore,
+                  let updatedProject = store.project(id: projectID),
+                  updatedProject.selectedCounterID == counterID,
+                  let updatedCounter = updatedProject.counters.first(where: { $0.id == counterID }),
+                  updatedCounter.id == counterID,
+                  let updatedReminder = updatedCounter.reminder,
+                  updatedReminder.id == pending.reminderID,
+                  updatedReminder.pending == nil,
+                  updatedReminder.isActive != true else {
                 reminderActionFailed()
                 return
             }

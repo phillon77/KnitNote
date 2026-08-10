@@ -21,7 +21,7 @@ preservation, signed-candidate, archive, or release acceptance.
 | Complete Swift suite | `swift test --disable-sandbox` | PASS, exit 0; 1,472 tests in 125 suites, zero issues |
 | Static release audit | `AppStore/Verification/release_audit.sh --static-only` | PASS: metadata, offline commercial, and static audit |
 | Metadata checker | `python3 AppStore/Verification/metadata_check.py` | PASS, exit 0 |
-| Shell and diff checks | `bash -n` on the release audit and candidate creator; `git diff --check` | PASS, exit 0 |
+| Shell and diff checks | `bash -n AppStore/Verification/release_audit.sh`; `bash -n AppStore/Verification/create_release_candidate.sh`; `git diff --check` | PASS, exit 0 |
 
 The focused layout/accessibility matrix statically requires explicit
 iPhone/iPad/Mac presentation sizing, no scroll-dependent essential controls,
@@ -54,7 +54,7 @@ Physical checks recorded on 2026-08-10 found:
 
 | Required device | OS | Discovery state | Install result |
 | --- | --- | --- | --- |
-| iPhone 17 Pro Max | iOS 26.6 | available | 1.5.0 (9); data-preserving exact-source overlay used for scoped checks |
+| iPhone 17 Pro Max | iOS 26.6 | available | 1.5.0 (9); multiple data-preserving exact-source checks are identified below |
 | iPad Air (5th generation) | iPadOS 26.5.2 | available | 1.5.0 (9); exact `a91cf72` overlay accepted |
 | Apple Watch Ultra 2 | watchOS 26.6 | available | 1.5.0 (9); exact `a91cf72` overlay accepted |
 | MacBook Pro | macOS 26.6.1 | available | exact `a91cf72` signed Debug app launched and exercised |
@@ -83,8 +83,9 @@ pending and must not be inferred from builds, contracts, or adjacent checks.
   direct entry 35, presents one combined pending reminder covering targets 18
   and 28 with count 2.
 - [x] Complete acknowledges the visible combined pending reminder once; Stop
-  disables and clears the applicable reminder state; failures do not dismiss
-  the visible card.
+  disables and clears the applicable reminder state.
+- [ ] A rejected or failed Complete/Stop transaction keeps the visible card
+  open without publishing a partial state change.
 
 The direct-input matrix was physically accepted on exact source
 `18869d302d989c14411e21a887704c16d484a8a7`: `2048` saved, while empty,
@@ -101,7 +102,10 @@ unchecked so this record does not copy physical acceptance across source SHAs.
 - [x] An authoritative refresh of an already-visible pending reminder does not
   replay the haptic.
 - [x] Complete synchronizes once to iPhone/iPad and clears the pending state.
-- [x] Stop synchronizes once and prevents a stale Complete from reviving it.
+- [x] Stop synchronizes once, clears the reminder, and prevents later counter
+  changes from reviving it.
+- [ ] Replaying a stale Complete after Stop does not revive or acknowledge the
+  stopped reminder.
 - [x] While offline, perform one reminder action, reconnect, and observe one
   final authoritative result with no duplicate completion or haptic.
 

@@ -205,6 +205,7 @@ import Testing
         let source = try projectSource(named: "ProjectDetailView")
         let tripleQuote = String(repeating: "\"", count: 3)
         let escapedTripleQuote = "\\\(tripleQuote)"
+        let rawStringDelimiter = "#"
         let lexerFixtures: [(source: String, leakedToken: String)] = [
             ("let live = 1 // lineCommentDecoy()\n", "lineCommentDecoy"),
             ("/* outerCommentDecoy() /* nestedCommentDecoy() */ */ let live = 1", "outerCommentDecoy"),
@@ -212,6 +213,8 @@ import Testing
             ("let text = \"ordinary escaped \\\" quote ordinaryStringDecoy()\"\n", "ordinaryStringDecoy"),
             ("let text = \(tripleQuote)\nplainMultilineDecoy()\n\(tripleQuote)\nlet live = 1", "plainMultilineDecoy"),
             ("let text = \(tripleQuote)\n\(escapedTripleQuote)\nescapedTripleQuoteDecoy()\n\(escapedTripleQuote)\n\(tripleQuote)\nlet live = 1", "escapedTripleQuoteDecoy"),
+            ("let text = \(rawStringDelimiter)\(tripleQuote)\n\(tripleQuote)\nrawStringDecoy()\n\(tripleQuote)\n\(tripleQuote)\(rawStringDelimiter)\nlet live = 1", "rawStringDecoy"),
+            ("#if os(Linux)\ninactiveBranchDecoy()\n#endif\nlet live = 1", "inactiveBranchDecoy"),
         ]
         for fixture in lexerFixtures {
             #expect(!executableSwiftTokens(in: fixture.source).contains(fixture.leakedToken))
@@ -377,10 +380,18 @@ import Testing
         while index < characters.count {
             if characters[index].isWhitespace {
                 index += 1
+            } else if startsConditionalCompilationBlock(characters, at: index) {
+                index = firstIndexAfterConditionalCompilationBlock(in: characters, from: index)
             } else if startsLineComment(characters, at: index) {
                 index = firstIndexAfterLineComment(in: characters, from: index + 2)
             } else if startsBlockComment(characters, at: index) {
                 index = firstIndexAfterBlockComment(in: characters, from: index + 2)
+            } else if let hashCount = rawStringHashCount(characters, at: index) {
+                index = firstIndexAfterRawStringLiteral(
+                    in: characters,
+                    from: index,
+                    hashCount: hashCount
+                )
             } else if characters[index] == "\"" {
                 index = firstIndexAfterStringLiteral(in: characters, from: index)
             } else if isIdentifierStart(characters[index]) {
@@ -529,6 +540,79 @@ import Testing
             }
         }
         return index
+    }
+
+    private func startsConditionalCompilationBlock(_ characters: [Character], at index: Int) -> Bool {
+        guard characters[index] == "#", isAtLineDirectiveStart(characters, at: index) else {
+            return false
+        }
+        let suffix = characters[index...]
+        guard suffix.starts(with: Array("#if")) else { return false }
+        let boundary = index + 3
+        return boundary == characters.count || characters[boundary].isWhitespace
+    }
+
+    private func isAtLineDirectiveStart(_ characters: [Character], at index: Int) -> Bool {
+        var cursor = index
+        while cursor > 0, characters[cursor - 1] != "\n" {
+            guard characters[cursor - 1].isWhitespace else { return false }
+            cursor -= 1
+        }
+        return true
+    }
+
+    private func firstIndexAfterConditionalCompilationBlock(
+        in characters: [Character],
+        from index: Int
+    ) -> Int {
+        var cursor = index
+        var depth = 0
+        while cursor < characters.count {
+            let lineEnd = characters[cursor...].firstIndex(of: "\n") ?? characters.endIndex
+            let line = String(characters[cursor..<lineEnd]).trimmingCharacters(in: .whitespaces)
+            if line == "#if" || line.hasPrefix("#if ") {
+                depth += 1
+            } else if line == "#endif" {
+                depth -= 1
+                if depth == 0 { return lineEnd < characters.endIndex ? lineEnd + 1 : lineEnd }
+            }
+            cursor = lineEnd < characters.endIndex ? lineEnd + 1 : lineEnd
+        }
+        return cursor
+    }
+
+    private func rawStringHashCount(_ characters: [Character], at index: Int) -> Int? {
+        guard characters[index] == "#" else { return nil }
+        var cursor = index
+        while cursor < characters.count, characters[cursor] == "#" { cursor += 1 }
+        guard cursor < characters.count, characters[cursor] == "\"" else { return nil }
+        return cursor - index
+    }
+
+    private func firstIndexAfterRawStringLiteral(
+        in characters: [Character],
+        from index: Int,
+        hashCount: Int
+    ) -> Int {
+        let quoteIndex = index + hashCount
+        let isMultiline = quoteIndex + 2 < characters.count
+            && characters[quoteIndex + 1] == "\""
+            && characters[quoteIndex + 2] == "\""
+        let quoteCount = isMultiline ? 3 : 1
+        var cursor = quoteIndex + quoteCount
+
+        while cursor < characters.count {
+            let hasQuotes = (0..<quoteCount).allSatisfy {
+                cursor + $0 < characters.count && characters[cursor + $0] == "\""
+            }
+            let hashStart = cursor + quoteCount
+            let hasHashes = hasQuotes && (0..<hashCount).allSatisfy {
+                hashStart + $0 < characters.count && characters[hashStart + $0] == "#"
+            }
+            if hasQuotes, hasHashes { return hashStart + hashCount }
+            cursor += 1
+        }
+        return cursor
     }
 
     private func firstIndexAfterStringLiteral(in characters: [Character], from index: Int) -> Int {

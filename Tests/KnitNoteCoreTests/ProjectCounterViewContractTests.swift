@@ -203,6 +203,20 @@ import Testing
 
     @Test func projectDetailReminderActionsAreStoreBackedAndFailClosed() throws {
         let source = try projectSource(named: "ProjectDetailView")
+        let tripleQuote = String(repeating: "\"", count: 3)
+        let escapedTripleQuote = "\\\(tripleQuote)"
+        let lexerFixtures: [(source: String, leakedToken: String)] = [
+            ("let live = 1 // lineCommentDecoy()\n", "lineCommentDecoy"),
+            ("/* outerCommentDecoy() /* nestedCommentDecoy() */ */ let live = 1", "outerCommentDecoy"),
+            ("/* outerCommentDecoy() /* nestedCommentDecoy() */ */ let live = 1", "nestedCommentDecoy"),
+            ("let text = \"ordinary escaped \\\" quote ordinaryStringDecoy()\"\n", "ordinaryStringDecoy"),
+            ("let text = \(tripleQuote)\nplainMultilineDecoy()\n\(tripleQuote)\nlet live = 1", "plainMultilineDecoy"),
+            ("let text = \(tripleQuote)\n\(escapedTripleQuote)\nescapedTripleQuoteDecoy()\n\(escapedTripleQuote)\n\(tripleQuote)\nlet live = 1", "escapedTripleQuoteDecoy"),
+        ]
+        for fixture in lexerFixtures {
+            #expect(!executableSwiftTokens(in: fixture.source).contains(fixture.leakedToken))
+        }
+
         let tokens = executableSwiftTokens(in: source)
         let complete = try #require(executableFunction(
             named: "completeProjectCounterReminder",
@@ -527,7 +541,8 @@ import Testing
                index + 2 < characters.count,
                characters[index] == "\"",
                characters[index + 1] == "\"",
-               characters[index + 2] == "\"" {
+               characters[index + 2] == "\"",
+               !isEscapedStringDelimiter(characters, at: index) {
                 return index + 3
             }
             if !isMultiline, characters[index] == "\\" {
@@ -539,6 +554,16 @@ import Testing
             }
         }
         return index
+    }
+
+    private func isEscapedStringDelimiter(_ characters: [Character], at index: Int) -> Bool {
+        var precedingBackslashes = 0
+        var cursor = index
+        while cursor > 0, characters[cursor - 1] == "\\" {
+            precedingBackslashes += 1
+            cursor -= 1
+        }
+        return precedingBackslashes.isMultiple(of: 2) == false
     }
 
     private func isIdentifierStart(_ character: Character) -> Bool {

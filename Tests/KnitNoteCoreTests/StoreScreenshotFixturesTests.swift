@@ -376,7 +376,7 @@ import Testing
             executable: screenshotPythonRuntime.path,
             arguments: [
                 "-c",
-                "import sys; sys.path.insert(0, sys.argv[1]); from provenance import *; m=Path(sys.argv[2]); r=Path(sys.argv[3]); c='" + String(repeating: "a", count: 40) + "'; h='" + String(repeating: "b", count: 64) + "'; p={n:{'bundleIdentifier':PRODUCT_IDS[n],'version':'1.5.0','build':'9','sourceRevision':c,'executable':PRODUCT_EXECUTABLES[n],'executableSHA256':h} for n in PRODUCT_IDS}; atomic_write(r/'candidate-provenance.json', create_raw(m,r,c,'1.5.0','9',p))",
+                "import sys; sys.path.insert(0, sys.argv[1]); from provenance import *; m=Path(sys.argv[2]); r=Path(sys.argv[3]); c='" + String(repeating: "a", count: 40) + "'; h='" + String(repeating: "b", count: 64) + "'; p={n:{'bundleIdentifier':PRODUCT_IDS[n],'version':'1.5.0','build':'10','sourceRevision':c,'executable':PRODUCT_EXECUTABLES[n],'executableSHA256':h} for n in PRODUCT_IDS}; atomic_write(r/'candidate-provenance.json', create_raw(m,r,c,'1.5.0','10',p))",
                 screenshotRepositoryRoot.appending(path: "AppStore/Screenshots").path,
                 manifest.path,
                 root.appending(path: "Raw").path,
@@ -478,7 +478,7 @@ import Testing
                 fromPropertyList: [
                     "CFBundleIdentifier": identifier,
                     "CFBundleShortVersionString": "1.5.0",
-                    "CFBundleVersion": "9",
+                    "CFBundleVersion": "10",
                     "CFBundleExecutable": name,
                     "KnitNoteSourceRevision": commit,
                 ],
@@ -527,13 +527,13 @@ import Testing
         environment["SCREENSHOT_PYTHON_RUNTIME"] = screenshotPythonRuntime.path
         var result = try screenshotProcess(
             executable: "/bin/bash",
-            arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.5.0", "9"],
+            arguments: ["AppStore/Screenshots/capture.sh", "--all-locales", commit, "1.5.0", "10"],
             environment: environment
         )
         #expect(result.status != 0)
         #expect(result.output.contains("production capture rejects KNITNOTE_SCREENSHOT_CAPTURE_RUNNER"))
 
-        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.5.0", "9"], environment: environment)
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.5.0", "10"], environment: environment)
         #expect(result.status == 0, Comment(rawValue: result.output))
         let payload = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: provenance)) as? [String: Any])
         let candidate = try #require(payload["candidate"] as? [String: Any])
@@ -542,14 +542,14 @@ import Testing
         let priorProvenance = try Data(contentsOf: provenance)
         let priorEnglish = try Data(contentsOf: raw.appending(path: "en/iphone/01-projects.png"))
         environment["FAIL_LOCALE"] = "fi"
-        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.5.0", "9"], environment: environment)
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.5.0", "10"], environment: environment)
         #expect(result.status != 0)
         #expect(try Data(contentsOf: provenance) == priorProvenance)
         #expect(try Data(contentsOf: raw.appending(path: "en/iphone/01-projects.png")) == priorEnglish)
         environment.removeValue(forKey: "FAIL_LOCALE")
         environment["MUTATE_LOCALE"] = "el"
         environment["MUTATE_EXECUTABLE"] = iOSApp.appending(path: "KnitNote").path
-        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.5.0", "9"], environment: environment)
+        result = try screenshotProcess(executable: "/bin/bash", arguments: ["AppStore/Screenshots/capture.sh", "--test-only", "--all-locales", commit, "1.5.0", "10"], environment: environment)
         #expect(result.status != 0)
         #expect(result.output.contains("screenshot products changed during capture"))
         #expect(try Data(contentsOf: provenance) == priorProvenance)
@@ -565,8 +565,8 @@ import Testing
             readme.components(separatedBy: "KNITNOTE_SOURCE_REVISION=\"$CANDIDATE_COMMIT\" build").count - 1 == 3
         )
         #expect(readme.contains("CANDIDATE_VERSION='1.5.0'"))
-        #expect(readme.contains("CANDIDATE_BUILD='9'"))
-        #expect(readme.contains("exact `1.5.0 (9)`"))
+        #expect(readme.contains("CANDIDATE_BUILD='10'"))
+        #expect(readme.contains("exact `1.5.0 (10)`"))
     }
 
     @Test func screenshotPythonRuntimeSkipsAnIncompatibleCandidate() throws {

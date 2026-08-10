@@ -61,7 +61,7 @@ import Testing
     }
 
     @Test func archiveAuditRejectsPreviousBuildAcrossShippingProducts() throws {
-        let fixture = try makeArchiveFixture(version: "1.5.0", build: "8")
+        let fixture = try makeArchiveFixture(version: "1.5.0", build: "9")
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
 
         let result = try runReleaseAudit(
@@ -70,7 +70,7 @@ import Testing
         )
 
         #expect(result.status != 0)
-        #expect(result.output.contains("iOS product build is 8, expected 9"))
+        #expect(result.output.contains("iOS product build is 9, expected 10"))
     }
 
     @Test func staticAuditRejectsGeneratedProjectMissingOneReleaseRegion() throws {
@@ -2001,7 +2001,7 @@ private func makeArchiveFixture(
     extraDirectory: (target: String, locale: String)? = nil,
     localizationOverrides: [String: [String]] = [:],
     version: String = "1.5.0",
-    build: String = "9",
+    build: String = "10",
     sourceRevision: String = fixtureCommit,
     emptyResource: (String, String)? = nil,
     privacyTracking: Bool = false,

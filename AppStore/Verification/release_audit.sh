@@ -804,6 +804,12 @@ if [[ -n "$ARCHIVES" ]]; then
     || fail "exported iOS app root is missing or unsafe"
   MAC="$(find_unique_mac_app "$MAC_EXTRACT")" \
     || fail "expected exactly one exported macOS app root"
+  unreadable_file="$(find "$MAC" -type f ! -perm -0004 -print -quit)"
+  [[ -z "$unreadable_file" ]] \
+    || fail "macOS package app contains a file that is not world-readable: $unreadable_file"
+  unsearchable_directory="$(find "$MAC" -type d ! -perm -0001 -print -quit)"
+  [[ -z "$unsearchable_directory" ]] \
+    || fail "macOS package app contains a directory that is not world-searchable: $unsearchable_directory"
   WATCH="$IOS/Watch/KnitNoteWatch.app"
   SHARE="$IOS/PlugIns/KnitNoteShare.appex"
   WATCH="$(require_safe_directory "exported Watch app root" "$IOS_EXTRACT" "$WATCH")" \

@@ -62,6 +62,7 @@ WORKTREE="$WORKROOT/source"
 PUBLISHER="$WORKROOT/atomic_publish.py"
 
 "$GIT" -C "$ROOT" worktree add --detach "$WORKTREE" "$COMMIT"
+umask 022
 (cd "$WORKTREE" && AppStore/Verification/release_audit.sh --static-only)
 (cd "$WORKTREE" && "$XCODEBUILD" -project KnitNote.xcodeproj -scheme KnitNote -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$ARTIFACTS/KnitNote-iOS-Privacy.xcarchive" \

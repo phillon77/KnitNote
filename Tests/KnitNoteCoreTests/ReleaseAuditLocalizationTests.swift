@@ -271,6 +271,46 @@ import Testing
         #expect(extractedDirectories.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
     }
 
+    @Test func archiveAuditRejectsUnreadableMacPackagePayload() throws {
+        let unreadableFileFixture = try makeArchiveFixture()
+        defer { try? FileManager.default.removeItem(at: unreadableFileFixture.temporaryRoot) }
+        let executable = unreadableFileFixture.macPackageApp
+            .appendingPathComponent("Contents/MacOS/KnitNote")
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: executable.path
+        )
+
+        let unreadableFileResult = try runReleaseAudit(
+            archives: unreadableFileFixture.archives,
+            environment: ["PATH": unreadableFileFixture.commandPath]
+        )
+        #expect(unreadableFileResult.status != 0)
+        #expect(unreadableFileResult.output.contains(
+            "macOS package app contains a file that is not world-readable:"
+        ))
+        #expect(unreadableFileResult.output.contains("Contents/MacOS/KnitNote"))
+
+        let unsearchableDirectoryFixture = try makeArchiveFixture()
+        defer { try? FileManager.default.removeItem(at: unsearchableDirectoryFixture.temporaryRoot) }
+        let executableDirectory = unsearchableDirectoryFixture.macPackageApp
+            .appendingPathComponent("Contents/MacOS")
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o700],
+            ofItemAtPath: executableDirectory.path
+        )
+
+        let unsearchableDirectoryResult = try runReleaseAudit(
+            archives: unsearchableDirectoryFixture.archives,
+            environment: ["PATH": unsearchableDirectoryFixture.commandPath]
+        )
+        #expect(unsearchableDirectoryResult.status != 0)
+        #expect(unsearchableDirectoryResult.output.contains(
+            "macOS package app contains a directory that is not world-searchable:"
+        ))
+        #expect(unsearchableDirectoryResult.output.contains("Contents/MacOS"))
+    }
+
     @Test func archiveAuditBindsEveryExportedDistributionArtifactInProvenance() throws {
         let artifacts = [
             "Distribution/iOS/KnitNote.ipa",
@@ -935,6 +975,10 @@ import Testing
             FileManager.default.attributesOfItem(atPath: successful.final.path)[.posixPermissions] as? NSNumber
         )
         #expect(permissions.intValue & 0o077 == 0)
+        let observedMasks = try String(contentsOf: successful.umaskLog, encoding: .utf8)
+            .split(separator: "\n")
+            .map(String.init)
+        #expect(observedMasks == ["0022", "0022", "0022", "0022"])
 
         let raced = try runCreatorFixture(raceDestination: true)
         defer { try? FileManager.default.removeItem(at: raced.root) }
@@ -1741,6 +1785,7 @@ private struct AuditResult {
 private struct ArchiveFixture {
     let temporaryRoot: URL
     let archives: URL
+    let macPackageApp: URL
     let commandPath: String
     let provenance: URL
     let extractionLog: URL
@@ -1846,12 +1891,13 @@ private func runAtomicPublish(staging: URL, final: URL) throws -> AuditResult {
     )
 }
 
-private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = false, secondMktempFailure: Bool = false) throws -> (result: AuditResult, root: URL, parent: URL, final: URL) {
+private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = false, secondMktempFailure: Bool = false) throws -> (result: AuditResult, root: URL, parent: URL, final: URL, umaskLog: URL) {
     let fileManager = FileManager.default
     let root = fileManager.temporaryDirectory.appendingPathComponent("knitnote-creator-fixture-\(UUID().uuidString)")
     let parent = root.appendingPathComponent("output")
     let bin = root.appendingPathComponent("bin")
     let final = parent.appendingPathComponent("candidate")
+    let umaskLog = root.appendingPathComponent("xcodebuild-umasks.log")
     try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
     try fileManager.createDirectory(at: bin, withIntermediateDirectories: true)
     let realRoot = releaseAuditRepositoryRoot.path
@@ -1890,6 +1936,7 @@ private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = fal
     let security = try executable("security", "#!/bin/sh\nprintf '%s\\n' '1) Apple Distribution: Fixture (9CFPAUL5N5)'\n")
     let xcodebuild = try executable("xcodebuild", """
     #!/bin/bash
+    umask >> '\(umaskLog.path)'
     export_path=""
     while [[ $# -gt 0 ]]; do
       if [[ "$1" == "-exportPath" ]]; then export_path="$2"; shift 2; continue; fi
@@ -1944,7 +1991,8 @@ private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = fal
         AuditResult(status: process.terminationStatus, output: String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""),
         root,
         parent,
-        final
+        final,
+        umaskLog
     )
 }
 
@@ -2416,6 +2464,7 @@ private func makeArchiveFixture(
     return ArchiveFixture(
         temporaryRoot: temporaryRoot,
         archives: archives,
+        macPackageApp: preparedMacApp,
         commandPath: "\(fakeBin.path):\(existingPath)",
         provenance: provenance,
         extractionLog: extractionLog

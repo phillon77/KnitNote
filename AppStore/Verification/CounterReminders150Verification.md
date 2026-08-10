@@ -75,7 +75,8 @@ pending and must not be inferred from builds, contracts, or adjacent checks.
   Cancel, and Done are initially visible without scrolling.
 - [x] iPad landscape: the same controls remain initially visible without
   scrolling.
-- [x] Narrow iPhone layout remains usable and exposes all essential controls.
+- [ ] Narrow iPhone layout keeps the name/value editors, compact controls,
+  reminder summary/editor, Cancel, and Done initially visible and usable.
 - [ ] Direct entry accepts `2048` and rejects empty, negative, fractional,
   alphabetic, signed-plus, non-ASCII digit, and overflowing values without
   corrupting the prior stored value.

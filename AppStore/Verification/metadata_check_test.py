@@ -222,6 +222,21 @@ class MetadataLocaleTests(unittest.TestCase):
                 errors,
             )
 
+    def test_validator_rejects_negated_v150_relationships_even_when_phrases_remain(self) -> None:
+        fields = parse(METADATA / "en-US.md")
+        fields["What's New"] = (
+            "The claim 'KnitNote 1.5.0 adds counter reminders' is false. "
+            "Direct value entry is not included. There is no improved iPad counter layout or "
+            "Apple Watch coordination. 'Dutch is now fully supported' is false, and "
+            "'Projects title follows your selected app language' is false."
+        )
+        path = self.write_named_metadata("en-US.md", fields)
+
+        self.assertIn(
+            f"{path}: What's New: must not negate approved 1.5 behavior",
+            validate(path),
+        )
+
     def test_validator_rejects_missing_supported_language_for_every_package(self) -> None:
         for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename, mutation="language"):
@@ -472,8 +487,11 @@ class MetadataValidationTests(unittest.TestCase):
             ("price", "See the price in the app."),
             ("purchase", "Purchase KnitNote today."),
             ("publication", "KnitNote is now published on the App Store."),
+            ("publication", "Publication is complete."),
             ("native acceptance", "All translations were reviewed by native speakers."),
+            ("native acceptance", "Native Dutch acceptance is complete."),
             ("physical acceptance", "All features passed physical-device acceptance."),
+            ("physical acceptance", "Physical acceptance on every device is complete."),
         )
 
         for concept, claim in claims:

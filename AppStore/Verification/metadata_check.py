@@ -206,6 +206,7 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
         "publication",
         _phrase_pattern(
             "published on the App Store", "released on the App Store", "live on the App Store",
+            "publication is complete",
             "在 App Store 上架", "im App Store veröffentlicht", "publié sur l’App Store",
             "App Storeで公開", "publisert i App Store", "publicerad i App Store",
             "julkaistu App Storessa", "udgivet i App Store", "App Store에 출시",
@@ -216,6 +217,7 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
         "native acceptance",
         _phrase_pattern(
             "reviewed by native speakers", "native-speaker reviewed", "native reviewed",
+            "native Dutch acceptance is complete",
             "母語人士審核", "母语人士审核", "von Muttersprachlern geprüft",
             "relues par des locuteurs natifs", "ネイティブスピーカーがレビュー",
             "gjennomgått av morsmålsbrukere", "granskats av modersmålstalare",
@@ -227,6 +229,7 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
         "physical acceptance",
         _phrase_pattern(
             "physical-device acceptance", "physical device acceptance", "tested on physical devices",
+            "physical acceptance on every device is complete",
             "實機驗收", "实机验收", "Abnahme auf echten Geräten",
             "validation sur appareils physiques", "実機験収", "Godkjenning på fysiske enheter",
             "Godkännandet på fysiska enheter", "Fyysisten laitteiden hyväksyntä",
@@ -234,6 +237,11 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
             "αποδοχή σε φυσικές συσκευές", "acceptatie op fysieke apparaten",
         ),
     ),
+)
+V150_WHATS_NEW_NEGATION = re.compile(
+    r"(?<!\w)(?:no|not|false|without|nicht|kein(?:e|en|er|es)?|pas|aucun(?:e)?|"
+    r"ikke|inte|ingen|utan|ei|eivät|ilman|δεν|μη|niet|geen|zonder|onjuist)(?!\w)|"
+    r"不|未|沒有|没有|並非|并非|ない|ません|않|아닙니다|없"
 )
 V140_LOCALES = (
     "en-US.md",
@@ -756,6 +764,8 @@ def validate(path: Path) -> list[str]:
         version = contract.get("version", "1.4.1")
         if versions != [version]:
             errors.append(f"{path}: What's New: must identify KnitNote {version} exactly")
+        if V150_WHATS_NEW_NEGATION.search(normalized_whats_new):
+            errors.append(f"{path}: What's New: must not negate approved 1.5 behavior")
         for language in contract.get("whats_new_languages", contract["languages"][6:]):
             if language.casefold() not in whats_new.casefold():
                 errors.append(f"{path}: What's New: missing added language: {language}")

@@ -213,8 +213,17 @@ struct CounterManagerView: View {
     }
 
     private var resetButton: some View {
-        Button("counter.reset", systemImage: "arrow.counterclockwise", role: .destructive) {
+        Button(role: .destructive) {
             confirmingValueReset = true
+        } label: {
+            Label {
+                Text("0")
+                    .monospacedDigit()
+            } icon: {
+                Image(systemName: "arrow.counterclockwise")
+            }
+            .font(.headline)
+            .frame(minWidth: 52, minHeight: 44)
         }
         .buttonStyle(.borderless)
         .disabled(currentValue == 0)

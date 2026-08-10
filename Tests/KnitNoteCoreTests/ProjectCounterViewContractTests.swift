@@ -110,7 +110,13 @@ import Testing
         #expect(increment.contains(".disabled(currentValue == .max)"))
         #expect(increment.contains(".accessibilityLabel(Text(\"counter.increment\"))"))
 
-        #expect(reset.contains("Button(\"counter.reset\", systemImage: \"arrow.counterclockwise\", role: .destructive)"))
+        #expect(reset.contains("Image(systemName: \"arrow.counterclockwise\")"))
+        #expect(reset.contains("Text(\"0\")"))
+        #expect(reset.components(separatedBy: ".frame(minWidth: 52, minHeight: 44)").count - 1 == 1)
+        #expect(reset.contains("role: .destructive"))
+        #expect(reset.contains("confirmingValueReset = true"))
+        #expect(reset.contains(".accessibilityLabel(Text(\"counter.reset\"))"))
+        #expect(source.components(separatedBy: ".frame(minWidth: 52, minHeight: 44)").count - 1 == 3)
     }
 
     @Test func counterManagerUsesExplicitPlatformSizingWithoutScrollDependentEssentials() throws {

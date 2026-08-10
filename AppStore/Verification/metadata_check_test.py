@@ -185,7 +185,7 @@ class MetadataLocaleTests(unittest.TestCase):
         fields = parse(METADATA / "nl-NL.md")
         self.assertEqual(
             re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", fields["What's New"]),
-            ["1.5"],
+            ["1.5.0"],
         )
         for token in (
             "gebruik van tellers", "herinneringen", "Apple Watch", "Nederlands", "Projecten", "app-taal",
@@ -675,6 +675,16 @@ class MetadataValidationTests(unittest.TestCase):
                 "Verwijderde projecten herstel je niet alleen snel maar ook volledig.",
             ),
             (
+                "completed recovery relation with vooral ook",
+                "deleted project recovery",
+                "Herstel een verwijderd project niet alleen snel maar vooral ook veilig.",
+            ),
+            (
+                "completed plural recovery relation with nu ook",
+                "deleted project recovery",
+                "Verwijderde projecten herstel je niet alleen snel maar nu ook volledig.",
+            ),
+            (
                 "backup met source attached to noun phrase",
                 "deleted project recovery",
                 "Verwijderde projecten herstellen met een reservekopie.",
@@ -683,6 +693,26 @@ class MetadataValidationTests(unittest.TestCase):
                 "backup vanuit source attached to adjective phrase",
                 "deleted project recovery",
                 "Verwijderde projecten herstellen vanuit de oude reservekopie.",
+            ),
+            (
+                "backup source with informal possessive",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen via je reservekopie.",
+            ),
+            (
+                "backup source with formal possessive",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen vanuit jouw reservekopie.",
+            ),
+            (
+                "backup source with plural possessive",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen uit hun reservekopie.",
+            ),
+            (
+                "backup source with demonstrative",
+                "deleted project recovery",
+                "Verwijderde projecten herstellen via deze reservekopie.",
             ),
             (
                 "system-language display",
@@ -744,6 +774,16 @@ class MetadataValidationTests(unittest.TestCase):
                 "Share system-only language",
                 "Het deelscherm toont uitsluitend de systeemtaal niet alleen in menu's maar ook in meldingen.",
             ),
+            (
+                "completed Share relation with vooral ook",
+                "Share system-only language",
+                "De deel-extensie gebruikt uitsluitend de systeemtaal niet alleen voor titels maar vooral ook voor knoppen.",
+            ),
+            (
+                "completed Share relation with nu ook",
+                "Share system-only language",
+                "Het deelscherm toont uitsluitend de systeemtaal niet alleen in menu's maar nu ook in meldingen.",
+            ),
         )
         for label, concept, description in forbidden_cases:
             with self.subTest(label=label):
@@ -774,6 +814,8 @@ class MetadataValidationTests(unittest.TestCase):
             "Bij een verwijderd project herstel je met één tik de reservekopie.",
             "Bij een verwijderd project herstel je via het menu de reservekopie.",
             "Bij een verwijderd project herstel je uit voorzorg de reservekopie.",
+            "Bij een verwijderd project herstel je via het menu reservekopieën.",
+            "Bij een verwijderd project herstel je met een tik reservekopieën.",
         )
         for description in safe_recovery_cases:
             with self.subTest(kind="recovery safe", description=description):

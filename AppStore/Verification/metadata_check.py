@@ -308,10 +308,13 @@ DUTCH_SHARE_WINDOW = 12
 DUTCH_NEGATION_WINDOW = 3
 DUTCH_NEGATION_TOKENS = {"geen", "niet"}
 DUTCH_CONTRAST_TOKEN = "maar"
+DUTCH_ADDITIVE_MODIFIERS = frozenset({"vooral", "nu"})
 DUTCH_BACKUP_SOURCE_MARKERS = {"met", "vanuit", "via", "uit"}
 DUTCH_BACKUP_DETERMINERS = {
     "de", "den", "der", "des", "dit", "die", "een", "het", "mijn", "onze", "uw", "zijn",
+    "je", "jouw", "hun", "deze",
 }
+DUTCH_BACKUP_ADJECTIVES = frozenset({"oude"})
 DUTCH_BACKUP_NOUN_PHRASE_WINDOW = 2
 DUTCH_SHARE_STATE_VERBS = {
     "gebruikt", "gebruiken", "werkt", "werken", "volgt", "volgen",
@@ -398,13 +401,21 @@ def dutch_is_completed_additive_negation(
     relation_indices: tuple[int, ...],
 ) -> bool:
     """Recognize ``niet alleen ... maar ook`` after a completed relation."""
+    additive_suffix = tokens[branch_end + 1:branch_end + 3]
+    has_additive_suffix = (
+        additive_suffix[:1] == ["ook"]
+        or (
+            len(additive_suffix) == 2
+            and additive_suffix[0] in DUTCH_ADDITIVE_MODIFIERS
+            and additive_suffix[1] == "ook"
+        )
+    )
     return (
         tokens[negation_index:negation_index + 2] == ["niet", "alleen"]
         and negation_index > max(relation_indices)
         and branch_end < len(tokens)
         and tokens[branch_end] == DUTCH_CONTRAST_TOKEN
-        and branch_end + 1 < len(tokens)
-        and tokens[branch_end + 1] == "ook"
+        and has_additive_suffix
     )
 
 
@@ -481,9 +492,12 @@ def dutch_backup_has_source_attachment(
         noun_phrase = tokens[marker_index + 1:backup_index]
         if not noun_phrase:
             return True
+        if len(noun_phrase) == 1:
+            return noun_phrase[0] in DUTCH_BACKUP_DETERMINERS
         return (
-            len(noun_phrase) <= DUTCH_BACKUP_NOUN_PHRASE_WINDOW
+            len(noun_phrase) == 2
             and noun_phrase[0] in DUTCH_BACKUP_DETERMINERS
+            and noun_phrase[1] in DUTCH_BACKUP_ADJECTIVES
         )
     return False
 

@@ -105,20 +105,20 @@ SETTINGS_AND_SURFACE_TOKENS = {
     "el-GR.md": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
     "nl-NL.md": ("Instellingen", "Apple Watch", "deelschermen"),
 }
-V150_WHATS_NEW_TOKENS = {
-    "en-US.md": ("counter reminders", "direct value entry", "iPad", "Apple Watch", "Dutch", "Projects", "app language"),
-    "zh-Hant.md": ("計數器提醒", "數值直接輸入", "iPad", "Apple Watch", "荷蘭文", "作品", "App 語言"),
-    "zh-Hans.md": ("计数器提醒", "数值直接输入", "iPad", "Apple Watch", "荷兰语", "作品", "App 语言"),
-    "de-DE.md": ("Zählererinnerungen", "direkte Eingabe", "iPad", "Apple Watch", "Niederländisch", "Projekte", "gewählten App-Sprache"),
-    "fr-FR.md": ("rappels de compteur", "saisie directe", "iPad", "Apple Watch", "néerlandais", "Projets", "langue choisie dans l’app"),
-    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPad", "Apple Watch", "オランダ語", "作品", "Appで選択した言語"),
-    "nb-NO.md": ("påminnelser for tellere", "direkte inntasting", "iPad", "Apple Watch", "Nederlandsk", "Prosjekter", "valgt i appen"),
-    "sv-SE.md": ("påminnelser för räknare", "direkt inmatning", "iPad", "Apple Watch", "Nederländska", "Projekt", "valt i appen"),
-    "fi-FI.md": ("laskurimuistutukset", "suoran syötön", "iPad", "Apple Watch", "Hollannin kieli", "Projektit", "sovelluksessa valittua kieltä"),
-    "da-DK.md": ("påmindelser til tællere", "direkte indtastning", "iPad", "Apple Watch", "Hollandsk", "Projekter", "valgt i appen"),
-    "ko-KR.md": ("카운터 알림", "값 직접 입력", "iPad", "Apple Watch", "네덜란드어", "프로젝트", "앱에서 선택한 언어"),
-    "el-GR.md": ("υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "iPad", "Apple Watch", "ολλανδικά", "Έργα", "γλώσσα που επιλέγετε στην εφαρμογή"),
-    "nl-NL.md": ("tellerherinneringen", "rechtstreekse invoer", "iPad", "Apple Watch", "Nederlands", "Projecten", "in de app hebt gekozen"),
+V150_WHATS_NEW_RELATIONSHIPS = {
+    "en-US.md": ("adds counter reminders", "direct value entry", "improved iPad counter layout", "Apple Watch coordination", "Dutch is now fully supported", "Projects title follows your selected app language"),
+    "zh-Hant.md": ("新增計數器提醒", "數值直接輸入", "改善 iPad 計數器版面", "Apple Watch 協作", "完整支援荷蘭文", "「作品」標題會依照所選 App 語言顯示"),
+    "zh-Hans.md": ("新增计数器提醒", "数值直接输入", "改进 iPad 计数器布局", "Apple Watch 协作", "完整支持荷兰语", "“作品”标题会按照所选 App 语言显示"),
+    "de-DE.md": ("ergänzt Zählererinnerungen", "direkte Eingabe von Zählerwerten", "verbessert das Zählerlayout auf dem iPad", "Abstimmung mit der Apple Watch", "Niederländisch wird jetzt vollständig unterstützt", "Titel „Projekte“ folgt der gewählten App-Sprache"),
+    "fr-FR.md": ("ajoute des rappels de compteur", "saisie directe des valeurs", "meilleure présentation des compteurs sur iPad", "meilleure coordination avec l’Apple Watch", "interface est désormais entièrement disponible en néerlandais", "titre « Projets » suit la langue choisie dans l’app"),
+    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPadのカウンター画面", "Apple Watchとの連携を改善", "オランダ語に完全対応", "「作品」タイトルもAppで選択した言語に合わせて表示"),
+    "nb-NO.md": ("legger til påminnelser for tellere", "direkte inntasting av verdier", "forbedret telleroppsett på iPad", "bedre samspill med Apple Watch", "Nederlandsk støttes nå fullt ut", "tittelen «Prosjekter» følger språket du har valgt i appen"),
+    "sv-SE.md": ("lägger till påminnelser för räknare", "direkt inmatning av värden", "förbättrad räknarlayout på iPad", "bättre samspel med Apple Watch", "Nederländska stöds nu fullt ut", "rubriken ”Projekt” följer språket du har valt i appen"),
+    "fi-FI.md": ("lisää laskurimuistutukset", "arvojen suoran syötön", "parantaa iPadin laskurinäkymää", "toimintaa Apple Watchin kanssa", "Hollannin kieli on nyt täysin tuettu", "Projektit-otsikko noudattaa sovelluksessa valittua kieltä"),
+    "da-DK.md": ("tilføjer påmindelser til tællere", "direkte indtastning af værdier", "forbedrer tællervisningen på iPad", "samspillet med Apple Watch", "Hollandsk understøttes nu fuldt ud", "titlen “Projekter” følger det sprog, du har valgt i appen"),
+    "ko-KR.md": ("카운터 알림과 값 직접 입력 기능이 추가", "iPad 카운터 레이아웃", "Apple Watch 연동이 개선", "네덜란드어를 완전히 지원", "‘프로젝트’ 제목도 앱에서 선택한 언어로 표시"),
+    "el-GR.md": ("προσθέτει υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "βελτιωμένη διάταξη μετρητών στο iPad", "καλύτερο συντονισμό με το Apple Watch", "πλέον πλήρως τα ολλανδικά", "τίτλος «Έργα» ακολουθεί τη γλώσσα που επιλέγετε στην εφαρμογή"),
+    "nl-NL.md": ("voegt tellerherinneringen", "rechtstreekse invoer van waarden toe", "verbeterde tellerindeling op iPad", "betere afstemming met Apple Watch", "Nederlands wordt nu volledig ondersteund", "titel Projecten volgt de taal die je in de app hebt gekozen"),
 }
 DELETED_PROJECT_RECOVERY_CLAIMS = {
     "en-US.md": "Deleted projects can be restored from Trash.",
@@ -158,8 +158,8 @@ class MetadataLocaleTests(unittest.TestCase):
                     re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new),
                     ["1.5.0"],
                 )
-                for token in V150_WHATS_NEW_TOKENS[filename]:
-                    self.assertIn(token, whats_new)
+                for relationship in V150_WHATS_NEW_RELATIONSHIPS[filename]:
+                    self.assertIn(relationship, whats_new)
                 for language in LANGUAGE_NAMES[filename]:
                     self.assertIn(language, description)
                 for token in SETTINGS_AND_SURFACE_TOKENS[filename]:
@@ -190,15 +190,37 @@ class MetadataLocaleTests(unittest.TestCase):
                     f"{path}: What's New: must identify KnitNote 1.5.0 exactly",
                     validate(path),
                 )
-            for token in V150_WHATS_NEW_TOKENS[filename]:
-                with self.subTest(filename=filename, missing=token):
+            for relationship in V150_WHATS_NEW_RELATIONSHIPS[filename]:
+                with self.subTest(filename=filename, missing=relationship):
                     fields = parse(METADATA / filename)
-                    fields["What's New"] = fields["What's New"].replace(token, "")
+                    fields["What's New"] = fields["What's New"].replace(relationship, "")
                     path = self.write_named_metadata(filename, fields)
                     self.assertIn(
-                        f"{path}: What's New: missing implemented 1.5 behavior: {token}",
+                        f"{path}: What's New: missing implemented 1.5 behavior: {relationship}",
                         validate(path),
                     )
+
+    def test_validator_rejects_v150_terms_without_the_approved_relationships(self) -> None:
+        fields = parse(METADATA / "en-US.md")
+        fields["What's New"] = (
+            "KnitNote 1.5.0 adds counter reminders and direct value entry. "
+            "iPad and Apple Watch are supported, but they do not coordinate counter reminders "
+            "or improve the counter layout. Dutch is fully supported. Projects and app language "
+            "settings are documented, but the Projects title does not follow the selected app language."
+        )
+        path = self.write_named_metadata("en-US.md", fields)
+
+        errors = validate(path)
+
+        for relationship in (
+            "improved iPad counter layout",
+            "Apple Watch coordination",
+            "Projects title follows your selected app language",
+        ):
+            self.assertIn(
+                f"{path}: What's New: missing implemented 1.5 behavior: {relationship}",
+                errors,
+            )
 
     def test_validator_rejects_missing_supported_language_for_every_package(self) -> None:
         for filename in EXPECTED_LOCALES:
@@ -441,6 +463,90 @@ class MetadataValidationTests(unittest.TestCase):
             "Detailed maille notes make this a marketable companion."
         )
         self.assertEqual(validate(self.write_metadata(Description=safe_copy)), [])
+
+    def test_v150_forbidden_claim_families_are_rejected_in_english(self) -> None:
+        claims = (
+            ("background notifications", "Background notifications alert you when a target is reached."),
+            ("AI translation", "Automatic pattern translation is included."),
+            ("trial/free", "Start a free trial."),
+            ("price", "See the price in the app."),
+            ("purchase", "Purchase KnitNote today."),
+            ("publication", "KnitNote is now published on the App Store."),
+            ("native acceptance", "All translations were reviewed by native speakers."),
+            ("physical acceptance", "All features passed physical-device acceptance."),
+        )
+
+        for concept, claim in claims:
+            with self.subTest(concept=concept, claim=claim):
+                path = self.write_metadata(**{"What's New": claim})
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: {concept}",
+                    validate(path),
+                )
+
+    def test_v150_acceptance_and_publication_claims_are_forbidden_in_every_locale(self) -> None:
+        claims = (
+            ("background notifications", "Background notifications are supported."),
+            ("background notifications", "支援背景通知。"),
+            ("background notifications", "支持后台通知。"),
+            ("background notifications", "Hintergrundbenachrichtigungen werden unterstützt."),
+            ("background notifications", "Les notifications en arrière-plan sont prises en charge."),
+            ("background notifications", "バックグラウンド通知に対応します。"),
+            ("background notifications", "Bakgrunnsvarsler støttes."),
+            ("background notifications", "Bakgrundsnotiser stöds."),
+            ("background notifications", "Taustailmoituksia tuetaan."),
+            ("background notifications", "Baggrundsnotifikationer understøttes."),
+            ("background notifications", "백그라운드 알림을 지원합니다."),
+            ("background notifications", "Υποστηρίζονται ειδοποιήσεις στο παρασκήνιο."),
+            ("background notifications", "Achtergrondmeldingen worden ondersteund."),
+            ("publication", "KnitNote is published on the App Store."),
+            ("publication", "KnitNote 已在 App Store 上架。"),
+            ("publication", "KnitNote 已在 App Store 上架。"),
+            ("publication", "KnitNote wurde im App Store veröffentlicht."),
+            ("publication", "KnitNote est publié sur l’App Store."),
+            ("publication", "KnitNoteはApp Storeで公開済みです。"),
+            ("publication", "KnitNote er publisert i App Store."),
+            ("publication", "KnitNote är publicerad i App Store."),
+            ("publication", "KnitNote on julkaistu App Storessa."),
+            ("publication", "KnitNote er udgivet i App Store."),
+            ("publication", "KnitNote가 App Store에 출시되었습니다."),
+            ("publication", "Το KnitNote δημοσιεύτηκε στο App Store."),
+            ("publication", "KnitNote is gepubliceerd in de App Store."),
+            ("native acceptance", "Translations were reviewed by native speakers."),
+            ("native acceptance", "翻譯已由母語人士審核。"),
+            ("native acceptance", "翻译已由母语人士审核。"),
+            ("native acceptance", "Die Übersetzungen wurden von Muttersprachlern geprüft."),
+            ("native acceptance", "Les traductions ont été relues par des locuteurs natifs."),
+            ("native acceptance", "翻訳はネイティブスピーカーがレビューしました。"),
+            ("native acceptance", "Oversettelsene er gjennomgått av morsmålsbrukere."),
+            ("native acceptance", "Översättningarna har granskats av modersmålstalare."),
+            ("native acceptance", "Käännökset ovat äidinkielisten puhujien tarkistamia."),
+            ("native acceptance", "Oversættelserne er gennemgået af personer med sproget som modersmål."),
+            ("native acceptance", "번역은 원어민이 검수했습니다."),
+            ("native acceptance", "Οι μεταφράσεις ελέγχθηκαν από φυσικούς ομιλητές."),
+            ("native acceptance", "De vertalingen zijn beoordeeld door moedertaalsprekers."),
+            ("physical acceptance", "Physical-device acceptance passed."),
+            ("physical acceptance", "已通過實機驗收。"),
+            ("physical acceptance", "已通过实机验收。"),
+            ("physical acceptance", "Die Abnahme auf echten Geräten ist bestanden."),
+            ("physical acceptance", "La validation sur appareils physiques est réussie."),
+            ("physical acceptance", "実機験収に合格しました。"),
+            ("physical acceptance", "Godkjenning på fysiske enheter er bestått."),
+            ("physical acceptance", "Godkännandet på fysiska enheter är klart."),
+            ("physical acceptance", "Fyysisten laitteiden hyväksyntä on läpäisty."),
+            ("physical acceptance", "Godkendelse på fysiske enheder er bestået."),
+            ("physical acceptance", "실기기 검수를 통과했습니다."),
+            ("physical acceptance", "Η αποδοχή σε φυσικές συσκευές ολοκληρώθηκε."),
+            ("physical acceptance", "De acceptatie op fysieke apparaten is geslaagd."),
+        )
+
+        for concept, claim in claims:
+            with self.subTest(concept=concept, claim=claim):
+                path = self.write_metadata(**{"What's New": claim})
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: {concept}",
+                    validate(path),
+                )
 
     def test_share_system_only_language_claims_are_forbidden_in_every_locale(self) -> None:
         claims = (

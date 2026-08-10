@@ -28,6 +28,12 @@ REQUIRED = (
     "Privacy URL",
     "What's New",
 )
+
+
+def _phrase_pattern(*phrases: str) -> re.Pattern[str]:
+    return re.compile("|".join(re.escape(phrase.casefold()) for phrase in phrases))
+
+
 FORBIDDEN_PATTERNS = (
     (
         "AI translation",
@@ -181,6 +187,54 @@ FORBIDDEN_PATTERNS = (
         ),
     ),
 )
+V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
+    (
+        "background notifications",
+        _phrase_pattern(
+            "background notifications", "背景通知", "后台通知",
+            "Hintergrundbenachrichtigungen", "notifications en arrière-plan",
+            "バックグラウンド通知", "Bakgrunnsvarsler", "Bakgrundsnotiser",
+            "Taustailmoituksia", "Baggrundsnotifikationer", "백그라운드 알림",
+            "ειδοποιήσεις στο παρασκήνιο", "Achtergrondmeldingen",
+        ),
+    ),
+    ("AI translation", re.compile(r"(?<!\w)automatic[ -]+pattern[ -]+translations?(?!\w)")),
+    ("trial/free", re.compile(r"(?<!\w)(?:free[ -]+trials?|trial[ -]+versions?)(?!\w)")),
+    ("price", re.compile(r"(?<!\w)(?:prices?|pricing)(?!\w)")),
+    ("purchase", re.compile(r"(?<!\w)(?:purchases?|buy|buying)(?!\w)")),
+    (
+        "publication",
+        _phrase_pattern(
+            "published on the App Store", "released on the App Store", "live on the App Store",
+            "在 App Store 上架", "im App Store veröffentlicht", "publié sur l’App Store",
+            "App Storeで公開", "publisert i App Store", "publicerad i App Store",
+            "julkaistu App Storessa", "udgivet i App Store", "App Store에 출시",
+            "δημοσιεύτηκε στο App Store", "gepubliceerd in de App Store",
+        ),
+    ),
+    (
+        "native acceptance",
+        _phrase_pattern(
+            "reviewed by native speakers", "native-speaker reviewed", "native reviewed",
+            "母語人士審核", "母语人士审核", "von Muttersprachlern geprüft",
+            "relues par des locuteurs natifs", "ネイティブスピーカーがレビュー",
+            "gjennomgått av morsmålsbrukere", "granskats av modersmålstalare",
+            "äidinkielisten puhujien tarkistamia", "sproget som modersmål", "원어민이 검수",
+            "ελέγχθηκαν από φυσικούς ομιλητές", "beoordeeld door moedertaalsprekers",
+        ),
+    ),
+    (
+        "physical acceptance",
+        _phrase_pattern(
+            "physical-device acceptance", "physical device acceptance", "tested on physical devices",
+            "實機驗收", "实机验收", "Abnahme auf echten Geräten",
+            "validation sur appareils physiques", "実機験収", "Godkjenning på fysiske enheter",
+            "Godkännandet på fysiska enheter", "Fyysisten laitteiden hyväksyntä",
+            "Godkendelse på fysiske enheder", "실기기 검수",
+            "αποδοχή σε φυσικές συσκευές", "acceptatie op fysieke apparaten",
+        ),
+    ),
+)
 V140_LOCALES = (
     "en-US.md",
     "zh-Hant.md",
@@ -293,26 +347,26 @@ LANGUAGE_CONTRACTS = {
         "surfaces": ("Instellingen", "Apple Watch", "deelschermen"),
     },
 }
-V150_WHATS_NEW_TOKENS = {
-    "en-US.md": ("counter reminders", "direct value entry", "iPad", "Apple Watch", "Dutch", "Projects", "app language"),
-    "zh-Hant.md": ("計數器提醒", "數值直接輸入", "iPad", "Apple Watch", "荷蘭文", "作品", "App 語言"),
-    "zh-Hans.md": ("计数器提醒", "数值直接输入", "iPad", "Apple Watch", "荷兰语", "作品", "App 语言"),
-    "de-DE.md": ("Zählererinnerungen", "direkte Eingabe", "iPad", "Apple Watch", "Niederländisch", "Projekte", "gewählten App-Sprache"),
-    "fr-FR.md": ("rappels de compteur", "saisie directe", "iPad", "Apple Watch", "néerlandais", "Projets", "langue choisie dans l’app"),
-    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPad", "Apple Watch", "オランダ語", "作品", "Appで選択した言語"),
-    "nb-NO.md": ("påminnelser for tellere", "direkte inntasting", "iPad", "Apple Watch", "Nederlandsk", "Prosjekter", "valgt i appen"),
-    "sv-SE.md": ("påminnelser för räknare", "direkt inmatning", "iPad", "Apple Watch", "Nederländska", "Projekt", "valt i appen"),
-    "fi-FI.md": ("laskurimuistutukset", "suoran syötön", "iPad", "Apple Watch", "Hollannin kieli", "Projektit", "sovelluksessa valittua kieltä"),
-    "da-DK.md": ("påmindelser til tællere", "direkte indtastning", "iPad", "Apple Watch", "Hollandsk", "Projekter", "valgt i appen"),
-    "ko-KR.md": ("카운터 알림", "값 직접 입력", "iPad", "Apple Watch", "네덜란드어", "프로젝트", "앱에서 선택한 언어"),
-    "el-GR.md": ("υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "iPad", "Apple Watch", "ολλανδικά", "Έργα", "γλώσσα που επιλέγετε στην εφαρμογή"),
-    "nl-NL.md": ("tellerherinneringen", "rechtstreekse invoer", "iPad", "Apple Watch", "Nederlands", "Projecten", "in de app hebt gekozen"),
+V150_WHATS_NEW_RELATIONSHIPS = {
+    "en-US.md": ("adds counter reminders", "direct value entry", "improved iPad counter layout", "Apple Watch coordination", "Dutch is now fully supported", "Projects title follows your selected app language"),
+    "zh-Hant.md": ("新增計數器提醒", "數值直接輸入", "改善 iPad 計數器版面", "Apple Watch 協作", "完整支援荷蘭文", "「作品」標題會依照所選 App 語言顯示"),
+    "zh-Hans.md": ("新增计数器提醒", "数值直接输入", "改进 iPad 计数器布局", "Apple Watch 协作", "完整支持荷兰语", "“作品”标题会按照所选 App 语言显示"),
+    "de-DE.md": ("ergänzt Zählererinnerungen", "direkte Eingabe von Zählerwerten", "verbessert das Zählerlayout auf dem iPad", "Abstimmung mit der Apple Watch", "Niederländisch wird jetzt vollständig unterstützt", "Titel „Projekte“ folgt der gewählten App-Sprache"),
+    "fr-FR.md": ("ajoute des rappels de compteur", "saisie directe des valeurs", "meilleure présentation des compteurs sur iPad", "meilleure coordination avec l’Apple Watch", "interface est désormais entièrement disponible en néerlandais", "titre « Projets » suit la langue choisie dans l’app"),
+    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPadのカウンター画面", "Apple Watchとの連携を改善", "オランダ語に完全対応", "「作品」タイトルもAppで選択した言語に合わせて表示"),
+    "nb-NO.md": ("legger til påminnelser for tellere", "direkte inntasting av verdier", "forbedret telleroppsett på iPad", "bedre samspill med Apple Watch", "Nederlandsk støttes nå fullt ut", "tittelen «Prosjekter» følger språket du har valgt i appen"),
+    "sv-SE.md": ("lägger till påminnelser för räknare", "direkt inmatning av värden", "förbättrad räknarlayout på iPad", "bättre samspel med Apple Watch", "Nederländska stöds nu fullt ut", "rubriken ”Projekt” följer språket du har valt i appen"),
+    "fi-FI.md": ("lisää laskurimuistutukset", "arvojen suoran syötön", "parantaa iPadin laskurinäkymää", "toimintaa Apple Watchin kanssa", "Hollannin kieli on nyt täysin tuettu", "Projektit-otsikko noudattaa sovelluksessa valittua kieltä"),
+    "da-DK.md": ("tilføjer påmindelser til tællere", "direkte indtastning af værdier", "forbedrer tællervisningen på iPad", "samspillet med Apple Watch", "Hollandsk understøttes nu fuldt ud", "titlen “Projekter” følger det sprog, du har valgt i appen"),
+    "ko-KR.md": ("카운터 알림과 값 직접 입력 기능이 추가", "iPad 카운터 레이아웃", "Apple Watch 연동이 개선", "네덜란드어를 완전히 지원", "‘프로젝트’ 제목도 앱에서 선택한 언어로 표시"),
+    "el-GR.md": ("προσθέτει υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "βελτιωμένη διάταξη μετρητών στο iPad", "καλύτερο συντονισμό με το Apple Watch", "πλέον πλήρως τα ολλανδικά", "τίτλος «Έργα» ακολουθεί τη γλώσσα που επιλέγετε στην εφαρμογή"),
+    "nl-NL.md": ("voegt tellerherinneringen", "rechtstreekse invoer van waarden toe", "verbeterde tellerindeling op iPad", "betere afstemming met Apple Watch", "Nederlands wordt nu volledig ondersteund", "titel Projecten volgt de taal die je in de app hebt gekozen"),
 }
-for filename, tokens in V150_WHATS_NEW_TOKENS.items():
+for filename, relationships in V150_WHATS_NEW_RELATIONSHIPS.items():
     LANGUAGE_CONTRACTS[filename].update({
         "version": "1.5.0",
         "whats_new_languages": (),
-        "whats_new_tokens": tokens,
+        "whats_new_relationships": relationships,
     })
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")
@@ -691,8 +745,12 @@ def validate(path: Path) -> list[str]:
             errors.append(f"{path}: {name}: must use HTTPS")
 
     contract = LANGUAGE_CONTRACTS.get(path.name)
+    whats_new = fields.get("What's New", "")
+    normalized_whats_new = normalized_claim_text(whats_new)
+    for concept, pattern in V150_FORBIDDEN_WHATS_NEW_PATTERNS:
+        if pattern.search(normalized_whats_new):
+            errors.append(f"{path}: copy: forbidden release claim: {concept}")
     if contract is not None:
-        whats_new = fields.get("What's New", "")
         description = fields.get("Description", "")
         versions = re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new)
         version = contract.get("version", "1.4.1")
@@ -701,9 +759,11 @@ def validate(path: Path) -> list[str]:
         for language in contract.get("whats_new_languages", contract["languages"][6:]):
             if language.casefold() not in whats_new.casefold():
                 errors.append(f"{path}: What's New: missing added language: {language}")
-        for token in contract.get("whats_new_tokens", ()):
-            if token.casefold() not in whats_new.casefold():
-                errors.append(f"{path}: What's New: missing implemented 1.5 behavior: {token}")
+        for relationship in contract.get("whats_new_relationships", ()):
+            if relationship.casefold() not in whats_new.casefold():
+                errors.append(
+                    f"{path}: What's New: missing implemented 1.5 behavior: {relationship}"
+                )
         for language in contract["languages"]:
             if language.casefold() not in description.casefold():
                 errors.append(f"{path}: Description: missing supported language: {language}")

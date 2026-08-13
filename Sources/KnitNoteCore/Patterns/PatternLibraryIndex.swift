@@ -11,6 +11,7 @@ public struct PatternLibraryRowModel: Identifiable, Equatable, Sendable {
     public let note: String?
     public let activeProjectNames: [String]
     public let createdAt: Date
+    public let folderID: UUID?
 
     public var id: UUID { patternID }
     public var activeLinkCount: Int { activeProjectNames.count }
@@ -20,13 +21,15 @@ public struct PatternLibraryRowModel: Identifiable, Equatable, Sendable {
         name: String,
         note: String?,
         activeProjectNames: [String],
-        createdAt: Date
+        createdAt: Date,
+        folderID: UUID? = nil
     ) {
         self.patternID = patternID
         self.name = name
         self.note = note
         self.activeProjectNames = activeProjectNames
         self.createdAt = createdAt
+        self.folderID = folderID
     }
 }
 
@@ -40,7 +43,23 @@ public struct PatternLibraryIndex: Sendable {
     }
 
     public func rows(sortedBy sort: PatternLibrarySort) -> [PatternLibraryRowModel] {
-        sourceRows.sorted { lhs, rhs in
+        rows(in: .all, sortedBy: sort)
+    }
+
+    public func rows(
+        in scope: PatternLibraryScope,
+        sortedBy sort: PatternLibrarySort
+    ) -> [PatternLibraryRowModel] {
+        sourceRows.filter { row in
+            switch scope {
+            case .all:
+                true
+            case .uncategorized:
+                row.folderID == nil
+            case let .folder(folderID):
+                row.folderID == folderID
+            }
+        }.sorted { lhs, rhs in
             switch sort {
             case .recentlyAdded:
                 if lhs.createdAt != rhs.createdAt {
@@ -61,8 +80,16 @@ public struct PatternLibraryIndex: Sendable {
         _ query: String,
         sortedBy sort: PatternLibrarySort = .recentlyAdded
     ) -> [PatternLibraryRowModel] {
+        search(query, in: .all, sortedBy: sort)
+    }
+
+    public func search(
+        _ query: String,
+        in scope: PatternLibraryScope,
+        sortedBy sort: PatternLibrarySort = .recentlyAdded
+    ) -> [PatternLibraryRowModel] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return rows(sortedBy: sort).filter { row in
+        return rows(in: scope, sortedBy: sort).filter { row in
             guard !trimmed.isEmpty else { return true }
             return matches(row.name, query: trimmed)
                 || row.note.map { matches($0, query: trimmed) } == true

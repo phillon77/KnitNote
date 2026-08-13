@@ -108,4 +108,31 @@ import Testing
 
         #expect(index.search(" \n", sortedBy: .recentlyAdded).map(\.name) == ["Newer", "Older"])
     }
+
+    @Test func queryScopesAllUncategorizedAndOneFolderBeforeSearching() {
+        let sweaters = UUID()
+        let rows = [
+            row(name: "Alpha", folderID: sweaters),
+            row(name: "Beta", folderID: nil),
+            row(name: "Gamma", folderID: UUID()),
+        ]
+        let index = PatternLibraryIndex(rows: rows, locale: Locale(identifier: "en"))
+
+        #expect(index.rows(in: .all, sortedBy: .name).map(\.name) == ["Alpha", "Beta", "Gamma"])
+        #expect(index.rows(in: .uncategorized, sortedBy: .name).map(\.name) == ["Beta"])
+        #expect(index.rows(in: .folder(sweaters), sortedBy: .name).map(\.name) == ["Alpha"])
+        #expect(index.search("Gamma", in: .folder(sweaters), sortedBy: .name).isEmpty)
+        #expect(index.search("Gamma", in: .all, sortedBy: .name).map(\.name) == ["Gamma"])
+    }
+
+    private func row(name: String, folderID: UUID?) -> PatternLibraryRowModel {
+        PatternLibraryRowModel(
+            patternID: UUID(),
+            name: name,
+            note: nil,
+            activeProjectNames: [],
+            createdAt: .distantPast,
+            folderID: folderID
+        )
+    }
 }

@@ -155,7 +155,7 @@ import Testing
         #expect(userName == "作品 test 42")
     }
 
-    @Test func yarnLibraryTitleResolvesInEveryVersion150LocaleWithoutChangingYarnNames() throws {
+    @MainActor @Test func yarnLibraryTitleResolvesInEveryVersion150LocaleWithoutChangingYarnNames() throws {
         let titles = try navigationTitlesFromShippingCatalog(key: "yarn.library.title")
         let bundle = try localizedFixtureBundle(
             additionalStringsByLanguage: titles.mapValues { ["yarn.library.title": $0] }
@@ -187,8 +187,21 @@ import Testing
             bundle: bundle
         ) == "毛線庫")
 
-        let userYarnName = "Jaipur peace silk"
-        #expect(userYarnName == "Jaipur peace silk")
+        let storeURL = FileManager.default.temporaryDirectory
+            .appending(path: "RuntimeLocalizationYarn-\(UUID().uuidString).json")
+        let store = JSONProjectStore(url: storeURL)
+        let userYarn = try StoredYarn(name: "Jaipur peace silk")
+        try store.addYarn(userYarn)
+
+        for language in ["zh-Hant", "en", "ja"] {
+            _ = LocaleAwareText.string(
+                "yarn.library.title",
+                locale: Locale(identifier: language),
+                bundle: bundle
+            )
+        }
+
+        #expect(store.yarns == [userYarn])
     }
 
 }

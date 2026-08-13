@@ -109,6 +109,19 @@ import Testing
         #expect(!source.contains(".navigationTitle(\"yarn.library.title\")"))
     }
 
+    @Test func yarnLibraryTitleIsConnectedToTheReactiveAppLocaleInjection() throws {
+        let app = try repositorySource("KnitNote/App/KnitNoteApp.swift")
+        let yarnLibrary = try repositorySource("KnitNote/Yarn/YarnLibraryView.swift")
+
+        #expect(app.contains("@AppStorage(\"languageSelection\") private var storedLanguage"))
+        #expect(app.contains("LanguageSettings(selection: selection).resolvedLocale()"))
+        #expect(app.contains(".environment(\\.locale, appLocale)"))
+        #expect(yarnLibrary.contains("@Environment(\\.locale) private var locale"))
+        #expect(yarnLibrary.contains(
+            ".navigationTitle(LocaleAwareText.string(\"yarn.library.title\", locale: locale))"
+        ))
+    }
+
     @Test func storageCachesBytesNotLocaleDerivedCopy() throws {
         let source = try repositorySource("KnitNote/Settings/YarnLabelStorageRow.swift")
         let state = try #require(

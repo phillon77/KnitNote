@@ -1173,6 +1173,199 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     }
 }
 
+private struct PatternFolderStoreState {
+    let projects: [StoredProject]
+    let yarns: [StoredYarn]
+    let folders: [PatternFolder]
+    let assets: [PatternAsset]
+    let patterns: [StoredPattern]
+    let usages: [PatternProjectUsage]
+    let generation: UInt64
+    let archiveData: Data
+}
+
+@MainActor
+private func patternFolderStoreState(_ harness: PatternLibraryStoreHarness) throws -> PatternFolderStoreState {
+    PatternFolderStoreState(
+        projects: harness.store.projects,
+        yarns: harness.store.yarns,
+        folders: harness.store.patternFolders,
+        assets: harness.store.patternAssets,
+        patterns: harness.store.patterns,
+        usages: harness.store.patternUsages,
+        generation: harness.store.dataGeneration,
+        archiveData: try Data(contentsOf: harness.archiveURL)
+    )
+}
+
+@MainActor
+private func expectPatternFolderStoreState(
+    _ expected: PatternFolderStoreState,
+    in harness: PatternLibraryStoreHarness
+) throws {
+    #expect(harness.store.projects == expected.projects)
+    #expect(harness.store.yarns == expected.yarns)
+    #expect(harness.store.patternFolders == expected.folders)
+    #expect(harness.store.patternAssets == expected.assets)
+    #expect(harness.store.patterns == expected.patterns)
+    #expect(harness.store.patternUsages == expected.usages)
+    #expect(harness.store.dataGeneration == expected.generation)
+    #expect(try Data(contentsOf: harness.archiveURL) == expected.archiveData)
+}
+
+@MainActor @Test
+func createRenameMoveAndDeleteFolderAreAtomic() async throws {
+    let harness = try PatternImportHarness()
+    let source = try harness.makePDF(named: "Cardigan.pdf")
+    let outcome = try await harness.store.importPatternFromLibrary(source)
+    guard case let .created(patternID) = outcome else {
+        Issue.record("Expected a newly created pattern")
+        return
+    }
+    let context = PatternFolderNameContext(
+        locale: Locale(identifier: "en"),
+        reservedNames: ["All", "Uncategorized"]
+    )
+    let initialGeneration = harness.store.dataGeneration
+
+    let folder = try harness.store.createPatternFolder(
+        name: " Sweaters ", nameContext: context, now: Date(timeIntervalSince1970: 10)
+    )
+    #expect(folder.displayName == "Sweaters")
+    #expect(harness.store.patternFolders == [folder])
+    #expect(harness.store.dataGeneration == initialGeneration + 1)
+    var archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: harness.archiveURL))
+    #expect(archive.patternFolders == [folder])
+
+    try harness.store.renamePatternFolder(id: folder.id, to: "Pullovers", nameContext: context)
+    #expect(harness.store.patternFolders.first?.displayName == "Pullovers")
+    #expect(harness.store.dataGeneration == initialGeneration + 2)
+    archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: harness.archiveURL))
+    #expect(archive.patternFolders.first?.displayName == "Pullovers")
+
+    try harness.store.movePattern(id: patternID, toFolderID: folder.id)
+    #expect(harness.store.patterns.first(where: { $0.id == patternID })?.folderID == folder.id)
+    #expect(harness.store.dataGeneration == initialGeneration + 3)
+    archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: harness.archiveURL))
+    #expect(archive.patterns.first(where: { $0.id == patternID })?.folderID == folder.id)
+    let reloaded = try harness.reopenedStore()
+    #expect(reloaded.patternFolders == harness.store.patternFolders)
+    #expect(reloaded.patterns.first(where: { $0.id == patternID })?.folderID == folder.id)
+
+    let movedCount = try harness.store.deletePatternFolder(id: folder.id)
+    #expect(movedCount == 1)
+    #expect(harness.store.patternFolders.isEmpty)
+    #expect(harness.store.patterns.first(where: { $0.id == patternID })?.folderID == nil)
+    #expect(harness.store.dataGeneration == initialGeneration + 4)
+    archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: harness.archiveURL))
+    #expect(archive.patternFolders.isEmpty)
+    #expect(archive.patterns.first(where: { $0.id == patternID })?.folderID == nil)
+}
+
+@MainActor @Test
+func staleFolderAndPatternIdentitiesPublishNothing() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let context = PatternFolderNameContext(locale: Locale(identifier: "en"), reservedNames: [])
+    let folder = try harness.store.createPatternFolder(name: "Socks", nameContext: context)
+    let before = try patternFolderStoreState(harness)
+
+    #expect(throws: PatternFolderStoreError.folderNotFound) {
+        try harness.store.renamePatternFolder(id: UUID(), to: "Renamed", nameContext: context)
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+
+    #expect(throws: PatternFolderStoreError.folderNotFound) {
+        _ = try harness.store.deletePatternFolder(id: UUID())
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+
+    #expect(throws: PatternFolderStoreError.folderNotFound) {
+        try harness.store.movePattern(id: harness.patternID, toFolderID: UUID())
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+
+    #expect(throws: PatternFolderStoreError.patternNotFound) {
+        try harness.store.movePattern(id: UUID(), toFolderID: folder.id)
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+}
+
+@MainActor @Test
+func rejectedFolderNamesPublishNothing() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject()
+    let context = PatternFolderNameContext(
+        locale: Locale(identifier: "en"), reservedNames: ["All", "Uncategorized"]
+    )
+    let folder = try harness.store.createPatternFolder(name: "Socks", nameContext: context)
+    let before = try patternFolderStoreState(harness)
+
+    #expect(throws: PatternFolderValidationError.duplicateName) {
+        _ = try harness.store.createPatternFolder(name: " socks ", nameContext: context)
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+
+    #expect(throws: PatternFolderValidationError.reservedName) {
+        try harness.store.renamePatternFolder(id: folder.id, to: "all", nameContext: context)
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+}
+
+@MainActor @Test
+func movingToTheCurrentFolderDoesNotRewriteOrAdvanceGeneration() throws {
+    let harness = try PatternLibraryStoreHarness.onePatternAndProject(failingArchiveWrites: true)
+    let context = PatternFolderNameContext(locale: Locale(identifier: "en"), reservedNames: [])
+    let folder = try harness.store.createPatternFolder(name: "Socks", nameContext: context)
+    try harness.store.movePattern(id: harness.patternID, toFolderID: folder.id)
+    let before = try patternFolderStoreState(harness)
+    let writesBefore = harness.archiveWriteGate?.writeCount
+
+    try harness.store.movePattern(id: harness.patternID, toFolderID: folder.id)
+
+    try expectPatternFolderStoreState(before, in: harness)
+    #expect(harness.archiveWriteGate?.writeCount == writesBefore)
+}
+
+@MainActor @Test
+func failedFolderTransactionsLeaveEveryPublishedValueAndArchiveUnchanged() throws {
+    let context = PatternFolderNameContext(locale: Locale(identifier: "en"), reservedNames: [])
+
+    let createHarness = try PatternLibraryStoreHarness.onePatternAndProject(failingArchiveWrites: true)
+    let createBefore = try patternFolderStoreState(createHarness)
+    createHarness.archiveWriteGate?.shouldFail = true
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        _ = try createHarness.store.createPatternFolder(name: "Socks", nameContext: context)
+    }
+    try expectPatternFolderStoreState(createBefore, in: createHarness)
+
+    let renameHarness = try PatternLibraryStoreHarness.onePatternAndProject(failingArchiveWrites: true)
+    let renameFolder = try renameHarness.store.createPatternFolder(name: "Socks", nameContext: context)
+    let renameBefore = try patternFolderStoreState(renameHarness)
+    renameHarness.archiveWriteGate?.shouldFail = true
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        try renameHarness.store.renamePatternFolder(id: renameFolder.id, to: "Mittens", nameContext: context)
+    }
+    try expectPatternFolderStoreState(renameBefore, in: renameHarness)
+
+    let moveHarness = try PatternLibraryStoreHarness.onePatternAndProject(failingArchiveWrites: true)
+    let moveFolder = try moveHarness.store.createPatternFolder(name: "Socks", nameContext: context)
+    let moveBefore = try patternFolderStoreState(moveHarness)
+    moveHarness.archiveWriteGate?.shouldFail = true
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        try moveHarness.store.movePattern(id: moveHarness.patternID, toFolderID: moveFolder.id)
+    }
+    try expectPatternFolderStoreState(moveBefore, in: moveHarness)
+
+    let deleteHarness = try PatternLibraryStoreHarness.onePatternAndProject(failingArchiveWrites: true)
+    let deleteFolder = try deleteHarness.store.createPatternFolder(name: "Socks", nameContext: context)
+    try deleteHarness.store.movePattern(id: deleteHarness.patternID, toFolderID: deleteFolder.id)
+    let deleteBefore = try patternFolderStoreState(deleteHarness)
+    deleteHarness.archiveWriteGate?.shouldFail = true
+    #expect(throws: ProjectStoreError.persistenceFailed) {
+        _ = try deleteHarness.store.deletePatternFolder(id: deleteFolder.id)
+    }
+    try expectPatternFolderStoreState(deleteBefore, in: deleteHarness)
+}
+
 @MainActor
 final class PatternLibraryStoreHarness {
     let root: URL
@@ -1251,6 +1444,7 @@ final class PatternLibraryStoreHarness {
                 workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true)
             ),
             archiveWrite: { data, destination in
+                gate?.writeCount += 1
                 if gate?.shouldFail == true { throw ProjectStoreError.persistenceFailed }
                 try data.write(to: destination, options: .atomic)
             },
@@ -1354,4 +1548,5 @@ final class PatternLibraryStoreHarness {
 
 final class ArchiveWriteGate: @unchecked Sendable {
     var shouldFail = false
+    var writeCount = 0
 }

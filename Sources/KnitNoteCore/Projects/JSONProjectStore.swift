@@ -115,6 +115,11 @@ public enum PatternLibraryMutationError: Error, Equatable, Sendable {
     case activeLinksExist([UUID])
 }
 
+public enum PatternFolderStoreError: Error, Equatable, Sendable {
+    case folderNotFound
+    case patternNotFound
+}
+
 public enum YouTubePatternStoreError: Error, Equatable, Sendable {
     case emptyTitle
 }
@@ -507,6 +512,7 @@ final class PatternLibraryDeletionTransaction {
 @MainActor public final class JSONProjectStore: ObservableObject {
     @Published public private(set) var projects: [StoredProject] = []
     @Published public private(set) var yarns: [StoredYarn] = []
+    @Published public private(set) var patternFolders: [PatternFolder] = []
     @Published public private(set) var patternAssets: [PatternAsset] = []
     @Published public private(set) var patterns: [StoredPattern] = []
     @Published public private(set) var patternUsages: [PatternProjectUsage] = []
@@ -1432,6 +1438,81 @@ final class PatternLibraryDeletionTransaction {
             targetProjectID: nil,
             now: now
         )
+    }
+
+    @discardableResult
+    public func createPatternFolder(
+        name: String,
+        nameContext: PatternFolderNameContext,
+        now: Date = .now
+    ) throws -> PatternFolder {
+        let displayName = try PatternFolderNamePolicy.validatedName(
+            name,
+            folders: patternFolders,
+            excluding: nil,
+            nameContext: nameContext
+        )
+        let folder = PatternFolder(displayName: displayName, createdAt: now)
+        try persist(
+            projects: projects,
+            yarns: yarns,
+            patternFolders: patternFolders + [folder]
+        )
+        return folder
+    }
+
+    public func renamePatternFolder(
+        id: UUID,
+        to name: String,
+        nameContext: PatternFolderNameContext
+    ) throws {
+        guard let index = patternFolders.firstIndex(where: { $0.id == id }) else {
+            throw PatternFolderStoreError.folderNotFound
+        }
+        let displayName = try PatternFolderNamePolicy.validatedName(
+            name,
+            folders: patternFolders,
+            excluding: id,
+            nameContext: nameContext
+        )
+        var stagedFolders = patternFolders
+        stagedFolders[index].displayName = displayName
+        try persist(projects: projects, yarns: yarns, patternFolders: stagedFolders)
+    }
+
+    public func movePattern(id: UUID, toFolderID folderID: UUID?) throws {
+        guard let index = patterns.firstIndex(where: { $0.id == id }) else {
+            throw PatternFolderStoreError.patternNotFound
+        }
+        if let folderID, !patternFolders.contains(where: { $0.id == folderID }) {
+            throw PatternFolderStoreError.folderNotFound
+        }
+        guard patterns[index].folderID != folderID else { return }
+        var stagedPatterns = patterns
+        stagedPatterns[index].folderID = folderID
+        try persist(projects: projects, yarns: yarns, patterns: stagedPatterns)
+    }
+
+    @discardableResult
+    public func deletePatternFolder(id: UUID) throws -> Int {
+        guard patternFolders.contains(where: { $0.id == id }) else {
+            throw PatternFolderStoreError.folderNotFound
+        }
+        let movedCount = patterns.count(where: { $0.folderID == id })
+        let stagedFolders = patternFolders.filter { $0.id != id }
+        let stagedPatterns = patterns.map { pattern in
+            guard pattern.folderID == id else { return pattern }
+            var pattern = pattern
+            pattern.folderID = nil
+            return pattern
+        }
+        try persist(
+            projects: projects,
+            yarns: yarns,
+            patternFolders: stagedFolders,
+            patterns: stagedPatterns
+        )
+        return movedCount
     }
 
     public func importPatternFromProject(
@@ -2570,6 +2651,7 @@ final class PatternLibraryDeletionTransaction {
         let decoded: (
             projects: [StoredProject],
             yarns: [StoredYarn],
+            patternFolders: [PatternFolder],
             patternAssets: [PatternAsset],
             patterns: [StoredPattern],
             patternUsages: [PatternProjectUsage]
@@ -2592,6 +2674,7 @@ final class PatternLibraryDeletionTransaction {
         }
         projects = decoded.projects
         yarns = decoded.yarns
+        patternFolders = decoded.patternFolders
         patternAssets = decoded.patternAssets
         patterns = decoded.patterns
         patternUsages = decoded.patternUsages
@@ -2679,6 +2762,7 @@ final class PatternLibraryDeletionTransaction {
     private func decode(archive: ProjectArchive) throws -> (
         projects: [StoredProject],
         yarns: [StoredYarn],
+        patternFolders: [PatternFolder],
         patternAssets: [PatternAsset],
         patterns: [StoredPattern],
         patternUsages: [PatternProjectUsage]
@@ -2706,6 +2790,7 @@ final class PatternLibraryDeletionTransaction {
         return (
             loadedProjects,
             loadedYarns,
+            normalized.folders,
             archive.patternAssets,
             normalized.patterns,
             archive.patternUsages
@@ -2932,6 +3017,7 @@ final class PatternLibraryDeletionTransaction {
     private func persist(
         projects stagedProjects: [StoredProject],
         yarns stagedYarns: [StoredYarn],
+        patternFolders stagedPatternFolders: [PatternFolder]? = nil,
         patternAssets stagedPatternAssets: [PatternAsset]? = nil,
         patterns stagedPatterns: [StoredPattern]? = nil,
         patternUsages stagedPatternUsages: [PatternProjectUsage]? = nil
@@ -2944,10 +3030,12 @@ final class PatternLibraryDeletionTransaction {
         do {
             let sortedProjects = stagedProjects.sorted { $0.updatedAt > $1.updatedAt }
             let sortedYarns = stagedYarns.sorted { $0.updatedAt > $1.updatedAt }
+            let folders = stagedPatternFolders ?? patternFolders
             let assets = stagedPatternAssets ?? patternAssets
             let libraryPatterns = stagedPatterns ?? patterns
             let usages = stagedPatternUsages ?? patternUsages
-            _ = try PatternLibrarySnapshot(
+            let normalized = try PatternLibrarySnapshot(
+                folders: folders,
                 assets: assets,
                 patterns: libraryPatterns,
                 usages: usages,
@@ -2958,15 +3046,17 @@ final class PatternLibraryDeletionTransaction {
                 version: ProjectArchive.currentVersion,
                 projects: sortedProjects,
                 yarns: sortedYarns,
+                patternFolders: normalized.folders,
                 patternAssets: assets,
-                patterns: libraryPatterns,
+                patterns: normalized.patterns,
                 patternUsages: usages
             ))
             try archiveWrite(data, url)
             projects = sortedProjects
             yarns = sortedYarns
+            patternFolders = normalized.folders
             patternAssets = assets
-            patterns = libraryPatterns
+            patterns = normalized.patterns
             patternUsages = usages
             dataGeneration &+= 1
             reconcileYarnPhotos()

@@ -49,12 +49,15 @@ import re
 import sys
 
 try:
-    lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+    source = Path(sys.argv[1]).read_text(encoding="utf-8")
 except (OSError, UnicodeError):
     raise SystemExit(1)
+if any(marker in source for marker in ("/*", "*/", '\"\"\"')):
+    raise SystemExit(1)
+lines = source.splitlines()
 
 archive_declaration = re.compile(
-    r"^\s*public\s+struct\s+ProjectArchive\b[^{}]*\{\s*$"
+    r"^public\s+struct\s+ProjectArchive\b[^{}]*\{\s*$"
 )
 archive_starts = [
     index for index, line in enumerate(lines) if archive_declaration.fullmatch(line)
@@ -71,7 +74,7 @@ if archive_end is None:
     raise SystemExit(1)
 
 schema_declaration = re.compile(
-    r"^\s*public\s+static\s+let\s+currentVersion\s*=\s*([0-9]+)\s*$"
+    r"^ {4}public\s+static\s+let\s+currentVersion\s*=\s*([0-9]+)\s*$"
 )
 versions = [
     int(match.group(1))

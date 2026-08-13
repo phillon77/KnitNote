@@ -4,41 +4,66 @@ import Testing
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
     @Test(arguments: [
         (
-            "decoy schema 13 beside actual schema 12",
+            "nested schema 13 decoy beside multiline top-level schema 12",
             """
-            private enum SchemaDecoy {
+            public struct ProjectArchive:
+                Codable {
+                public static let currentVersion = 12
+            }
+
+            public enum SchemaDecoy {
+                public struct ProjectArchive: Codable {
+                    public static let currentVersion = 13
+                }
+            }
+            """
+        ),
+        (
+            "duplicate top-level ProjectArchive declarations",
+            """
+            public struct ProjectArchive: Codable {
                 public static let currentVersion = 13
             }
 
+            public struct ProjectArchive: Codable, Sendable {
+                public static let currentVersion = 13
+            }
+            """
+        ),
+        (
+            "schema 13 block-comment decoy beside multiline top-level schema 12",
+            """
+            /*
             public struct ProjectArchive: Codable {
+                public static let currentVersion = 13
+            }
+            */
+            public struct ProjectArchive:
+                Codable {
                 public static let currentVersion = 12
             }
             """
         ),
         (
-            "duplicate schema 13 declarations",
-            """
+            "schema 13 multiline-string decoy beside multiline top-level schema 12",
+            #"""
+            private let schemaDecoy = """
             public struct ProjectArchive: Codable {
-                public static let currentVersion = 13
                 public static let currentVersion = 13
             }
             """
+            public struct ProjectArchive:
+                Codable {
+                public static let currentVersion = 12
+            }
+            """#
         ),
     ])
     func staticAuditRejectsUnscopedOrDuplicateSchemaThirteenDeclarations(
         fixtureName: String,
         sourceText: String
     ) throws {
-        let temporaryRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("knitnote-project-archive-schema-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
-        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
-        let source = temporaryRoot.appendingPathComponent("JSONProjectStore.swift")
-        try sourceText.write(to: source, atomically: true, encoding: .utf8)
-
-        let result = try runReleaseAudit(
-            environment: ["KNITNOTE_PROJECT_ARCHIVE_SOURCE": source.path]
-        )
+        let result = try runStaticAudit(projectArchiveSource: sourceText)
 
         #expect(result.status != 0, Comment(rawValue: fixtureName))
         #expect(result.output.contains("ProjectArchive.currentVersion is not uniquely schema 13"))
@@ -46,19 +71,25 @@ import Testing
 
     @Test(arguments: [12, 14])
     func staticAuditRejectsEveryNoncurrentProjectArchiveSchema(schema: Int) throws {
-        let temporaryRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("knitnote-project-archive-schema-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
-        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
-        let source = temporaryRoot.appendingPathComponent("JSONProjectStore.swift")
-        try Data("public static let currentVersion = \(schema)\n".utf8).write(to: source)
-
-        let result = try runReleaseAudit(
-            environment: ["KNITNOTE_PROJECT_ARCHIVE_SOURCE": source.path]
-        )
+        let result = try runStaticAudit(projectArchiveSource: """
+            public struct ProjectArchive: Codable, Sendable {
+                public static let currentVersion = \(schema)
+            }
+            """)
 
         #expect(result.status != 0)
-        #expect(result.output.contains("project archive schema is not 13"))
+        #expect(result.output.contains("ProjectArchive.currentVersion is not uniquely schema 13"))
+    }
+
+    @Test func staticAuditAcceptsCanonicalTopLevelProjectArchiveSchemaThirteen() throws {
+        let result = try runStaticAudit(projectArchiveSource: """
+            public struct ProjectArchive: Codable, Sendable {
+                public static let currentVersion = 13
+            }
+            """)
+
+        #expect(result.status == 0)
+        #expect(result.output.contains("TEST FIXTURE STATIC AUDIT: PASS"))
     }
 
     @Test func archiveAuditRejectsOneMissingJapaneseWatchLocalizationDirectory() throws {
@@ -1865,6 +1896,18 @@ private let releaseLocales = [
     "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
     "nb", "sv", "fi", "da", "ko", "el", "nl",
 ]
+
+private func runStaticAudit(projectArchiveSource sourceText: String) throws -> AuditResult {
+    let temporaryRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("knitnote-project-archive-schema-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: temporaryRoot) }
+    try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+    let source = temporaryRoot.appendingPathComponent("JSONProjectStore.swift")
+    try sourceText.write(to: source, atomically: true, encoding: .utf8)
+    return try runReleaseAudit(
+        environment: ["KNITNOTE_PROJECT_ARCHIVE_SOURCE": source.path]
+    )
+}
 
 private func runReleaseAudit(
     archives: URL? = nil,

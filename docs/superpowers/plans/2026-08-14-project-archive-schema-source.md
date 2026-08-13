@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Work in `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/knitnote-1.4.1-final` on branch `feature/knitnote-1.5`.
-- Begin from exact plan base `0e68ab01acf22e67b57549b8eea5a1da75ce545e` and preserve untracked `.superpowers/brainstorm/`, `build/`, and `task-3-report.md`.
+- Begin from the clean plan-tip commit recorded in this plan's SDD ledger immediately before dispatch, and preserve untracked `.superpowers/brainstorm/`, `build/`, and `task-3-report.md`.
 - The canonical file bytes are exactly `extension ProjectArchive {\n    public static let currentVersion = 13\n}\n`.
 - Do not add SwiftSyntax or another dependency and do not write another partial Swift parser.
 - Preserve schema-13 archive, migration, normalization, backup, and public restore behavior already implemented in commits `743c56d..3527cb2`.
@@ -52,7 +52,7 @@ git rev-parse HEAD
 git status --short
 ```
 
-Expected: the specified linked worktree, branch `feature/knitnote-1.5`, HEAD `0e68ab01acf22e67b57549b8eea5a1da75ce545e`, and only the three preserved untracked paths.
+Expected: the specified linked worktree, branch `feature/knitnote-1.5`, HEAD equal to the plan base recorded in this plan's SDD ledger, and only the three preserved untracked paths.
 
 - [ ] **Step 2: Add the final reviewed parser-bypass regression before changing production**
 
@@ -274,7 +274,8 @@ Inspect scope first:
 ```bash
 git status --short
 git diff --check
-git diff --stat 0e68ab01acf22e67b57549b8eea5a1da75ce545e
+TASK_BASE="$(git log -1 --format=%H -- docs/superpowers/plans/2026-08-14-project-archive-schema-source.md)"
+git diff --stat "$TASK_BASE"
 ```
 
 Stage only the allowed tracked files:
@@ -298,4 +299,4 @@ Append a new authorized design-cycle section to `.superpowers/sdd/2026-08-13-pat
 - commit SHA and final status;
 - confirmation that no archive/export/upload/ASC/release action occurred.
 
-Update `.superpowers/sdd/2026-08-13-pattern-folders/progress.md` from BLOCKED to review-pending, not complete. Generate a fresh review package from `0e68ab01acf22e67b57549b8eea5a1da75ce545e` to the new HEAD and request independent spec/quality review. Mark Task 2 complete only if that review reports no Critical or Important finding.
+Update `.superpowers/sdd/2026-08-13-pattern-folders/progress.md` from BLOCKED to review-pending, not complete. Generate a fresh review package from the task base recorded immediately before dispatch to the new HEAD and request independent spec/quality review. Mark Task 2 complete only if that review reports no Critical or Important finding.

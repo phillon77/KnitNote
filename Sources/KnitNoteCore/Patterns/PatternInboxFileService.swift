@@ -122,6 +122,7 @@ public struct PatternInboxFileService: Sendable {
         source: URL,
         origin: PatternImportOrigin,
         targetProjectID: UUID?,
+        targetFolderID: UUID? = nil,
         now: Date
     ) throws -> PatternInboxItem {
         try enqueue(
@@ -130,6 +131,7 @@ public struct PatternInboxFileService: Sendable {
             declaredFileExtension: source.pathExtension,
             origin: origin,
             targetProjectID: targetProjectID,
+            targetFolderID: targetFolderID,
             now: now,
             cancellationToken: PatternInboxEnqueueCancellationToken()
         )
@@ -141,6 +143,7 @@ public struct PatternInboxFileService: Sendable {
         declaredFileExtension: String,
         origin: PatternImportOrigin,
         targetProjectID: UUID?,
+        targetFolderID: UUID? = nil,
         now: Date,
         cancellationToken: PatternInboxEnqueueCancellationToken
     ) throws -> PatternInboxItem {
@@ -174,6 +177,7 @@ public struct PatternInboxFileService: Sendable {
                 receivedAt: now,
                 origin: origin,
                 targetProjectID: targetProjectID,
+                targetFolderID: targetFolderID,
                 stagedFilename: "\(id.uuidString).\(metadata.fileExtension)"
             )
             let ownedStaged = try stagedURL(for: item)

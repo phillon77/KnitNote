@@ -24,6 +24,36 @@ import UniformTypeIdentifiers
 }
 
 @MainActor
+@Test func inboxManifestRoundTripsCapturedTargetFolderAndLegacyManifestDecodesAsUncategorized() throws {
+    let harness = try PatternImportHarness()
+    let source = try harness.makePDF(named: "Captured folder.pdf")
+    let targetFolderID = UUID()
+
+    let item = try harness.inbox.enqueue(
+        source: source,
+        origin: .library,
+        targetProjectID: nil,
+        targetFolderID: targetFolderID,
+        now: Date(timeIntervalSince1970: 42)
+    )
+    let reloaded = PatternInboxFileService(root: harness.inbox.root)
+
+    #expect(try reloaded.item(id: item.id)?.targetFolderID == targetFolderID)
+
+    let legacy = Data("""
+    {
+      "id": "\(UUID().uuidString)",
+      "originalFilename": "Legacy.pdf",
+      "receivedAt": 42,
+      "origin": "library",
+      "targetProjectID": null,
+      "stagedFilename": "legacy.pdf"
+    }
+    """.utf8)
+    #expect(try JSONDecoder().decode(PatternInboxItem.self, from: legacy).targetFolderID == nil)
+}
+
+@MainActor
 @Test func inboxRejectsEmptyAndDisguisedFilesBeforePublishingAnItem() throws {
     let harness = try PatternImportHarness()
     let empty = try harness.writeFile(named: "Empty.pdf", bytes: Data())

@@ -4,6 +4,23 @@ import Testing
 
 @MainActor
 @Suite struct AddYouTubePatternContractTests {
+    @Test func coordinatorCarriesSelectedFolderIntoAddOperation() async throws {
+        let targetFolderID = UUID()
+        let coordinator = YouTubePatternAddCoordinator(targetFolderID: targetFolderID)
+        coordinator.urlText = "https://youtu.be/abcdefghijk"
+        coordinator.title = "Video pattern"
+        let result = await coordinator.add(
+            add: { _, _, projectID, folderID in
+                #expect(projectID == nil)
+                #expect(folderID == targetFolderID)
+                return YouTubePatternAddResult(resolution: .created, patternID: UUID())
+            },
+            cache: { _, _ in }
+        )
+
+        #expect(result?.resolution == .created)
+    }
+
     @Test func timeoutReturnsManualFallbackWhenFetcherNeverCompletes() async throws {
         let coordinator = YouTubePatternAddCoordinator()
         coordinator.urlText = "https://youtu.be/abcdefghijk"
@@ -56,7 +73,7 @@ import Testing
         coordinator.title = "Video pattern"
 
         let first = Task { @MainActor in await coordinator.add(
-            add: { link, title, projectID in
+            add: { link, title, projectID, _ in
                 await probe.recordFirstAddAndWaitForRelease(
                     link: link,
                     title: title,
@@ -69,7 +86,7 @@ import Testing
         await probe.waitUntilFirstAddStarts()
 
         let second = await coordinator.add(
-            add: { _, _, _ in
+            add: { _, _, _, _ in
                 await probe.recordUnexpectedSecondAdd()
                 return YouTubePatternAddResult(resolution: .created, patternID: UUID())
             },
@@ -89,7 +106,7 @@ import Testing
         failed.title = "Video pattern"
 
         _ = await failed.add(
-            add: { _, _, _ in
+            add: { _, _, _, _ in
                 await failedProbe.recordAdd()
                 throw AddFailure.expected
             },
@@ -105,7 +122,7 @@ import Testing
         success.setPreviewThumbnailData(try makeCoordinatorPNG())
 
         _ = await success.add(
-            add: { _, _, _ in
+            add: { _, _, _, _ in
                 await successProbe.recordAdd()
                 return YouTubePatternAddResult(resolution: .created, patternID: UUID())
             },

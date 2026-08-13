@@ -15,13 +15,15 @@ struct AddYouTubePatternView: View {
 
     init(
         targetProjectID: UUID? = nil,
+        targetFolderID: UUID? = nil,
         metadataFetcher: any YouTubePatternMetadataFetching = LiveYouTubeLinkMetadataFetcher(),
         onFinished: @escaping (UUID, YouTubePatternAddResult.Resolution) -> Void = { _, _ in }
     ) {
         self.metadataFetcher = metadataFetcher
         self.onFinished = onFinished
         _coordinator = StateObject(wrappedValue: YouTubePatternAddCoordinator(
-            targetProjectID: targetProjectID
+            targetProjectID: targetProjectID,
+            targetFolderID: targetFolderID
         ))
     }
 
@@ -210,11 +212,12 @@ struct AddYouTubePatternView: View {
     private func addPattern() {
         Task { @MainActor in
             let result = await coordinator.add(
-                add: { link, title, targetProjectID in
+                add: { link, title, targetProjectID, targetFolderID in
                     try await store.addYouTubePattern(
                         link: link,
                         title: title,
-                        targetProjectID: targetProjectID
+                        targetProjectID: targetProjectID,
+                        targetFolderID: targetFolderID
                     )
                 },
                 cache: { data, patternID in

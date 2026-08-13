@@ -70,6 +70,7 @@ public final class YouTubePatternAddCoordinator: ObservableObject {
     @Published public private(set) var addErrorKey: String?
 
     public let targetProjectID: UUID?
+    public let targetFolderID: UUID?
     private let thumbnailSanitizer: @Sendable (Data) throws -> Data
     private var parsedLink: YouTubePatternLink?
     private var metadataTask: Task<Void, Never>?
@@ -77,12 +78,14 @@ public final class YouTubePatternAddCoordinator: ObservableObject {
 
     public init(
         targetProjectID: UUID? = nil,
+        targetFolderID: UUID? = nil,
         thumbnailSanitizer: @escaping @Sendable (Data) throws -> Data = {
             try PatternThumbnailFileService(directory: FileManager.default.temporaryDirectory)
                 .sanitizedExternalThumbnailData($0)
         }
     ) {
         self.targetProjectID = targetProjectID
+        self.targetFolderID = targetFolderID
         self.thumbnailSanitizer = thumbnailSanitizer
     }
 
@@ -143,7 +146,7 @@ public final class YouTubePatternAddCoordinator: ObservableObject {
     }
 
     public func add(
-        add: @escaping @MainActor @Sendable (YouTubePatternLink, String, UUID?) async throws -> YouTubePatternAddResult,
+        add: @escaping @MainActor @Sendable (YouTubePatternLink, String, UUID?, UUID?) async throws -> YouTubePatternAddResult,
         cache: @escaping @MainActor @Sendable (Data, UUID) async -> Void
     ) async -> YouTubePatternAddResult? {
         guard !isAdding,
@@ -162,7 +165,7 @@ public final class YouTubePatternAddCoordinator: ObservableObject {
             thumbnailData = nil
         }
         do {
-            let result = try await add(link, title, targetProjectID)
+            let result = try await add(link, title, targetProjectID, targetFolderID)
             if let thumbnailData {
                 await cache(thumbnailData, result.patternID)
             }

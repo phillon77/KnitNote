@@ -1426,6 +1426,7 @@ final class PatternLibraryDeletionTransaction {
 
     public func importPatternFromLibrary(
         _ source: URL,
+        folderID: UUID? = nil,
         now: Date = .now
     ) async throws -> PatternImportOutcome {
         let access = try preflightAccess(.importPattern)
@@ -1436,6 +1437,7 @@ final class PatternLibraryDeletionTransaction {
             source,
             origin: .library,
             targetProjectID: nil,
+            targetFolderID: folderID,
             now: now
         )
     }
@@ -1531,6 +1533,7 @@ final class PatternLibraryDeletionTransaction {
             source,
             origin: .project,
             targetProjectID: projectID,
+            targetFolderID: nil,
             now: now
         )
     }
@@ -1539,6 +1542,7 @@ final class PatternLibraryDeletionTransaction {
         link: YouTubePatternLink,
         title: String,
         targetProjectID: UUID? = nil,
+        targetFolderID: UUID? = nil,
         now: Date = .now
     ) async throws -> YouTubePatternAddResult {
         let access = try preflightAccess(.importPattern)
@@ -1547,6 +1551,7 @@ final class PatternLibraryDeletionTransaction {
                 link: link,
                 title: title,
                 targetProjectID: targetProjectID,
+                targetFolderID: targetFolderID,
                 now: now,
                 access: access
             )
@@ -1557,6 +1562,7 @@ final class PatternLibraryDeletionTransaction {
         link: YouTubePatternLink,
         title: String,
         targetProjectID: UUID?,
+        targetFolderID: UUID?,
         now: Date,
         access: FeatureAccessDecision
     ) throws -> YouTubePatternAddResult {
@@ -1624,7 +1630,10 @@ final class PatternLibraryDeletionTransaction {
             let pattern = StoredPattern(
                 assetID: asset.id,
                 displayName: trimmedTitle,
-                createdAt: now
+                createdAt: now,
+                folderID: targetFolderID.flatMap { candidate in
+                    patternFolders.contains(where: { $0.id == candidate }) ? candidate : nil
+                }
             )
             let usages = try addingUsage(
                 for: pattern.id,
@@ -1652,6 +1661,7 @@ final class PatternLibraryDeletionTransaction {
         _ source: URL,
         origin: PatternImportOrigin,
         targetProjectID: UUID?,
+        targetFolderID: UUID?,
         now: Date
     ) async throws -> PatternImportOutcome {
         try await withActivePatternTransaction {
@@ -1663,6 +1673,7 @@ final class PatternLibraryDeletionTransaction {
                     source: source,
                     origin: origin,
                     targetProjectID: targetProjectID,
+                    targetFolderID: targetFolderID,
                     now: now
                 )
             }.value
@@ -2809,6 +2820,9 @@ final class PatternLibraryDeletionTransaction {
         let candidatePatterns = patterns.filter { pattern in
             matchingAssets.contains(where: { $0.id == pattern.assetID })
         }
+        let destinationFolderID = prepared.item.targetFolderID.flatMap { candidate in
+            patternFolders.contains(where: { $0.id == candidate }) ? candidate : nil
+        }
         let pattern: StoredPattern
         let outcome: PatternImportOutcome
 
@@ -2837,7 +2851,8 @@ final class PatternLibraryDeletionTransaction {
             pattern = StoredPattern(
                 assetID: asset.id,
                 displayName: displayName(for: prepared.item),
-                createdAt: prepared.item.receivedAt
+                createdAt: prepared.item.receivedAt,
+                folderID: destinationFolderID
             )
             do {
                 try receipts.begin(item: prepared.item, pattern: pattern)
@@ -2867,7 +2882,8 @@ final class PatternLibraryDeletionTransaction {
                 pattern = StoredPattern(
                     assetID: asset.id,
                     displayName: displayName(for: prepared.item),
-                    createdAt: prepared.item.receivedAt
+                    createdAt: prepared.item.receivedAt,
+                    folderID: destinationFolderID
                 )
                 let usages = try addingUsage(
                     for: pattern.id,

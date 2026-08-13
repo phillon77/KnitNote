@@ -4,6 +4,53 @@ import Testing
 
 @MainActor
 @Suite struct PatternInboxProcessingStoreTests {
+    @Test func libraryImportPublishesNewPatternIntoCapturedFolderWithoutMovingDuplicates() async throws {
+        let harness = try PatternImportHarness()
+        let context = PatternFolderNameContext(
+            locale: Locale(identifier: "en"), reservedNames: ["All", "Uncategorized"]
+        )
+        let first = try harness.store.createPatternFolder(name: "First", nameContext: context)
+        let second = try harness.store.createPatternFolder(name: "Second", nameContext: context)
+        let source = try harness.makePDF(named: "same.pdf")
+
+        let created = try await harness.store.importPatternFromLibrary(source, folderID: first.id)
+        let createdID: UUID
+        if case let .created(patternID) = created {
+            createdID = patternID
+        } else {
+            Issue.record("Expected a newly created pattern")
+            return
+        }
+        #expect(harness.store.patterns.first(where: { $0.id == createdID })?.folderID == first.id)
+
+        let duplicate = try await harness.store.importPatternFromLibrary(source, folderID: second.id)
+        #expect(duplicate == .existing(patternID: createdID))
+        #expect(harness.store.patterns.first(where: { $0.id == createdID })?.folderID == first.id)
+    }
+
+    @Test func processingDeletedCapturedFolderCreatesNewPatternInUncategorized() async throws {
+        let harness = try PatternImportHarness()
+        let context = PatternFolderNameContext(
+            locale: Locale(identifier: "en"), reservedNames: ["All", "Uncategorized"]
+        )
+        let folder = try harness.store.createPatternFolder(name: "Temporary", nameContext: context)
+        let source = try harness.makePDF(named: "deleted destination.pdf")
+        let item = try harness.inbox.enqueue(
+            source: source,
+            origin: .library,
+            targetProjectID: nil,
+            targetFolderID: folder.id,
+            now: .now
+        )
+        _ = try harness.store.deletePatternFolder(id: folder.id)
+
+        guard case let .created(patternID) = try await harness.store.processPatternInboxItem(id: item.id) else {
+            Issue.record("Expected a newly created pattern")
+            return
+        }
+        #expect(harness.store.patterns.first(where: { $0.id == patternID })?.folderID == nil)
+    }
+
     @Test func ambiguousShareCanCreateOneNewCollectionUsingTheExistingAsset() async throws {
         let harness = try await PatternImportHarness.withTwoNamesForOneAsset()
         let item = try harness.enqueueMatchingFile()

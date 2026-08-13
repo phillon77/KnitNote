@@ -5,6 +5,51 @@ import Testing
 
 @MainActor
 @Suite struct YouTubePatternStoreTests {
+    @Test func youtubeDestinationIsAppliedOnlyToNewPatternWhileProjectLinkAndDuplicateArePreserved() async throws {
+        let harness = try YouTubePatternStoreHarness()
+        let context = PatternFolderNameContext(
+            locale: Locale(identifier: "en"), reservedNames: ["All", "Uncategorized"]
+        )
+        let first = try harness.store.createPatternFolder(name: "First", nameContext: context)
+        let second = try harness.store.createPatternFolder(name: "Second", nameContext: context)
+        let link = try YouTubePatternLink(videoID: "dQw4w9WgXcQ")
+
+        let created = try await harness.store.addYouTubePattern(
+            link: link,
+            title: "Cable tutorial",
+            targetProjectID: harness.firstProjectID,
+            targetFolderID: first.id
+        )
+        let duplicate = try await harness.store.addYouTubePattern(
+            link: link,
+            title: "Ignored duplicate title",
+            targetProjectID: harness.secondProjectID,
+            targetFolderID: second.id
+        )
+
+        #expect(created.resolution == .created)
+        #expect(duplicate.resolution == .existing)
+        #expect(harness.store.patterns.first(where: { $0.id == created.resolvedPatternID })?.folderID == first.id)
+        #expect(harness.store.patternUsages.filter { $0.patternID == created.resolvedPatternID }.count == 2)
+    }
+
+    @Test func missingYouTubeDestinationCreatesNewPatternInUncategorized() async throws {
+        let harness = try YouTubePatternStoreHarness()
+        let context = PatternFolderNameContext(
+            locale: Locale(identifier: "en"), reservedNames: ["All", "Uncategorized"]
+        )
+        let folder = try harness.store.createPatternFolder(name: "Temporary", nameContext: context)
+        _ = try harness.store.deletePatternFolder(id: folder.id)
+
+        let result = try await harness.store.addYouTubePattern(
+            link: try YouTubePatternLink(videoID: "abcdefghijk"),
+            title: "Missing destination",
+            targetFolderID: folder.id
+        )
+
+        #expect(harness.store.patterns.first(where: { $0.id == result.resolvedPatternID })?.folderID == nil)
+    }
+
     @Test func addsOneReusableYouTubePatternAndLinksTwoProjects() async throws {
         let harness = try YouTubePatternStoreHarness()
         let link = try YouTubePatternLink(videoID: "dQw4w9WgXcQ")

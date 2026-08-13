@@ -19,7 +19,7 @@ MAIN_INFO_PLIST="KnitNote/Info.plist"
 WATCH_INFO_PLIST="KnitNoteWatch/Info.plist"
 SHARE_INFO_PLIST="KnitNoteShare/Info.plist"
 MAC_ENTITLEMENTS="KnitNote/KnitNote-macOS.entitlements"
-PROJECT_ARCHIVE_SOURCE="Sources/KnitNoteCore/Projects/JSONProjectStore.swift"
+PROJECT_ARCHIVE_SCHEMA_SOURCE="Sources/KnitNoteCore/Projects/ProjectArchiveSchema.swift"
 PROJECT_SCAN_ROOT="$ROOT"
 GIT=/usr/bin/git
 CODESIGN=/usr/bin/codesign
@@ -42,46 +42,21 @@ fail() {
 }
 
 verify_project_archive_schema() {
-  python3 - "$PROJECT_ARCHIVE_SOURCE" <<'PY' \
-    || fail "project archive schema is not 13; ProjectArchive.currentVersion is not uniquely schema 13"
+  python3 - "$PROJECT_ARCHIVE_SCHEMA_SOURCE" <<'PY' \
+    || fail "project archive schema source is not canonical schema 13"
 from pathlib import Path
-import re
 import sys
 
+expected = (
+    b"extension ProjectArchive {\n"
+    b"    public static let currentVersion = 13\n"
+    b"}\n"
+)
 try:
-    source = Path(sys.argv[1]).read_text(encoding="utf-8")
-except (OSError, UnicodeError):
+    actual = Path(sys.argv[1]).read_bytes()
+except OSError:
     raise SystemExit(1)
-if any(marker in source for marker in ("/*", "*/", '\"\"\"')):
-    raise SystemExit(1)
-lines = source.splitlines()
-
-archive_declaration = re.compile(
-    r"^public\s+struct\s+ProjectArchive\b[^{}]*\{\s*$"
-)
-archive_starts = [
-    index for index, line in enumerate(lines) if archive_declaration.fullmatch(line)
-]
-if len(archive_starts) != 1:
-    raise SystemExit(1)
-
-archive_start = archive_starts[0]
-archive_end = next(
-    (index for index in range(archive_start + 1, len(lines)) if re.fullmatch(r"}\s*", lines[index])),
-    None,
-)
-if archive_end is None:
-    raise SystemExit(1)
-
-schema_declaration = re.compile(
-    r"^ {4}public\s+static\s+let\s+currentVersion\s*=\s*([0-9]+)\s*$"
-)
-versions = [
-    int(match.group(1))
-    for line in lines[archive_start + 1:archive_end]
-    if (match := schema_declaration.fullmatch(line)) is not None
-]
-raise SystemExit(0 if versions == [13] else 1)
+raise SystemExit(0 if actual == expected else 1)
 PY
 }
 
@@ -658,7 +633,7 @@ if [[ "$TEST_ONLY" == 1 ]]; then
   WATCH_INFO_PLIST="${KNITNOTE_WATCH_INFO_PLIST:-$WATCH_INFO_PLIST}"
   SHARE_INFO_PLIST="${KNITNOTE_SHARE_INFO_PLIST:-$SHARE_INFO_PLIST}"
   MAC_ENTITLEMENTS="${KNITNOTE_MAC_ENTITLEMENTS:-$MAC_ENTITLEMENTS}"
-  PROJECT_ARCHIVE_SOURCE="${KNITNOTE_PROJECT_ARCHIVE_SOURCE:-$PROJECT_ARCHIVE_SOURCE}"
+  PROJECT_ARCHIVE_SCHEMA_SOURCE="${KNITNOTE_PROJECT_ARCHIVE_SCHEMA_SOURCE:-$PROJECT_ARCHIVE_SCHEMA_SOURCE}"
   PROJECT_SCAN_ROOT="${KNITNOTE_PROJECT_SCAN_ROOT:-$PROJECT_SCAN_ROOT}"
   GIT="${KNITNOTE_GIT:-$GIT}"
   CODESIGN="${KNITNOTE_CODESIGN:-$CODESIGN}"

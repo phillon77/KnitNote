@@ -1,95 +1,56 @@
 import Foundation
 import Testing
 
+private let canonicalProjectArchiveSchemaSource = """
+extension ProjectArchive {
+    public static let currentVersion = 13
+}
+
+"""
+
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test func staticAuditAcceptsCanonicalProjectArchiveSchemaSource() throws {
+        let result = try runStaticAudit(
+            projectArchiveSchemaSource: canonicalProjectArchiveSchemaSource
+        )
+
+        #expect(result.status == 0)
+        #expect(result.output.contains("TEST FIXTURE STATIC AUDIT: PASS"))
+    }
+
     @Test(arguments: [
-        (
-            "nested schema 13 decoy beside multiline top-level schema 12",
-            """
+        canonicalProjectArchiveSchemaSource.replacingOccurrences(of: "= 13", with: "= 12"),
+        canonicalProjectArchiveSchemaSource.replacingOccurrences(of: "= 13", with: "= 14"),
+        canonicalProjectArchiveSchemaSource
+            + "extension ProjectArchive { public static let decoy = 13 }\n",
+        "// public static let currentVersion = 13\n" + canonicalProjectArchiveSchemaSource,
+        "let decoy = \"public static let currentVersion = 13\"\n"
+            + canonicalProjectArchiveSchemaSource,
+        "enum Decoy {\n    extension ProjectArchive {\n"
+            + "        public static let currentVersion = 13\n    }\n}\n",
+        canonicalProjectArchiveSchemaSource + canonicalProjectArchiveSchemaSource,
+    ])
+    func staticAuditRejectsNoncanonicalProjectArchiveSchemaSource(sourceText: String) throws {
+        let result = try runStaticAudit(projectArchiveSchemaSource: sourceText)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("project archive schema source is not canonical schema 13"))
+    }
+
+    @Test func staticAuditRejectsNestedFourSpaceSchemaDecoyBesideRealSchemaTwelve() throws {
+        let result = try runStaticAudit(projectArchiveSchemaSource: """
             public struct ProjectArchive:
-                Codable {
-                public static let currentVersion = 12
+                    Codable {
+                    public static let currentVersion = 12
             }
 
             public enum SchemaDecoy {
-                public struct ProjectArchive: Codable {
-                    public static let currentVersion = 13
-                }
-            }
-            """
-        ),
-        (
-            "duplicate top-level ProjectArchive declarations",
-            """
-            public struct ProjectArchive: Codable {
                 public static let currentVersion = 13
-            }
-
-            public struct ProjectArchive: Codable, Sendable {
-                public static let currentVersion = 13
-            }
-            """
-        ),
-        (
-            "schema 13 block-comment decoy beside multiline top-level schema 12",
-            """
-            /*
-            public struct ProjectArchive: Codable {
-                public static let currentVersion = 13
-            }
-            */
-            public struct ProjectArchive:
-                Codable {
-                public static let currentVersion = 12
-            }
-            """
-        ),
-        (
-            "schema 13 multiline-string decoy beside multiline top-level schema 12",
-            #"""
-            private let schemaDecoy = """
-            public struct ProjectArchive: Codable {
-                public static let currentVersion = 13
-            }
-            """
-            public struct ProjectArchive:
-                Codable {
-                public static let currentVersion = 12
-            }
-            """#
-        ),
-    ])
-    func staticAuditRejectsUnscopedOrDuplicateSchemaThirteenDeclarations(
-        fixtureName: String,
-        sourceText: String
-    ) throws {
-        let result = try runStaticAudit(projectArchiveSource: sourceText)
-
-        #expect(result.status != 0, Comment(rawValue: fixtureName))
-        #expect(result.output.contains("ProjectArchive.currentVersion is not uniquely schema 13"))
-    }
-
-    @Test(arguments: [12, 14])
-    func staticAuditRejectsEveryNoncurrentProjectArchiveSchema(schema: Int) throws {
-        let result = try runStaticAudit(projectArchiveSource: """
-            public struct ProjectArchive: Codable, Sendable {
-                public static let currentVersion = \(schema)
             }
             """)
 
         #expect(result.status != 0)
-        #expect(result.output.contains("ProjectArchive.currentVersion is not uniquely schema 13"))
-    }
-
-    @Test func staticAuditAcceptsCanonicalTopLevelProjectArchiveSchemaThirteen() throws {
-        let result = try runStaticAudit(projectArchiveSource: """
-            public struct ProjectArchive: Codable, Sendable {
-                public static let currentVersion = 13
-            }
-            """)
-
-        #expect(result.status == 0)
-        #expect(result.output.contains("TEST FIXTURE STATIC AUDIT: PASS"))
+        #expect(result.output.contains("project archive schema source is not canonical schema 13"))
     }
 
     @Test func archiveAuditRejectsOneMissingJapaneseWatchLocalizationDirectory() throws {
@@ -1897,15 +1858,15 @@ private let releaseLocales = [
     "nb", "sv", "fi", "da", "ko", "el", "nl",
 ]
 
-private func runStaticAudit(projectArchiveSource sourceText: String) throws -> AuditResult {
+private func runStaticAudit(projectArchiveSchemaSource sourceText: String) throws -> AuditResult {
     let temporaryRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("knitnote-project-archive-schema-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: temporaryRoot) }
     try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
-    let source = temporaryRoot.appendingPathComponent("JSONProjectStore.swift")
+    let source = temporaryRoot.appendingPathComponent("ProjectArchiveSchema.swift")
     try sourceText.write(to: source, atomically: true, encoding: .utf8)
     return try runReleaseAudit(
-        environment: ["KNITNOTE_PROJECT_ARCHIVE_SOURCE": source.path]
+        environment: ["KNITNOTE_PROJECT_ARCHIVE_SCHEMA_SOURCE": source.path]
     )
 }
 

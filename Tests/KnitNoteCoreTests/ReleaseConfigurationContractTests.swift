@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import KnitNoteCore
 
 @Suite struct ReleaseConfigurationContractTests {
     @Test func projectUsesProductionIdentifiersVersionAndTeam() throws {
@@ -18,14 +19,24 @@ import Testing
     }
 
     @Test func releaseCandidateUsesCurrentPatternAndBackupFormats() throws {
-        let projectArchive = try sourceText(
+        let schema = try sourceText(
+            "Sources/KnitNoteCore/Projects/ProjectArchiveSchema.swift"
+        )
+        let archive = try sourceText(
             "Sources/KnitNoteCore/Projects/JSONProjectStore.swift"
         )
         let backupManifest = try sourceText(
             "Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift"
         )
 
-        #expect(projectArchive.contains("static let currentVersion = 13"))
+        #expect(schema == """
+        extension ProjectArchive {
+            public static let currentVersion = 13
+        }
+
+        """)
+        #expect(!archive.contains("static let currentVersion"))
+        #expect(ProjectArchive.currentVersion == 13)
         #expect(backupManifest.contains("static let currentFormatVersion = 2"))
     }
 
@@ -54,7 +65,7 @@ import Testing
 
         #expect(text.contains("公開版本：iOS／macOS `1.2.1`"))
         #expect(text.contains("legacy paid owner"))
-        let source = try sourceText("Sources/KnitNoteCore/Projects/JSONProjectStore.swift")
+        let source = try sourceText("Sources/KnitNoteCore/Projects/ProjectArchiveSchema.swift")
         let sourceMatch = try #require(source.firstMatch(of: /static let currentVersion = ([0-9]+)/))
         let documentedMatch = try #require(text.firstMatch(of: /current project archive format uses schema ([0-9]+)/))
         #expect(sourceMatch.1 == documentedMatch.1)

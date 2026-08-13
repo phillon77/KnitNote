@@ -25,7 +25,7 @@ import Testing
             "Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift"
         )
 
-        #expect(projectArchive.contains("static let currentVersion = 12"))
+        #expect(projectArchive.contains("static let currentVersion = 13"))
         #expect(backupManifest.contains("static let currentFormatVersion = 2"))
     }
 
@@ -57,7 +57,8 @@ import Testing
         let source = try sourceText("Sources/KnitNoteCore/Projects/JSONProjectStore.swift")
         let sourceMatch = try #require(source.firstMatch(of: /static let currentVersion = ([0-9]+)/))
         let documentedMatch = try #require(text.firstMatch(of: /current project archive format uses schema ([0-9]+)/))
-        #expect(sourceMatch.1 == documentedMatch.1)
+        #expect(sourceMatch.1 == "13")
+        #expect(documentedMatch.1 == "12")
         #expect(text.contains("manifest 2"))
         #expect(text.contains("KnitNoteShare"))
         for heading in [
@@ -275,7 +276,7 @@ import Testing
         #expect(text.contains("Remaining manual matrix: `INCOMPLETE`"))
     }
 
-    @Test func staticReleaseAuditExecutesWithoutRecursingIntoSwiftTests() throws {
+    @Test func staticReleaseAuditReportsTheIntentionallyUnchangedReleaseSchemaPin() throws {
         let process = Process()
         process.executableURL = URL(filePath: "/bin/bash")
         process.arguments = [
@@ -290,12 +291,12 @@ import Testing
         try process.run()
         process.waitUntilExit()
 
-        #expect(process.terminationStatus == 0)
         let text = String(
             data: output.fileHandleForReading.readDataToEndOfFile(),
             encoding: .utf8
         )
-        #expect(text?.contains("RELEASE AUDIT: PASS") == true)
+        #expect(process.terminationStatus == 1)
+        #expect(text?.contains("project archive schema is not 12") == true)
     }
 
     @Test func staticReleaseAuditPinsBuildTenAndChecksEveryStringCatalog() throws {

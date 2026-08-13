@@ -2099,6 +2099,7 @@ public struct KnitNoteBackupService: Sendable {
         }
         guard Set(archive.projects.map(\.id)).count == archive.projects.count,
               Set(archive.yarns.map(\.id)).count == archive.yarns.count,
+              Set(archive.patternFolders.map(\.id)).count == archive.patternFolders.count,
               Set(archive.patternAssets.map(\.id)).count == archive.patternAssets.count,
               Set(archive.patterns.map(\.id)).count == archive.patterns.count,
               Set(archive.patternUsages.map(\.id)).count == archive.patternUsages.count else {
@@ -2108,17 +2109,25 @@ public struct KnitNoteBackupService: Sendable {
         guard archive.yarns.allSatisfy({ $0.linkedProjectIDs.isSubset(of: projectIDs) }) else {
             throw KnitNoteBackupError.invalidYarnProjectLinks
         }
+        guard archive.version >= ProjectArchive.patternFoldersIntroducedVersion
+                || archive.patternFolders.isEmpty else {
+            throw KnitNoteBackupError.invalidArchive
+        }
         if ProjectArchive.supportsPatternLibrary(version: archive.version) {
             do {
-                _ = try PatternLibrarySnapshot(
+                let normalized = try PatternLibrarySnapshot(
+                    folders: archive.patternFolders,
                     assets: archive.patternAssets,
                     patterns: archive.patterns,
                     usages: archive.patternUsages,
                     validProjectIDs: archive.projects.map(\.id)
-                ).validated()
+                ).normalizedAndValidated()
+                guard normalized.folders == archive.patternFolders else {
+                    throw KnitNoteBackupError.invalidArchive
+                }
             } catch let error as PatternLibraryValidationError {
                 switch error {
-                case .duplicateAssetID, .duplicatePatternID, .duplicateUsageID,
+                case .duplicateFolderID, .duplicateAssetID, .duplicatePatternID, .duplicateUsageID,
                      .duplicateProjectID, .duplicateUsage:
                     throw KnitNoteBackupError.duplicateIdentifier
                 case .missingAsset, .missingPattern, .missingProject:

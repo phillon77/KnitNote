@@ -185,6 +185,102 @@ import UniformTypeIdentifiers
         }
     }
 
+    @Test func duplicatePatternFolderIdentifiersAreRejected() throws {
+        let package = try BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let id = UUID()
+        try package.rewriteArchive { archive in
+            ProjectArchive(
+                version: archive.version,
+                projects: archive.projects,
+                yarns: archive.yarns,
+                patternFolders: [
+                    PatternFolder(id: id, displayName: "Sweaters"),
+                    PatternFolder(id: id, displayName: "Scarves"),
+                ],
+                patternAssets: archive.patternAssets,
+                patterns: archive.patterns,
+                patternUsages: archive.patternUsages
+            )
+        }
+
+        #expect(throws: KnitNoteBackupError.duplicateIdentifier) {
+            _ = try package.service.inspectPackage(at: package.url)
+        }
+    }
+
+    @MainActor @Test func storeNormalizesOrphanFolderMembershipWithoutLosingPattern() throws {
+        let (service, live, root) = try makeServiceFixture()
+        _ = service
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try BackupFixture.writePatternLibraryArchive(to: live)
+        try BackupFixture.rewriteLiveArchive(at: live) { archive in
+            let patterns = archive.patterns.map { pattern in
+                StoredPattern(
+                    id: pattern.id,
+                    assetID: pattern.assetID,
+                    displayName: pattern.displayName,
+                    note: pattern.note,
+                    createdAt: pattern.createdAt,
+                    lastOpenedAt: pattern.lastOpenedAt,
+                    prefersOriginalColorsInDarkMode: pattern.prefersOriginalColorsInDarkMode,
+                    folderID: UUID()
+                )
+            }
+            return ProjectArchive(
+                version: archive.version,
+                projects: archive.projects,
+                yarns: archive.yarns,
+                patternAssets: archive.patternAssets,
+                patterns: patterns,
+                patternUsages: archive.patternUsages
+            )
+        }
+
+        let store = JSONProjectStore(url: live.appendingPathComponent("projects-v1.json"))
+
+        #expect(store.loadError == nil)
+        #expect(store.patterns.count == 1)
+        #expect(store.patterns.first?.folderID == nil)
+    }
+
+    @Test func schemaThirteenBackupRoundTripsValidFolderMembership() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try BackupFixture.writePatternLibraryArchive(to: live)
+        let folder = PatternFolder(displayName: "Sweaters")
+        try BackupFixture.rewriteLiveArchive(at: live) { archive in
+            var pattern = try #require(archive.patterns.first)
+            pattern.folderID = folder.id
+            return ProjectArchive(
+                version: archive.version,
+                projects: archive.projects,
+                yarns: archive.yarns,
+                patternFolders: [folder],
+                patternAssets: archive.patternAssets,
+                patterns: [pattern],
+                patternUsages: archive.patternUsages
+            )
+        }
+
+        let package = try service.createPackage(appVersion: "1.5.0")
+        let restoredLive = root.appendingPathComponent("RestoredKnitNote", isDirectory: true)
+        let restoreService = KnitNoteBackupService(
+            liveRoot: restoredLive,
+            workRoot: root.appendingPathComponent("RestoreWork", isDirectory: true)
+        )
+        let staged = try restoreService.stagePackage(at: package)
+        let installation = try restoreService.install(staged)
+        restoreService.commit(installation)
+        let restored = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: restoredLive.appendingPathComponent("projects-v1.json"))
+        )
+
+        #expect(restored.patternFolders == [folder])
+        #expect(restored.patterns.first?.folderID == folder.id)
+    }
+
     @Test func formatTwoExportListsExactSchemaTenPatternFilesAndIntegrity() throws {
         let (service, live, root) = try makeServiceFixture()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -774,7 +870,7 @@ import UniformTypeIdentifiers
     }
 
     @Test func projectArchiveDeclaresSharedCurrentAndSupportedLegacyVersions() {
-        #expect(ProjectArchive.currentVersion == 12)
+        #expect(ProjectArchive.currentVersion == 13)
         #expect(ProjectArchive.minimumSupportedVersion == 1)
         for version in 1...11 {
             #expect(ProjectArchive.isSupported(version: version))
@@ -789,7 +885,8 @@ import UniformTypeIdentifiers
         #expect(ProjectArchive.supportsPatternLibrary(version: 10))
         #expect(ProjectArchive.supportsPatternLibrary(version: 11))
         #expect(ProjectArchive.supportsPatternLibrary(version: 12))
-        #expect(!ProjectArchive.supportsPatternLibrary(version: 13))
+        #expect(ProjectArchive.supportsPatternLibrary(version: 13))
+        #expect(!ProjectArchive.supportsPatternLibrary(version: 14))
     }
 
     @Test func supportedLegacyProjectArchiveIsAcceptedDuringInspection() throws {

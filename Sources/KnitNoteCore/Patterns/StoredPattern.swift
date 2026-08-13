@@ -13,6 +13,7 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
     public let createdAt: Date
     public var lastOpenedAt: Date?
     public var prefersOriginalColorsInDarkMode: Bool
+    public var folderID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -21,7 +22,8 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
         note: String? = nil,
         createdAt: Date = .now,
         lastOpenedAt: Date? = nil,
-        prefersOriginalColorsInDarkMode: Bool = false
+        prefersOriginalColorsInDarkMode: Bool = false,
+        folderID: UUID? = nil
     ) {
         self.id = id
         self.assetID = assetID
@@ -30,11 +32,13 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
         self.createdAt = createdAt
         self.lastOpenedAt = lastOpenedAt
         self.prefersOriginalColorsInDarkMode = prefersOriginalColorsInDarkMode
+        self.folderID = folderID
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, assetID, displayName, note, createdAt, lastOpenedAt
         case prefersOriginalColorsInDarkMode
+        case folderID
     }
 
     public init(from decoder: any Decoder) throws {
@@ -49,6 +53,7 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
             Bool.self,
             forKey: .prefersOriginalColorsInDarkMode
         ) ?? false
+        folderID = try container.decodeIfPresent(UUID.self, forKey: .folderID)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -63,10 +68,12 @@ public struct StoredPattern: Identifiable, Codable, Hashable, Sendable {
             prefersOriginalColorsInDarkMode,
             forKey: .prefersOriginalColorsInDarkMode
         )
+        try container.encodeIfPresent(folderID, forKey: .folderID)
     }
 }
 
 public enum PatternLibraryValidationError: Error, Equatable, Sendable {
+    case duplicateFolderID
     case duplicateAssetID
     case duplicatePatternID
     case duplicateUsageID
@@ -78,24 +85,60 @@ public enum PatternLibraryValidationError: Error, Equatable, Sendable {
 }
 
 public struct PatternLibrarySnapshot: Sendable {
+    public let folders: [PatternFolder]
     public let assets: [PatternAsset]
     public let patterns: [StoredPattern]
     public let usages: [PatternProjectUsage]
     public let validProjectIDs: [UUID]
 
     public init(
+        folders: [PatternFolder] = [],
         assets: [PatternAsset],
         patterns: [StoredPattern],
         usages: [PatternProjectUsage],
         validProjectIDs: [UUID]
     ) {
+        self.folders = folders
         self.assets = assets
         self.patterns = patterns
         self.usages = usages
         self.validProjectIDs = validProjectIDs
     }
 
+    public func normalizedAndValidated() throws -> PatternLibrarySnapshot {
+        guard Set(folders.map(\.id)).count == folders.count else {
+            throw PatternLibraryValidationError.duplicateFolderID
+        }
+        let normalizedFolders = try folders.map { folder in
+            var folder = folder
+            folder.displayName = folder.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !folder.displayName.isEmpty else {
+                throw PatternFolderValidationError.emptyName
+            }
+            return folder
+        }
+        let folderIDs = Set(normalizedFolders.map(\.id))
+        let normalizedPatterns = patterns.map { pattern in
+            var pattern = pattern
+            if let folderID = pattern.folderID, !folderIDs.contains(folderID) {
+                pattern.folderID = nil
+            }
+            return pattern
+        }
+        return try PatternLibrarySnapshot(
+            folders: normalizedFolders,
+            assets: assets,
+            patterns: normalizedPatterns,
+            usages: usages,
+            validProjectIDs: validProjectIDs
+        ).validatedReferences()
+    }
+
     public func validated() throws -> PatternLibrarySnapshot {
+        try normalizedAndValidated()
+    }
+
+    private func validatedReferences() throws -> PatternLibrarySnapshot {
         guard Set(assets.map(\.id)).count == assets.count else {
             throw PatternLibraryValidationError.duplicateAssetID
         }

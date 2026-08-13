@@ -566,6 +566,45 @@ import UniformTypeIdentifiers
     #expect(try Data(contentsOf: fixture.markupURL) == fixture.markupData)
 }
 
+@Test func schemaTwelveMigrationPreservesEveryPatternOwnedByteAndUsage() throws {
+    let fixture = try SchemaTenPatternLibraryFixture.make(version: 12)
+    defer { try? FileManager.default.removeItem(at: fixture.liveRoot) }
+
+    try PatternLibraryMigrator().migrateOnDisk(archiveURL: fixture.archiveURL)
+    let archive = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: fixture.archiveURL)
+    )
+
+    #expect(archive.version == 13)
+    #expect(archive.patternFolders.isEmpty)
+    #expect(archive.patterns.allSatisfy { $0.folderID == nil })
+    #expect(try Data(contentsOf: fixture.assetURL) == fixture.assetData)
+    #expect(try Data(contentsOf: fixture.markupURL) == fixture.markupData)
+    #expect(archive.patternAssets == [fixture.asset])
+    #expect(archive.patterns.map(\.id) == [fixture.pattern.id])
+    #expect(archive.patternUsages == [fixture.usage])
+}
+
+@Test func currentArchiveValidationRejectsNoncanonicalFolderWhitespace() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "MalformedFolderArchive-\(UUID().uuidString)",
+        isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let archiveURL = root.appendingPathComponent("projects-v1.json")
+    try JSONEncoder().encode(ProjectArchive(
+        version: 13,
+        projects: [],
+        patternFolders: [PatternFolder(displayName: "  Sweaters ")]
+    )).write(to: archiveURL, options: .atomic)
+
+    #expect(throws: PatternLibraryMigrationError.invalidLegacyFile) {
+        try PatternLibraryMigrator().validateCurrentArchive(at: archiveURL)
+    }
+}
+
 @MainActor @Test func storeRejectsCurrentArchiveWhenReferencedAssetIsMissing() throws {
     let fixture = try LegacyPatternFixture.onePattern()
     let migrated = JSONProjectStore(url: fixture.archiveURL)
@@ -792,7 +831,7 @@ private struct SchemaTenPatternLibraryFixture {
     let markupURL: URL
     let markupData: Data
 
-    static func make() throws -> SchemaTenPatternLibraryFixture {
+    static func make(version: Int = 10) throws -> SchemaTenPatternLibraryFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "SchemaTenPatternLibrary-\(UUID().uuidString)",
             isDirectory: true
@@ -856,7 +895,7 @@ private struct SchemaTenPatternLibraryFixture {
             readingState: readingState
         )
         let archive = ProjectArchive(
-            version: 10,
+            version: version,
             projects: [project],
             yarns: [yarn],
             patternAssets: [asset],
@@ -906,6 +945,7 @@ private struct SchemaTenPatternLibraryFixture {
         var object = try #require(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(archive)) as? [String: Any]
         )
+        object.removeValue(forKey: "patternFolders")
         var usages = try #require(object["patternUsages"] as? [[String: Any]])
         var usage = try #require(usages.first)
         var readingState = try #require(usage["readingState"] as? [String: Any])

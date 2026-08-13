@@ -3,9 +3,10 @@ import CryptoKit
 import Foundation
 
 public struct ProjectArchive: Codable, Sendable {
-    public static let currentVersion = 12
+    public static let currentVersion = 13
     public static let minimumSupportedVersion = 1
     public static let patternLibraryIntroducedVersion = 10
+    public static let patternFoldersIntroducedVersion = 13
 
     public static func isSupported(version: Int) -> Bool {
         (minimumSupportedVersion...currentVersion).contains(version)
@@ -18,6 +19,7 @@ public struct ProjectArchive: Codable, Sendable {
     public let version: Int
     public var projects: [StoredProject]
     public var yarns: [StoredYarn]
+    public var patternFolders: [PatternFolder]
     public var patternAssets: [PatternAsset]
     public var patterns: [StoredPattern]
     public var patternUsages: [PatternProjectUsage]
@@ -26,6 +28,7 @@ public struct ProjectArchive: Codable, Sendable {
         version: Int,
         projects: [StoredProject],
         yarns: [StoredYarn] = [],
+        patternFolders: [PatternFolder] = [],
         patternAssets: [PatternAsset] = [],
         patterns: [StoredPattern] = [],
         patternUsages: [PatternProjectUsage] = []
@@ -33,6 +36,7 @@ public struct ProjectArchive: Codable, Sendable {
         self.version = version
         self.projects = projects
         self.yarns = yarns
+        self.patternFolders = patternFolders
         self.patternAssets = patternAssets
         self.patterns = patterns
         self.patternUsages = patternUsages
@@ -42,6 +46,7 @@ public struct ProjectArchive: Codable, Sendable {
         case version
         case projects
         case yarns
+        case patternFolders
         case patternAssets
         case patterns
         case patternUsages
@@ -52,6 +57,10 @@ public struct ProjectArchive: Codable, Sendable {
         version = try values.decode(Int.self, forKey: .version)
         projects = try values.decode([StoredProject].self, forKey: .projects)
         yarns = try values.decodeIfPresent([StoredYarn].self, forKey: .yarns) ?? []
+        patternFolders = try values.decodeIfPresent(
+            [PatternFolder].self,
+            forKey: .patternFolders
+        ) ?? []
         patternAssets = try values.decodeIfPresent([PatternAsset].self, forKey: .patternAssets) ?? []
         patterns = try values.decodeIfPresent([StoredPattern].self, forKey: .patterns) ?? []
         patternUsages = try values.decodeIfPresent([PatternProjectUsage].self, forKey: .patternUsages) ?? []
@@ -2688,7 +2697,8 @@ final class PatternLibraryDeletionTransaction {
             )
             return yarn
         }.sorted { $0.updatedAt > $1.updatedAt }
-        _ = try PatternLibrarySnapshot(
+        let normalized = try PatternLibrarySnapshot(
+            folders: archive.patternFolders,
             assets: archive.patternAssets,
             patterns: archive.patterns,
             usages: archive.patternUsages,
@@ -2698,7 +2708,7 @@ final class PatternLibraryDeletionTransaction {
             loadedProjects,
             loadedYarns,
             archive.patternAssets,
-            archive.patterns,
+            normalized.patterns,
             archive.patternUsages
         )
     }

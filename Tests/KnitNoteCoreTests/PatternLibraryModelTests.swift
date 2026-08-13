@@ -296,6 +296,99 @@ private func snapshotRejectsEachDuplicateIdentifierAndMissingPattern(
     #expect(decoded.patternUsages == [usage])
 }
 
+@Test func schemaThirteenRoundTripsFoldersAndPatternMembership() throws {
+    let folder = PatternFolder(displayName: "Sweaters")
+    let asset = PatternAsset(
+        id: UUID(),
+        sha256: String(repeating: "a", count: 64),
+        kind: .pdf,
+        storedFilename: "fixture.pdf",
+        byteCount: 4,
+        pageCount: 1
+    )
+    let pattern = StoredPattern(
+        assetID: asset.id,
+        displayName: "Cardigan",
+        folderID: folder.id
+    )
+    let archive = ProjectArchive(
+        version: 13,
+        projects: [],
+        patternFolders: [folder],
+        patternAssets: [asset],
+        patterns: [pattern]
+    )
+
+    let decoded = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: JSONEncoder().encode(archive)
+    )
+
+    #expect(decoded.patternFolders == [folder])
+    #expect(decoded.patterns.first?.folderID == folder.id)
+}
+
+@Test func schemaTwelveWithoutFolderKeysDefaultsToUncategorized() throws {
+    let data = Data(#"{"version":12,"projects":[],"patterns":[]}"#.utf8)
+
+    let archive = try JSONDecoder().decode(ProjectArchive.self, from: data)
+
+    #expect(archive.patternFolders.isEmpty)
+}
+
+@Test func snapshotNormalizesAnOrphanFolderReferenceWithoutDroppingThePattern() throws {
+    let asset = PatternAsset(
+        id: UUID(),
+        sha256: String(repeating: "b", count: 64),
+        kind: .pdf,
+        storedFilename: "fixture.pdf",
+        byteCount: 4,
+        pageCount: 1
+    )
+    let pattern = StoredPattern(assetID: asset.id, displayName: "Kept", folderID: UUID())
+
+    let normalized = try PatternLibrarySnapshot(
+        folders: [],
+        assets: [asset],
+        patterns: [pattern],
+        usages: [],
+        validProjectIDs: []
+    ).normalizedAndValidated()
+
+    #expect(normalized.patterns.map(\.displayName) == ["Kept"])
+    #expect(normalized.patterns.first?.folderID == nil)
+}
+
+@Test func snapshotRejectsDuplicateFolderIdentifiers() {
+    let id = UUID()
+    let first = PatternFolder(id: id, displayName: "Sweaters")
+    let second = PatternFolder(id: id, displayName: "Scarves")
+
+    #expect(throws: PatternLibraryValidationError.duplicateFolderID) {
+        try PatternLibrarySnapshot(
+            folders: [first, second],
+            assets: [],
+            patterns: [],
+            usages: [],
+            validProjectIDs: []
+        ).normalizedAndValidated()
+    }
+}
+
+@Test func snapshotNormalizesMalformedHistoricalFolderWhitespace() throws {
+    let folder = PatternFolder(displayName: "  Sweaters\n")
+
+    let normalized = try PatternLibrarySnapshot(
+        folders: [folder],
+        assets: [],
+        patterns: [],
+        usages: [],
+        validProjectIDs: []
+    ).normalizedAndValidated()
+
+    #expect(normalized.folders.map(\.displayName) == ["Sweaters"])
+}
+
 @Test(arguments: Array(1...9))
 func legacyArchiveWithoutPatternLibraryCollectionsDecodes(version: Int) throws {
     let data = Data("{\"version\":\(version),\"projects\":[]}".utf8)

@@ -220,7 +220,16 @@ public struct PatternLibraryMigrator: Sendable {
         stagedPatternsRoot: URL
     ) throws -> ProjectArchive {
         var assets = archive.patternAssets
-        var patterns = archive.patterns
+        var patterns = archive.patterns.map { pattern in
+            var pattern = pattern
+            if archive.version < ProjectArchive.patternFoldersIntroducedVersion {
+                pattern.folderID = nil
+            }
+            return pattern
+        }
+        let folders = archive.version >= ProjectArchive.patternFoldersIntroducedVersion
+            ? archive.patternFolders
+            : []
         var usages = archive.patternUsages
         var assetIDsByHash: [String: UUID] = [:]
         for asset in assets where assetIDsByHash[asset.sha256] == nil {
@@ -313,17 +322,27 @@ public struct PatternLibraryMigrator: Sendable {
             version: ProjectArchive.currentVersion,
             projects: clearedProjects,
             yarns: archive.yarns,
+            patternFolders: folders,
             patternAssets: assets,
             patterns: patterns,
             patternUsages: usages
         )
-        _ = try PatternLibrarySnapshot(
+        let normalized = try PatternLibrarySnapshot(
+            folders: migrated.patternFolders,
             assets: migrated.patternAssets,
             patterns: migrated.patterns,
             usages: migrated.patternUsages,
             validProjectIDs: migrated.projects.map(\.id)
-        ).validated()
-        return migrated
+        ).normalizedAndValidated()
+        return ProjectArchive(
+            version: migrated.version,
+            projects: migrated.projects,
+            yarns: migrated.yarns,
+            patternFolders: normalized.folders,
+            patternAssets: normalized.assets,
+            patterns: normalized.patterns,
+            patternUsages: normalized.usages
+        )
     }
 
     private func removeLegacyFiles(
@@ -352,12 +371,16 @@ public struct PatternLibraryMigrator: Sendable {
         guard archive.version == ProjectArchive.currentVersion else {
             throw PatternLibraryMigrationError.invalidLegacyFile
         }
-        _ = try PatternLibrarySnapshot(
+        let normalized = try PatternLibrarySnapshot(
+            folders: archive.patternFolders,
             assets: archive.patternAssets,
             patterns: archive.patterns,
             usages: archive.patternUsages,
             validProjectIDs: archive.projects.map(\.id)
-        ).validated()
+        ).normalizedAndValidated()
+        guard normalized.folders == archive.patternFolders else {
+            throw PatternLibraryMigrationError.invalidLegacyFile
+        }
         let service = PatternFileService(
             root: liveRoot.appendingPathComponent("Patterns", isDirectory: true)
         )

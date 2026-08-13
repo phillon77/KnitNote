@@ -99,6 +99,16 @@ import Testing
         #expect(!source.contains(".navigationTitle(\"nav.projects\")"))
     }
 
+    @Test func yarnLibraryTitleIsResolvedFromTheSelectedAppLocale() throws {
+        let source = try repositorySource("KnitNote/Yarn/YarnLibraryView.swift")
+
+        #expect(source.contains("@Environment(\\.locale) private var locale"))
+        #expect(source.contains(
+            ".navigationTitle(LocaleAwareText.string(\"yarn.library.title\", locale: locale))"
+        ))
+        #expect(!source.contains(".navigationTitle(\"yarn.library.title\")"))
+    }
+
     @Test func storageCachesBytesNotLocaleDerivedCopy() throws {
         let source = try repositorySource("KnitNote/Settings/YarnLabelStorageRow.swift")
         let state = try #require(

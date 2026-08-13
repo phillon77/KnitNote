@@ -114,7 +114,7 @@ import Testing
     }
 
     @Test func projectsTitleResolvesInEveryVersion150LocaleWithoutChangingProjectNames() throws {
-        let titles = try projectsNavigationTitlesFromShippingCatalog()
+        let titles = try navigationTitlesFromShippingCatalog(key: "nav.projects")
         let bundle = try localizedFixtureBundle(
             additionalStringsByLanguage: titles.mapValues { ["nav.projects": $0] }
         )
@@ -155,9 +155,45 @@ import Testing
         #expect(userName == "作品 test 42")
     }
 
+    @Test func yarnLibraryTitleResolvesInEveryVersion150LocaleWithoutChangingYarnNames() throws {
+        let titles = try navigationTitlesFromShippingCatalog(key: "yarn.library.title")
+        let bundle = try localizedFixtureBundle(
+            additionalStringsByLanguage: titles.mapValues { ["yarn.library.title": $0] }
+        )
+
+        for language in SupportedLocalization.v150Identifiers {
+            #expect(
+                LocaleAwareText.string(
+                    "yarn.library.title",
+                    locale: Locale(identifier: language),
+                    bundle: bundle
+                ) != "yarn.library.title"
+            )
+        }
+
+        #expect(LocaleAwareText.string(
+            "yarn.library.title",
+            locale: Locale(identifier: "en"),
+            bundle: bundle
+        ) == "Yarn Library")
+        #expect(LocaleAwareText.string(
+            "yarn.library.title",
+            locale: Locale(identifier: "ja"),
+            bundle: bundle
+        ) == "毛糸ライブラリ")
+        #expect(LocaleAwareText.string(
+            "yarn.library.title",
+            locale: Locale(identifier: "zh-Hant"),
+            bundle: bundle
+        ) == "毛線庫")
+
+        let userYarnName = "Jaipur peace silk"
+        #expect(userYarnName == "Jaipur peace silk")
+    }
+
 }
 
-private func projectsNavigationTitlesFromShippingCatalog() throws -> [String: String] {
+private func navigationTitlesFromShippingCatalog(key: String) throws -> [String: String] {
         let repositoryRoot = URL(filePath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -167,13 +203,12 @@ private func projectsNavigationTitlesFromShippingCatalog() throws -> [String: St
         ))
         let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let strings = try #require(catalog["strings"] as? [String: Any])
-        let entry = try #require(strings["nav.projects"] as? [String: Any])
+        let entry = try #require(strings[key] as? [String: Any])
         let localizations = try #require(entry["localizations"] as? [String: Any])
         return try Dictionary(uniqueKeysWithValues: SupportedLocalization.v150Identifiers.map { language in
             let translation = try #require(localizations[language] as? [String: Any])
             let unit = try #require(translation["stringUnit"] as? [String: Any])
-            let title = try #require(unit["value"] as? String)
-            return (language, title)
+            return (language, try #require(unit["value"] as? String))
         })
     }
 

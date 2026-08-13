@@ -56,7 +56,7 @@ struct YarnLibraryView: View {
                 .contentMargins(.horizontal, 16, for: .scrollContent)
                 .contentMargins(.vertical, 16, for: .scrollContent)
             }
-            .navigationTitle("yarn.library.title")
+            .navigationTitle(LocaleAwareText.string("yarn.library.title", locale: locale))
             .navigationDestination(for: UUID.self) { yarnID in
                 YarnDetailView(yarnID: yarnID)
             }

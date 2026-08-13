@@ -1090,6 +1090,96 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     #expect(try Data(contentsOf: store.patternAssetURL(patternID: patternID)) == originalBytes)
 }
 
+@MainActor @Test func publicRestorePublishesValidPatternFolderMembership() async throws {
+    let harness = try BackupPatternHarness()
+    defer { harness.cleanup() }
+    let folder = PatternFolder(displayName: "Sweaters")
+    let packaged = try await makeFolderMembershipPackage(
+        harness: harness,
+        folders: [folder],
+        assignedFolderID: folder.id
+    )
+
+    let staged = try await harness.store.prepareBackupRestore(from: packaged.package)
+    try await harness.store.restoreBackup(staged)
+
+    #expect(harness.store.patterns.map(\.id) == [packaged.patternID])
+    #expect(harness.store.patterns.first?.folderID == folder.id)
+}
+
+@MainActor @Test func publicRestorePublishesOrphanMembershipAsUncategorized() async throws {
+    let harness = try BackupPatternHarness()
+    defer { harness.cleanup() }
+    let packaged = try await makeFolderMembershipPackage(
+        harness: harness,
+        folders: [],
+        assignedFolderID: UUID()
+    )
+
+    let staged = try await harness.store.prepareBackupRestore(from: packaged.package)
+    try await harness.store.restoreBackup(staged)
+
+    #expect(harness.store.patterns.map(\.id) == [packaged.patternID])
+    #expect(harness.store.patterns.first?.folderID == nil)
+}
+
+@MainActor @Test func failedPublicRestoreRollsBackFolderMembershipWithoutPartialPublication() async throws {
+    let original = try BackupPatternHarness()
+    let replacement = try BackupPatternHarness()
+    defer {
+        original.cleanup()
+        replacement.cleanup()
+    }
+    let originalFolder = PatternFolder(displayName: "Original folder")
+    let originalPattern = try await installFolderMembership(
+        harness: original,
+        folders: [originalFolder],
+        assignedFolderID: originalFolder.id,
+        filename: "Original.pdf"
+    )
+    let replacementFolder = PatternFolder(displayName: "Replacement folder")
+    _ = try await installFolderMembership(
+        harness: replacement,
+        folders: [replacementFolder],
+        assignedFolderID: replacementFolder.id,
+        filename: "Replacement.pdf"
+    )
+    let replacementPackage = try replacement.service.createPackage(appVersion: "1.5.0")
+    let failureService = KnitNoteBackupService(
+        liveRoot: original.liveRoot,
+        workRoot: original.root.appendingPathComponent("FailureRestoreWork", isDirectory: true),
+        replacementStepHook: { step in
+            if step == .afterStagedMove {
+                try Data("not JSON".utf8).write(to: original.archiveURL, options: .atomic)
+            }
+        }
+    )
+    let store = JSONProjectStore(
+        url: original.archiveURL,
+        patternFileService: PatternFileService(
+            root: original.liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+        ),
+        patternMarkupFileService: PatternMarkupFileService(
+            root: original.liveRoot.appendingPathComponent("Patterns", isDirectory: true)
+        ),
+        backupService: failureService
+    )
+    let staged = try await store.prepareBackupRestore(from: replacementPackage)
+
+    await #expect(throws: KnitNoteBackupError.installFailedOriginalPreserved) {
+        try await store.restoreBackup(staged)
+    }
+
+    #expect(store.patterns == [originalPattern])
+    #expect(store.patterns.first?.folderID == originalFolder.id)
+    let archive = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: original.archiveURL)
+    )
+    #expect(archive.patternFolders == [originalFolder])
+    #expect(archive.patterns == [originalPattern])
+}
+
 @MainActor @Test func formatOneLegacyPatternBackupRestoresAndMigratesToSchemaTen() async throws {
     let harness = try BackupPatternHarness()
     defer { harness.cleanup() }
@@ -2691,6 +2781,48 @@ private struct StoreLaunchRecoveryFixture {
             originalBytes: originalBytes
         )
     }
+}
+
+@MainActor private func installFolderMembership(
+    harness: BackupPatternHarness,
+    folders: [PatternFolder],
+    assignedFolderID: UUID,
+    filename: String
+) async throws -> StoredPattern {
+    let source = harness.sourceRoot.appendingPathComponent(filename)
+    try makeStorePatternPDF(at: source)
+    guard case let .created(patternID) = try await harness.store.importPatternFromLibrary(source)
+    else {
+        Issue.record("Expected a new pattern")
+        throw PatternLibraryMutationError.patternNotFound
+    }
+    var archive = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: harness.archiveURL)
+    )
+    archive.patternFolders = folders
+    let index = try #require(archive.patterns.firstIndex { $0.id == patternID })
+    archive.patterns[index].folderID = assignedFolderID
+    try JSONEncoder().encode(archive).write(to: harness.archiveURL, options: .atomic)
+    try harness.store.reloadFromDisk()
+    return try #require(harness.store.patterns.first { $0.id == patternID })
+}
+
+@MainActor private func makeFolderMembershipPackage(
+    harness: BackupPatternHarness,
+    folders: [PatternFolder],
+    assignedFolderID: UUID
+) async throws -> (package: URL, patternID: UUID) {
+    let pattern = try await installFolderMembership(
+        harness: harness,
+        folders: folders,
+        assignedFolderID: assignedFolderID,
+        filename: "Folder restore.pdf"
+    )
+    let package = try harness.service.createPackage(appVersion: "1.5.0")
+    try harness.store.deletePatternPermanently(id: pattern.id)
+    #expect(harness.store.patterns.isEmpty)
+    return (package, pattern.id)
 }
 
 private final class StoreOperationBlocker: @unchecked Sendable {

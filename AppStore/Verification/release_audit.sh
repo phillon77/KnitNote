@@ -19,6 +19,7 @@ MAIN_INFO_PLIST="KnitNote/Info.plist"
 WATCH_INFO_PLIST="KnitNoteWatch/Info.plist"
 SHARE_INFO_PLIST="KnitNoteShare/Info.plist"
 MAC_ENTITLEMENTS="KnitNote/KnitNote-macOS.entitlements"
+PROJECT_ARCHIVE_SOURCE="Sources/KnitNoteCore/Projects/JSONProjectStore.swift"
 PROJECT_SCAN_ROOT="$ROOT"
 GIT=/usr/bin/git
 CODESIGN=/usr/bin/codesign
@@ -613,6 +614,7 @@ if [[ "$TEST_ONLY" == 1 ]]; then
   WATCH_INFO_PLIST="${KNITNOTE_WATCH_INFO_PLIST:-$WATCH_INFO_PLIST}"
   SHARE_INFO_PLIST="${KNITNOTE_SHARE_INFO_PLIST:-$SHARE_INFO_PLIST}"
   MAC_ENTITLEMENTS="${KNITNOTE_MAC_ENTITLEMENTS:-$MAC_ENTITLEMENTS}"
+  PROJECT_ARCHIVE_SOURCE="${KNITNOTE_PROJECT_ARCHIVE_SOURCE:-$PROJECT_ARCHIVE_SOURCE}"
   PROJECT_SCAN_ROOT="${KNITNOTE_PROJECT_SCAN_ROOT:-$PROJECT_SCAN_ROOT}"
   GIT="${KNITNOTE_GIT:-$GIT}"
   CODESIGN="${KNITNOTE_CODESIGN:-$CODESIGN}"
@@ -684,9 +686,9 @@ for target in KnitNote KnitNoteWatch KnitNoteShare; do
     || fail "$target build is $build, expected $EXPECTED_BUILD"
 done
 
-/usr/bin/grep -q 'static let currentVersion = 12' \
-  Sources/KnitNoteCore/Projects/JSONProjectStore.swift \
-  || fail "project archive schema is not 12"
+/usr/bin/grep -Eq '^[[:space:]]*public static let currentVersion = 13[[:space:]]*$' \
+  "$PROJECT_ARCHIVE_SOURCE" \
+  || fail "project archive schema is not 13"
 /usr/bin/grep -q 'static let currentFormatVersion = 2' \
   Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift \
   || fail "backup manifest format is not 2"

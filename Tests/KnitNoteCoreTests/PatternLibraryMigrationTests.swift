@@ -582,8 +582,34 @@ import UniformTypeIdentifiers
     #expect(try Data(contentsOf: fixture.assetURL) == fixture.assetData)
     #expect(try Data(contentsOf: fixture.markupURL) == fixture.markupData)
     #expect(archive.patternAssets == [fixture.asset])
-    #expect(archive.patterns.map(\.id) == [fixture.pattern.id])
+    #expect(archive.projects == [fixture.project])
+    #expect(archive.yarns == [fixture.yarn])
+    #expect(archive.patterns == [fixture.pattern])
     #expect(archive.patternUsages == [fixture.usage])
+}
+
+@Test func preThirteenMigrationClearsInjectedFutureFolderMembership() throws {
+    let injectedFolderID = UUID()
+    let fixture = try SchemaTenPatternLibraryFixture.make(
+        version: 12,
+        injectedFolderID: injectedFolderID
+    )
+    defer { try? FileManager.default.removeItem(at: fixture.liveRoot) }
+
+    let before = try JSONSerialization.jsonObject(
+        with: Data(contentsOf: fixture.archiveURL)
+    ) as? [String: Any]
+    let beforePatterns = try #require(before?["patterns"] as? [[String: Any]])
+    #expect(beforePatterns.first?["folderID"] as? String == injectedFolderID.uuidString)
+
+    try PatternLibraryMigrator().migrateOnDisk(archiveURL: fixture.archiveURL)
+    let archive = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: fixture.archiveURL)
+    )
+
+    #expect(archive.patterns == [fixture.pattern])
+    #expect(archive.patterns.first?.folderID == nil)
 }
 
 @Test func currentArchiveValidationRejectsNoncanonicalFolderWhitespace() throws {
@@ -831,7 +857,10 @@ private struct SchemaTenPatternLibraryFixture {
     let markupURL: URL
     let markupData: Data
 
-    static func make(version: Int = 10) throws -> SchemaTenPatternLibraryFixture {
+    static func make(
+        version: Int = 10,
+        injectedFolderID: UUID? = nil
+    ) throws -> SchemaTenPatternLibraryFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "SchemaTenPatternLibrary-\(UUID().uuidString)",
             isDirectory: true
@@ -903,7 +932,10 @@ private struct SchemaTenPatternLibraryFixture {
             patternUsages: [usage]
         )
         let archiveURL = root.appendingPathComponent("projects-v1.json")
-        try encodedArchiveWithoutPDFWidthRatio(archive).write(
+        try encodedArchiveWithoutPDFWidthRatio(
+            archive,
+            injectedFolderID: injectedFolderID
+        ).write(
             to: archiveURL,
             options: .atomic
         )
@@ -940,12 +972,18 @@ private struct SchemaTenPatternLibraryFixture {
     }
 
     private static func encodedArchiveWithoutPDFWidthRatio(
-        _ archive: ProjectArchive
+        _ archive: ProjectArchive,
+        injectedFolderID: UUID? = nil
     ) throws -> Data {
         var object = try #require(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(archive)) as? [String: Any]
         )
         object.removeValue(forKey: "patternFolders")
+        if let injectedFolderID {
+            var patterns = try #require(object["patterns"] as? [[String: Any]])
+            patterns[0]["folderID"] = injectedFolderID.uuidString
+            object["patterns"] = patterns
+        }
         var usages = try #require(object["patternUsages"] as? [[String: Any]])
         var usage = try #require(usages.first)
         var readingState = try #require(usage["readingState"] as? [String: Any])

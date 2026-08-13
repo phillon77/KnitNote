@@ -2,6 +2,23 @@ import Foundation
 import Testing
 
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test(arguments: [12, 14])
+    func staticAuditRejectsEveryNoncurrentProjectArchiveSchema(schema: Int) throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("knitnote-project-archive-schema-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
+        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+        let source = temporaryRoot.appendingPathComponent("JSONProjectStore.swift")
+        try Data("public static let currentVersion = \(schema)\n".utf8).write(to: source)
+
+        let result = try runReleaseAudit(
+            environment: ["KNITNOTE_PROJECT_ARCHIVE_SOURCE": source.path]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("project archive schema is not 13"))
+    }
+
     @Test func archiveAuditRejectsOneMissingJapaneseWatchLocalizationDirectory() throws {
         let fixture = try makeArchiveFixture(
             omittingDirectory: (target: "Watch", locale: "ja")

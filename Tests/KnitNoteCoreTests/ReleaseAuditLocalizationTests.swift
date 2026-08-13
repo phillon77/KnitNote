@@ -2,6 +2,48 @@ import Foundation
 import Testing
 
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test(arguments: [
+        (
+            "decoy schema 13 beside actual schema 12",
+            """
+            private enum SchemaDecoy {
+                public static let currentVersion = 13
+            }
+
+            public struct ProjectArchive: Codable {
+                public static let currentVersion = 12
+            }
+            """
+        ),
+        (
+            "duplicate schema 13 declarations",
+            """
+            public struct ProjectArchive: Codable {
+                public static let currentVersion = 13
+                public static let currentVersion = 13
+            }
+            """
+        ),
+    ])
+    func staticAuditRejectsUnscopedOrDuplicateSchemaThirteenDeclarations(
+        fixtureName: String,
+        sourceText: String
+    ) throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("knitnote-project-archive-schema-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
+        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+        let source = temporaryRoot.appendingPathComponent("JSONProjectStore.swift")
+        try sourceText.write(to: source, atomically: true, encoding: .utf8)
+
+        let result = try runReleaseAudit(
+            environment: ["KNITNOTE_PROJECT_ARCHIVE_SOURCE": source.path]
+        )
+
+        #expect(result.status != 0, Comment(rawValue: fixtureName))
+        #expect(result.output.contains("ProjectArchive.currentVersion is not uniquely schema 13"))
+    }
+
     @Test(arguments: [12, 14])
     func staticAuditRejectsEveryNoncurrentProjectArchiveSchema(schema: Int) throws {
         let temporaryRoot = FileManager.default.temporaryDirectory

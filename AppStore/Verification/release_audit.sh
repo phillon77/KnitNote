@@ -41,6 +41,47 @@ fail() {
   exit 1
 }
 
+verify_project_archive_schema() {
+  python3 - "$PROJECT_ARCHIVE_SOURCE" <<'PY' \
+    || fail "project archive schema is not 13; ProjectArchive.currentVersion is not uniquely schema 13"
+from pathlib import Path
+import re
+import sys
+
+try:
+    lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+except (OSError, UnicodeError):
+    raise SystemExit(1)
+
+archive_declaration = re.compile(
+    r"^\s*public\s+struct\s+ProjectArchive\b[^{}]*\{\s*$"
+)
+archive_starts = [
+    index for index, line in enumerate(lines) if archive_declaration.fullmatch(line)
+]
+if len(archive_starts) != 1:
+    raise SystemExit(1)
+
+archive_start = archive_starts[0]
+archive_end = next(
+    (index for index in range(archive_start + 1, len(lines)) if re.fullmatch(r"}\s*", lines[index])),
+    None,
+)
+if archive_end is None:
+    raise SystemExit(1)
+
+schema_declaration = re.compile(
+    r"^\s*public\s+static\s+let\s+currentVersion\s*=\s*([0-9]+)\s*$"
+)
+versions = [
+    int(match.group(1))
+    for line in lines[archive_start + 1:archive_end]
+    if (match := schema_declaration.fullmatch(line)) is not None
+]
+raise SystemExit(0 if versions == [13] else 1)
+PY
+}
+
 verify_distribution_inventory() {
   local archives="$1"
   python3 - "$archives" <<'PY' || fail "Distribution inventory contains an unexpected or credential-bearing file"
@@ -686,9 +727,7 @@ for target in KnitNote KnitNoteWatch KnitNoteShare; do
     || fail "$target build is $build, expected $EXPECTED_BUILD"
 done
 
-/usr/bin/grep -Eq '^[[:space:]]*public static let currentVersion = 13[[:space:]]*$' \
-  "$PROJECT_ARCHIVE_SOURCE" \
-  || fail "project archive schema is not 13"
+verify_project_archive_schema
 /usr/bin/grep -q 'static let currentFormatVersion = 2' \
   Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift \
   || fail "backup manifest format is not 2"

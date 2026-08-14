@@ -12,6 +12,10 @@ EXPECTED_TEAM_IDENTIFIER="9CFPAUL5N5"
 PROJECT_SPEC="KnittingCalculator/project.yml"
 PROJECT_FILE="KnittingCalculator.xcodeproj"
 SOURCE_CHECK="AppStore/Verification/knitting_calculator_release_source_check.py"
+LOCALIZATION_CHECK="AppStore/Verification/knitting_calculator_localization_check.py"
+METADATA_CHECK="AppStore/Verification/metadata_check.py"
+CALCULATOR_METADATA="AppStore/KnittingCalculator/Metadata"
+EXPECTED_APP_LOCALES=(en zh-Hant zh-Hans de fr ja ko nl nb sv fi da el)
 APP_STORE_URL="https://apps.apple.com/app/id${EXPECTED_APP_STORE_ID}"
 KNITNOTE_APP_STORE_URL="https://apps.apple.com/app/id6793023054"
 STATIC_ONLY=0
@@ -45,28 +49,6 @@ require_file() {
 
 plist_value() {
   /usr/libexec/PlistBuddy -c "Print :$2" "$1"
-}
-
-verify_string_catalog() {
-  local catalog="$1"
-  jq -e '
-    def complete:
-      type == "object"
-      and length > 0
-      and (
-        if has("stringUnit") then
-          (.stringUnit.value | type == "string" and length > 0)
-        else
-          all(.[]; complete)
-        end
-      );
-    (.strings | length) > 0
-    and all(
-      .strings[];
-      (.localizations.en | complete)
-      and (.localizations."zh-Hant" | complete)
-    )
-  ' "$catalog" >/dev/null || fail "$catalog has an incomplete English or Traditional Chinese translation"
 }
 
 verify_free_privacy_manifest() {
@@ -323,7 +305,7 @@ verify_generated_project_metadata() {
   )"
   expected_known_regions="$(
     printf '%s\n' \
-      Base da de el en fi fr ja ko nb nl sv zh-Hans zh-Hant \
+      Base "${EXPECTED_APP_LOCALES[@]}" \
       | LC_ALL=C sort
   )"
   [[ "$generated_known_regions" == "$expected_known_regions" ]] \
@@ -505,7 +487,7 @@ verify_app_bundle() {
   plutil -lint "$resources/PrivacyInfo.xcprivacy" >/dev/null \
     || fail "archive privacy manifest is invalid"
   require_file "$resources/Assets.car"
-  for locale in da de el en fi fr ja ko nb nl sv 'zh-Hans' 'zh-Hant'; do
+  for locale in "${EXPECTED_APP_LOCALES[@]}"; do
     require_file "$resources/$locale.lproj/Localizable.strings"
     require_file "$resources/$locale.lproj/InfoPlist.strings"
   done
@@ -568,8 +550,14 @@ verify_independent_project_scope
 verify_static_metadata
 verify_generated_project_metadata
 verify_free_privacy_manifest
-verify_string_catalog KnittingCalculator/Localization/InfoPlist.xcstrings
-verify_string_catalog KnittingCalculator/Localization/Localizable.xcstrings
+require_file "$LOCALIZATION_CHECK"
+python3 "$LOCALIZATION_CHECK" \
+  KnittingCalculator/Localization/Localizable.xcstrings \
+  KnittingCalculator/Localization/InfoPlist.xcstrings \
+  || fail "source localization catalog contract failed"
+require_file "$METADATA_CHECK"
+python3 "$METADATA_CHECK" "$CALCULATOR_METADATA" \
+  || fail "calculator metadata contract failed"
 verify_static_assets
 verify_production_dependency_boundaries
 git diff --check -- \

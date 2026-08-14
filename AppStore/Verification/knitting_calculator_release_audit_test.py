@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import json
 import plistlib
 import shutil
 import stat
@@ -21,6 +22,10 @@ AUDIT_RELATIVE_PATH = Path(
 SOURCE_CHECK_RELATIVE_PATH = Path(
     "AppStore/Verification/knitting_calculator_release_source_check.py"
 )
+LOCALIZATION_CHECK_RELATIVE_PATH = Path(
+    "AppStore/Verification/knitting_calculator_localization_check.py"
+)
+METADATA_CHECK_RELATIVE_PATH = Path("AppStore/Verification/metadata_check.py")
 SUPPORTED_APP_LOCALES = (
     "da",
     "de",
@@ -72,6 +77,18 @@ class ReleaseAuditFixture:
         shutil.copy2(
             REPOSITORY_ROOT / SOURCE_CHECK_RELATIVE_PATH,
             self.root / SOURCE_CHECK_RELATIVE_PATH,
+        )
+        shutil.copy2(
+            REPOSITORY_ROOT / LOCALIZATION_CHECK_RELATIVE_PATH,
+            self.root / LOCALIZATION_CHECK_RELATIVE_PATH,
+        )
+        shutil.copy2(
+            REPOSITORY_ROOT / METADATA_CHECK_RELATIVE_PATH,
+            self.root / METADATA_CHECK_RELATIVE_PATH,
+        )
+        shutil.copytree(
+            REPOSITORY_ROOT / "AppStore/KnittingCalculator/Metadata",
+            self.root / "AppStore/KnittingCalculator/Metadata",
         )
 
         # Forbidden vocabulary in test fixtures must never be treated as a
@@ -204,6 +221,14 @@ exit 0
             for path in payload_root.rglob("*"):
                 archive.write(path, path.relative_to(payload_root))
         return ipa
+
+    def remove_localized_resource(
+        self,
+        app: Path,
+        locale: str,
+        filename: str,
+    ) -> None:
+        (app / f"{locale}.lproj" / filename).unlink()
 
     def _write_app_bundle(
         self,
@@ -577,6 +602,72 @@ let package = Package(
             encoding="utf-8",
         )
         self.assert_boundary_failure("dynamic library dependency")
+
+    def test_static_only_propagates_localization_catalog_contract_failure(self) -> None:
+        catalog = self.fixture.root / "KnittingCalculator/Localization/Localizable.xcstrings"
+        payload = json.loads(catalog.read_text(encoding="utf-8"))
+        del payload["strings"]["app.title"]["localizations"]["de"]
+        catalog.write_text(json.dumps(payload), encoding="utf-8")
+
+        self.assert_boundary_failure("app.title: locales: missing locales ['de']")
+
+    def test_static_only_propagates_metadata_contract_failure(self) -> None:
+        (self.fixture.root / "AppStore/KnittingCalculator/Metadata/de-DE.md").unlink()
+
+        self.assert_boundary_failure("missing metadata locales: de-DE.md")
+
+    def test_archive_rejects_missing_german_info_plist_strings(self) -> None:
+        archive = self.fixture.write_archive()
+        app = archive / "Products/Applications/KnittingCalculator.app"
+        self.fixture.remove_localized_resource(app, "de", "InfoPlist.strings")
+
+        result = self.fixture.run("--archive", str(archive))
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("de.lproj/InfoPlist.strings", result.stderr)
+
+    def test_ipa_rejects_missing_japanese_localizable_strings(self) -> None:
+        ipa = self.fixture.write_ipa()
+        payload = self.fixture.root / "ipa-source/Payload/KnittingCalculator.app"
+        self.fixture.remove_localized_resource(payload, "ja", "Localizable.strings")
+        ipa.unlink()
+        with zipfile.ZipFile(ipa, "w") as archive:
+            for path in (self.fixture.root / "ipa-source").rglob("*"):
+                archive.write(path, path.relative_to(self.fixture.root / "ipa-source"))
+
+        result = self.fixture.run("--ipa", str(ipa))
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("ja.lproj/Localizable.strings", result.stderr)
+
+    def test_archive_rejects_unexpected_locale_substituted_for_required_locale(self) -> None:
+        archive = self.fixture.write_archive()
+        app = archive / "Products/Applications/KnittingCalculator.app"
+        self.fixture.remove_localized_resource(app, "de", "Localizable.strings")
+        substituted = app / "it.lproj"
+        substituted.mkdir()
+        (substituted / "Localizable.strings").write_text(
+            '"fixture" = "fixture";',
+            encoding="utf-8",
+        )
+        (substituted / "InfoPlist.strings").write_text(
+            '"fixture" = "fixture";',
+            encoding="utf-8",
+        )
+
+        result = self.fixture.run("--archive", str(archive))
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("de.lproj/Localizable.strings", result.stderr)
+
+    def test_archive_rejects_incomplete_compiled_resources_after_source_contract_passes(self) -> None:
+        static_result = self.fixture.run("--static-only")
+        self.assertEqual(static_result.returncode, 0, static_result.stderr)
+
+        archive = self.fixture.write_archive()
+        app = archive / "Products/Applications/KnittingCalculator.app"
+        self.fixture.remove_localized_resource(app, "fi", "Localizable.strings")
+        result = self.fixture.run("--archive", str(archive))
+
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("fi.lproj/Localizable.strings", result.stderr)
 
     def test_archive_rejects_wrong_identity_and_app_store_id(self) -> None:
         cases = (

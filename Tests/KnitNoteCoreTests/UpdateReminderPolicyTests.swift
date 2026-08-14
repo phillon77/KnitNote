@@ -58,6 +58,12 @@ import Testing
         #expect(UpdateReminderHistory(defaults: defaults).dismissal == nil)
         #expect(defaults.object(forKey: "updateReminder.dismissedVersion") == nil)
         #expect(defaults.object(forKey: "updateReminder.dismissedAt") == nil)
+
+        defaults.set(["unexpected"], forKey: "updateReminder.dismissedVersion")
+        defaults.set(["unexpected"], forKey: "updateReminder.dismissedAt")
+        #expect(UpdateReminderHistory(defaults: defaults).dismissal == nil)
+        #expect(defaults.object(forKey: "updateReminder.dismissedVersion") == nil)
+        #expect(defaults.object(forKey: "updateReminder.dismissedAt") == nil)
     }
 
     @Test func constructingAndReadingAnEmptyHistoryDoesNotWriteDefaults() throws {

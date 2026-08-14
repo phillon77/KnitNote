@@ -39,14 +39,14 @@ public struct UpdateReminderHistory {
     }
 
     public var dismissal: UpdateReminderDismissal? {
-        let storedVersion = defaults.string(forKey: Key.dismissedVersion)
-        let storedTimestamp = defaults.object(forKey: Key.dismissedAt) as? Double
+        let storedVersionValue = defaults.object(forKey: Key.dismissedVersion)
+        let storedTimestampValue = defaults.object(forKey: Key.dismissedAt)
 
-        guard storedVersion != nil || storedTimestamp != nil else { return nil }
+        guard storedVersionValue != nil || storedTimestampValue != nil else { return nil }
         guard
-            let storedVersion,
+            let storedVersion = storedVersionValue as? String,
             let version = AppVersion(storedVersion),
-            let storedTimestamp,
+            let storedTimestamp = storedTimestampValue as? Double,
             storedTimestamp.isFinite
         else {
             clearDismissal()

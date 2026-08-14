@@ -19,10 +19,10 @@ import Testing
             with: mutation.replacement
         ))
         let mutatedSource = source.replacingOccurrences(of: ownerBlock, with: mutatedOwner)
-            + "\n/* out-of-owner decoy:\n\(mutation.token)\n*/\n"
+            + "\n/* out-of-owner decoy:\n\(mutation.decoy)\n*/\n"
 
         let failures = switch mutation.owner {
-        case .fixtureResolve:
+        case .fixtureResolve, .fixtureArgumentValue:
             try fixtureResolveFailures(in: mutatedSource)
         case .liveFactoryMake:
             try liveFactoryFailures(in: mutatedSource)
@@ -60,6 +60,25 @@ struct FixtureMutation: Sendable, CustomTestStringConvertible {
     let token: String
     let replacement: String
     let expectedFailure: UpdateFixtureRequirement
+    let decoy: String
+
+    init(
+        name: String,
+        relativePath: String,
+        owner: UpdateFixtureOwner,
+        token: String,
+        replacement: String,
+        expectedFailure: UpdateFixtureRequirement,
+        decoy: String? = nil
+    ) {
+        self.name = name
+        self.relativePath = relativePath
+        self.owner = owner
+        self.token = token
+        self.replacement = replacement
+        self.expectedFailure = expectedFailure
+        self.decoy = decoy ?? token
+    }
 
     var testDescription: String { name }
 
@@ -104,11 +123,21 @@ struct FixtureMutation: Sendable, CustomTestStringConvertible {
             replacement: "                let liveUpdate = await lookup.fetch(countryCode: countryCode, platform: platform)\n                if let fixture {\n                    return fixture.availableUpdate\n                }\n                return liveUpdate",
             expectedFailure: .fixtureBypassesLiveFetch
         ),
+        Self(
+            name: "argumentValue environment override",
+            relativePath: "KnitNote/App/AppUpdateFixture.swift",
+            owner: .fixtureArgumentValue,
+            token: "        guard let index = arguments.firstIndex(of: flag),",
+            replacement: "        if let override = ProcessInfo.processInfo.environment[flag] {\n            return override\n        }\n        guard let index = arguments.firstIndex(of: flag),",
+            expectedFailure: .noEnvironmentOverride,
+            decoy: "ProcessInfo.processInfo.environment[flag]"
+        ),
     ]
 }
 
 enum UpdateFixtureOwner: Sendable {
     case fixtureResolve
+    case fixtureArgumentValue
     case liveFactoryMake
 }
 
@@ -126,7 +155,8 @@ enum UpdateFixtureRequirement: String, Hashable, Sendable {
 }
 
 private func fixtureResolveFailures(in source: String) throws -> Set<UpdateFixtureRequirement> {
-    let ownerBlock = try updateFixtureOwnerBlock(.fixtureResolve, in: source)
+    let resolveOwner = try updateFixtureOwnerBlock(.fixtureResolve, in: source)
+    let argumentValueOwner = try updateFixtureOwnerBlock(.fixtureArgumentValue, in: source)
     var failures = Set<UpdateFixtureRequirement>()
     let requirements: [(String, UpdateFixtureRequirement)] = [
         ("#if DEBUG", .debugGuard),
@@ -139,10 +169,13 @@ private func fixtureResolveFailures(in source: String) throws -> Set<UpdateFixtu
         ("arguments.occurrences(of: \"-appUpdateFixture\") == 1", .uniqueFlags),
         ("arguments.occurrences(of: \"-appUpdateFixtureVersion\") == 1", .uniqueFlags),
     ]
-    for (token, requirement) in requirements where !ownerBlock.contains(token) {
+    for (token, requirement) in requirements where !resolveOwner.contains(token) {
         failures.insert(requirement)
     }
-    if ownerBlock.contains("environment[") || ownerBlock.contains("environmentVariable") {
+    let argumentOwners = [resolveOwner, argumentValueOwner]
+    if argumentOwners.contains(where: {
+        $0.contains("environment[") || $0.contains("environmentVariable")
+    }) {
         failures.insert(.noEnvironmentOverride)
     }
     return failures
@@ -185,6 +218,11 @@ private func updateFixtureOwnerBlock(
             throw UpdateFixtureContractError.missingUniqueOwner
         }
         return String(source[start..<end])
+    case .fixtureArgumentValue:
+        return try updateFixtureFunction(
+            signature: "    private static func argumentValue(",
+            in: source
+        )
     case .liveFactoryMake:
         return try updateFixtureFunction(signature: "    static func make(", in: source)
     }

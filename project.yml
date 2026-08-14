@@ -112,6 +112,7 @@ targets:
           - App/AppVersion.swift
           - App/AppVersionInfo.swift
           - App/AppStoreUpdateLookup.swift
+          - App/AppStoreUpdateLiveNetworkContract.swift
           - App/AppUpdateReminderCoordinator.swift
           - App/UpdateReminderPolicy.swift
           - App/KnitNoteMacWindowSizingPolicy.swift

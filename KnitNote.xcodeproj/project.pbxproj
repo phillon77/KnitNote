@@ -231,6 +231,7 @@
 		A4FC998617515EDEE746AAD5 /* ProjectCountersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */; };
 		A5BE1A19B9C35CAB890C30BD /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		A7191AB7CF91E950BA70EDAB /* YarnLabelScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7FE8FD007E50C3C9377258D /* YarnLabelScanView.swift */; };
+		A74563C777DA05A3E7EE680B /* AppStoreUpdateLiveNetworkContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC259F6E4729E8DB702FF97 /* AppStoreUpdateLiveNetworkContract.swift */; };
 		A8121B8CC33DEC5E639C59CA /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2721C6AB54E5F271947F0E /* ProjectListView.swift */; };
 		A8A416D949E6DE618CF881E8 /* EntitlementProjectionWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF86FAD0384C737E658266E3 /* EntitlementProjectionWriter.swift */; };
 		A8D07699E045BCD2814740AF /* LanguageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A3A973C57BA3A256E78283 /* LanguageSettings.swift */; };
@@ -422,6 +423,7 @@
 		0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternLinkIndex.swift; sourceTree = "<group>"; };
 		0E519BC9B336EF9AA75CC7DA /* StoreScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreScreenshotMode.swift; sourceTree = "<group>"; };
 		0F95B1315DBA157D63E7BED8 /* CounterReminderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterReminderCard.swift; sourceTree = "<group>"; };
+		0FC259F6E4729E8DB702FF97 /* AppStoreUpdateLiveNetworkContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreUpdateLiveNetworkContract.swift; sourceTree = "<group>"; };
 		0FE40BDDBFA4B660D0A7F517 /* PatternPageThumbnailPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPageThumbnailPresentation.swift; sourceTree = "<group>"; };
 		1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingCalculatorsView.swift; sourceTree = "<group>"; };
 		10731080016109C7138AA562 /* UnlockSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockSheet.swift; sourceTree = "<group>"; };
@@ -725,6 +727,7 @@
 		0A7C946B8D714308DC9BFDC0 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				0FC259F6E4729E8DB702FF97 /* AppStoreUpdateLiveNetworkContract.swift */,
 				7196E582FEE02DFFFE5770E1 /* AppStoreUpdateLookup.swift */,
 				3167220F3F5F030644D66D9C /* AppUpdateReminderCoordinator.swift */,
 				BB6A28F0EA50AC95D8AE7156 /* AppVersion.swift */,
@@ -1447,6 +1450,7 @@
 				1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */,
 				E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */,
 				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
+				A74563C777DA05A3E7EE680B /* AppStoreUpdateLiveNetworkContract.swift in Sources */,
 				8AD6AFFEE17535F2CA3D660F /* AppStoreUpdateLookup.swift in Sources */,
 				8B18D3CAEEE9D0196461DC03 /* AppUpdateFixture.swift in Sources */,
 				0D0F6E7010A716A05A8BDB1D /* AppUpdateReminderCoordinator.swift in Sources */,

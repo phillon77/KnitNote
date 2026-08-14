@@ -32,9 +32,6 @@ public struct AppUpdateHTTPResponse: Sendable {
 public struct AppStoreUpdateLookup: Sendable {
     public typealias Loader = @Sendable (URLRequest) async throws -> AppUpdateHTTPResponse
 
-    private static let appleID = 6_793_023_054
-    private static let bundleID = "com.phillon.KnitNote"
-    private static let defaultCountryCode = "tw"
     private let loader: Loader
 
     public init(loader: @escaping Loader) {
@@ -43,19 +40,28 @@ public struct AppStoreUpdateLookup: Sendable {
 
     public func fetch(countryCode: String?, platform: AppStorePlatform) async -> AvailableAppUpdate? {
         do {
-            let response = try await loader(Self.request(countryCode: countryCode))
+            let response = try await loader(
+                AppStoreUpdateLiveNetworkContract.request(countryCode: countryCode)
+            )
             guard (200...299).contains(response.statusCode) else { return nil }
 
             let payload = try JSONDecoder().decode(LookupPayload.self, from: response.data)
             guard payload.resultCount == 1, payload.results.count == 1, let result = payload.results.first else {
                 return nil
             }
-            guard result.trackID == Self.appleID, result.bundleID == Self.bundleID else { return nil }
+            guard
+                result.trackID == AppStoreUpdateLiveNetworkContract.appleID,
+                result.bundleID == AppStoreUpdateLiveNetworkContract.bundleID
+            else {
+                return nil
+            }
             guard
                 let displayVersion = result.version,
                 let version = AppVersion(displayVersion),
                 let storeURLString = result.trackViewURL,
-                let storeURL = Self.validStoreURL(storeURLString),
+                let storeURL = AppStoreUpdateLiveNetworkContract.validStoreURL(
+                    storeURLString
+                ),
                 Self.supports(platform: platform, devices: result.supportedDevices)
             else {
                 return nil
@@ -69,32 +75,6 @@ public struct AppStoreUpdateLookup: Sendable {
         } catch {
             return nil
         }
-    }
-
-    public static func live(timeout: TimeInterval = 8) -> Self {
-        let configuration = liveSessionConfiguration(timeout: timeout)
-        let session = URLSession(configuration: configuration)
-
-        return Self { request in
-            var request = request
-            request.timeoutInterval = timeout
-            let (data, response) = try await session.data(for: request)
-            guard let response = response as? HTTPURLResponse else {
-                throw LookupError.nonHTTPResponse
-            }
-            return AppUpdateHTTPResponse(data: data, statusCode: response.statusCode)
-        }
-    }
-
-    static func liveSessionConfiguration(timeout: TimeInterval) -> URLSessionConfiguration {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = timeout
-        configuration.timeoutIntervalForResource = timeout
-        configuration.httpShouldSetCookies = false
-        configuration.httpCookieAcceptPolicy = .never
-        configuration.httpCookieStorage = nil
-        configuration.urlCredentialStorage = nil
-        return configuration
     }
 
     public static func normalizedCountryCode(_ candidate: String?) -> String? {
@@ -119,33 +99,6 @@ public struct AppStoreUpdateLookup: Sendable {
         case "DEU": "de"
         default: nil
         }
-    }
-
-    private static func request(countryCode: String?) -> URLRequest {
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = "itunes.apple.com"
-        components.path = "/lookup"
-        components.queryItems = [
-            URLQueryItem(name: "id", value: String(appleID)),
-            URLQueryItem(name: "country", value: normalizedCountryCode(countryCode) ?? defaultCountryCode),
-        ]
-
-        var request = URLRequest(url: components.url!)
-        request.httpMethod = "GET"
-        return request
-    }
-
-    private static func validStoreURL(_ string: String) -> URL? {
-        guard
-            let components = URLComponents(string: string),
-            components.scheme == "https",
-            components.host == "apps.apple.com",
-            let url = components.url
-        else {
-            return nil
-        }
-        return url
     }
 
     private static func supports(platform: AppStorePlatform, devices: [String]) -> Bool {
@@ -179,8 +132,4 @@ private struct LookupResult: Decodable {
         case trackViewURL = "trackViewUrl"
         case supportedDevices
     }
-}
-
-private enum LookupError: Error {
-    case nonHTTPResponse
 }

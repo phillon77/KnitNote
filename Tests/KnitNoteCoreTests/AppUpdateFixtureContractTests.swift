@@ -116,6 +116,14 @@ struct FixtureMutation: Sendable, CustomTestStringConvertible {
             expectedFailure: .screenshotBlocker
         ),
         Self(
+            name: "canonical fixture Store URL sentinel",
+            relativePath: "KnitNote/App/AppUpdateFixture.swift",
+            owner: .fixtureResolve,
+            token: "AppStoreUpdateLiveNetworkContract\n                .debugFixtureStoreURL()",
+            replacement: "URL(string: \"https://example.com\")",
+            expectedFailure: .deterministicStoreURL
+        ),
+        Self(
             name: "fixture bypass before live fetch",
             relativePath: "KnitNote/App/AppUpdateReminderLiveFactory.swift",
             owner: .liveFactoryMake,
@@ -164,7 +172,10 @@ private func fixtureResolveFailures(in source: String) throws -> Set<UpdateFixtu
         ("argumentValue(after: \"-appUpdateFixture\", in: arguments) == \"YES\"", .exactOptIn),
         ("after: \"-appUpdateFixtureVersion\"", .strictVersion),
         ("AppVersion(rawVersion)", .strictVersion),
-        ("https://apps.apple.com/tw/app/id6793023054", .deterministicStoreURL),
+        (
+            "AppStoreUpdateLiveNetworkContract\n                .debugFixtureStoreURL()",
+            .deterministicStoreURL
+        ),
         ("!arguments.contains(\"-storeScreenshotMode\")", .screenshotBlocker),
         ("arguments.occurrences(of: \"-appUpdateFixture\") == 1", .uniqueFlags),
         ("arguments.occurrences(of: \"-appUpdateFixtureVersion\") == 1", .uniqueFlags),

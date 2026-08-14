@@ -383,12 +383,15 @@ PY
 verify_expected_app_store_update_network_surface() {
   python3 - "$NETWORK_SCAN_ROOT" <<'PY'
 from pathlib import Path
+import hashlib
 import re
 import sys
 
 root = Path(sys.argv[1])
-lookup_relative = Path("Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift")
-fixture_relative = Path("KnitNote/App/AppUpdateFixture.swift")
+sentinel_relative = Path(
+    "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift"
+)
+expected_sentinel_sha256 = "ef96bbbdceb7b524c7d6492c12ae7e41ab143c36214b741eefa85ac298450a13"
 risk = re.compile(r"URLSession|NWConnection|Firebase|Analytics|Telemetry|tracking|https?://")
 
 
@@ -396,49 +399,19 @@ def fail(message):
     raise SystemExit(f"release audit: {message}")
 
 
-def read(relative):
-    path = root / relative
-    if not path.is_file() or path.is_symlink():
-        fail(f"required update-reminder network source is missing or unsafe: {relative}")
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        fail(f"required update-reminder network source is unreadable: {relative}")
-
-
-lookup = read(lookup_relative)
-lookup_requirements = {
-    "private static let appleID = 6_793_023_054": 1,
-    'private static let bundleID = "com.phillon.KnitNote"': 1,
-    'components.host = "itunes.apple.com"': 1,
-    'components.path = "/lookup"': 1,
-    'components.host == "apps.apple.com"': 1,
-    "URLSession(configuration: configuration)": 1,
-    "URLSessionConfiguration.ephemeral": 1,
-    "configuration.urlCredentialStorage = nil": 1,
-}
-lookup_is_canonical = (
-    all(lookup.count(value) == count for value, count in lookup_requirements.items())
-    and lookup.count("URLSession") == 3
-    and lookup.count("components.host") == 2
-    and not re.search(r"NWConnection|Firebase|Analytics|Telemetry|tracking|https?://", lookup)
-)
-if not lookup_is_canonical:
-    fail("App Store update lookup network contract is not canonical")
-
-fixture = read(fixture_relative)
-approved_fixture_url = "https://apps.apple.com/tw/app/id6793023054"
-debug_start = fixture.find("#if DEBUG")
-debug_end = fixture.find("#else", debug_start + 1)
-fixture_hits = list(risk.finditer(fixture))
-fixture_is_canonical = (
-    fixture.count(approved_fixture_url) == 1
-    and len(fixture_hits) == 1
-    and fixture_hits[0].group(0) == "https://"
-    and 0 <= debug_start < fixture.find(approved_fixture_url) < debug_end
-)
-if not fixture_is_canonical:
-    fail("debug App Store update fixture URL contract is not canonical")
+sentinel = root / sentinel_relative
+if not sentinel.is_file() or sentinel.is_symlink():
+    fail(f"required live-network sentinel is missing or unsafe: {sentinel_relative}")
+try:
+    sentinel_bytes = sentinel.read_bytes()
+except OSError:
+    fail(f"required live-network sentinel is unreadable: {sentinel_relative}")
+actual_sentinel_sha256 = hashlib.sha256(sentinel_bytes).hexdigest()
+if actual_sentinel_sha256 != expected_sentinel_sha256:
+    fail(
+        "App Store update live-network sentinel is not canonical; "
+        f"found sha256 {actual_sentinel_sha256}"
+    )
 
 scan_roots = [
     root / "KnitNote",
@@ -459,7 +432,6 @@ for relative in [Path("Package.swift"), Path("project.yml")]:
     if path.is_file():
         candidates.append(path)
 
-approved = {lookup_relative, fixture_relative}
 for path in sorted(set(candidates)):
     relative = path.relative_to(root)
     if path.suffix not in {".swift", ".yml"} and path.name != "Package.swift":
@@ -468,7 +440,7 @@ for path in sorted(set(candidates)):
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         fail(f"network scan source is unreadable: {relative}")
-    if relative in approved:
+    if relative == sentinel_relative:
         continue
     match = risk.search(source)
     if match:

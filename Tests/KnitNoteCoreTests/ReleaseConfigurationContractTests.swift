@@ -373,6 +373,9 @@ import Testing
         let broken = generatedProject.replacingOccurrences(
             of: "path = KnitNoteWatchApp.swift;",
             with: "path = AppVersion.swift;"
+        ).replacingOccurrences(
+            of: "path = KnitNoteWatch;",
+            with: "path = Sources/KnitNoteCore/App;"
         )
 
         #expect(throws: UpdateReminderOwnershipError.self) {
@@ -386,6 +389,9 @@ import Testing
         let broken = generatedProject.replacingOccurrences(
             of: "path = ShareViewController.swift;",
             with: "path = AppUpdateReminderLiveFactory.swift;"
+        ).replacingOccurrences(
+            of: "path = KnitNoteShare;",
+            with: "path = KnitNote/App;"
         )
 
         #expect(throws: UpdateReminderOwnershipError.self) {
@@ -427,7 +433,7 @@ import Testing
         let fixture = try makeUpdateNetworkScanFixture()
         defer { try? FileManager.default.removeItem(at: fixture) }
         let lookup = fixture.appending(
-            path: "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift"
+            path: "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift"
         )
         let broken = try String(contentsOf: lookup, encoding: .utf8)
             .replacingOccurrences(of: "itunes.apple.com", with: "example.com")
@@ -436,26 +442,26 @@ import Testing
         let result = try runStaticAudit(networkScanRoot: fixture)
 
         #expect(result.status != 0)
-        #expect(result.output.contains("App Store update lookup network contract is not canonical"))
+        #expect(result.output.contains("App Store update live-network sentinel is not canonical"))
     }
 
     @Test func staticAuditRejectsLookupWithoutTheProductionIdentity() throws {
         let fixture = try makeUpdateNetworkScanFixture()
         defer { try? FileManager.default.removeItem(at: fixture) }
         let lookup = fixture.appending(
-            path: "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift"
+            path: "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift"
         )
         let broken = try String(contentsOf: lookup, encoding: .utf8)
             .replacingOccurrences(
-                of: "private static let bundleID = \"com.phillon.KnitNote\"",
-                with: "private static let bundleID = \"com.example.KnitNote\""
+                of: "static let bundleID = \"com.phillon.KnitNote\"",
+                with: "static let bundleID = \"com.example.KnitNote\""
             )
         try broken.write(to: lookup, atomically: true, encoding: .utf8)
 
         let result = try runStaticAudit(networkScanRoot: fixture)
 
         #expect(result.status != 0)
-        #expect(result.output.contains("App Store update lookup network contract is not canonical"))
+        #expect(result.output.contains("App Store update live-network sentinel is not canonical"))
     }
 
     @Test func staticAuditRejectsANetworkSessionInTheDebugFixture() throws {
@@ -469,8 +475,270 @@ import Testing
         let result = try runStaticAudit(networkScanRoot: fixture)
 
         #expect(result.status != 0)
-        #expect(result.output.contains("debug App Store update fixture URL contract is not canonical"))
+        #expect(result.output.contains("unexpected network, analytics, or tracking source"))
     }
+
+    @Test(arguments: unsafeLiveSessionMutations)
+    func staticAuditRejectsEachMissingOrUnsafeLiveSessionSetting(
+        mutation: UpdateNetworkSourceMutation
+    ) throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        try applyUpdateNetworkMutation(mutation, in: fixture)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0, Comment(rawValue: mutation.name))
+        #expect(
+            result.output.contains("App Store update live-network sentinel is not canonical"),
+            Comment(rawValue: mutation.name)
+        )
+    }
+
+    @Test(arguments: executableNetworkDecoyMutations)
+    func staticAuditRejectsExecutableNetworkChangesHiddenBySourceDecoys(
+        mutation: UpdateNetworkSourceMutation
+    ) throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        try applyUpdateNetworkMutation(mutation, in: fixture)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0, Comment(rawValue: mutation.name))
+        #expect(
+            result.output.contains("App Store update live-network sentinel is not canonical"),
+            Comment(rawValue: mutation.name)
+        )
+    }
+
+    @Test func controlledXcodegenArtifactRejectsOnlyTheForbiddenRepositoryRelativeMembership() throws {
+        let canonical = try generateControlledUpdateOwnershipProject(
+            removingWatchExclusion: nil
+        )
+        try validateUpdateReminderOwnership(
+            yaml: canonical.yaml,
+            generatedProject: canonical.generatedProject
+        )
+
+        let mutated = try generateControlledUpdateOwnershipProject(
+            removingWatchExclusion: "App/AppVersion.swift"
+        )
+        #expect(throws: UpdateReminderOwnershipError.self) {
+            try validateUpdateReminderOwnership(
+                yaml: mutated.yaml,
+                generatedProject: mutated.generatedProject
+            )
+        }
+    }
+}
+
+struct UpdateNetworkSourceMutation: Sendable, CustomTestStringConvertible {
+    let name: String
+    let original: String
+    let replacement: String
+
+    var testDescription: String { name }
+}
+
+private let unsafeLiveSessionMutations = [
+    UpdateNetworkSourceMutation(
+        name: "missing request timeout",
+        original: "        configuration.timeoutIntervalForRequest = timeout\n",
+        replacement: ""
+    ),
+    UpdateNetworkSourceMutation(
+        name: "missing resource timeout",
+        original: "        configuration.timeoutIntervalForResource = timeout\n",
+        replacement: ""
+    ),
+    UpdateNetworkSourceMutation(
+        name: "cookies enabled",
+        original: "        configuration.httpShouldSetCookies = false\n",
+        replacement: "        configuration.httpShouldSetCookies = true\n"
+    ),
+    UpdateNetworkSourceMutation(
+        name: "cookie acceptance enabled",
+        original: "        configuration.httpCookieAcceptPolicy = .never\n",
+        replacement: "        configuration.httpCookieAcceptPolicy = .always\n"
+    ),
+    UpdateNetworkSourceMutation(
+        name: "shared cookie storage",
+        original: "        configuration.httpCookieStorage = nil\n",
+        replacement: "        configuration.httpCookieStorage = .shared\n"
+    ),
+]
+
+private let executableNetworkDecoyMutations = [
+    UpdateNetworkSourceMutation(
+        name: "credential-storage comment decoy",
+        original: "        configuration.urlCredentialStorage = nil\n",
+        replacement: """
+                // configuration.urlCredentialStorage = nil
+                configuration.urlCredentialStorage = .shared
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "dynamic lookup host hidden by comment",
+        original: "    private static let lookupHost = \"itunes.apple.com\"\n",
+        replacement: """
+            // private static let lookupHost = "itunes.apple.com"
+            private static var lookupHost: String {
+                ProcessInfo.processInfo.environment["LOOKUP_HOST"]!
+            }
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "production identity hidden by string decoy",
+        original: "    static let bundleID = \"com.phillon.KnitNote\"\n",
+        replacement: """
+            static var bundleID: String {
+                ProcessInfo.processInfo.environment["LOOKUP_BUNDLE_ID"]!
+            }
+            private static let bundleIDDecoy = "com.phillon.KnitNote"
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "duplicate executable request",
+        original: "            let (data, response) = try await session.data(for: request)\n",
+        replacement: """
+                    _ = try await session.data(for: request)
+                    let (data, response) = try await session.data(for: request)
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "extra dead-code request",
+        original: "            let (data, response) = try await session.data(for: request)\n",
+        replacement: """
+                    if false { _ = try await session.data(for: request) }
+                    let (data, response) = try await session.data(for: request)
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "noncanonical alternate whitespace",
+        original: "        configuration.httpShouldSetCookies = false\n",
+        replacement: "        configuration.httpShouldSetCookies=false\n"
+    ),
+]
+
+private func applyUpdateNetworkMutation(
+    _ mutation: UpdateNetworkSourceMutation,
+    in fixture: URL
+) throws {
+    let lookup = fixture.appending(
+        path: "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift"
+    )
+    let source = try String(contentsOf: lookup, encoding: .utf8)
+    let mutated = source.replacingOccurrences(
+        of: mutation.original,
+        with: mutation.replacement
+    )
+    try #require(mutated != source)
+    try mutated.write(to: lookup, atomically: true, encoding: .utf8)
+}
+
+private struct ControlledUpdateOwnershipProject {
+    let yaml: String
+    let generatedProject: String
+}
+
+private func generateControlledUpdateOwnershipProject(
+    removingWatchExclusion: String?
+) throws -> ControlledUpdateOwnershipProject {
+    let root = FileManager.default.temporaryDirectory.appending(
+        path: "knitnote-update-ownership-\(UUID().uuidString)"
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let sources = [
+        "Sources/KnitNoteCore/App/AppVersion.swift",
+        "Sources/KnitNoteCore/App/UpdateReminderPolicy.swift",
+        "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift",
+        "Sources/KnitNoteCore/App/AppUpdateReminderCoordinator.swift",
+        "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift",
+        "KnitNote/App/AppUpdateReminderLiveFactory.swift",
+        "KnitNote/App/AppUpdateFixture.swift",
+        "KnitNoteWatch/AppVersion.swift",
+        "KnitNoteWatch/KnitNoteWatchApp.swift",
+        "KnitNoteShare/AppUpdateFixture.swift",
+        "KnitNoteShare/ShareViewController.swift",
+    ]
+    for relativePath in sources {
+        let file = root.appending(path: relativePath)
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        #expect(FileManager.default.createFile(atPath: file.path, contents: Data()))
+    }
+
+    let exclusions: [String] = [
+        "App/AppVersion.swift",
+        "App/UpdateReminderPolicy.swift",
+        "App/AppStoreUpdateLookup.swift",
+        "App/AppUpdateReminderCoordinator.swift",
+        "App/AppStoreUpdateLiveNetworkContract.swift",
+    ].filter { $0 != removingWatchExclusion }
+    let exclusionLines = exclusions.map { "          - \($0)" }.joined(separator: "\n")
+    let yaml = """
+    name: OwnershipFixture
+    options:
+      bundleIdPrefix: test.knitnote
+    targets:
+      KnitNote:
+        type: application
+        platform: iOS
+        sources:
+          - path: KnitNote
+          - path: Sources/KnitNoteCore
+      KnitNoteWatch:
+        type: application
+        platform: watchOS
+        sources:
+          - path: KnitNoteWatch
+          - path: Sources/KnitNoteCore
+            excludes:
+    \(exclusionLines)
+      KnitNoteShare:
+        type: app-extension
+        platform: iOS
+        sources:
+          - path: KnitNoteShare
+
+    """
+    try yaml.write(
+        to: root.appending(path: "project.yml"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let process = Process()
+    process.executableURL = URL(filePath: "/opt/homebrew/bin/xcodegen")
+    process.arguments = ["generate", "--quiet"]
+    process.currentDirectoryURL = root
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = output
+    try process.run()
+    process.waitUntilExit()
+    let processOutput = String(
+        data: output.fileHandleForReading.readDataToEndOfFile(),
+        encoding: .utf8
+    ) ?? ""
+    try #require(process.terminationStatus == 0, Comment(rawValue: processOutput))
+
+    return ControlledUpdateOwnershipProject(
+        yaml: yaml,
+        generatedProject: try String(
+            contentsOf: root.appending(path: "OwnershipFixture.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+    )
 }
 
 private struct StaticAuditResult {
@@ -510,6 +778,7 @@ private func makeUpdateNetworkScanFixture() throws -> URL {
         path: "knitnote-update-network-scan-\(UUID().uuidString)"
     )
     for relativePath in [
+        "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift",
         "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift",
         "KnitNote/App/AppUpdateFixture.swift",
     ] {
@@ -534,28 +803,33 @@ private func validateUpdateReminderOwnership(
 ) throws {
     let watchTarget = try yamlTarget(named: "KnitNoteWatch", before: "KnitNoteShare", in: yaml)
     let coreSources = Set([
-        "AppVersion.swift",
-        "UpdateReminderPolicy.swift",
-        "AppStoreUpdateLookup.swift",
-        "AppUpdateReminderCoordinator.swift",
+        "Sources/KnitNoteCore/App/AppVersion.swift",
+        "Sources/KnitNoteCore/App/UpdateReminderPolicy.swift",
+        "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift",
+        "Sources/KnitNoteCore/App/AppUpdateReminderCoordinator.swift",
+        "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift",
     ])
     let mainOnlySources = coreSources.union([
-        "AppUpdateReminderLiveFactory.swift",
-        "AppUpdateFixture.swift",
+        "KnitNote/App/AppUpdateReminderLiveFactory.swift",
+        "KnitNote/App/AppUpdateFixture.swift",
     ])
 
     for source in coreSources {
-        guard watchTarget.contains("          - App/\(source)\n") else {
+        let watchRelativePath = source.replacingOccurrences(
+            of: "Sources/KnitNoteCore/",
+            with: ""
+        )
+        guard watchTarget.contains("          - \(watchRelativePath)\n") else {
             throw UpdateReminderOwnershipError.violation(
-                "KnitNoteWatch must exclude Sources/KnitNoteCore/App/\(source)"
+                "KnitNoteWatch must exclude \(source)"
             )
         }
     }
 
     let project = UpdateReminderPBXMembership(contents: generatedProject)
-    let appSources = Set(try project.sourceFilenames(targetName: "KnitNote"))
-    let watchSources = Set(try project.sourceFilenames(targetName: "KnitNoteWatch"))
-    let shareSources = Set(try project.sourceFilenames(targetName: "KnitNoteShare"))
+    let appSources = Set(try project.sourcePaths(targetName: "KnitNote"))
+    let watchSources = Set(try project.sourcePaths(targetName: "KnitNoteWatch"))
+    let shareSources = Set(try project.sourcePaths(targetName: "KnitNoteShare"))
 
     guard mainOnlySources.isSubset(of: appSources) else {
         throw UpdateReminderOwnershipError.violation(
@@ -589,7 +863,7 @@ private func yamlTarget(
 private struct UpdateReminderPBXMembership {
     let contents: String
 
-    func sourceFilenames(targetName: String) throws -> [String] {
+    func sourcePaths(targetName: String) throws -> [String] {
         let target = try targetBody(named: targetName)
         let phaseIDs = captures(
             pattern: #"([A-F0-9]{24}) /\* [^*]+ \*/"#,
@@ -610,9 +884,69 @@ private struct UpdateReminderPBXMembership {
                 pattern: #"fileRef = ([A-F0-9]{24}) /\* [^*]+ \*/;"#,
                 in: buildFile
             )
-            let fileRef = try objectBody(id: fileRefID)
-            return try capture(pattern: #"path = \"?([^\";]+)\"?;"#, in: fileRef)
+            return try repositoryRelativePath(fileRefID: fileRefID)
         }
+    }
+
+    private func repositoryRelativePath(fileRefID: String) throws -> String {
+        let fileRef = try objectBody(id: fileRefID)
+        let filePath = try capture(
+            pattern: #"path = \"?([^\";]+)\"?;"#,
+            in: fileRef
+        )
+        let parents = try groupParentIDs()
+        var groupPaths: [String] = []
+        var childID = fileRefID
+        var visited = Set<String>()
+        while let parentID = parents[childID] {
+            guard visited.insert(parentID).inserted else {
+                throw UpdateReminderOwnershipError.violation(
+                    "PBX group ancestry contains a cycle at \(parentID)"
+                )
+            }
+            let parent = try objectBody(id: parentID)
+            if let path = firstCapture(
+                pattern: #"path = \"?([^\";]+)\"?;"#,
+                in: parent
+            ) {
+                groupPaths.append(path)
+            }
+            childID = parentID
+        }
+        return (groupPaths.reversed() + [filePath]).joined(separator: "/")
+    }
+
+    private func groupParentIDs() throws -> [String: String] {
+        let expression = try NSRegularExpression(
+            pattern: #"([A-F0-9]{24})(?: /\* [^*]+ \*/)? = \{(.*?)^\s*\};"#,
+            options: [.anchorsMatchLines, .dotMatchesLineSeparators]
+        )
+        let range = NSRange(contents.startIndex..., in: contents)
+        var parents: [String: String] = [:]
+        for match in expression.matches(in: contents, range: range) {
+            let idRange = try #require(Range(match.range(at: 1), in: contents))
+            let bodyRange = try #require(Range(match.range(at: 2), in: contents))
+            let groupID = String(contents[idRange])
+            let body = String(contents[bodyRange])
+            guard body.contains("isa = PBXGroup;"),
+                  let children = firstCapture(
+                    pattern: #"children = \((.*?)\);"#,
+                    in: body,
+                    options: [.dotMatchesLineSeparators]
+                  )
+            else {
+                continue
+            }
+            for childID in captures(pattern: #"([A-F0-9]{24})"#, in: children) {
+                if let existing = parents[childID], existing != groupID {
+                    throw UpdateReminderOwnershipError.violation(
+                        "PBX child \(childID) has multiple group parents"
+                    )
+                }
+                parents[childID] = groupID
+            }
+        }
+        return parents
     }
 
     private func targetBody(named name: String) throws -> String {
@@ -627,7 +961,7 @@ private struct UpdateReminderPBXMembership {
 
     private func objectBody(id: String) throws -> String {
         try capture(
-            pattern: #"\#(id) /\* [^*]+ \*/ = \{(.*?)^\s*\};"#,
+            pattern: #"\#(id)(?: /\* [^*]+ \*/)? = \{(.*?)^\s*\};"#,
             in: contents,
             options: [.anchorsMatchLines, .dotMatchesLineSeparators]
         )
@@ -658,6 +992,26 @@ private struct UpdateReminderPBXMembership {
             range: NSRange(value.startIndex..., in: value)
         ))
         let range = try #require(Range(match.range(at: 1), in: value))
+        return String(value[range])
+    }
+
+    private func firstCapture(
+        pattern: String,
+        in value: String,
+        options: NSRegularExpression.Options = []
+    ) -> String? {
+        guard let expression = try? NSRegularExpression(
+            pattern: pattern,
+            options: options
+        ),
+              let match = expression.firstMatch(
+                in: value,
+                range: NSRange(value.startIndex..., in: value)
+              ),
+              let range = Range(match.range(at: 1), in: value)
+        else {
+            return nil
+        }
         return String(value[range])
     }
 }

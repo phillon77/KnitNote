@@ -20,9 +20,8 @@ struct AppUpdateFixture: Equatable, Sendable {
                 in: arguments
               ),
               let version = AppVersion(rawVersion),
-              let storeURL = URL(
-                string: "https://apps.apple.com/tw/app/id6793023054"
-              ) else {
+              let storeURL = AppStoreUpdateLiveNetworkContract
+                .debugFixtureStoreURL() else {
             return .invalid
         }
         return .ready(AppUpdateFixture(

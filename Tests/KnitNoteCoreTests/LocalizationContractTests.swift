@@ -561,6 +561,25 @@ import Testing
                 key: "patterns.folder.all"
             )
         )
+        for whitespaceWrappedKey in [
+            " patterns.folder.all",
+            "patterns.folder.all ",
+            " patterns.folder.all ",
+        ] {
+            let whitespaceWrappedKeyEnglish: [String: Any] = [
+                "stringUnit": [
+                    "state": "translated",
+                    "value": whitespaceWrappedKey,
+                ],
+            ]
+            #expect(
+                !isValidDirectPatternFolderLocalization(
+                    whitespaceWrappedKeyEnglish,
+                    key: "patterns.folder.all"
+                ),
+                "accepted whitespace-wrapped dotted key \(whitespaceWrappedKey)"
+            )
+        }
     }
 
     private func completeFixtureLocalizations() -> [String: Any] {
@@ -699,7 +718,7 @@ private func isValidDirectPatternFolderLocalization(
         return false
     }
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    return !trimmed.isEmpty && value != key
+    return !trimmed.isEmpty && trimmed != key
 }
 
 @Suite struct LocalizationContractTests {

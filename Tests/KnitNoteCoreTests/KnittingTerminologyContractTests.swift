@@ -148,17 +148,26 @@ import Testing
         }
     }
 
-    @Test func patternFolderTerminologyRejectsApprovedTermsEmbeddedInLargerWords() {
+    @Test func patternFolderTerminologyRejectsApprovedTermsEmbeddedInLargerWordsOrConnectorCompounds() {
         let mutations: [(language: String, approved: [String], value: String)] = [
             ("en", ["Pattern", "Patterns"], "%lld patternless"),
             ("en", ["Pattern", "Patterns"], "%lld antipattern"),
+            ("en", ["Pattern", "Patterns"], "%lld anti-pattern"),
+            ("en", ["Pattern", "Patterns"], "%lld pattern-less"),
+            ("en", ["Pattern", "Patterns"], "%lld anti_pattern"),
+            ("en", ["Pattern", "Patterns"], "%lld pattern_less"),
             ("fr", ["Patron", "Patrons"], "%lld patronage"),
             ("fr", ["Patron", "Patrons"], "%lld copatron"),
+            ("fr", ["Patron", "Patrons"], "%lld co-patron"),
             ("fi", ["Ohje", "Ohjeet", "Ohjetta"], "%lld ohjettaton"),
+            ("fi", ["Ohje", "Ohjeet", "Ohjetta"], "%lld epä-ohje"),
             ("el", ["Σχέδιο", "Σχέδια"], "%lld προσχέδιο"),
+            ("el", ["Σχέδιο", "Σχέδια"], "%lld προ-σχέδιο"),
             ("zh-Hans", ["图解"], "%lld 份图解学"),
             ("ja", ["編み図"], "非編み図%lld件"),
+            ("ja", ["編み図"], "非-編み図%lld件"),
             ("ko", ["도안"], "비도안 %lld개"),
+            ("ko", ["도안"], "비-도안 %lld개"),
         ]
 
         for mutation in mutations {
@@ -377,15 +386,16 @@ private func matchesApprovedFolderTerm(
     let foldedTerm = approved.folding(options: foldingOptions, locale: locale)
     let foldedValue = value.folding(options: foldingOptions, locale: locale)
     let escapedTerm = NSRegularExpression.escapedPattern(for: foldedTerm)
+    let disallowedTermAdjacency = "\\p{L}\\p{M}\\p{N}\\p{Pc}\\p{Pd}"
     let pattern: String
 
     switch language {
     case "zh-Hant", "zh-Hans":
         pattern = "%lld\\s*份\(escapedTerm)(?:$|移到)"
     case "ja", "ko":
-        pattern = "(?<![\\p{L}\\p{N}])\(escapedTerm)\\s*%lld"
+        pattern = "(?<![\(disallowedTermAdjacency)])\(escapedTerm)\\s*%lld"
     default:
-        pattern = "(?<![\\p{L}\\p{N}])\(escapedTerm)(?![\\p{L}\\p{N}])"
+        pattern = "(?<![\(disallowedTermAdjacency)])\(escapedTerm)(?![\(disallowedTermAdjacency)])"
     }
 
     let expression = try! NSRegularExpression(

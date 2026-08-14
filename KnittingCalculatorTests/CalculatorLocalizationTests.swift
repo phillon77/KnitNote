@@ -9,14 +9,27 @@ final class CalculatorLocalizationTests: XCTestCase {
 
     func testRepresentativeKeysResolveForEverySupportedLocale() {
         let keys = [
-            "app.title", "calculator.gauge.title", "calculator.adjustment.current",
+            "app.title", "app.home.title", "calculator.gauge.title",
+            "calculator.adjustment.current",
             "calculator.adjustment.validation.positiveInteger",
+            "calculator.adjustment.accessibility.summary.edge.format",
             "calculator.settings.privacy", "calculator.promotion.action",
         ]
         for identifier in supportedLocales {
             for key in keys {
                 let value = CalculatorLocalization.string(key, locale: Locale(identifier: identifier))
                 XCTAssertNotEqual(value, key, "Missing \(identifier) localization for \(key)")
+                if identifier != "en" {
+                    let englishValue = CalculatorLocalization.string(
+                        key,
+                        locale: Locale(identifier: "en")
+                    )
+                    XCTAssertNotEqual(
+                        value,
+                        englishValue,
+                        "Unexpected English fallback for \(identifier) localization of \(key)"
+                    )
+                }
             }
         }
     }

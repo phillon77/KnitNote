@@ -391,9 +391,13 @@ root = Path(sys.argv[1])
 sentinel_relative = Path(
     "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift"
 )
-expected_sentinel_sha256 = "c07066b77a77c3d49c157b004baedf19fa194505e97864044b0b9bd82f234d7b"
+factory_relative = Path("KnitNote/App/AppUpdateReminderLiveFactory.swift")
+expected_sentinel_sha256 = "7a74655e542c32bfc2bb63a64c67c6dbeeaa4fccb38d6025458ba6520cd0790f"
+expected_factory_sha256 = "dcae917c3d5f301e6d79ea3901b4c8a55f37277a55d76efc8d0bc656ad255bb7"
 risk = re.compile(
     r"URLSession|URLRequest\s*\(|\bloader\s*\(|NWConnection|"
+    r"AppStoreUpdateLookup\s*\(\s*fetcher\s*:|"
+    r"AppStoreUpdateLiveNetworkContract\.testLookup\b|"
     r"Firebase|Analytics|Telemetry|tracking|https?://"
 )
 
@@ -414,6 +418,20 @@ if actual_sentinel_sha256 != expected_sentinel_sha256:
     fail(
         "App Store update live-network sentinel is not canonical; "
         f"found sha256 {actual_sentinel_sha256}"
+    )
+
+factory = root / factory_relative
+if not factory.is_file() or factory.is_symlink():
+    fail(f"required production update-reminder factory is missing or unsafe: {factory_relative}")
+try:
+    factory_bytes = factory.read_bytes()
+except OSError:
+    fail(f"required production update-reminder factory is unreadable: {factory_relative}")
+actual_factory_sha256 = hashlib.sha256(factory_bytes).hexdigest()
+if actual_factory_sha256 != expected_factory_sha256:
+    fail(
+        "production update-reminder factory is not canonical; "
+        f"found sha256 {actual_factory_sha256}"
     )
 
 scan_roots = [

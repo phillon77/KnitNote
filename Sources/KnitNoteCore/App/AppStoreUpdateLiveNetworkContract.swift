@@ -1,5 +1,51 @@
 import Foundation
 
+public struct AppStoreUpdateLookup: Sendable {
+    fileprivate typealias Fetcher = @Sendable (
+        _ countryCode: String?,
+        _ platform: AppStorePlatform
+    ) async -> AvailableAppUpdate?
+
+    private let fetcher: Fetcher
+
+    fileprivate init(fetcher: @escaping Fetcher) {
+        self.fetcher = fetcher
+    }
+
+    public func fetch(
+        countryCode: String?,
+        platform: AppStorePlatform
+    ) async -> AvailableAppUpdate? {
+        await fetcher(countryCode, platform)
+    }
+
+    public static func normalizedCountryCode(_ candidate: String?) -> String? {
+        guard
+            let candidate,
+            candidate.utf8.count == 2,
+            candidate.utf8.allSatisfy({ byte in
+                (65...90).contains(byte) || (97...122).contains(byte)
+            })
+        else {
+            return nil
+        }
+        return candidate.lowercased()
+    }
+
+    public static func alpha2CountryCode(
+        storefrontCountryCode: String?
+    ) -> String? {
+        guard let storefrontCountryCode else { return nil }
+        return switch storefrontCountryCode {
+        case "TWN": "tw"
+        case "USA": "us"
+        case "JPN": "jp"
+        case "DEU": "de"
+        default: nil
+        }
+    }
+}
+
 enum AppStoreUpdateLiveNetworkContract {
     typealias Loader = @Sendable (URLRequest) async throws -> AppUpdateHTTPResponse
 
@@ -47,6 +93,10 @@ enum AppStoreUpdateLiveNetworkContract {
         components.host = storeHost
         components.path = "/tw/app/id\(appleID)"
         return components.url
+    }
+
+    static func testLookup(loader: @escaping Loader) -> AppStoreUpdateLookup {
+        AppStoreUpdateLookup(fetcher: fetcher(loader: loader))
     }
 
     fileprivate static func fetcher(
@@ -142,12 +192,6 @@ enum AppStoreUpdateLiveNetworkContract {
 }
 
 extension AppStoreUpdateLookup {
-    init(loader: @escaping AppStoreUpdateLiveNetworkContract.Loader) {
-        self.init(
-            fetcher: AppStoreUpdateLiveNetworkContract.fetcher(loader: loader)
-        )
-    }
-
     public static func live(timeout: TimeInterval = 8) -> Self {
         let loader = AppStoreUpdateLiveNetworkContract.loader(timeout: timeout)
         return Self(

@@ -14,7 +14,7 @@ import Testing
         otherFamilyTokens: [String]
     ) async {
         let capturedRequest = RequestCapture()
-        let lookup = AppStoreUpdateLookup { request in
+        let lookup = AppStoreUpdateLiveNetworkContract.testLookup { request in
             await capturedRequest.record(request)
             return .init(data: Self.validPayload(supportedDevices: [supportedToken]), statusCode: 200)
         }
@@ -29,7 +29,7 @@ import Testing
         #expect(update?.storeURL.host == "apps.apple.com")
 
         for otherFamilyToken in otherFamilyTokens {
-            let otherFamilyLookup = AppStoreUpdateLookup { _ in
+            let otherFamilyLookup = AppStoreUpdateLiveNetworkContract.testLookup { _ in
                 .init(data: Self.validPayload(supportedDevices: [otherFamilyToken]), statusCode: 200)
             }
             #expect(await otherFamilyLookup.fetch(countryCode: "tw", platform: platform) == nil)
@@ -38,7 +38,7 @@ import Testing
 
     @Test(arguments: FailureCase.allCases)
     private func fetchFailsSilentForEveryInvalidResponse(_ failure: FailureCase) async {
-        let lookup = AppStoreUpdateLookup { _ in
+        let lookup = AppStoreUpdateLiveNetworkContract.testLookup { _ in
             try failure.load()
         }
 
@@ -53,7 +53,7 @@ import Testing
     ])
     func requestUsesEachValidCountryCode(candidate: String, expectedCountryCode: String) async {
         let capturedRequest = RequestCapture()
-        let lookup = AppStoreUpdateLookup { request in
+        let lookup = AppStoreUpdateLiveNetworkContract.testLookup { request in
             await capturedRequest.record(request)
             return .init(data: Self.validPayload(), statusCode: 200)
         }
@@ -68,7 +68,7 @@ import Testing
         #expect(AppStoreUpdateLookup.normalizedCountryCode(candidate) == nil)
 
         let capturedRequest = RequestCapture()
-        let lookup = AppStoreUpdateLookup { request in
+        let lookup = AppStoreUpdateLiveNetworkContract.testLookup { request in
             await capturedRequest.record(request)
             return .init(data: Self.validPayload(), statusCode: 200)
         }
@@ -81,7 +81,7 @@ import Testing
         #expect(AppStoreUpdateLookup.normalizedCountryCode(nil) == nil)
 
         let capturedRequest = RequestCapture()
-        let lookup = AppStoreUpdateLookup { request in
+        let lookup = AppStoreUpdateLiveNetworkContract.testLookup { request in
             await capturedRequest.record(request)
             return .init(data: Self.validPayload(), statusCode: 200)
         }

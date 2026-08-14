@@ -509,6 +509,58 @@ import Testing
         #expect(result.output.contains("unexpected network, analytics, or tracking source"))
     }
 
+    @Test(arguments: updateFactoryBypassMutations)
+    func staticAuditRejectsProductionFactoryBypassingTheLiveLookup(
+        mutation: UpdateFactoryBypassMutation
+    ) throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let factory = fixture.appending(
+            path: "KnitNote/App/AppUpdateReminderLiveFactory.swift"
+        )
+        let source = try String(contentsOf: factory, encoding: .utf8)
+        let broken = source.replacingOccurrences(
+            of: "        let lookup = AppStoreUpdateLookup.live()",
+            with: mutation.replacement
+        )
+        try #require(broken != source)
+        try broken.write(to: factory, atomically: true, encoding: .utf8)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0, Comment(rawValue: mutation.name))
+        #expect(
+            result.output.contains("production update-reminder factory is not canonical"),
+            Comment(rawValue: mutation.name)
+        )
+    }
+
+    @Test(arguments: unexpectedLookupCapabilitySources)
+    func staticAuditRejectsUnexpectedLookupCapabilityUse(
+        mutation: UnexpectedLookupCapabilitySource
+    ) throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let unexpected = fixture.appending(path: "KnitNote/UnexpectedLookup.swift")
+        try FileManager.default.createDirectory(
+            at: unexpected.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try mutation.source.write(
+            to: unexpected,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0, Comment(rawValue: mutation.name))
+        #expect(
+            result.output.contains("unexpected network, analytics, or tracking source"),
+            Comment(rawValue: mutation.name)
+        )
+    }
+
     @Test(arguments: unsafeLiveSessionMutations)
     func staticAuditRejectsEachMissingOrUnsafeLiveSessionSetting(
         mutation: UpdateNetworkSourceMutation
@@ -571,6 +623,50 @@ struct UpdateNetworkSourceMutation: Sendable, CustomTestStringConvertible {
 
     var testDescription: String { name }
 }
+
+struct UpdateFactoryBypassMutation: Sendable, CustomTestStringConvertible {
+    let name: String
+    let replacement: String
+
+    var testDescription: String { name }
+}
+
+private let updateFactoryBypassMutations = [
+    UpdateFactoryBypassMutation(
+        name: "direct fetcher constructor",
+        replacement: "        let lookup = AppStoreUpdateLookup(fetcher: { _, _ in nil })"
+    ),
+    UpdateFactoryBypassMutation(
+        name: "direct fetcher constructor hidden by live comment decoy",
+        replacement: """
+                // let lookup = AppStoreUpdateLookup.live()
+                let lookup = AppStoreUpdateLookup(fetcher: { _, _ in nil })
+        """
+    ),
+]
+
+struct UnexpectedLookupCapabilitySource: Sendable, CustomTestStringConvertible {
+    let name: String
+    let source: String
+
+    var testDescription: String { name }
+}
+
+private let unexpectedLookupCapabilitySources = [
+    UnexpectedLookupCapabilitySource(
+        name: "direct fetcher constructor outside the sentinel",
+        source: "let bypass = AppStoreUpdateLookup(fetcher: { _, _ in nil })\n"
+    ),
+    UnexpectedLookupCapabilitySource(
+        name: "sentinel test seam in production source",
+        source: """
+        let bypass = AppStoreUpdateLiveNetworkContract.testLookup { _ in
+            AppUpdateHTTPResponse(data: Data(), statusCode: 200)
+        }
+
+        """
+    ),
+]
 
 private let unsafeLiveSessionMutations = [
     UpdateNetworkSourceMutation(
@@ -812,6 +908,7 @@ private func makeUpdateNetworkScanFixture() throws -> URL {
         "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift",
         "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift",
         "KnitNote/App/AppUpdateFixture.swift",
+        "KnitNote/App/AppUpdateReminderLiveFactory.swift",
     ] {
         let source = releaseConfigurationRepositoryRoot.appending(path: relativePath)
         let destination = root.appending(path: relativePath)

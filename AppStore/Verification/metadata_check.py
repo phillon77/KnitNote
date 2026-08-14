@@ -212,11 +212,13 @@ def validate(path: Path) -> list[str]:
 
 def validate_root(root: Path) -> list[str]:
     if root.name != "Metadata" or root.parent.name != "KnittingCalculator":
-        return [
-            error
-            for name in GENERAL_METADATA_FILENAMES
-            for error in validate(root / name)
-        ]
+        established = [root / name for name in GENERAL_METADATA_FILENAMES]
+        additional = sorted(
+            path
+            for path in root.glob("*.md")
+            if path.name not in GENERAL_METADATA_FILENAMES
+        )
+        return [error for path in established + additional for error in validate(path)]
 
     expected = set(CALCULATOR_METADATA_FILENAMES)
     actual = {path.name for path in root.glob("*.md")}

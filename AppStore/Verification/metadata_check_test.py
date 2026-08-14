@@ -117,6 +117,18 @@ class MetadataCheckTests(unittest.TestCase):
                 errors = module.validate_root(root)
             self.assertTrue(any(f"{missing}: file:" in error for error in errors), errors)
 
+    def test_general_metadata_root_validates_additional_markdown_files(self) -> None:
+        module = metadata_check_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "AppStore/Metadata"
+            root.mkdir(parents=True)
+            (root / "en-US.md").write_text(self.metadata(), encoding="utf-8")
+            (root / "zh-Hant.md").write_text(self.metadata(), encoding="utf-8")
+            additional = root / "it-IT.md"
+            additional.write_text("- Name: Broken\n", encoding="utf-8")
+            errors = module.validate_root(root)
+        self.assertIn(f"{additional}: Subtitle: required non-empty field", errors)
+
     def test_calculator_metadata_requires_exact_locale_set(self) -> None:
         module = metadata_check_module()
         with tempfile.TemporaryDirectory() as directory:

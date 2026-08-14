@@ -1,17 +1,9 @@
 import Foundation
 
-enum LaunchServicesTestGate {
-    private static let gate = AsyncSerializedGate()
+actor LaunchServicesTestGate {
+    static let shared = LaunchServicesTestGate()
 
-    static func withSerializedAccess<Result>(
-        _ operation: @Sendable () throws -> Result
-    ) async rethrows -> Result where Result: Sendable {
-        try await gate.perform(operation)
-    }
-}
-
-private actor AsyncSerializedGate {
-    func perform<Result>(
+    func withLock<Result>(
         _ operation: @Sendable () throws -> Result
     ) rethrows -> Result where Result: Sendable {
         try operation()

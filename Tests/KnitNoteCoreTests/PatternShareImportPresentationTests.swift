@@ -12,7 +12,7 @@ import Testing
     func selectorAcceptsExactlyOneSupportedFileProvider(
         typeIdentifier: String
     ) async throws {
-        #expect(try await LaunchServicesTestGate.withSerializedAccess {
+        #expect(try await LaunchServicesTestGate.shared.withLock {
             try PatternShareImportAttachmentSelector.indexOfSingleSupportedFile(
                 in: [["public.file-url", typeIdentifier]]
             )
@@ -30,7 +30,7 @@ import Testing
         expected: PatternShareImportSelectionError
     ) async {
         await #expect(throws: expected) {
-            try await LaunchServicesTestGate.withSerializedAccess {
+            try await LaunchServicesTestGate.shared.withLock {
                 _ = try PatternShareImportAttachmentSelector.indexOfSingleSupportedFile(
                     in: registeredTypes
                 )
@@ -48,7 +48,7 @@ import Testing
         typeIdentifier: String,
         expected: String
     ) async throws {
-        let selection = try await LaunchServicesTestGate.withSerializedAccess {
+        let selection = try await LaunchServicesTestGate.shared.withLock {
             try PatternShareImportProviderSelection.select(
                 from: [[["public.file-url", typeIdentifier]]]
             )
@@ -61,7 +61,7 @@ import Testing
 
     @Test func providerSelectionRejectsMultipleExtensionItemsEvenWithOneAttachment() async {
         await #expect(throws: PatternShareImportSelectionError.multipleAttachments) {
-            try await LaunchServicesTestGate.withSerializedAccess {
+            try await LaunchServicesTestGate.shared.withLock {
                 _ = try PatternShareImportProviderSelection.select(
                     from: [[["com.adobe.pdf"]], []]
                 )

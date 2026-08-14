@@ -121,3 +121,26 @@ Status: **implementation complete / review-pending**
 - Exact Task 7 focused selection: **382 tests / 22 suites PASS in 8.915 seconds**.
 - No production source, project, catalog, full-suite rerun, build, archive, export, install, upload, submission, merge, push, or release action was performed by this fix.
 - The complete Swift suite and all later Task 7 gates remain pending until independent review clears this test-only fix.
+
+## LaunchServices fix — Review Fix Round 1
+
+Status: **implementation complete / review-pending**
+
+- Starting candidate: `52213c47407ea418b22411dab741cb0959665c2f`.
+- Review confirmed the actor gate and current coverage, but blocked the token-count source contract because wrapper removal plus comment decoys, or a new ungated UTType path, could preserve its expected counts.
+- The actor gate now exposes the explicit test-only boundary `await LaunchServicesTestGate.shared.withLock { ... }`; its suspension and non-reentrant synchronous-operation behavior are unchanged.
+- The replacement structural audit removes comments and string contents before parsing, finds only real shared-gate closure ranges, and requires every relevant `NSPredicate`, predicate evaluation, `UTType`, activation-context call, direct `NSItemProvider`, Pattern Share selector, and provider-selection call to fall within a gate. The existing `activationContext` helper is allowed only because every call to that helper is gated.
+
+### Mutation RED evidence
+
+- Removing a real Pattern Share wrapper and adding a comment containing the complete gate token: **1 intended issue**, `ungated attachment selector`.
+- Adding a new direct ungated `UTType.png.conforms(to:)` test while retaining every existing wrapper: **1 intended issue**, `ungated UTType`.
+- Replacing the Share activation wrapper with a compiling `do` block and adding the complete gate token only in a comment: **1 failed expectation** listing the missing shared gate and every activation predicate/UTType/context path as ungated.
+
+### Restored-source GREEN evidence
+
+- Structural contract plus 32-way actor exclusivity probe: **2 tests / 1 suite PASS in 0.096 seconds**.
+- Five consecutive combined bounded runs: **17 tests / 3 suites PASS** each in `0.209`, `0.191`, `0.185`, `0.200`, and `0.196` seconds; every run had a 30-second timeout.
+- Exact Task 7 focused selection: **382 tests / 22 suites PASS in 9.078 seconds**.
+- No production source, project, catalog, full-suite run, build, archive, export, install, upload, submission, merge, push, or release action was performed.
+- The complete Swift suite and remaining Task 7 gates stay pending until fresh review clears this round.

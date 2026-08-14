@@ -25,7 +25,7 @@ import UniformTypeIdentifiers
         #expect(exists)
         guard exists else { return }
 
-        try await LaunchServicesTestGate.withSerializedAccess {
+        try await LaunchServicesTestGate.shared.withLock {
             let plist = try #require(
                 PropertyListSerialization.propertyList(
                     from: Data(contentsOf: plistURL),

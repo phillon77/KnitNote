@@ -1,6 +1,6 @@
 # Pattern Folders Next-Version Verification
 
-Status: **AUTOMATED PREPARATION PASS / IPHONE CORE ACCEPTANCE PASS / REMAINING PHYSICAL ACCEPTANCE PENDING**
+Status: **AUTOMATED PREPARATION PASS / IPHONE CORE ACCEPTANCE PASS / BUILD 11 IPHONE OVERLAY PASS / REMAINING PHYSICAL ACCEPTANCE PENDING**
 
 ## Exact automated candidate
 
@@ -64,9 +64,27 @@ folder destination data, into `KnitNoteShare` for both simulator architectures.
 
 This pass is limited to the behaviors explicitly exercised above. It does not claim the
 extended import/failure matrix, VoiceOver/Dynamic Type, iPad, Mac, Watch, archive, export,
-upload, submission, release, or publication acceptance. At the time of this session, the
-later planned `1.5.1` (`11`) identity had not yet been built or installed and was not
-covered by this session.
+upload, submission, release, or publication acceptance.
+
+## iPhone Build 11 identity and data-preservation smoke — PASS
+
+- Acceptance date: `2026-08-14` (Asia/Taipei)
+- Device: iPhone 17 Pro Max (`iPhone`, iOS `26.6`)
+- Release branch: `release/knitnote-1.5.1-build11`
+- Built source: `9bce20096a8183437afc60de52a7e1f9540bec71`
+- Pre-install identity: `1.5.0` (`10`)
+- Post-install identity: `1.5.1` (`11`)
+- Main app, Watch app, and Share Extension were built as `1.5.1` (`11`) from the exact
+  source revision above and signed for Team `9CFPAUL5N5`.
+- The app was installed as a data-preserving overlay; no uninstall or erase occurred.
+- `xcrun devicectl device install app`, installed-identity query, and app launch exited `0`.
+- The user reported **PASS** after confirming the app opened and existing projects,
+  patterns, and folders remained present.
+
+This is a version-identity and data-preservation smoke check only. It reuses the prior
+iPhone core functional acceptance and does not newly claim the extended import/failure
+matrix, VoiceOver/Dynamic Type, iPad, Mac, Watch, archive, export, upload, submission,
+release, or publication acceptance.
 
 ## Read-only device availability before this acceptance session
 
@@ -81,6 +99,7 @@ was superseded by the physical acceptance session recorded above.
 ## Remaining physical acceptance checklist
 
 - [x] **PASS — iPhone core:** data-preserving overlay; folder-first navigation; All and Uncategorized; create, rename, delete, and long-press move; populated-folder deletion recovery; live language switching with user-created names preserved.
+- [x] **PASS — iPhone Build 11 overlay smoke:** exact `1.5.1` (`11`) identity from source `9bce200`; app launch and existing projects, patterns, and folders preserved.
 - [ ] **PENDING — iPhone extended:** scoped search; file and YouTube import destination; failure paths preserve the current selection and data; VoiceOver and Dynamic Type.
 - [ ] **PENDING — iPad:** sidebar/detail in portrait, landscape, and narrow Split View; folder CRUD/move/import/search; no hidden controls or clipped content.
 - [ ] **PENDING — Mac:** sidebar, context menus, keyboard focus, window resizing, folder CRUD/move/import/search, and failure recovery.

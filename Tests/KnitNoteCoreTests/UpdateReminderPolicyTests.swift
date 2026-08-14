@@ -19,6 +19,21 @@ import Testing
         #expect(UpdateReminderPolicy.shouldPresent(installed: installed, available: v153, dismissal: dismissal, now: now.addingTimeInterval(1)))
     }
 
+    @Test func presentsAnUndismissedVersionBelowThePreviouslyDismissedVersion() throws {
+        let installed = try #require(AppVersion("1.5.1"))
+        let available = try #require(AppVersion("1.5.2"))
+        let dismissedVersion = try #require(AppVersion("1.5.3"))
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let dismissal = UpdateReminderDismissal(version: dismissedVersion, dismissedAt: now)
+
+        #expect(UpdateReminderPolicy.shouldPresent(
+            installed: installed,
+            available: available,
+            dismissal: dismissal,
+            now: now.addingTimeInterval(1)
+        ))
+    }
+
     @Test func emptyHistoryHasNoDismissal() throws {
         let suiteName = "UpdateReminderPolicyTests.empty.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

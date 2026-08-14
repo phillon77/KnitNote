@@ -21,7 +21,7 @@ public enum UpdateReminderPolicy {
     ) -> Bool {
         guard available > installed else { return false }
         guard let dismissal else { return true }
-        guard available <= dismissal.version else { return true }
+        guard available == dismissal.version else { return true }
         return now.timeIntervalSince(dismissal.dismissedAt) >= snoozeInterval
     }
 }

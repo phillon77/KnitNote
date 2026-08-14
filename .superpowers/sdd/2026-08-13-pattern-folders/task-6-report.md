@@ -110,3 +110,10 @@ This is an independent catalog review, not a native-speaker or physical-device a
 - `git diff --check`: PASS.
 - No production Swift, generated project, String Catalog, localization/terminology contract, build, ReleaseAudit, full suite, archive, export, install, network, upload, submission, merge, push, or release action was changed or run.
 - Combined-review Fix Round 1 is **implementation complete / review-pending**. Overall Task 6 remains pending until fresh independent combined review closes the accessibility contract finding.
+
+## Final combined re-review
+
+- Exact reviewed candidate: `5a8fd54865faae7691d669d3a7ef0786108dd63d`.
+- Fresh independent re-review result: **SPEC PASS / QUALITY PASS**, with no Critical, Important, or Minor findings.
+- The strengthened per-control accessibility contracts close the prior false-pass weakness while the localization, terminology, exact 13-locale catalog, and production UI behavior remain unchanged and review-clean.
+- Task 6 is complete for its planned automated localization and source-accessibility scope. Physical VoiceOver, Dynamic Type, live language-switch, orientation/window-resizing, and data-preservation acceptance remain explicitly pending under Task 7.

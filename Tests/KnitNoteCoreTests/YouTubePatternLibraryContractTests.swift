@@ -22,20 +22,30 @@ import Testing
     }
 
     @Test func libraryOffersSeparateFileAndYouTubeAddActions() throws {
-        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let source = try readRepositoryFile(
+            "KnitNote/Patterns/PatternLibraryCollectionView.swift"
+        )
 
         #expect(source.contains("Menu {"))
         #expect(source.contains("Button(\"patterns.import.files\", systemImage: \"folder\")"))
         #expect(source.contains("Button(\"patterns.youtube.add\", systemImage: \"play.rectangle\")"))
-        #expect(source.contains("AddYouTubePatternView(targetProjectID: nil)"))
+        #expect(source.contains("AddYouTubePatternView("))
+        #expect(source.contains("targetProjectID: nil"))
+        #expect(source.contains("targetFolderID: destinationFolderID"))
+        #expect(source.contains("case .all, .uncategorized:"))
+        #expect(source.contains("case let .folder(folderID):"))
         #expect(source.contains("importing = true"))
         #expect(source.contains(".fileImporter("))
     }
 
     @Test func libraryYouTubeSheetReceivesTheSelectedAppLocale() throws {
-        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let source = try readRepositoryFile(
+            "KnitNote/Patterns/PatternLibraryCollectionView.swift"
+        )
 
-        #expect(source.contains("AddYouTubePatternView(targetProjectID: nil)"))
+        #expect(source.contains("AddYouTubePatternView("))
+        #expect(source.contains("targetProjectID: nil"))
+        #expect(source.contains("targetFolderID: destinationFolderID"))
         #expect(source.contains(".environment(\\.locale, locale)"))
     }
 

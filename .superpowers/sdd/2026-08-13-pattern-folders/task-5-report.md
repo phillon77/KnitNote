@@ -65,7 +65,7 @@ The clean Task 5 independent review approved this intentionally deferred Task 6 
 
 ## Remaining gates
 
-- Final combined Task 6 review is required before marking Task 6 complete.
+- Task 6 completed its final combined review at `5a8fd54` with Spec/Quality PASS and no findings.
 - iPhone, iPad, Mac, VoiceOver, Dynamic Type, orientation/window-resizing, language-switch, and data-preservation checks remain physical acceptance gates for Task 7; none is claimed here.
 
 ## Task 6 accessibility contract Fix Round 1
@@ -74,4 +74,12 @@ The clean Task 5 independent review approved this intentionally deferred Task 6 
 - The test now scopes assertions to the exact sidebar row, New/Rename/Delete controls, editor field/actions, move destination, and collection Move action. Each relevant control owns its required label, hint, minimum target, selected trait, or count assertion inside that bounded slice.
 - Mutation RED evidence: independently removing the New label, Rename hint, Delete count-aware hint, New 44-by-44 frame, or count from the sidebar-row accessibility label produced one issue at its intended assertion.
 - Restored-source GREEN: accessibility contracts **16/16**, Task 5 focused selection **75/75**, and Task 6 combined selection **102/102**.
-- No Task 5 production, generated project, catalog, or localization implementation changed. Task 5 remains complete and independently review-clean; the contract-only fix awaits the final combined Task 6 re-review.
+- No Task 5 production, generated project, catalog, or localization implementation changed. Task 5 remains complete and independently review-clean; the contract-only fix later passed the final combined Task 6 re-review at `5a8fd54` with no findings.
+
+## Pre-Task 7 YouTube contract ownership correction
+
+- The Task 7 focused gate exposed two stale source contracts left by Task 5's approved split: they still read `PatternLibraryView.swift`, while file/YouTube add actions and the YouTube sheet now belong to `PatternLibraryCollectionView.swift`.
+- RED was reproduced exactly as **8 tests / 1 suite with 7 issues**. Production already supplied `targetProjectID: nil`, the reactive locale, and `targetFolderID: destinationFolderID`; no product defect was found.
+- The narrow contract change follows the new source owner, retains the existing YouTube action/project/locale requirements, and adds selected-folder destination plus All/Uncategorized/user-folder mapping assertions.
+- GREEN: isolated YouTube Pattern Library suite **8/8**; exact Task 7 focused selection **382 tests / 22 suites PASS**.
+- No production, generated project, catalog, full suite, build, archive, export, upload, submission, or release action changed or ran.

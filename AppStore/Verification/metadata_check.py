@@ -27,6 +27,36 @@ REQUIRED = (
 CALCULATOR_REQUIRED = ("Copyright", "Apple ID")
 EXPECTED_COPYRIGHT = "© 2026 Chen Chung Lung"
 EXPECTED_APPLE_ID = "6795877892"
+CALCULATOR_METADATA_FILENAMES: tuple[str, ...] = (
+    "en-US.md",
+    "zh-Hant.md",
+    "zh-Hans.md",
+    "de-DE.md",
+    "fr-FR.md",
+    "ja-JP.md",
+    "ko-KR.md",
+    "nl-NL.md",
+    "nb-NO.md",
+    "sv-SE.md",
+    "fi-FI.md",
+    "da-DK.md",
+    "el-GR.md",
+)
+CALCULATOR_WHATS_NEW: dict[str, str] = {
+    "en-US.md": "Version 1.0.1 adds support for Simplified Chinese, German, French, Japanese, Korean, Dutch, Norwegian Bokmål, Swedish, Finnish, Danish, and Greek.",
+    "zh-Hant.md": "1.0.1 版新增簡體中文、德文、法文、日文、韓文、荷蘭文、挪威書面語、瑞典文、芬蘭文、丹麥文與希臘文支援。",
+    "zh-Hans.md": "1.0.1 版新增简体中文、德语、法语、日语、韩语、荷兰语、挪威书面语、瑞典语、芬兰语、丹麦语和希腊语支持。",
+    "de-DE.md": "Version 1.0.1 unterstützt jetzt vereinfachtes Chinesisch, Deutsch, Französisch, Japanisch, Koreanisch, Niederländisch, Norwegisch (Bokmål), Schwedisch, Finnisch, Dänisch und Griechisch.",
+    "fr-FR.md": "La version 1.0.1 est maintenant disponible en chinois simplifié, allemand, français, japonais, coréen, néerlandais, norvégien bokmål, suédois, finnois, danois et grec.",
+    "ja-JP.md": "バージョン 1.0.1 では、簡体字中国語、ドイツ語、フランス語、日本語、韓国語、オランダ語、ノルウェー語（ブークモール）、スウェーデン語、フィンランド語、デンマーク語、ギリシャ語に対応しました。",
+    "ko-KR.md": "1.0.1 버전부터 간체 중국어, 독일어, 프랑스어, 일본어, 한국어, 네덜란드어, 노르웨이어(보크몰), 스웨덴어, 핀란드어, 덴마크어, 그리스어를 지원합니다.",
+    "nl-NL.md": "Versie 1.0.1 ondersteunt nu vereenvoudigd Chinees, Duits, Frans, Japans, Koreaans, Nederlands, Noors (Bokmål), Zweeds, Fins, Deens en Grieks.",
+    "nb-NO.md": "Versjon 1.0.1 støtter nå forenklet kinesisk, tysk, fransk, japansk, koreansk, nederlandsk, norsk bokmål, svensk, finsk, dansk og gresk.",
+    "sv-SE.md": "Version 1.0.1 har nu stöd för förenklad kinesiska, tyska, franska, japanska, koreanska, nederländska, norskt bokmål, svenska, finska, danska och grekiska.",
+    "fi-FI.md": "Versio 1.0.1 tukee nyt kiinaa (yksinkertaistettu), saksaa, ranskaa, japania, koreaa, hollantia, norjan bokmålia, ruotsia, suomea, tanskaa ja kreikkaa.",
+    "da-DK.md": "Version 1.0.1 understøtter nu forenklet kinesisk, tysk, fransk, japansk, koreansk, hollandsk, norsk bokmål, svensk, finsk, dansk og græsk.",
+    "el-GR.md": "Η έκδοση 1.0.1 υποστηρίζει πλέον απλοποιημένα κινεζικά, γερμανικά, γαλλικά, ιαπωνικά, κορεατικά, ολλανδικά, νορβηγικά μποκμάλ, σουηδικά, φινλανδικά, δανικά και ελληνικά.",
+}
 FORBIDDEN = (
     " ai ",
     "cloud sync",
@@ -98,6 +128,12 @@ def validate(path: Path) -> list[str]:
     ):
         errors.append(f"{path}: Apple ID: must be {EXPECTED_APPLE_ID}")
 
+    approved_whats_new = CALCULATOR_WHATS_NEW.get(path.name) if calculator_metadata else None
+    if approved_whats_new and fields.get("What's New") != approved_whats_new:
+        errors.append(
+            f"{path}: What's New: must contain only the approved 1.0.1 language expansion"
+        )
+
     for name, limit in LIMITS.items():
         value = fields.get(name, "")
         length = len(value.encode("utf-8")) if name == "Keywords" else len(value)
@@ -133,13 +169,31 @@ def validate(path: Path) -> list[str]:
     return errors
 
 
+def validate_root(root: Path) -> list[str]:
+    if root.name != "Metadata" or root.parent.name != "KnittingCalculator":
+        return [error for path in sorted(root.glob("*.md")) for error in validate(path)]
+
+    expected = set(CALCULATOR_METADATA_FILENAMES)
+    actual = {path.name for path in root.glob("*.md")}
+    errors: list[str] = []
+    if missing := sorted(expected - actual):
+        errors.append(f"{root}: missing metadata locales: {', '.join(missing)}")
+    if extra := sorted(actual - expected):
+        errors.append(f"{root}: unexpected metadata locales: {', '.join(extra)}")
+    errors.extend(
+        error
+        for name in sorted(expected & actual)
+        for error in validate(root / name)
+    )
+    return errors
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: metadata_check.py AppStore/Metadata", file=sys.stderr)
         return 2
     root = Path(sys.argv[1])
-    paths = [root / "zh-Hant.md", root / "en-US.md"]
-    errors = [error for path in paths for error in validate(path)]
+    errors = validate_root(root)
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1

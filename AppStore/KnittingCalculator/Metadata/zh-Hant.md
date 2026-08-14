@@ -18,7 +18,7 @@
   想管理作品、計數器、毛線、織圖與編織日記嗎？KnitNote 是同一團隊推出、可另外使用的作品管理 App。
 - Support URL: https://phillon77.github.io/KnitNote/knitting-calculator.html
 - Privacy URL: https://phillon77.github.io/KnitNote/knitting-calculator-privacy.html
-- What's New: 首次推出：密度與平均加減針工具。
+- What's New: 1.0.1 版新增簡體中文、德文、法文、日文、韓文、荷蘭文、挪威書面語、瑞典文、芬蘭文、丹麥文與希臘文支援。
 - Copyright: © 2026 Chen Chung Lung
 - Apple ID: 6795877892
 - Review Notes: 不需要登入、帳號、購買、任何權限或網路連線。啟動後即可使用兩個計算器、裝置內草稿、說明、複製與分享文字。可選的 KnitNote 連結只出現在首頁與設定，會開啟另一個 App 或其 App Store 頁面。

@@ -18,7 +18,7 @@
   Need to manage projects, counters, yarn, patterns, and a knitting journal? KnitNote is a separate project-management app from the same team.
 - Support URL: https://phillon77.github.io/KnitNote/knitting-calculator.html
 - Privacy URL: https://phillon77.github.io/KnitNote/knitting-calculator-privacy.html
-- What's New: First release with gauge and even stitch-adjustment tools.
+- What's New: Version 1.0.1 adds support for Simplified Chinese, German, French, Japanese, Korean, Dutch, Norwegian Bokmål, Swedish, Finnish, Danish, and Greek.
 - Copyright: © 2026 Chen Chung Lung
 - Apple ID: 6795877892
 - Review Notes: No sign-in, account, purchase, permission, or network connection is required. Both calculators, local draft storage, help, copy, and share text are available immediately after launch. The optional KnitNote link appears only on Home and Settings and opens a separate app or its App Store page.

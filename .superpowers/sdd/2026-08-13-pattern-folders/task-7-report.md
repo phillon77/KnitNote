@@ -144,3 +144,25 @@ Status: **implementation complete / review-pending**
 - Exact Task 7 focused selection: **382 tests / 22 suites PASS in 9.078 seconds**.
 - No production source, project, catalog, full-suite run, build, archive, export, install, upload, submission, merge, push, or release action was performed.
 - The complete Swift suite and remaining Task 7 gates stay pending until fresh review clears this round.
+
+## LaunchServices fix — Review Fix Round 2
+
+Status: **implementation complete / review-pending**
+
+- Starting candidate: `b9b7a1d18e02d49cc93f41223d998ba527de9db2`.
+- Fix Round 1 re-review confirmed the actor and current coverage but found that exact-byte hazard spellings could be bypassed by valid Swift whitespace and by executable expressions inside string interpolation.
+- The byte-pattern scanner was replaced rather than patched. The new minimal Swift token lexer ignores nested comments and inert string content, tokenizes executable interpolation expressions (including nested parentheses/strings and raw-string hash delimiters), normalizes whitespace naturally through token sequences, and derives gate/function brace ranges from tokens.
+- Hazard detection now follows identifier/member tokens rather than exact source formatting. Spaced `NSPredicate`, `UTType`, selector/provider calls, and interpolation-executed UTType references cannot bypass the shared actor boundary; inert comments and plain string decoys remain ignored.
+
+### RED and mutation evidence
+
+- Persistent token-audit test against the old scanner: **4 intended issues** because spaced NSPredicate, two UTType paths, spaced selector, and spaced provider hazards all produced zero detected counts while the inert decoys and valid gate remained present.
+- Actual compiled temporary mutation added all four valid spaced forms plus `"\(UTType.png.identifier)"` outside the gate. The structural contract failed with one expectation listing exactly five hazards: one `NSPredicate`, two `UTType` paths, one attachment selector, and one provider selection.
+
+### Restored-source GREEN evidence
+
+- Current source audit, token-lexer regression, and 32-way actor exclusivity probe: **3 tests / 1 suite PASS in 0.097 seconds**.
+- Five consecutive combined bounded runs: **18 tests / 3 suites PASS** each in `0.199`, `0.185`, `0.196`, `0.185`, and `0.192` seconds; every run had a 30-second timeout.
+- Exact Task 7 focused selection: **382 tests / 22 suites PASS in 8.873 seconds**.
+- The actor, current gate call sites, production source, project, and catalog are unchanged. No full-suite run, build, archive, export, install, upload, submission, merge, push, or release action was performed.
+- The complete Swift suite and remaining Task 7 gates stay pending until fresh review clears this round.

@@ -1,12 +1,12 @@
 # Task 7 Report — Automated and Physical Acceptance Preparation
 
-Status: **FINAL REVIEW FIX ROUND 1 IMPLEMENTATION COMPLETE / REVIEW-PENDING / PRIOR AUTOMATED EVIDENCE SUPERSEDED / PHYSICAL PENDING**
+Status: **FINAL AUTOMATED PREPARATION PASS / PHYSICAL ACCEPTANCE PENDING**
 
 ## Current state
 
-- Final whole-branch review at `d00bb36c93368b517987f033f91ebaec08a7fc1c` found one Important persisted folder-name invariant gap and six Minor coverage/report/whitespace findings.
-- The implementation closes those findings in the working candidate. The earlier 1523-test and unsigned-build evidence remains historical evidence for `ef6c0c2`, not acceptance of the new source.
-- A fresh focused review is required before any replacement full suite/build run. All physical checklist items remain unchecked.
+- Final Fix Round 1 is independently reviewed at exact source `f926a595948165b1fc64e8c9a5c453dc27857b1d`: SPEC PASS, QUALITY PASS with one nonblocking Minor, and final full-suite rerun clearance YES.
+- Fresh final evidence replaces the prior `ef6c0c2` automated record: 1529/1529 tests PASS, four unsigned builds PASS, schema-12 preservation PASS, and all built products identify as 1.5.0 (10).
+- All physical checklist items remain unchecked/PENDING. No install or launch was attempted.
 
 ## Final whole-branch review Fix Round 1
 
@@ -269,3 +269,19 @@ Status: **implementation complete / review-pending / later gates remain blocked*
 - Production source restored with no diff; `git diff --check` PASS.
 - No replacement full suite, XcodeGen, build, archive, export, install, network, upload, submission, merge, push, or release action ran.
 - Await fresh review and explicit resume clearance before starting another full-suite run or any later Task 7 gate.
+
+## Final Fix Round 1 review and replacement automated preparation
+
+Status: **AUTOMATED PASS / PHYSICAL PENDING**
+
+- Exact source candidate: `f926a595948165b1fc64e8c9a5c453dc27857b1d`.
+- Independent final review: **SPEC PASS / QUALITY PASS** with one nonblocking Minor and explicit final rerun clearance YES.
+- Reviewed exact Task 7 selection: **387 tests / 22 suites PASS**.
+- Exactly one fresh retained complete-suite run: **1529 tests / 128 suites PASS in 304.224 seconds**, true pipefail exit `0`; log `/tmp/KnitNotePatternFolders-full-f926a59.log`, SHA-256 `6f99f635fd2eb35726357a70c33425f99ac6b82e849112db0b97f34c6653dc44`.
+- Two consecutive XcodeGen runs were byte-stable before, between, and after at SHA-256 `c3b2be0d83aef5a900f01c53cc02f6b7a0f631deab97eeb5dce6fff7645b560f`; generated project unchanged and `git diff --check` PASS.
+- Four exact unsigned builds PASS with `** BUILD SUCCEEDED **`: iOS Simulator, macOS, watchOS Simulator, and Share Extension. The supported existing `KnitNoteShare` scheme was used because current Xcode rejects `-target` together with `-derivedDataPath`.
+- Schema-12 migration preservation probe: **1 test PASS in 0.031 seconds**; log SHA-256 `4b2e53ca28cc6571cd0f62735c5e2ba4844ca3440056dc37f29a23669dac5525`.
+- Built iOS, macOS, Watch, and Share products all report marketing version `1.5.0`, build `10`; bundle identifiers are `com.phillon.KnitNote`, `com.phillon.KnitNote.watch`, and `com.phillon.KnitNote.share` as appropriate. Every build invocation was bound to exact HEAD `f926a595948165b1fc64e8c9a5c453dc27857b1d`.
+- Read-only device availability: Mac available; iPad Air 5, iPhone 17 Pro Max, and Apple Watch Ultra 2 unavailable. No install or launch attempted.
+- `AppStore/Verification/PatternFoldersNextVersionVerification.md` is rebound to the exact final source and leaves all six physical acceptance boxes unchecked/PENDING. The prior `d00bb36` acceptance evidence for `ef6c0c2` is superseded.
+- No archive, export, install, launch, uninstall, erase, upload, App Store Connect action, submission, merge, push, or release occurred.

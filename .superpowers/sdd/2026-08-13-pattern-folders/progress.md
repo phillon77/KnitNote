@@ -1,7 +1,7 @@
 # SDD ledger — plan: docs/superpowers/plans/2026-08-13-pattern-folders.md
 
 Plan base: 0c728eeb4abf77eb27d34eb27ac38f8a28d302d0
-Current status: final whole-branch review Fix Round 1 implementation complete / review-pending at base `d00bb36`; prior automated PASS belongs to source `ef6c0c2` and is superseded for the changed candidate. Physical acceptance remains PENDING. Historical task entries follow chronologically below.
+Current status: final automated preparation PASS at source `f926a59`, version 1.5.0 build 10; physical acceptance remains PENDING. Historical task entries follow chronologically below.
 Task 1: complete (commits 0c728ee..e56379e, review clean)
 Task 1 follow-through for Task 2: archive normalization must address malformed historical untrimmed folder names
 Task 2: pending
@@ -49,3 +49,4 @@ Task 7 stale Task 5 contract correction: implementation complete / review-pendin
 Task 7 pre-gate contract Fix Round 1: implementation complete / review-pending after review BLOCKED `a4b4cfc` on two Important false-pass gaps. Tests now fail closed on the exact add-menu block, file-import consumer, `destinationFolderID` property branches, and AddYouTube sheet locale block. Six independent mutations RED: wrong All/Uncategorized result (1 issue), wrong user-folder result (1), removed destination switch despite `scopeTitle` decoys (2), removed YouTube locale despite Move-sheet decoy (1), wrong YouTube locale (1), and add menu changed while sort `Menu` remained (1). Restored production has no diff; isolated 8/8 and exact Task 7 focused 382/382 across 22 suites PASS. Await fresh review before resuming Task 7 gates.
 
 Task 2 authorized schema-source design cycle (2026-08-14): implementation commit pending independent review. The indentation-parser workaround is replaced by the dedicated canonical compiled schema source and exact-byte audit. Task 2 status: review-pending (not complete); await independent spec/quality review before advancing Task 3.
+Task 7 final Fix Round 1: review-clean at exact source `f926a595948165b1fc64e8c9a5c453dc27857b1d` (SPEC PASS / QUALITY PASS with one nonblocking Minor), final rerun clearance YES. Exactly one fresh logged full suite passed 1529/1529 tests across 128 suites in 304.224s with pipefail exit 0. XcodeGen was byte-stable twice with no project diff; four unsigned builds passed; schema-12 preservation passed 1/1; all products report 1.5.0 (10). Read-only devices: Mac available, iPad/iPhone/Watch unavailable. Verification record rebound to f926 with every physical box unchecked/PENDING. No install, launch, archive, export, upload, submission, or release action.

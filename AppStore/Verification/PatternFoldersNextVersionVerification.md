@@ -1,6 +1,6 @@
 # Pattern Folders Next-Version Verification
 
-Status: **AUTOMATED PREPARATION PASS / PHYSICAL ACCEPTANCE PENDING**
+Status: **AUTOMATED PREPARATION PASS / IPHONE CORE ACCEPTANCE PASS / REMAINING PHYSICAL ACCEPTANCE PENDING**
 
 ## Exact automated candidate
 
@@ -47,18 +47,40 @@ model/presentation sources into the main app. The Share graph compiled the
 schema-13 inbox payload source `PatternInboxItem.swift`, including captured
 folder destination data, into `KnitNoteShare` for both simulator architectures.
 
-## Read-only device availability
+## iPhone physical acceptance — PASS for tested core scope
 
-No install or launch was attempted.
+- Acceptance date: `2026-08-14` (Asia/Taipei)
+- Device: iPhone 17 Pro Max (`iPhone`, iOS `26.6`)
+- Installed by data-preserving overlay: `com.phillon.KnitNote` `1.5.0` (`10`)
+- Built source: `f926a595948165b1fc64e8c9a5c453dc27857b1d`
+- Pre-install identity: `1.5.0` (`9`)
+- Post-install identity: `1.5.0` (`10`)
+- `xcrun devicectl device install app` and subsequent app launch both exited `0`.
+- The user reported **PASS** after checking that existing projects and patterns remained,
+  folder-first navigation worked, All and Uncategorized worked, folder create/rename/delete
+  worked, long-press move worked, deleting a populated folder returned its patterns to
+  Uncategorized, and live language switching did not translate user-created folder or
+  pattern names.
+
+This pass is limited to the behaviors explicitly exercised above. It does not claim the
+extended import/failure matrix, VoiceOver/Dynamic Type, iPad, Mac, Watch, archive, export,
+upload, submission, release, or publication acceptance. The later planned `1.5.1` (`11`)
+identity has not yet been built or installed and is not covered by this session.
+
+## Read-only device availability before this acceptance session
+
+At automated-preparation time, no install or launch had been attempted. The iPhone state
+was superseded by the physical acceptance session recorded above.
 
 - MacBook Pro (`My Mac`, macOS `26.6.1`): available.
 - iPad Air 5 (`Lzzipadair5`, iPadOS `26.5.2`): unavailable; device discovery requested unlock/cable or same-network Developer Mode access.
 - iPhone 17 Pro Max (`iPhone`, iOS `26.6`): unavailable; device discovery requested unlock/cable or same-network Developer Mode access.
 - Apple Watch Ultra 2 (`Phil的Apple Watch`, watchOS `26.6`): unavailable; device discovery requested unlock/Bluetooth discoverability.
 
-## Physical acceptance checklist — all PENDING
+## Remaining physical acceptance checklist
 
-- [ ] **PENDING — iPhone:** folder-first navigation; create, rename, and delete; long-press move; scoped search; file and YouTube import destination; failure paths preserve the current selection and data.
+- [x] **PASS — iPhone core:** data-preserving overlay; folder-first navigation; All and Uncategorized; create, rename, delete, and long-press move; populated-folder deletion recovery; live language switching with user-created names preserved.
+- [ ] **PENDING — iPhone extended:** scoped search; file and YouTube import destination; failure paths preserve the current selection and data; VoiceOver and Dynamic Type.
 - [ ] **PENDING — iPad:** sidebar/detail in portrait, landscape, and narrow Split View; folder CRUD/move/import/search; no hidden controls or clipped content.
 - [ ] **PENDING — Mac:** sidebar, context menus, keyboard focus, window resizing, folder CRUD/move/import/search, and failure recovery.
 - [ ] **PENDING — Accessibility:** VoiceOver names, counts, selected state, actions and hints; Dynamic Type; minimum touch targets; orientation/window-resizing behavior.

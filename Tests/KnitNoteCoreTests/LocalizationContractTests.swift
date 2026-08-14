@@ -426,6 +426,51 @@ import Testing
         }
     }
 
+    @Test func shippingMainCatalogRequiresCompleteAppUpdateReminderDomain() throws {
+        let root = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let url = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")
+        let catalog = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let requiredUpdateKeys = [
+            "update.available.title",
+            "update.available.message",
+            "update.available.currentVersion",
+            "update.available.latestVersion",
+            "update.available.openStore",
+            "update.available.later",
+        ]
+
+        #expect(Set(requiredUpdateKeys).isSubset(of: Set(strings.keys)))
+        for key in requiredUpdateKeys {
+            let entry = try #require(strings[key] as? [String: Any])
+            #expect(entry["extractionState"] as? String == "manual")
+            let comment = (entry["comment"] as? String)?.lowercased() ?? ""
+            #expect(comment.contains("app update"))
+
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v150Identifiers))
+            for language in SupportedLocalization.v150Identifiers {
+                let localization = try #require(localizations[language] as? [String: Any])
+                #expect(Set(localization.keys) == ["stringUnit"])
+                let unit = try #require(localization["stringUnit"] as? [String: Any])
+                #expect(unit["state"] as? String == "translated")
+                let value = try #require(unit["value"] as? String)
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                #expect(!trimmed.isEmpty)
+                #expect(trimmed != key)
+
+                if key == "update.available.message" {
+                    #expect(appUpdateFormatTokens(in: value) == ["%1$@", "%2$@"])
+                }
+            }
+        }
+    }
+
     @Test func shippingMainCatalogRequiresTheCompletePatternFolderKeyDomain() throws {
         let root = URL(filePath: #filePath)
             .deletingLastPathComponent()
@@ -705,6 +750,15 @@ import Testing
     }
 }
 
+private func appUpdateFormatTokens(in value: String) -> [String] {
+    let pattern = #"%(?!%)(?:[1-9][0-9]*\$)?[-+ #0']*(?:[0-9]+|\*)?(?:\.(?:[0-9]+|\*))?(?:hh|h|ll|l|q|L|z|t|j)?[@a-zA-Z]"#
+    let expression = try! NSRegularExpression(pattern: pattern)
+    let range = NSRange(value.startIndex..., in: value)
+    return expression.matches(in: value, range: range).compactMap { match in
+        Range(match.range, in: value).map { String(value[$0]) }
+    }
+}
+
 private func isValidDirectPatternFolderLocalization(
     _ localization: [String: Any]?,
     key: String
@@ -755,6 +809,77 @@ private func isValidDirectPatternFolderLocalization(
         "counter.reminder.stop": "Stop reminder",
         "counter.reminder.reached": "Reached row %lld.",
         "counter.reminder.replace": "Replace Reminder",
+    ]
+
+    private let appUpdateReminderCopyOracle: [String: [String: String]] = [
+        "update.available.title": [
+            "en": "New Version Available",
+            "zh-Hant": "有新版本可用",
+            "zh-Hans": "有新版本可用",
+            "de": "Neue Version verfügbar",
+            "fr": "Nouvelle version disponible",
+            "ja": "新しいバージョンがあります",
+            "nb": "Ny versjon tilgjengelig",
+            "sv": "Ny version tillgänglig",
+            "fi": "Uusi versio saatavilla",
+            "da": "Ny version tilgængelig",
+            "ko": "새 버전을 사용할 수 있습니다",
+            "el": "Υπάρχει νέα έκδοση",
+            "nl": "Nieuwe versie beschikbaar",
+        ],
+        "update.available.message": [
+            "en": "A newer version of KnitNote is available.\n%1$@\n%2$@",
+            "zh-Hant": "KnitNote 已推出較新的版本。\n%1$@\n%2$@",
+            "zh-Hans": "KnitNote 已推出更新版本。\n%1$@\n%2$@",
+            "de": "Eine neuere Version von KnitNote ist verfügbar.\n%1$@\n%2$@",
+            "fr": "Une version plus récente de KnitNote est disponible.\n%1$@\n%2$@",
+            "ja": "KnitNoteの新しいバージョンが利用できます。\n%1$@\n%2$@",
+            "nb": "En nyere versjon av KnitNote er tilgjengelig.\n%1$@\n%2$@",
+            "sv": "En nyare version av KnitNote finns tillgänglig.\n%1$@\n%2$@",
+            "fi": "KnitNotesta on saatavilla uudempi versio.\n%1$@\n%2$@",
+            "da": "Der er en nyere version af KnitNote.\n%1$@\n%2$@",
+            "ko": "KnitNote의 새 버전을 사용할 수 있습니다.\n%1$@\n%2$@",
+            "el": "Υπάρχει διαθέσιμη νεότερη έκδοση του KnitNote.\n%1$@\n%2$@",
+            "nl": "Er is een nieuwere versie van KnitNote beschikbaar.\n%1$@\n%2$@",
+        ],
+        "update.available.currentVersion": [
+            "en": "Current version",
+            "zh-Hant": "目前版本",
+        ],
+        "update.available.latestVersion": [
+            "en": "Latest version",
+            "zh-Hant": "最新版本",
+        ],
+        "update.available.openStore": [
+            "en": "Go to App Store",
+            "zh-Hant": "前往 App Store",
+            "zh-Hans": "前往 App Store",
+            "de": "Zum App Store",
+            "fr": "Accéder à l’App Store",
+            "ja": "App Storeを開く",
+            "nb": "Gå til App Store",
+            "sv": "Gå till App Store",
+            "fi": "Siirry App Storeen",
+            "da": "Gå til App Store",
+            "ko": "App Store로 이동",
+            "el": "Μετάβαση στο App Store",
+            "nl": "Ga naar de App Store",
+        ],
+        "update.available.later": [
+            "en": "Later",
+            "zh-Hant": "稍後",
+            "zh-Hans": "稍后",
+            "de": "Später",
+            "fr": "Plus tard",
+            "ja": "あとで",
+            "nb": "Senere",
+            "sv": "Senare",
+            "fi": "Myöhemmin",
+            "da": "Senere",
+            "ko": "나중에",
+            "el": "Αργότερα",
+            "nl": "Later",
+        ],
     ]
 
     private let requiredWatchTranslations = [
@@ -1321,6 +1446,12 @@ private func isValidDirectPatternFolderLocalization(
                 "patterns.folder.error.reserved",
                 "patterns.folder.error.missing",
                 "patterns.folder.error.saveFailed",
+                "update.available.title",
+                "update.available.message",
+                "update.available.currentVersion",
+                "update.available.latestVersion",
+                "update.available.openStore",
+                "update.available.later",
             ]
         )
         try assertCompleteCatalog(
@@ -1372,6 +1503,42 @@ private func isValidDirectPatternFolderLocalization(
                 strings: strings
             ) == "2 reminders crossed"
         )
+    }
+
+    @Test func appUpdateReminderUsesExactApprovedCopy() throws {
+        let strings = try catalogStrings()
+        let fullLocaleKeys: Set<String> = [
+            "update.available.title",
+            "update.available.message",
+            "update.available.openStore",
+            "update.available.later",
+        ]
+
+        #expect(Set(appUpdateReminderCopyOracle.keys) == [
+            "update.available.title",
+            "update.available.message",
+            "update.available.currentVersion",
+            "update.available.latestVersion",
+            "update.available.openStore",
+            "update.available.later",
+        ])
+        for (key, expectedTranslations) in appUpdateReminderCopyOracle {
+            if fullLocaleKeys.contains(key) {
+                #expect(
+                    Set(expectedTranslations.keys)
+                        == Set(SupportedLocalization.v150Identifiers)
+                )
+            } else {
+                #expect(Set(expectedTranslations.keys) == ["en", "zh-Hant"])
+            }
+
+            for (language, expectedValue) in expectedTranslations {
+                #expect(
+                    try localizedValue(key, language: language, strings: strings)
+                        == expectedValue
+                )
+            }
+        }
     }
 
     @Test func infoPlistCatalogIsCompleteForVersion150Languages() throws {

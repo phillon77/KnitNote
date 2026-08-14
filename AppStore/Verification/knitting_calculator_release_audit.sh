@@ -5,8 +5,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 EXPECTED_BUNDLE="com.phillon.KnittingCalculator"
-EXPECTED_VERSION="1.0.0"
-EXPECTED_BUILD="2"
+EXPECTED_VERSION="1.0.1"
+EXPECTED_BUILD="3"
 EXPECTED_APP_STORE_ID="6795877892"
 EXPECTED_TEAM_IDENTIFIER="9CFPAUL5N5"
 PROJECT_SPEC="KnittingCalculator/project.yml"
@@ -290,6 +290,46 @@ verify_static_metadata() {
     || fail "XcodeGen target identity/version/build does not match ${EXPECTED_BUNDLE} ${EXPECTED_VERSION} (${EXPECTED_BUILD})"
 }
 
+verify_generated_project_metadata() {
+  local generated_versions
+  local generated_builds
+  local generated_known_regions
+  local expected_known_regions
+
+  generated_versions="$(
+    rg -o 'MARKETING_VERSION = [^;]+' "$PROJECT_FILE/project.pbxproj" \
+      | sed 's/MARKETING_VERSION = //' | sort -u
+  )"
+  [[ "$generated_versions" == "$EXPECTED_VERSION" ]] \
+    || fail "generated project marketing version is not $EXPECTED_VERSION"
+
+  generated_builds="$(
+    rg -o 'CURRENT_PROJECT_VERSION = [^;]+' "$PROJECT_FILE/project.pbxproj" \
+      | sed 's/CURRENT_PROJECT_VERSION = //' | sort -u
+  )"
+  [[ "$generated_builds" == "$EXPECTED_BUILD" ]] \
+    || fail "generated project build number is not $EXPECTED_BUILD"
+
+  generated_known_regions="$(
+    awk '
+      /knownRegions = \(/ { inside = 1; next }
+      inside && /\);/ { exit }
+      inside {
+        gsub(/^[[:space:]]+|,[[:space:]]*$/, "")
+        gsub(/^\"|\"$/, "")
+        print
+      }
+    ' "$PROJECT_FILE/project.pbxproj" | LC_ALL=C sort -u
+  )"
+  expected_known_regions="$(
+    printf '%s\n' \
+      Base da de el en fi fr ja ko nb nl sv zh-Hans zh-Hant \
+      | LC_ALL=C sort
+  )"
+  [[ "$generated_known_regions" == "$expected_known_regions" ]] \
+    || fail "generated project known regions do not match supported app locales"
+}
+
 verify_independent_project_scope() {
   local project_listing
   require_file "$PROJECT_SPEC"
@@ -465,7 +505,7 @@ verify_app_bundle() {
   plutil -lint "$resources/PrivacyInfo.xcprivacy" >/dev/null \
     || fail "archive privacy manifest is invalid"
   require_file "$resources/Assets.car"
-  for locale in en 'zh-Hant'; do
+  for locale in da de el en fi fr ja ko nb nl sv 'zh-Hans' 'zh-Hant'; do
     require_file "$resources/$locale.lproj/Localizable.strings"
     require_file "$resources/$locale.lproj/InfoPlist.strings"
   done
@@ -526,6 +566,7 @@ done
 plutil -lint KnittingCalculator/Info.plist KnittingCalculator/PrivacyInfo.xcprivacy >/dev/null
 verify_independent_project_scope
 verify_static_metadata
+verify_generated_project_metadata
 verify_free_privacy_manifest
 verify_string_catalog KnittingCalculator/Localization/InfoPlist.xcstrings
 verify_string_catalog KnittingCalculator/Localization/Localizable.xcstrings

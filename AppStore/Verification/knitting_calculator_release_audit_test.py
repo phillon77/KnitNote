@@ -21,6 +21,21 @@ AUDIT_RELATIVE_PATH = Path(
 SOURCE_CHECK_RELATIVE_PATH = Path(
     "AppStore/Verification/knitting_calculator_release_source_check.py"
 )
+SUPPORTED_APP_LOCALES = (
+    "da",
+    "de",
+    "el",
+    "en",
+    "fi",
+    "fr",
+    "ja",
+    "ko",
+    "nb",
+    "nl",
+    "sv",
+    "zh-Hans",
+    "zh-Hant",
+)
 
 
 class ReleaseAuditFixture:
@@ -57,15 +72,6 @@ class ReleaseAuditFixture:
         shutil.copy2(
             REPOSITORY_ROOT / SOURCE_CHECK_RELATIVE_PATH,
             self.root / SOURCE_CHECK_RELATIVE_PATH,
-        )
-
-        project_spec = self.root / "KnittingCalculator/project.yml"
-        project_spec.write_text(
-            project_spec.read_text(encoding="utf-8").replace(
-                "CURRENT_PROJECT_VERSION: 1",
-                "CURRENT_PROJECT_VERSION: 2",
-            ),
-            encoding="utf-8",
         )
 
         # Forbidden vocabulary in test fixtures must never be treated as a
@@ -156,8 +162,8 @@ exit 0
         self,
         *,
         bundle: str = "com.phillon.KnittingCalculator",
-        version: str = "1.0.0",
-        build: str = "2",
+        version: str = "1.0.1",
+        build: str = "3",
         artifact_app_store_id: str = "6795877892",
     ) -> Path:
         archive = self.root / "Fixture.xcarchive"
@@ -177,8 +183,8 @@ exit 0
         self,
         *,
         bundle: str = "com.phillon.KnittingCalculator",
-        version: str = "1.0.0",
-        build: str = "2",
+        version: str = "1.0.1",
+        build: str = "3",
         artifact_app_store_id: str = "6795877892",
     ) -> Path:
         payload_root = self.root / "ipa-source"
@@ -235,7 +241,7 @@ exit 0
         )
         (app / "Assets.car").write_bytes(b"fixture")
         (app / "embedded.mobileprovision").write_bytes(b"fixture")
-        for locale in ("en", "zh-Hant"):
+        for locale in SUPPORTED_APP_LOCALES:
             localized = app / f"{locale}.lproj"
             localized.mkdir()
             (localized / "Localizable.strings").write_text(
@@ -267,6 +273,36 @@ class KnittingCalculatorReleaseAuditTests(unittest.TestCase):
         result = self.fixture.run("--static-only")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("KNITTING CALCULATOR RELEASE AUDIT: PASS", result.stdout)
+
+    def test_rejects_partially_updated_generated_project(self) -> None:
+        project = self.fixture.root / "KnittingCalculator.xcodeproj/project.pbxproj"
+        project.write_text(
+            project.read_text(encoding="utf-8").replace(
+                "MARKETING_VERSION = 1.0.1;",
+                "MARKETING_VERSION = 1.0.0;",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+        self.assert_boundary_failure(
+            "generated project marketing version is not 1.0.1"
+        )
+
+    def test_rejects_generated_project_missing_supported_region(self) -> None:
+        project = self.fixture.root / "KnittingCalculator.xcodeproj/project.pbxproj"
+        project.write_text(
+            project.read_text(encoding="utf-8").replace(
+                "\t\t\t\t\"zh-Hant\",\n",
+                "",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+        self.assert_boundary_failure(
+            "generated project known regions do not match supported app locales"
+        )
 
     def test_rejects_commerce_in_app_production_source(self) -> None:
         source = self.fixture.root / "KnittingCalculator/App/Commerce.swift"
@@ -548,8 +584,8 @@ let package = Package(
                 {"bundle": "com.phillon.Wrong"},
                 "archive bundle identifier is not com.phillon.KnittingCalculator",
             ),
-            ({"version": "1.0.1"}, "archive marketing version is not 1.0.0"),
-            ({"build": "1"}, "archive build number is not 2"),
+            ({"version": "1.0.0"}, "archive marketing version is not 1.0.1"),
+            ({"build": "2"}, "archive build number is not 3"),
         )
         for values, expected_message in cases:
             with self.subTest(values=values):
@@ -569,8 +605,8 @@ let package = Package(
                 {"bundle": "com.phillon.Wrong"},
                 "archive bundle identifier is not com.phillon.KnittingCalculator",
             ),
-            ({"version": "1.0.1"}, "archive marketing version is not 1.0.0"),
-            ({"build": "1"}, "archive build number is not 2"),
+            ({"version": "1.0.0"}, "archive marketing version is not 1.0.1"),
+            ({"build": "2"}, "archive build number is not 3"),
         )
         for values, expected_message in cases:
             with self.subTest(values=values):
@@ -583,6 +619,12 @@ let package = Package(
         result = self.fixture.run("--ipa", str(ipa))
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn("artifact App Store ID is not 6795877892", result.stderr)
+
+    def test_rejects_build_two_archive(self) -> None:
+        archive = self.fixture.write_archive(version="1.0.0", build="2")
+        result = self.fixture.run("--archive", str(archive))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("archive marketing version is not 1.0.1", result.stderr)
 
 
 if __name__ == "__main__":

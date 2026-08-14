@@ -351,7 +351,19 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				da,
+				de,
+				el,
 				en,
+				fi,
+				fr,
+				ja,
+				ko,
+				nb,
+				nl,
+				sv,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = FA8EEDD9D859F1D91CA5A957;
 			minimizedProjectReferenceProxies = 1;
@@ -480,13 +492,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = KnittingCalculator/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnittingCalculator;
 				PRODUCT_MODULE_NAME = KnittingCalculator;
 				PRODUCT_NAME = KnittingCalculator;
@@ -621,13 +633,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = KnittingCalculator/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnittingCalculator;
 				PRODUCT_MODULE_NAME = KnittingCalculator;
 				PRODUCT_NAME = KnittingCalculator;

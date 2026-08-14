@@ -426,6 +426,86 @@ import Testing
         }
     }
 
+    @Test func shippingMainCatalogRequiresTheCompletePatternFolderKeyDomain() throws {
+        let root = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let url = root.appending(path: "KnitNote/Localization/Localizable.xcstrings")
+        let catalog = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let requiredKeys = [
+            "patterns.folder.all",
+            "patterns.folder.uncategorized",
+            "patterns.folder.new",
+            "patterns.folder.name",
+            "patterns.folder.rename",
+            "patterns.folder.move",
+            "patterns.folder.count",
+            "patterns.folder.delete.title",
+            "patterns.folder.delete.message",
+            "patterns.folder.error.empty",
+            "patterns.folder.error.duplicate",
+            "patterns.folder.error.reserved",
+            "patterns.folder.error.missing",
+            "patterns.folder.error.saveFailed",
+        ]
+
+        #expect(Set(requiredKeys).isSubset(of: Set(strings.keys)))
+        for key in requiredKeys {
+            let entry = strings[key] as? [String: Any]
+            #expect(entry != nil, "missing pattern-folder key \(key)")
+            let localizations = entry?["localizations"] as? [String: Any]
+            #expect(
+                Set(localizations?.keys.map { $0 } ?? [])
+                    == Set(SupportedLocalization.v150Identifiers),
+                "\(key) must contain exactly all 13 shipping locales"
+            )
+            for language in SupportedLocalization.v150Identifiers {
+                #expect(
+                    localizations?[language] as? [String: Any] != nil,
+                    "\(key) is missing \(language)"
+                )
+            }
+
+            let comment = (entry?["comment"] as? String)?.lowercased() ?? ""
+            #expect(comment.contains("single-level pattern library collection"))
+            #expect(comment.contains("knitting/crochet pattern"))
+            #expect(comment.contains("user-created names must remain untranslated"))
+        }
+
+        let oneAndOtherLanguages: Set<String> = [
+            "en", "de", "fr", "nb", "sv", "fi", "da", "el", "nl",
+        ]
+        for key in ["patterns.folder.count", "patterns.folder.delete.message"] {
+            let entry = strings[key] as? [String: Any]
+            let localizations = entry?["localizations"] as? [String: Any]
+            for language in SupportedLocalization.v150Identifiers {
+                let localization = localizations?[language] as? [String: Any]
+                let variations = localization?["variations"] as? [String: Any]
+                let plural = variations?["plural"] as? [String: Any]
+                let categories = oneAndOtherLanguages.contains(language)
+                    ? ["one", "other"]
+                    : ["other"]
+                for category in categories {
+                    let variation = plural?[category] as? [String: Any]
+                    let unit = variation?["stringUnit"] as? [String: Any]
+                    let value = unit?["value"] as? String
+                    #expect(
+                        value?.components(separatedBy: "%lld").count == 2,
+                        "\(key) \(language) variations.plural.\(category) must contain one %lld"
+                    )
+                    #expect(
+                        unit?["state"] as? String == "translated",
+                        "\(key) \(language) variations.plural.\(category) must be translated"
+                    )
+                }
+            }
+        }
+    }
+
     private func completeFixtureLocalizations() -> [String: Any] {
         [
             "en": fixtureLocalization(value: "%lld items"),
@@ -1135,6 +1215,20 @@ import Testing
                 "counter.reminder.reached",
                 "counter.reminder.replace",
                 "counter.reminder.crossedCount",
+                "patterns.folder.all",
+                "patterns.folder.uncategorized",
+                "patterns.folder.new",
+                "patterns.folder.name",
+                "patterns.folder.rename",
+                "patterns.folder.move",
+                "patterns.folder.count",
+                "patterns.folder.delete.title",
+                "patterns.folder.delete.message",
+                "patterns.folder.error.empty",
+                "patterns.folder.error.duplicate",
+                "patterns.folder.error.reserved",
+                "patterns.folder.error.missing",
+                "patterns.folder.error.saveFailed",
             ]
         )
         try assertCompleteCatalog(
@@ -1741,6 +1835,65 @@ import Testing
                     strings: strings
                 ) == testCase.traditionalChinese
             )
+        }
+    }
+
+    @Test func patternFolderCountsAndDeletionUseReviewedKnittingCopy() throws {
+        let strings = try catalogStrings()
+        let expectedDirectCopy = [
+            "patterns.folder.delete.title": [
+                "el": "Διαγραφή φακέλου;",
+                "sv": "Radera mappen?",
+            ],
+        ]
+        let expectedPluralCopy: [String: [String: [String: String]]] = [
+            "patterns.folder.count": [
+                "zh-Hans": ["other": "%lld 份图解"],
+                "de": ["one": "%lld Muster", "other": "%lld Muster"],
+                "ja": ["other": "編み図%lld件"],
+                "nb": ["one": "%lld mønster", "other": "%lld mønstre"],
+                "el": ["one": "%lld σχέδιο", "other": "%lld σχέδια"],
+            ],
+            "patterns.folder.delete.message": [
+                "zh-Hans": ["other": "将删除文件夹，并把 %lld 份图解移到“未分类”。"],
+                "de": [
+                    "one": "Der Ordner wird gelöscht und %lld Muster wird nach „Nicht kategorisiert“ verschoben.",
+                    "other": "Der Ordner wird gelöscht und %lld Muster werden nach „Nicht kategorisiert“ verschoben.",
+                ],
+                "ja": ["other": "フォルダを削除し、編み図%lld件を「未分類」に移動します。"],
+                "nb": [
+                    "one": "Mappen slettes, og %lld mønster flyttes til Ukategorisert.",
+                    "other": "Mappen slettes, og %lld mønstre flyttes til Ukategorisert.",
+                ],
+                "sv": [
+                    "one": "Mappen raderas och %lld mönster flyttas till Okategoriserade.",
+                    "other": "Mappen raderas och %lld mönster flyttas till Okategoriserade.",
+                ],
+                "el": [
+                    "one": "Ο φάκελος θα διαγραφεί και %lld σχέδιο θα μετακινηθεί στην κατηγορία «Χωρίς κατηγορία».",
+                    "other": "Ο φάκελος θα διαγραφεί και %lld σχέδια θα μετακινηθούν στην κατηγορία «Χωρίς κατηγορία».",
+                ],
+            ],
+        ]
+
+        for (key, translations) in expectedDirectCopy {
+            for (language, expected) in translations {
+                #expect(try localizedValue(key, language: language, strings: strings) == expected)
+            }
+        }
+        for (key, translations) in expectedPluralCopy {
+            for (language, categories) in translations {
+                for (category, expected) in categories {
+                    #expect(
+                        try pluralVariationValue(
+                            key,
+                            language: language,
+                            category: category,
+                            strings: strings
+                        ) == expected
+                    )
+                }
+            }
         }
     }
 
@@ -2421,6 +2574,22 @@ import Testing
         let stringUnit = try #require(variation["stringUnit"] as? [String: Any])
         let format = try #require(stringUnit["value"] as? String)
         return String.localizedStringWithFormat(format, count)
+    }
+
+    private func pluralVariationValue(
+        _ key: String,
+        language: String,
+        category: String,
+        strings: [String: Any]
+    ) throws -> String {
+        let entry = try #require(strings[key] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        let translation = try #require(localizations[language] as? [String: Any])
+        let variations = try #require(translation["variations"] as? [String: Any])
+        let plural = try #require(variations["plural"] as? [String: Any])
+        let variation = try #require(plural[category] as? [String: Any])
+        let unit = try #require(variation["stringUnit"] as? [String: Any])
+        return try #require(unit["value"] as? String)
     }
 
     private func infoPlistLocalizedValue(

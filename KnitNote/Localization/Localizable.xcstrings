@@ -21284,6 +21284,1432 @@
         }
       }
     },
+      "patterns.folder.all" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Alle"
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Alle"
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Όλα"
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "All"
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Kaikki"
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Tous"
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "すべて"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "전체"
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Alle"
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Alles"
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Alla"
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "全部"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "全部"
+            }
+          }
+        }
+      },
+      "patterns.folder.uncategorized" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ikke kategoriseret"
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Nicht kategorisiert"
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Χωρίς κατηγορία"
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Uncategorized"
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Luokittelemattomat"
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Non classés"
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "未分類"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "미분류"
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ukategorisert"
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Niet gecategoriseerd"
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Okategoriserade"
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "未分类"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "未分類"
+            }
+          }
+        }
+      },
+      "patterns.folder.new" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ny mappe"
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Neuer Ordner"
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Νέος φάκελος"
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "New Folder"
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Uusi kansio"
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Nouveau dossier"
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "新規フォルダ"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "새 폴더"
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ny mappe"
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Nieuwe map"
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ny mapp"
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "新建文件夹"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "新增資料匣"
+            }
+          }
+        }
+      },
+      "patterns.folder.name" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Mappenavn"
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ordnername"
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Όνομα φακέλου"
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Folder Name"
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Kansion nimi"
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Nom du dossier"
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "フォルダ名"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "폴더 이름"
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Mappenavn"
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Mapnaam"
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Mappnamn"
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "文件夹名称"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "資料匣名稱"
+            }
+          }
+        }
+      },
+      "patterns.folder.rename" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Omdøb mappen"
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ordner umbenennen"
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Μετονομασία φακέλου"
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Rename Folder"
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Nimeä kansio uudelleen"
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Renommer le dossier"
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "フォルダ名を変更"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "폴더 이름 변경"
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Gi nytt navn til mappen"
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Map hernoemen"
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Byt namn på mappen"
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "重命名文件夹"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "重新命名資料匣"
+            }
+          }
+        }
+      },
+      "patterns.folder.move" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Flyt til mappe"
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "In Ordner verschieben"
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Μετακίνηση σε φάκελο"
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Move to Folder"
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Siirrä kansioon"
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Déplacer vers un dossier"
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "フォルダに移動"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "폴더로 이동"
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Flytt til mappe"
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Naar map verplaatsen"
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Flytta till mapp"
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "移到文件夹"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "移到資料匣"
+            }
+          }
+        }
+      },
+      "patterns.folder.count" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld opskrift"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld opskrifter"
+                  }
+                }
+              }
+            }
+          },
+          "de" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "%lld Muster"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "%lld Muster"
+                  }
+                }
+              }
+            }
+          },
+          "el" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "%lld σχέδιο"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "%lld σχέδια"
+                  }
+                }
+              }
+            }
+          },
+          "en" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld pattern"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld patterns"
+                  }
+                }
+              }
+            }
+          },
+          "fi" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld ohje"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld ohjetta"
+                  }
+                }
+              }
+            }
+          },
+          "fr" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld patron"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld patrons"
+                  }
+                }
+              }
+            }
+          },
+          "ja" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "編み図%lld件"
+                  }
+                }
+              }
+            }
+          },
+          "ko" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "도안 %lld개"
+                  }
+                }
+              }
+            }
+          },
+          "nb" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "%lld mønster"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "%lld mønstre"
+                  }
+                }
+              }
+            }
+          },
+          "nl" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld patroon"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld patronen"
+                  }
+                }
+              }
+            }
+          },
+          "sv" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld mönster"
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld mönster"
+                  }
+                }
+              }
+            }
+          },
+          "zh-Hans" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "%lld 份图解"
+                  }
+                }
+              }
+            }
+          },
+          "zh-Hant" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "%lld 份織圖"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patterns.folder.delete.title" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Slet mappen?"
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ordner löschen?"
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+            "value" : "Διαγραφή φακέλου;"
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Delete Folder?"
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Poistetaanko kansio?"
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Supprimer le dossier ?"
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "フォルダを削除しますか？"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "폴더를 삭제할까요?"
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Slette mappen?"
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Map verwijderen?"
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+            "value" : "Radera mappen?"
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "删除文件夹？"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "刪除資料匣？"
+            }
+          }
+        }
+      },
+      "patterns.folder.delete.message" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "Mappen slettes, og %lld opskrift flyttes til Ikke kategoriseret."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "Mappen slettes, og %lld opskrifter flyttes til Ikke kategoriseret."
+                  }
+                }
+              }
+            }
+          },
+          "de" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Der Ordner wird gelöscht und %lld Muster wird nach „Nicht kategorisiert“ verschoben."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Der Ordner wird gelöscht und %lld Muster werden nach „Nicht kategorisiert“ verschoben."
+                  }
+                }
+              }
+            }
+          },
+          "el" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Ο φάκελος θα διαγραφεί και %lld σχέδιο θα μετακινηθεί στην κατηγορία «Χωρίς κατηγορία»."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Ο φάκελος θα διαγραφεί και %lld σχέδια θα μετακινηθούν στην κατηγορία «Χωρίς κατηγορία»."
+                  }
+                }
+              }
+            }
+          },
+          "en" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "The folder will be deleted and %lld pattern will move to Uncategorized."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "The folder will be deleted and %lld patterns will move to Uncategorized."
+                  }
+                }
+              }
+            }
+          },
+          "fi" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "Kansio poistetaan ja %lld ohje siirretään Luokittelemattomiin."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "Kansio poistetaan ja %lld ohjetta siirretään Luokittelemattomiin."
+                  }
+                }
+              }
+            }
+          },
+          "fr" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "Le dossier sera supprimé et %lld patron sera déplacé vers « Non classés »."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "Le dossier sera supprimé et %lld patrons seront déplacés vers « Non classés »."
+                  }
+                }
+              }
+            }
+          },
+          "ja" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "フォルダを削除し、編み図%lld件を「未分類」に移動します。"
+                  }
+                }
+              }
+            }
+          },
+          "ko" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "폴더가 삭제되고 도안 %lld개가 미분류로 이동됩니다."
+                  }
+                }
+              }
+            }
+          },
+          "nb" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Mappen slettes, og %lld mønster flyttes til Ukategorisert."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Mappen slettes, og %lld mønstre flyttes til Ukategorisert."
+                  }
+                }
+              }
+            }
+          },
+          "nl" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "De map wordt verwijderd en %lld patroon wordt naar Niet gecategoriseerd verplaatst."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "De map wordt verwijderd en %lld patronen worden naar Niet gecategoriseerd verplaatst."
+                  }
+                }
+              }
+            }
+          },
+          "sv" : {
+            "variations" : {
+              "plural" : {
+                "one" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Mappen raderas och %lld mönster flyttas till Okategoriserade."
+                  }
+                },
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "Mappen raderas och %lld mönster flyttas till Okategoriserade."
+                  }
+                }
+              }
+            }
+          },
+          "zh-Hans" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                  "value" : "将删除文件夹，并把 %lld 份图解移到“未分类”。"
+                  }
+                }
+              }
+            }
+          },
+          "zh-Hant" : {
+            "variations" : {
+              "plural" : {
+                "other" : {
+                  "stringUnit" : {
+                    "state" : "translated",
+                    "value" : "將刪除資料匣，並把 %lld 份織圖移到「未分類」。"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patterns.folder.error.empty" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Indtast et mappenavn."
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Gib einen Ordnernamen ein."
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Εισαγάγετε όνομα φακέλου."
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Enter a folder name."
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Anna kansiolle nimi."
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Saisissez un nom de dossier."
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "フォルダ名を入力してください。"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "폴더 이름을 입력하세요."
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Skriv inn et mappenavn."
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Voer een mapnaam in."
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ange ett mappnamn."
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "请输入文件夹名称。"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "請輸入資料匣名稱。"
+            }
+          }
+        }
+      },
+      "patterns.folder.error.duplicate" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Der findes allerede en mappe med dette navn."
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ein Ordner mit diesem Namen ist bereits vorhanden."
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Υπάρχει ήδη φάκελος με αυτό το όνομα."
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "A folder with this name already exists."
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Samanniminen kansio on jo olemassa."
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Un dossier portant ce nom existe déjà."
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "同じ名前のフォルダがすでにあります。"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "같은 이름의 폴더가 이미 있습니다."
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Det finnes allerede en mappe med dette navnet."
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Er bestaat al een map met deze naam."
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Det finns redan en mapp med det här namnet."
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "已有同名文件夹。"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "已有同名資料匣。"
+            }
+          }
+        }
+      },
+      "patterns.folder.error.reserved" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Dette navn er reserveret af KnitNote."
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Dieser Name ist für KnitNote reserviert."
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Αυτό το όνομα είναι δεσμευμένο από το KnitNote."
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "This name is reserved by KnitNote."
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Nimi on varattu KnitNotelle."
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ce nom est réservé par KnitNote."
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "この名前は KnitNote によって予約されています。"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "이 이름은 KnitNote에서 사용하도록 예약되어 있습니다."
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Dette navnet er reservert av KnitNote."
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Deze naam is gereserveerd door KnitNote."
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Det här namnet är reserverat av KnitNote."
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "此名称由 KnitNote 保留。"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "此名稱為 KnitNote 保留名稱。"
+            }
+          }
+        }
+      },
+      "patterns.folder.error.missing" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Denne mappe er ikke længere tilgængelig."
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Dieser Ordner ist nicht mehr verfügbar."
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Αυτός ο φάκελος δεν είναι πλέον διαθέσιμος."
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "This folder is no longer available."
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Kansio ei ole enää käytettävissä."
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Ce dossier n’est plus disponible."
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "このフォルダは利用できなくなりました。"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "이 폴더는 더 이상 사용할 수 없습니다."
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Denne mappen er ikke lenger tilgjengelig."
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Deze map is niet meer beschikbaar."
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Den här mappen är inte längre tillgänglig."
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "此文件夹已不存在。"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "此資料匣已不存在。"
+            }
+          }
+        }
+      },
+      "patterns.folder.error.saveFailed" : {
+        "comment" : "Folder means a user-created single-level Pattern Library collection; pattern means a knitting/crochet pattern; user-created names must remain untranslated.",
+        "localizations" : {
+          "da" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Mappeændringen kunne ikke gemmes. Prøv igen."
+            }
+          },
+          "de" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Die Ordneränderung konnte nicht gespeichert werden. Versuche es erneut."
+            }
+          },
+          "el" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Δεν ήταν δυνατή η αποθήκευση της αλλαγής φακέλου. Δοκιμάστε ξανά."
+            }
+          },
+          "en" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "The folder change could not be saved. Try again."
+            }
+          },
+          "fi" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Kansion muutosta ei voitu tallentaa. Yritä uudelleen."
+            }
+          },
+          "fr" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "La modification du dossier n’a pas pu être enregistrée. Réessayez."
+            }
+          },
+          "ja" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "フォルダの変更を保存できませんでした。もう一度お試しください。"
+            }
+          },
+          "ko" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "폴더 변경 사항을 저장할 수 없습니다. 다시 시도하세요."
+            }
+          },
+          "nb" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Mappeendringen kunne ikke lagres. Prøv igjen."
+            }
+          },
+          "nl" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "De mapwijziging kon niet worden bewaard. Probeer het opnieuw."
+            }
+          },
+          "sv" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "Mappändringen kunde inte sparas. Försök igen."
+            }
+          },
+          "zh-Hans" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "无法保存文件夹更改，请重试。"
+            }
+          },
+          "zh-Hant" : {
+            "stringUnit" : {
+              "state" : "translated",
+              "value" : "無法儲存資料匣變更，請再試一次。"
+            }
+          }
+        }
+      },
     "patterns.highlight" : {
       "localizations" : {
         "da" : {

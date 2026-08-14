@@ -120,6 +120,31 @@ import Testing
         }
     }
 
+    @Test func patternFolderCountsUseTheApprovedPatternTermFamily() throws {
+        let table = try TerminologyTable.load(from: terminologyURL)
+        let catalog = try RuntimeCatalog.load(from: catalogURL)
+        let pattern = try #require(table["pattern"])
+        let languages = table.headers.filter { $0 != "key" && $0 != "catalogKeys" }
+
+        for key in ["patterns.folder.count", "patterns.folder.delete.message"] {
+            let values = catalog.allValues[key]
+            #expect(values != nil, "missing terminology-governed key \(key)")
+            for language in languages {
+                let actualValues = values?[language] ?? []
+                #expect(!actualValues.isEmpty, "\(key) is missing \(language)")
+                let approved = (pattern[language] ?? "")
+                    .split(separator: "|")
+                    .map(String.init)
+                #expect(
+                    actualValues.allSatisfy { value in
+                        approved.contains { matchesApprovedTerm($0, in: value) }
+                    },
+                    "\(key) \(language) must use the approved knitting-pattern term family"
+                )
+            }
+        }
+    }
+
     @Test func finalReviewTerminologyDefectsStayCorrected() throws {
         let table = try TerminologyTable.load(from: terminologyURL)
         let catalog = try RuntimeCatalog.load(from: catalogURL)

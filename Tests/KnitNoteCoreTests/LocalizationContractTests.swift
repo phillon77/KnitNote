@@ -465,10 +465,17 @@ import Testing
                 #expect(trimmed != key)
 
                 if key == "update.available.message" {
-                    #expect(appUpdateFormatTokens(in: value) == ["%1$@", "%2$@"])
+                    #expect(appUpdateMessageHasExactStructure(value))
                 }
             }
         }
+    }
+
+    @Test func appUpdateMessageContractRejectsExtraPositionalDynamicPrecisionToken() {
+        let mutatedFrenchMessage =
+            "Une version plus récente de KnitNote est disponible. %3$.*4$f\n%1$@\n%2$@"
+
+        #expect(!appUpdateMessageHasExactStructure(mutatedFrenchMessage))
     }
 
     @Test func shippingMainCatalogRequiresTheCompletePatternFolderKeyDomain() throws {
@@ -750,13 +757,13 @@ import Testing
     }
 }
 
-private func appUpdateFormatTokens(in value: String) -> [String] {
-    let pattern = #"%(?!%)(?:[1-9][0-9]*\$)?[-+ #0']*(?:[0-9]+|\*)?(?:\.(?:[0-9]+|\*))?(?:hh|h|ll|l|q|L|z|t|j)?[@a-zA-Z]"#
-    let expression = try! NSRegularExpression(pattern: pattern)
-    let range = NSRange(value.startIndex..., in: value)
-    return expression.matches(in: value, range: range).compactMap { match in
-        Range(match.range, in: value).map { String(value[$0]) }
-    }
+private func appUpdateMessageHasExactStructure(_ value: String) -> Bool {
+    let lines = value.split(separator: "\n", omittingEmptySubsequences: false)
+    return lines.count == 3
+        && !lines[0].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !lines[0].contains("%")
+        && lines[1] == "%1$@"
+        && lines[2] == "%2$@"
 }
 
 private func isValidDirectPatternFolderLocalization(

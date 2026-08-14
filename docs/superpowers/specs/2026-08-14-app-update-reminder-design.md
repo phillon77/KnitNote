@@ -1,8 +1,8 @@
 # KnitNote App Update Reminder Design
 
-**Date:** 2026-08-14  
-**Status:** Approved in conversation; written-spec review pending  
-**Targets:** iPhone, iPad, and Mac  
+**Date:** 2026-08-14
+**Status:** Approved in conversation; written-spec review pending
+**Targets:** iPhone, iPad, and Mac
 **App Store Apple ID:** `6793023054`
 
 ## Goal

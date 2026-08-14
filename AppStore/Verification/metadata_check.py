@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ REQUIRED = (
 CALCULATOR_REQUIRED = ("Copyright", "Apple ID")
 EXPECTED_COPYRIGHT = "© 2026 Chen Chung Lung"
 EXPECTED_APPLE_ID = "6795877892"
+GENERAL_METADATA_FILENAMES: tuple[str, ...] = ("zh-Hant.md", "en-US.md")
 CALCULATOR_METADATA_FILENAMES: tuple[str, ...] = (
     "en-US.md",
     "zh-Hant.md",
@@ -57,6 +59,32 @@ CALCULATOR_WHATS_NEW: dict[str, str] = {
     "da-DK.md": "Version 1.0.1 understøtter nu forenklet kinesisk, tysk, fransk, japansk, koreansk, hollandsk, norsk bokmål, svensk, finsk, dansk og græsk.",
     "el-GR.md": "Η έκδοση 1.0.1 υποστηρίζει πλέον απλοποιημένα κινεζικά, γερμανικά, γαλλικά, ιαπωνικά, κορεατικά, ολλανδικά, νορβηγικά μποκμάλ, σουηδικά, φινλανδικά, δανικά και ελληνικά.",
 }
+CALCULATOR_CLAIM_FIELDS = (
+    "Name",
+    "Subtitle",
+    "Promotional text",
+    "Keywords",
+    "Description",
+    "Review Notes",
+    "Territory positioning",
+)
+# These fingerprints lock the human-reviewed, locale-specific semantic copy.
+# Release notes, URLs, and identity fields have separate explicit contracts.
+CALCULATOR_APPROVED_CLAIM_DIGESTS: dict[str, str] = {
+    "en-US.md": "3ade17be85f1e56bef7d942cf388adb5a7aeeae5d5a32bcdc3654b4b3c4943c0",
+    "zh-Hant.md": "67bffdb34372fe464348d7de117ff9fcca4dc60ddacfbabb93f4d8b9789ece1a",
+    "zh-Hans.md": "0494d013b682ee677d39c19b745ebda6f41de6b0c7ff66e766fd30c4332414ce",
+    "de-DE.md": "78c9da729033018971d953cd5c1d8f41504ec30005b04eb6dd24f5b1e41165ca",
+    "fr-FR.md": "61b734baf5efc1dd55ca4071381f4787d440b61582b4dd10249e436f6eb2efef",
+    "ja-JP.md": "378267ab9ddb00b6f0e3573ed9782bdb99822e6ff2b184a95d31bdb59b0857f4",
+    "ko-KR.md": "20743c3c83899d2ba15d55aff66b4b5be71cc5aa7d094cbf2fedd2f7415e25c7",
+    "nl-NL.md": "b43a1e170043aff969c29db48f59eb48722107af475015465c37bd988790f1ce",
+    "nb-NO.md": "ddb9a5340468aa4593c6cce004c36e8c4a54d5247439c8aea0b71958de63a509",
+    "sv-SE.md": "d054f8b94e99c05f7a999fba9bd8f6524dc911d07553bc28a410c1613d46f857",
+    "fi-FI.md": "dcc90a3a56d553911b9be45f66bd21395f4019cddaa00a77144194325e0e3d54",
+    "da-DK.md": "036698e4ad2c2b5f640b84e6257e4e1327175fddd0a1bb62e29858dd5088288c",
+    "el-GR.md": "d36abc5cc481786f2c103c8ef11162f7dc18b8fce1ea503cf714918a9523f12f",
+}
 FORBIDDEN = (
     " ai ",
     "cloud sync",
@@ -70,6 +98,13 @@ FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 
 def normalized(value: str) -> str:
     return "".join(character for character in value.casefold() if character.isalnum())
+
+
+def calculator_claim_digest(fields: dict[str, str]) -> str:
+    approved_copy = "\x1f".join(
+        f"{name}\x1e{fields.get(name, '')}" for name in CALCULATOR_CLAIM_FIELDS
+    )
+    return hashlib.sha256(approved_copy.encode("utf-8")).hexdigest()
 
 
 def parse(path: Path) -> dict[str, str]:
@@ -134,6 +169,12 @@ def validate(path: Path) -> list[str]:
             f"{path}: What's New: must contain only the approved 1.0.1 language expansion"
         )
 
+    approved_claim_digest = (
+        CALCULATOR_APPROVED_CLAIM_DIGESTS.get(path.name) if calculator_metadata else None
+    )
+    if approved_claim_digest and calculator_claim_digest(fields) != approved_claim_digest:
+        errors.append(f"{path}: copy: does not match approved localized claims")
+
     for name, limit in LIMITS.items():
         value = fields.get(name, "")
         length = len(value.encode("utf-8")) if name == "Keywords" else len(value)
@@ -171,7 +212,11 @@ def validate(path: Path) -> list[str]:
 
 def validate_root(root: Path) -> list[str]:
     if root.name != "Metadata" or root.parent.name != "KnittingCalculator":
-        return [error for path in sorted(root.glob("*.md")) for error in validate(path)]
+        return [
+            error
+            for name in GENERAL_METADATA_FILENAMES
+            for error in validate(root / name)
+        ]
 
     expected = set(CALCULATOR_METADATA_FILENAMES)
     actual = {path.name for path in root.glob("*.md")}

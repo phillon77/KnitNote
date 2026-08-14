@@ -90,6 +90,33 @@ class MetadataCheckTests(unittest.TestCase):
             errors = module.validate_root(root)
         self.assertFalse(any("metadata locales" in error for error in errors), errors)
 
+    def test_nonexistent_general_metadata_root_requires_both_established_files(self) -> None:
+        module = metadata_check_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "AppStore/Metadata"
+            errors = module.validate_root(root)
+        self.assertTrue(any("en-US.md: file:" in error for error in errors), errors)
+        self.assertTrue(any("zh-Hant.md: file:" in error for error in errors), errors)
+
+    def test_empty_general_metadata_root_requires_both_established_files(self) -> None:
+        module = metadata_check_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "AppStore/Metadata"
+            root.mkdir(parents=True)
+            errors = module.validate_root(root)
+        self.assertTrue(any("en-US.md: file:" in error for error in errors), errors)
+        self.assertTrue(any("zh-Hant.md: file:" in error for error in errors), errors)
+
+    def test_general_metadata_root_rejects_each_missing_established_file(self) -> None:
+        module = metadata_check_module()
+        for present, missing in (("en-US.md", "zh-Hant.md"), ("zh-Hant.md", "en-US.md")):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "AppStore/Metadata"
+                root.mkdir(parents=True)
+                (root / present).write_text(self.metadata(), encoding="utf-8")
+                errors = module.validate_root(root)
+            self.assertTrue(any(f"{missing}: file:" in error for error in errors), errors)
+
     def test_calculator_metadata_requires_exact_locale_set(self) -> None:
         module = metadata_check_module()
         with tempfile.TemporaryDirectory() as directory:
@@ -184,6 +211,37 @@ class MetadataCheckTests(unittest.TestCase):
         metadata = self.metadata().replace("Free offline tool.", "Cloud sync for every project.")
         errors = self.validate_calculator_text(metadata)
         self.assertTrue(any("forbidden release claim: cloud sync" in error for error in errors), errors)
+
+    def test_rejects_unapproved_claims_in_every_calculator_locale(self) -> None:
+        added_claims = {
+            "en-US.md": "Your drafts are backed up online.",
+            "zh-Hant.md": "支援跨裝置雲端同步。",
+            "zh-Hans.md": "支持跨设备云端同步。",
+            "de-DE.md": "Ein Abonnement schaltet weitere Funktionen frei.",
+            "fr-FR.md": "Un compte est nécessaire pour sauvegarder les calculs.",
+            "ja-JP.md": "広告が表示されます。",
+            "ko-KR.md": "사용 분석 정보를 수집합니다.",
+            "nl-NL.md": "Activiteit wordt gevolgd voor personalisatie.",
+            "nb-NO.md": "Ekstra verktøy kan kjøpes i appen.",
+            "sv-SE.md": "Utkast synkroniseras via molnet.",
+            "fi-FI.md": "Tilaus avaa lisäominaisuuksia.",
+            "da-DK.md": "En konto er nødvendig for at gemme beregninger.",
+            "el-GR.md": "Η εφαρμογή εμφανίζει διαφημίσεις.",
+        }
+        metadata_root = Path(__file__).parents[1] / "KnittingCalculator/Metadata"
+        for filename, claim in added_claims.items():
+            with self.subTest(filename=filename):
+                metadata = (metadata_root / filename).read_text(encoding="utf-8")
+                metadata = metadata.replace(
+                    "- Description: |",
+                    f"- Description: |\n  {claim}",
+                    1,
+                )
+                errors = self.validate_calculator_text(metadata, filename)
+                self.assertTrue(
+                    any("does not match approved localized claims" in error for error in errors),
+                    errors,
+                )
 
     def test_rejects_keyword_that_repeats_name_or_subtitle(self) -> None:
         module = metadata_check_module()

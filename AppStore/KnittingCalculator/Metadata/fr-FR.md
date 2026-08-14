@@ -21,5 +21,5 @@
 - What's New: La version 1.0.1 est maintenant disponible en chinois simplifié, allemand, français, japonais, coréen, néerlandais, norvégien bokmål, suédois, finnois, danois et grec.
 - Copyright: © 2026 Chen Chung Lung
 - Apple ID: 6795877892
-- Review Notes: Aucune connexion, aucun compte, achat, autorisation ou accès réseau n’est requis. Les deux calculateurs, les brouillons locaux, l’aide, la copie et le partage de texte sont disponibles dès le lancement. Le lien KnitNote facultatif apparaît uniquement dans Accueil et Réglages et ouvre une app distincte ou sa page App Store.
+- Review Notes: Aucune connexion, aucun compte, aucun achat, aucune autorisation ni aucun accès au réseau ne sont requis. Les deux calculateurs, les brouillons locaux, l’aide, la copie et le partage de texte sont disponibles dès le lancement. Le lien KnitNote facultatif apparaît uniquement dans Accueil et Réglages et ouvre une app distincte ou sa page App Store.
 - Territory positioning: App utilitaire disponible dans le monde entier. Le français apparaît sur les pages produit francophones ; l’anglais est la langue par défaut. L’app est gratuite partout et ses fonctions, son traitement des données et son prix ne varient pas selon la région.

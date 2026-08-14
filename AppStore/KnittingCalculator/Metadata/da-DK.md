@@ -21,5 +21,5 @@
 - What's New: Version 1.0.1 understøtter nu forenklet kinesisk, tysk, fransk, japansk, koreansk, hollandsk, norsk bokmål, svensk, finsk, dansk og græsk.
 - Copyright: © 2026 Chen Chung Lung
 - Apple ID: 6795877892
-- Review Notes: Der kræves ingen login, konto, køb, tilladelse eller netværksforbindelse. Begge beregnere, lokale kladder, hjælp, kopiering og deling af tekst er tilgængelige straks efter start. Det valgfrie KnitNote-link vises kun på Hjem og i Indstillinger og åbner en separat app eller dens App Store-side.
+- Review Notes: Appen kræver hverken login, konto, køb, tilladelser eller netværksforbindelse. Begge beregnere, lokale kladder, hjælp samt kopiering og deling af tekst er tilgængelige med det samme. Det valgfrie link til KnitNote vises kun på Hjem og i Indstillinger og åbner den separate app eller dens side i App Store.
 - Territory positioning: Global værktøjsapp. Dansk vises på dansksprogede produktsider; engelsk er standardsproget. Appen er gratis i alle områder, og funktioner, databehandling og pris varierer ikke efter område.

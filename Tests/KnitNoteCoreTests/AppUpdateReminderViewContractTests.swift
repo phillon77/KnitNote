@@ -13,9 +13,39 @@ import Testing
         Mutation("store URL action", "openURL(update.storeURL)", .storeOpenAction),
         Mutation("store completion action", "appUpdateReminderCoordinator.didOpenStore()", .storeCompletionAction),
         Mutation(
-            "locale argument",
+            "title locale argument",
             "LocaleAwareText.string(\"update.available.title\", locale: locale)",
             replacingWith: "LocaleAwareText.string(\"update.available.title\")",
+            .localizedCopy
+        ),
+        Mutation(
+            "current version locale argument",
+            "LocaleAwareText.string(\"update.available.currentVersion\", locale: locale)",
+            replacingWith: "LocaleAwareText.string(\"update.available.currentVersion\")",
+            .localizedCopy
+        ),
+        Mutation(
+            "latest version locale argument",
+            "LocaleAwareText.string(\"update.available.latestVersion\", locale: locale)",
+            replacingWith: "LocaleAwareText.string(\"update.available.latestVersion\")",
+            .localizedCopy
+        ),
+        Mutation(
+            "message locale argument",
+            "LocaleAwareText.format(\n                    \"update.available.message\",\n                    locale: locale,",
+            replacingWith: "LocaleAwareText.format(\n                    \"update.available.message\",",
+            .localizedCopy
+        ),
+        Mutation(
+            "Later locale argument",
+            "LocaleAwareText.string(\"update.available.later\", locale: locale)",
+            replacingWith: "LocaleAwareText.string(\"update.available.later\")",
+            .localizedCopy
+        ),
+        Mutation(
+            "Open Store locale argument",
+            "LocaleAwareText.string(\"update.available.openStore\", locale: locale)",
+            replacingWith: "LocaleAwareText.string(\"update.available.openStore\")",
             .localizedCopy
         ),
         Mutation("pending update gate", "appUpdateReminderCoordinator.pendingUpdate != nil", replacingWith: "true", .pendingUpdateGate),

@@ -1145,9 +1145,11 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         filename: "Replacement.pdf"
     )
     let replacementPackage = try replacement.service.createPackage(appVersion: "1.5.0")
+    let nameContext = try shippingPatternFolderNameContext()
     let failureService = KnitNoteBackupService(
         liveRoot: original.liveRoot,
         workRoot: original.root.appendingPathComponent("FailureRestoreWork", isDirectory: true),
+        patternFolderNameContext: nameContext,
         replacementStepHook: { step in
             if step == .afterStagedMove {
                 try Data("not JSON".utf8).write(to: original.archiveURL, options: .atomic)
@@ -1162,6 +1164,7 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         patternMarkupFileService: PatternMarkupFileService(
             root: original.liveRoot.appendingPathComponent("Patterns", isDirectory: true)
         ),
+        patternFolderNameContext: nameContext,
         backupService: failureService
     )
     let staged = try await store.prepareBackupRestore(from: replacementPackage)
@@ -1178,6 +1181,43 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     )
     #expect(archive.patternFolders == [originalFolder])
     #expect(archive.patterns == [originalPattern])
+}
+
+@MainActor @Test func publicRestoreRejectsReservedFolderNameWithoutPublishing() async throws {
+    let harness = try BackupPatternHarness()
+    defer { harness.cleanup() }
+    let originalFolder = PatternFolder(displayName: "Original folder")
+    let originalPattern = try await installFolderMembership(
+        harness: harness,
+        folders: [originalFolder],
+        assignedFolderID: originalFolder.id,
+        filename: "Original reserved restore.pdf"
+    )
+    let package = try harness.service.createPackage(appVersion: "1.5.0")
+    let staged = try await harness.store.prepareBackupRestore(from: package)
+    let stagedArchiveURL = staged.root.appendingPathComponent("Data/projects-v1.json")
+    var stagedArchive = try JSONDecoder().decode(
+        ProjectArchive.self,
+        from: Data(contentsOf: stagedArchiveURL)
+    )
+    stagedArchive.patternFolders[0].displayName = "未分類"
+    try JSONEncoder().encode(stagedArchive).write(to: stagedArchiveURL, options: .atomic)
+
+    let liveBytes = try Data(contentsOf: harness.archiveURL)
+    let folders = harness.store.patternFolders
+    let patterns = harness.store.patterns
+    let generation = harness.store.dataGeneration
+    let selection = PatternLibraryScope.folder(originalFolder.id)
+
+    await #expect(throws: KnitNoteBackupError.invalidArchive) {
+        try await harness.store.restoreBackup(staged)
+    }
+    #expect(try Data(contentsOf: harness.archiveURL) == liveBytes)
+    #expect(harness.store.patternFolders == folders)
+    #expect(harness.store.patterns == patterns)
+    #expect(harness.store.patterns == [originalPattern])
+    #expect(harness.store.dataGeneration == generation)
+    #expect(selection == .folder(originalFolder.id))
 }
 
 @MainActor @Test func formatOneLegacyPatternBackupRestoresAndMigratesToSchemaTen() async throws {
@@ -2678,9 +2718,11 @@ private struct StoreLaunchRecoveryFixture {
             at: sourceRoot,
             withIntermediateDirectories: true
         )
+        let nameContext = try shippingPatternFolderNameContext()
         service = KnitNoteBackupService(
             liveRoot: liveRoot,
-            workRoot: root.appendingPathComponent("BackupWork", isDirectory: true)
+            workRoot: root.appendingPathComponent("BackupWork", isDirectory: true),
+            patternFolderNameContext: nameContext
         )
         let inbox = PatternInboxFileService(
             root: root.appendingPathComponent("PatternInbox", isDirectory: true)
@@ -2697,6 +2739,7 @@ private struct StoreLaunchRecoveryFixture {
             patternThumbnailService: PatternThumbnailFileService(
                 directory: root.appendingPathComponent("ThumbnailCache", isDirectory: true)
             ),
+            patternFolderNameContext: nameContext,
             backupService: service
         )
     }

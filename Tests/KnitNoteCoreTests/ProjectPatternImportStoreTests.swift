@@ -15,6 +15,7 @@ import Testing
     let patternID = try #require(harness.store.patterns.first?.id)
 
     #expect(outcome == .created(patternID: patternID))
+    #expect(harness.store.patterns.first(where: { $0.id == patternID })?.folderID == nil)
     #expect(harness.store.patternUsages.count == 1)
     #expect(harness.store.patternUsages[0].patternID == patternID)
     #expect(harness.store.patternUsages[0].projectID == projectID)

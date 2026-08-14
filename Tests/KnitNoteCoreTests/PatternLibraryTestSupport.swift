@@ -28,6 +28,70 @@ func patternLibraryRepositoryURL(_ relativePath: String) -> URL {
         .appendingPathComponent(relativePath)
 }
 
+func shippingPatternFolderNameContext(
+    locale: Locale = Locale(identifier: "en")
+) throws -> PatternFolderNameContext {
+    let translations = try shippingPatternFolderTranslations()
+    return PatternFolderNameContext(
+        locale: locale,
+        reservedNames: Set(translations.values.flatMap(\.values))
+    )
+}
+
+func shippingPatternFolderLocalizationBundle() throws -> Bundle {
+    let translations = try shippingPatternFolderTranslations()
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PatternFolderLocalization-\(UUID().uuidString).bundle")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let info: [String: Any] = [
+        "CFBundleIdentifier": "KnitNoteTests.PatternFolderLocalization.\(UUID().uuidString)",
+        "CFBundleDevelopmentRegion": "en",
+        "CFBundleLocalizations": SupportedLocalization.v150Identifiers,
+    ]
+    try PropertyListSerialization.data(
+        fromPropertyList: info,
+        format: .xml,
+        options: 0
+    ).write(to: root.appendingPathComponent("Info.plist"))
+    for (identifier, values) in translations {
+        let localization = root.appendingPathComponent("\(identifier).lproj")
+        try FileManager.default.createDirectory(at: localization, withIntermediateDirectories: true)
+        try PropertyListSerialization.data(
+            fromPropertyList: values,
+            format: .binary,
+            options: 0
+        ).write(to: localization.appendingPathComponent("Localizable.strings"))
+    }
+    guard let bundle = Bundle(url: root) else { throw CocoaError(.fileReadCorruptFile) }
+    return bundle
+}
+
+private func shippingPatternFolderTranslations() throws -> [String: [String: String]] {
+    let data = try Data(contentsOf: patternLibraryRepositoryURL(
+        "KnitNote/Localization/Localizable.xcstrings"
+    ))
+    let catalog = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    let strings = catalog?["strings"] as? [String: Any]
+    var translations = Dictionary(
+        uniqueKeysWithValues: SupportedLocalization.v150Identifiers.map { ($0, [String: String]()) }
+    )
+    for key in ["patterns.folder.all", "patterns.folder.uncategorized"] {
+        guard let entry = strings?[key] as? [String: Any],
+              let localizations = entry["localizations"] as? [String: Any] else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        for identifier in SupportedLocalization.v150Identifiers {
+            guard let localization = localizations[identifier] as? [String: Any],
+                  let unit = localization["stringUnit"] as? [String: Any],
+                  let value = unit["value"] as? String else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            translations[identifier]?[key] = value
+        }
+    }
+    return translations
+}
+
 @MainActor
 final class PatternImportHarness {
     let root: URL
@@ -65,6 +129,7 @@ final class PatternImportHarness {
             removeItem: inboxRemove ?? { try FileManager.default.removeItem(at: $0) },
             writeData: inboxWrite ?? { try $0.write(to: $1, options: .atomic) }
         )
+        let nameContext = try shippingPatternFolderNameContext()
         store = JSONProjectStore(
             url: archiveURL,
             patternFileService: PatternFileService(
@@ -73,9 +138,11 @@ final class PatternImportHarness {
             ),
             patternInboxFileService: inbox,
             patternThumbnailService: self.thumbnailService,
+            patternFolderNameContext: nameContext,
             backupService: KnitNoteBackupService(
                 liveRoot: root,
-                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true)
+                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true),
+                patternFolderNameContext: nameContext
             ),
             archiveWrite: archiveWrite ?? { try $0.write(to: $1, options: .atomic) }
         )
@@ -111,11 +178,13 @@ final class PatternImportHarness {
     }
 
     func reopenedStore() throws -> JSONProjectStore {
-        JSONProjectStore(
+        let nameContext = try shippingPatternFolderNameContext()
+        return JSONProjectStore(
             url: archiveURL,
             patternFileService: PatternFileService(root: assetsRoot),
             patternInboxFileService: PatternInboxFileService(root: inbox.root),
-            patternThumbnailService: thumbnailService
+            patternThumbnailService: thumbnailService,
+            patternFolderNameContext: nameContext
         )
     }
 

@@ -34,10 +34,13 @@ public enum PatternLibraryMigrationError: Error, Equatable, Sendable {
 
 public struct PatternLibraryMigrator: Sendable {
     private let stepHook: @Sendable (PatternMigrationStep) throws -> Void
+    private let patternFolderNameContext: PatternFolderNameContext?
 
     public init(
+        patternFolderNameContext: PatternFolderNameContext? = nil,
         stepHook: @escaping @Sendable (PatternMigrationStep) throws -> Void = { _ in }
     ) {
+        self.patternFolderNameContext = patternFolderNameContext
         self.stepHook = stepHook
     }
 
@@ -333,7 +336,7 @@ public struct PatternLibraryMigrator: Sendable {
             patterns: migrated.patterns,
             usages: migrated.patternUsages,
             validProjectIDs: migrated.projects.map(\.id)
-        ).normalizedAndValidated()
+        ).normalizedAndValidated(nameContext: patternFolderNameContext)
         return ProjectArchive(
             version: migrated.version,
             projects: migrated.projects,
@@ -377,7 +380,7 @@ public struct PatternLibraryMigrator: Sendable {
             patterns: archive.patterns,
             usages: archive.patternUsages,
             validProjectIDs: archive.projects.map(\.id)
-        ).normalizedAndValidated()
+        ).normalizedAndValidated(nameContext: patternFolderNameContext)
         guard normalized.folders == archive.patternFolders else {
             throw PatternLibraryMigrationError.invalidLegacyFile
         }

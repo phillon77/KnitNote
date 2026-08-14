@@ -627,7 +627,9 @@ import UniformTypeIdentifiers
     )).write(to: archiveURL, options: .atomic)
 
     #expect(throws: PatternLibraryMigrationError.invalidLegacyFile) {
-        try PatternLibraryMigrator().validateCurrentArchive(at: archiveURL)
+        try PatternLibraryMigrator(
+            patternFolderNameContext: try shippingPatternFolderNameContext()
+        ).validateCurrentArchive(at: archiveURL)
     }
 }
 

@@ -135,11 +135,16 @@ public struct KnitNoteBackupService: Sendable {
     private let replacementStepHook: @Sendable (KnitNoteBackupReplacementStep) throws -> Void
     private let cleanupItem: @Sendable (URL) throws -> Void
     private let copyChunkHook: @Sendable (URL, Int64) throws -> Void
+    private var patternFolderNameContext: PatternFolderNameContext? = nil
     private var beforeSourceEntryOpen: @Sendable (String) throws -> Void = { _ in }
     private var synchronizeDirectory: @Sendable (URL) throws -> Void =
         Self.defaultSynchronizeDirectory
 
-    public init(liveRoot: URL, workRoot: URL) {
+    public init(
+        liveRoot: URL,
+        workRoot: URL,
+        patternFolderNameContext: PatternFolderNameContext? = nil
+    ) {
         self.liveRoot = liveRoot
         self.workRoot = workRoot
         loadResourceMetadata = Self.defaultResourceMetadata
@@ -147,6 +152,7 @@ public struct KnitNoteBackupService: Sendable {
         replacementStepHook = { _ in }
         cleanupItem = { try FileManager.default.removeItem(at: $0) }
         copyChunkHook = { _, _ in }
+        self.patternFolderNameContext = patternFolderNameContext
     }
 
     init(
@@ -195,6 +201,7 @@ public struct KnitNoteBackupService: Sendable {
     init(
         liveRoot: URL,
         workRoot: URL,
+        patternFolderNameContext: PatternFolderNameContext? = nil,
         replacementStepHook: @escaping @Sendable (KnitNoteBackupReplacementStep) throws -> Void
     ) {
         self.liveRoot = liveRoot
@@ -204,6 +211,7 @@ public struct KnitNoteBackupService: Sendable {
         self.replacementStepHook = replacementStepHook
         cleanupItem = { try FileManager.default.removeItem(at: $0) }
         copyChunkHook = { _, _ in }
+        self.patternFolderNameContext = patternFolderNameContext
     }
 
     init(
@@ -1627,7 +1635,11 @@ public struct KnitNoteBackupService: Sendable {
     }
 
     private func validateLiveRoot(_ root: URL) throws {
-        let validator = KnitNoteBackupService(liveRoot: root, workRoot: workRoot)
+        let validator = KnitNoteBackupService(
+            liveRoot: root,
+            workRoot: workRoot,
+            patternFolderNameContext: patternFolderNameContext
+        )
         try validator.validateLiveArchive()
     }
 
@@ -2121,7 +2133,7 @@ public struct KnitNoteBackupService: Sendable {
                     patterns: archive.patterns,
                     usages: archive.patternUsages,
                     validProjectIDs: archive.projects.map(\.id)
-                ).normalizedAndValidated()
+                ).normalizedAndValidated(nameContext: patternFolderNameContext)
                 guard normalized.folders == archive.patternFolders else {
                     throw KnitNoteBackupError.invalidArchive
                 }

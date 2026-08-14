@@ -539,6 +539,7 @@ final class PatternLibraryDeletionTransaction {
     private var activePatternTransactions = 0
     private let authorizeMutation: MutationAuthorizer
     private let commitSuccessfulMutation: MutationSuccessCommitter
+    private var patternFolderNameContext: PatternFolderNameContext?
 
     public convenience init(
         url: URL,
@@ -551,6 +552,7 @@ final class PatternLibraryDeletionTransaction {
         patternPublicationReceiptService: PatternInboxPublicationReceiptService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil,
+        patternFolderNameContext: PatternFolderNameContext? = nil,
         authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
         commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) {
@@ -570,7 +572,12 @@ final class PatternLibraryDeletionTransaction {
             patternPublicationReceiptService: patternPublicationReceiptService,
             patternMarkupFileService: patternMarkupFileService,
             patternThumbnailService: patternThumbnailService,
-            backupService: KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot),
+            patternFolderNameContext: patternFolderNameContext,
+            backupService: KnitNoteBackupService(
+                liveRoot: liveRoot,
+                workRoot: workRoot,
+                patternFolderNameContext: patternFolderNameContext
+            ),
             authorizeMutation: authorizeMutation,
             commitSuccessfulMutation: commitSuccessfulMutation
         )
@@ -587,6 +594,7 @@ final class PatternLibraryDeletionTransaction {
         patternPublicationReceiptService: PatternInboxPublicationReceiptService? = nil,
         patternMarkupFileService: PatternMarkupFileService? = nil,
         patternThumbnailService: PatternThumbnailFileService? = nil,
+        patternFolderNameContext: PatternFolderNameContext? = nil,
         patternPDFPageThumbnailURLGenerator: (@Sendable (PatternAsset, URL, Int) -> URL?)? = nil,
         afterYouTubeThumbnailStage: @escaping @Sendable () async -> Void = {},
         backupService: KnitNoteBackupService,
@@ -652,6 +660,7 @@ final class PatternLibraryDeletionTransaction {
         self.archiveWrite = archiveWrite
         self.authorizeMutation = authorizeMutation
         self.commitSuccessfulMutation = commitSuccessfulMutation
+        self.patternFolderNameContext = patternFolderNameContext
         if let initialLoadError {
             loadError = initialLoadError
         } else {
@@ -665,9 +674,11 @@ final class PatternLibraryDeletionTransaction {
     ) -> JSONProjectStore {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         do {
+            let patternFolderNameContext = try PatternFolderNameContext.shipping()
             return try live(
                 baseDirectory: base,
                 locations: PatternStorageLocations.live(),
+                patternFolderNameContext: patternFolderNameContext,
                 authorizeMutation: authorizeMutation,
                 commitSuccessfulMutation: commitSuccessfulMutation
             )
@@ -694,12 +705,14 @@ final class PatternLibraryDeletionTransaction {
         commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) -> JSONProjectStore {
         let liveRoot = baseDirectory.appendingPathComponent("KnitNote", isDirectory: true)
+        let patternFolderNameContext = try? PatternFolderNameContext.shipping()
         return live(
             baseDirectory: baseDirectory,
             locations: PatternStorageLocations(
                 assetRoot: liveRoot.appendingPathComponent("Patterns", isDirectory: true),
                 inboxRoot: liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
             ),
+            patternFolderNameContext: patternFolderNameContext,
             authorizeMutation: authorizeMutation,
             commitSuccessfulMutation: commitSuccessfulMutation
         )
@@ -708,6 +721,7 @@ final class PatternLibraryDeletionTransaction {
     private static func live(
         baseDirectory: URL,
         locations: PatternStorageLocations,
+        patternFolderNameContext: PatternFolderNameContext?,
         authorizeMutation: @escaping MutationAuthorizer,
         commitSuccessfulMutation: @escaping MutationSuccessCommitter
     ) -> JSONProjectStore {
@@ -717,13 +731,18 @@ final class PatternLibraryDeletionTransaction {
             ".KnitNote-BackupWork",
             isDirectory: true
         )
-        let backupService = KnitNoteBackupService(liveRoot: liveRoot, workRoot: workRoot)
+        let backupService = KnitNoteBackupService(
+            liveRoot: liveRoot,
+            workRoot: workRoot,
+            patternFolderNameContext: patternFolderNameContext
+        )
         do {
             let interruptedInstallation = try backupService.recoverInterruptedReplacement()
             let store = JSONProjectStore(
                 url: archiveURL,
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
+                patternFolderNameContext: patternFolderNameContext,
                 backupService: backupService,
                 authorizeMutation: authorizeMutation,
                 commitSuccessfulMutation: commitSuccessfulMutation
@@ -738,6 +757,7 @@ final class PatternLibraryDeletionTransaction {
                 url: archiveURL,
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
+                patternFolderNameContext: patternFolderNameContext,
                 backupService: backupService,
                 authorizeMutation: authorizeMutation,
                 commitSuccessfulMutation: commitSuccessfulMutation
@@ -747,6 +767,7 @@ final class PatternLibraryDeletionTransaction {
                 url: archiveURL,
                 patternFileService: PatternFileService(root: locations.assetRoot),
                 patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
+                patternFolderNameContext: patternFolderNameContext,
                 backupService: backupService,
                 initialLoadError: .unreadableArchive,
                 authorizeMutation: authorizeMutation,
@@ -1458,7 +1479,8 @@ final class PatternLibraryDeletionTransaction {
         try persist(
             projects: projects,
             yarns: yarns,
-            patternFolders: patternFolders + [folder]
+            patternFolders: patternFolders + [folder],
+            patternFolderNameContext: nameContext
         )
         return folder
     }
@@ -1479,7 +1501,12 @@ final class PatternLibraryDeletionTransaction {
         )
         var stagedFolders = patternFolders
         stagedFolders[index].displayName = displayName
-        try persist(projects: projects, yarns: yarns, patternFolders: stagedFolders)
+        try persist(
+            projects: projects,
+            yarns: yarns,
+            patternFolders: stagedFolders,
+            patternFolderNameContext: nameContext
+        )
     }
 
     public func movePattern(id: UUID, toFolderID folderID: UUID?) throws {
@@ -2633,7 +2660,9 @@ final class PatternLibraryDeletionTransaction {
             return
         }
         do {
-            try PatternLibraryMigrator().recoverInterruptedMigration(archiveURL: url)
+            try PatternLibraryMigrator(
+                patternFolderNameContext: patternFolderNameContext
+            ).recoverInterruptedMigration(archiveURL: url)
             guard FileManager.default.fileExists(atPath: url.path) else {
                 try recoverPatternDeletionArtifacts(
                     archive: ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
@@ -2668,7 +2697,9 @@ final class PatternLibraryDeletionTransaction {
             patternUsages: [PatternProjectUsage]
         )
         do {
-            let migrator = PatternLibraryMigrator()
+            let migrator = PatternLibraryMigrator(
+                patternFolderNameContext: patternFolderNameContext
+            )
             try migrator.recoverInterruptedMigration(archiveURL: url)
             let initialArchive = try archiveFromDisk()
             try recoverPatternDeletionArtifacts(archive: initialArchive)
@@ -2797,7 +2828,7 @@ final class PatternLibraryDeletionTransaction {
             patterns: archive.patterns,
             usages: archive.patternUsages,
             validProjectIDs: loadedProjects.map(\.id)
-        ).validated()
+        ).validated(nameContext: patternFolderNameContext)
         return (
             loadedProjects,
             loadedYarns,
@@ -3036,7 +3067,8 @@ final class PatternLibraryDeletionTransaction {
         patternFolders stagedPatternFolders: [PatternFolder]? = nil,
         patternAssets stagedPatternAssets: [PatternAsset]? = nil,
         patterns stagedPatterns: [StoredPattern]? = nil,
-        patternUsages stagedPatternUsages: [PatternProjectUsage]? = nil
+        patternUsages stagedPatternUsages: [PatternProjectUsage]? = nil,
+        patternFolderNameContext stagedPatternFolderNameContext: PatternFolderNameContext? = nil
     ) throws {
         try ensureArchiveAvailable()
         let projectIDs = Set(stagedProjects.map(\.id))
@@ -3056,7 +3088,9 @@ final class PatternLibraryDeletionTransaction {
                 patterns: libraryPatterns,
                 usages: usages,
                 validProjectIDs: sortedProjects.map(\.id)
-            ).validated()
+            ).validated(
+                nameContext: stagedPatternFolderNameContext ?? patternFolderNameContext
+            )
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             let data = try JSONEncoder().encode(ProjectArchive(
                 version: ProjectArchive.currentVersion,
@@ -3074,6 +3108,9 @@ final class PatternLibraryDeletionTransaction {
             patternAssets = assets
             patterns = normalized.patterns
             patternUsages = usages
+            if let stagedPatternFolderNameContext {
+                patternFolderNameContext = stagedPatternFolderNameContext
+            }
             dataGeneration &+= 1
             reconcileYarnPhotos()
             reconcileYarnLabelPhotos()

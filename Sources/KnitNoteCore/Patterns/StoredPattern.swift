@@ -105,7 +105,9 @@ public struct PatternLibrarySnapshot: Sendable {
         self.validProjectIDs = validProjectIDs
     }
 
-    public func normalizedAndValidated() throws -> PatternLibrarySnapshot {
+    public func normalizedAndValidated(
+        nameContext: PatternFolderNameContext? = nil
+    ) throws -> PatternLibrarySnapshot {
         guard Set(folders.map(\.id)).count == folders.count else {
             throw PatternLibraryValidationError.duplicateFolderID
         }
@@ -116,6 +118,21 @@ public struct PatternLibrarySnapshot: Sendable {
                 throw PatternFolderValidationError.emptyName
             }
             return folder
+        }
+        if !normalizedFolders.isEmpty {
+            guard let nameContext else {
+                throw PatternFolderValidationError.missingNameContext
+            }
+            var validatedFolders: [PatternFolder] = []
+            for folder in normalizedFolders {
+                _ = try PatternFolderNamePolicy.validatedName(
+                    folder.displayName,
+                    folders: validatedFolders,
+                    excluding: nil,
+                    nameContext: nameContext
+                )
+                validatedFolders.append(folder)
+            }
         }
         let folderIDs = Set(normalizedFolders.map(\.id))
         let normalizedPatterns = patterns.map { pattern in
@@ -134,8 +151,10 @@ public struct PatternLibrarySnapshot: Sendable {
         ).validatedReferences()
     }
 
-    public func validated() throws -> PatternLibrarySnapshot {
-        try normalizedAndValidated()
+    public func validated(
+        nameContext: PatternFolderNameContext? = nil
+    ) throws -> PatternLibrarySnapshot {
+        try normalizedAndValidated(nameContext: nameContext)
     }
 
     private func validatedReferences() throws -> PatternLibrarySnapshot {

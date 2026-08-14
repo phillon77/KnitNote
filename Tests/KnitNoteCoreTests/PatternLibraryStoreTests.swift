@@ -1263,6 +1263,36 @@ func createRenameMoveAndDeleteFolderAreAtomic() async throws {
 }
 
 @MainActor @Test
+func deletingFolderMovesEveryMatchingPatternAndLeavesUnrelatedPattern() async throws {
+    let harness = try PatternImportHarness()
+    var patternIDs: [UUID] = []
+    for pageCount in 1...3 {
+        let source = harness.sourceRoot.appendingPathComponent("Pattern-\(pageCount).pdf")
+        try makeTestPatternPDF(at: source, pageCount: pageCount)
+        guard case let .created(patternID) = try await harness.store.importPatternFromLibrary(source)
+        else {
+            Issue.record("Expected distinct imported pattern")
+            return
+        }
+        patternIDs.append(patternID)
+    }
+    let context = try shippingPatternFolderNameContext()
+    let deleted = try harness.store.createPatternFolder(name: "Delete me", nameContext: context)
+    let retained = try harness.store.createPatternFolder(name: "Keep me", nameContext: context)
+    try harness.store.movePattern(id: patternIDs[0], toFolderID: deleted.id)
+    try harness.store.movePattern(id: patternIDs[1], toFolderID: deleted.id)
+    try harness.store.movePattern(id: patternIDs[2], toFolderID: retained.id)
+
+    let movedCount = try harness.store.deletePatternFolder(id: deleted.id)
+
+    #expect(movedCount == 2)
+    #expect(harness.store.patterns.first { $0.id == patternIDs[0] }?.folderID == nil)
+    #expect(harness.store.patterns.first { $0.id == patternIDs[1] }?.folderID == nil)
+    #expect(harness.store.patterns.first { $0.id == patternIDs[2] }?.folderID == retained.id)
+    #expect(harness.store.patternFolders == [retained])
+}
+
+@MainActor @Test
 func staleFolderAndPatternIdentitiesPublishNothing() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
     let context = PatternFolderNameContext(locale: Locale(identifier: "en"), reservedNames: [])
@@ -1306,6 +1336,16 @@ func rejectedFolderNamesPublishNothing() throws {
 
     #expect(throws: PatternFolderValidationError.reservedName) {
         try harness.store.renamePatternFolder(id: folder.id, to: "all", nameContext: context)
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+
+    #expect(throws: PatternFolderValidationError.emptyName) {
+        _ = try harness.store.createPatternFolder(name: " \n ", nameContext: context)
+    }
+    try expectPatternFolderStoreState(before, in: harness)
+
+    #expect(throws: PatternFolderValidationError.emptyName) {
+        try harness.store.renamePatternFolder(id: folder.id, to: "\t ", nameContext: context)
     }
     try expectPatternFolderStoreState(before, in: harness)
 }
@@ -1433,15 +1473,18 @@ final class PatternLibraryStoreHarness {
         try JSONEncoder().encode(archive).write(to: archiveURL, options: .atomic)
         let gate = failingArchiveWrites ? ArchiveWriteGate() : nil
         archiveWriteGate = gate
+        let nameContext = try shippingPatternFolderNameContext()
         store = JSONProjectStore(
             url: archiveURL,
             patternFileService: PatternFileService(root: patternsRoot),
             patternInboxFileService: PatternInboxFileService(
                 root: root.appendingPathComponent("PatternInbox", isDirectory: true)
             ),
+            patternFolderNameContext: nameContext,
             backupService: KnitNoteBackupService(
                 liveRoot: root,
-                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true)
+                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true),
+                patternFolderNameContext: nameContext
             ),
             archiveWrite: { data, destination in
                 gate?.writeCount += 1
@@ -1489,15 +1532,18 @@ final class PatternLibraryStoreHarness {
     }
 
     func reopenedStore() throws -> JSONProjectStore {
-        JSONProjectStore(
+        let nameContext = try shippingPatternFolderNameContext()
+        return JSONProjectStore(
             url: archiveURL,
             patternFileService: PatternFileService(root: patternsRoot),
             patternInboxFileService: PatternInboxFileService(
                 root: root.appendingPathComponent("PatternInbox", isDirectory: true)
             ),
+            patternFolderNameContext: nameContext,
             backupService: KnitNoteBackupService(
                 liveRoot: root,
-                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true)
+                workRoot: root.appendingPathComponent(".BackupWork", isDirectory: true),
+                patternFolderNameContext: nameContext
             )
         )
     }

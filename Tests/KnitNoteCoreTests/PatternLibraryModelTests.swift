@@ -375,6 +375,107 @@ private func snapshotRejectsEachDuplicateIdentifierAndMissingPattern(
     }
 }
 
+@Test func snapshotRejectsDuplicateCanonicalAndShippingReservedFolderNames() throws {
+    let context = try shippingPatternFolderNameContext()
+    let first = PatternFolder(displayName: "Café")
+    let duplicate = PatternFolder(displayName: "ＣＡＦＥ")
+    let reservedNames = ["All", "全部", "すべて", "미분류"]
+
+    #expect(throws: PatternFolderValidationError.duplicateName) {
+        try PatternLibrarySnapshot(
+            folders: [first, duplicate],
+            assets: [],
+            patterns: [],
+            usages: [],
+            validProjectIDs: []
+        ).normalizedAndValidated(nameContext: context)
+    }
+
+    for reservedName in reservedNames {
+        #expect(throws: PatternFolderValidationError.reservedName) {
+            try PatternLibrarySnapshot(
+                folders: [PatternFolder(displayName: reservedName)],
+                assets: [],
+                patterns: [],
+                usages: [],
+                validProjectIDs: []
+            ).normalizedAndValidated(nameContext: context)
+        }
+    }
+}
+
+@MainActor @Test func currentArchiveNameRejectionPublishesNothing() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PatternFolderArchiveBoundary-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let archiveURL = root.appendingPathComponent("projects-v1.json")
+    let context = try shippingPatternFolderNameContext()
+    let folder = PatternFolder(displayName: "Sweaters")
+    let patternFiles = PatternFileService(
+        root: root.appendingPathComponent("Patterns", isDirectory: true)
+    )
+    let assetID = UUID()
+    let assetURL = patternFiles.assetsRoot.appendingPathComponent("\(assetID.uuidString).pdf")
+    try FileManager.default.createDirectory(
+        at: patternFiles.assetsRoot,
+        withIntermediateDirectories: true
+    )
+    try makeTestPatternPDF(at: assetURL)
+    let metadata = try patternFiles.inspect(assetURL)
+    let asset = PatternAsset(
+        id: assetID,
+        sha256: metadata.sha256,
+        kind: metadata.kind,
+        storedFilename: assetURL.lastPathComponent,
+        byteCount: metadata.byteCount,
+        pageCount: metadata.pageCount
+    )
+    let pattern = StoredPattern(
+        assetID: asset.id,
+        displayName: "Kept",
+        folderID: folder.id
+    )
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try JSONEncoder().encode(ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [],
+        patternFolders: [folder],
+        patternAssets: [asset],
+        patterns: [pattern]
+    )).write(to: archiveURL, options: .atomic)
+    let store = JSONProjectStore(
+        url: archiveURL,
+        patternFileService: patternFiles,
+        patternFolderNameContext: context
+    )
+    let publishedFolders = store.patternFolders
+    let publishedPatterns = store.patterns
+    let generation = store.dataGeneration
+    let selection = PatternLibraryScope.folder(folder.id)
+
+    let malformed = ProjectArchive(
+        version: ProjectArchive.currentVersion,
+        projects: [],
+        patternFolders: [
+            PatternFolder(displayName: "Café"),
+            PatternFolder(displayName: "ＣＡＦＥ"),
+        ],
+        patternAssets: [asset],
+        patterns: [pattern]
+    )
+    let malformedBytes = try JSONEncoder().encode(malformed)
+    try malformedBytes.write(to: archiveURL, options: .atomic)
+
+    #expect(throws: ProjectStoreError.unreadableArchive) {
+        try store.reloadFromDisk()
+    }
+    #expect(store.patternFolders == publishedFolders)
+    #expect(store.patterns == publishedPatterns)
+    #expect(store.dataGeneration == generation)
+    #expect(selection == .folder(folder.id))
+    #expect(try Data(contentsOf: archiveURL) == malformedBytes)
+}
+
 @Test func snapshotNormalizesMalformedHistoricalFolderWhitespace() throws {
     let folder = PatternFolder(displayName: "  Sweaters\n")
 
@@ -384,7 +485,7 @@ private func snapshotRejectsEachDuplicateIdentifierAndMissingPattern(
         patterns: [],
         usages: [],
         validProjectIDs: []
-    ).normalizedAndValidated()
+    ).normalizedAndValidated(nameContext: try shippingPatternFolderNameContext())
 
     #expect(normalized.folders.map(\.displayName) == ["Sweaters"])
 }

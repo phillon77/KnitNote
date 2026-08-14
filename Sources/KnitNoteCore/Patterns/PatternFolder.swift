@@ -26,12 +26,37 @@ public struct PatternFolderNameContext: Sendable {
         self.locale = locale
         self.reservedNames = reservedNames
     }
+
+    public static func shipping(bundle: Bundle = .main) throws -> Self {
+        var reservedNames = Set<String>()
+        for identifier in SupportedLocalization.v150Identifiers {
+            guard let localizationURL = bundle.url(
+                forResource: identifier,
+                withExtension: "lproj"
+            ), let localizationBundle = Bundle(url: localizationURL) else {
+                throw PatternFolderValidationError.missingNameContext
+            }
+            for key in ["patterns.folder.all", "patterns.folder.uncategorized"] {
+                let value = localizationBundle.localizedString(
+                    forKey: key,
+                    value: key,
+                    table: nil
+                )
+                guard value != key else {
+                    throw PatternFolderValidationError.missingNameContext
+                }
+                reservedNames.insert(value)
+            }
+        }
+        return Self(locale: Locale(identifier: "en"), reservedNames: reservedNames)
+    }
 }
 
 public enum PatternFolderValidationError: Error, Equatable, Sendable {
     case emptyName
     case duplicateName
     case reservedName
+    case missingNameContext
 }
 
 public enum PatternFolderNamePolicy {

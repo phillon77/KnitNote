@@ -46,4 +46,14 @@ import Testing
             "Café", folders: [existing], excluding: existing.id, nameContext: context
         ) == "Café")
     }
+
+    @Test func shippingContextResolvesEveryReservedNameFromTheCatalogBundle() throws {
+        let resolved = try PatternFolderNameContext.shipping(
+            bundle: shippingPatternFolderLocalizationBundle()
+        )
+        let expected = try shippingPatternFolderNameContext()
+
+        #expect(resolved.locale.identifier == "en")
+        #expect(resolved.reservedNames == expected.reservedNames)
+    }
 }

@@ -53,7 +53,15 @@ import Testing
 
     @Test func ambiguousShareCanCreateOneNewCollectionUsingTheExistingAsset() async throws {
         let harness = try await PatternImportHarness.withTwoNamesForOneAsset()
-        let item = try harness.enqueueMatchingFile()
+        let context = try shippingPatternFolderNameContext()
+        let folder = try harness.store.createPatternFolder(name: "Captured", nameContext: context)
+        let item = try harness.inbox.enqueue(
+            source: harness.sourceRoot.appendingPathComponent("Matching.pdf"),
+            origin: .shareExtension,
+            targetProjectID: nil,
+            targetFolderID: folder.id,
+            now: .now
+        )
         let existingAssetID = try #require(harness.store.patternAssets.first?.id)
 
         let outcome = try await harness.store.processPatternInboxItem(
@@ -68,6 +76,7 @@ import Testing
         #expect(harness.store.patternAssets.map(\.id) == [existingAssetID])
         #expect(harness.store.patterns.count == 3)
         #expect(harness.store.patterns.first(where: { $0.id == patternID })?.displayName == "Matching")
+        #expect(harness.store.patterns.first(where: { $0.id == patternID })?.folderID == folder.id)
         #expect(try harness.inbox.item(id: item.id) == nil)
     }
 

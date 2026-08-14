@@ -50,7 +50,8 @@ import UniformTypeIdentifiers
         let restoredLive = root.appendingPathComponent("RestoredKnitNote", isDirectory: true)
         let restoreService = KnitNoteBackupService(
             liveRoot: restoredLive,
-            workRoot: root.appendingPathComponent("RestoreWork", isDirectory: true)
+            workRoot: root.appendingPathComponent("RestoreWork", isDirectory: true),
+            patternFolderNameContext: try shippingPatternFolderNameContext()
         )
         let staged = try restoreService.stagePackage(at: package)
         let installation = try restoreService.install(staged)
@@ -209,6 +210,35 @@ import UniformTypeIdentifiers
         }
     }
 
+    @Test func duplicateAndShippingReservedFolderNamesAreRejectedBeforeStaging() throws {
+        let package = try BackupFixture.patternLibraryPackage()
+        defer { try? FileManager.default.removeItem(at: package.cleanupRoot) }
+        let context = try shippingPatternFolderNameContext()
+        let service = KnitNoteBackupService(
+            liveRoot: package.cleanupRoot.appendingPathComponent("UnchangedLive"),
+            workRoot: package.cleanupRoot.appendingPathComponent("NameValidationWork"),
+            patternFolderNameContext: context
+        )
+
+        for names in [["Café", "ＣＡＦＥ"], ["未分類"]] {
+            try package.rewriteArchive { archive in
+                ProjectArchive(
+                    version: archive.version,
+                    projects: archive.projects,
+                    yarns: archive.yarns,
+                    patternFolders: names.map { PatternFolder(displayName: $0) },
+                    patternAssets: archive.patternAssets,
+                    patterns: archive.patterns,
+                    patternUsages: archive.patternUsages
+                )
+            }
+            #expect(throws: KnitNoteBackupError.invalidArchive) {
+                _ = try service.stagePackage(at: package.url)
+            }
+            #expect(!FileManager.default.fileExists(atPath: service.liveRoot.path))
+        }
+    }
+
     @MainActor @Test func storeNormalizesOrphanFolderMembershipWithoutLosingPattern() throws {
         let (service, live, root) = try makeServiceFixture()
         _ = service
@@ -267,7 +297,8 @@ import UniformTypeIdentifiers
         let restoredLive = root.appendingPathComponent("RestoredKnitNote", isDirectory: true)
         let restoreService = KnitNoteBackupService(
             liveRoot: restoredLive,
-            workRoot: root.appendingPathComponent("RestoreWork", isDirectory: true)
+            workRoot: root.appendingPathComponent("RestoreWork", isDirectory: true),
+            patternFolderNameContext: try shippingPatternFolderNameContext()
         )
         let staged = try restoreService.stagePackage(at: package)
         let installation = try restoreService.install(staged)
@@ -2444,7 +2475,15 @@ private func makeServiceFixture() throws -> (KnitNoteBackupService, URL, URL) {
     let live = root.appendingPathComponent("KnitNote")
     let work = root.appendingPathComponent("Work")
     try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
-    return (KnitNoteBackupService(liveRoot: live, workRoot: work), live, root)
+    return (
+        KnitNoteBackupService(
+            liveRoot: live,
+            workRoot: work,
+            patternFolderNameContext: try shippingPatternFolderNameContext()
+        ),
+        live,
+        root
+    )
 }
 
 private enum BackupFixture {

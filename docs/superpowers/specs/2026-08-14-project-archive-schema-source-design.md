@@ -92,4 +92,3 @@ Existing untracked workspace content must remain untouched.
 The design is accepted only when an independent review finds no Critical or
 Important issue in the canonical-file binding, all required tests and audits
 are green, and the worktree retains only the pre-existing untracked paths.
-

@@ -34,6 +34,7 @@ import UniformTypeIdentifiers
         #expect(item.receivedAt == receivedAt)
         #expect(item.origin == .shareExtension)
         #expect(item.targetProjectID == nil)
+        #expect(item.targetFolderID == nil)
         #expect(scope.started == [source])
         #expect(scope.stopped == [source])
         #expect(try PatternInboxFileService(root: inboxRoot).items() == [item])

@@ -1,6 +1,28 @@
 # Task 7 Report — Automated and Physical Acceptance Preparation
 
-Status: **pre-gate contract fix complete / Task 7 pending**
+Status: **FINAL REVIEW FIX ROUND 1 IMPLEMENTATION COMPLETE / REVIEW-PENDING / PRIOR AUTOMATED EVIDENCE SUPERSEDED / PHYSICAL PENDING**
+
+## Current state
+
+- Final whole-branch review at `d00bb36c93368b517987f033f91ebaec08a7fc1c` found one Important persisted folder-name invariant gap and six Minor coverage/report/whitespace findings.
+- The implementation closes those findings in the working candidate. The earlier 1523-test and unsigned-build evidence remains historical evidence for `ef6c0c2`, not acceptance of the new source.
+- A fresh focused review is required before any replacement full suite/build run. All physical checklist items remain unchecked.
+
+## Final whole-branch review Fix Round 1
+
+Status: **implementation complete / review-pending / later gates remain blocked**
+
+- Root cause: folder-name policy was enforced only by create/rename callers using a UI-supplied context. Schema-13 archive decoding and backup validation only checked identifiers and trimmed nonempty names, so persisted duplicate canonical names and translated reserved All/Uncategorized names bypassed the invariant.
+- Design: `PatternLibrarySnapshot` is the single persistence validation boundary. A shipping `PatternFolderNameContext` resolves the two reserved-name keys from every exact supported `.lproj` in the compiled String Catalog bundle; no translated-name table is embedded in Swift and user names are never translated or rewritten.
+- Current archive decode/migration validation, backup validation/staging/live-root validation, and public restore now pass the same context through that boundary. Folder-bearing snapshots fail closed if the context is unavailable. Pre-schema-13 migration still creates no folders, and orphan folder membership still normalizes to Uncategorized.
+- Behavioral no-publication coverage preserves malformed archive bytes, published folders/patterns, data generation, and caller selection after rejected current-archive reload or public restore. Backup staging rejects malformed names before publishing a live root.
+- Minor findings closed: whitespace-only create/rename publication checks; deletion of two matching patterns while retaining one unrelated pattern; `.createNew` duplicate import preserves the captured folder destination; Share and project imports explicitly retain nil destinations; final-report chronology is ordered; the canonical design file has no extra EOF blank line.
+- RED: the first new boundary test did not compile before the `nameContext` validation API existed. With snapshot name validation deliberately disabled, the behavioral suite produced **7 intended issues** across current-archive reload, backup staging, and public restore; restoring the boundary removed all seven.
+- GREEN: focused fix selection **13 tests / 4 suites PASS**; key no-publication selection **4 tests PASS**; data/backup/store/import selection **292 tests / 4 suites PASS in 3.604 seconds**; final exact Task 7 focused selection **387 tests / 22 suites PASS in 8.260 seconds**.
+- Static release audit PASS, both reserved-name catalog queries report all 13 localizations, `git diff --check` PASS, and whole-branch `git diff 0c728eeb... --check` PASS.
+- No complete 302-second suite, XcodeGen, build, archive, export, device action, upload, submission, merge, push, or release action ran in this round. Fresh independent review is required before resuming later gates.
+
+## Historical chronology
 
 ## Current candidate and scope
 
@@ -192,6 +214,29 @@ swift test --disable-sandbox
 - Direct source inspection confirms all three intended product behaviors remain in `PatternLibraryCollectionView.swift`. This evidence identifies stale source-owner contracts; it does not establish a production defect.
 - Fail-closed consequence: the four unsigned builds, schema-12 migration probe, built identity inspection, verification record/commit, device availability inspection, and all physical acceptance items were not started.
 - No archive, export, install, launch, uninstall, erase, upload, App Store Connect action, submission, merge, push, or release action occurred.
+
+## Stale-owner fix review and final automated preparation
+
+Status: **AUTOMATED PASS / PHYSICAL PENDING**
+
+- Exact source candidate: `ef6c0c2cf1e69c4f38eaecfe2005888e31d72726`.
+- Stale-owner test-only fix independent review: **SPEC PASS / QUALITY PASS**, no findings, full-suite rerun clearance YES.
+- Exact focused selection at this candidate: **382 tests / 22 suites PASS**.
+- Fresh retained complete-suite run: **1523 tests / 128 suites PASS in 302.308 seconds**, true pipefail exit `0`; log SHA-256 `06de93db46cd435e410bf0b961af135ca3ac4dc634c98aaf750fd971ae0e6d9f`.
+- Two consecutive XcodeGen runs were byte-stable at SHA-256 `c3b2be0d83aef5a900f01c53cc02f6b7a0f631deab97eeb5dce6fff7645b560f`; generated project unchanged.
+- Exact unsigned builds:
+  - iOS Simulator: PASS, `** BUILD SUCCEEDED **`.
+  - macOS: PASS, `** BUILD SUCCEEDED **`.
+  - watchOS Simulator: PASS, `** BUILD SUCCEEDED **`.
+  - Share Extension: PASS, `** BUILD SUCCEEDED **`; used existing `KnitNoteShare` scheme because current Xcode rejects the plan's `-target` plus `-derivedDataPath` combination before compilation.
+- The first sandboxed iOS attempt failed during Watch asset compilation because sandboxing disconnected CoreSimulatorService; the exact command rerun outside the sandbox passed. This diagnostic attempt is not counted as a product build PASS.
+- Schema-12 migration preservation probe: **1 test PASS in 0.031 seconds**.
+- Built iOS, macOS, Watch, and Share products all report marketing version `1.5.0`, build `10`; bundle identifiers match their intended products.
+- Main app build graph compiled `ProjectArchiveSchema.swift`, `PatternFolder.swift`, and `PatternFolderPresentation.swift`. Share compiled the schema-13 inbox payload owner `PatternInboxItem.swift` for both simulator architectures.
+- Read-only availability: Mac available; iPad Air 5, iPhone 17 Pro Max, and Apple Watch Ultra 2 unavailable pending device unlock/discoverability. No install or launch attempted.
+- `AppStore/Verification/PatternFoldersNextVersionVerification.md` binds the exact source candidate and retains all physical items unchecked/PENDING.
+- Acceptance-preparation commit: `d00bb36c93368b517987f033f91ebaec08a7fc1c` with message `test: prepare pattern folder acceptance`; it contains only the verification record because XcodeGen produced no project diff.
+- No archive, export, install, launch, uninstall, erase, upload, App Store Connect action, submission, merge, push, or release occurred.
 
 ## Replacement full-suite stale Task 5 contract correction
 

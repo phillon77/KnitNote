@@ -166,3 +166,61 @@ Status: **implementation complete / review-pending**
 - Exact Task 7 focused selection: **382 tests / 22 suites PASS in 8.873 seconds**.
 - The actor, current gate call sites, production source, project, and catalog are unchanged. No full-suite run, build, archive, export, install, upload, submission, merge, push, or release action was performed.
 - The complete Swift suite and remaining Task 7 gates stay pending until fresh review clears this round.
+
+## Reviewed LaunchServices fix and replacement full-suite result
+
+Status: **BLOCKED / complete suite failed / later gates not started**
+
+- Exact reviewed candidate: `485c14bae8f41ade72b126846616161a5f1a7b0d`.
+- Independent review of the LaunchServices token-audit fix: **SPEC PASS / QUALITY PASS**, no findings, full-suite resume clearance YES.
+- The previous hung PIDs were absent before starting this run.
+- Focused current gate supplied at this exact HEAD: **382 tests / 22 suites PASS**.
+- Exactly one replacement complete-suite run was started, with output retained at `/tmp/KnitNotePatternFolders-full-485c14b.log`:
+
+```bash
+CLANG_MODULE_CACHE_PATH=/tmp/KnitNoteTask7ModuleCache \
+SWIFTPM_MODULECACHE_OVERRIDE=/tmp/KnitNoteTask7ModuleCache \
+swift test --disable-sandbox
+```
+
+- It completed normally without the prior LaunchServices hang. Authoritative Swift Testing summary: **1523 tests / 128 suites FAILED after 302.510 seconds with 3 issues**.
+- The surrounding `tee` pipeline exited `0`; this is not treated as a test PASS because the retained Swift Testing summary explicitly says FAILED.
+- Three failing contracts:
+  1. `PatternReaderCounterContractTests.everyPatternManagedFileWriteRoutesThroughTheStoreCoordinator`, line 401, still reads `PatternLibraryView.swift` and therefore misses `store.importPatternFromLibrary(` after Task 5 moved the import owner to `PatternLibraryCollectionView.swift`.
+  2. `WatercolorThemePolicyTests.otherPrimaryScreensKeepTheGenericWatercolorBackground`, line 42, still requires `WatercolorBackground()` in the old root; the collection screen owns the background after the adaptive split.
+  3. `BackupSettingsViewContractTests.createdLibraryImportShowsOneLocalOnlyReminderAndDismissalPersistsIt`, line 114, still reads the old root and therefore misses `backupReminderPresenter.accept(outcome)` in the collection owner.
+- Direct source inspection confirms all three intended product behaviors remain in `PatternLibraryCollectionView.swift`. This evidence identifies stale source-owner contracts; it does not establish a production defect.
+- Fail-closed consequence: the four unsigned builds, schema-12 migration probe, built identity inspection, verification record/commit, device availability inspection, and all physical acceptance items were not started.
+- No archive, export, install, launch, uninstall, erase, upload, App Store Connect action, submission, merge, push, or release action occurred.
+
+## Replacement full-suite stale Task 5 contract correction
+
+Status: **implementation complete / review-pending / later gates remain blocked**
+
+- Exact source candidate that exposed the issue: `485c14bae8f41ade72b126846616161a5f1a7b0d`.
+- Retained full-suite log: `/tmp/KnitNotePatternFolders-full-485c14b.log`.
+- All three complete-suite failures independently reproduced as **1 RED issue** before test changes:
+  1. Pattern Reader coordinated file-write contract read the obsolete root instead of the collection owner.
+  2. Watercolor policy required the generic background in the obsolete root instead of the list presentation.
+  3. Backup reminder contract read the obsolete root instead of the collection import outcome handler.
+- Production inspection confirmed the behavior was correct; no production change was required.
+- Corrected contracts bind to exact source regions:
+  - `importPattern` must call `store.importPatternFromLibrary` and pass `folderID: destinationFolderID`;
+  - the list block between `.listStyle(.plain)` and `.navigationTitle(scopeTitle)` must apply `.background(WatercolorBackground())`;
+  - `importPattern` must route through `acceptImportOutcome(outcome)`, whose bounded block must call `backupReminderPresenter.accept(outcome)`.
+
+### Decoy mutation evidence
+
+- Actual library store call changed while an out-of-block `store.importPatternFromLibrary` comment remained: **1 intended RED issue**.
+- Actual list background changed to clear while the empty-state `WatercolorBackground()` remained: **1 intended RED issue**.
+- Actual outcome presenter call changed while an out-of-block `backupReminderPresenter.accept(outcome)` comment remained: **1 intended RED issue**.
+
+### Restored-source GREEN
+
+- Pattern Reader contracts: **28 tests / 1 suite PASS**.
+- Watercolor policy selection: **6 tests PASS**.
+- Backup Settings contracts: **11 tests / 1 suite PASS**.
+- Exact Task 7 focused selection: **382 tests / 22 suites PASS in 8.469 seconds**.
+- Production source restored with no diff; `git diff --check` PASS.
+- No replacement full suite, XcodeGen, build, archive, export, install, network, upload, submission, merge, push, or release action ran.
+- Await fresh review and explicit resume clearance before starting another full-suite run or any later Task 7 gate.

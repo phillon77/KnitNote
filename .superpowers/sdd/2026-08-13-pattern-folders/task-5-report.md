@@ -91,3 +91,12 @@ The clean Task 5 independent review approved this intentionally deferred Task 6 
 - Mutation RED evidence: All/Uncategorized returning a UUID (**1 issue**); user folder returning nil (**1**); destination switch removal with `scopeTitle` decoys retained (**2**); YouTube locale removal with Move-sheet locale retained (**1**); wrong YouTube locale (**1**); add menu changed while sort `Menu` remained (**1**).
 - Restored production source has no diff. Isolated YouTube suite passed **8/8** and the exact Task 7 focused selection passed **382 tests / 22 suites in 8.770 seconds**.
 - The test-only Fix Round 1 awaits fresh review; Task 7 gates must not resume from `a4b4cfc`.
+
+## Replacement full-suite stale-owner correction
+
+- The single replacement complete-suite run at `485c14b` completed without the prior LaunchServices hang but failed **3 of 1523 tests** because three older contracts still read `PatternLibraryView.swift` after Task 5 moved their behavior to `PatternLibraryCollectionView.swift`.
+- Each failure reproduced independently as exactly **1 issue**: coordinated library import, generic library watercolor background, and local-only backup reminder delivery.
+- The corrected contracts now bind behavior to the actual owner and exact block: `importPattern` must call `store.importPatternFromLibrary` with `folderID: destinationFolderID`; the list presentation must apply `.background(WatercolorBackground())`; and `acceptImportOutcome` must call `backupReminderPresenter.accept(outcome)` after import routes its outcome there.
+- Three decoy mutations each RED with **1 issue** while misleading same-file tokens remained outside the bounded block, proving the new checks do not merely search the whole file.
+- Restored-source GREEN: Pattern Reader contracts **28/28**, Watercolor policy **6/6**, Backup Settings contracts **11/11**, and exact Task 7 focused selection **382 tests / 22 suites PASS in 8.469 seconds**.
+- No production, generated project, catalog, full-suite rerun, build, archive, export, install, upload, submission, or release action changed or ran. The test-only correction awaits fresh review before another full-suite run.

@@ -33,7 +33,6 @@ import Testing
 @Test func otherPrimaryScreensKeepTheGenericWatercolorBackground() throws {
     let paths = [
         "KnitNote/Projects/ProjectDetailView.swift",
-        "KnitNote/Patterns/PatternLibraryView.swift",
         "KnitNote/Yarn/YarnLibraryView.swift",
         "KnitNote/Settings/SettingsView.swift"
     ]
@@ -41,6 +40,14 @@ import Testing
     for path in paths {
         #expect(try appSource(path).contains("WatercolorBackground()"), "Missing generic background in \(path)")
     }
+
+    let library = try appSource("KnitNote/Patterns/PatternLibraryCollectionView.swift")
+    let listStart = try #require(library.range(of: ".listStyle(.plain)"))
+    let listEnd = try #require(
+        library.range(of: ".navigationTitle(scopeTitle)", range: listStart.upperBound..<library.endIndex)
+    )
+    let listPresentation = library[listStart.lowerBound..<listEnd.lowerBound]
+    #expect(listPresentation.contains(".background(WatercolorBackground())"))
 }
 
 @Test func projectsPaintingBackgroundUsesTheApprovedArtworkAndVeil() throws {

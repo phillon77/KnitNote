@@ -105,13 +105,24 @@ import Testing
     }
 
     @Test func createdLibraryImportShowsOneLocalOnlyReminderAndDismissalPersistsIt() throws {
-        let library = try source("KnitNote/Patterns/PatternLibraryView.swift")
+        let library = try source("KnitNote/Patterns/PatternLibraryCollectionView.swift")
         let projectImporter = try source("KnitNote/Patterns/PatternImportResultView.swift")
         let inboxProcessor = try source("KnitNote/Patterns/PatternInboxProcessor.swift")
         let app = try source("KnitNote/App/KnitNoteApp.swift")
         let root = try source("KnitNote/App/RootView.swift")
+        let importOperation = try textBetween(
+            library,
+            start: "private func importPattern",
+            end: "private func acceptImportOutcome"
+        )
+        let importPresentation = try textBetween(
+            library,
+            start: "private func acceptImportOutcome",
+            end: "private func acceptYouTubeAddResult"
+        )
 
-        #expect(library.contains("backupReminderPresenter.accept(outcome)"))
+        #expect(importOperation.contains("acceptImportOutcome(outcome)"))
+        #expect(importPresentation.contains("backupReminderPresenter.accept(outcome)"))
         #expect(projectImporter.contains("backupReminderPresenter.accept(outcome)"))
         #expect(inboxProcessor.contains("backupReminderPresenter.accept(update.imported)"))
         #expect(app.contains("PatternBackupReminderPresenter()"))

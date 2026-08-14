@@ -394,11 +394,17 @@ import Testing
     @Test func everyPatternManagedFileWriteRoutesThroughTheStoreCoordinator() throws {
         let projectPatterns = try sourceFile("KnitNote/Patterns/ProjectPatternsView.swift")
         let projectImporter = try sourceFile("KnitNote/Patterns/PatternImportResultView.swift")
-        let library = try sourceFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let library = try sourceFile("KnitNote/Patterns/PatternLibraryCollectionView.swift")
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let libraryImport = try #require(sourceSection(
+            library,
+            from: "private func importPattern",
+            to: "private func acceptImportOutcome"
+        ))
 
         #expect(projectImporter.contains("store.importPatternFromProject("))
-        #expect(library.contains("store.importPatternFromLibrary("))
+        #expect(libraryImport.contains("store.importPatternFromLibrary("))
+        #expect(libraryImport.contains("folderID: destinationFolderID"))
         #expect(projectPatterns.contains("store.unlinkPattern(patternID:"))
         #expect(reader.contains("store.savePatternMarkup("))
         #expect(reader.contains("expectedDataGeneration:"))

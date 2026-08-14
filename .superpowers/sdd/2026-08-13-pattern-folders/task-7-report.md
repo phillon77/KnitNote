@@ -48,3 +48,27 @@ swift test --disable-sandbox --filter 'PatternFolder|PatternLibrary|PatternInbox
 - One complete Swift suite and unsigned iOS, macOS, watchOS, and Share Extension builds.
 - Static schema-12 → schema-13 data-preservation evidence and exact verification record.
 - Physical iPhone, iPad, Mac, VoiceOver, Dynamic Type, live language-switch, orientation/window-resizing, and existing-data preservation acceptance on an exact binary.
+
+## Pre-gate contract Fix Round 1
+
+- Independent review of candidate `a4b4cfcfaa1bc0b6f631849deba13db7d6489ceb` was **BLOCKED** by two Important test-only findings. Production remained correct.
+- I-1: file-wide destination case tokens did not prove the `destinationFolderID` result bodies and could be satisfied by `scopeTitle` decoys.
+- I-2: file-wide locale presence did not bind the reactive locale to `AddYouTubePatternView` because the Move sheet contained the same modifier. The generic menu assertion was also tightened so the sort menu cannot satisfy the add-menu contract.
+- The corrected contract uses fail-closed source slices around the exact add-action menu, file import method, destination property, and AddYouTube sheet. It preserves all file/YouTube action, project-nil, folder-destination, and reactive-locale requirements.
+
+### Mutation RED evidence
+
+- All/Uncategorized returning `UUID()` instead of nil: **1 intended issue**.
+- User-folder branch returning nil instead of `folderID`: **1 intended issue**.
+- Entire destination switch removed while `scopeTitle` case-label decoys remained: **2 intended issues**.
+- YouTube locale modifier removed while the Move sheet retained its locale modifier: **1 intended issue**.
+- YouTube sheet given a fixed English locale: **1 intended issue**.
+- Add menu changed to `Group` while the sort `Menu` remained: fail-closed start-marker **1 intended issue**.
+
+### Restored-source GREEN
+
+- Production source restored with no diff.
+- Isolated `YouTubePatternLibraryContractTests`: **8 tests / 1 suite PASS**.
+- Exact Task 7 focused selection: **382 tests / 22 suites PASS in 8.770 seconds**.
+- No full suite, XcodeGen, build, production/project/catalog, archive, export, install, network, upload, submission, merge, push, or release action ran or changed.
+- Fix Round 1 is **implementation complete / review-pending**. Do not resume remaining Task 7 gates until fresh review clears this candidate.

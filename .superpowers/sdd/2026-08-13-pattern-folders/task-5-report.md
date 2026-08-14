@@ -83,3 +83,11 @@ The clean Task 5 independent review approved this intentionally deferred Task 6 
 - The narrow contract change follows the new source owner, retains the existing YouTube action/project/locale requirements, and adds selected-folder destination plus All/Uncategorized/user-folder mapping assertions.
 - GREEN: isolated YouTube Pattern Library suite **8/8**; exact Task 7 focused selection **382 tests / 22 suites PASS**.
 - No production, generated project, catalog, full suite, build, archive, export, upload, submission, or release action changed or ran.
+
+### Contract Fix Round 1
+
+- Independent review of `a4b4cfc` found two Important false-pass gaps: destination case labels were file-wide and could be supplied by `scopeTitle`, while the YouTube locale modifier could be supplied by the Move sheet. The generic `Menu {` check could also be supplied by the sort menu.
+- Tests now use fail-closed bounded slices for the exact add-action menu, file-import method, `destinationFolderID` property, and AddYouTube sheet.
+- Mutation RED evidence: All/Uncategorized returning a UUID (**1 issue**); user folder returning nil (**1**); destination switch removal with `scopeTitle` decoys retained (**2**); YouTube locale removal with Move-sheet locale retained (**1**); wrong YouTube locale (**1**); add menu changed while sort `Menu` remained (**1**).
+- Restored production source has no diff. Isolated YouTube suite passed **8/8** and the exact Task 7 focused selection passed **382 tests / 22 suites in 8.770 seconds**.
+- The test-only Fix Round 1 awaits fresh review; Task 7 gates must not resume from `a4b4cfc`.

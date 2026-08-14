@@ -26,16 +26,31 @@ import Testing
             "KnitNote/Patterns/PatternLibraryCollectionView.swift"
         )
 
-        #expect(source.contains("Menu {"))
-        #expect(source.contains("Button(\"patterns.import.files\", systemImage: \"folder\")"))
-        #expect(source.contains("Button(\"patterns.youtube.add\", systemImage: \"play.rectangle\")"))
-        #expect(source.contains("AddYouTubePatternView("))
-        #expect(source.contains("targetProjectID: nil"))
-        #expect(source.contains("targetFolderID: destinationFolderID"))
-        #expect(source.contains("case .all, .uncategorized:"))
-        #expect(source.contains("case let .folder(folderID):"))
-        #expect(source.contains("importing = true"))
+        let addMenu = try youtubeSourceSlice(
+            source,
+            from: "Menu {\n                        Button(\"patterns.import.files\"",
+            to: ".accessibilityLabel(Text(\"patterns.add\"))"
+        )
+        #expect(addMenu.contains("Button(\"patterns.import.files\", systemImage: \"folder\")"))
+        #expect(addMenu.contains("importing = true"))
+        #expect(addMenu.contains("Button(\"patterns.youtube.add\", systemImage: \"play.rectangle\")"))
+        #expect(addMenu.contains("addingYouTubeLink = true"))
+
         #expect(source.contains(".fileImporter("))
+        let fileImport = try youtubeSourceSlice(
+            source,
+            from: "private func importPattern",
+            to: "private func acceptImportOutcome"
+        )
+        #expect(fileImport.contains("folderID: destinationFolderID"))
+
+        let destination = try youtubeSourceSlice(
+            source,
+            from: "private var destinationFolderID",
+            to: "private var scopeTitle"
+        )
+        #expect(destination.contains("case .all, .uncategorized:\n            nil"))
+        #expect(destination.contains("case let .folder(folderID):\n            folderID"))
     }
 
     @Test func libraryYouTubeSheetReceivesTheSelectedAppLocale() throws {
@@ -43,10 +58,15 @@ import Testing
             "KnitNote/Patterns/PatternLibraryCollectionView.swift"
         )
 
-        #expect(source.contains("AddYouTubePatternView("))
-        #expect(source.contains("targetProjectID: nil"))
-        #expect(source.contains("targetFolderID: destinationFolderID"))
-        #expect(source.contains(".environment(\\.locale, locale)"))
+        let youtubeSheet = try youtubeSourceSlice(
+            source,
+            from: ".sheet(isPresented: $addingYouTubeLink)",
+            to: ".sheet(item: $pendingSelection)"
+        )
+        #expect(youtubeSheet.contains("AddYouTubePatternView("))
+        #expect(youtubeSheet.contains("targetProjectID: nil"))
+        #expect(youtubeSheet.contains("targetFolderID: destinationFolderID"))
+        #expect(youtubeSheet.contains(".environment(\\.locale, locale)"))
     }
 
     @Test func youtubeRowsUseTheYoutubeDescriptionWithoutFileMetadata() throws {
@@ -102,4 +122,15 @@ import Testing
 private func makeYouTubeLibraryThumbnailPNG() throws -> Data {
     let source = URL(fileURLWithPath: "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns")
     return try Data(contentsOf: source)
+}
+
+private func youtubeSourceSlice(
+    _ source: String,
+    from startMarker: String,
+    to endMarker: String
+) throws -> Substring {
+    let start = try #require(source.range(of: startMarker))
+    let remainder = start.upperBound..<source.endIndex
+    let end = try #require(source.range(of: endMarker, range: remainder))
+    return source[start.lowerBound..<end.lowerBound]
 }

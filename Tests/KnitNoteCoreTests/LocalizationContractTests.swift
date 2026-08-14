@@ -452,6 +452,10 @@ import Testing
             "patterns.folder.error.missing",
             "patterns.folder.error.saveFailed",
         ]
+        let pluralKeys: Set<String> = [
+            "patterns.folder.count",
+            "patterns.folder.delete.message",
+        ]
 
         #expect(Set(requiredKeys).isSubset(of: Set(strings.keys)))
         for key in requiredKeys {
@@ -464,10 +468,15 @@ import Testing
                 "\(key) must contain exactly all 13 shipping locales"
             )
             for language in SupportedLocalization.v150Identifiers {
-                #expect(
-                    localizations?[language] as? [String: Any] != nil,
-                    "\(key) is missing \(language)"
-                )
+                let localization = localizations?[language] as? [String: Any]
+                if pluralKeys.contains(key) {
+                    #expect(localization != nil, "\(key) is missing \(language)")
+                } else {
+                    #expect(
+                        isValidDirectPatternFolderLocalization(localization, key: key),
+                        "\(key) \(language) must be a valid direct localization"
+                    )
+                }
             }
 
             let comment = (entry?["comment"] as? String)?.lowercased() ?? ""
@@ -504,6 +513,54 @@ import Testing
                 }
             }
         }
+    }
+
+    @Test func patternFolderDirectLocalizationsRejectInvalidEnglishStringUnits() {
+        let directKeys = [
+            "patterns.folder.all",
+            "patterns.folder.uncategorized",
+            "patterns.folder.new",
+            "patterns.folder.name",
+            "patterns.folder.rename",
+            "patterns.folder.move",
+            "patterns.folder.delete.title",
+            "patterns.folder.error.empty",
+            "patterns.folder.error.duplicate",
+            "patterns.folder.error.reserved",
+            "patterns.folder.error.missing",
+            "patterns.folder.error.saveFailed",
+        ]
+        for key in directKeys {
+            let newEnglish: [String: Any] = [
+                "stringUnit": ["state": "new", "value": "Reviewed English copy"],
+            ]
+            #expect(
+                !isValidDirectPatternFolderLocalization(newEnglish, key: key),
+                "\(key) accepted an English stringUnit with state new"
+            )
+        }
+
+        let blankEnglish: [String: Any] = [
+            "stringUnit": ["state": "translated", "value": "   "],
+        ]
+        #expect(
+            !isValidDirectPatternFolderLocalization(
+                blankEnglish,
+                key: "patterns.folder.all"
+            )
+        )
+        let keyValuedEnglish: [String: Any] = [
+            "stringUnit": [
+                "state": "translated",
+                "value": "patterns.folder.all",
+            ],
+        ]
+        #expect(
+            !isValidDirectPatternFolderLocalization(
+                keyValuedEnglish,
+                key: "patterns.folder.all"
+            )
+        )
     }
 
     private func completeFixtureLocalizations() -> [String: Any] {
@@ -627,6 +684,22 @@ import Testing
         try JSONSerialization.data(withJSONObject: catalog).write(to: url, options: .atomic)
         return url
     }
+}
+
+private func isValidDirectPatternFolderLocalization(
+    _ localization: [String: Any]?,
+    key: String
+) -> Bool {
+    guard let localization,
+          Set(localization.keys) == ["stringUnit"],
+          let unit = localization["stringUnit"] as? [String: Any],
+          unit["state"] as? String == "translated",
+          let value = unit["value"] as? String
+    else {
+        return false
+    }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return !trimmed.isEmpty && value != key
 }
 
 @Suite struct LocalizationContractTests {

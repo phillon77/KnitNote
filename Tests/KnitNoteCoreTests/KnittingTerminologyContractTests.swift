@@ -132,16 +132,44 @@ import Testing
             for language in languages {
                 let actualValues = values?[language] ?? []
                 #expect(!actualValues.isEmpty, "\(key) is missing \(language)")
-                let approved = (pattern[language] ?? "")
-                    .split(separator: "|")
-                    .map(String.init)
+                let approved = approvedFolderPatternTerms(
+                    for: language,
+                    terminology: pattern[language] ?? ""
+                )
                 #expect(
-                    actualValues.allSatisfy { value in
-                        approved.contains { matchesApprovedTerm($0, in: value) }
-                    },
+                    folderValuesUseApprovedPatternTerms(
+                        actualValues,
+                        approvedTerms: approved,
+                        language: language
+                    ),
                     "\(key) \(language) must use the approved knitting-pattern term family"
                 )
             }
+        }
+    }
+
+    @Test func patternFolderTerminologyRejectsApprovedTermsEmbeddedInLargerWords() {
+        let mutations: [(language: String, approved: [String], value: String)] = [
+            ("en", ["Pattern", "Patterns"], "%lld patternless"),
+            ("en", ["Pattern", "Patterns"], "%lld antipattern"),
+            ("fr", ["Patron", "Patrons"], "%lld patronage"),
+            ("fr", ["Patron", "Patrons"], "%lld copatron"),
+            ("fi", ["Ohje", "Ohjeet", "Ohjetta"], "%lld ohjettaton"),
+            ("el", ["Σχέδιο", "Σχέδια"], "%lld προσχέδιο"),
+            ("zh-Hans", ["图解"], "%lld 份图解学"),
+            ("ja", ["編み図"], "非編み図%lld件"),
+            ("ko", ["도안"], "비도안 %lld개"),
+        ]
+
+        for mutation in mutations {
+            #expect(
+                !folderValuesUseApprovedPatternTerms(
+                    [mutation.value],
+                    approvedTerms: mutation.approved,
+                    language: mutation.language
+                ),
+                "\(mutation.language) accepted embedded terminology decoy \(mutation.value)"
+            )
         }
     }
 
@@ -311,4 +339,59 @@ private func matchesApprovedTerm(_ approved: String, in value: String) -> Bool {
         of: term,
         options: [.caseInsensitive, .diacriticInsensitive]
     ) != nil
+}
+
+private func approvedFolderPatternTerms(
+    for language: String,
+    terminology: String
+) -> [String] {
+    var terms = terminology.split(separator: "|").map(String.init)
+    if language == "fi" {
+        terms.append("Ohjetta")
+    }
+    return terms
+}
+
+private func folderValuesUseApprovedPatternTerms(
+    _ values: [String],
+    approvedTerms: [String],
+    language: String
+) -> Bool {
+    values.allSatisfy { value in
+        approvedTerms.contains {
+            matchesApprovedFolderTerm($0, in: value, language: language)
+        }
+    }
+}
+
+private func matchesApprovedFolderTerm(
+    _ approved: String,
+    in value: String,
+    language: String
+) -> Bool {
+    let foldingOptions: String.CompareOptions = [
+        .diacriticInsensitive,
+        .widthInsensitive,
+    ]
+    let locale = Locale(identifier: "en_US_POSIX")
+    let foldedTerm = approved.folding(options: foldingOptions, locale: locale)
+    let foldedValue = value.folding(options: foldingOptions, locale: locale)
+    let escapedTerm = NSRegularExpression.escapedPattern(for: foldedTerm)
+    let pattern: String
+
+    switch language {
+    case "zh-Hant", "zh-Hans":
+        pattern = "%lld\\s*份\(escapedTerm)(?:$|移到)"
+    case "ja", "ko":
+        pattern = "(?<![\\p{L}\\p{N}])\(escapedTerm)\\s*%lld"
+    default:
+        pattern = "(?<![\\p{L}\\p{N}])\(escapedTerm)(?![\\p{L}\\p{N}])"
+    }
+
+    let expression = try! NSRegularExpression(
+        pattern: pattern,
+        options: [.caseInsensitive]
+    )
+    let range = NSRange(foldedValue.startIndex..., in: foldedValue)
+    return expression.firstMatch(in: foldedValue, range: range) != nil
 }

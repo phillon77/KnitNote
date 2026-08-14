@@ -16,8 +16,8 @@ import Testing
             let baseSettings = try #require(settings["base"] as? [String: Any])
 
             #expect(baseSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == identity.bundleIdentifier)
-            #expect(baseSettings["MARKETING_VERSION"] as? String == "1.5.0")
-            #expect(baseSettings["CURRENT_PROJECT_VERSION"] as? String == "10")
+            #expect(baseSettings["MARKETING_VERSION"] as? String == "1.5.1")
+            #expect(baseSettings["CURRENT_PROJECT_VERSION"] as? String == "11")
         }
     }
 
@@ -41,8 +41,8 @@ import Testing
 
             #expect(settings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == product.bundleIdentifier)
             #expect(settings["INFOPLIST_FILE"] as? String == product.infoPlist)
-            #expect(settings["MARKETING_VERSION"] as? String == "1.5.0")
-            #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "10")
+            #expect(settings["MARKETING_VERSION"] as? String == "1.5.1")
+            #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "11")
             #expect(settings["CODE_SIGN_STYLE"] as? String == "Automatic")
             #expect(settings["CODE_SIGN_IDENTITY"] as? String == "Apple Development")
             #expect(settings["DEVELOPMENT_TEAM"] as? String == "9CFPAUL5N5")
@@ -76,7 +76,7 @@ import Testing
         }
     }
 
-    @Test func generatedInfoPlistsPreserveCandidateIdentityAndVersion150ReleaseLocales() throws {
+    @Test func generatedInfoPlistsPreserveCandidateIdentityAndVersion151ReleaseLocales() throws {
         let payload = try runReleaseIdentityJSONTool(
             executable: "/usr/bin/env",
             arguments: ["xcodegen", "dump", "--type", "parsed-json"]
@@ -109,7 +109,7 @@ import Testing
         }
     }
 
-    @Test func generatedProjectKnownRegionsMatchTheVersion150CatalogResources() throws {
+    @Test func generatedProjectKnownRegionsMatchTheVersion151CatalogResources() throws {
         let project = try String(
             contentsOf: releaseCandidateIdentityRepositoryRoot
                 .appending(path: "KnitNote.xcodeproj/project.pbxproj"),

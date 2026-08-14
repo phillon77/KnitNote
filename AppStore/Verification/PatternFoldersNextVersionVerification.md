@@ -64,8 +64,9 @@ folder destination data, into `KnitNoteShare` for both simulator architectures.
 
 This pass is limited to the behaviors explicitly exercised above. It does not claim the
 extended import/failure matrix, VoiceOver/Dynamic Type, iPad, Mac, Watch, archive, export,
-upload, submission, release, or publication acceptance. The later planned `1.5.1` (`11`)
-identity has not yet been built or installed and is not covered by this session.
+upload, submission, release, or publication acceptance. At the time of this session, the
+later planned `1.5.1` (`11`) identity had not yet been built or installed and was not
+covered by this session.
 
 ## Read-only device availability before this acceptance session
 

@@ -25,6 +25,8 @@ class LocalizationContractTests(unittest.TestCase):
         values=None,
         source_language="en",
         nested=False,
+        variation_values=None,
+        key="calculator.title",
     ) -> Path:
         values = values or {locale: (english if locale == "en" else f"{locale} translation") for locale in locales}
         localizations = {
@@ -38,14 +40,15 @@ class LocalizationContractTests(unittest.TestCase):
                     locale: {
                         "variations": {
                             "device": {
-                                "iphone": {"stringUnit": unit["stringUnit"]},
+                                "iphone": {"stringUnit": {"state": "translated", "value": (variation_values or {}).get(locale, (unit["stringUnit"]["value"], unit["stringUnit"]["value"]))[0]}},
+                                "ipad": {"stringUnit": {"state": "translated", "value": (variation_values or {}).get(locale, (unit["stringUnit"]["value"], unit["stringUnit"]["value"]))[1]}},
                             }
                         }
                     }
                     for locale, unit in localizations.items()
                 }
             }
-        payload = {"sourceLanguage": source_language, "strings": {"calculator.title": entry}}
+        payload = {"sourceLanguage": source_language, "strings": {key: entry}}
         path = self.root / "Localizable.xcstrings"
         path.write_text(json.dumps(payload), encoding="utf-8")
         return path
@@ -97,6 +100,34 @@ class LocalizationContractTests(unittest.TestCase):
         catalog = self.catalog(values={locale: ("KnitNote" if locale != "en" else "KnitNote") for locale in SUPPORTED_APP_LOCALES})
         errors = self.validate(catalog)
         self.assertFalse(any("copied English" in error for error in errors), errors)
+
+    def test_rejects_copied_english_for_ordinary_unit_key(self) -> None:
+        catalog = self.catalog(
+            key="unit.setupGuide",
+            values={locale: ("Read the full setup guide" if locale != "en" else "Read the full setup guide") for locale in SUPPORTED_APP_LOCALES},
+        )
+        errors = self.validate(catalog)
+        self.assertTrue(any(": de: copied English" in error for error in errors), errors)
+
+    def test_rejects_url_with_unapproved_trailing_text(self) -> None:
+        catalog = self.catalog(
+            key="support.url",
+            values={locale: ("https://example.com/help - learn more" if locale != "en" else "https://example.com/help - learn more") for locale in SUPPORTED_APP_LOCALES},
+        )
+        errors = self.validate(catalog)
+        self.assertTrue(any(": de: copied English" in error for error in errors), errors)
+
+    def test_rejects_partially_copied_nested_variation(self) -> None:
+        catalog = self.catalog(
+            nested=True,
+            variation_values={
+                "en": ("One %lld", "Many %lld"),
+                "de": ("One %lld", "Viele %lld"),
+                **{locale: (f"{locale} one %lld", f"{locale} many %lld") for locale in SUPPORTED_APP_LOCALES if locale not in ("en", "de")},
+            },
+        )
+        errors = self.validate(catalog)
+        self.assertTrue(any(": de: copied English" in error for error in errors), errors)
 
     def test_rejects_non_english_source_language(self) -> None:
         catalog = self.catalog(source_language="zh-Hant")

@@ -16,6 +16,14 @@ SUPPORTED_APP_LOCALES = (
 PLACEHOLDER = re.compile(
     r"%(?:\d+\$)?(?:[-+0 #]*\d*(?:\.\d+)?)?(?:hh|h|ll|l|L|z|t|j)?[@diuoxXfFeEgGaAcCsSp]"
 )
+INVARIANT_PAIRS = frozenset({
+    ("calculator.title", "KnitNote"),
+    ("app.name", "KnitNote"),
+    ("support.url", "https://knitnote.app"),
+    ("unit.stitches", "st"),
+    ("unit.rows", "rows"),
+    ("symbol.increase", "+"),
+})
 
 
 def string_units(node: object) -> list[dict[str, object]]:
@@ -30,7 +38,7 @@ def string_units(node: object) -> list[dict[str, object]]:
 
 def _invariant(key: str, value: str) -> bool:
     """Values intentionally unchanged across locales, kept deliberately narrow."""
-    return value == "KnitNote" or value.startswith(("http://", "https://")) or "unit" in key.lower() or "symbol" in key.lower()
+    return (key, value) in INVARIANT_PAIRS
 
 
 def _catalog_payload(path: Path) -> tuple[dict[str, object] | None, list[str]]:
@@ -87,8 +95,10 @@ def validate_catalog(path: Path) -> list[str]:
             values = [str(unit.get("value", "")) for unit in units]
             if [PLACEHOLDER.findall(value) for value in values] != english_placeholders:
                 errors.append(f"{path}: {key}: {locale}: placeholder mismatch")
-            if locale != "en" and values == english_values and values and not all(_invariant(str(key), value) for value in values):
-                errors.append(f"{path}: {key}: {locale}: copied English")
+            if locale != "en":
+                for english_value, value in zip(english_values, values):
+                    if value == english_value and not _invariant(str(key), value):
+                        errors.append(f"{path}: {key}: {locale}: copied English")
     return errors
 
 

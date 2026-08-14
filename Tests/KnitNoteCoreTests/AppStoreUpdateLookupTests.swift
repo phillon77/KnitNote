@@ -105,6 +105,12 @@ import Testing
         #expect(AppStoreUpdateLookup.alpha2CountryCode(storefrontCountryCode: storefrontCountryCode) == nil)
     }
 
+    @Test func liveSessionConfigurationDoesNotRetainCredentialStorage() {
+        let configuration = AppStoreUpdateLookup.liveSessionConfiguration(timeout: 8)
+
+        #expect(configuration.urlCredentialStorage == nil)
+    }
+
     private static func validPayload(
         trackID: Int = 6_793_023_054,
         bundleID: String = "com.phillon.KnitNote",

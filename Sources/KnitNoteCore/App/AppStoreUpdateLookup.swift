@@ -72,12 +72,7 @@ public struct AppStoreUpdateLookup: Sendable {
     }
 
     public static func live(timeout: TimeInterval = 8) -> Self {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = timeout
-        configuration.timeoutIntervalForResource = timeout
-        configuration.httpShouldSetCookies = false
-        configuration.httpCookieAcceptPolicy = .never
-        configuration.httpCookieStorage = nil
+        let configuration = liveSessionConfiguration(timeout: timeout)
         let session = URLSession(configuration: configuration)
 
         return Self { request in
@@ -89,6 +84,17 @@ public struct AppStoreUpdateLookup: Sendable {
             }
             return AppUpdateHTTPResponse(data: data, statusCode: response.statusCode)
         }
+    }
+
+    static func liveSessionConfiguration(timeout: TimeInterval) -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpCookieStorage = nil
+        configuration.urlCredentialStorage = nil
+        return configuration
     }
 
     public static func normalizedCountryCode(_ candidate: String?) -> String? {

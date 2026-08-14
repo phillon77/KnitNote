@@ -4,7 +4,7 @@ Status: **AUTOMATED PREPARATION PASS / PHYSICAL ACCEPTANCE PENDING**
 
 ## Exact automated candidate
 
-- Source commit: `ef6c0c2cf1e69c4f38eaecfe2005888e31d72726`
+- Source commit: `f926a595948165b1fc64e8c9a5c453dc27857b1d`
 - Branch: `feature/knitnote-1.5`
 - Marketing version: `1.5.0`
 - Build number: `10`
@@ -19,20 +19,19 @@ upload, App Store selection, submission, release, or publication claim.
 | Gate | Result | Exact evidence |
 | --- | --- | --- |
 | XcodeGen stability | PASS | Project hash was identical before, between, and after two consecutive generations; no `pbxproj` diff. |
-| Focused folder/library/import/backup/localization selection | PASS | `382` tests in `22` suites at this candidate. |
-| Complete Swift suite | PASS | `1523` tests in `128` suites passed in `302.308` seconds; true pipefail exit `0`. Log SHA-256: `06de93db46cd435e410bf0b961af135ca3ac4dc634c98aaf750fd971ae0e6d9f`. |
-| iOS Simulator unsigned build | PASS | `** BUILD SUCCEEDED **`; `KnitNote`, `KnitNoteShare`, and `KnitNoteWatch` built in the graph. Log SHA-256: `8c329d141a8942b5a0ef1a08e13cc8325efccdd70413f38dcb250d8d2674f737`. |
-| macOS unsigned build | PASS | `** BUILD SUCCEEDED **`. Log SHA-256: `72358fa6959541fca46c698805775f9de74c59e9b3ba155057ab5ffa7113063a`. |
-| watchOS Simulator unsigned build | PASS | `** BUILD SUCCEEDED **`. Log SHA-256: `a7b195f6e4ee14a6627cc627fb656a5438a8054dee9f3451a133c9021dc924e0`. |
-| Share Extension unsigned build | PASS | Existing `KnitNoteShare` scheme used because Xcode rejects `-target` together with `-derivedDataPath`; Share-only build ended `** BUILD SUCCEEDED **`. Log SHA-256: `7b059611f0517b99854a4eb24b29a5f4a4eb2749501aa7c2e5c5c47a7fdbacc9`. |
-| Schema-12 migration preservation probe | PASS | `schemaTwelveMigrationPreservesEveryPatternOwnedByteAndUsage`: `1` test passed in `0.031` seconds. Log SHA-256: `acb36aeed24abf149798861a811ee1d6c997ecf652abba8ca5c76bd50e1654ba`. |
+| Focused folder/library/import/backup/localization selection | PASS | Final Fix Round 1 reviewed selection: `387` tests in `22` suites at this candidate. |
+| Complete Swift suite | PASS | `1529` tests in `128` suites passed in `304.224` seconds; true pipefail exit `0`. Log SHA-256: `6f99f635fd2eb35726357a70c33425f99ac6b82e849112db0b97f34c6653dc44`. |
+| iOS Simulator unsigned build | PASS | `** BUILD SUCCEEDED **`; `KnitNote`, `KnitNoteShare`, and `KnitNoteWatch` built in the graph. Log SHA-256: `6a8fc562b0d9bdb45c251d63c74b01f6cd8bb60f79cfb70792a3893ba069e0b9`. |
+| macOS unsigned build | PASS | `** BUILD SUCCEEDED **`. Log SHA-256: `e5847fa1dfb4aad4ea035fe400bc047586f766dfb5962f94e90a05d8bebc57d9`. |
+| watchOS Simulator unsigned build | PASS | `** BUILD SUCCEEDED **`. Log SHA-256: `1104423b7422a941ab2d39f978f789762a477b52b7824f4b384e9f457fa1f8b3`. |
+| Share Extension unsigned build | PASS | Existing `KnitNoteShare` scheme used because Xcode rejects `-target` together with `-derivedDataPath`; Share-only build ended `** BUILD SUCCEEDED **`. Log SHA-256: `5c3ba9cf3d3526905191beeed3fe093c7303d7b106f41701cc79ebe79e0729a6`. |
+| Schema-12 migration preservation probe | PASS | `schemaTwelveMigrationPreservesEveryPatternOwnedByteAndUsage`: `1` test passed in `0.031` seconds. Log SHA-256: `4b2e53ca28cc6571cd0f62735c5e2ba4844ca3440056dc37f29a23669dac5525`. |
 | Static diff validation | PASS | `git diff --check` passed. |
 
-The first sandboxed iOS build attempt was non-authoritative and failed before
-completion because sandboxing disconnected CoreSimulatorService during Watch
-asset compilation. The exact command was rerun outside the sandbox and passed;
-the failed diagnostic log remains at
-`/tmp/KnitNotePatternFolders-iOS-sandbox-failed.log`.
+The prior automated record at acceptance commit `d00bb36c93368b517987f033f91ebaec08a7fc1c`
+was bound to source `ef6c0c2cf1e69c4f38eaecfe2005888e31d72726` and is superseded by
+this final production-fix candidate. All commands above were invoked with HEAD
+bound to the source commit recorded here.
 
 ## Built identity
 

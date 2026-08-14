@@ -11,10 +11,12 @@ import Testing
     ])
     func selectorAcceptsExactlyOneSupportedFileProvider(
         typeIdentifier: String
-    ) throws {
-        #expect(try PatternShareImportAttachmentSelector.indexOfSingleSupportedFile(
-            in: [["public.file-url", typeIdentifier]]
-        ) == 0)
+    ) async throws {
+        #expect(try await LaunchServicesTestGate.withSerializedAccess {
+            try PatternShareImportAttachmentSelector.indexOfSingleSupportedFile(
+                in: [["public.file-url", typeIdentifier]]
+            )
+        } == 0)
     }
 
     @Test(arguments: [
@@ -26,11 +28,13 @@ import Testing
     func selectorRejectsMissingUnsupportedAndMultipleProviders(
         registeredTypes: [[String]],
         expected: PatternShareImportSelectionError
-    ) {
-        #expect(throws: expected) {
-            _ = try PatternShareImportAttachmentSelector.indexOfSingleSupportedFile(
-                in: registeredTypes
-            )
+    ) async {
+        await #expect(throws: expected) {
+            try await LaunchServicesTestGate.withSerializedAccess {
+                _ = try PatternShareImportAttachmentSelector.indexOfSingleSupportedFile(
+                    in: registeredTypes
+                )
+            }
         }
     }
 
@@ -43,21 +47,25 @@ import Testing
     func providerSelectionReturnsTheSupportedRepresentation(
         typeIdentifier: String,
         expected: String
-    ) throws {
-        let selection = try PatternShareImportProviderSelection.select(
-            from: [[["public.file-url", typeIdentifier]]]
-        )
+    ) async throws {
+        let selection = try await LaunchServicesTestGate.withSerializedAccess {
+            try PatternShareImportProviderSelection.select(
+                from: [[["public.file-url", typeIdentifier]]]
+            )
+        }
 
         #expect(selection.itemIndex == 0)
         #expect(selection.attachmentIndex == 0)
         #expect(selection.typeIdentifier == expected)
     }
 
-    @Test func providerSelectionRejectsMultipleExtensionItemsEvenWithOneAttachment() {
-        #expect(throws: PatternShareImportSelectionError.multipleAttachments) {
-            _ = try PatternShareImportProviderSelection.select(
-                from: [[["com.adobe.pdf"]], []]
-            )
+    @Test func providerSelectionRejectsMultipleExtensionItemsEvenWithOneAttachment() async {
+        await #expect(throws: PatternShareImportSelectionError.multipleAttachments) {
+            try await LaunchServicesTestGate.withSerializedAccess {
+                _ = try PatternShareImportProviderSelection.select(
+                    from: [[["com.adobe.pdf"]], []]
+                )
+            }
         }
     }
 

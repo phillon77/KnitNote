@@ -18,42 +18,44 @@ import UniformTypeIdentifiers
         #expect(try applicationGroups(at: shareURL) == expected)
     }
 
-    @Test func activationRuleAcceptsExactlyOneSupportedFileAndNothingElse() throws {
+    @Test func activationRuleAcceptsExactlyOneSupportedFileAndNothingElse() async throws {
         let plistURL = patternLibraryRepositoryURL("KnitNoteShare/Info.plist")
         let exists = FileManager.default.fileExists(atPath: plistURL.path)
 
         #expect(exists)
         guard exists else { return }
 
-        let plist = try #require(
-            PropertyListSerialization.propertyList(
-                from: Data(contentsOf: plistURL),
-                format: nil
-            ) as? [String: Any]
-        )
-        let extensionDictionary = try #require(plist["NSExtension"] as? [String: Any])
-        #expect(extensionDictionary["NSExtensionPointIdentifier"] as? String == "com.apple.share-services")
-        let attributes = try #require(extensionDictionary["NSExtensionAttributes"] as? [String: Any])
-        let rule = try #require(attributes["NSExtensionActivationRule"] as? String)
-        #expect(rule.contains("SUBQUERY(extensionItems, $extensionItem"))
-        #expect(rule.contains("SUBQUERY($extensionItem.attachments, $attachment"))
-        #expect(!rule.contains("extensionItems[0]"))
-        let predicate = NSPredicate(format: rule)
+        try await LaunchServicesTestGate.withSerializedAccess {
+            let plist = try #require(
+                PropertyListSerialization.propertyList(
+                    from: Data(contentsOf: plistURL),
+                    format: nil
+                ) as? [String: Any]
+            )
+            let extensionDictionary = try #require(plist["NSExtension"] as? [String: Any])
+            #expect(extensionDictionary["NSExtensionPointIdentifier"] as? String == "com.apple.share-services")
+            let attributes = try #require(extensionDictionary["NSExtensionAttributes"] as? [String: Any])
+            let rule = try #require(attributes["NSExtensionActivationRule"] as? String)
+            #expect(rule.contains("SUBQUERY(extensionItems, $extensionItem"))
+            #expect(rule.contains("SUBQUERY($extensionItem.attachments, $attachment"))
+            #expect(!rule.contains("extensionItems[0]"))
+            let predicate = NSPredicate(format: rule)
 
-        #expect(predicate.evaluate(with: activationContext([[UTType.pdf.identifier]])))
-        #expect(predicate.evaluate(with: activationContext([[UTType.png.identifier]])))
-        #expect(predicate.evaluate(with: activationContext([[UTType.jpeg.identifier]])))
-        #expect(predicate.evaluate(with: activationContext([[UTType.heic.identifier]])))
-        #expect(!predicate.evaluate(with: activationContext([])))
-        #expect(!predicate.evaluate(with: activationContext([[UTType.url.identifier]])))
-        #expect(!predicate.evaluate(with: activationContext([
-            [UTType.pdf.identifier],
-            [UTType.pdf.identifier],
-        ])))
-        #expect(predicate.evaluate(with: activationContext([[
-            UTType.pdf.identifier,
-            UTType.url.identifier,
-        ]])))
+            #expect(predicate.evaluate(with: activationContext([[UTType.pdf.identifier]])))
+            #expect(predicate.evaluate(with: activationContext([[UTType.png.identifier]])))
+            #expect(predicate.evaluate(with: activationContext([[UTType.jpeg.identifier]])))
+            #expect(predicate.evaluate(with: activationContext([[UTType.heic.identifier]])))
+            #expect(!predicate.evaluate(with: activationContext([])))
+            #expect(!predicate.evaluate(with: activationContext([[UTType.url.identifier]])))
+            #expect(!predicate.evaluate(with: activationContext([
+                [UTType.pdf.identifier],
+                [UTType.pdf.identifier],
+            ])))
+            #expect(predicate.evaluate(with: activationContext([[
+                UTType.pdf.identifier,
+                UTType.url.identifier,
+            ]])))
+        }
     }
 
     @Test func canonicalProjectHasAnEmbeddedIOSOnlyShareTarget() throws {

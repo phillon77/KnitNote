@@ -1,10 +1,11 @@
 # Task 5 Report — Adaptive Pattern Folder Navigation and Management
 
-Status: **implementation complete / review-pending**
+Status: **complete / independent review clean**
 
 ## Candidate and scope
 
 - Exact starting HEAD: `0b65ebeb4212d5b3daa67a555ee3df1f2262f956`.
+- Task 5 implementation commit: `2ece295fa84eeadb6c34f62017a97b7b538e00c2`.
 - Branch: `feature/knitnote-1.5`.
 - Implemented the approved Task 5 files plus the user-approved package-testable policy file `Sources/KnitNoteCore/Patterns/PatternFolderPresentation.swift` and deterministic generated project membership.
 - Restored tests-only RED work was preserved and adapted. Presentation tests now execute real `KnitNoteCore` behavior rather than source-text checks.
@@ -43,7 +44,15 @@ The combined localization/terminology/accessibility selection passed **102 tests
 swift test --disable-sandbox --filter 'StringCatalogLocalizationContractTests|LocalizationContractTests|KnittingTerminologyContractTests|PatternLibraryViewContractTests'
 ```
 
-This closes the intentionally deferred Task 6 source accessibility implementation pending independent review. It is not VoiceOver physical acceptance.
+The clean Task 5 independent review approved this intentionally deferred Task 6 source accessibility implementation. This implementation concern is closed, pending the final combined Task 6 review. It is not VoiceOver physical acceptance.
+
+## Independent review
+
+- Exact reviewed candidate: `2ece295fa84eeadb6c34f62017a97b7b538e00c2`.
+- Specification review: **PASS**.
+- Code-quality review: **PASS**.
+- Findings: none.
+- Task 6 deferred accessibility implementation closure: confirmed; overall Task 6 still awaits its final combined review.
 
 ## Generated project and builds
 
@@ -56,6 +65,13 @@ This closes the intentionally deferred Task 6 source accessibility implementatio
 
 ## Remaining gates
 
-- Independent Task 5 spec/quality review is required before marking this task complete.
-- Independent Task 6 accessibility closure review is required before marking Task 6 complete.
+- Final combined Task 6 review is required before marking Task 6 complete.
 - iPhone, iPad, Mac, VoiceOver, Dynamic Type, orientation/window-resizing, language-switch, and data-preservation checks remain physical acceptance gates for Task 7; none is claimed here.
+
+## Task 6 accessibility contract Fix Round 1
+
+- The final combined Task 6 review found no production UI defect, but demonstrated that the original file-wide accessibility assertions could false-pass five independent regressions.
+- The test now scopes assertions to the exact sidebar row, New/Rename/Delete controls, editor field/actions, move destination, and collection Move action. Each relevant control owns its required label, hint, minimum target, selected trait, or count assertion inside that bounded slice.
+- Mutation RED evidence: independently removing the New label, Rename hint, Delete count-aware hint, New 44-by-44 frame, or count from the sidebar-row accessibility label produced one issue at its intended assertion.
+- Restored-source GREEN: accessibility contracts **16/16**, Task 5 focused selection **75/75**, and Task 6 combined selection **102/102**.
+- No Task 5 production, generated project, catalog, or localization implementation changed. Task 5 remains complete and independently review-clean; the contract-only fix awaits the final combined Task 6 re-review.

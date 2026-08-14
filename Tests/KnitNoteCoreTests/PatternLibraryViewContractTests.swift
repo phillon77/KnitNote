@@ -42,23 +42,85 @@ import Testing
             "KnitNote/Patterns/PatternLibraryCollectionView.swift"
         )
 
-        #expect(sidebar.contains(".frame(minHeight: 44)"))
-        #expect(sidebar.contains("countDescription(row.count)"))
-        #expect(sidebar.contains(".accessibilityLabel"))
-        #expect(sidebar.contains(".accessibilityHint"))
-        #expect(sidebar.contains(".accessibilityAddTraits(selection == row.scope ? .isSelected : [])"))
-        #expect(sidebar.contains("patterns.folder.new"))
-        #expect(sidebar.contains("patterns.folder.rename"))
-        #expect(sidebar.contains("patterns.folder.delete.title"))
-        #expect(editor.contains(".frame(minHeight: 44)"))
-        #expect(editor.contains(".accessibilityLabel"))
-        #expect(editor.contains(".accessibilityHint"))
-        #expect(mover.contains(".frame(minHeight: 44)"))
-        #expect(mover.contains(".accessibilityLabel"))
-        #expect(mover.contains(".accessibilityHint"))
-        #expect(mover.contains(".accessibilityAddTraits(currentFolderID == folderID ? .isSelected : [])"))
-        #expect(collection.contains(".accessibilityLabel(Text(\"patterns.folder.move\"))"))
-        #expect(collection.contains(".accessibilityHint(Text(\"patterns.folder.move\"))"))
+        let sidebarRow = try sourceSlice(
+            sidebar,
+            from: "NavigationLink(value: row.scope)",
+            to: ".contextMenu {"
+        )
+        #expect(sidebarRow.contains(".frame(minHeight: 44)"))
+        #expect(sidebarRow.contains(".accessibilityLabel("))
+        #expect(sidebarRow.contains("Text(\"\\(title(for: row.title)), \\(countDescription(row.count))\")"))
+        #expect(sidebarRow.contains(".accessibilityAddTraits(selection == row.scope ? .isSelected : [])"))
+
+        let renameAction = try sourceSlice(
+            sidebar,
+            from: "Button(\"patterns.folder.rename\"",
+            to: "Button(\"common.delete\""
+        )
+        #expect(renameAction.contains(".accessibilityLabel(Text(\"patterns.folder.rename\"))"))
+        #expect(renameAction.contains(".accessibilityHint(Text(\"patterns.folder.rename\"))"))
+
+        let deleteAction = try sourceSlice(
+            sidebar,
+            from: "Button(\"common.delete\"",
+            to: ".navigationTitle("
+        )
+        #expect(deleteAction.contains(".accessibilityLabel(Text(\"patterns.folder.delete.title\"))"))
+        #expect(deleteAction.contains(".accessibilityHint(Text(deleteDescription(row.count)))"))
+
+        let newAction = try sourceSlice(
+            sidebar,
+            from: "Button(\"patterns.folder.new\"",
+            to: "private var rows"
+        )
+        #expect(newAction.contains(".frame(minWidth: 44, minHeight: 44)"))
+        #expect(newAction.contains(".accessibilityLabel(Text(\"patterns.folder.new\"))"))
+        #expect(newAction.contains(".accessibilityHint(Text(\"patterns.folder.name\"))"))
+
+        let nameField = try sourceSlice(
+            editor,
+            from: "TextField(\"patterns.folder.name\"",
+            to: "if let errorKey"
+        )
+        #expect(nameField.contains(".frame(minHeight: 44)"))
+        #expect(nameField.contains(".accessibilityLabel(Text(\"patterns.folder.name\"))"))
+        #expect(nameField.contains(".accessibilityHint(Text(titleKey))"))
+
+        let cancelAction = try sourceSlice(
+            editor,
+            from: "Button(\"common.cancel\")",
+            to: "ToolbarItem(placement: .confirmationAction)"
+        )
+        #expect(cancelAction.contains(".frame(minWidth: 44, minHeight: 44)"))
+        #expect(cancelAction.contains(".accessibilityLabel(Text(\"common.cancel\"))"))
+
+        let doneAction = try sourceSlice(
+            editor,
+            from: "Button(\"common.done\")",
+            to: ".tint("
+        )
+        #expect(doneAction.contains(".frame(minWidth: 44, minHeight: 44)"))
+        #expect(doneAction.contains(".accessibilityLabel(Text(\"common.done\"))"))
+        #expect(doneAction.contains(".accessibilityHint(Text(titleKey))"))
+
+        let destinationAction = try sourceSlice(
+            mover,
+            from: "private func destinationButton",
+            to: "private func move"
+        )
+        #expect(destinationAction.contains(".frame(minHeight: 44)"))
+        #expect(destinationAction.contains(".accessibilityLabel("))
+        #expect(destinationAction.contains("Text(\"\\(title), \\(LocaleAwareText.string(\"patterns.folder.move\", locale: locale))\")"))
+        #expect(destinationAction.contains(".accessibilityHint(Text(\"patterns.folder.move\"))"))
+        #expect(destinationAction.contains(".accessibilityAddTraits(currentFolderID == folderID ? .isSelected : [])"))
+
+        let moveAction = try sourceSlice(
+            collection,
+            from: "Button(\"patterns.folder.move\"",
+            to: ".listStyle(.plain)"
+        )
+        #expect(moveAction.contains(".accessibilityLabel(Text(\"patterns.folder.move\"))"))
+        #expect(moveAction.contains(".accessibilityHint(Text(\"patterns.folder.move\"))"))
         #expect(collection.contains("folderID: destinationFolderID"))
         #expect(collection.contains("AddYouTubePatternView("))
         #expect(collection.contains("targetFolderID: destinationFolderID"))
@@ -207,4 +269,15 @@ import Testing
         #expect(root.contains("#if os(macOS)"))
         #expect(root.contains(".labelStyle(.titleAndIcon)"))
     }
+}
+
+private func sourceSlice(
+    _ source: String,
+    from startMarker: String,
+    to endMarker: String
+) throws -> Substring {
+    let start = try #require(source.range(of: startMarker))
+    let remainder = start.upperBound..<source.endIndex
+    let end = try #require(source.range(of: endMarker, range: remainder))
+    return source[start.lowerBound..<end.lowerBound]
 }

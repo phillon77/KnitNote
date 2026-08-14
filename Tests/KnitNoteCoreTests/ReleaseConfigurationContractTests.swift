@@ -666,6 +666,43 @@ private let unexpectedLookupCapabilitySources = [
 
         """
     ),
+    UnexpectedLookupCapabilitySource(
+        name: "sentinel test seam through a metatype alias",
+        source: """
+        import Foundation
+
+        private let lookupCapability = AppStoreUpdateLiveNetworkContract.self
+        let bypass = lookupCapability.testLookup { _ in
+            AppUpdateHTTPResponse(data: Data(), statusCode: 500)
+        }
+
+        """
+    ),
+    UnexpectedLookupCapabilitySource(
+        name: "sentinel test seam captured as a member reference",
+        source: """
+        import Foundation
+
+        private let lookupCapability = AppStoreUpdateLiveNetworkContract.self
+        private let makeLookup = lookupCapability.testLookup
+        let bypass = makeLookup { _ in
+            AppUpdateHTTPResponse(data: Data(), statusCode: 500)
+        }
+
+        """
+    ),
+    UnexpectedLookupCapabilitySource(
+        name: "sentinel test seam with line-broken backticked qualification",
+        source: """
+        import Foundation
+
+        let bypass = AppStoreUpdateLiveNetworkContract
+            .`testLookup` { _ in
+                AppUpdateHTTPResponse(data: Data(), statusCode: 500)
+            }
+
+        """
+    ),
 ]
 
 private let unsafeLiveSessionMutations = [

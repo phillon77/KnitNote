@@ -397,7 +397,7 @@ expected_factory_sha256 = "dcae917c3d5f301e6d79ea3901b4c8a55f37277a55d76efc8d0bc
 risk = re.compile(
     r"URLSession|URLRequest\s*\(|\bloader\s*\(|NWConnection|"
     r"AppStoreUpdateLookup\s*\(\s*fetcher\s*:|"
-    r"AppStoreUpdateLiveNetworkContract\.testLookup\b|"
+    r"\btestLookup\b|"
     r"Firebase|Analytics|Telemetry|tracking|https?://"
 )
 

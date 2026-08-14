@@ -43,6 +43,7 @@ struct KnitNoteApp: App {
     @StateObject private var projectStore: JSONProjectStore
     @StateObject private var patternInboxProcessor: PatternInboxProcessor
     @StateObject private var patternBackupReminderPresenter: PatternBackupReminderPresenter
+    @StateObject private var appUpdateReminderCoordinator: AppUpdateReminderCoordinator
     private let screenshotMode: StoreScreenshotMode?
 #if os(iOS)
     @StateObject private var phoneWatchSyncCoordinator: PhoneWatchSyncCoordinator
@@ -61,6 +62,33 @@ struct KnitNoteApp: App {
             preconditionFailure("Invalid App Store screenshot request; refusing to open the live store")
         }
         self.screenshotMode = screenshotMode
+        let appUpdateFixture: AppUpdateFixture?
+        switch AppUpdateFixture.resolve(
+            arguments: ProcessInfo.processInfo.arguments
+        ) {
+        case .notRequested:
+            appUpdateFixture = nil
+        case let .ready(fixture):
+            appUpdateFixture = fixture
+        case .invalid:
+            preconditionFailure("App update fixture is invalid or overlaps screenshot mode")
+        }
+        let appUpdateReminderCoordinator: AppUpdateReminderCoordinator
+        if screenshotMode == nil {
+            appUpdateReminderCoordinator = AppUpdateReminderLiveFactory.make(fixture: appUpdateFixture)
+        } else {
+            appUpdateReminderCoordinator = AppUpdateReminderCoordinator(
+                enabled: false,
+                installedVersion: { nil },
+                platform: .iPhone,
+                countryCode: { nil },
+                fetch: { _, _ in nil },
+                history: UpdateReminderHistory()
+            )
+        }
+        _appUpdateReminderCoordinator = StateObject(
+            wrappedValue: appUpdateReminderCoordinator
+        )
         #if os(iOS)
         let languageSelectionProjection = LanguageSelectionProjection.live()
         self.languageSelectionProjection = languageSelectionProjection
@@ -148,6 +176,7 @@ struct KnitNoteApp: App {
                     )
                 } else {
                     RootView(storedLanguage: $storedLanguage)
+                        .environmentObject(appUpdateReminderCoordinator)
                 }
             }
                 .environment(\.locale, appLocale)

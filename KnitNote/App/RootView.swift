@@ -46,10 +46,13 @@ final class PatternBackupReminderPresenter: ObservableObject {
 
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.locale) private var locale
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var store: JSONProjectStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     @EnvironmentObject private var patternInboxProcessor: PatternInboxProcessor
     @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
+    @EnvironmentObject private var appUpdateReminderCoordinator: AppUpdateReminderCoordinator
     @Binding var storedLanguage: String
     @State private var unlockPresentation = UnlockPresentationOrchestrator()
 
@@ -139,6 +142,52 @@ struct RootView: View {
             } message: {
                 Text("patterns.inbox.error.message")
             }
+            // APP_UPDATE_PRESENTATION_BEGIN
+            .alert(
+                Text(verbatim: LocaleAwareText.string("update.available.title", locale: locale)),
+                isPresented: Binding(
+                    get: {
+                        appUpdateReminderCoordinator.pendingUpdate != nil
+                            && !backupReminderPresenter.isPresented
+                            && !backupReminderPresenter.isShowingBackupSettings
+                            && patternInboxProcessor.failure == nil
+                            && patternInboxProcessor.pendingSelection == nil
+                            && !unlockSheetBinding.wrappedValue
+                    },
+                    set: { _ in }
+                ),
+                presenting: appUpdateReminderCoordinator.pendingUpdate
+            ) { update in
+                Button(
+                    role: .cancel,
+                    action: { appUpdateReminderCoordinator.remindLater() },
+                    label: {
+                        Text(verbatim: LocaleAwareText.string("update.available.later", locale: locale))
+                    }
+                )
+                Button {
+                    openURL(update.storeURL)
+                    appUpdateReminderCoordinator.didOpenStore()
+                } label: {
+                    Text(verbatim: LocaleAwareText.string("update.available.openStore", locale: locale))
+                }
+            } message: { update in
+                let installedVersion = AppVersionInfo.current()?.version ?? "—"
+                let currentLine = "\(LocaleAwareText.string("update.available.currentVersion", locale: locale)): \(installedVersion)"
+                let latestLine = "\(LocaleAwareText.string("update.available.latestVersion", locale: locale)): \(update.displayVersion)"
+                let message = LocaleAwareText.format(
+                    "update.available.message",
+                    locale: locale,
+                    currentLine,
+                    latestLine
+                )
+                Text(verbatim: message)
+            }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                await appUpdateReminderCoordinator.checkIfNeeded()
+            }
+            // APP_UPDATE_PRESENTATION_END
             .task(id: scenePhase) {
                 guard scenePhase == .active,
                       await entitlementCoordinator.ensurePrepared() else {

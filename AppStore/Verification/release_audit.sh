@@ -391,8 +391,11 @@ root = Path(sys.argv[1])
 sentinel_relative = Path(
     "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift"
 )
-expected_sentinel_sha256 = "ef96bbbdceb7b524c7d6492c12ae7e41ab143c36214b741eefa85ac298450a13"
-risk = re.compile(r"URLSession|NWConnection|Firebase|Analytics|Telemetry|tracking|https?://")
+expected_sentinel_sha256 = "c07066b77a77c3d49c157b004baedf19fa194505e97864044b0b9bd82f234d7b"
+risk = re.compile(
+    r"URLSession|URLRequest\s*\(|\bloader\s*\(|NWConnection|"
+    r"Firebase|Analytics|Telemetry|tracking|https?://"
+)
 
 
 def fail(message):

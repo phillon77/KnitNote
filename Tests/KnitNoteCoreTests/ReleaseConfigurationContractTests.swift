@@ -478,6 +478,37 @@ import Testing
         #expect(result.output.contains("unexpected network, analytics, or tracking source"))
     }
 
+    @Test func staticAuditRejectsDynamicHostLoaderInvocationOutsideTheSentinel() throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let lookup = fixture.appending(
+            path: "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift"
+        )
+        let source = try String(contentsOf: lookup, encoding: .utf8)
+        let dynamicInvocation = """
+
+        extension AppStoreUpdateLookup {
+            func reviewerProof(
+                loader: @escaping AppStoreUpdateLiveNetworkContract.Loader
+            ) async throws -> AppUpdateHTTPResponse {
+                var components = URLComponents()
+                components.scheme = "https"
+                components.host = ProcessInfo.processInfo.environment["LOOKUP_HOST"]
+                    ?? "example.com"
+                components.path = "/lookup"
+                return try await loader(URLRequest(url: components.url!))
+            }
+        }
+        """
+        let broken = source + dynamicInvocation
+        try broken.write(to: lookup, atomically: true, encoding: .utf8)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("unexpected network, analytics, or tracking source"))
+    }
+
     @Test(arguments: unsafeLiveSessionMutations)
     func staticAuditRejectsEachMissingOrUnsafeLiveSessionSetting(
         mutation: UpdateNetworkSourceMutation
@@ -592,7 +623,7 @@ private let executableNetworkDecoyMutations = [
     ),
     UpdateNetworkSourceMutation(
         name: "production identity hidden by string decoy",
-        original: "    static let bundleID = \"com.phillon.KnitNote\"\n",
+        original: "    private static let bundleID = \"com.phillon.KnitNote\"\n",
         replacement: """
             static var bundleID: String {
                 ProcessInfo.processInfo.environment["LOOKUP_BUNDLE_ID"]!

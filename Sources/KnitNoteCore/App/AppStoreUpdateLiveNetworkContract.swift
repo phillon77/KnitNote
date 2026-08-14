@@ -1,14 +1,16 @@
 import Foundation
 
 enum AppStoreUpdateLiveNetworkContract {
-    static let appleID = 6_793_023_054
-    static let bundleID = "com.phillon.KnitNote"
+    typealias Loader = @Sendable (URLRequest) async throws -> AppUpdateHTTPResponse
+
+    private static let appleID = 6_793_023_054
+    private static let bundleID = "com.phillon.KnitNote"
     private static let defaultCountryCode = "tw"
     private static let lookupHost = "itunes.apple.com"
     private static let lookupPath = "/lookup"
     private static let storeHost = "apps.apple.com"
 
-    static func request(countryCode: String?) -> URLRequest {
+    private static func request(countryCode: String?) -> URLRequest {
         var components = URLComponents()
         components.scheme = "https"
         components.host = lookupHost
@@ -27,7 +29,7 @@ enum AppStoreUpdateLiveNetworkContract {
         return request
     }
 
-    static func validStoreURL(_ string: String) -> URL? {
+    private static func validStoreURL(_ string: String) -> URL? {
         guard
             let components = URLComponents(string: string),
             components.scheme == "https",
@@ -47,7 +49,54 @@ enum AppStoreUpdateLiveNetworkContract {
         return components.url
     }
 
-    static func loader(timeout: TimeInterval) -> AppStoreUpdateLookup.Loader {
+    fileprivate static func fetcher(
+        loader: @escaping Loader
+    ) -> AppStoreUpdateLookup.Fetcher {
+        { countryCode, platform in
+            await fetch(
+                loader: loader,
+                countryCode: countryCode,
+                platform: platform
+            )
+        }
+    }
+
+    private static func fetch(
+        loader: Loader,
+        countryCode: String?,
+        platform: AppStorePlatform
+    ) async -> AvailableAppUpdate? {
+        do {
+            let response = try await loader(request(countryCode: countryCode))
+            guard (200...299).contains(response.statusCode) else { return nil }
+
+            let payload = try JSONDecoder().decode(LookupPayload.self, from: response.data)
+            guard
+                payload.resultCount == 1,
+                payload.results.count == 1,
+                let result = payload.results.first,
+                result.trackID == appleID,
+                result.bundleID == bundleID,
+                let displayVersion = result.version,
+                let version = AppVersion(displayVersion),
+                let storeURLString = result.trackViewURL,
+                let storeURL = validStoreURL(storeURLString),
+                supports(platform: platform, devices: result.supportedDevices)
+            else {
+                return nil
+            }
+
+            return AvailableAppUpdate(
+                version: version,
+                displayVersion: displayVersion,
+                storeURL: storeURL
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    fileprivate static func loader(timeout: TimeInterval) -> Loader {
         let configuration = sessionConfiguration(timeout: timeout)
         let session = URLSession(configuration: configuration)
 
@@ -74,11 +123,36 @@ enum AppStoreUpdateLiveNetworkContract {
         configuration.urlCredentialStorage = nil
         return configuration
     }
+
+    private static func supports(
+        platform: AppStorePlatform,
+        devices: [String]
+    ) -> Bool {
+        switch platform {
+        case .iPhone:
+            devices.contains { $0.hasPrefix("iPhone") }
+        case .iPad:
+            devices.contains { $0.hasPrefix("iPad") }
+        case .macOS:
+            devices.contains {
+                $0 == "MacDesktop-MacDesktop" || $0.hasPrefix("Mac")
+            }
+        }
+    }
 }
 
 extension AppStoreUpdateLookup {
+    init(loader: @escaping AppStoreUpdateLiveNetworkContract.Loader) {
+        self.init(
+            fetcher: AppStoreUpdateLiveNetworkContract.fetcher(loader: loader)
+        )
+    }
+
     public static func live(timeout: TimeInterval = 8) -> Self {
-        Self(loader: AppStoreUpdateLiveNetworkContract.loader(timeout: timeout))
+        let loader = AppStoreUpdateLiveNetworkContract.loader(timeout: timeout)
+        return Self(
+            fetcher: AppStoreUpdateLiveNetworkContract.fetcher(loader: loader)
+        )
     }
 
     static func liveSessionConfiguration(
@@ -90,4 +164,25 @@ extension AppStoreUpdateLookup {
 
 private enum AppStoreUpdateLiveNetworkError: Error {
     case nonHTTPResponse
+}
+
+private struct LookupPayload: Decodable {
+    let resultCount: Int
+    let results: [LookupResult]
+}
+
+private struct LookupResult: Decodable {
+    let trackID: Int
+    let bundleID: String
+    let version: String?
+    let trackViewURL: String?
+    let supportedDevices: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case trackID = "trackId"
+        case bundleID = "bundleId"
+        case version
+        case trackViewURL = "trackViewUrl"
+        case supportedDevices
+    }
 }

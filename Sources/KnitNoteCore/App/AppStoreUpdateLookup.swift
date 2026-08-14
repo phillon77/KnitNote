@@ -30,51 +30,19 @@ public struct AppUpdateHTTPResponse: Sendable {
 }
 
 public struct AppStoreUpdateLookup: Sendable {
-    public typealias Loader = @Sendable (URLRequest) async throws -> AppUpdateHTTPResponse
+    typealias Fetcher = @Sendable (
+        _ countryCode: String?,
+        _ platform: AppStorePlatform
+    ) async -> AvailableAppUpdate?
 
-    private let loader: Loader
+    private let fetcher: Fetcher
 
-    public init(loader: @escaping Loader) {
-        self.loader = loader
+    init(fetcher: @escaping Fetcher) {
+        self.fetcher = fetcher
     }
 
     public func fetch(countryCode: String?, platform: AppStorePlatform) async -> AvailableAppUpdate? {
-        do {
-            let response = try await loader(
-                AppStoreUpdateLiveNetworkContract.request(countryCode: countryCode)
-            )
-            guard (200...299).contains(response.statusCode) else { return nil }
-
-            let payload = try JSONDecoder().decode(LookupPayload.self, from: response.data)
-            guard payload.resultCount == 1, payload.results.count == 1, let result = payload.results.first else {
-                return nil
-            }
-            guard
-                result.trackID == AppStoreUpdateLiveNetworkContract.appleID,
-                result.bundleID == AppStoreUpdateLiveNetworkContract.bundleID
-            else {
-                return nil
-            }
-            guard
-                let displayVersion = result.version,
-                let version = AppVersion(displayVersion),
-                let storeURLString = result.trackViewURL,
-                let storeURL = AppStoreUpdateLiveNetworkContract.validStoreURL(
-                    storeURLString
-                ),
-                Self.supports(platform: platform, devices: result.supportedDevices)
-            else {
-                return nil
-            }
-
-            return AvailableAppUpdate(
-                version: version,
-                displayVersion: displayVersion,
-                storeURL: storeURL
-            )
-        } catch {
-            return nil
-        }
+        await fetcher(countryCode, platform)
     }
 
     public static func normalizedCountryCode(_ candidate: String?) -> String? {
@@ -99,37 +67,5 @@ public struct AppStoreUpdateLookup: Sendable {
         case "DEU": "de"
         default: nil
         }
-    }
-
-    private static func supports(platform: AppStorePlatform, devices: [String]) -> Bool {
-        switch platform {
-        case .iPhone:
-            devices.contains { $0.hasPrefix("iPhone") }
-        case .iPad:
-            devices.contains { $0.hasPrefix("iPad") }
-        case .macOS:
-            devices.contains { $0 == "MacDesktop-MacDesktop" || $0.hasPrefix("Mac") }
-        }
-    }
-}
-
-private struct LookupPayload: Decodable {
-    let resultCount: Int
-    let results: [LookupResult]
-}
-
-private struct LookupResult: Decodable {
-    let trackID: Int
-    let bundleID: String
-    let version: String?
-    let trackViewURL: String?
-    let supportedDevices: [String]
-
-    private enum CodingKeys: String, CodingKey {
-        case trackID = "trackId"
-        case bundleID = "bundleId"
-        case version
-        case trackViewURL = "trackViewUrl"
-        case supportedDevices
     }
 }

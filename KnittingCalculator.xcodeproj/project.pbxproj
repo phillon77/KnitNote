@@ -22,6 +22,7 @@
 		546D8BB3EB24330266444C8A /* CalculatorShareText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5CBBDFDE2B88B41A8295C7 /* CalculatorShareText.swift */; };
 		5AAA0589A51C69029F3121CE /* CalculatorResultActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EC67A96BDF7D146993A2D35 /* CalculatorResultActions.swift */; };
 		608F765CAABB543F3676916F /* KnittingCalculatorCore in Frameworks */ = {isa = PBXBuildFile; productRef = DC0388B1BE9D16DF09EB129F /* KnittingCalculatorCore */; };
+		61E0160541747E0D23DFC58C /* CalculatorLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201CC785AE704B86265E93B6 /* CalculatorLocalizationTests.swift */; };
 		70393D56C4E8C1F6528430B3 /* KnitNotePromotionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2AD2FB05242E1F7F852D62 /* KnitNotePromotionCard.swift */; };
 		72D21F09FA93207706024C16 /* GaugeCalculatorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678B47F19E16C71BFA247A1B /* GaugeCalculatorScreen.swift */; };
 		7B79307F2E9DAC87D1206D27 /* RatingEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AEC706D5765813F0806DBB8 /* RatingEligibility.swift */; };
@@ -62,6 +63,7 @@
 		1E5CBBDFDE2B88B41A8295C7 /* CalculatorShareText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorShareText.swift; sourceTree = "<group>"; };
 		1EC67A96BDF7D146993A2D35 /* CalculatorResultActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorResultActions.swift; sourceTree = "<group>"; };
 		1F3945879E3D7CB922EA3034 /* CalculatorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorTheme.swift; sourceTree = "<group>"; };
+		201CC785AE704B86265E93B6 /* CalculatorLocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorLocalizationTests.swift; sourceTree = "<group>"; };
 		2AEC706D5765813F0806DBB8 /* RatingEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingEligibility.swift; sourceTree = "<group>"; };
 		2BAE0215EE937DE84DAECC7A /* CalculatorRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorRootView.swift; sourceTree = "<group>"; };
 		2CA8969DE88A0CFE40572AC8 /* CalculatorPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorPreferencesStore.swift; sourceTree = "<group>"; };
@@ -184,6 +186,7 @@
 			isa = PBXGroup;
 			children = (
 				EC4D8A339BFC2D1EC5BEFE83 /* AdjustmentPresentationTests.swift */,
+				201CC785AE704B86265E93B6 /* CalculatorLocalizationTests.swift */,
 				F80FA30996770A367AF58F9E /* CalculatorPreferencesStoreTests.swift */,
 				7F6AE5D9A70C334ECA5722F1 /* CalculatorShareTextTests.swift */,
 				96398E6E8319DD6CA0F7D8ED /* CalculatorStoreScreenshotModeTests.swift */,
@@ -415,6 +418,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B341ECAD55257006FFC1A6E1 /* AdjustmentPresentationTests.swift in Sources */,
+				61E0160541747E0D23DFC58C /* CalculatorLocalizationTests.swift in Sources */,
 				F739B38C2B6C25BA8E9B0CCA /* CalculatorPreferencesStoreTests.swift in Sources */,
 				BEBDC8BD523B9F59730C5C08 /* CalculatorShareTextTests.swift in Sources */,
 				340D14CC1ED20C5E09188F89 /* CalculatorStoreScreenshotModeTests.swift in Sources */,

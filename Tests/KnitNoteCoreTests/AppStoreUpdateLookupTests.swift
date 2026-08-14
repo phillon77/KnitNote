@@ -26,7 +26,10 @@ import Testing
         #expect(request?.httpMethod == "GET")
         #expect(update?.version == AppVersion("1.5.2"))
         #expect(update?.displayVersion == "1.5.2")
-        #expect(update?.storeURL.host == "apps.apple.com")
+        #expect(
+            update?.storeURL.absoluteString
+                == "https://apps.apple.com/tw/app/%E6%AF%9B%E7%B7%9A%E7%B7%A8%E7%B9%94-knitnote/id6793023054?uo=4"
+        )
 
         for otherFamilyToken in otherFamilyTokens {
             let otherFamilyLookup = AppStoreUpdateLiveNetworkContract.testLookup { _ in
@@ -115,7 +118,7 @@ import Testing
         trackID: Int = 6_793_023_054,
         bundleID: String = "com.phillon.KnitNote",
         version: String? = "1.5.2",
-        trackViewURL: String? = "https://apps.apple.com/tw/app/knitnote/id6793023054?uo=4",
+        trackViewURL: String? = "https://apps.apple.com/tw/app/%E6%AF%9B%E7%B7%9A%E7%B7%A8%E7%B9%94-knitnote/id6793023054?uo=4",
         supportedDevices: [String] = ["iPhone17ProMax-iPhone17ProMax"],
         resultCount: Int = 1,
         results: String? = nil
@@ -154,6 +157,11 @@ import Testing
         case insecureStoreURL
         case unrelatedStoreHost
         case deceptiveStoreHost
+        case wrongStoreProductID
+        case wrongStorePath
+        case storeURLWithUserInfo
+        case storeURLWithDefaultPort
+        case storeURLWithNondefaultPort
         case missingStoreURL
         case missingCurrentPlatform
         case offlineError
@@ -198,6 +206,16 @@ import Testing
                 return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: "https://example.com/knitnote"), statusCode: 200)
             case .deceptiveStoreHost:
                 return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: "https://apps.apple.com.evil.example/knitnote"), statusCode: 200)
+            case .wrongStoreProductID:
+                return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: "https://apps.apple.com/tw/app/knitnote/id6793023055?uo=4"), statusCode: 200)
+            case .wrongStorePath:
+                return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: "https://apps.apple.com/tw/story/knitnote/id6793023054?uo=4"), statusCode: 200)
+            case .storeURLWithUserInfo:
+                return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: "https://user:password@apps.apple.com/tw/app/knitnote/id6793023054?uo=4"), statusCode: 200)
+            case .storeURLWithDefaultPort:
+                return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: "https://apps.apple.com:443/tw/app/knitnote/id6793023054?uo=4"), statusCode: 200)
+            case .storeURLWithNondefaultPort:
+                return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: "https://apps.apple.com:444/tw/app/knitnote/id6793023054?uo=4"), statusCode: 200)
             case .missingStoreURL:
                 return .init(data: AppStoreUpdateLookupTests.validPayload(trackViewURL: nil), statusCode: 200)
             case .missingCurrentPlatform:
@@ -211,6 +229,6 @@ import Testing
             }
         }
 
-        private static let validResultJSON = #"{"trackId":6793023054,"bundleId":"com.phillon.KnitNote","version":"1.5.2","trackViewUrl":"https://apps.apple.com/tw/app/knitnote/id6793023054?uo=4","supportedDevices":["iPhone17ProMax-iPhone17ProMax"]}"#
+        private static let validResultJSON = #"{"trackId":6793023054,"bundleId":"com.phillon.KnitNote","version":"1.5.2","trackViewUrl":"https://apps.apple.com/tw/app/%E6%AF%9B%E7%B7%9A%E7%B7%A8%E7%B9%94-knitnote/id6793023054?uo=4","supportedDevices":["iPhone17ProMax-iPhone17ProMax"]}"#
     }
 }

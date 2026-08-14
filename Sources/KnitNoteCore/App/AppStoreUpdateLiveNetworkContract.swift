@@ -80,7 +80,25 @@ enum AppStoreUpdateLiveNetworkContract {
             let components = URLComponents(string: string),
             components.scheme == "https",
             components.host == storeHost,
+            components.user == nil,
+            components.password == nil,
+            components.port == nil,
             let url = components.url
+        else {
+            return nil
+        }
+
+        let path = components.percentEncodedPath.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        )
+        guard
+            path.count == 5,
+            path[0].isEmpty,
+            AppStoreUpdateLookup.normalizedCountryCode(String(path[1])) != nil,
+            path[2] == "app",
+            !path[3].isEmpty,
+            path[4] == Substring("id\(appleID)")
         else {
             return nil
         }

@@ -148,6 +148,18 @@ import Testing
         #expect(coordinator.pendingUpdate == nil)
     }
 
+    @Test func higherPriorityPresentationDefersWithoutConsumingThePendingUpdate() async {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        let expected = testUpdate("1.5.2")
+        let coordinator = makeCoordinator(defaults: defaults) { _, _ in expected }
+        await coordinator.checkIfNeeded()
+        let state = testPresentationState(activeOwner: .blockingStoreLoadError)
+
+        #expect(!state.shouldPresentUpdate(hasPendingUpdate: coordinator.pendingUpdate != nil))
+        #expect(coordinator.pendingUpdate == expected)
+    }
+
     private func makeCoordinator(
         enabled: Bool = true,
         installedVersion: String = "1.5.1",
@@ -209,6 +221,62 @@ import Testing
             continuation = nil
         }
     }
+}
+
+@Suite struct AppUpdatePresentationStateTests {
+    @Test(arguments: PresentationPriorityOwner.allCases)
+    func everyExistingRootPresentationOwnerDefersTheUpdate(
+        _ owner: PresentationPriorityOwner
+    ) {
+        let state = testPresentationState(activeOwner: owner)
+
+        #expect(state.higherPriorityPresentationActive)
+        #expect(!state.shouldPresentUpdate(hasPendingUpdate: true))
+    }
+
+    @Test func updatePresentsOnlyWithPendingContentAndNoHigherPriorityOwner() {
+        let state = testPresentationState(activeOwner: nil)
+
+        #expect(!state.higherPriorityPresentationActive)
+        #expect(state.shouldPresentUpdate(hasPendingUpdate: true))
+        #expect(!state.shouldPresentUpdate(hasPendingUpdate: false))
+    }
+}
+
+enum PresentationPriorityOwner: CaseIterable, Sendable, CustomTestStringConvertible {
+    case blockingStoreLoadError
+    case createProjectSheet
+    case backupReminderAlert
+    case backupSettingsSheet
+    case patternInboxFailureAlert
+    case pendingPatternSelectionSheet
+    case unlockPaywallSheet
+
+    var testDescription: String {
+        switch self {
+        case .blockingStoreLoadError: "blocking store load error"
+        case .createProjectSheet: "create-project sheet"
+        case .backupReminderAlert: "backup reminder alert"
+        case .backupSettingsSheet: "backup settings sheet with restore confirmation"
+        case .patternInboxFailureAlert: "pattern inbox failure alert with destructive discard"
+        case .pendingPatternSelectionSheet: "pending pattern selection sheet"
+        case .unlockPaywallSheet: "unlock paywall sheet"
+        }
+    }
+}
+
+private func testPresentationState(
+    activeOwner: PresentationPriorityOwner?
+) -> AppUpdatePresentationState {
+    AppUpdatePresentationState(
+        hasBlockingStoreLoadError: activeOwner == .blockingStoreLoadError,
+        isCreateProjectSheetPresented: activeOwner == .createProjectSheet,
+        isBackupReminderPresented: activeOwner == .backupReminderAlert,
+        isBackupSettingsPresented: activeOwner == .backupSettingsSheet,
+        hasPatternInboxFailure: activeOwner == .patternInboxFailureAlert,
+        hasPendingPatternSelection: activeOwner == .pendingPatternSelectionSheet,
+        isUnlockPaywallPresented: activeOwner == .unlockPaywallSheet
+    )
 }
 
 private func testUpdate(_ version: String) -> AvailableAppUpdate {

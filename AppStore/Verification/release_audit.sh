@@ -392,7 +392,7 @@ sentinel_relative = Path(
     "Sources/KnitNoteCore/App/AppStoreUpdateLiveNetworkContract.swift"
 )
 factory_relative = Path("KnitNote/App/AppUpdateReminderLiveFactory.swift")
-expected_sentinel_sha256 = "7a74655e542c32bfc2bb63a64c67c6dbeeaa4fccb38d6025458ba6520cd0790f"
+expected_sentinel_sha256 = "e98d217256ad5a1b15ee64d61f44b75c9f6c981b50088ca2fe7f199382ed21c4"
 expected_factory_sha256 = "dcae917c3d5f301e6d79ea3901b4c8a55f37277a55d76efc8d0bc656ad255bb7"
 risk = re.compile(
     r"URLSession|URLRequest\s*\(|\bloader\s*\(|NWConnection|"

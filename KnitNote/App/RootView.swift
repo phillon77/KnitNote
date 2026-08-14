@@ -146,14 +146,7 @@ struct RootView: View {
             .alert(
                 Text(verbatim: LocaleAwareText.string("update.available.title", locale: locale)),
                 isPresented: Binding(
-                    get: {
-                        appUpdateReminderCoordinator.pendingUpdate != nil
-                            && !backupReminderPresenter.isPresented
-                            && !backupReminderPresenter.isShowingBackupSettings
-                            && patternInboxProcessor.failure == nil
-                            && patternInboxProcessor.pendingSelection == nil
-                            && !unlockSheetBinding.wrappedValue
-                    },
+                    get: { shouldPresentAppUpdate },
                     set: { _ in }
                 ),
                 presenting: appUpdateReminderCoordinator.pendingUpdate
@@ -254,6 +247,25 @@ struct RootView: View {
         .tint(WatercolorTheme.actionBerry)
         .watercolorTabBar()
     }
+
+    // APP_UPDATE_PRIORITY_OWNER_BEGIN
+    private var shouldPresentAppUpdate: Bool {
+        AppUpdatePresentationState(
+            hasBlockingStoreLoadError: store.loadError != nil,
+            isCreateProjectSheetPresented:
+                unlockPresentation.isCreateProjectSheetPresented,
+            isBackupReminderPresented: backupReminderPresenter.isPresented,
+            isBackupSettingsPresented:
+                backupReminderPresenter.isShowingBackupSettings,
+            hasPatternInboxFailure: patternInboxProcessor.failure != nil,
+            hasPendingPatternSelection:
+                patternInboxProcessor.pendingSelection != nil,
+            isUnlockPaywallPresented: unlockSheetBinding.wrappedValue
+        ).shouldPresentUpdate(
+            hasPendingUpdate: appUpdateReminderCoordinator.pendingUpdate != nil
+        )
+    }
+    // APP_UPDATE_PRIORITY_OWNER_END
 
     private var unlockSheetBinding: Binding<Bool> {
         Binding(

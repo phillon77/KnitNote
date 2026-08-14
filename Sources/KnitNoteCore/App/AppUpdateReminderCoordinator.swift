@@ -1,6 +1,48 @@
 import Combine
 import Foundation
 
+public struct AppUpdatePresentationState: Equatable, Sendable {
+    public let hasBlockingStoreLoadError: Bool
+    public let isCreateProjectSheetPresented: Bool
+    public let isBackupReminderPresented: Bool
+    public let isBackupSettingsPresented: Bool
+    public let hasPatternInboxFailure: Bool
+    public let hasPendingPatternSelection: Bool
+    public let isUnlockPaywallPresented: Bool
+
+    public init(
+        hasBlockingStoreLoadError: Bool,
+        isCreateProjectSheetPresented: Bool,
+        isBackupReminderPresented: Bool,
+        isBackupSettingsPresented: Bool,
+        hasPatternInboxFailure: Bool,
+        hasPendingPatternSelection: Bool,
+        isUnlockPaywallPresented: Bool
+    ) {
+        self.hasBlockingStoreLoadError = hasBlockingStoreLoadError
+        self.isCreateProjectSheetPresented = isCreateProjectSheetPresented
+        self.isBackupReminderPresented = isBackupReminderPresented
+        self.isBackupSettingsPresented = isBackupSettingsPresented
+        self.hasPatternInboxFailure = hasPatternInboxFailure
+        self.hasPendingPatternSelection = hasPendingPatternSelection
+        self.isUnlockPaywallPresented = isUnlockPaywallPresented
+    }
+
+    public var higherPriorityPresentationActive: Bool {
+        hasBlockingStoreLoadError
+            || isCreateProjectSheetPresented
+            || isBackupReminderPresented
+            || isBackupSettingsPresented
+            || hasPatternInboxFailure
+            || hasPendingPatternSelection
+            || isUnlockPaywallPresented
+    }
+
+    public func shouldPresentUpdate(hasPendingUpdate: Bool) -> Bool {
+        hasPendingUpdate && !higherPriorityPresentationActive
+    }
+}
+
 @MainActor
 public final class AppUpdateReminderCoordinator: ObservableObject {
     @Published public private(set) var pendingUpdate: AvailableAppUpdate?

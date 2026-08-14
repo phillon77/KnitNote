@@ -578,6 +578,23 @@ import Testing
         )
     }
 
+    @Test(arguments: unsafeStoreURLIdentityMutations)
+    func staticAuditRejectsEachMissingStoreURLIdentityGuard(
+        mutation: UpdateNetworkSourceMutation
+    ) throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        try applyUpdateNetworkMutation(mutation, in: fixture)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0, Comment(rawValue: mutation.name))
+        #expect(
+            result.output.contains("App Store update live-network sentinel is not canonical"),
+            Comment(rawValue: mutation.name)
+        )
+    }
+
     @Test(arguments: executableNetworkDecoyMutations)
     func staticAuditRejectsExecutableNetworkChangesHiddenBySourceDecoys(
         mutation: UpdateNetworkSourceMutation
@@ -730,6 +747,50 @@ private let unsafeLiveSessionMutations = [
         name: "shared cookie storage",
         original: "        configuration.httpCookieStorage = nil\n",
         replacement: "        configuration.httpCookieStorage = .shared\n"
+    ),
+]
+
+private let unsafeStoreURLIdentityMutations = [
+    UpdateNetworkSourceMutation(
+        name: "missing Store URL user-info guards",
+        original: """
+                    components.user == nil,
+                    components.password == nil,
+
+        """,
+        replacement: """
+                    // components.user == nil,
+                    // components.password == nil,
+                    true,
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "missing Store URL explicit-port guard",
+        original: "            components.port == nil,\n",
+        replacement: """
+                    // components.port == nil,
+                    true,
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "missing Store URL app-route guard",
+        original: "            path[2] == \"app\",\n",
+        replacement: """
+                    // path[2] == "app",
+                    true,
+
+        """
+    ),
+    UpdateNetworkSourceMutation(
+        name: "missing exact KnitNote product-path guard",
+        original: "            path[4] == Substring(\"id\\(appleID)\")\n",
+        replacement: """
+                    // path[4] == Substring("id\\(appleID)")
+                    true
+
+        """
     ),
 ]
 

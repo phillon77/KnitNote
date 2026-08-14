@@ -48,12 +48,7 @@ import Testing
             replacingWith: "LocaleAwareText.string(\"update.available.openStore\")",
             .localizedCopy
         ),
-        Mutation("pending update gate", "appUpdateReminderCoordinator.pendingUpdate != nil", replacingWith: "true", .pendingUpdateGate),
-        Mutation("backup reminder blocker", "!backupReminderPresenter.isPresented", replacingWith: "true", .backupReminderBlocker),
-        Mutation("backup settings blocker", "!backupReminderPresenter.isShowingBackupSettings", replacingWith: "true", .backupSettingsBlocker),
-        Mutation("inbox failure blocker", "patternInboxProcessor.failure == nil", replacingWith: "true", .inboxFailureBlocker),
-        Mutation("inbox selection blocker", "patternInboxProcessor.pendingSelection == nil", replacingWith: "true", .inboxSelectionBlocker),
-        Mutation("unlock sheet blocker", "!unlockSheetBinding.wrappedValue", replacingWith: "true", .unlockSheetBlocker),
+        Mutation("central presentation gate", "shouldPresentAppUpdate", replacingWith: "true", .higherPriorityGate),
         Mutation("active scene guard", "guard scenePhase == .active else { return }", .activeSceneGuard),
     ])
     func scopedContractRejectsEachMutationEvenWhenTheRemovedTokenExistsAsADecoy(
@@ -69,6 +64,28 @@ import Testing
             + "\n// out-of-owner decoy: \(mutation.token)\n"
 
         #expect(try updatePresentationFailures(in: mutatedSource) == [mutation.expectedFailure])
+    }
+
+    @Test func rootPriorityOwnerCentralizesEveryExistingAppLevelPresentation() throws {
+        let source = try repositorySource("KnitNote/App/RootView.swift")
+
+        #expect(try priorityOwnerFailures(in: source).isEmpty)
+    }
+
+    @Test(arguments: priorityOwnerMutations)
+    func priorityOwnerRejectsEachMutationDespiteAnOutOfOwnerDecoy(
+        _ mutation: Mutation
+    ) throws {
+        let source = try repositorySource("KnitNote/App/RootView.swift")
+        let owner = try priorityOwnerBlock(in: source)
+        let mutatedOwner = try #require(owner.replacingFirstOccurrence(
+            of: mutation.token,
+            with: mutation.replacement
+        ))
+        let mutatedSource = source.replacingOccurrences(of: owner, with: mutatedOwner)
+            + "\n// out-of-owner decoy: \(mutation.token)\n"
+
+        #expect(try priorityOwnerFailures(in: mutatedSource) == [mutation.expectedFailure])
     }
 
     @Test func rootDeclaresSelectedLocaleOpenURLAndCoordinatorDependencies() throws {
@@ -108,6 +125,10 @@ enum UpdatePresentationRequirement: String, Hashable, Sendable {
     case storeOpenAction
     case storeCompletionAction
     case pendingUpdateGate
+    case higherPriorityGate
+    case centralPriorityDecision
+    case blockingStoreLoadErrorBlocker
+    case createProjectSheetBlocker
     case backupReminderBlocker
     case backupSettingsBlocker
     case inboxFailureBlocker
@@ -144,12 +165,7 @@ private func updatePresentationFailures(in source: String) throws -> Set<UpdateP
         failures.insert(.storeCompletionAction)
     }
     let tokens: [(String, UpdatePresentationRequirement)] = [
-        ("appUpdateReminderCoordinator.pendingUpdate != nil", .pendingUpdateGate),
-        ("!backupReminderPresenter.isPresented", .backupReminderBlocker),
-        ("!backupReminderPresenter.isShowingBackupSettings", .backupSettingsBlocker),
-        ("patternInboxProcessor.failure == nil", .inboxFailureBlocker),
-        ("patternInboxProcessor.pendingSelection == nil", .inboxSelectionBlocker),
-        ("!unlockSheetBinding.wrappedValue", .unlockSheetBlocker),
+        ("shouldPresentAppUpdate", .higherPriorityGate),
         ("guard scenePhase == .active else { return }", .activeSceneGuard),
         ("await appUpdateReminderCoordinator.checkIfNeeded()", .activeSceneCheck),
     ]
@@ -159,9 +175,108 @@ private func updatePresentationFailures(in source: String) throws -> Set<UpdateP
     return failures
 }
 
+private let priorityOwnerMutations = [
+    Mutation(
+        "central presentation-state decision",
+        ").shouldPresentUpdate(",
+        replacingWith: ").higherPriorityPresentationActive && (",
+        .centralPriorityDecision
+    ),
+    Mutation(
+        "pending update gate",
+        "appUpdateReminderCoordinator.pendingUpdate != nil",
+        replacingWith: "true",
+        .pendingUpdateGate
+    ),
+    Mutation(
+        "blocking store load error",
+        "store.loadError != nil",
+        replacingWith: "false",
+        .blockingStoreLoadErrorBlocker
+    ),
+    Mutation(
+        "create-project sheet",
+        "unlockPresentation.isCreateProjectSheetPresented",
+        replacingWith: "false",
+        .createProjectSheetBlocker
+    ),
+    Mutation(
+        "backup reminder alert",
+        "backupReminderPresenter.isPresented",
+        replacingWith: "false",
+        .backupReminderBlocker
+    ),
+    Mutation(
+        "backup settings sheet with destructive restore confirmation",
+        "backupReminderPresenter.isShowingBackupSettings",
+        replacingWith: "false",
+        .backupSettingsBlocker
+    ),
+    Mutation(
+        "pattern inbox failure alert with destructive discard",
+        "patternInboxProcessor.failure != nil",
+        replacingWith: "false",
+        .inboxFailureBlocker
+    ),
+    Mutation(
+        "pending pattern selection sheet",
+        "patternInboxProcessor.pendingSelection != nil",
+        replacingWith: "false",
+        .inboxSelectionBlocker
+    ),
+    Mutation(
+        "unlock paywall sheet",
+        "unlockSheetBinding.wrappedValue",
+        replacingWith: "false",
+        .unlockSheetBlocker
+    ),
+]
+
+private func priorityOwnerFailures(
+    in source: String
+) throws -> Set<UpdatePresentationRequirement> {
+    let owner = try priorityOwnerBlock(in: source)
+    var failures = Set<UpdatePresentationRequirement>()
+    let tokens: [(String, UpdatePresentationRequirement)] = [
+        ("private var shouldPresentAppUpdate: Bool", .centralPriorityDecision),
+        ("AppUpdatePresentationState(", .centralPriorityDecision),
+        (").shouldPresentUpdate(", .centralPriorityDecision),
+        ("appUpdateReminderCoordinator.pendingUpdate != nil", .pendingUpdateGate),
+        ("store.loadError != nil", .blockingStoreLoadErrorBlocker),
+        ("unlockPresentation.isCreateProjectSheetPresented", .createProjectSheetBlocker),
+        ("backupReminderPresenter.isPresented", .backupReminderBlocker),
+        ("backupReminderPresenter.isShowingBackupSettings", .backupSettingsBlocker),
+        ("patternInboxProcessor.failure != nil", .inboxFailureBlocker),
+        ("patternInboxProcessor.pendingSelection != nil", .inboxSelectionBlocker),
+        ("unlockSheetBinding.wrappedValue", .unlockSheetBlocker),
+    ]
+    for (token, requirement) in tokens where !owner.contains(token) {
+        failures.insert(requirement)
+    }
+    return failures
+}
+
+private func priorityOwnerBlock(in source: String) throws -> String {
+    try scopedBlock(
+        in: source,
+        startMarker: "// APP_UPDATE_PRIORITY_OWNER_BEGIN",
+        endMarker: "// APP_UPDATE_PRIORITY_OWNER_END"
+    )
+}
+
 private func updatePresentationBlock(in source: String) throws -> String {
-    let startMarker = "// APP_UPDATE_PRESENTATION_BEGIN"
-    let endMarker = "// APP_UPDATE_PRESENTATION_END"
+    try scopedBlock(
+        in: source,
+        startMarker: "// APP_UPDATE_PRESENTATION_BEGIN",
+        endMarker: "// APP_UPDATE_PRESENTATION_END"
+    )
+}
+
+private func scopedBlock(
+    in source: String,
+    startMarker: String,
+    endMarker: String
+) throws -> String {
     let startParts = source.components(separatedBy: startMarker)
     let endParts = source.components(separatedBy: endMarker)
     guard startParts.count == 2, endParts.count == 2,

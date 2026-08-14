@@ -1,265 +1,96 @@
 import SwiftUI
-import UniformTypeIdentifiers
-
-private struct PendingPatternSelection: Identifiable {
-    let itemID: UUID
-    let candidatePatternIDs: [UUID]
-    var id: UUID { itemID }
-}
 
 struct PatternLibraryView: View {
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
-    @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
-    @State private var navigationPath: [UUID] = []
-    @State private var query = ""
-    @State private var sort = PatternLibrarySort.recentlyAdded
-    @State private var importing = false
-    @State private var addingYouTubeLink = false
-    @State private var pendingSelection: PendingPatternSelection?
-    @State private var existingPatternID: UUID?
-    @State private var errorMessage: String?
+    @State private var selection: PatternLibraryScope? = .all
+    @State private var preferredCompactColumn = NavigationSplitViewColumn.sidebar
+    @State private var folderEditor: PatternFolderEditorMode?
+    @State private var pendingDeletion: PatternFolder?
+    @State private var showingDeleteConfirmation = false
+    @State private var deletionErrorKey: String?
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
-            Group {
-                if store.patterns.isEmpty {
-                    ZStack {
-                        WatercolorBackground()
-                        LemonEmptyState(
-                            title: "patterns.library.empty.title",
-                            message: "patterns.library.empty.message",
-                            actionTitle: "patterns.add",
-                            action: { importing = true }
-                        )
-                        .padding()
-                        .frame(maxWidth: 520)
-                    }
-                } else {
-                    List {
-                        ForEach(visibleRows) { row in
-                            if let asset = asset(for: row.patternID) {
-                                NavigationLink(value: row.patternID) {
-                                    PatternLibraryRow(model: row, asset: asset)
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .background(WatercolorBackground())
-                    .overlay {
-                        if visibleRows.isEmpty {
-                            ContentUnavailableView.search(text: query)
-                        }
-                    }
+        NavigationSplitView(preferredCompactColumn: $preferredCompactColumn) {
+            PatternFolderSidebarView(
+                selection: $selection,
+                onCreate: { folderEditor = .create },
+                onRename: { folderEditor = .rename($0) },
+                onDelete: { folder in
+                    pendingDeletion = folder
+                    showingDeleteConfirmation = true
                 }
-            }
-            .navigationTitle("nav.patterns")
-            .navigationDestination(for: UUID.self) { patternID in
-                PatternDetailView(patternID: patternID)
-            }
-            .searchable(
-                text: $query,
-                placement: .automatic,
-                prompt: Text("patterns.library.search")
             )
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Menu {
-                        sortButton(PatternLibrarySort.recentlyAdded)
-                        sortButton(PatternLibrarySort.name)
-                    } label: {
-                        Label("patterns.library.sort", systemImage: "arrow.up.arrow.down")
-                            .patternToolbarTextLabelStyle()
-                    }
-                    .accessibilityLabel(Text("patterns.library.sort"))
-
-                    Menu {
-                        Button("patterns.import.files", systemImage: "folder") {
-                            importing = true
-                        }
-                        Button("patterns.youtube.add", systemImage: "play.rectangle") {
-                            addingYouTubeLink = true
-                        }
-                    } label: {
-                        Label("patterns.add", systemImage: "plus")
-                            .patternToolbarTextLabelStyle()
-                    }
-                    .accessibilityLabel(Text("patterns.add"))
-                }
-            }
-            .fileImporter(
-                isPresented: $importing,
-                allowedContentTypes: [.pdf, .png, .jpeg, .heic]
-            ) { result in
-                importPattern(result)
-            }
-            .sheet(isPresented: $addingYouTubeLink) {
-                AddYouTubePatternView(targetProjectID: nil) { patternID, resolution in
-                    acceptYouTubeAddResult(patternID: patternID, resolution: resolution)
-                }
+        } detail: {
+            PatternLibraryCollectionView(scope: selection ?? .all)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .sheet(item: $folderEditor) { mode in
+            PatternFolderEditorView(mode: mode)
                 .environment(\.locale, locale)
+        }
+        .confirmationDialog(
+            "patterns.folder.delete.title",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("common.delete", role: .destructive) {
+                deletePendingFolder()
             }
-            .sheet(item: $pendingSelection) { selection in
-                chooseDuplicate(for: selection)
+            .accessibilityLabel(Text("patterns.folder.delete.title"))
+            .accessibilityHint(Text(deleteMessage))
+            Button("common.cancel", role: .cancel) {
+                pendingDeletion = nil
             }
-            .alert(
-                "patterns.library.alreadySaved.title",
-                isPresented: Binding(
-                    get: { existingPatternID != nil },
-                    set: { if !$0 { existingPatternID = nil } }
-                )
-            ) {
-                Button("patterns.library.alreadySaved.view") {
-                    if let patternID = existingPatternID {
-                        navigationPath.append(patternID)
-                    }
-                    existingPatternID = nil
-                }
-                Button("common.ok", role: .cancel) {
-                    existingPatternID = nil
-                }
-            } message: {
-                Text("patterns.library.alreadySaved.message")
+        } message: {
+            Text(deleteMessage)
+        }
+        .alert(
+            "patterns.error",
+            isPresented: Binding(
+                get: { deletionErrorKey != nil },
+                set: { if !$0 { deletionErrorKey = nil } }
+            )
+        ) {
+            Button("common.retry") {
+                showingDeleteConfirmation = pendingDeletion != nil
             }
-            .alert(
-                "patterns.error",
-                isPresented: Binding(
-                    get: { errorMessage != nil },
-                    set: { if !$0 { errorMessage = nil } }
-                )
-            ) {
-                Button("common.ok") {}
-            } message: {
-                Text(errorMessage ?? "")
+            Button("common.cancel", role: .cancel) {
+                pendingDeletion = nil
             }
+        } message: {
+            Text(LocalizedStringKey(
+                deletionErrorKey ?? "patterns.folder.error.saveFailed"
+            ))
         }
         .tint(WatercolorTheme.actionBerry)
     }
 
-    private var rows: [PatternLibraryRowModel] {
-        store.patterns.map { pattern in
-            let projectNames = store.patternUsages.compactMap { usage -> String? in
-                guard usage.patternID == pattern.id,
-                      usage.isActive,
-                      let project = store.projects.first(where: { $0.id == usage.projectID })
-                else { return nil }
-                return project.name
-            }
-            return PatternLibraryRowModel(
-                patternID: pattern.id,
-                name: pattern.displayName,
-                note: pattern.note,
-                activeProjectNames: projectNames,
-                createdAt: pattern.createdAt
-            )
-        }
+    private var deleteMessage: String {
+        let count = pendingDeletion.map { folder in
+            store.patterns.count(where: { $0.folderID == folder.id })
+        } ?? 0
+        return LocaleAwareText.interpolated(
+            "patterns.folder.delete.message",
+            defaultValue: "The folder will be deleted and \(count) patterns will move to Uncategorized.",
+            locale: locale
+        )
     }
 
-    private var visibleRows: [PatternLibraryRowModel] {
-        PatternLibraryIndex(rows: rows, locale: locale)
-            .search(query, sortedBy: sort)
-    }
-
-    private func asset(for patternID: UUID) -> PatternAsset? {
-        guard let pattern = store.patterns.first(where: { $0.id == patternID }) else {
-            return nil
-        }
-        return store.patternAssets.first { $0.id == pattern.assetID }
-    }
-
-    private func sortButton(_ option: PatternLibrarySort) -> some View {
-        Button {
-            sort = option
-        } label: {
-            Label(option.localizationKey, systemImage: option.systemImage)
-        }
-    }
-
-    private func importPattern(_ result: Result<URL, Error>) {
-        guard case let .success(url) = result else { return }
-        Task { @MainActor in
-            let access = url.startAccessingSecurityScopedResource()
-            defer { if access { url.stopAccessingSecurityScopedResource() } }
-            do {
-                let outcome = try await store.importPatternFromLibrary(url)
-                acceptImportOutcome(outcome)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func acceptImportOutcome(_ outcome: PatternImportOutcome) {
-        backupReminderPresenter.accept(outcome)
-
-        switch PatternLibraryImportPresentation(outcome: outcome) {
-        case .none:
-            pendingSelection = nil
-            existingPatternID = nil
-        case let .alreadySaved(patternID):
-            pendingSelection = nil
-            existingPatternID = patternID
-        case let .chooseDuplicate(itemID, candidatePatternIDs):
-            existingPatternID = nil
-            pendingSelection = PendingPatternSelection(
-                itemID: itemID,
-                candidatePatternIDs: candidatePatternIDs
-            )
-        }
-    }
-
-    private func acceptYouTubeAddResult(
-        patternID: UUID,
-        resolution: YouTubePatternAddResult.Resolution
-    ) {
-        switch resolution {
-        case .created:
-            backupReminderPresenter.acceptCreatedPattern()
-            pendingSelection = nil
-            existingPatternID = nil
-        case .existing:
-            pendingSelection = nil
-            existingPatternID = patternID
-        }
-    }
-
-    private func chooseDuplicate(
-        for selection: PendingPatternSelection
-    ) -> some View {
-        NavigationStack {
-            List(selection.candidatePatternIDs, id: \.self) { patternID in
-                if let pattern = store.patterns.first(where: { $0.id == patternID }) {
-                    Button(pattern.displayName) {
-                        resolveDuplicate(
-                            itemID: selection.itemID,
-                            patternID: patternID
-                        )
-                    }
-                    .frame(minHeight: 44)
-                }
-            }
-            .navigationTitle("nav.patterns")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("common.cancel") { pendingSelection = nil }
-                }
-            }
-        }
-    }
-
-    private func resolveDuplicate(itemID: UUID, patternID: UUID) {
-        Task { @MainActor in
-            do {
-                let outcome = try await store.processPatternInboxItem(
-                    id: itemID,
-                    selectingPatternID: patternID
+    private func deletePendingFolder() {
+        guard let folder = pendingDeletion else { return }
+        do {
+            try store.deletePatternFolder(id: folder.id)
+            if let selection {
+                self.selection = PatternFolderPresentation.selectionAfterDeleting(
+                    selection,
+                    deletedFolderID: folder.id
                 )
-                acceptImportOutcome(outcome)
-            } catch {
-                errorMessage = error.localizedDescription
             }
+            deletionErrorKey = nil
+            pendingDeletion = nil
+        } catch {
+            deletionErrorKey = PatternFolderFailurePresentation.key(for: error)
         }
     }
 }

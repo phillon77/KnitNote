@@ -1,8 +1,75 @@
 import Testing
 
 @Suite struct PatternLibraryViewContractTests {
+    @Test func patternLibraryUsesFolderFirstAdaptiveNavigationAndLongPressMovement() throws {
+        let root = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let sidebar = try readRepositoryFile("KnitNote/Patterns/PatternFolderSidebarView.swift")
+        let collection = try readRepositoryFile(
+            "KnitNote/Patterns/PatternLibraryCollectionView.swift"
+        )
+
+        #expect(root.contains("NavigationSplitView"))
+        #expect(root.contains("PatternFolderSidebarView"))
+        #expect(root.contains("PatternLibraryCollectionView"))
+        #expect(root.contains("preferredCompactColumn"))
+        #expect(root.contains("NavigationSplitViewColumn.sidebar"))
+        #expect(root.contains(".navigationSplitViewStyle(.balanced)"))
+        #expect(!root.contains("HStack"))
+        #expect(sidebar.contains("PatternFolderPresentation.rows("))
+        #expect(sidebar.contains("contextMenu"))
+        #expect(collection.contains("contextMenu"))
+        #expect(collection.contains("MovePatternFolderView"))
+        #expect(collection.contains("PatternLibraryIndex(rows: rows, locale: locale)"))
+        #expect(collection.contains(".search(query, in: scope, sortedBy: sort)"))
+    }
+
+    @Test func folderManagementPreservesSelectionUntilDurableDeleteSuccess() throws {
+        let root = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+
+        #expect(root.contains("try store.deletePatternFolder(id: folder.id)"))
+        #expect(root.contains("selection = PatternFolderPresentation.selectionAfterDeleting"))
+        #expect(root.contains("pendingDeletion = folder"))
+        #expect(root.contains("deletionErrorKey = PatternFolderFailurePresentation.key(for: error)"))
+        #expect(root.contains("pendingDeletion = nil"))
+        #expect(root.contains("confirmationDialog"))
+    }
+
+    @Test func folderActionsAreAccessibleAndImportsCaptureTheSelectedDestination() throws {
+        let sidebar = try readRepositoryFile("KnitNote/Patterns/PatternFolderSidebarView.swift")
+        let editor = try readRepositoryFile("KnitNote/Patterns/PatternFolderEditorView.swift")
+        let mover = try readRepositoryFile("KnitNote/Patterns/MovePatternFolderView.swift")
+        let collection = try readRepositoryFile(
+            "KnitNote/Patterns/PatternLibraryCollectionView.swift"
+        )
+
+        #expect(sidebar.contains(".frame(minHeight: 44)"))
+        #expect(sidebar.contains("countDescription(row.count)"))
+        #expect(sidebar.contains(".accessibilityLabel"))
+        #expect(sidebar.contains(".accessibilityHint"))
+        #expect(sidebar.contains(".accessibilityAddTraits(selection == row.scope ? .isSelected : [])"))
+        #expect(sidebar.contains("patterns.folder.new"))
+        #expect(sidebar.contains("patterns.folder.rename"))
+        #expect(sidebar.contains("patterns.folder.delete.title"))
+        #expect(editor.contains(".frame(minHeight: 44)"))
+        #expect(editor.contains(".accessibilityLabel"))
+        #expect(editor.contains(".accessibilityHint"))
+        #expect(mover.contains(".frame(minHeight: 44)"))
+        #expect(mover.contains(".accessibilityLabel"))
+        #expect(mover.contains(".accessibilityHint"))
+        #expect(mover.contains(".accessibilityAddTraits(currentFolderID == folderID ? .isSelected : [])"))
+        #expect(collection.contains(".accessibilityLabel(Text(\"patterns.folder.move\"))"))
+        #expect(collection.contains(".accessibilityHint(Text(\"patterns.folder.move\"))"))
+        #expect(collection.contains("folderID: destinationFolderID"))
+        #expect(collection.contains("AddYouTubePatternView("))
+        #expect(collection.contains("targetFolderID: destinationFolderID"))
+        #expect(collection.contains("case .all, .uncategorized:"))
+        #expect(collection.contains("case let .folder(folderID):"))
+    }
+
     @Test func libraryIsOneSearchableListWithoutProjectSectionsOrSwipeDelete() throws {
-        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let source = try readRepositoryFile(
+            "KnitNote/Patterns/PatternLibraryCollectionView.swift"
+        )
 
         #expect(source.contains(".searchable"))
         #expect(source.contains("PatternLibraryRow("))
@@ -11,7 +78,7 @@ import Testing
     }
 
     @Test func libraryOffersRecentAndNameSortsPlusAnUnrestrictedImporter() throws {
-        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryCollectionView.swift")
         let store = try readRepositoryFile("Sources/KnitNoteCore/Projects/JSONProjectStore.swift")
 
         #expect(source.contains("PatternLibrarySort.recentlyAdded"))
@@ -23,7 +90,7 @@ import Testing
     }
 
     @Test func existingImportShowsFeedbackAndCanNavigateToTheSavedDetail() throws {
-        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let source = try readRepositoryFile("KnitNote/Patterns/PatternLibraryCollectionView.swift")
 
         #expect(source.contains("PatternLibraryImportPresentation(outcome: outcome)"))
         #expect(source.contains("patterns.library.alreadySaved.title"))
@@ -97,7 +164,9 @@ import Testing
     }
 
     @Test func emptyStateAndAdaptiveDetailLayoutStayAvailableOnPhoneAndPad() throws {
-        let library = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let library = try readRepositoryFile(
+            "KnitNote/Patterns/PatternLibraryCollectionView.swift"
+        )
         let detail = try readRepositoryFile("KnitNote/Patterns/PatternDetailView.swift")
 
         #expect(library.contains("LemonEmptyState("))
@@ -123,8 +192,11 @@ import Testing
     }
 
     @Test func phoneImportRemainsReachableAndMacToolbarKeepsTextLabels() throws {
-        let library = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
+        let library = try readRepositoryFile(
+            "KnitNote/Patterns/PatternLibraryCollectionView.swift"
+        )
         let detail = try readRepositoryFile("KnitNote/Patterns/PatternDetailView.swift")
+        let root = try readRepositoryFile("KnitNote/Patterns/PatternLibraryView.swift")
 
         #expect(library.contains("ToolbarItemGroup(placement: .primaryAction)"))
         #expect(library.contains("Label(\"patterns.add\", systemImage: \"plus\")"))
@@ -132,7 +204,7 @@ import Testing
         #expect(library.contains(".fileImporter("))
         #expect(library.contains(".patternToolbarTextLabelStyle()"))
         #expect(detail.contains(".patternToolbarTextLabelStyle()"))
-        #expect(library.contains("#if os(macOS)"))
-        #expect(library.contains(".labelStyle(.titleAndIcon)"))
+        #expect(root.contains("#if os(macOS)"))
+        #expect(root.contains(".labelStyle(.titleAndIcon)"))
     }
 }

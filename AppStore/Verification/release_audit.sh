@@ -21,6 +21,7 @@ SHARE_INFO_PLIST="KnitNoteShare/Info.plist"
 MAC_ENTITLEMENTS="KnitNote/KnitNote-macOS.entitlements"
 PROJECT_ARCHIVE_SCHEMA_SOURCE="Sources/KnitNoteCore/Projects/ProjectArchiveSchema.swift"
 PROJECT_SCAN_ROOT="$ROOT"
+NETWORK_SCAN_ROOT="$ROOT"
 GIT=/usr/bin/git
 CODESIGN=/usr/bin/codesign
 SECURITY=/usr/bin/security
@@ -351,6 +352,7 @@ schemes = {
     project.name: sorted(path.name for path in (project / "xcshareddata" / "xcschemes").glob("*.xcscheme"))
     for project in projects
 }
+
 expected_schemes = ["KnitNote.xcscheme", "KnitNoteShare.xcscheme", "KnitNoteWatch.xcscheme"]
 shipping_products = set()
 for project in projects:
@@ -375,6 +377,103 @@ if not valid:
         "release audit: top-level Xcode project and shared scheme inventory is not canonical; "
         f"projects={[project.name for project in projects]}, schemes={schemes}, products={sorted(shipping_products)}"
     )
+PY
+}
+
+verify_expected_app_store_update_network_surface() {
+  python3 - "$NETWORK_SCAN_ROOT" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+root = Path(sys.argv[1])
+lookup_relative = Path("Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift")
+fixture_relative = Path("KnitNote/App/AppUpdateFixture.swift")
+risk = re.compile(r"URLSession|NWConnection|Firebase|Analytics|Telemetry|tracking|https?://")
+
+
+def fail(message):
+    raise SystemExit(f"release audit: {message}")
+
+
+def read(relative):
+    path = root / relative
+    if not path.is_file() or path.is_symlink():
+        fail(f"required update-reminder network source is missing or unsafe: {relative}")
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        fail(f"required update-reminder network source is unreadable: {relative}")
+
+
+lookup = read(lookup_relative)
+lookup_requirements = {
+    "private static let appleID = 6_793_023_054": 1,
+    'private static let bundleID = "com.phillon.KnitNote"': 1,
+    'components.host = "itunes.apple.com"': 1,
+    'components.path = "/lookup"': 1,
+    'components.host == "apps.apple.com"': 1,
+    "URLSession(configuration: configuration)": 1,
+    "URLSessionConfiguration.ephemeral": 1,
+    "configuration.urlCredentialStorage = nil": 1,
+}
+lookup_is_canonical = (
+    all(lookup.count(value) == count for value, count in lookup_requirements.items())
+    and lookup.count("URLSession") == 3
+    and lookup.count("components.host") == 2
+    and not re.search(r"NWConnection|Firebase|Analytics|Telemetry|tracking|https?://", lookup)
+)
+if not lookup_is_canonical:
+    fail("App Store update lookup network contract is not canonical")
+
+fixture = read(fixture_relative)
+approved_fixture_url = "https://apps.apple.com/tw/app/id6793023054"
+debug_start = fixture.find("#if DEBUG")
+debug_end = fixture.find("#else", debug_start + 1)
+fixture_hits = list(risk.finditer(fixture))
+fixture_is_canonical = (
+    fixture.count(approved_fixture_url) == 1
+    and len(fixture_hits) == 1
+    and fixture_hits[0].group(0) == "https://"
+    and 0 <= debug_start < fixture.find(approved_fixture_url) < debug_end
+)
+if not fixture_is_canonical:
+    fail("debug App Store update fixture URL contract is not canonical")
+
+scan_roots = [
+    root / "KnitNote",
+    root / "KnitNoteWatch",
+    root / "KnitNoteShare",
+    root / "Sources/KnitNoteCore",
+]
+candidates = []
+for scan_root in scan_roots:
+    if scan_root.exists():
+        for path in scan_root.rglob("*"):
+            if path.is_symlink():
+                fail(f"network scan source is an unsafe symlink: {path.relative_to(root)}")
+            if path.is_file():
+                candidates.append(path)
+for relative in [Path("Package.swift"), Path("project.yml")]:
+    path = root / relative
+    if path.is_file():
+        candidates.append(path)
+
+approved = {lookup_relative, fixture_relative}
+for path in sorted(set(candidates)):
+    relative = path.relative_to(root)
+    if path.suffix not in {".swift", ".yml"} and path.name != "Package.swift":
+        continue
+    try:
+        source = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        fail(f"network scan source is unreadable: {relative}")
+    if relative in approved:
+        continue
+    match = risk.search(source)
+    if match:
+        line = source.count("\n", 0, match.start()) + 1
+        fail(f"unexpected network, analytics, or tracking source: {relative}:{line}")
 PY
 }
 
@@ -635,6 +734,7 @@ if [[ "$TEST_ONLY" == 1 ]]; then
   MAC_ENTITLEMENTS="${KNITNOTE_MAC_ENTITLEMENTS:-$MAC_ENTITLEMENTS}"
   PROJECT_ARCHIVE_SCHEMA_SOURCE="${KNITNOTE_PROJECT_ARCHIVE_SCHEMA_SOURCE:-$PROJECT_ARCHIVE_SCHEMA_SOURCE}"
   PROJECT_SCAN_ROOT="${KNITNOTE_PROJECT_SCAN_ROOT:-$PROJECT_SCAN_ROOT}"
+  NETWORK_SCAN_ROOT="${KNITNOTE_NETWORK_SCAN_ROOT:-$NETWORK_SCAN_ROOT}"
   GIT="${KNITNOTE_GIT:-$GIT}"
   CODESIGN="${KNITNOTE_CODESIGN:-$CODESIGN}"
   SECURITY="${KNITNOTE_SECURITY:-$SECURITY}"
@@ -787,12 +887,7 @@ python3 AppStore/Verification/commercial_release_check.py \
   "AppStore/CommercialConfiguration.json"
 "$GIT" diff --check
 
-if /usr/bin/grep -RInE --include='*.swift' --include='*.yml' --include='Package.swift' \
-  "URLSession|NWConnection|Firebase|Analytics|Telemetry|tracking|https?://" \
-  KnitNote KnitNoteWatch KnitNoteShare Sources/KnitNoteCore Package.swift project.yml; then
-  echo "release audit: inspect unexpected network, analytics, or tracking source above" >&2
-  exit 1
-fi
+verify_expected_app_store_update_network_surface
 
 if [[ -n "$ARCHIVES" ]]; then
   [[ "$("$GIT" -C "$ROOT" rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] \

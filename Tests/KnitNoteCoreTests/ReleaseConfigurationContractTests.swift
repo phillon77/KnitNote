@@ -330,6 +330,336 @@ import Testing
         #expect(script.contains("verify_signed_app_group \"$IOS\""))
         #expect(script.contains("verify_signed_app_group \"$SHARE\""))
     }
+
+    @Test func updateReminderSourcesAreOwnedOnlyByTheMainAppTarget() throws {
+        try validateUpdateReminderOwnership(
+            yaml: sourceText("project.yml"),
+            generatedProject: sourceText("KnitNote.xcodeproj/project.pbxproj")
+        )
+    }
+
+    @Test func updateReminderOwnershipRejectsMissingWatchExclusion() throws {
+        let yaml = try sourceText("project.yml")
+        let generatedProject = try sourceText("KnitNote.xcodeproj/project.pbxproj")
+        let broken = yaml.replacingOccurrences(
+            of: "          - App/AppVersion.swift\n",
+            with: ""
+        )
+
+        #expect(throws: UpdateReminderOwnershipError.self) {
+            try validateUpdateReminderOwnership(
+                yaml: broken,
+                generatedProject: generatedProject
+            )
+        }
+    }
+
+    @Test func updateReminderOwnershipRejectsMissingMainAppMembership() throws {
+        let yaml = try sourceText("project.yml")
+        let generatedProject = try sourceText("KnitNote.xcodeproj/project.pbxproj")
+        let broken = generatedProject.replacingOccurrences(
+            of: "path = AppVersion.swift;",
+            with: "path = MissingAppVersion.swift;"
+        )
+
+        #expect(throws: UpdateReminderOwnershipError.self) {
+            try validateUpdateReminderOwnership(yaml: yaml, generatedProject: broken)
+        }
+    }
+
+    @Test func updateReminderOwnershipRejectsWatchMembership() throws {
+        let yaml = try sourceText("project.yml")
+        let generatedProject = try sourceText("KnitNote.xcodeproj/project.pbxproj")
+        let broken = generatedProject.replacingOccurrences(
+            of: "path = KnitNoteWatchApp.swift;",
+            with: "path = AppVersion.swift;"
+        )
+
+        #expect(throws: UpdateReminderOwnershipError.self) {
+            try validateUpdateReminderOwnership(yaml: yaml, generatedProject: broken)
+        }
+    }
+
+    @Test func updateReminderOwnershipRejectsShareMembership() throws {
+        let yaml = try sourceText("project.yml")
+        let generatedProject = try sourceText("KnitNote.xcodeproj/project.pbxproj")
+        let broken = generatedProject.replacingOccurrences(
+            of: "path = ShareViewController.swift;",
+            with: "path = AppUpdateReminderLiveFactory.swift;"
+        )
+
+        #expect(throws: UpdateReminderOwnershipError.self) {
+            try validateUpdateReminderOwnership(yaml: yaml, generatedProject: broken)
+        }
+    }
+
+    @Test func staticAuditAcceptsOnlyTheApprovedAppStoreUpdateNetworkSurface() throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status == 0)
+        #expect(result.output.contains("TEST FIXTURE STATIC AUDIT: PASS"))
+    }
+
+    @Test func staticAuditRejectsAnUnexpectedSecondNetworkFile() throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let unexpected = fixture.appending(path: "KnitNote/UnexpectedNetwork.swift")
+        try FileManager.default.createDirectory(
+            at: unexpected.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "let session = URLSession.shared\n".write(
+            to: unexpected,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("unexpected network, analytics, or tracking source"))
+    }
+
+    @Test func staticAuditRejectsAnUnexpectedLookupHost() throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let lookup = fixture.appending(
+            path: "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift"
+        )
+        let broken = try String(contentsOf: lookup, encoding: .utf8)
+            .replacingOccurrences(of: "itunes.apple.com", with: "example.com")
+        try broken.write(to: lookup, atomically: true, encoding: .utf8)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("App Store update lookup network contract is not canonical"))
+    }
+
+    @Test func staticAuditRejectsLookupWithoutTheProductionIdentity() throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let lookup = fixture.appending(
+            path: "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift"
+        )
+        let broken = try String(contentsOf: lookup, encoding: .utf8)
+            .replacingOccurrences(
+                of: "private static let bundleID = \"com.phillon.KnitNote\"",
+                with: "private static let bundleID = \"com.example.KnitNote\""
+            )
+        try broken.write(to: lookup, atomically: true, encoding: .utf8)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("App Store update lookup network contract is not canonical"))
+    }
+
+    @Test func staticAuditRejectsANetworkSessionInTheDebugFixture() throws {
+        let fixture = try makeUpdateNetworkScanFixture()
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let debugFixture = fixture.appending(path: "KnitNote/App/AppUpdateFixture.swift")
+        let broken = try String(contentsOf: debugFixture, encoding: .utf8)
+            + "\nlet unexpected = URLSession.shared\n"
+        try broken.write(to: debugFixture, atomically: true, encoding: .utf8)
+
+        let result = try runStaticAudit(networkScanRoot: fixture)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("debug App Store update fixture URL contract is not canonical"))
+    }
+}
+
+private struct StaticAuditResult {
+    let status: Int32
+    let output: String
+}
+
+private func runStaticAudit(networkScanRoot: URL) throws -> StaticAuditResult {
+    let process = Process()
+    process.executableURL = URL(filePath: "/bin/bash")
+    process.arguments = [
+        "AppStore/Verification/release_audit.sh",
+        "--test-only",
+        "--static-only",
+    ]
+    process.currentDirectoryURL = releaseConfigurationRepositoryRoot
+    process.environment = ProcessInfo.processInfo.environment.merging([
+        "KNITNOTE_NETWORK_SCAN_ROOT": networkScanRoot.path,
+    ]) { _, new in new }
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = output
+
+    try process.run()
+    process.waitUntilExit()
+    return StaticAuditResult(
+        status: process.terminationStatus,
+        output: String(
+            data: output.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        ) ?? ""
+    )
+}
+
+private func makeUpdateNetworkScanFixture() throws -> URL {
+    let root = FileManager.default.temporaryDirectory.appending(
+        path: "knitnote-update-network-scan-\(UUID().uuidString)"
+    )
+    for relativePath in [
+        "Sources/KnitNoteCore/App/AppStoreUpdateLookup.swift",
+        "KnitNote/App/AppUpdateFixture.swift",
+    ] {
+        let source = releaseConfigurationRepositoryRoot.appending(path: relativePath)
+        let destination = root.appending(path: relativePath)
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(at: source, to: destination)
+    }
+    return root
+}
+
+private enum UpdateReminderOwnershipError: Error {
+    case violation(String)
+}
+
+private func validateUpdateReminderOwnership(
+    yaml: String,
+    generatedProject: String
+) throws {
+    let watchTarget = try yamlTarget(named: "KnitNoteWatch", before: "KnitNoteShare", in: yaml)
+    let coreSources = Set([
+        "AppVersion.swift",
+        "UpdateReminderPolicy.swift",
+        "AppStoreUpdateLookup.swift",
+        "AppUpdateReminderCoordinator.swift",
+    ])
+    let mainOnlySources = coreSources.union([
+        "AppUpdateReminderLiveFactory.swift",
+        "AppUpdateFixture.swift",
+    ])
+
+    for source in coreSources {
+        guard watchTarget.contains("          - App/\(source)\n") else {
+            throw UpdateReminderOwnershipError.violation(
+                "KnitNoteWatch must exclude Sources/KnitNoteCore/App/\(source)"
+            )
+        }
+    }
+
+    let project = UpdateReminderPBXMembership(contents: generatedProject)
+    let appSources = Set(try project.sourceFilenames(targetName: "KnitNote"))
+    let watchSources = Set(try project.sourceFilenames(targetName: "KnitNoteWatch"))
+    let shareSources = Set(try project.sourceFilenames(targetName: "KnitNoteShare"))
+
+    guard mainOnlySources.isSubset(of: appSources) else {
+        throw UpdateReminderOwnershipError.violation(
+            "KnitNote is missing update-reminder sources: \(mainOnlySources.subtracting(appSources).sorted())"
+        )
+    }
+    guard mainOnlySources.isDisjoint(with: watchSources) else {
+        throw UpdateReminderOwnershipError.violation(
+            "KnitNoteWatch owns main-app update-reminder sources: \(mainOnlySources.intersection(watchSources).sorted())"
+        )
+    }
+    guard mainOnlySources.isDisjoint(with: shareSources) else {
+        throw UpdateReminderOwnershipError.violation(
+            "KnitNoteShare owns main-app update-reminder sources: \(mainOnlySources.intersection(shareSources).sorted())"
+        )
+    }
+}
+
+private func yamlTarget(
+    named name: String,
+    before nextName: String,
+    in yaml: String
+) throws -> Substring {
+    let start = try #require(yaml.range(of: "  \(name):"))
+    let end = try #require(
+        yaml.range(of: "  \(nextName):", range: start.upperBound..<yaml.endIndex)
+    )
+    return yaml[start.lowerBound..<end.lowerBound]
+}
+
+private struct UpdateReminderPBXMembership {
+    let contents: String
+
+    func sourceFilenames(targetName: String) throws -> [String] {
+        let target = try targetBody(named: targetName)
+        let phaseIDs = captures(
+            pattern: #"([A-F0-9]{24}) /\* [^*]+ \*/"#,
+            in: try capture(pattern: #"buildPhases = \((.*?)\);"#, in: target)
+        )
+        let sourcesPhaseID = try #require(phaseIDs.first {
+            (try? objectBody(id: $0).contains("isa = PBXSourcesBuildPhase;")) == true
+        })
+        let sourcesPhase = try objectBody(id: sourcesPhaseID)
+        let buildFileIDs = captures(
+            pattern: #"([A-F0-9]{24}) /\* [^*]+ in Sources \*/"#,
+            in: try capture(pattern: #"files = \((.*?)\);"#, in: sourcesPhase)
+        )
+
+        return try buildFileIDs.map { buildFileID in
+            let buildFile = try objectBody(id: buildFileID)
+            let fileRefID = try capture(
+                pattern: #"fileRef = ([A-F0-9]{24}) /\* [^*]+ \*/;"#,
+                in: buildFile
+            )
+            let fileRef = try objectBody(id: fileRefID)
+            return try capture(pattern: #"path = \"?([^\";]+)\"?;"#, in: fileRef)
+        }
+    }
+
+    private func targetBody(named name: String) throws -> String {
+        let escaped = NSRegularExpression.escapedPattern(for: name)
+        let bodies = captures(
+            pattern: #"[A-F0-9]{24} /\* \#(escaped) \*/ = \{(.*?)^\s*\};"#,
+            in: contents,
+            options: [.anchorsMatchLines, .dotMatchesLineSeparators]
+        )
+        return try #require(bodies.first { $0.contains("isa = PBXNativeTarget;") })
+    }
+
+    private func objectBody(id: String) throws -> String {
+        try capture(
+            pattern: #"\#(id) /\* [^*]+ \*/ = \{(.*?)^\s*\};"#,
+            in: contents,
+            options: [.anchorsMatchLines, .dotMatchesLineSeparators]
+        )
+    }
+
+    private func captures(
+        pattern: String,
+        in value: String,
+        options: NSRegularExpression.Options = []
+    ) -> [String] {
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: options) else {
+            return []
+        }
+        let range = NSRange(value.startIndex..., in: value)
+        return expression.matches(in: value, range: range).compactMap {
+            Range($0.range(at: 1), in: value).map { String(value[$0]) }
+        }
+    }
+
+    private func capture(
+        pattern: String,
+        in value: String,
+        options: NSRegularExpression.Options = [.dotMatchesLineSeparators]
+    ) throws -> String {
+        let expression = try NSRegularExpression(pattern: pattern, options: options)
+        let match = try #require(expression.firstMatch(
+            in: value,
+            range: NSRange(value.startIndex..., in: value)
+        ))
+        let range = try #require(Range(match.range(at: 1), in: value))
+        return String(value[range])
+    }
 }
 
 private func sourceText(_ relativePath: String) throws -> String {

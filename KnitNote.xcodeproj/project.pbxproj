@@ -30,6 +30,7 @@
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
 		0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
 		0CE9C1460396F8117ACFAA74 /* YouTubePatternThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */; };
+		0D0F6E7010A716A05A8BDB1D /* AppUpdateReminderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3167220F3F5F030644D66D9C /* AppUpdateReminderCoordinator.swift */; };
 		0E37E75C52CD15253AEF1486 /* CounterReminderEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEC924D48527095C7B979B7 /* CounterReminderEditor.swift */; };
 		0EB4F5AA1F727A8B7EFAF0CA /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */; };
 		0F220D5DEEB9FA643A9CAC70 /* MacYarnEditorLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C9AFA4B7ADBFDEC2DF1FE9 /* MacYarnEditorLayoutTests.swift */; };
@@ -63,6 +64,7 @@
 		21AE8142598C234C733C0A24 /* KnitNoteBackupManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2B7038D08F6C6E76229D7F /* KnitNoteBackupManifest.swift */; };
 		2241F4A5D2BCBA395ED3DBF9 /* YouTubePatternLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D946E82169D361DB029610 /* YouTubePatternLink.swift */; };
 		225745081B10256F761B5769 /* CounterValueInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */; };
+		2329A15B55FE17AFE6B67DD1 /* AppUpdateReminderLiveFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A95C5E1E650AB6A145505E8B /* AppUpdateReminderLiveFactory.swift */; };
 		240B0788D2ECEE1EA3E48ECF /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964E64558882BD0AE262A9E5 /* LaunchExperienceState.swift */; };
 		25130DA1168FBFEFC1B472D7 /* YarnLabelScanLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 417621C761C9ACB8A4C96CD7 /* YarnLabelScanLauncher.swift */; };
@@ -79,6 +81,7 @@
 		2CC1A69EE25E2BC8EF9FDB37 /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		2CD290B844CB8B977E2336E4 /* YarnLabelStorageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE7CD9D14B5AD6AD39521F1 /* YarnLabelStorageRow.swift */; };
 		2D8DE183974FE72F453971C4 /* ShareImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6494124F909E997E16F5BB08 /* ShareImportView.swift */; };
+		2D9A3AC7541428E106A204E9 /* UpdateReminderPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 660A801DB3D90FA05ACF1A87 /* UpdateReminderPolicy.swift */; };
 		2DD65ED0D2A50114ED195600 /* PhoneWatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEC6756D753A4BB41008CF0 /* PhoneWatchSession.swift */; };
 		2DDBE8B1B70E14C61110D1F1 /* ProjectCounterName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */; };
 		2FB41EDF321E92C7E70B4801 /* PatternMarkupToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */; };
@@ -198,6 +201,8 @@
 		89AA9318C5AEB7CD5C2DA4F8 /* FamilyLaunchAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */; };
 		8A0D44321A0B878C18C93038 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431158CF5C9EC212EABD87BA /* RootView.swift */; };
 		8AC28A12A7BFBEE2063DDC88 /* ProjectPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C22BEC6684E36544AD8B83 /* ProjectPhotoPicker.swift */; };
+		8AD6AFFEE17535F2CA3D660F /* AppStoreUpdateLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7196E582FEE02DFFFE5770E1 /* AppStoreUpdateLookup.swift */; };
+		8B18D3CAEEE9D0196461DC03 /* AppUpdateFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE009E064EA3668A5264ABF4 /* AppUpdateFixture.swift */; };
 		8BBD7873D7A9CA835165532C /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
 		8BD7C89C3B99C9855600B5E0 /* LanguageSelectionProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAEFD94F72E3099956CBE39 /* LanguageSelectionProjection.swift */; };
 		8C0468FCCEE775937D1FE093 /* EntitlementProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */; };
@@ -217,6 +222,7 @@
 		9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */; };
 		997DEDA5DBCE086E364F52E3 /* BackupSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */; };
 		99EB407F22CC799B2B5FAD00 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
+		9A270D2F749A32DF23C046C5 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB6A28F0EA50AC95D8AE7156 /* AppVersion.swift */; };
 		9A4065300F7AEBA87D9E0778 /* EntitlementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */; };
 		9E7C59B1AE4F3E8DE6AA88BA /* CounterValueInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */; };
 		9EA4FA60DF752696354AF18A /* PatternListThumbnailLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98B102AE0A743E9DD32BE2F /* PatternListThumbnailLayout.swift */; };
@@ -458,6 +464,7 @@
 		2FF7B32F41BD1F635DAA9CD1 /* PatternInboxFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxFileService.swift; sourceTree = "<group>"; };
 		3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCounterName.swift; sourceTree = "<group>"; };
+		3167220F3F5F030644D66D9C /* AppUpdateReminderCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateReminderCoordinator.swift; sourceTree = "<group>"; };
 		317AA99C4071F5F032A42C9E /* YarnInventoryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnInventoryText.swift; sourceTree = "<group>"; };
 		33CC8EDBF09E3F7D7F73440B /* CounterSelectorGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterSelectorGrid.swift; sourceTree = "<group>"; };
 		35C129F65E794358A3226311 /* ProjectArchiveSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectArchiveSchema.swift; sourceTree = "<group>"; };
@@ -505,6 +512,7 @@
 		6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupFileService.swift; sourceTree = "<group>"; };
 		6459163EA6400720C1509710 /* PatternSystemAppearanceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceObservation.swift; sourceTree = "<group>"; };
 		6494124F909E997E16F5BB08 /* ShareImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportView.swift; sourceTree = "<group>"; };
+		660A801DB3D90FA05ACF1A87 /* UpdateReminderPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateReminderPolicy.swift; sourceTree = "<group>"; };
 		67146022BE86DEA48F100C13 /* KnitNoteShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KnitNoteShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		676403AB59AEEED6870627AD /* LocaleAwareText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleAwareText.swift; sourceTree = "<group>"; };
 		678690B366F62DE0AA40CE8B /* PatternCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternCalculatorView.swift; sourceTree = "<group>"; };
@@ -528,6 +536,7 @@
 		70D946E82169D361DB029610 /* YouTubePatternLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePatternLink.swift; sourceTree = "<group>"; };
 		70F8325CEE91B8F12F984715 /* CreateYarnEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateYarnEntryView.swift; sourceTree = "<group>"; };
 		70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoView.swift; sourceTree = "<group>"; };
+		7196E582FEE02DFFFE5770E1 /* AppStoreUpdateLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreUpdateLookup.swift; sourceTree = "<group>"; };
 		72200A671E5D5C5B6A0E39D2 /* YarnPhotoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoView.swift; sourceTree = "<group>"; };
 		75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectView.swift; sourceTree = "<group>"; };
 		78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentation.swift; sourceTree = "<group>"; };
@@ -587,6 +596,7 @@
 		A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A5EA4C77BEE26A13CC4C1BED /* PatternNightRenderingModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternNightRenderingModifier.swift; sourceTree = "<group>"; };
 		A91B85F52C8261698AC46384 /* KnitNote-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KnitNote-macOS.entitlements"; sourceTree = "<group>"; };
+		A95C5E1E650AB6A145505E8B /* AppUpdateReminderLiveFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateReminderLiveFactory.swift; sourceTree = "<group>"; };
 		AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilder.swift; sourceTree = "<group>"; };
 		AB51A2457EA062265F81BF42 /* ProjectCoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCoverView.swift; sourceTree = "<group>"; };
 		ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteMacWindowSizingPolicy.swift; sourceTree = "<group>"; };
@@ -601,6 +611,7 @@
 		B88020028EBDAC84A767B45B /* PatternShareInboxEnqueuer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternShareInboxEnqueuer.swift; sourceTree = "<group>"; };
 		B9745AF84B9E8AE558F17155 /* YouTubePatternMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePatternMetadata.swift; sourceTree = "<group>"; };
 		BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchAnimationView.swift; sourceTree = "<group>"; };
+		BB6A28F0EA50AC95D8AE7156 /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
 		BDACACFA5A882F4B425E44A4 /* EditYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditYarnView.swift; sourceTree = "<group>"; };
 		C05B67645287474EA73C4DDF /* ProjectCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCard.swift; sourceTree = "<group>"; };
 		C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteWatchApp.swift; sourceTree = "<group>"; };
@@ -622,6 +633,7 @@
 		D10455BC3195B85049B3524D /* PatternReaderContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderContext.swift; sourceTree = "<group>"; };
 		D157077494138E6450BAC49F /* GaugeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculator.swift; sourceTree = "<group>"; };
 		D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPDFScalePolicy.swift; sourceTree = "<group>"; };
+		DE009E064EA3668A5264ABF4 /* AppUpdateFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateFixture.swift; sourceTree = "<group>"; };
 		DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaintingOverlayRegion.swift; sourceTree = "<group>"; };
 		E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntry.swift; sourceTree = "<group>"; };
 		E465B08D730079FCDD3CC5C4 /* LegacyPaidVersionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPaidVersionPolicy.swift; sourceTree = "<group>"; };
@@ -713,8 +725,12 @@
 		0A7C946B8D714308DC9BFDC0 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				7196E582FEE02DFFFE5770E1 /* AppStoreUpdateLookup.swift */,
+				3167220F3F5F030644D66D9C /* AppUpdateReminderCoordinator.swift */,
+				BB6A28F0EA50AC95D8AE7156 /* AppVersion.swift */,
 				8FB235B6DC453F8BE362501B /* AppVersionInfo.swift */,
 				ABA061D8CE473512FE1E3025 /* KnitNoteMacWindowSizingPolicy.swift */,
+				660A801DB3D90FA05ACF1A87 /* UpdateReminderPolicy.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -850,6 +866,8 @@
 		4D55FE9FD7B400E4A1009DF1 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				DE009E064EA3668A5264ABF4 /* AppUpdateFixture.swift */,
+				A95C5E1E650AB6A145505E8B /* AppUpdateReminderLiveFactory.swift */,
 				A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */,
 				431158CF5C9EC212EABD87BA /* RootView.swift */,
 				0E519BC9B336EF9AA75CC7DA /* StoreScreenshotMode.swift */,
@@ -1429,6 +1447,11 @@
 				1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */,
 				E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */,
 				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
+				8AD6AFFEE17535F2CA3D660F /* AppStoreUpdateLookup.swift in Sources */,
+				8B18D3CAEEE9D0196461DC03 /* AppUpdateFixture.swift in Sources */,
+				0D0F6E7010A716A05A8BDB1D /* AppUpdateReminderCoordinator.swift in Sources */,
+				2329A15B55FE17AFE6B67DD1 /* AppUpdateReminderLiveFactory.swift in Sources */,
+				9A270D2F749A32DF23C046C5 /* AppVersion.swift in Sources */,
 				6786A9F0609EA2C72C5611A4 /* AppVersionInfo.swift in Sources */,
 				1B1A2101FF71E0949F5ED0C6 /* AtomicWatchSyncFile.swift in Sources */,
 				D25E473555AEF8D28E1F8E76 /* BackupHistory.swift in Sources */,
@@ -1589,6 +1612,7 @@
 				145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */,
 				AC9BA1F0CAC571AB1EB96FDE /* UnlockPresentation.swift in Sources */,
 				5EA20C3D3320BC32E7DFF536 /* UnlockSheet.swift in Sources */,
+				2D9A3AC7541428E106A204E9 /* UpdateReminderPolicy.swift in Sources */,
 				948C279C6E81637C4DDF32F0 /* VisionYarnLabelRecognitionService.swift in Sources */,
 				6E227D5A775B6659FDBE3247 /* WatchConnectivityEnvelope.swift in Sources */,
 				0328CEE941C5F6C87629FEEC /* WatchOptimisticState.swift in Sources */,

@@ -109,7 +109,11 @@ targets:
         buildPhase: resources
       - path: Sources/KnitNoteCore
         excludes:
+          - App/AppVersion.swift
           - App/AppVersionInfo.swift
+          - App/AppStoreUpdateLookup.swift
+          - App/AppUpdateReminderCoordinator.swift
+          - App/UpdateReminderPolicy.swift
           - App/KnitNoteMacWindowSizingPolicy.swift
           - Calculators/PatternCalculator.swift
           - Launch/LaunchExperienceCoordinator.swift

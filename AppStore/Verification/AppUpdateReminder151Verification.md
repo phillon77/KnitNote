@@ -168,10 +168,21 @@ the PENDING entries above deliberately remain manual/UI acceptance boundaries.
   `有新版本可用`, current 1.5.1, latest 10.0.1, `稍後`, and `前往 App Store`,
   and confirmed existing projects, patterns, yarn, and settings remained
   present at 2026-08-15 07:55 CST.
-- [ ] **PENDING — signed exact-parent physical iPad build and overlay install.**
-  No physical iPad install or launch was performed in this pass.
-- [ ] **PENDING — physical preservation of folder/note-specific data and all
-  iPad data.** These were not individually checked in this pass.
+- [x] **PASS — signed exact-parent physical iPad build and overlay install.**
+  On 2026-08-15, the connected iPad Air (5th generation, iPadOS 26.5.2) was
+  available and paired. Before installation, `com.phillon.KnitNote` was
+  version 1.5.0 (9). A fresh Debug device build embedded exact source revision
+  `f214f0c67aafcd3f472fb243d86fb7394ab442d9` in the main, Watch, and Share
+  products, identified as 1.5.1 (11), and was signed by Team `9CFPAUL5N5`.
+  `devicectl device install app` upgraded the existing app without uninstall,
+  erase, or reset; the post-install query reported 1.5.1 (11), and launch
+  succeeded.
+- [x] **PASS — physical iPad update presentation, layout, and data
+  preservation.** The exact build was relaunched with the strict DEBUG fixture
+  `-appUpdateFixture YES -appUpdateFixtureVersion 10.0.1`. The user confirmed
+  the localized alert, current 1.5.1, latest 10.0.1, both actions, unobstructed
+  iPad layout, and preservation of existing projects, patterns, folders, yarn,
+  notes, and settings at 2026-08-15 11:57 CST.
 - [ ] **PENDING — live App Store lookup/localized `trackViewUrl` observation.**
   URL shape and identity are automated contract evidence only.
 - [ ] **PENDING — live App Store navigation.** No Store button was activated.
@@ -182,5 +193,5 @@ the PENDING entries above deliberately remain manual/UI acceptance boundaries.
 No archive, export, upload, App Store Connect build selection, submission,
 publication, release, merge, or push occurred. This record accepts only the
 checked automated/build evidence, the fresh simulator evidence, and the
-physical iPhone evidence explicitly checked above; every unavailable or
-unobserved action remains explicitly PENDING.
+physical iPhone and iPad evidence explicitly checked above; every unavailable
+or unobserved action remains explicitly PENDING.

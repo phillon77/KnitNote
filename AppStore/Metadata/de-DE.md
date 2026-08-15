@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Mit KnitNote 1.5.1 kannst du Anleitungen jetzt in eigenen Ordnern organisieren. Der Titel der Wollbibliothek folgt sofort der ausgewählten App-Sprache, und KnitNote weist dich darauf hin, wenn im App Store eine neuere Version verfügbar ist.
+- What's New: Mit KnitNote 1.5.1 kannst du Anleitungen jetzt in eigenen Ordnern organisieren. Der Titel der Garnbibliothek folgt sofort der ausgewählten App-Sprache, und KnitNote weist dich darauf hin, wenn im App Store eine neuere Version verfügbar ist.
 - Description: |
   Konzentriere dich auf das Garn in deinen Händen. KnitNote vereint das Zählen mit der Apple Watch, Projektfortschritt, sechs Zähler und PDF-Muster in einem ruhigen, übersichtlichen Arbeitsbereich.
 

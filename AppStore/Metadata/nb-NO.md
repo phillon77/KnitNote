@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.5.0 legger til påminnelser for tellere og direkte inntasting av verdier, med et forbedret telleroppsett på iPad og bedre samspill med Apple Watch. Nederlandsk støttes nå fullt ut, og tittelen «Prosjekter» følger språket du har valgt i appen.
+- What's New: I KnitNote 1.5.1 kan du nå organisere mønstre i egne mapper. Tittelen på garnbiblioteket følger app-språket du har valgt med én gang, og KnitNote gir beskjed når en nyere versjon er tilgjengelig i App Store.
 - Description: |
   Hold oppmerksomheten på garnet i hendene. KnitNote samler strikkeprosjekter, seks tellere, mønstre og notater i et rolig og oversiktlig arbeidsområde.
 

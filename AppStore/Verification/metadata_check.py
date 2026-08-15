@@ -187,7 +187,7 @@ FORBIDDEN_PATTERNS = (
         ),
     ),
 )
-V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
+V151_FORBIDDEN_WHATS_NEW_PATTERNS = (
     (
         "background notifications",
         _phrase_pattern(
@@ -198,6 +198,14 @@ V150_FORBIDDEN_WHATS_NEW_PATTERNS = (
             "ειδοποιήσεις στο παρασκήνιο", "Achtergrondmeldingen",
         ),
     ),
+    ("automatic updates", _phrase_pattern("KnitNote updates itself automatically")),
+    ("forced updates", _phrase_pattern("This update is required before KnitNote can open")),
+    ("automatic downloads", _phrase_pattern("New versions download automatically")),
+    ("cloud/account delivery", _phrase_pattern("Updates are delivered through your cloud account")),
+    ("automatic pattern classification", _phrase_pattern("Patterns are classified into folders automatically")),
+    ("nested folders", _phrase_pattern("Folders can contain nested folders")),
+    ("cross-folder membership", _phrase_pattern("A pattern can appear in several folders at once")),
+    ("user-content translation", _phrase_pattern("Imported pattern content is translated automatically")),
     ("AI translation", re.compile(r"(?<!\w)automatic[ -]+pattern[ -]+translations?(?!\w)")),
     ("trial/free", re.compile(r"(?<!\w)(?:free[ -]+trials?|trial[ -]+versions?)(?!\w)")),
     ("price", re.compile(r"(?<!\w)(?:prices?|pricing)(?!\w)")),
@@ -350,42 +358,42 @@ LANGUAGE_CONTRACTS = {
         "surfaces": ("Instellingen", "Apple Watch", "deelschermen"),
     },
 }
-V150_WHATS_NEW_RELATIONSHIPS = {
-    "en-US.md": ("adds counter reminders", "direct value entry", "improved iPad counter layout", "Apple Watch coordination", "Dutch is now fully supported", "Projects title follows your selected app language"),
-    "zh-Hant.md": ("新增計數器提醒", "數值直接輸入", "改善 iPad 計數器版面", "Apple Watch 協作", "完整支援荷蘭文", "「作品」標題會依照所選 App 語言顯示"),
-    "zh-Hans.md": ("新增计数器提醒", "数值直接输入", "改进 iPad 计数器布局", "Apple Watch 协作", "完整支持荷兰语", "“作品”标题会按照所选 App 语言显示"),
-    "de-DE.md": ("ergänzt Zählererinnerungen", "direkte Eingabe von Zählerwerten", "verbessert das Zählerlayout auf dem iPad", "Abstimmung mit der Apple Watch", "Niederländisch wird jetzt vollständig unterstützt", "Titel „Projekte“ folgt der gewählten App-Sprache"),
-    "fr-FR.md": ("ajoute des rappels de compteur", "saisie directe des valeurs", "meilleure présentation des compteurs sur iPad", "meilleure coordination avec l’Apple Watch", "interface est désormais entièrement disponible en néerlandais", "titre « Projets » suit la langue choisie dans l’app"),
-    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPadのカウンター画面", "Apple Watchとの連携を改善", "オランダ語に完全対応", "「作品」タイトルもAppで選択した言語に合わせて表示"),
-    "nb-NO.md": ("legger til påminnelser for tellere", "direkte inntasting av verdier", "forbedret telleroppsett på iPad", "bedre samspill med Apple Watch", "Nederlandsk støttes nå fullt ut", "tittelen «Prosjekter» følger språket du har valgt i appen"),
-    "sv-SE.md": ("lägger till påminnelser för räknare", "direkt inmatning av värden", "förbättrad räknarlayout på iPad", "bättre samspel med Apple Watch", "Nederländska stöds nu fullt ut", "rubriken ”Projekt” följer språket du har valt i appen"),
-    "fi-FI.md": ("lisää laskurimuistutukset", "arvojen suoran syötön", "parantaa iPadin laskurinäkymää", "toimintaa Apple Watchin kanssa", "Hollannin kieli on nyt täysin tuettu", "Projektit-otsikko noudattaa sovelluksessa valittua kieltä"),
-    "da-DK.md": ("tilføjer påmindelser til tællere", "direkte indtastning af værdier", "forbedrer tællervisningen på iPad", "samspillet med Apple Watch", "Hollandsk understøttes nu fuldt ud", "titlen “Projekter” følger det sprog, du har valgt i appen"),
-    "ko-KR.md": ("카운터 알림과 값 직접 입력 기능이 추가", "iPad 카운터 레이아웃", "Apple Watch 연동이 개선", "네덜란드어를 완전히 지원", "‘프로젝트’ 제목도 앱에서 선택한 언어로 표시"),
-    "el-GR.md": ("προσθέτει υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "βελτιωμένη διάταξη μετρητών στο iPad", "καλύτερο συντονισμό με το Apple Watch", "πλέον πλήρως τα ολλανδικά", "τίτλος «Έργα» ακολουθεί τη γλώσσα που επιλέγετε στην εφαρμογή"),
-    "nl-NL.md": ("voegt tellerherinneringen", "rechtstreekse invoer van waarden toe", "verbeterde tellerindeling op iPad", "betere afstemming met Apple Watch", "Nederlands wordt nu volledig ondersteund", "titel Projecten volgt de taal die je in de app hebt gekozen"),
+V151_WHATS_NEW_RELATIONSHIPS = {
+    "en-US.md": ("organize patterns in custom folders", "Yarn Library title immediately follows your selected app language", "newer version is available on the App Store"),
+    "zh-Hant.md": ("自訂資料夾整理織圖", "毛線庫標題會立即跟隨所選 App 語言", "有新版本可用時，也會提供前往 App Store 的提醒"),
+    "de-DE.md": ("Anleitungen jetzt in eigenen Ordnern organisieren", "Titel der Wollbibliothek folgt sofort der ausgewählten App-Sprache", "neuere Version verfügbar ist"),
+    "fr-FR.md": ("classer vos modèles dans des dossiers personnalisés", "titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app", "nouvelle version est disponible dans l’App Store"),
+    "ja-JP.md": ("編み図をカスタムフォルダで整理", "毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり", "新しいバージョンが App Store で利用できると KnitNote がお知らせ"),
+    "zh-Hans.md": ("使用自定义文件夹整理图解", "毛线库标题会立即跟随所选 App 语言", "有新版本可用时，也会提供前往 App Store 的提醒"),
+    "nb-NO.md": ("organisere mønstre i egne mapper", "Tittelen på garnbiblioteket følger app-språket du har valgt med én gang", "nyere versjon er tilgjengelig i App Store"),
+    "sv-SE.md": ("ordna mönster i egna mappar", "Titeln på garnbiblioteket följer direkt det appspråk du har valt", "nyare version finns i App Store"),
+    "fi-FI.md": ("järjestää ohjeet omiin kansioihin", "Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi", "uudempi versio"),
+    "da-DK.md": ("organisere mønstre i dine egne mapper", "Titlen på garnbiblioteket følger straks det valgte app-sprog", "nyere version er tilgængelig i App Store"),
+    "ko-KR.md": ("사용자 지정 폴더로 도안을 정리", "실 보관함 제목은 선택한 App 언어로 즉시 바뀌며", "App Store에 새 버전이 있으면 KnitNote가 알려 줍니다"),
+    "el-GR.md": ("οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους", "τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα", "νεότερη έκδοση στο App Store"),
+    "nl-NL.md": ("patronen nu ordenen in eigen mappen", "titel van de garenbibliotheek volgt direct de gekozen app-taal", "nieuwere versie beschikbaar is in de App Store"),
 }
-V150_APPROVED_WHATS_NEW = {
-    "en-US.md": "KnitNote 1.5.0 adds counter reminders and direct value entry, with an improved iPad counter layout and Apple Watch coordination. Dutch is now fully supported, and the Projects title follows your selected app language.",
-    "zh-Hant.md": "KnitNote 1.5.0 新增計數器提醒與數值直接輸入，並改善 iPad 計數器版面及 Apple Watch 協作。現在也完整支援荷蘭文，「作品」標題會依照所選 App 語言顯示。",
-    "zh-Hans.md": "KnitNote 1.5.0 新增计数器提醒和数值直接输入，并改进 iPad 计数器布局及 Apple Watch 协作。现已完整支持荷兰语，“作品”标题会按照所选 App 语言显示。",
-    "de-DE.md": "KnitNote 1.5.0 ergänzt Zählererinnerungen und die direkte Eingabe von Zählerwerten und verbessert das Zählerlayout auf dem iPad sowie die Abstimmung mit der Apple Watch. Niederländisch wird jetzt vollständig unterstützt, und der Titel „Projekte“ folgt der gewählten App-Sprache.",
-    "fr-FR.md": "KnitNote 1.5.0 ajoute des rappels de compteur et la saisie directe des valeurs, avec une meilleure présentation des compteurs sur iPad et une meilleure coordination avec l’Apple Watch. L’interface est désormais entièrement disponible en néerlandais, et le titre « Projets » suit la langue choisie dans l’app.",
-    "ja-JP.md": "KnitNote 1.5.0では、カウンターのリマインダーと数値の直接入力を追加し、iPadのカウンター画面とApple Watchとの連携を改善しました。オランダ語に完全対応し、「作品」タイトルもAppで選択した言語に合わせて表示されます。",
-    "nb-NO.md": "KnitNote 1.5.0 legger til påminnelser for tellere og direkte inntasting av verdier, med et forbedret telleroppsett på iPad og bedre samspill med Apple Watch. Nederlandsk støttes nå fullt ut, og tittelen «Prosjekter» følger språket du har valgt i appen.",
-    "sv-SE.md": "KnitNote 1.5.0 lägger till påminnelser för räknare och direkt inmatning av värden, med en förbättrad räknarlayout på iPad och bättre samspel med Apple Watch. Nederländska stöds nu fullt ut, och rubriken ”Projekt” följer språket du har valt i appen.",
-    "fi-FI.md": "KnitNote 1.5.0 lisää laskurimuistutukset ja arvojen suoran syötön sekä parantaa iPadin laskurinäkymää ja toimintaa Apple Watchin kanssa. Hollannin kieli on nyt täysin tuettu, ja Projektit-otsikko noudattaa sovelluksessa valittua kieltä.",
-    "da-DK.md": "KnitNote 1.5.0 tilføjer påmindelser til tællere og direkte indtastning af værdier samt forbedrer tællervisningen på iPad og samspillet med Apple Watch. Hollandsk understøttes nu fuldt ud, og titlen “Projekter” følger det sprog, du har valgt i appen.",
-    "ko-KR.md": "KnitNote 1.5.0에 카운터 알림과 값 직접 입력 기능이 추가되고, iPad 카운터 레이아웃과 Apple Watch 연동이 개선되었습니다. 이제 네덜란드어를 완전히 지원하며, ‘프로젝트’ 제목도 앱에서 선택한 언어로 표시됩니다.",
-    "el-GR.md": "Το KnitNote 1.5.0 προσθέτει υπενθυμίσεις μετρητών και άμεση εισαγωγή τιμών, με βελτιωμένη διάταξη μετρητών στο iPad και καλύτερο συντονισμό με το Apple Watch. Υποστηρίζονται πλέον πλήρως τα ολλανδικά και ο τίτλος «Έργα» ακολουθεί τη γλώσσα που επιλέγετε στην εφαρμογή.",
-    "nl-NL.md": "KnitNote 1.5.0 voegt tellerherinneringen en rechtstreekse invoer van waarden toe, met een verbeterde tellerindeling op iPad en betere afstemming met Apple Watch. Nederlands wordt nu volledig ondersteund en de titel Projecten volgt de taal die je in de app hebt gekozen.",
+V151_APPROVED_WHATS_NEW = {
+    "zh-Hant.md": "KnitNote 1.5.1 現在支援自訂資料夾整理織圖。毛線庫標題會立即跟隨所選 App 語言；有新版本可用時，也會提供前往 App Store 的提醒。",
+    "en-US.md": "KnitNote 1.5.1 now lets you organize patterns in custom folders. The Yarn Library title immediately follows your selected app language, and KnitNote lets you know when a newer version is available on the App Store.",
+    "de-DE.md": "Mit KnitNote 1.5.1 kannst du Anleitungen jetzt in eigenen Ordnern organisieren. Der Titel der Wollbibliothek folgt sofort der ausgewählten App-Sprache, und KnitNote weist dich darauf hin, wenn im App Store eine neuere Version verfügbar ist.",
+    "fr-FR.md": "KnitNote 1.5.1 vous permet désormais de classer vos modèles dans des dossiers personnalisés. Le titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app, et KnitNote vous avertit lorsqu’une nouvelle version est disponible dans l’App Store.",
+    "ja-JP.md": "KnitNote 1.5.1 では、編み図をカスタムフォルダで整理できるようになりました。毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり、新しいバージョンが App Store で利用できると KnitNote がお知らせします。",
+    "zh-Hans.md": "KnitNote 1.5.1 现在支持使用自定义文件夹整理图解。毛线库标题会立即跟随所选 App 语言；有新版本可用时，也会提供前往 App Store 的提醒。",
+    "nb-NO.md": "I KnitNote 1.5.1 kan du nå organisere mønstre i egne mapper. Tittelen på garnbiblioteket følger app-språket du har valgt med én gang, og KnitNote gir beskjed når en nyere versjon er tilgjengelig i App Store.",
+    "sv-SE.md": "I KnitNote 1.5.1 kan du nu ordna mönster i egna mappar. Titeln på garnbiblioteket följer direkt det appspråk du har valt, och KnitNote meddelar när en nyare version finns i App Store.",
+    "fi-FI.md": "KnitNote 1.5.1:ssä voit nyt järjestää ohjeet omiin kansioihin. Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi, ja KnitNote ilmoittaa, kun App Storessa on saatavilla uudempi versio.",
+    "da-DK.md": "I KnitNote 1.5.1 kan du nu organisere mønstre i dine egne mapper. Titlen på garnbiblioteket følger straks det valgte app-sprog, og KnitNote giver besked, når en nyere version er tilgængelig i App Store.",
+    "ko-KR.md": "KnitNote 1.5.1에서는 이제 사용자 지정 폴더로 도안을 정리할 수 있습니다. 실 보관함 제목은 선택한 App 언어로 즉시 바뀌며, App Store에 새 버전이 있으면 KnitNote가 알려 줍니다.",
+    "el-GR.md": "Στο KnitNote 1.5.1 μπορείς πλέον να οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους. Ο τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα που έχεις επιλέξει στην εφαρμογή και το KnitNote σε ενημερώνει όταν υπάρχει νεότερη έκδοση στο App Store.",
+    "nl-NL.md": "In KnitNote 1.5.1 kun je patronen nu ordenen in eigen mappen. De titel van de garenbibliotheek volgt direct de gekozen app-taal en KnitNote laat het weten wanneer er een nieuwere versie beschikbaar is in de App Store.",
 }
-for filename, relationships in V150_WHATS_NEW_RELATIONSHIPS.items():
+for filename, relationships in V151_WHATS_NEW_RELATIONSHIPS.items():
     LANGUAGE_CONTRACTS[filename].update({
-        "version": "1.5.0",
+        "version": "1.5.1",
         "whats_new_languages": (),
         "whats_new_relationships": relationships,
-        "approved_whats_new": V150_APPROVED_WHATS_NEW[filename],
+        "approved_whats_new": V151_APPROVED_WHATS_NEW[filename],
     })
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")
@@ -766,7 +774,7 @@ def validate(path: Path) -> list[str]:
     contract = LANGUAGE_CONTRACTS.get(path.name)
     whats_new = fields.get("What's New", "")
     normalized_whats_new = normalized_claim_text(whats_new)
-    for concept, pattern in V150_FORBIDDEN_WHATS_NEW_PATTERNS:
+    for concept, pattern in V151_FORBIDDEN_WHATS_NEW_PATTERNS:
         if pattern.search(normalized_whats_new):
             errors.append(f"{path}: copy: forbidden release claim: {concept}")
     if contract is not None:
@@ -785,7 +793,7 @@ def validate(path: Path) -> list[str]:
         for relationship in contract.get("whats_new_relationships", ()):
             if relationship.casefold() not in whats_new.casefold():
                 errors.append(
-                    f"{path}: What's New: missing implemented 1.5 behavior: {relationship}"
+                    f"{path}: What's New: missing implemented 1.5.1 behavior: {relationship}"
                 )
         for language in contract["languages"]:
             if language.casefold() not in description.casefold():

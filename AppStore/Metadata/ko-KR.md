@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.5.0에 카운터 알림과 값 직접 입력 기능이 추가되고, iPad 카운터 레이아웃과 Apple Watch 연동이 개선되었습니다. 이제 네덜란드어를 완전히 지원하며, ‘프로젝트’ 제목도 앱에서 선택한 언어로 표시됩니다.
+- What's New: KnitNote 1.5.1에서는 이제 사용자 지정 폴더로 도안을 정리할 수 있습니다. 실 보관함 제목은 선택한 App 언어로 즉시 바뀌며, App Store에 새 버전이 있으면 KnitNote가 알려 줍니다.
 - Description: |
   손에 든 실에 집중하세요. KnitNote는 뜨개질 프로젝트, 6개 카운터, 도안과 메모를 차분하고 보기 쉬운 작업 공간에 모아 줍니다.
 

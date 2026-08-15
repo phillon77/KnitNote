@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 import sys
@@ -105,20 +106,54 @@ SETTINGS_AND_SURFACE_TOKENS = {
     "el-GR.md": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
     "nl-NL.md": ("Instellingen", "Apple Watch", "deelschermen"),
 }
-V150_WHATS_NEW_RELATIONSHIPS = {
-    "en-US.md": ("adds counter reminders", "direct value entry", "improved iPad counter layout", "Apple Watch coordination", "Dutch is now fully supported", "Projects title follows your selected app language"),
-    "zh-Hant.md": ("新增計數器提醒", "數值直接輸入", "改善 iPad 計數器版面", "Apple Watch 協作", "完整支援荷蘭文", "「作品」標題會依照所選 App 語言顯示"),
-    "zh-Hans.md": ("新增计数器提醒", "数值直接输入", "改进 iPad 计数器布局", "Apple Watch 协作", "完整支持荷兰语", "“作品”标题会按照所选 App 语言显示"),
-    "de-DE.md": ("ergänzt Zählererinnerungen", "direkte Eingabe von Zählerwerten", "verbessert das Zählerlayout auf dem iPad", "Abstimmung mit der Apple Watch", "Niederländisch wird jetzt vollständig unterstützt", "Titel „Projekte“ folgt der gewählten App-Sprache"),
-    "fr-FR.md": ("ajoute des rappels de compteur", "saisie directe des valeurs", "meilleure présentation des compteurs sur iPad", "meilleure coordination avec l’Apple Watch", "interface est désormais entièrement disponible en néerlandais", "titre « Projets » suit la langue choisie dans l’app"),
-    "ja-JP.md": ("カウンターのリマインダー", "数値の直接入力", "iPadのカウンター画面", "Apple Watchとの連携を改善", "オランダ語に完全対応", "「作品」タイトルもAppで選択した言語に合わせて表示"),
-    "nb-NO.md": ("legger til påminnelser for tellere", "direkte inntasting av verdier", "forbedret telleroppsett på iPad", "bedre samspill med Apple Watch", "Nederlandsk støttes nå fullt ut", "tittelen «Prosjekter» følger språket du har valgt i appen"),
-    "sv-SE.md": ("lägger till påminnelser för räknare", "direkt inmatning av värden", "förbättrad räknarlayout på iPad", "bättre samspel med Apple Watch", "Nederländska stöds nu fullt ut", "rubriken ”Projekt” följer språket du har valt i appen"),
-    "fi-FI.md": ("lisää laskurimuistutukset", "arvojen suoran syötön", "parantaa iPadin laskurinäkymää", "toimintaa Apple Watchin kanssa", "Hollannin kieli on nyt täysin tuettu", "Projektit-otsikko noudattaa sovelluksessa valittua kieltä"),
-    "da-DK.md": ("tilføjer påmindelser til tællere", "direkte indtastning af værdier", "forbedrer tællervisningen på iPad", "samspillet med Apple Watch", "Hollandsk understøttes nu fuldt ud", "titlen “Projekter” følger det sprog, du har valgt i appen"),
-    "ko-KR.md": ("카운터 알림과 값 직접 입력 기능이 추가", "iPad 카운터 레이아웃", "Apple Watch 연동이 개선", "네덜란드어를 완전히 지원", "‘프로젝트’ 제목도 앱에서 선택한 언어로 표시"),
-    "el-GR.md": ("προσθέτει υπενθυμίσεις μετρητών", "άμεση εισαγωγή τιμών", "βελτιωμένη διάταξη μετρητών στο iPad", "καλύτερο συντονισμό με το Apple Watch", "πλέον πλήρως τα ολλανδικά", "τίτλος «Έργα» ακολουθεί τη γλώσσα που επιλέγετε στην εφαρμογή"),
-    "nl-NL.md": ("voegt tellerherinneringen", "rechtstreekse invoer van waarden toe", "verbeterde tellerindeling op iPad", "betere afstemming met Apple Watch", "Nederlands wordt nu volledig ondersteund", "titel Projecten volgt de taal die je in de app hebt gekozen"),
+V151_WHATS_NEW_RELATIONSHIPS = {
+    "en-US.md": ("organize patterns in custom folders", "Yarn Library title immediately follows your selected app language", "newer version is available on the App Store"),
+    "zh-Hant.md": ("自訂資料夾整理織圖", "毛線庫標題會立即跟隨所選 App 語言", "有新版本可用時，也會提供前往 App Store 的提醒"),
+    "de-DE.md": ("Anleitungen jetzt in eigenen Ordnern organisieren", "Titel der Wollbibliothek folgt sofort der ausgewählten App-Sprache", "neuere Version verfügbar ist"),
+    "fr-FR.md": ("classer vos modèles dans des dossiers personnalisés", "titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app", "nouvelle version est disponible dans l’App Store"),
+    "ja-JP.md": ("編み図をカスタムフォルダで整理", "毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり", "新しいバージョンが App Store で利用できると KnitNote がお知らせ"),
+    "zh-Hans.md": ("使用自定义文件夹整理图解", "毛线库标题会立即跟随所选 App 语言", "有新版本可用时，也会提供前往 App Store 的提醒"),
+    "nb-NO.md": ("organisere mønstre i egne mapper", "Tittelen på garnbiblioteket følger app-språket du har valgt med én gang", "nyere versjon er tilgjengelig i App Store"),
+    "sv-SE.md": ("ordna mönster i egna mappar", "Titeln på garnbiblioteket följer direkt det appspråk du har valt", "nyare version finns i App Store"),
+    "fi-FI.md": ("järjestää ohjeet omiin kansioihin", "Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi", "uudempi versio"),
+    "da-DK.md": ("organisere mønstre i dine egne mapper", "Titlen på garnbiblioteket følger straks det valgte app-sprog", "nyere version er tilgængelig i App Store"),
+    "ko-KR.md": ("사용자 지정 폴더로 도안을 정리", "실 보관함 제목은 선택한 App 언어로 즉시 바뀌며", "App Store에 새 버전이 있으면 KnitNote가 알려 줍니다"),
+    "el-GR.md": ("οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους", "τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα", "νεότερη έκδοση στο App Store"),
+    "nl-NL.md": ("patronen nu ordenen in eigen mappen", "titel van de garenbibliotheek volgt direct de gekozen app-taal", "nieuwere versie beschikbaar is in de App Store"),
+}
+V151_APPROVED_WHATS_NEW = {
+    "zh-Hant.md": "KnitNote 1.5.1 現在支援自訂資料夾整理織圖。毛線庫標題會立即跟隨所選 App 語言；有新版本可用時，也會提供前往 App Store 的提醒。",
+    "en-US.md": "KnitNote 1.5.1 now lets you organize patterns in custom folders. The Yarn Library title immediately follows your selected app language, and KnitNote lets you know when a newer version is available on the App Store.",
+    "de-DE.md": "Mit KnitNote 1.5.1 kannst du Anleitungen jetzt in eigenen Ordnern organisieren. Der Titel der Wollbibliothek folgt sofort der ausgewählten App-Sprache, und KnitNote weist dich darauf hin, wenn im App Store eine neuere Version verfügbar ist.",
+    "fr-FR.md": "KnitNote 1.5.1 vous permet désormais de classer vos modèles dans des dossiers personnalisés. Le titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app, et KnitNote vous avertit lorsqu’une nouvelle version est disponible dans l’App Store.",
+    "ja-JP.md": "KnitNote 1.5.1 では、編み図をカスタムフォルダで整理できるようになりました。毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり、新しいバージョンが App Store で利用できると KnitNote がお知らせします。",
+    "zh-Hans.md": "KnitNote 1.5.1 现在支持使用自定义文件夹整理图解。毛线库标题会立即跟随所选 App 语言；有新版本可用时，也会提供前往 App Store 的提醒。",
+    "nb-NO.md": "I KnitNote 1.5.1 kan du nå organisere mønstre i egne mapper. Tittelen på garnbiblioteket følger app-språket du har valgt med én gang, og KnitNote gir beskjed når en nyere versjon er tilgjengelig i App Store.",
+    "sv-SE.md": "I KnitNote 1.5.1 kan du nu ordna mönster i egna mappar. Titeln på garnbiblioteket följer direkt det appspråk du har valt, och KnitNote meddelar när en nyare version finns i App Store.",
+    "fi-FI.md": "KnitNote 1.5.1:ssä voit nyt järjestää ohjeet omiin kansioihin. Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi, ja KnitNote ilmoittaa, kun App Storessa on saatavilla uudempi versio.",
+    "da-DK.md": "I KnitNote 1.5.1 kan du nu organisere mønstre i dine egne mapper. Titlen på garnbiblioteket følger straks det valgte app-sprog, og KnitNote giver besked, når en nyere version er tilgængelig i App Store.",
+    "ko-KR.md": "KnitNote 1.5.1에서는 이제 사용자 지정 폴더로 도안을 정리할 수 있습니다. 실 보관함 제목은 선택한 App 언어로 즉시 바뀌며, App Store에 새 버전이 있으면 KnitNote가 알려 줍니다.",
+    "el-GR.md": "Στο KnitNote 1.5.1 μπορείς πλέον να οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους. Ο τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα που έχεις επιλέξει στην εφαρμογή και το KnitNote σε ενημερώνει όταν υπάρχει νεότερη έκδοση στο App Store.",
+    "nl-NL.md": "In KnitNote 1.5.1 kun je patronen nu ordenen in eigen mappen. De titel van de garenbibliotheek volgt direct de gekozen app-taal en KnitNote laat het weten wanneer er een nieuwere versie beschikbaar is in de App Store.",
+}
+UNCHANGED_FIELDS = (
+    "Name", "Subtitle", "Promotional text", "Keywords", "Description",
+    "Support URL", "Marketing URL", "Privacy URL",
+)
+UNCHANGED_FIELD_HASHES = {
+    "da-DK.md": "8c39962cc5938b49449ce95bc6976241d519369b655d5e29c637adf5af1ffdef",
+    "de-DE.md": "e37b6540e9b04239b75926dd510e2bcf4935d92ccdbd5b184571749d865a5818",
+    "el-GR.md": "cfff91ee36899eacf5beb84bfc3fcd122dd3b0b21467f1732bd2749fdd75a14e",
+    "en-US.md": "2ba1464413b7f0338d91d1ecf0abe6d4255c9ed1394af3796002962f529443b5",
+    "fi-FI.md": "bb18b3f63adf6abbf23322c9d3f32d39b6c55e1dbc7f9812cc0d1362deb22f92",
+    "fr-FR.md": "9cf1963c021661b64b9d00f2305d072b5b9e84e324806ea8e146b91cca43f4fd",
+    "ja-JP.md": "f05eb5957335c066af84edb74042176cf95b8e16c637f962e7a19cc7fe83dbfe",
+    "ko-KR.md": "cb83dd32d50b2c45bc3469ae2a759201284c4f4fae63ee6db62caa5b7d2714d0",
+    "nb-NO.md": "85cfe34f0fa500b10d65a46a4412c053d11dd4a50de29730a139691e667c22e9",
+    "nl-NL.md": "aeaaa395fa56ed0246d9b0b263cb9a5b242350c22fa8586f51ec9ab385fc2782",
+    "sv-SE.md": "a3b97941b7c726208b85a3449065e26a5ab3a44c0f8f2015d2456de867bf51e8",
+    "zh-Hans.md": "34b41ab1ea773d0d417ecf0fc2e69d56a45d9b57f17022676c696af0757f7800",
+    "zh-Hant.md": "6035b9ffc91217d299628069ec700ea55be4fe9f1dd73bd219f80cd3d78fbc26",
 }
 DELETED_PROJECT_RECOVERY_CLAIMS = {
     "en-US.md": "Deleted projects can be restored from Trash.",
@@ -148,7 +183,7 @@ class MetadataLocaleTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertEqual(validate(METADATA / filename), [])
 
-    def test_every_package_describes_v150_release_and_supported_languages(self) -> None:
+    def test_every_package_describes_v151_release_and_supported_languages(self) -> None:
         for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename):
                 fields = parse(METADATA / filename)
@@ -156,14 +191,29 @@ class MetadataLocaleTests(unittest.TestCase):
                 description = fields["Description"]
                 self.assertEqual(
                     re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new),
-                    ["1.5.0"],
+                    ["1.5.1"],
                 )
-                for relationship in V150_WHATS_NEW_RELATIONSHIPS[filename]:
+                for relationship in V151_WHATS_NEW_RELATIONSHIPS[filename]:
                     self.assertIn(relationship, whats_new)
                 for language in LANGUAGE_NAMES[filename]:
                     self.assertIn(language, description)
                 for token in SETTINGS_AND_SURFACE_TOKENS[filename]:
                     self.assertIn(token, description)
+
+    def test_every_package_matches_the_approved_v151_release_note(self) -> None:
+        for filename, approved in V151_APPROVED_WHATS_NEW.items():
+            with self.subTest(filename=filename):
+                self.assertEqual(parse(METADATA / filename)["What's New"], approved)
+
+    def test_every_package_preserves_non_release_note_store_fields(self) -> None:
+        for filename, expected_hash in UNCHANGED_FIELD_HASHES.items():
+            with self.subTest(filename=filename):
+                fields = parse(METADATA / filename)
+                protected_fields = "\0".join(fields[field] for field in UNCHANGED_FIELDS)
+                self.assertEqual(
+                    hashlib.sha256(protected_fields.encode("utf-8")).hexdigest(),
+                    expected_hash,
+                )
 
     def test_validator_rejects_deleted_project_recovery_claims_in_every_locale(self) -> None:
         for filename in EXPECTED_LOCALES:
@@ -180,92 +230,130 @@ class MetadataLocaleTests(unittest.TestCase):
         self.assertEqual(EXPECTED_LOCALES[-1], "nl-NL.md")
         self.assertEqual(len(EXPECTED_LOCALES), 13)
 
-    def test_validator_rejects_stale_or_incomplete_v150_release_notes(self) -> None:
+    def test_validator_rejects_stale_or_incomplete_v151_release_notes(self) -> None:
         for filename in EXPECTED_LOCALES:
             with self.subTest(filename=filename, mutation="version"):
                 fields = parse(METADATA / filename)
-                fields["What's New"] = fields["What's New"].replace("1.5.0", "1.4.1")
+                fields["What's New"] = V151_APPROVED_WHATS_NEW[filename].replace("1.5.1", "1.5.0")
                 path = self.write_named_metadata(filename, fields)
                 self.assertIn(
-                    f"{path}: What's New: must identify KnitNote 1.5.0 exactly",
+                    f"{path}: What's New: must identify KnitNote 1.5.1 exactly",
                     validate(path),
                 )
-            for relationship in V150_WHATS_NEW_RELATIONSHIPS[filename]:
+            for relationship in V151_WHATS_NEW_RELATIONSHIPS[filename]:
                 with self.subTest(filename=filename, missing=relationship):
                     fields = parse(METADATA / filename)
-                    fields["What's New"] = fields["What's New"].replace(relationship, "")
+                    fields["What's New"] = V151_APPROVED_WHATS_NEW[filename].replace(relationship, "")
                     path = self.write_named_metadata(filename, fields)
                     self.assertIn(
-                        f"{path}: What's New: missing implemented 1.5 behavior: {relationship}",
+                        f"{path}: What's New: missing implemented 1.5.1 behavior: {relationship}",
                         validate(path),
                     )
 
-    def test_validator_rejects_v150_terms_without_the_approved_relationships(self) -> None:
+    def test_validator_rejects_v151_terms_without_the_approved_relationships(self) -> None:
         fields = parse(METADATA / "en-US.md")
         fields["What's New"] = (
-            "KnitNote 1.5.0 adds counter reminders and direct value entry. "
-            "iPad and Apple Watch are supported, but they do not coordinate counter reminders "
-            "or improve the counter layout. Dutch is fully supported. Projects and app language "
-            "settings are documented, but the Projects title does not follow the selected app language."
+            "KnitNote 1.5.1 has folders, patterns, and custom organization in separate documentation. "
+            "The Yarn Library and app language are described elsewhere, rather than saying its title "
+            "immediately follows your selected app language. A newer version and the App Store are "
+            "also mentioned separately, but no reminder is offered."
         )
         path = self.write_named_metadata("en-US.md", fields)
 
         errors = validate(path)
 
         for relationship in (
-            "improved iPad counter layout",
-            "Apple Watch coordination",
-            "Projects title follows your selected app language",
+            "organize patterns in custom folders",
+            "Yarn Library title immediately follows your selected app language",
+            "newer version is available on the App Store",
         ):
             self.assertIn(
-                f"{path}: What's New: missing implemented 1.5 behavior: {relationship}",
+                f"{path}: What's New: missing implemented 1.5.1 behavior: {relationship}",
                 errors,
             )
 
-    def test_validator_rejects_negated_v150_relationships_even_when_phrases_remain(self) -> None:
+    def test_validator_rejects_negated_v151_relationships_even_when_phrases_remain(self) -> None:
         fields = parse(METADATA / "en-US.md")
         fields["What's New"] = (
-            "The claim 'KnitNote 1.5.0 adds counter reminders' is false. "
-            "Direct value entry is not included. There is no improved iPad counter layout or "
-            "Apple Watch coordination. 'Dutch is now fully supported' is false, and "
-            "'Projects title follows your selected app language' is false."
+            "The claim 'KnitNote 1.5.1 now lets you organize patterns in custom folders' is false. "
+            "The Yarn Library title does not immediately follow your selected app language, and "
+            "KnitNote does not let you know when a newer version is available on the App Store."
         )
         path = self.write_named_metadata("en-US.md", fields)
 
         self.assertIn(
-            f"{path}: What's New: must match the approved 1.5.0 release note exactly",
+            f"{path}: What's New: must match the approved 1.5.1 release note exactly",
             validate(path),
         )
 
     def test_validator_rejects_adjacent_negation_synonyms(self) -> None:
         fields = parse(METADATA / "en-US.md")
         fields["What's New"] = (
-            "The claim 'KnitNote 1.5.0 adds counter reminders' isn't true. "
-            "Direct value entry is disabled. Improved iPad counter layout is unavailable. "
-            "Apple Watch coordination is absent. 'Dutch is now fully supported' is incorrect. "
-            "'Projects title follows your selected app language' is a myth."
+            "KnitNote 1.5.1 does not organize patterns in custom folders. "
+            "The Yarn Library title is disabled for the selected app language, and a newer "
+            "version is unavailable on the App Store."
         )
         path = self.write_named_metadata("en-US.md", fields)
-        exact_error = f"{path}: What's New: must match the approved 1.5.0 release note exactly"
+        exact_error = f"{path}: What's New: must match the approved 1.5.1 release note exactly"
         self.assertIn(exact_error, validate(path))
 
     def test_validator_treats_additive_not_only_as_noncanonical_not_negative(self) -> None:
         fields = parse(METADATA / "en-US.md")
         fields["What's New"] = (
-            "KnitNote 1.5.0 not only adds counter reminders and direct value entry, but also has "
-            "an improved iPad counter layout and Apple Watch coordination. Dutch is now fully "
-            "supported, and the Projects title follows your selected app language."
+            "KnitNote 1.5.1 not only lets you organize patterns in custom folders, but also makes "
+            "the Yarn Library title immediately follow your selected app language and lets you know "
+            "when a newer version is available on the App Store."
         )
         path = self.write_named_metadata("en-US.md", fields)
         errors = validate(path)
         self.assertIn(
-            f"{path}: What's New: must match the approved 1.5.0 release note exactly",
+            f"{path}: What's New: must match the approved 1.5.1 release note exactly",
             errors,
         )
         self.assertNotIn(
-            f"{path}: What's New: must not negate approved 1.5 behavior",
+            f"{path}: What's New: must not negate approved 1.5.1 behavior",
             errors,
         )
+
+    def test_validator_rejects_stale_v150_release_note_for_every_locale(self) -> None:
+        for filename in EXPECTED_LOCALES:
+            with self.subTest(filename=filename):
+                fields = parse(METADATA / filename)
+                fields["What's New"] = V151_APPROVED_WHATS_NEW[filename].replace(
+                    "1.5.1", "1.5.0",
+                )
+                path = self.write_named_metadata(filename, fields)
+                self.assertTrue(
+                    any(
+                        "must identify KnitNote 1.5.1 exactly" in error
+                        or "must match the approved 1.5.1 release note exactly" in error
+                        for error in validate(path)
+                    ),
+                    validate(path),
+                )
+
+    def test_validator_rejects_v151_prohibited_update_claims(self) -> None:
+        prohibited = {
+            "background notifications": "Background notifications announce every update.",
+            "automatic updates": "KnitNote updates itself automatically.",
+            "forced updates": "This update is required before KnitNote can open.",
+            "automatic downloads": "New versions download automatically.",
+            "cloud/account delivery": "Updates are delivered through your cloud account.",
+            "automatic pattern classification": "Patterns are classified into folders automatically.",
+            "nested folders": "Folders can contain nested folders.",
+            "cross-folder membership": "A pattern can appear in several folders at once.",
+            "user-content translation": "Imported pattern content is translated automatically.",
+            "publication": "KnitNote 1.5.1 is now live on the App Store.",
+        }
+        for concept, claim in prohibited.items():
+            with self.subTest(concept=concept):
+                fields = parse(METADATA / "en-US.md")
+                fields["What's New"] = V151_APPROVED_WHATS_NEW["en-US.md"] + " " + claim
+                path = self.write_named_metadata("en-US.md", fields)
+                self.assertIn(
+                    f"{path}: copy: forbidden release claim: {concept}",
+                    validate(path),
+                )
 
     def test_validator_rejects_missing_supported_language_for_every_package(self) -> None:
         for filename in EXPECTED_LOCALES:

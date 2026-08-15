@@ -145,11 +145,30 @@ the PENDING entries above deliberately remain manual/UI acceptance boundaries.
 
 ## Mac Debug fixture
 
-- [ ] **PENDING — visible Mac alert/copy/layout.** No fresh reliable visual
-  evidence was obtained after the source change.
-- [ ] **PENDING — Mac keyboard focus and button activation.** Not observed.
-- [ ] **PENDING — Mac App Store navigation.** Not activated.
-- [ ] **PENDING — Mac existing-data preservation.** Not observed.
+- [x] **PASS — exact-current signed Mac build and visible alert/copy/layout.**
+  A fresh Debug build from exact source revision
+  `2fd57696358d93f608528796db0e48a8ed61e21f` succeeded and identified as
+  `com.phillon.KnitNote` 1.5.1 (11), signed by Team `9CFPAUL5N5`. The existing
+  `/Applications/KnitNote.app` 1.2.1 (5) was not overwritten. With strict
+  fixture 10.0.1, Computer Use observed the Traditional Chinese alert, current
+  1.5.1, latest 10.0.1, and both fully exposed actions without clipping.
+- [x] **PASS — Mac reminder actions and version-aware suppression.** Clicking
+  `稍後` dismissed the alert; relaunching the same 10.0.1 fixture kept it
+  suppressed, while 10.0.2 presented again. A later 10.0.3 fixture confirmed
+  that Return activates the highlighted default `前往 App Store` action.
+- [x] **PASS — Mac App Store navigation.** Clicking `前往 App Store` opened
+  the native Mac App Store directly on KnitNote's product page, showing the
+  KnitNote title and developer Chen Chung Lung. No download, purchase, or
+  account action was performed.
+- [x] **PASS — Mac existing-data readback.** The exact-current Debug app loaded
+  the existing shared data: three projects, four patterns with All and
+  Uncategorized folder scopes, the existing yarn entry, and project `test2`
+  with its preserved six counters including counter 1 at 49. The inspection
+  was read-only apart from the intended update-reminder dismissal state.
+- [ ] **PENDING — Tab/Shift-Tab focus traversal.** The current macOS setting
+  does not enable full keyboard control, so Tab and Shift-Tab left focus on the
+  alert container. The system setting was not changed. Return activation of
+  the default action passed as recorded above.
 
 ## Physical and live-service boundaries
 
@@ -185,7 +204,9 @@ the PENDING entries above deliberately remain manual/UI acceptance boundaries.
   notes, and settings at 2026-08-15 11:57 CST.
 - [ ] **PENDING — live App Store lookup/localized `trackViewUrl` observation.**
   URL shape and identity are automated contract evidence only.
-- [ ] **PENDING — live App Store navigation.** No Store button was activated.
+- [ ] **PENDING — live-lookup App Store navigation on physical iPhone/iPad.**
+  The strict Mac fixture navigation passed above, but no physical-device Store
+  button was activated from a live lookup result.
 - [ ] **PENDING — live locale switching on iPhone, iPad, and Mac.**
 
 ## Non-actions and acceptance boundary
@@ -193,5 +214,5 @@ the PENDING entries above deliberately remain manual/UI acceptance boundaries.
 No archive, export, upload, App Store Connect build selection, submission,
 publication, release, merge, or push occurred. This record accepts only the
 checked automated/build evidence, the fresh simulator evidence, and the
-physical iPhone and iPad evidence explicitly checked above; every unavailable
-or unobserved action remains explicitly PENDING.
+physical iPhone, iPad, and Mac evidence explicitly checked above; every
+unavailable or unobserved action remains explicitly PENDING.

@@ -209,10 +209,41 @@ the PENDING entries above deliberately remain manual/UI acceptance boundaries.
   button was activated from a live lookup result.
 - [ ] **PENDING — live locale switching on iPhone, iPad, and Mac.**
 
+## Signed App Store candidate
+
+- [x] **PASS — one-shot signed candidate creation from merged `main`.** On
+  2026-08-15, `create_release_candidate.sh` ran exactly once from clean detached
+  source `e0199e307fe2f77df38f6f055c9bd7241549b1ca` and atomically published
+  `/tmp/KnitNoteRelease-1.5.1-Build11-e0199e3`. Both iOS IPA and macOS PKG
+  exports succeeded. The creator's formal audit passed 1,587 tests in 135
+  suites and emitted `RELEASE AUDIT: PASS`.
+- [x] **PASS — independent provenance and formal release audit.** A separate
+  provenance verification accepted the exact source commit and checked-in
+  export options. The independent archive audit then passed 1,587 tests in 135
+  suites and emitted `METADATA CHECK: PASS`, `COMMERCIAL RELEASE CHECK: PASS
+  (offline)`, and `RELEASE AUDIT: PASS`. Its first sandboxed attempt stopped
+  before manifest compilation because the Swift module cache was not writable;
+  the one valid unsandboxed execution passed.
+- [x] **PASS — freshly extracted exported-product inspection.** The iOS main
+  app, Watch app, Share extension, and macOS app all identify as version 1.5.1,
+  build 11, exact source revision `e0199e307fe2f77df38f6f055c9bd7241549b1ca`,
+  and Team `9CFPAUL5N5`; their bundle identifiers are respectively
+  `com.phillon.KnitNote`, `com.phillon.KnitNote.watch`,
+  `com.phillon.KnitNote.share`, and `com.phillon.KnitNote`. Each contains the
+  exact 13 supported localizations and a privacy manifest. The App Store
+  profiles contain no device list and the iOS-family signed entitlements set
+  `get-task-allow` to false. The macOS PKG has the exact three-certificate chain
+  from `3rd Party Mac Developer Installer: Chen Chung Lung (9CFPAUL5N5)` through
+  Apple Worldwide Developer Relations to Apple Root CA; no unreadable payload
+  files or unsearchable directories were found, and the retained signature and
+  profile files are mode 0644. No raw packaging log or test-fixture sentinel is
+  present.
+
 ## Non-actions and acceptance boundary
 
-No archive, export, upload, App Store Connect build selection, submission,
-publication, release, merge, or push occurred. This record accepts only the
-checked automated/build evidence, the fresh simulator evidence, and the
-physical iPhone, iPad, and Mac evidence explicitly checked above; every
-unavailable or unobserved action remains explicitly PENDING.
+The signed archives and exports above were created and inspected. No upload,
+App Store Connect build selection, submission, publication, release, or push
+occurred. This record accepts only the checked automated/build evidence, the
+fresh simulator evidence, the physical iPhone/iPad/Mac evidence, and the exact
+signed candidate evidence explicitly checked above; every unavailable or
+unobserved action remains explicitly PENDING.

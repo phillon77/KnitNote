@@ -83,27 +83,28 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         value: 5
     )
     let mutation = try #require(persisted)
-    let pending = try #require(mutation.outcome?.pendingReminder)
+    let reminder = try #require(store.project(id: project.id)?.knittingReminders.first)
+    let pending = reminder.progress.pending
     #expect(mutation.counter == store.project(id: project.id)?.counters[0])
     try store.completeCounterReminder(
         projectID: project.id,
         counterID: counterID,
-        reminderID: pending.reminderID,
-        observedCount: pending.occurrenceCount
+        reminderID: reminder.id,
+        observedCount: pending.count
     )
 
-    let completed = try #require(JSONProjectStore(url: url).project(id: project.id)?.counters[0])
-    #expect(completed.reminder?.pending == nil)
-    #expect(completed.reminder?.acknowledgedCount == 2)
+    let completed = try #require(JSONProjectStore(url: url).project(id: project.id)?.knittingReminders.first)
+    #expect(completed.progress.pending.isEmpty)
+    #expect(completed.progress.completedCount == 2)
     try store.stopCounterReminder(
         projectID: project.id,
         counterID: counterID,
-        reminderID: pending.reminderID
+        reminderID: reminder.id
     )
 
-    let stopped = try #require(JSONProjectStore(url: url).project(id: project.id)?.counters[0])
-    #expect(stopped.reminder?.isActive == false)
-    #expect(stopped.reminder?.nextTarget == nil)
+    let stopped = try #require(JSONProjectStore(url: url).project(id: project.id)?.knittingReminders.first)
+    #expect(stopped.state == .stopped)
+    #expect(stopped.progress.nextTarget == nil)
 }
 
 @MainActor @Test func directCounterManagerPersistsNameValueAndReminderInOneMutation() throws {
@@ -126,9 +127,9 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     #expect(mutation.counter == reopened)
     #expect(reopened.customName == "Body")
     #expect(reopened.value == 7)
-    #expect(reopened.reminder?.anchorValue == 7)
-    #expect(reopened.reminder?.rule == .repeating(interval: 3, limit: 2))
-    #expect(reopened.reminder?.message == "Turn")
+    let reminder = try #require(JSONProjectStore(url: url).project(id: project.id)?.knittingReminders.first)
+    #expect(reminder.rule == .repeating(firstTarget: 10, interval: 3, limit: 2))
+    #expect(reminder.text == "Turn")
 }
 
 @MainActor @Test func staleDirectReminderRemovalRejectsTheWholeManagerTransaction() throws {
@@ -142,7 +143,7 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         counterID: counterID,
         draft: .oneTime(target: 3, message: "First")
     )
-    let staleReminderID = try #require(store.project(id: project.id)?.counters[0].reminder?.id)
+    let staleReminderID = UUID()
     try store.configureCounterReminder(
         projectID: project.id,
         counterID: counterID,
@@ -242,7 +243,8 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         name: nil,
         value: 2
     )
-    let pending = try #require(store.project(id: project.id)?.counters[0].reminder?.pending)
+    let reminder = try #require(store.project(id: project.id)?.knittingReminders.first)
+    let pending = reminder.progress.pending
     let rejectedOperations: [() throws -> Void] = [
         {
             try store.configureCounterReminder(
@@ -255,8 +257,8 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
             try store.completeCounterReminder(
                 projectID: project.id,
                 counterID: counterID,
-                reminderID: pending.reminderID,
-                observedCount: pending.occurrenceCount + 1
+                reminderID: reminder.id,
+                observedCount: pending.count + 1
             )
         },
         {
@@ -299,7 +301,8 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         name: nil,
         value: 1
     )
-    let pending = try #require(store.project(id: project.id)?.counters[0].reminder?.pending)
+    let reminder = try #require(store.project(id: project.id)?.knittingReminders.first)
+    let pending = reminder.progress.pending
     try store.markCompleted(projectID: project.id)
     let operations: [() throws -> Void] = [
         {
@@ -313,8 +316,8 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
             try store.completeCounterReminder(
                 projectID: project.id,
                 counterID: counterID,
-                reminderID: pending.reminderID,
-                observedCount: pending.occurrenceCount
+                reminderID: reminder.id,
+                observedCount: pending.count
             )
         },
         {

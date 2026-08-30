@@ -47,6 +47,8 @@ public struct KnittingReminderProgress: Codable, Hashable, Sendable {
     public private(set) var completedCount: Int
     public private(set) var skippedCount: Int
     public private(set) var nextTarget: Int?
+    public private(set) var nextOccurrenceIndex: Int
+    public private(set) var lastObservedCounterValue: Int?
     public private(set) var pending: [KnittingReminderOccurrence]
     public private(set) var latestHandled: KnittingReminderOccurrence?
 
@@ -55,6 +57,8 @@ public struct KnittingReminderProgress: Codable, Hashable, Sendable {
         completedCount = 0
         skippedCount = 0
         self.nextTarget = nextTarget
+        nextOccurrenceIndex = 1
+        lastObservedCounterValue = nil
         pending = []
         latestHandled = nil
     }
@@ -62,11 +66,24 @@ public struct KnittingReminderProgress: Codable, Hashable, Sendable {
     mutating func schedule(
         _ occurrence: KnittingReminderOccurrence,
         scheduledCount: Int,
-        nextTarget: Int?
+        nextTarget: Int?,
+        nextOccurrenceIndex: Int
     ) {
         pending.append(occurrence)
         self.scheduledCount = scheduledCount
         self.nextTarget = nextTarget
+        self.nextOccurrenceIndex = nextOccurrenceIndex
+    }
+
+    mutating func advanceCandidate(nextTarget: Int?, nextOccurrenceIndex: Int) {
+        self.nextTarget = nextTarget
+        self.nextOccurrenceIndex = nextOccurrenceIndex
+    }
+
+    mutating func recordObservedCounterValue(_ counterValue: Int) -> Bool {
+        guard lastObservedCounterValue != counterValue else { return false }
+        lastObservedCounterValue = counterValue
+        return true
     }
 
     mutating func stopScheduling() {
@@ -111,6 +128,10 @@ public struct KnittingReminderProgress: Codable, Hashable, Sendable {
     var hasPendingOccurrences: Bool {
         !pending.isEmpty
     }
+
+    var hasLatestHandledOccurrence: Bool {
+        latestHandled != nil
+    }
 }
 
 public enum KnittingReminderMutation: Equatable, Sendable {
@@ -129,6 +150,7 @@ public enum KnittingReminderMutationError: Error, Equatable, Sendable {
     case alreadyDeferred
     case invalidAction
     case arithmeticOverflow
+    case revisionExhausted
     case newReminderRequiresMainCounter
 }
 
@@ -184,11 +206,46 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         self.createdAt = createdAt
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case id, counterID, kind, text, rule, progress, state, mutationRevision, createdAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(UUID.self, forKey: .id)
+        let counterID = try container.decode(UUID.self, forKey: .counterID)
+        let kind = try container.decode(KnittingReminderKind.self, forKey: .kind)
+        let text = try container.decodeIfPresent(String.self, forKey: .text)
+        let rule = try container.decode(KnittingReminderRule.self, forKey: .rule)
+        let progress = try container.decode(KnittingReminderProgress.self, forKey: .progress)
+        let state = try container.decode(KnittingReminderState.self, forKey: .state)
+        let mutationRevision = try container.decode(UInt64.self, forKey: .mutationRevision)
+        let createdAt = try container.decode(Date.self, forKey: .createdAt)
+
+        self.id = id
+        self.counterID = counterID
+        self.kind = kind
+        self.text = text
+        self.rule = rule
+        self.progress = progress
+        self.state = state
+        self.mutationRevision = mutationRevision
+        self.createdAt = createdAt
+
+        guard isValidDecodedState else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .progress,
+                in: container,
+                debugDescription: "Invalid knitting reminder state"
+            )
+        }
+    }
+
     public func applying(_ mutation: KnittingReminderMutation) throws -> KnittingReminder {
         var copy = self
         switch mutation {
         case let .trigger(through):
-            copy.trigger(through: through)
+            try copy.trigger(through: through)
         case let .complete(occurrenceID, observedRevision):
             try copy.handle(
                 occurrenceID: occurrenceID,
@@ -217,10 +274,10 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         }
     }
 
-    private mutating func trigger(through counterValue: Int) {
+    private mutating func trigger(through counterValue: Int) throws {
         guard state == .active else { return }
 
-        var didSchedule = false
+        var didChange = false
         while let scheduledTarget = progress.nextTarget, scheduledTarget <= counterValue {
             let occurrence = KnittingReminderOccurrence(
                 id: UUID(),
@@ -234,17 +291,72 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
             let (scheduledCount, countOverflow) = progress.scheduledCount.addingReportingOverflow(1)
             guard !countOverflow else {
                 progress.stopScheduling()
+                didChange = true
                 break
             }
-            let (nextOccurrence, nextOccurrenceOverflow) = scheduledCount.addingReportingOverflow(1)
+            let (nextTarget, nextOccurrenceIndex) = nextCandidate()
             progress.schedule(
                 occurrence,
                 scheduledCount: scheduledCount,
-                nextTarget: nextOccurrenceOverflow ? nil : target(forOccurrence: nextOccurrence)
+                nextTarget: nextTarget,
+                nextOccurrenceIndex: nextOccurrenceIndex
             )
-            didSchedule = true
+            didChange = true
         }
-        if didSchedule { mutationRevision &+= 1 }
+        didChange = progress.recordObservedCounterValue(counterValue) || didChange
+        try incrementRevisionIfNeeded(didChange)
+    }
+
+    mutating func evaluateCounterChange(from oldValue: Int, to newValue: Int) throws {
+        guard state == .active else { return }
+
+        var didChange = false
+        if newValue > oldValue {
+            while let staleTarget = progress.nextTarget, staleTarget <= oldValue {
+                advanceCandidate()
+                didChange = true
+            }
+
+            while let scheduledTarget = progress.nextTarget, scheduledTarget <= newValue {
+                let occurrence = KnittingReminderOccurrence(
+                    id: UUID(),
+                    reminderID: id,
+                    kind: kind,
+                    text: text,
+                    originalTarget: scheduledTarget,
+                    displayAt: scheduledTarget,
+                    phase: .initial
+                )
+                let (scheduledCount, countOverflow) = progress.scheduledCount.addingReportingOverflow(1)
+                guard !countOverflow else {
+                    progress.stopScheduling()
+                    didChange = true
+                    break
+                }
+                let (nextTarget, nextOccurrenceIndex) = nextCandidate()
+                progress.schedule(
+                    occurrence,
+                    scheduledCount: scheduledCount,
+                    nextTarget: nextTarget,
+                    nextOccurrenceIndex: nextOccurrenceIndex
+                )
+                didChange = true
+            }
+        }
+
+        didChange = progress.recordObservedCounterValue(newValue) || didChange
+        try incrementRevisionIfNeeded(didChange)
+    }
+
+    private mutating func advanceCandidate() {
+        let (nextTarget, nextOccurrenceIndex) = nextCandidate()
+        progress.advanceCandidate(nextTarget: nextTarget, nextOccurrenceIndex: nextOccurrenceIndex)
+    }
+
+    private func nextCandidate() -> (target: Int?, occurrenceIndex: Int) {
+        let (nextOccurrenceIndex, overflow) = progress.nextOccurrenceIndex.addingReportingOverflow(1)
+        guard !overflow else { return (nil, progress.nextOccurrenceIndex) }
+        return (target(forOccurrence: nextOccurrenceIndex), nextOccurrenceIndex)
     }
 
     private mutating func handle(
@@ -253,13 +365,14 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         wasSkipped: Bool
     ) throws {
         try validate(observedRevision: observedRevision)
-        guard try progress.removePending(id: occurrenceID, wasSkipped: wasSkipped) != nil else {
+        guard progress.pending.contains(where: { $0.id == occurrenceID }) else {
             throw KnittingReminderMutationError.occurrenceNotFound
         }
+        try incrementRevisionIfNeeded(true)
+        _ = try progress.removePending(id: occurrenceID, wasSkipped: wasSkipped)
         if !progress.hasPendingOccurrences, progress.nextTarget == nil {
             state = .completed
         }
-        mutationRevision &+= 1
     }
 
     private mutating func deferOnce(occurrenceID: UUID, observedRevision: UInt64) throws {
@@ -270,28 +383,30 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         guard occurrence.phase == .initial else {
             throw KnittingReminderMutationError.alreadyDeferred
         }
-        let (displayAt, overflow) = occurrence.originalTarget.addingReportingOverflow(1)
+        let observedCounterValue = progress.lastObservedCounterValue ?? occurrence.originalTarget
+        let (displayAt, overflow) = observedCounterValue.addingReportingOverflow(1)
         guard !overflow else { throw KnittingReminderMutationError.arithmeticOverflow }
+        try incrementRevisionIfNeeded(true)
         occurrence.displayAt = displayAt
         occurrence.phase = .deferredOnce
         progress.replacePending(occurrence)
-        mutationRevision &+= 1
     }
 
     private mutating func stop(observedRevision: UInt64) throws {
         try validate(observedRevision: observedRevision)
         guard state == .active else { throw KnittingReminderMutationError.invalidAction }
+        try incrementRevisionIfNeeded(true)
         progress.stopScheduling()
         progress.clearPending()
         state = .stopped
-        mutationRevision &+= 1
     }
 
     private mutating func resetLatest(observedRevision: UInt64) throws {
         try validateRevision(observedRevision)
-        guard progress.resetLatest() != nil else { throw KnittingReminderMutationError.invalidAction }
+        guard progress.hasLatestHandledOccurrence else { throw KnittingReminderMutationError.invalidAction }
+        try incrementRevisionIfNeeded(true)
+        _ = progress.resetLatest()
         state = .active
-        mutationRevision &+= 1
     }
 
     private func validate(observedRevision: UInt64) throws {
@@ -301,6 +416,52 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
 
     private func validateRevision(_ observedRevision: UInt64) throws {
         guard observedRevision == mutationRevision else { throw KnittingReminderMutationError.staleRevision }
+    }
+
+    private mutating func incrementRevisionIfNeeded(_ didChange: Bool) throws {
+        guard didChange else { return }
+        guard mutationRevision < .max else { throw KnittingReminderMutationError.revisionExhausted }
+        mutationRevision += 1
+    }
+
+    private var isValidDecodedState: Bool {
+        guard rule.isValid,
+              progress.scheduledCount >= 0,
+              progress.completedCount >= 0,
+              progress.skippedCount >= 0,
+              progress.nextOccurrenceIndex > 0,
+              progress.nextTarget.map({ $0 >= 0 }) ?? true,
+              progress.lastObservedCounterValue.map({ $0 >= 0 }) ?? true,
+              progress.completedCount.addingReportingOverflow(progress.skippedCount).overflow == false,
+              progress.completedCount + progress.skippedCount <= progress.scheduledCount,
+              progress.pending.count <= progress.scheduledCount,
+              progress.pending.allSatisfy(isValidOccurrence),
+              progress.latestHandled.map(isValidOccurrence) ?? true,
+              progress.nextTarget == target(forOccurrence: progress.nextOccurrenceIndex)
+        else { return false }
+
+        switch state {
+        case .active:
+            return true
+        case .completed, .stopped:
+            return progress.nextTarget == nil && progress.pending.isEmpty
+        }
+    }
+
+    private func isValidOccurrence(_ occurrence: KnittingReminderOccurrence) -> Bool {
+        guard occurrence.reminderID == id,
+              occurrence.kind == kind,
+              occurrence.text == text,
+              occurrence.originalTarget >= 0,
+              occurrence.displayAt >= occurrence.originalTarget
+        else { return false }
+
+        switch occurrence.phase {
+        case .initial:
+            return occurrence.displayAt == occurrence.originalTarget
+        case .deferredOnce:
+            return occurrence.displayAt > occurrence.originalTarget
+        }
     }
 
     private func target(forOccurrence occurrence: Int) -> Int? {
@@ -324,16 +485,14 @@ public enum KnittingReminderEvaluator {
         newValue: Int,
         reminders: [KnittingReminder]
     ) -> KnittingReminderEvaluationResult {
-        guard newValue > oldValue else {
-            return KnittingReminderEvaluationResult(reminders: reminders, pending: [])
-        }
-
         var pendingWithOrdering = [(occurrence: KnittingReminderOccurrence, createdAt: Date)]()
         let updatedReminders = reminders.map { reminder -> KnittingReminder in
             let pendingIDs = Set(reminder.progress.pending.map(\.id))
-            guard let updated = try? reminder.applying(.trigger(through: newValue)) else {
+            var candidate = reminder
+            guard (try? candidate.evaluateCounterChange(from: oldValue, to: newValue)) != nil else {
                 return reminder
             }
+            let updated = candidate
             pendingWithOrdering += updated.progress.pending
                 .filter { !pendingIDs.contains($0.id) }
                 .map { ($0, updated.createdAt) }
@@ -363,6 +522,15 @@ private extension KnittingReminderRule {
             target
         case let .repeating(firstTarget, _, _):
             firstTarget
+        }
+    }
+
+    var isValid: Bool {
+        switch self {
+        case let .oneTime(target):
+            target >= 0
+        case let .repeating(firstTarget, interval, limit):
+            firstTarget >= 0 && interval > 0 && (limit.map { $0 > 0 } ?? true)
         }
     }
 }

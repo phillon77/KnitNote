@@ -60,7 +60,7 @@
 - A verified legacy paid owner keeps permanent access; temporary StoreKit
   unavailability must not demote that entitlement to a trial.
 - KnitNote requires no account and performs no tracking.
-- The current project archive format uses schema 13.
+- The current project archive format uses schema 14.
 - The complete backup format uses manifest 2.
 - The Share extension target is `KnitNoteShare`.
 

@@ -460,6 +460,13 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
 
     private var isValidDecodedState: Bool {
         let pendingIDs = Set(progress.pending.map(\.id))
+        let hasConsistentNextTarget: Bool
+        switch state {
+        case .active:
+            hasConsistentNextTarget = progress.nextTarget == target(forOccurrence: progress.nextOccurrenceIndex)
+        case .completed, .stopped:
+            hasConsistentNextTarget = progress.nextTarget == nil
+        }
         guard rule.isValid,
               progress.scheduledCount >= 0,
               progress.completedCount >= 0,
@@ -472,7 +479,7 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
               progress.pending.allSatisfy(isValidOccurrence),
               progress.latestHandled.map(isValidOccurrence) ?? true,
               progress.latestHandled.map({ !pendingIDs.contains($0.id) }) ?? true,
-              progress.nextTarget == target(forOccurrence: progress.nextOccurrenceIndex)
+              hasConsistentNextTarget
         else { return false }
 
         switch state {

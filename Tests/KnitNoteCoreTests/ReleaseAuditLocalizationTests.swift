@@ -3,7 +3,7 @@ import Testing
 
 private let canonicalProjectArchiveSchemaSource = """
 extension ProjectArchive {
-    public static let currentVersion = 13
+    public static let currentVersion = 14
 }
 
 """
@@ -19,8 +19,8 @@ extension ProjectArchive {
     }
 
     @Test(arguments: [
-        canonicalProjectArchiveSchemaSource.replacingOccurrences(of: "= 13", with: "= 12"),
-        canonicalProjectArchiveSchemaSource.replacingOccurrences(of: "= 13", with: "= 14"),
+        canonicalProjectArchiveSchemaSource.replacingOccurrences(of: "= 14", with: "= 13"),
+        canonicalProjectArchiveSchemaSource.replacingOccurrences(of: "= 14", with: "= 15"),
         canonicalProjectArchiveSchemaSource
             + "extension ProjectArchive { public static let decoy = 13 }\n",
         "// public static let currentVersion = 13\n" + canonicalProjectArchiveSchemaSource,
@@ -34,7 +34,7 @@ extension ProjectArchive {
         let result = try runStaticAudit(projectArchiveSchemaSource: sourceText)
 
         #expect(result.status != 0)
-        #expect(result.output.contains("project archive schema source is not canonical schema 13"))
+        #expect(result.output.contains("project archive schema source is not canonical schema 14"))
     }
 
     @Test func staticAuditRejectsNestedFourSpaceSchemaDecoyBesideRealSchemaTwelve() throws {
@@ -45,12 +45,12 @@ extension ProjectArchive {
             }
 
             public enum SchemaDecoy {
-                public static let currentVersion = 13
+                public static let currentVersion = 14
             }
             """)
 
         #expect(result.status != 0)
-        #expect(result.output.contains("project archive schema source is not canonical schema 13"))
+        #expect(result.output.contains("project archive schema source is not canonical schema 14"))
     }
 
     @Test func archiveAuditRejectsOneMissingJapaneseWatchLocalizationDirectory() throws {

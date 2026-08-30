@@ -44,13 +44,13 @@ fail() {
 
 verify_project_archive_schema() {
   python3 - "$PROJECT_ARCHIVE_SCHEMA_SOURCE" <<'PY' \
-    || fail "project archive schema source is not canonical schema 13"
+    || fail "project archive schema source is not canonical schema 14"
 from pathlib import Path
 import sys
 
 expected = (
     b"extension ProjectArchive {\n"
-    b"    public static let currentVersion = 13\n"
+    b"    public static let currentVersion = 14\n"
     b"}\n"
 )
 try:

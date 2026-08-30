@@ -110,6 +110,7 @@ public struct PatternLibraryMigrator: Sendable {
         let liveRoot = archiveURL.deletingLastPathComponent()
         let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
         let migrated = try migrate(archive: archive, liveRoot: liveRoot)
+        let reminderMigratedArchive = try KnittingReminderMigrator.migrate(migrated.archive)
         let fileManager = FileManager.default
         let stagedArchiveURL = migrated.stagedRoot.appendingPathComponent("archive.json")
         let stagedPatternsRoot = migrated.stagedRoot.appendingPathComponent("Patterns", isDirectory: true)
@@ -120,6 +121,10 @@ public struct PatternLibraryMigrator: Sendable {
         var transaction = try loadTransaction(at: migrated.stagedRoot)
 
         do {
+            try JSONEncoder().encode(reminderMigratedArchive).write(
+                to: stagedArchiveURL,
+                options: .atomic
+            )
             try stepHook(.beforeInstall)
             transaction.phase = .preparingRollback
             try persist(transaction, at: migrated.stagedRoot)

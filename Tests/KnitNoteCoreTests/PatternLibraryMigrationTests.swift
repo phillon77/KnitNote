@@ -576,7 +576,7 @@ import UniformTypeIdentifiers
         from: Data(contentsOf: fixture.archiveURL)
     )
 
-    #expect(archive.version == 13)
+    #expect(archive.version == ProjectArchive.currentVersion)
     #expect(archive.patternFolders.isEmpty)
     #expect(archive.patterns.allSatisfy { $0.folderID == nil })
     #expect(try Data(contentsOf: fixture.assetURL) == fixture.assetData)

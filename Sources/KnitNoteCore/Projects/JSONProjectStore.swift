@@ -2795,7 +2795,12 @@ final class PatternLibraryDeletionTransaction {
             } else {
                 try migrator.validateCurrentArchive(at: url)
             }
-            decoded = try decode(archive: archiveFromDisk())
+            let archiveAfterPatternMigration = try archiveFromDisk()
+            let migratedArchive = try KnittingReminderMigrator.migrate(archiveAfterPatternMigration)
+            if KnittingReminderMigrator.needsMigration(archiveAfterPatternMigration) {
+                try archiveWrite(try JSONEncoder().encode(migratedArchive), url)
+            }
+            decoded = try decode(archive: migratedArchive)
         } catch {
             loadError = .unreadableArchive
             throw ProjectStoreError.unreadableArchive

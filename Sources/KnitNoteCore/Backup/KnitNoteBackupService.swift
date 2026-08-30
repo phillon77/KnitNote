@@ -427,29 +427,57 @@ public struct KnitNoteBackupService: Sendable {
             try afterStageCopy(stagedRoot)
             try validatePackageSizes(stagedRoot)
             try validateDataTopLevel(stagedData)
+            let archiveURL = stagedData.appendingPathComponent("projects-v1.json")
             let archive: ProjectArchive
             do {
                 archive = try JSONDecoder().decode(
                     ProjectArchive.self,
-                    from: Data(contentsOf: stagedData.appendingPathComponent("projects-v1.json"))
+                    from: Data(contentsOf: archiveURL)
                 )
             } catch {
                 throw KnitNoteBackupError.invalidArchive
             }
             try validateArchive(archive)
-            guard preview.projectCount == archive.projects.count,
-                  preview.yarnCount == archive.yarns.count,
+            let requiresPatternMigration = archive.version < ProjectArchive.currentVersion
+            if requiresPatternMigration {
+                try PatternLibraryMigrator(
+                    patternFolderNameContext: patternFolderNameContext
+                ).migrateOnDisk(archiveURL: archiveURL)
+                let transactionRoot = stagedData.appendingPathComponent(
+                    ".KnitNote-PatternMigrations",
+                    isDirectory: true
+                )
+                if FileManager.default.fileExists(atPath: transactionRoot.path) {
+                    try FileManager.default.removeItem(at: transactionRoot)
+                }
+            }
+            let archiveAfterPatternMigration = try JSONDecoder().decode(
+                ProjectArchive.self,
+                from: Data(contentsOf: archiveURL)
+            )
+            let requiresMigration = KnittingReminderMigrator.needsMigration(archiveAfterPatternMigration)
+            let migratedArchive = try KnittingReminderMigrator.migrate(archiveAfterPatternMigration)
+            let stagedManifest = requiresPatternMigration || requiresMigration
+                ? try manifestAfterMigratingArchive(
+                    manifest,
+                    archive: migratedArchive,
+                    archiveURL: archiveURL
+                )
+                : manifest
+            try validateArchive(migratedArchive)
+            guard preview.projectCount == migratedArchive.projects.count,
+                  preview.yarnCount == migratedArchive.yarns.count,
                   manifest.formatVersion == 1
-                    || preview.patternCount == patternCount(in: archive) else {
+                    || preview.patternCount == patternCount(in: migratedArchive) else {
                 throw KnitNoteBackupError.countMismatch
             }
-            try validateDataTree(stagedData, archive: archive)
-            try validateManifestFiles(manifest, in: stagedData)
+            try validateDataTree(stagedData, archive: migratedArchive)
+            try validateManifestFiles(stagedManifest, in: stagedData)
             try verifyStagedTreeIsWritable(stagedData)
             return StagedKnitNoteBackup(
                 root: stagedRoot,
                 preview: preview,
-                manifest: manifest
+                manifest: stagedManifest
             )
         } catch {
             try? FileManager.default.removeItem(at: stagedRoot)
@@ -946,6 +974,27 @@ public struct KnitNoteBackupService: Sendable {
         try validateDataTree(dataRoot, archive: archive)
         try validateManifestFiles(manifest, in: dataRoot)
         try verifyStagedTreeIsWritable(dataRoot)
+    }
+
+    private func manifestAfterMigratingArchive(
+        _ manifest: KnitNoteBackupManifest,
+        archive: ProjectArchive,
+        archiveURL: URL
+    ) throws -> KnitNoteBackupManifest {
+        let archiveData = try JSONEncoder().encode(archive)
+        try archiveData.write(to: archiveURL, options: .atomic)
+        guard manifest.formatVersion == 2 else { return manifest }
+        let files = try manifestFiles(in: archiveURL.deletingLastPathComponent())
+        return KnitNoteBackupManifest(
+            formatVersion: manifest.formatVersion,
+            createdAt: manifest.createdAt,
+            appVersion: manifest.appVersion,
+            projectCount: manifest.projectCount,
+            yarnCount: manifest.yarnCount,
+            patternCount: manifest.patternCount,
+            files: files,
+            criticalFeatures: manifest.criticalFeatures
+        )
     }
 
     private func readLiveRegularFileBounded(
@@ -2108,6 +2157,13 @@ public struct KnitNoteBackupService: Sendable {
         }
         guard ProjectArchive.isSupported(version: archive.version) else {
             throw KnitNoteBackupError.invalidArchive
+        }
+        if archive.version >= ProjectArchive.knittingRemindersIntroducedVersion {
+            do {
+                try KnittingReminderMigrator.validate(archive)
+            } catch {
+                throw KnitNoteBackupError.invalidArchive
+            }
         }
         guard Set(archive.projects.map(\.id)).count == archive.projects.count,
               Set(archive.yarns.map(\.id)).count == archive.yarns.count,

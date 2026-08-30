@@ -81,17 +81,20 @@ public struct ProjectCounter: Identifiable, Codable, Hashable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let reminder: CounterReminder?
-        do {
-            reminder = try container.decodeIfPresent(CounterReminder.self, forKey: .reminder)
-        } catch {
-            reminder = nil
+        let value = try container.decode(Int.self, forKey: .value)
+        let reminder = try container.decodeIfPresent(CounterReminder.self, forKey: .reminder)
+        if let reminder, !CounterReminder.isValid(reminder, at: value) {
+            throw DecodingError.dataCorruptedError(
+                forKey: .reminder,
+                in: container,
+                debugDescription: "Counter reminder is invalid."
+            )
         }
         self.init(
             id: try container.decode(UUID.self, forKey: .id),
             defaultOrdinal: try container.decode(Int.self, forKey: .defaultOrdinal),
             customName: try container.decodeIfPresent(String.self, forKey: .customName),
-            value: try container.decode(Int.self, forKey: .value),
+            value: value,
             mutationRevision: try container.decodeIfPresent(
                 UInt64.self,
                 forKey: .mutationRevision

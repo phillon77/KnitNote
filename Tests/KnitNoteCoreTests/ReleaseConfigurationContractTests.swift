@@ -31,12 +31,12 @@ import Testing
 
         #expect(schema == """
         extension ProjectArchive {
-            public static let currentVersion = 13
+            public static let currentVersion = 14
         }
 
         """)
         #expect(!archive.contains("static let currentVersion"))
-        #expect(ProjectArchive.currentVersion == 13)
+        #expect(ProjectArchive.currentVersion == 14)
         #expect(backupManifest.contains("static let currentFormatVersion = 2"))
     }
 

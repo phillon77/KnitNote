@@ -130,7 +130,7 @@ import UniformTypeIdentifiers
             ProjectArchive.self,
             from: Data(contentsOf: staged.root.appendingPathComponent("Data/projects-v1.json"))
         )
-        #expect(stagedArchive.version == 10)
+        #expect(stagedArchive.version == 14)
 
         let installation = try restoreService.install(staged)
         restoreService.commit(installation)
@@ -138,7 +138,7 @@ import UniformTypeIdentifiers
         #expect(try JSONDecoder().decode(
             ProjectArchive.self,
             from: Data(contentsOf: installedArchiveURL)
-        ).version == 10)
+        ).version == 14)
 
         let restoredStore = JSONProjectStore(url: installedArchiveURL)
         let migratedArchive = try JSONDecoder().decode(
@@ -901,7 +901,7 @@ import UniformTypeIdentifiers
     }
 
     @Test func projectArchiveDeclaresSharedCurrentAndSupportedLegacyVersions() {
-        #expect(ProjectArchive.currentVersion == 13)
+        #expect(ProjectArchive.currentVersion == 14)
         #expect(ProjectArchive.minimumSupportedVersion == 1)
         for version in 1...11 {
             #expect(ProjectArchive.isSupported(version: version))
@@ -917,7 +917,7 @@ import UniformTypeIdentifiers
         #expect(ProjectArchive.supportsPatternLibrary(version: 11))
         #expect(ProjectArchive.supportsPatternLibrary(version: 12))
         #expect(ProjectArchive.supportsPatternLibrary(version: 13))
-        #expect(!ProjectArchive.supportsPatternLibrary(version: 14))
+        #expect(ProjectArchive.supportsPatternLibrary(version: 14))
     }
 
     @Test func supportedLegacyProjectArchiveIsAcceptedDuringInspection() throws {

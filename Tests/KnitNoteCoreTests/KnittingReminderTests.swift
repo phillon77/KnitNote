@@ -44,9 +44,12 @@ import Testing
         reminder = try reminder.applying(.deferOnce(occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision))
 
         #expect(reminder.visibleOccurrences(at: 20).isEmpty)
-        #expect(reminder.visibleOccurrences(at: 21).first?.phase == .deferredOnce)
+        let nextRow = KnittingReminderEvaluator.evaluate(oldValue: 20, newValue: 21, reminders: [reminder])
+        let reappeared = try #require(nextRow.reminders.first)
+        #expect(nextRow.pending.map(\.id) == [occurrence.id])
+        #expect(reappeared.visibleOccurrences(at: 21).first?.phase == .deferredOnce)
         #expect(throws: KnittingReminderMutationError.alreadyDeferred) {
-            try reminder.applying(.deferOnce(occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision))
+            try reappeared.applying(.deferOnce(occurrenceID: occurrence.id, observedRevision: reappeared.mutationRevision))
         }
     }
 
@@ -232,5 +235,77 @@ import Testing
         #expect(throws: KnittingReminderMutationError.revisionExhausted) {
             try exhausted.applying(.complete(occurrenceID: occurrence.id, observedRevision: .max))
         }
+    }
+
+    @Test func resetAndRehandledOccurrenceRoundTripsThroughCodable() throws {
+        var reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .oneTime(kind: .measure, target: 6, text: nil),
+            createdAt: .now
+        ))
+        reminder = try reminder.applying(.trigger(through: 6))
+        let first = try #require(reminder.progress.pending.first)
+        reminder = try reminder.applying(.skip(occurrenceID: first.id, observedRevision: reminder.mutationRevision))
+        reminder = try reminder.applying(.resetLatest(observedRevision: reminder.mutationRevision))
+        let reset = try #require(reminder.progress.pending.first)
+        reminder = try reminder.applying(.complete(occurrenceID: reset.id, observedRevision: reminder.mutationRevision))
+
+        let decoded = try JSONDecoder().decode(KnittingReminder.self, from: JSONEncoder().encode(reminder))
+        #expect(decoded == reminder)
+        #expect(decoded.progress.scheduledCount == 1)
+        #expect(decoded.progress.skippedCount == 1)
+        #expect(decoded.progress.completedCount == 1)
+    }
+
+    @Test func deferredOccurrenceReappearsOnTheNextUpwardChangeAfterADecrease() throws {
+        let reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .oneTime(kind: .changeYarn, target: 12, text: nil),
+            createdAt: .now
+        ))
+        let jumped = KnittingReminderEvaluator.evaluate(oldValue: 10, newValue: 35, reminders: [reminder])
+        var deferred = try #require(jumped.reminders.first)
+        let occurrence = try #require(deferred.progress.pending.first)
+        deferred = try deferred.applying(.deferOnce(
+            occurrenceID: occurrence.id,
+            observedRevision: deferred.mutationRevision
+        ))
+
+        let decreased = KnittingReminderEvaluator.evaluate(oldValue: 35, newValue: 0, reminders: [deferred])
+        let afterDecrease = try #require(decreased.reminders.first)
+        #expect(afterDecrease.visibleOccurrences(at: 0).isEmpty)
+
+        let nextIncrease = KnittingReminderEvaluator.evaluate(oldValue: 0, newValue: 1, reminders: [afterDecrease])
+        let reappeared = try #require(nextIncrease.reminders.first)
+        #expect(nextIncrease.pending.map(\.id) == [occurrence.id])
+        #expect(reappeared.visibleOccurrences(at: 1).first?.phase == .deferredOnce)
+        #expect(throws: KnittingReminderMutationError.alreadyDeferred) {
+            try reappeared.applying(.deferOnce(
+                occurrenceID: occurrence.id,
+                observedRevision: reappeared.mutationRevision
+            ))
+        }
+    }
+
+    @Test func evaluatorReportsRevisionExhaustionWithoutSilentlyDiscardingTheUpdate() throws {
+        var reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .oneTime(kind: .buttonhole, target: 4, text: nil),
+            createdAt: .now
+        ))
+        reminder = try reminder.applying(.trigger(through: 4))
+        let encoded = try JSONEncoder().encode(reminder)
+        let source = try #require(String(data: encoded, encoding: .utf8))
+        let exhaustedData = try #require(source.replacingOccurrences(
+            of: "\"mutationRevision\":1",
+            with: "\"mutationRevision\":18446744073709551615"
+        ).data(using: .utf8))
+        let exhausted = try JSONDecoder().decode(KnittingReminder.self, from: exhaustedData)
+
+        let result = KnittingReminderEvaluator.evaluate(oldValue: 4, newValue: 5, reminders: [exhausted])
+
+        #expect(result.rejectedReminderIDs == [exhausted.id])
+        #expect(result.reminders == [exhausted])
+        #expect(result.pending.isEmpty)
     }
 }

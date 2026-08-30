@@ -21,6 +21,7 @@ public struct KnittingReminderOccurrence: Identifiable, Codable, Hashable, Senda
     public let originalTarget: Int
     public var displayAt: Int
     public var phase: KnittingReminderOccurrencePhase
+    public var awaitsNextUpwardChange: Bool
 }
 
 public enum KnittingReminderAction: Sendable {
@@ -99,6 +100,16 @@ public struct KnittingReminderProgress: Codable, Hashable, Sendable {
         pending[index] = occurrence
     }
 
+    mutating func releaseDeferredOccurrences(at counterValue: Int) -> [UUID] {
+        var releasedIDs = [UUID]()
+        for index in pending.indices where pending[index].awaitsNextUpwardChange {
+            pending[index].awaitsNextUpwardChange = false
+            pending[index].displayAt = counterValue
+            releasedIDs.append(pending[index].id)
+        }
+        return releasedIDs
+    }
+
     mutating func removePending(id: UUID, wasSkipped: Bool) throws -> KnittingReminderOccurrence? {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return nil }
         let (updatedCount, overflow) = (wasSkipped ? skippedCount : completedCount).addingReportingOverflow(1)
@@ -118,7 +129,8 @@ public struct KnittingReminderProgress: Codable, Hashable, Sendable {
             text: latestHandled.text,
             originalTarget: latestHandled.originalTarget,
             displayAt: latestHandled.originalTarget,
-            phase: .initial
+            phase: .initial,
+            awaitsNextUpwardChange: false
         )
         pending.append(occurrence)
         self.latestHandled = nil
@@ -157,6 +169,7 @@ public enum KnittingReminderMutationError: Error, Equatable, Sendable {
 public struct KnittingReminderEvaluationResult: Equatable, Sendable {
     public let reminders: [KnittingReminder]
     public let pending: [KnittingReminderOccurrence]
+    public let rejectedReminderIDs: [UUID]
 }
 
 public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
@@ -270,7 +283,8 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
 
     public func visibleOccurrences(at counterValue: Int) -> [KnittingReminderOccurrence] {
         progress.pending.filter { occurrence in
-            occurrence.phase == .initial || occurrence.displayAt <= counterValue
+            occurrence.phase == .initial
+                || (!occurrence.awaitsNextUpwardChange && occurrence.displayAt <= counterValue)
         }
     }
 
@@ -286,7 +300,8 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
                 text: text,
                 originalTarget: scheduledTarget,
                 displayAt: scheduledTarget,
-                phase: .initial
+                phase: .initial,
+                awaitsNextUpwardChange: false
             )
             let (scheduledCount, countOverflow) = progress.scheduledCount.addingReportingOverflow(1)
             guard !countOverflow else {
@@ -312,6 +327,7 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
 
         var didChange = false
         if newValue > oldValue {
+            didChange = !progress.releaseDeferredOccurrences(at: newValue).isEmpty
             while let staleTarget = progress.nextTarget, staleTarget <= oldValue {
                 advanceCandidate()
                 didChange = true
@@ -325,7 +341,8 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
                     text: text,
                     originalTarget: scheduledTarget,
                     displayAt: scheduledTarget,
-                    phase: .initial
+                    phase: .initial,
+                    awaitsNextUpwardChange: false
                 )
                 let (scheduledCount, countOverflow) = progress.scheduledCount.addingReportingOverflow(1)
                 guard !countOverflow else {
@@ -389,6 +406,7 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         try incrementRevisionIfNeeded(true)
         occurrence.displayAt = displayAt
         occurrence.phase = .deferredOnce
+        occurrence.awaitsNextUpwardChange = true
         progress.replacePending(occurrence)
     }
 
@@ -432,8 +450,6 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
               progress.nextOccurrenceIndex > 0,
               progress.nextTarget.map({ $0 >= 0 }) ?? true,
               progress.lastObservedCounterValue.map({ $0 >= 0 }) ?? true,
-              progress.completedCount.addingReportingOverflow(progress.skippedCount).overflow == false,
-              progress.completedCount + progress.skippedCount <= progress.scheduledCount,
               progress.pending.count <= progress.scheduledCount,
               progress.pending.allSatisfy(isValidOccurrence),
               progress.latestHandled.map(isValidOccurrence) ?? true,
@@ -453,14 +469,14 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
               occurrence.kind == kind,
               occurrence.text == text,
               occurrence.originalTarget >= 0,
-              occurrence.displayAt >= occurrence.originalTarget
+              occurrence.displayAt >= 0
         else { return false }
 
         switch occurrence.phase {
         case .initial:
-            return occurrence.displayAt == occurrence.originalTarget
+            return occurrence.displayAt == occurrence.originalTarget && !occurrence.awaitsNextUpwardChange
         case .deferredOnce:
-            return occurrence.displayAt > occurrence.originalTarget
+            return true
         }
     }
 
@@ -486,15 +502,22 @@ public enum KnittingReminderEvaluator {
         reminders: [KnittingReminder]
     ) -> KnittingReminderEvaluationResult {
         var pendingWithOrdering = [(occurrence: KnittingReminderOccurrence, createdAt: Date)]()
+        var rejectedReminderIDs = [UUID]()
         let updatedReminders = reminders.map { reminder -> KnittingReminder in
-            let pendingIDs = Set(reminder.progress.pending.map(\.id))
+            let priorPending = Dictionary(uniqueKeysWithValues: reminder.progress.pending.map { ($0.id, $0) })
             var candidate = reminder
-            guard (try? candidate.evaluateCounterChange(from: oldValue, to: newValue)) != nil else {
+            do {
+                try candidate.evaluateCounterChange(from: oldValue, to: newValue)
+            } catch {
+                rejectedReminderIDs.append(reminder.id)
                 return reminder
             }
             let updated = candidate
             pendingWithOrdering += updated.progress.pending
-                .filter { !pendingIDs.contains($0.id) }
+                .filter { occurrence in
+                    guard let previous = priorPending[occurrence.id] else { return true }
+                    return previous.awaitsNextUpwardChange && !occurrence.awaitsNextUpwardChange
+                }
                 .map { ($0, updated.createdAt) }
             return updated
         }
@@ -511,7 +534,11 @@ public enum KnittingReminderEvaluator {
             }
             .map(\.occurrence)
 
-        return KnittingReminderEvaluationResult(reminders: updatedReminders, pending: pending)
+        return KnittingReminderEvaluationResult(
+            reminders: updatedReminders,
+            pending: pending,
+            rejectedReminderIDs: rejectedReminderIDs
+        )
     }
 }
 

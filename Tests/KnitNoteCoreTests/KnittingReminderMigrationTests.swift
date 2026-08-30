@@ -238,4 +238,43 @@ import Testing
         #expect(stagedArchive.projects[0].counters[0].reminder == nil)
         #expect(stagedArchive.projects[0].knittingReminders[0].counterID == counterID)
     }
+
+    @Test func compatibilityAdapterRejectsSecondaryCreationAndPreservesIndependentRules() throws {
+        let projectID = UUID()
+        let counters = (1...6).map { ProjectCounter(defaultOrdinal: $0) }
+        var project = try StoredProject(id: projectID, name: "Adapter", counters: counters)
+        let secondaryID = project.counters[1].id
+
+        #expect(!project.configureCounterReminderV14(
+            id: secondaryID,
+            draft: .oneTime(target: 2, message: "Secondary")
+        ))
+        #expect(project.knittingReminders.isEmpty)
+
+        let mainID = project.mainCounterID
+        let first = try #require(KnittingReminder(
+            counterID: mainID,
+            draft: .oneTime(kind: .custom, target: 2, text: "First"),
+            createdAt: .now
+        ))
+        let second = try #require(KnittingReminder(
+            counterID: mainID,
+            draft: .oneTime(kind: .measure, target: 3, text: "Second"),
+            createdAt: .now
+        ))
+        project = try StoredProject(
+            id: projectID,
+            name: "Adapter",
+            counters: project.counters,
+            knittingReminders: [first, second]
+        )
+
+        #expect(project.manageCounter(
+            id: mainID,
+            name: nil,
+            value: 0,
+            reminder: .replace(.oneTime(target: 4, message: "Ambiguous"))
+        ) == nil)
+        #expect(project.knittingReminders.map(\.id) == [first.id, second.id])
+    }
 }

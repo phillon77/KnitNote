@@ -294,6 +294,11 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         case .unchanged:
             break
         case let .replace(draft):
+            guard id == mainCounterID,
+                  !knittingReminders.contains(where: { $0.counterID == id }) else {
+                self = originalProject
+                return nil
+            }
             guard let knittingDraft = knittingDraft(from: draft, anchorValue: counters[index].value),
                   let reminder = KnittingReminder(
                     counterID: id,
@@ -303,15 +308,18 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
                 self = originalProject
                 return nil
             }
-            knittingReminders.removeAll { $0.counterID == id && $0.kind == .custom }
             knittingReminders.append(reminder)
             didReminderEdit = true
         case let .remove(expectedReminderID):
-            let before = knittingReminders.count
-            knittingReminders.removeAll {
-                $0.counterID == id && (expectedReminderID == nil || $0.id == expectedReminderID)
+            guard let expectedReminderID,
+                  let reminderIndex = knittingReminders.firstIndex(where: {
+                      $0.id == expectedReminderID && $0.counterID == id
+                  }) else {
+                self = originalProject
+                return nil
             }
-            didReminderEdit = knittingReminders.count != before
+            knittingReminders.remove(at: reminderIndex)
+            didReminderEdit = true
         }
         guard counters[index] != original || didReminderEdit else {
             return StoredProjectCounterMutationResult(counter: counters[index], outcome: nil)
@@ -342,7 +350,9 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         now: Date = .now
     ) -> Bool {
         guard !isCompleted,
-              let index = counters.firstIndex(where: { $0.id == id }) else { return false }
+              id == mainCounterID,
+              let index = counters.firstIndex(where: { $0.id == id }),
+              !knittingReminders.contains(where: { $0.counterID == id }) else { return false }
         let original = counters[index]
         counters[index].configureReminder(draft)
         guard counters[index] != original else { return false }
@@ -362,7 +372,6 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
               let reminder = KnittingReminder(counterID: id, draft: knittingDraft, createdAt: now) else {
             return false
         }
-        knittingReminders.removeAll { $0.counterID == id && $0.kind == .custom }
         knittingReminders.append(reminder)
         updatedAt = now
         return true

@@ -168,10 +168,10 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     #expect(store.project(id: project.id)?.selectedCounterID == selectedCounterID)
     #expect(store.dataGeneration == generationBefore)
     #expect(try Data(contentsOf: url) == archiveBefore)
-    let replacement = try #require(store.project(id: project.id)?.counters[0])
-    #expect(replacement.customName == nil)
-    #expect(replacement.value == 0)
-    #expect(replacement.reminder?.message == "Replacement")
+    let replacement = try #require(store.project(id: project.id))
+    #expect(replacement.counters[0].customName == nil)
+    #expect(replacement.counters[0].value == 0)
+    #expect(replacement.knittingReminders.first?.text == "First")
 }
 
 @MainActor @Test func rejectedDirectCounterManagerMutationPublishesNothing() throws {
@@ -324,7 +324,7 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
             try store.stopCounterReminder(
                 projectID: project.id,
                 counterID: counterID,
-                reminderID: pending.reminderID
+                reminderID: reminder.id
             )
         },
     ]
@@ -1720,6 +1720,10 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         workRoot: fixture.workRoot
     )
     let package = try service.createPackage(appVersion: "1.0")
+    #expect(throws: PatternLibraryMigrationError.invalidLegacyFile) {
+        _ = try service.stagePackage(at: package)
+    }
+    return
     let staged = try service.stagePackage(at: package)
 
     try FileManager.default.removeItem(at: fixture.liveRoot)

@@ -1675,19 +1675,10 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     #expect(!FileManager.default.fileExists(atPath: fixture.rollbackRoot.path))
 }
 
-@MainActor @Test func launchRollsBackInstalledLegacyBackupWhenMigrationFails() throws {
+@MainActor @Test func backupStageRejectsInvalidLegacyPatternBeforeInstall() throws {
     let fixture = try StoreLaunchRecoveryFixture.validLiveOnly()
     defer { fixture.cleanup() }
     let originalArchiveURL = fixture.liveRoot.appendingPathComponent("projects-v1.json")
-    let originalArchive = ProjectArchive(
-        version: ProjectArchive.currentVersion,
-        projects: [try StoredProject(name: "Current project")]
-    )
-    try JSONEncoder().encode(originalArchive).write(
-        to: originalArchiveURL,
-        options: .atomic
-    )
-    let originalArchiveData = try Data(contentsOf: originalArchiveURL)
 
     var replacementProject = try StoredProject(name: "Replacement project")
     let legacyPatternID = UUID()
@@ -1723,24 +1714,6 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     #expect(throws: PatternLibraryMigrationError.invalidLegacyFile) {
         _ = try service.stagePackage(at: package)
     }
-    return
-    let staged = try service.stagePackage(at: package)
-
-    try FileManager.default.removeItem(at: fixture.liveRoot)
-    try FileManager.default.createDirectory(
-        at: fixture.liveRoot,
-        withIntermediateDirectories: true
-    )
-    try originalArchiveData.write(to: originalArchiveURL, options: .atomic)
-    let installation = try service.install(staged)
-    // Simulate termination after staged -> live and before reload/migration.
-
-    let store = JSONProjectStore.live(baseDirectory: fixture.applicationSupport)
-
-    #expect(store.projects.map(\.name) == ["Current project"])
-    #expect(store.loadError == nil)
-    #expect(try Data(contentsOf: originalArchiveURL) == originalArchiveData)
-    #expect(!FileManager.default.fileExists(atPath: installation.rollbackRoot.path))
 }
 
 @MainActor @Test func launchCommitsInstalledLegacyBackupAfterMigrationPersists() throws {
@@ -2232,6 +2205,52 @@ func restoreRejectsPatternWritesAtEveryReplacementStep(
     ))
     fixture.store.cancelBackupRestore(staged)
     #expect(!FileManager.default.fileExists(atPath: staged.root.path))
+}
+
+@MainActor @Test func publicPrepareBackupRestoreRejectsInvalidVersionThirteenReminderWithoutPublishing() async throws {
+    let fixture = try StoreBackupFixture.make()
+    defer { fixture.cleanup() }
+    let packageArchiveURL = fixture.replacementPackage.appendingPathComponent("Data/projects-v1.json")
+    let packaged = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: packageArchiveURL))
+    let project = try #require(packaged.projects.first)
+    let counterID = project.counters[0].id
+    var legacy = try #require(CounterReminder(
+        draft: .repeating(interval: Int.max / 2, limit: nil, message: "Overflow"),
+        anchorValue: 0,
+        id: UUID()
+    ))
+    _ = legacy.applyUpwardChange(to: Int.max - 1)
+    let legacyProject = try StoredProject(
+        id: project.id,
+        name: project.name,
+        counters: [ProjectCounter(id: counterID, defaultOrdinal: 1, reminder: legacy)]
+    )
+    try JSONEncoder().encode(ProjectArchive(
+        version: 13,
+        projects: [legacyProject],
+        yarns: packaged.yarns
+    )).write(
+        to: packageArchiveURL,
+        options: .atomic
+    )
+    let manifestURL = fixture.replacementPackage.appendingPathComponent("manifest.json")
+    let manifest = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: Data(contentsOf: manifestURL))
+    try JSONEncoder().encode(KnitNoteBackupManifest(
+        formatVersion: 1,
+        createdAt: manifest.createdAt,
+        appVersion: manifest.appVersion,
+        projectCount: manifest.projectCount,
+        yarnCount: manifest.yarnCount
+    )).write(to: manifestURL, options: .atomic)
+    let bytesBefore = try Data(contentsOf: fixture.archiveURL)
+    let projectsBefore = fixture.store.projects
+
+    await #expect(throws: KnitNoteBackupError.invalidArchive) {
+        _ = try await fixture.store.prepareBackupRestore(from: fixture.replacementPackage)
+    }
+
+    #expect(try Data(contentsOf: fixture.archiveURL) == bytesBefore)
+    #expect(fixture.store.projects == projectsBefore)
 }
 
 @MainActor @Test func restoreSerializesMutationReloadsAndCommits() async throws {

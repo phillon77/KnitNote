@@ -1030,7 +1030,7 @@ final class PatternLibraryDeletionTransaction {
     ) throws {
         try requireAccess(.changeCounter)
         try mutateActiveCounterProject(id: projectID) {
-            $0.configureCounterReminder(id: counterID, draft: draft)
+            $0.configureCounterReminderV14(id: counterID, draft: draft)
         }
     }
     public func completeCounterReminder(

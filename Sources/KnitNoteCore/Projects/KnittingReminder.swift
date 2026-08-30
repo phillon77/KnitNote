@@ -479,6 +479,8 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
               progress.pending.allSatisfy(isValidOccurrence),
               progress.latestHandled.map(isValidOccurrence) ?? true,
               progress.latestHandled.map({ !pendingIDs.contains($0.id) }) ?? true,
+              progress.pending.allSatisfy({ occurrenceIsScheduledByRule($0) }),
+              progress.latestHandled.map(occurrenceIsScheduledByRule) ?? true,
               hasConsistentNextTarget
         else { return false }
 
@@ -502,7 +504,34 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         case .initial:
             return occurrence.displayAt == occurrence.originalTarget && !occurrence.awaitsNextUpwardChange
         case .deferredOnce:
-            return true
+            if occurrence.awaitsNextUpwardChange {
+                return occurrence.displayAt > occurrence.originalTarget
+            }
+            return occurrence.displayAt >= occurrence.originalTarget
+        }
+    }
+
+    private func occurrenceIsScheduledByRule(_ occurrence: KnittingReminderOccurrence) -> Bool {
+        guard let occurrenceIndex = occurrenceIndex(for: occurrence.originalTarget),
+              occurrenceIndex < progress.nextOccurrenceIndex else {
+            return false
+        }
+        return true
+    }
+
+    private func occurrenceIndex(for target: Int) -> Int? {
+        switch rule {
+        case let .oneTime(expectedTarget):
+            return target == expectedTarget ? 1 : nil
+        case let .repeating(firstTarget, interval, limit):
+            guard target >= firstTarget else { return nil }
+            let difference = target - firstTarget
+            guard difference % interval == 0 else { return nil }
+            let (index, overflow) = difference.quotientAndRemainder(dividingBy: interval)
+                .quotient.addingReportingOverflow(1)
+            guard !overflow,
+                  limit.map({ index <= $0 }) ?? true else { return nil }
+            return index
         }
     }
 

@@ -440,9 +440,13 @@ public struct KnitNoteBackupService: Sendable {
             try validateArchive(archive)
             let requiresPatternMigration = archive.version < ProjectArchive.currentVersion
             if requiresPatternMigration {
-                try PatternLibraryMigrator(
-                    patternFolderNameContext: patternFolderNameContext
-                ).migrateOnDisk(archiveURL: archiveURL)
+                do {
+                    try PatternLibraryMigrator(
+                        patternFolderNameContext: patternFolderNameContext
+                    ).migrateOnDisk(archiveURL: archiveURL)
+                } catch is KnittingReminderMigrationError {
+                    throw KnitNoteBackupError.invalidArchive
+                }
                 let transactionRoot = stagedData.appendingPathComponent(
                     ".KnitNote-PatternMigrations",
                     isDirectory: true
@@ -456,7 +460,12 @@ public struct KnitNoteBackupService: Sendable {
                 from: Data(contentsOf: archiveURL)
             )
             let requiresMigration = KnittingReminderMigrator.needsMigration(archiveAfterPatternMigration)
-            let migratedArchive = try KnittingReminderMigrator.migrate(archiveAfterPatternMigration)
+            let migratedArchive: ProjectArchive
+            do {
+                migratedArchive = try KnittingReminderMigrator.migrate(archiveAfterPatternMigration)
+            } catch is KnittingReminderMigrationError {
+                throw KnitNoteBackupError.invalidArchive
+            }
             let stagedManifest = requiresPatternMigration || requiresMigration
                 ? try manifestAfterMigratingArchive(
                     manifest,

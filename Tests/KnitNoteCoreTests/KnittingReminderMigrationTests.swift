@@ -125,6 +125,19 @@ import Testing
         #expect(installed.projects == store.projects)
         #expect(installed.projects[0].counters[0].reminder == nil)
         #expect(installed.projects[0].knittingReminders[0].counterID == counterID)
+
+        _ = try store.updateCounter(
+            projectID: project.id,
+            counterID: counterID,
+            name: "Body",
+            value: 1
+        )
+        let reloadedArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: archiveURL)
+        )
+        #expect(reloadedArchive.projects[0].counters.allSatisfy { $0.reminder == nil })
+        #expect(JSONProjectStore(url: archiveURL).loadError == nil)
     }
 
     @Test func startupPersistenceFailureLeavesLegacyArchiveAndPublishedStateUnchanged() throws {
@@ -162,5 +175,67 @@ import Testing
         #expect(store.loadError == .unreadableArchive)
         #expect(store.projects.isEmpty)
         #expect(try Data(contentsOf: archiveURL) == bytesBefore)
+    }
+
+    @Test func versionThirteenBackupStagesReminderMigrationWithoutChangingManifestSummary() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KnittingReminderBackupMigration-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let live = root.appendingPathComponent("Live")
+        let work = root.appendingPathComponent("Work")
+        try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
+        let projectID = UUID()
+        let counterID = UUID()
+        let baseline = try StoredProject(
+            id: projectID,
+            name: "Backup",
+            counters: [ProjectCounter(id: counterID, defaultOrdinal: 1)]
+        )
+        let archiveURL = live.appendingPathComponent("projects-v1.json")
+        try JSONEncoder().encode(ProjectArchive(version: 14, projects: [baseline])).write(
+            to: archiveURL,
+            options: .atomic
+        )
+        let service = KnitNoteBackupService(liveRoot: live, workRoot: work)
+        let package = try service.createPackage(appVersion: "test")
+        let legacy = try #require(CounterReminder(
+            draft: .oneTime(target: 4, message: "Bind off"),
+            anchorValue: 0,
+            id: UUID()
+        ))
+        let legacyProject = try StoredProject(
+            id: projectID,
+            name: "Backup",
+            counters: [ProjectCounter(id: counterID, defaultOrdinal: 1, reminder: legacy)]
+        )
+        try JSONEncoder().encode(ProjectArchive(version: 13, projects: [legacyProject])).write(
+            to: package.appendingPathComponent("Data/projects-v1.json"),
+            options: .atomic
+        )
+        let manifestURL = package.appendingPathComponent("manifest.json")
+        let manifest = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: Data(contentsOf: manifestURL))
+        try JSONEncoder().encode(KnitNoteBackupManifest(
+            formatVersion: 1,
+            createdAt: manifest.createdAt,
+            appVersion: manifest.appVersion,
+            projectCount: manifest.projectCount,
+            yarnCount: manifest.yarnCount
+        )).write(to: manifestURL, options: .atomic)
+
+        let restore = KnitNoteBackupService(
+            liveRoot: root.appendingPathComponent("Restore"),
+            workRoot: root.appendingPathComponent("RestoreWork")
+        )
+        let staged = try restore.stagePackage(at: package)
+        let stagedArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: staged.root.appendingPathComponent("Data/projects-v1.json"))
+        )
+
+        #expect(staged.preview.projectCount == manifest.projectCount)
+        #expect(staged.preview.yarnCount == manifest.yarnCount)
+        #expect(stagedArchive.version == 14)
+        #expect(stagedArchive.projects[0].counters[0].reminder == nil)
+        #expect(stagedArchive.projects[0].knittingReminders[0].counterID == counterID)
     }
 }

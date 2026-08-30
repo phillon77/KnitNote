@@ -216,6 +216,56 @@ import Testing
         }
     }
 
+    @Test func decodingRejectsDuplicatePendingOccurrenceIDs() throws {
+        var reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .repeating(kind: .cable, firstTarget: 4, interval: 3, limit: nil, text: nil),
+            createdAt: .now
+        ))
+        reminder = try reminder.applying(.trigger(through: 7))
+
+        let data = try JSONEncoder().encode(reminder)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var progress = try #require(object["progress"] as? [String: Any])
+        var pending = try #require(progress["pending"] as? [[String: Any]])
+        let firstID = try #require(pending.first?["id"])
+        #expect(pending.count == 2)
+        pending[1]["id"] = firstID
+        progress["pending"] = pending
+        object["progress"] = progress
+
+        let corrupt = try JSONSerialization.data(withJSONObject: object)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(KnittingReminder.self, from: corrupt)
+        }
+    }
+
+    @Test func decodingRejectsPendingAndLatestHandledOccurrenceIDCollision() throws {
+        var reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .repeating(kind: .cable, firstTarget: 4, interval: 3, limit: nil, text: nil),
+            createdAt: .now
+        ))
+        reminder = try reminder.applying(.trigger(through: 7))
+        let first = try #require(reminder.progress.pending.first)
+        reminder = try reminder.applying(.skip(occurrenceID: first.id, observedRevision: reminder.mutationRevision))
+
+        let data = try JSONEncoder().encode(reminder)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var progress = try #require(object["progress"] as? [String: Any])
+        let pending = try #require(progress["pending"] as? [[String: Any]])
+        let pendingID = try #require(pending.first?["id"])
+        var latestHandled = try #require(progress["latestHandled"] as? [String: Any])
+        latestHandled["id"] = pendingID
+        progress["latestHandled"] = latestHandled
+        object["progress"] = progress
+
+        let corrupt = try JSONSerialization.data(withJSONObject: object)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(KnittingReminder.self, from: corrupt)
+        }
+    }
+
     @Test func exhaustedRevisionRejectsMutationsWithoutWrappingToZero() throws {
         var reminder = try #require(KnittingReminder(
             counterID: UUID(),
@@ -285,6 +335,32 @@ import Testing
                 observedRevision: reappeared.mutationRevision
             ))
         }
+    }
+
+    @Test func deferredOccurrenceRoundTripsAndReleasesOnTheNextUpwardChange() throws {
+        let reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .oneTime(kind: .changeYarn, target: 12, text: nil),
+            createdAt: .now
+        ))
+        let jumped = KnittingReminderEvaluator.evaluate(oldValue: 10, newValue: 35, reminders: [reminder])
+        var deferred = try #require(jumped.reminders.first)
+        let occurrence = try #require(deferred.progress.pending.first)
+        deferred = try deferred.applying(.deferOnce(
+            occurrenceID: occurrence.id,
+            observedRevision: deferred.mutationRevision
+        ))
+
+        let decoded = try JSONDecoder().decode(KnittingReminder.self, from: JSONEncoder().encode(deferred))
+        #expect(decoded == deferred)
+        #expect(decoded.progress.pending.first?.awaitsNextUpwardChange == true)
+        #expect(decoded.visibleOccurrences(at: 35).isEmpty)
+
+        let nextIncrease = KnittingReminderEvaluator.evaluate(oldValue: 35, newValue: 36, reminders: [decoded])
+        let reappeared = try #require(nextIncrease.reminders.first)
+        #expect(nextIncrease.pending.map(\.id) == [occurrence.id])
+        #expect(reappeared.visibleOccurrences(at: 36).first?.phase == .deferredOnce)
+        #expect(reappeared.progress.pending.first?.awaitsNextUpwardChange == false)
     }
 
     @Test func evaluatorReportsRevisionExhaustionWithoutSilentlyDiscardingTheUpdate() throws {

@@ -245,10 +245,11 @@ import Testing
         var project = try StoredProject(id: projectID, name: "Adapter", counters: counters)
         let secondaryID = project.counters[1].id
 
-        #expect(!project.configureCounterReminderV14(
+        let secondaryConfigured = project.configureCounterReminderV14(
             id: secondaryID,
             draft: .oneTime(target: 2, message: "Secondary")
-        ))
+        )
+        #expect(!secondaryConfigured)
         #expect(project.knittingReminders.isEmpty)
 
         let mainID = project.mainCounterID
@@ -277,4 +278,102 @@ import Testing
         ) == nil)
         #expect(project.knittingReminders.map(\.id) == [first.id, second.id])
     }
+
+    @Test func brokenVersionThirteenBackupIsRejectedWithoutTouchingLiveTree() throws {
+        let fixture = try legacyBackupFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let packageArchiveURL = fixture.package.appendingPathComponent("Data/projects-v1.json")
+        var object = try JSONSerialization.jsonObject(with: Data(contentsOf: packageArchiveURL)) as! [String: Any]
+        var projects = object["projects"] as! [[String: Any]]
+        var counters = projects[0]["counters"] as! [[String: Any]]
+        counters[0]["id"] = UUID().uuidString
+        projects[0]["counters"] = counters
+        object["projects"] = projects
+        try JSONSerialization.data(withJSONObject: object).write(to: packageArchiveURL, options: .atomic)
+
+        #expect(throws: KnitNoteBackupError.invalidArchive) {
+            _ = try fixture.restore.stagePackage(at: fixture.package)
+        }
+        #expect(try Data(contentsOf: fixture.liveArchiveURL) == fixture.liveArchiveBytes)
+    }
+
+    @Test func overflowingVersionThirteenBackupIsRejectedWithoutTouchingLiveTree() throws {
+        let interval = Int.max / 2
+        var legacy = try #require(CounterReminder(
+            draft: .repeating(interval: interval, limit: nil, message: "Overflow"),
+            anchorValue: 0,
+            id: UUID()
+        ))
+        _ = legacy.applyUpwardChange(to: Int.max - 1)
+        let fixture = try legacyBackupFixture(reminder: legacy)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        #expect(throws: KnitNoteBackupError.invalidArchive) {
+            _ = try fixture.restore.stagePackage(at: fixture.package)
+        }
+        #expect(try Data(contentsOf: fixture.liveArchiveURL) == fixture.liveArchiveBytes)
+    }
+}
+
+@MainActor
+private func legacyBackupFixture(
+    reminder: CounterReminder? = nil
+) throws -> (root: URL, package: URL, restore: KnitNoteBackupService, liveArchiveURL: URL, liveArchiveBytes: Data) {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("KnittingReminderBackupFailure-\(UUID().uuidString)")
+    let sourceLive = root.appendingPathComponent("Source")
+    let restoreLive = root.appendingPathComponent("Restore")
+    try FileManager.default.createDirectory(at: sourceLive, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: restoreLive, withIntermediateDirectories: true)
+    let projectID = UUID()
+    let counterID = UUID()
+    let baseline = try StoredProject(
+        id: projectID,
+        name: "Backup",
+        counters: [ProjectCounter(id: counterID, defaultOrdinal: 1)]
+    )
+    let sourceArchiveURL = sourceLive.appendingPathComponent("projects-v1.json")
+    try JSONEncoder().encode(ProjectArchive(version: 14, projects: [baseline])).write(
+        to: sourceArchiveURL,
+        options: .atomic
+    )
+    let source = KnitNoteBackupService(
+        liveRoot: sourceLive,
+        workRoot: root.appendingPathComponent("SourceWork")
+    )
+    let package = try source.createPackage(appVersion: "test")
+    let legacy: CounterReminder
+    if let reminder {
+        legacy = reminder
+    } else {
+        legacy = try #require(CounterReminder(
+            draft: .oneTime(target: 4, message: "Legacy"), anchorValue: 0, id: UUID()
+        ))
+    }
+    let existingReminder = try #require(KnittingReminder(
+        counterID: counterID,
+        draft: .oneTime(kind: .measure, target: 6, text: "Existing"),
+        createdAt: .now
+    ))
+    let legacyProject = try StoredProject(
+        id: projectID,
+        name: "Backup",
+        counters: [ProjectCounter(id: counterID, defaultOrdinal: 1, reminder: legacy)],
+        knittingReminders: [existingReminder]
+    )
+    try JSONEncoder().encode(ProjectArchive(version: 13, projects: [legacyProject])).write(
+        to: package.appendingPathComponent("Data/projects-v1.json"), options: .atomic
+    )
+    let manifestURL = package.appendingPathComponent("manifest.json")
+    let manifest = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: Data(contentsOf: manifestURL))
+    try JSONEncoder().encode(KnitNoteBackupManifest(
+        formatVersion: 1, createdAt: manifest.createdAt, appVersion: manifest.appVersion,
+        projectCount: manifest.projectCount, yarnCount: manifest.yarnCount
+    )).write(to: manifestURL, options: .atomic)
+    let liveArchiveURL = restoreLive.appendingPathComponent("projects-v1.json")
+    let liveArchiveBytes = Data("original-live-archive".utf8)
+    try liveArchiveBytes.write(to: liveArchiveURL, options: .atomic)
+    return (root, package, KnitNoteBackupService(
+        liveRoot: restoreLive, workRoot: root.appendingPathComponent("RestoreWork")
+    ), liveArchiveURL, liveArchiveBytes)
 }

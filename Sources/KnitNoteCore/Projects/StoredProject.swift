@@ -350,9 +350,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         now: Date = .now
     ) -> Bool {
         guard !isCompleted,
-              id == mainCounterID,
-              let index = counters.firstIndex(where: { $0.id == id }),
-              !knittingReminders.contains(where: { $0.counterID == id }) else { return false }
+              let index = counters.firstIndex(where: { $0.id == id }) else { return false }
         let original = counters[index]
         counters[index].configureReminder(draft)
         guard counters[index] != original else { return false }
@@ -367,7 +365,9 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         now: Date = .now
     ) -> Bool {
         guard !isCompleted,
-              let index = counters.firstIndex(where: { $0.id == id }) else { return false }
+              id == mainCounterID,
+              let index = counters.firstIndex(where: { $0.id == id }),
+              !knittingReminders.contains(where: { $0.counterID == id }) else { return false }
         guard let knittingDraft = knittingDraft(from: draft, anchorValue: counters[index].value),
               let reminder = KnittingReminder(counterID: id, draft: knittingDraft, createdAt: now) else {
             return false

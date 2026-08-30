@@ -29,16 +29,27 @@ public struct StoredProjectCounterMutationResult: Equatable, Sendable {
     public let counter: ProjectCounter
     public let outcome: CounterMutationOutcome?
     public let knittingReminderOccurrences: [KnittingReminderOccurrence]
+    public let knittingReminderEvaluationError: StoredProjectCounterMutationError?
 
     public init(
         counter: ProjectCounter,
         outcome: CounterMutationOutcome?,
-        knittingReminderOccurrences: [KnittingReminderOccurrence] = []
+        knittingReminderOccurrences: [KnittingReminderOccurrence] = [],
+        knittingReminderEvaluationError: StoredProjectCounterMutationError? = nil
     ) {
         self.counter = counter
         self.outcome = outcome
         self.knittingReminderOccurrences = knittingReminderOccurrences
+        self.knittingReminderEvaluationError = knittingReminderEvaluationError
     }
+
+    public func validateKnittingReminderEvaluation() throws {
+        if let knittingReminderEvaluationError { throw knittingReminderEvaluationError }
+    }
+}
+
+public enum StoredProjectCounterMutationError: Error, Equatable, Sendable {
+    case reminderEvaluationRejected([UUID])
 }
 
 public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
@@ -166,15 +177,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         guard existing.mutationRevision == observedRevision else {
             throw KnittingReminderMutationError.staleRevision
         }
-        guard let replacement = KnittingReminder(
-            id: existing.id,
-            counterID: existing.counterID,
-            draft: draft,
-            createdAt: existing.createdAt
-        ) else {
-            throw KnittingReminderMutationError.invalidDraft
-        }
-        knittingReminders[index] = replacement
+        knittingReminders[index] = try existing.replacingRule(with: draft)
         updatedAt = now
     }
 
@@ -279,6 +282,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
            counters[index].reminder?.id != expectedReminderID {
             return nil
         }
+        let originalProject = self
         let original = counters[index]
         _ = counters[index].rename(to: name)
         let valueOutcome = counters[index].applyValue(value)
@@ -302,7 +306,6 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         guard counters[index] != original else {
             return StoredProjectCounterMutationResult(counter: counters[index], outcome: nil)
         }
-        updatedAt = now
         let persistedPending = counters[index].reminder?.pending
         let outcome = valueOutcome.map {
             CounterMutationOutcome(
@@ -311,7 +314,24 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
                 pendingReminder: $0.pendingReminder == persistedPending ? $0.pendingReminder : nil
             )
         }
-        return StoredProjectCounterMutationResult(counter: counters[index], outcome: outcome)
+        let knittingReminderEvaluation = evaluateKnittingReminders(
+            afterChanging: id,
+            outcome: outcome
+        )
+        if let error = knittingReminderEvaluation.error {
+            self = originalProject
+            return StoredProjectCounterMutationResult(
+                counter: original,
+                outcome: nil,
+                knittingReminderEvaluationError: error
+            )
+        }
+        updatedAt = now
+        return StoredProjectCounterMutationResult(
+            counter: counters[index],
+            outcome: outcome,
+            knittingReminderOccurrences: knittingReminderEvaluation.occurrences
+        )
     }
     @discardableResult
     public mutating func configureCounterReminder(
@@ -540,26 +560,45 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     ) -> StoredProjectCounterMutationResult? {
         guard !isCompleted,
               let index = counters.firstIndex(where: { $0.id == id }) else { return nil }
+        let originalProject = self
         let original = counters[index]
         let outcome = mutation(&counters[index])
-        var knittingReminderOccurrences = [KnittingReminderOccurrence]()
-        if let outcome, id == mainCounterID {
-            let result = KnittingReminderEvaluator.evaluate(
-                oldValue: outcome.oldValue,
-                newValue: outcome.newValue,
-                reminders: knittingReminders.filter { $0.counterID == id }
+        let knittingReminderEvaluation = evaluateKnittingReminders(
+            afterChanging: id,
+            outcome: outcome
+        )
+        if let error = knittingReminderEvaluation.error {
+            self = originalProject
+            return StoredProjectCounterMutationResult(
+                counter: original,
+                outcome: nil,
+                knittingReminderEvaluationError: error
             )
-            let updatedByID = Dictionary(uniqueKeysWithValues: result.reminders.map { ($0.id, $0) })
-            knittingReminders = knittingReminders.map { updatedByID[$0.id] ?? $0 }
-            knittingReminderOccurrences = result.pending
         }
         if counters[index] != original { updatedAt = now }
-        if !knittingReminderOccurrences.isEmpty { updatedAt = now }
         return StoredProjectCounterMutationResult(
             counter: counters[index],
             outcome: outcome,
-            knittingReminderOccurrences: knittingReminderOccurrences
+            knittingReminderOccurrences: knittingReminderEvaluation.occurrences
         )
+    }
+
+    private mutating func evaluateKnittingReminders(
+        afterChanging counterID: UUID,
+        outcome: CounterMutationOutcome?
+    ) -> (occurrences: [KnittingReminderOccurrence], error: StoredProjectCounterMutationError?) {
+        guard let outcome, counterID == mainCounterID else { return ([], nil) }
+        let result = KnittingReminderEvaluator.evaluate(
+            oldValue: outcome.oldValue,
+            newValue: outcome.newValue,
+            reminders: knittingReminders.filter { $0.counterID == counterID }
+        )
+        guard result.rejectedReminderIDs.isEmpty else {
+            return ([], .reminderEvaluationRejected(result.rejectedReminderIDs))
+        }
+        let updatedByID = Dictionary(uniqueKeysWithValues: result.reminders.map { ($0.id, $0) })
+        knittingReminders = knittingReminders.map { updatedByID[$0.id] ?? $0 }
+        return (result.pending, nil)
     }
 
     private static func selectedID(_ requestedID: UUID?, in counters: [ProjectCounter]) -> UUID {

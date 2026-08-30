@@ -1019,6 +1019,7 @@ final class PatternLibraryDeletionTransaction {
             value: value,
             reminder: reminder
         ) else { return nil }
+        try result.validateKnittingReminderEvaluation()
         try persist(projects: stagedProjects, yarns: yarns)
         return result
     }
@@ -1207,6 +1208,7 @@ final class PatternLibraryDeletionTransaction {
             )
             result = nil
         }
+        try result?.validateKnittingReminderEvaluation()
         guard didAcceptMutation else {
             return PatternReaderCounterMutationResult(generation: dataGeneration, outcome: nil)
         }
@@ -1365,11 +1367,14 @@ final class PatternLibraryDeletionTransaction {
         try mutate(id: command.projectID) { project in
             switch command.operation {
             case .increment:
-                project.incrementCounter(id: command.counterID, now: now)
+                try project.incrementCounter(id: command.counterID, now: now)?
+                    .validateKnittingReminderEvaluation()
             case .decrement:
-                project.decrementCounter(id: command.counterID, now: now)
+                try project.decrementCounter(id: command.counterID, now: now)?
+                    .validateKnittingReminderEvaluation()
             case .reset:
-                project.resetCounter(id: command.counterID, now: now)
+                try project.resetCounter(id: command.counterID, now: now)?
+                    .validateKnittingReminderEvaluation()
             case .completeReminder:
                 if let reminderID = command.reminderID,
                    let observedPendingCount = command.observedPendingCount {
@@ -2693,6 +2698,7 @@ final class PatternLibraryDeletionTransaction {
         guard let index = projects.firstIndex(where: { $0.id == id }) else { return nil }
         var staged = projects
         let result = body(&staged[index])
+        try result?.validateKnittingReminderEvaluation()
         try persist(projects: staged, yarns: yarns)
         return result
     }

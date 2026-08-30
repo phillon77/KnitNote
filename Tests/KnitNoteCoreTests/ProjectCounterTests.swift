@@ -118,6 +118,43 @@ import Testing
         #expect(project.knittingReminders.count == 2)
     }
 
+    @Test func managingMainCounterValueEvaluatesAllRulesInDeterministicOrder() throws {
+        var project = try StoredProject(name: "Cardigan")
+        let main = project.mainCounterID
+        let firstReminder = try project.addKnittingReminder(
+            counterID: main,
+            draft: .repeating(
+                kind: .increase,
+                firstTarget: 4,
+                interval: 4,
+                limit: 3,
+                text: nil
+            ),
+            now: Date(timeIntervalSince1970: 10)
+        )
+        let secondReminder = try project.addKnittingReminder(
+            counterID: main,
+            draft: .oneTime(kind: .changeYarn, target: 8, text: "Blue"),
+            now: Date(timeIntervalSince1970: 20)
+        )
+
+        let mutation = project.manageCounter(
+            id: main,
+            name: "Body",
+            value: 12,
+            reminder: .unchanged
+        )
+        let result = try #require(mutation)
+
+        #expect(result.knittingReminderOccurrences.map(\.originalTarget) == [4, 8, 8, 12])
+        #expect(result.knittingReminderOccurrences.map(\.reminderID) == [
+            firstReminder,
+            firstReminder,
+            secondReminder,
+            firstReminder,
+        ])
+    }
+
     @Test func staleReminderRemovalRejectsTheWholeStoredProjectManagerSave() throws {
         let start = Date(timeIntervalSince1970: 10)
         let rejectedAt = Date(timeIntervalSince1970: 20)

@@ -281,6 +281,22 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         return copy
     }
 
+    public func replacingRule(with draft: KnittingReminderDraft) throws -> KnittingReminder {
+        guard mutationRevision < .max else {
+            throw KnittingReminderMutationError.revisionExhausted
+        }
+        guard var replacement = KnittingReminder(
+            id: id,
+            counterID: counterID,
+            draft: draft,
+            createdAt: createdAt
+        ) else {
+            throw KnittingReminderMutationError.invalidDraft
+        }
+        replacement.mutationRevision = mutationRevision + 1
+        return replacement
+    }
+
     public func visibleOccurrences(at counterValue: Int) -> [KnittingReminderOccurrence] {
         progress.pending.filter { occurrence in
             occurrence.phase == .initial

@@ -28,6 +28,17 @@ public func patternGroups(from projects: [StoredProject]) -> [PatternProjectGrou
 public struct StoredProjectCounterMutationResult: Equatable, Sendable {
     public let counter: ProjectCounter
     public let outcome: CounterMutationOutcome?
+    public let knittingReminderOccurrences: [KnittingReminderOccurrence]
+
+    public init(
+        counter: ProjectCounter,
+        outcome: CounterMutationOutcome?,
+        knittingReminderOccurrences: [KnittingReminderOccurrence] = []
+    ) {
+        self.counter = counter
+        self.outcome = outcome
+        self.knittingReminderOccurrences = knittingReminderOccurrences
+    }
 }
 
 public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
@@ -36,6 +47,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public let createdAt: Date
     public private(set) var updatedAt: Date
     public private(set) var counters: [ProjectCounter]
+    public private(set) var knittingReminders: [KnittingReminder]
     public private(set) var selectedCounterID: UUID
     internal private(set) var legacyPatternDocuments: [PatternDocument]
     public var patterns: [PatternDocument] { legacyPatternDocuments }
@@ -50,6 +62,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         id: UUID = UUID(),
         name: String,
         counters: [ProjectCounter]? = nil,
+        knittingReminders: [KnittingReminder] = [],
         selectedCounterID: UUID? = nil,
         completedAt: Date? = nil,
         journalEntries: [ProjectJournalEntry] = [],
@@ -60,6 +73,10 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         self.id = id
         self.name = clean
         self.counters = Self.normalizedCounters(counters ?? [], projectID: id)
+        guard Self.hasValidKnittingReminders(knittingReminders, counters: self.counters) else {
+            throw KnittingReminderMutationError.invalidDraft
+        }
+        self.knittingReminders = knittingReminders
         self.selectedCounterID = Self.selectedID(selectedCounterID, in: self.counters)
         self.createdAt = now
         self.updatedAt = now
@@ -98,6 +115,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         updatedAt = now
     }
     public var selectedCounter: ProjectCounter { counters.first { $0.id == selectedCounterID } ?? counters[0] }
+    public var mainCounterID: UUID { counters[0].id }
     public var isCompleted: Bool { completedAt != nil }
 
     public mutating func markCompleted(at date: Date = .now) {
@@ -114,6 +132,96 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     public mutating func selectCounter(id: UUID, now: Date = .now) {
         guard counters.contains(where: { $0.id == id }), selectedCounterID != id else { return }
         selectedCounterID = id
+        updatedAt = now
+    }
+    @discardableResult
+    public mutating func addKnittingReminder(
+        counterID: UUID,
+        draft: KnittingReminderDraft,
+        now: Date = .now
+    ) throws -> UUID {
+        guard !isCompleted else { throw PatternLibraryMutationError.projectCompleted }
+        guard counterID == mainCounterID else {
+            throw KnittingReminderMutationError.newReminderRequiresMainCounter
+        }
+        guard let reminder = KnittingReminder(counterID: counterID, draft: draft, createdAt: now) else {
+            throw KnittingReminderMutationError.invalidDraft
+        }
+        knittingReminders.append(reminder)
+        updatedAt = now
+        return reminder.id
+    }
+
+    public mutating func updateKnittingReminder(
+        id: UUID,
+        observedRevision: UInt64,
+        draft: KnittingReminderDraft,
+        now: Date = .now
+    ) throws {
+        guard !isCompleted else { throw PatternLibraryMutationError.projectCompleted }
+        guard let index = knittingReminders.firstIndex(where: { $0.id == id }) else {
+            throw KnittingReminderMutationError.occurrenceNotFound
+        }
+        let existing = knittingReminders[index]
+        guard existing.mutationRevision == observedRevision else {
+            throw KnittingReminderMutationError.staleRevision
+        }
+        guard let replacement = KnittingReminder(
+            id: existing.id,
+            counterID: existing.counterID,
+            draft: draft,
+            createdAt: existing.createdAt
+        ) else {
+            throw KnittingReminderMutationError.invalidDraft
+        }
+        knittingReminders[index] = replacement
+        updatedAt = now
+    }
+
+    public mutating func applyKnittingReminderAction(
+        id: UUID,
+        occurrenceID: UUID?,
+        observedRevision: UInt64,
+        action: KnittingReminderAction,
+        now: Date = .now
+    ) throws {
+        guard !isCompleted else { throw PatternLibraryMutationError.projectCompleted }
+        guard let index = knittingReminders.firstIndex(where: { $0.id == id }) else {
+            throw KnittingReminderMutationError.occurrenceNotFound
+        }
+        let mutation: KnittingReminderMutation
+        switch action {
+        case .complete:
+            guard let occurrenceID else { throw KnittingReminderMutationError.invalidAction }
+            mutation = .complete(occurrenceID: occurrenceID, observedRevision: observedRevision)
+        case .deferOnce:
+            guard let occurrenceID else { throw KnittingReminderMutationError.invalidAction }
+            mutation = .deferOnce(occurrenceID: occurrenceID, observedRevision: observedRevision)
+        case .skip:
+            guard let occurrenceID else { throw KnittingReminderMutationError.invalidAction }
+            mutation = .skip(occurrenceID: occurrenceID, observedRevision: observedRevision)
+        case .stop:
+            mutation = .stop(observedRevision: observedRevision)
+        case .resetLatest:
+            mutation = .resetLatest(observedRevision: observedRevision)
+        }
+        knittingReminders[index] = try knittingReminders[index].applying(mutation)
+        updatedAt = now
+    }
+
+    public mutating func deleteKnittingReminder(
+        id: UUID,
+        observedRevision: UInt64,
+        now: Date = .now
+    ) throws {
+        guard !isCompleted else { throw PatternLibraryMutationError.projectCompleted }
+        guard let index = knittingReminders.firstIndex(where: { $0.id == id }) else {
+            throw KnittingReminderMutationError.occurrenceNotFound
+        }
+        guard knittingReminders[index].mutationRevision == observedRevision else {
+            throw KnittingReminderMutationError.staleRevision
+        }
+        knittingReminders.remove(at: index)
         updatedAt = now
     }
     @discardableResult
@@ -343,13 +451,14 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         return journalEntries.remove(at: index)
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, counters, selectedCounterID, currentRow, createdAt, updatedAt, rowNotes, patterns, photoFilename, completedAt, toolType, toolSize, toolNotes, journalEntries }
+    enum CodingKeys: String, CodingKey { case id, name, counters, knittingReminders, selectedCounterID, currentRow, createdAt, updatedAt, rowNotes, patterns, photoFilename, completedAt, toolType, toolSize, toolNotes, journalEntries }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        knittingReminders = try c.decodeIfPresent([KnittingReminder].self, forKey: .knittingReminders) ?? []
         legacyPatternDocuments = try c.decodeIfPresent([PatternDocument].self, forKey: .patterns) ?? []
         photoFilename = try c.decodeIfPresent(String.self, forKey: .photoFilename)
         completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
@@ -392,6 +501,13 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
             )
             selectedCounterID = counters[0].id
         }
+        guard Self.hasValidKnittingReminders(knittingReminders, counters: counters) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .knittingReminders,
+                in: c,
+                debugDescription: "Knitting reminders must have unique IDs and reference a project counter."
+            )
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -399,6 +515,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         try c.encode(id, forKey: .id)
         try c.encode(name, forKey: .name)
         try c.encode(counters, forKey: .counters)
+        try c.encode(knittingReminders, forKey: .knittingReminders)
         try c.encode(selectedCounterID, forKey: .selectedCounterID)
         try c.encode(createdAt, forKey: .createdAt)
         try c.encode(updatedAt, forKey: .updatedAt)
@@ -425,13 +542,38 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
               let index = counters.firstIndex(where: { $0.id == id }) else { return nil }
         let original = counters[index]
         let outcome = mutation(&counters[index])
+        var knittingReminderOccurrences = [KnittingReminderOccurrence]()
+        if let outcome, id == mainCounterID {
+            let result = KnittingReminderEvaluator.evaluate(
+                oldValue: outcome.oldValue,
+                newValue: outcome.newValue,
+                reminders: knittingReminders.filter { $0.counterID == id }
+            )
+            let updatedByID = Dictionary(uniqueKeysWithValues: result.reminders.map { ($0.id, $0) })
+            knittingReminders = knittingReminders.map { updatedByID[$0.id] ?? $0 }
+            knittingReminderOccurrences = result.pending
+        }
         if counters[index] != original { updatedAt = now }
-        return StoredProjectCounterMutationResult(counter: counters[index], outcome: outcome)
+        if !knittingReminderOccurrences.isEmpty { updatedAt = now }
+        return StoredProjectCounterMutationResult(
+            counter: counters[index],
+            outcome: outcome,
+            knittingReminderOccurrences: knittingReminderOccurrences
+        )
     }
 
     private static func selectedID(_ requestedID: UUID?, in counters: [ProjectCounter]) -> UUID {
         guard let requestedID, counters.contains(where: { $0.id == requestedID }) else { return counters[0].id }
         return requestedID
+    }
+
+    private static func hasValidKnittingReminders(
+        _ reminders: [KnittingReminder],
+        counters: [ProjectCounter]
+    ) -> Bool {
+        let counterIDs = Set(counters.map(\.id))
+        return Set(reminders.map(\.id)).count == reminders.count
+            && reminders.allSatisfy { counterIDs.contains($0.counterID) }
     }
 
     private static func normalizedOptionalText(_ value: String?) -> String? {

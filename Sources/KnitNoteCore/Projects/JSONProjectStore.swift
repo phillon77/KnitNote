@@ -1057,6 +1057,86 @@ final class PatternLibraryDeletionTransaction {
             $0.stopCounterReminder(id: counterID, reminderID: reminderID)
         }
     }
+    @discardableResult
+    public func addKnittingReminder(
+        projectID: UUID,
+        draft: KnittingReminderDraft,
+        now: Date = .now
+    ) throws -> UUID {
+        try requireAccess(.changeCounter)
+        guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        var staged = projects
+        let reminderID = try staged[index].addKnittingReminder(
+            counterID: staged[index].mainCounterID,
+            draft: draft,
+            now: now
+        )
+        try persist(projects: staged, yarns: yarns)
+        return reminderID
+    }
+
+    public func updateKnittingReminder(
+        projectID: UUID,
+        reminderID: UUID,
+        observedRevision: UInt64,
+        draft: KnittingReminderDraft,
+        now: Date = .now
+    ) throws {
+        try requireAccess(.changeCounter)
+        guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        var staged = projects
+        try staged[index].updateKnittingReminder(
+            id: reminderID,
+            observedRevision: observedRevision,
+            draft: draft,
+            now: now
+        )
+        try persist(projects: staged, yarns: yarns)
+    }
+
+    public func applyKnittingReminderAction(
+        projectID: UUID,
+        reminderID: UUID,
+        occurrenceID: UUID?,
+        observedRevision: UInt64,
+        action: KnittingReminderAction,
+        now: Date = .now
+    ) throws {
+        try requireAccess(.changeCounter)
+        guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        var staged = projects
+        try staged[index].applyKnittingReminderAction(
+            id: reminderID,
+            occurrenceID: occurrenceID,
+            observedRevision: observedRevision,
+            action: action,
+            now: now
+        )
+        try persist(projects: staged, yarns: yarns)
+    }
+
+    public func deleteKnittingReminder(
+        projectID: UUID,
+        reminderID: UUID,
+        observedRevision: UInt64
+    ) throws {
+        try requireAccess(.changeCounter)
+        guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
+            throw PatternLibraryMutationError.projectNotFound
+        }
+        var staged = projects
+        try staged[index].deleteKnittingReminder(
+            id: reminderID,
+            observedRevision: observedRevision
+        )
+        try persist(projects: staged, yarns: yarns)
+    }
 
     /// Performs one reader-originated counter mutation and returns the exact
     /// generation published by its successful archive write.

@@ -62,6 +62,62 @@ import Testing
         #expect(result.counter.reminder?.pending == result.outcome?.pendingReminder)
     }
 
+    @Test func newKnittingReminderRequiresTheNormalizedFirstCounter() throws {
+        let projectID = UUID()
+        let first = ProjectCounter(id: UUID(), defaultOrdinal: 1)
+        let second = ProjectCounter(id: UUID(), defaultOrdinal: 2)
+        var project = try StoredProject(
+            id: projectID,
+            name: "Cardigan",
+            counters: [second, first]
+        )
+        let draft = KnittingReminderDraft.oneTime(kind: .changeYarn, target: 12, text: nil)
+
+        #expect(project.mainCounterID == first.id)
+        let reminderID = try project.addKnittingReminder(
+            counterID: first.id,
+            draft: draft,
+            now: .now
+        )
+        #expect(project.knittingReminders.contains(where: { $0.id == reminderID }))
+        #expect(throws: KnittingReminderMutationError.newReminderRequiresMainCounter) {
+            try project.addKnittingReminder(counterID: second.id, draft: draft, now: .now)
+        }
+    }
+
+    @Test func mainCounterDirectJumpEvaluatesAllRulesInDeterministicOrder() throws {
+        var project = try StoredProject(name: "Cardigan")
+        let main = project.mainCounterID
+        let firstReminder = try project.addKnittingReminder(
+            counterID: main,
+            draft: .repeating(
+                kind: .increase,
+                firstTarget: 4,
+                interval: 4,
+                limit: 3,
+                text: nil
+            ),
+            now: Date(timeIntervalSince1970: 10)
+        )
+        let secondReminder = try project.addKnittingReminder(
+            counterID: main,
+            draft: .oneTime(kind: .changeYarn, target: 8, text: "Blue"),
+            now: Date(timeIntervalSince1970: 20)
+        )
+
+        let mutation = project.updateCounter(id: main, name: nil, value: 12)
+        let result = try #require(mutation)
+
+        #expect(result.knittingReminderOccurrences.map(\.originalTarget) == [4, 8, 8, 12])
+        #expect(result.knittingReminderOccurrences.map(\.reminderID) == [
+            firstReminder,
+            firstReminder,
+            secondReminder,
+            firstReminder,
+        ])
+        #expect(project.knittingReminders.count == 2)
+    }
+
     @Test func staleReminderRemovalRejectsTheWholeStoredProjectManagerSave() throws {
         let start = Date(timeIntervalSince1970: 10)
         let rejectedAt = Date(timeIntervalSince1970: 20)
@@ -127,6 +183,22 @@ import Testing
         object.removeValue(forKey: "completedAt")
         let legacy = try JSONSerialization.data(withJSONObject: object)
         #expect(try JSONDecoder().decode(StoredProject.self, from: legacy).completedAt == nil)
+    }
+
+    @Test func legacyProjectDecodesWithoutKnittingReminderCollection() throws {
+        let project = try StoredProject(name: "Cardigan")
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(project)) as? [String: Any]
+        )
+        object.removeValue(forKey: "knittingReminders")
+
+        let decoded = try JSONDecoder().decode(
+            StoredProject.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        #expect(decoded.knittingReminders.isEmpty)
+        #expect(decoded.mainCounterID == project.counters[0].id)
     }
 
     @Test func counterMutationsSelectAndRenameWithoutChangingAnUnchangedProject() throws {

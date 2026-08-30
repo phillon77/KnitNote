@@ -628,6 +628,12 @@ import UniformTypeIdentifiers
             )
         },
         {
+            _ = try $0.addKnittingReminder(
+                projectID: fixture.projectID,
+                draft: .oneTime(kind: .cable, target: 2, text: nil)
+            )
+        },
+        {
             try $0.renameCounter(
                 projectID: fixture.projectID,
                 counterID: fixture.counterID,

@@ -200,7 +200,10 @@ import Testing
     @Test func readerUsesTheSharedReminderQueueCardForStoredProjectState() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 
-        #expect(reader.contains("KnittingReminderQueueCard(projectID: projectID, project: project)"))
+        #expect(reader.contains("KnittingReminderQueueCard("))
+        #expect(reader.contains("lease: reminderLease"))
+        #expect(reader.contains("acquireSurface"))
+        #expect(reader.contains("releaseSurface"))
         #expect(reader.contains("context.canWrite"))
         #expect(!reader.contains("VisibleCounterReminder"))
         #expect(!reader.contains("CounterReminderCard("))

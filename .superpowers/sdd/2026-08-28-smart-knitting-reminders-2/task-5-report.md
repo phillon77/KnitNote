@@ -23,7 +23,7 @@ Before implementation, the new coordinator/card files were absent and the legacy
 swift test --disable-sandbox --filter 'KnittingReminderPresentationTests|KnittingReminderTests|KnittingReminderStoreTests|KnittingReminderMigrationTests|KnittingReminderViewContractTests|CounterReminderViewContractTests|ProjectCounterViewContractTests|PatternReaderCounterContractTests'
 ```
 
-Result: exit 0; 100 tests across 8 suites passed.
+Result: exit 0; 110 tests across 8 suites passed. The behavioral coverage includes deterministic ordering across owning counters, deferred secondary-counter visibility, one-time haptic pruning, navigation sharing with restoration-capable visible-surface leases, authoritative complete/defer/skip refreshes, stale-action refresh, and deleted-project isolation after cache pruning.
 
 ```sh
 xcodegen generate
@@ -40,14 +40,26 @@ The full package command was also run:
 swift test --disable-sandbox
 ```
 
-It reached all 1,637 tests but exited with 11 failures in pre-existing legacy reminder assertions that still expect `ProjectCounter.reminder` after the Task 2 v14 migration (7 `PatternLibraryStoreTests` assertions and 4 `WatchCommandApplicationTests` assertions). No Task 5 source or core model file is involved in those failures.
+It reached all 1,637 tests but exited with 11 failures in pre-existing legacy reminder assertions that still expect `ProjectCounter.reminder` after the Task 2 v14 migration (7 `PatternLibraryStoreTests` assertions and 4 `WatchCommandApplicationTests` assertions). No Task 5 source or core model file is involved in those failures. The exact failing test names were:
+
+- `failedReminderPersistencePublishesNothing`
+- `staleReminderIDIsRejectedWithoutMutation`
+- `stopWinsOverStaleReminderCompletion`
+- `duplicateReminderAcknowledgementCannotCompleteTwice`
+- `snapshotMapsOnlyTheReminderStateWatchNeeds`
+- `rejectedReaderReminderActionsPublishNothingOrSelection`
+- `staleReaderReminderActionPublishesNothing`
+- `completedProjectRejectsReaderReminderActionsWithoutPublishing`
+- `readerMutationPublishesGenerationAndReminderTogether` (two reported issues)
+- `readerCompleteAndStopPublishSelectionAndReopenState`
 
 ## Files
 
-- Added `KnitNote/Projects/KnittingReminderPresentationCoordinator.swift`
+- Added `Sources/KnitNoteCore/Projects/KnittingReminderPresentationCoordinator.swift` and app-scoped `KnittingReminderPresentationStore`
 - Added `KnitNote/Projects/KnittingReminderQueueCard.swift`
 - Added `Tests/KnitNoteCoreTests/KnittingReminderPresentationTests.swift`
 - Updated `KnitNote/Projects/ProjectDetailView.swift` and `KnitNote/Patterns/PatternReaderView.swift`
+- Updated `KnitNote/App/RootView.swift` to prune presentation state against the authoritative project ID set
 - Updated affected source-contract tests
 - Deleted `KnitNote/Patterns/CounterReminderCard.swift`
 - Regenerated `KnitNote.xcodeproj/project.pbxproj`
@@ -55,6 +67,11 @@ It reached all 1,637 tests but exited with 11 failures in pre-existing legacy re
 ## Self-review
 
 - Confirmed the queue is derived from persisted active reminders, uses stable target/date/identifier ordering, and presents exactly one current card.
+- Confirmed each reminder is evaluated against its owning counter's persisted value, including deferred secondary-counter occurrences.
+- Confirmed the app-scoped project-keyed store shares the haptic ledger across project detail and pattern reader navigation while isolating separate projects; the ledger is pruned to pending occurrences.
+- Confirmed restoration-capable detail/reader lease stacks make the most recently visible surface the sole haptic claimant; hidden mounted cards cannot consume a claim, reader release restores the still-active detail lease, duplicate acquisition is idempotent, and deactivation is exact-token checked against navigation races.
+- Confirmed `RootView` reconciles the store with the authoritative project ID set so deleted projects release their coordinator and active surface lease rather than accumulating indefinitely.
+- Confirmed failed/stale card actions refresh from the store's authoritative project snapshot before leaving the card stale.
 - Confirmed card actions call only `applyKnittingReminderAction(projectID:reminderID:occurrenceID:observedRevision:action:)`; no local project mutation or invented revision is used.
 - Confirmed project detail and pattern reader each contain one shared card call, with completed/read-only projects suppressing mutating reminder controls.
 - Confirmed the legacy card file and production references are gone, and `git diff --check` is clean.
@@ -63,3 +80,7 @@ It reached all 1,637 tests but exited with 11 failures in pre-existing legacy re
 
 - The full package suite still contains 11 Task 1/2-era tests that assert the removed legacy `CounterReminder` projection; updating those tests is outside Task 5 scope.
 - Physical iPhone, iPad, and Mac acceptance remains a later release gate; this task verified unsigned generic iOS Simulator and macOS builds.
+
+## Task 9 catalog ledger
+
+Task 5 owns these card copy keys and leaves their complete 13-language expansion to Task 9: `knittingReminder.card.complete`, `knittingReminder.card.complete.hint`, `knittingReminder.card.defer`, `knittingReminder.card.defer.hint`, `knittingReminder.card.skip`, `knittingReminder.card.skip.hint`, `knittingReminder.card.stop`, `knittingReminder.card.stop.hint`, `knittingReminder.card.stop.confirm`, `knittingReminder.card.more`, `knittingReminder.card.queue`, `knittingReminder.card.target`, `knittingReminder.card.phase.initial`, and `knittingReminder.card.phase.deferred`. The card resolves these keys through the runtime locale boundary with English fallback copy so missing catalog entries never render raw keys. Task 9 catalog completion is release-blocking.

@@ -49,6 +49,7 @@ struct RootView: View {
     @Environment(\.locale) private var locale
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var reminderPresentationStore: KnittingReminderPresentationStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     @EnvironmentObject private var patternInboxProcessor: PatternInboxProcessor
     @EnvironmentObject private var backupReminderPresenter: PatternBackupReminderPresenter
@@ -198,6 +199,16 @@ struct RootView: View {
                 ) {
                     unlockPresentation.dismiss()
                 }
+            }
+            .onAppear {
+                reminderPresentationStore.pruneProjects(
+                    keeping: Set(store.projects.map(\.id))
+                )
+            }
+            .onChange(of: store.projects) { _, projects in
+                reminderPresentationStore.pruneProjects(
+                    keeping: Set(projects.map(\.id))
+                )
             }
     }
 

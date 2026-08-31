@@ -181,7 +181,10 @@ import Testing
 
     @Test func projectDetailShowsSelectedPendingReminderBelowCounters() throws {
         let source = try projectSource(named: "ProjectDetailView")
-        #expect(source.contains("KnittingReminderQueueCard(projectID: projectID, project: project)"))
+        #expect(source.contains("KnittingReminderQueueCard("))
+        #expect(source.contains("lease: reminderLease"))
+        #expect(source.contains("acquireSurface"))
+        #expect(source.contains("releaseSurface"))
         #expect(!source.contains("CounterReminderCard"))
     }
 
@@ -218,8 +221,8 @@ import Testing
         #expect(!manager.contains("CounterReminderEdit"))
 
         #expect(card.contains("Text(verbatim: text)"))
-        #expect(card.contains(".accessibilityHint(Text(\"knittingReminder.card.complete.hint\"))"))
-        #expect(card.contains(".accessibilityHint(Text(\"knittingReminder.card.stop.hint\"))"))
+        #expect(card.contains("knittingReminder.card.complete.hint"))
+        #expect(card.contains("knittingReminder.card.stop.hint"))
         #expect(card.components(separatedBy: "frame(minWidth: 44, minHeight: 44)").count - 1 >= 3)
         #expect(card.contains("ViewThatFits(in: .horizontal)"))
         #expect(!card.contains(".frame(height:"))

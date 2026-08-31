@@ -44,6 +44,7 @@ struct KnitNoteApp: App {
     @StateObject private var patternInboxProcessor: PatternInboxProcessor
     @StateObject private var patternBackupReminderPresenter: PatternBackupReminderPresenter
     @StateObject private var appUpdateReminderCoordinator: AppUpdateReminderCoordinator
+    @StateObject private var reminderPresentationStore: KnittingReminderPresentationStore
     private let screenshotMode: StoreScreenshotMode?
 #if os(iOS)
     @StateObject private var phoneWatchSyncCoordinator: PhoneWatchSyncCoordinator
@@ -125,6 +126,9 @@ struct KnitNoteApp: App {
             }
         )
         _projectStore = StateObject(wrappedValue: projectStore)
+        _reminderPresentationStore = StateObject(
+            wrappedValue: KnittingReminderPresentationStore()
+        )
         let patternBackupReminderPresenter = PatternBackupReminderPresenter()
         _patternBackupReminderPresenter = StateObject(
             wrappedValue: patternBackupReminderPresenter
@@ -181,6 +185,7 @@ struct KnitNoteApp: App {
             }
                 .environment(\.locale, appLocale)
                 .environmentObject(projectStore)
+                .environmentObject(reminderPresentationStore)
                 .environmentObject(entitlementCoordinator)
                 .environmentObject(patternInboxProcessor)
                 .environmentObject(patternBackupReminderPresenter)

@@ -257,7 +257,7 @@ import Testing
     }
 }
 
-@MainActor private final class KnittingReminderStoreHarness {
+@MainActor final class KnittingReminderStoreHarness {
     let root: URL
     let archiveURL: URL
     let projectID: UUID

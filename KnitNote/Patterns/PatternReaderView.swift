@@ -61,6 +61,7 @@ struct PatternReaderView: View {
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var reminderPresentationStore: KnittingReminderPresentationStore
     @EnvironmentObject private var entitlementCoordinator: EntitlementCoordinator
     private let source: PatternReaderSource
     private let storePresentation: PatternReaderStorePresentation
@@ -89,6 +90,8 @@ struct PatternReaderView: View {
     @State private var pendingPageTransition: PatternReaderPageTransition?
     @State private var managingCounter: ProjectCounter?
     @State private var showingKnittingReminders = false
+    @State private var reminderSurfaceID = UUID()
+    @State private var reminderLease: KnittingReminderPresentationLease?
     @StateObject private var pdfNavigator = PDFPageNavigator()
     @StateObject private var systemAppearance = PatternSystemAppearanceMonitor()
     private let counterRailSafeAreaWidth: CGFloat = 64
@@ -568,6 +571,7 @@ struct PatternReaderView: View {
         .interactiveDismissDisabled()
         .onAppear {
             systemAppearance.start()
+            acquireReminderLeaseIfNeeded()
         }
         .task(id: readerContextIdentity) {
             reloadReader(for: readerContextIdentity)
@@ -578,8 +582,13 @@ struct PatternReaderView: View {
         }
         .onChange(of: store.dataGeneration) { _, generation in
             handleStoreGenerationChange(generation)
+            acquireReminderLeaseIfNeeded()
+        }
+        .onChange(of: markupMode) { _, _ in
+            acquireReminderLeaseIfNeeded()
         }
         .onDisappear {
+            releaseReminderLease()
             systemAppearance.stop()
             pdfNavigator.captureCurrentPosition()
             pdfNavigator.flushPendingScaleCapture()
@@ -697,10 +706,15 @@ struct PatternReaderView: View {
                let project = store.project(id: projectID),
                !project.isCompleted,
                context.canWrite,
-               !markupMode {
+               !markupMode,
+               let reminderLease {
                 VStack {
                     Spacer()
-                    KnittingReminderQueueCard(projectID: projectID, project: project)
+                    KnittingReminderQueueCard(
+                        projectID: projectID,
+                        project: project,
+                        lease: reminderLease
+                    )
                     .frame(maxWidth: 440)
                     .padding()
                 }
@@ -712,6 +726,40 @@ struct PatternReaderView: View {
             canvasIsActive = true
             handledPageIndex = state.pageIndex
         }
+    }
+
+    private func acquireReminderLeaseIfNeeded() {
+        let currentContext = resolvedContext
+        let currentProjectID = currentContext.projectID
+        let canDisplay = currentProjectID.map { projectID in
+            guard let project = store.project(id: projectID) else { return false }
+            return !project.isCompleted && currentContext.canWrite && !markupMode
+        } ?? false
+        if let reminderLease,
+           (!canDisplay || reminderLease.projectID != currentProjectID) {
+            releaseReminderLease()
+        }
+        guard reminderLease == nil,
+              canDisplay,
+              let projectID = currentProjectID else {
+            return
+        }
+        reminderLease = reminderPresentationStore.acquireSurface(
+            projectID: projectID,
+            surfaceID: reminderSurfaceID
+        )
+    }
+
+    private func releaseReminderLease() {
+        guard let reminderLease else {
+            self.reminderLease = nil
+            return
+        }
+        reminderPresentationStore.releaseSurface(
+            projectID: reminderLease.projectID,
+            lease: reminderLease
+        )
+        self.reminderLease = nil
     }
 
     private func reloadReader(for identity: PatternReaderContextIdentity) {

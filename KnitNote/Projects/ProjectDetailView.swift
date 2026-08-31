@@ -15,7 +15,10 @@ struct ProjectDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
+    @EnvironmentObject private var reminderPresentationStore: KnittingReminderPresentationStore
     let projectID: UUID
+    @State private var reminderSurfaceID = UUID()
+    @State private var reminderLease: KnittingReminderPresentationLease?
     @State private var showingEdit = false
     @State private var editingNote: CounterRowSelection?
     @State private var managingCounter: ProjectCounter?
@@ -109,8 +112,12 @@ struct ProjectDetailView: View {
                             }
                         }
 
-                        if !project.isCompleted {
-                            KnittingReminderQueueCard(projectID: projectID, project: project)
+                        if !project.isCompleted, let reminderLease {
+                            KnittingReminderQueueCard(
+                                projectID: projectID,
+                                project: project,
+                                lease: reminderLease
+                            )
                         }
 
                         WatercolorCard {
@@ -227,6 +234,15 @@ struct ProjectDetailView: View {
             } message: {
                 Text(counterSaveError ?? "")
             }
+            .onAppear {
+                acquireReminderLeaseIfNeeded(project: project)
+            }
+            .onChange(of: project.isCompleted) { _, _ in
+                acquireReminderLeaseIfNeeded(project: project)
+            }
+            .onDisappear {
+                releaseReminderLease()
+            }
         }
     }
 
@@ -247,6 +263,27 @@ struct ProjectDetailView: View {
             counterSaveError = error.localizedDescription
             return false
         }
+    }
+
+    private func acquireReminderLeaseIfNeeded(project: StoredProject) {
+        guard !project.isCompleted else {
+            releaseReminderLease()
+            return
+        }
+        guard reminderLease == nil else { return }
+        reminderLease = reminderPresentationStore.acquireSurface(
+            projectID: projectID,
+            surfaceID: reminderSurfaceID
+        )
+    }
+
+    private func releaseReminderLease() {
+        guard let reminderLease else { return }
+        reminderPresentationStore.releaseSurface(
+            projectID: projectID,
+            lease: reminderLease
+        )
+        self.reminderLease = nil
     }
 
     private var hasActivePatterns: Bool {

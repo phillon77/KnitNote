@@ -120,6 +120,7 @@
 		5116550EC2CA3C68BEED3AA2 /* PatternMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */; };
 		51864AD110E9811C0839F35D /* ProjectPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 557A2AAE55C6DA1A6C527FE6 /* ProjectPhotoFileService.swift */; };
 		518EE6D9A86074D7015BA1A9 /* PatternImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DE7BD9D5FA9BEABF361D4E1 /* PatternImportCoordinator.swift */; };
+		5228A6968BD37F82F24E6FC5 /* KnittingReminderPresentationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209A2245F1F19574274B8FF4 /* KnittingReminderPresentationCoordinator.swift */; };
 		52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */; };
 		52FA8A3EA61D356F594109C4 /* EvenStitchAdjustmentCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F8A59940BD2F1CA4BFD2E3 /* EvenStitchAdjustmentCalculatorView.swift */; };
 		548D47A478269DAC1221ABEA /* YouTubePatternMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9745AF84B9E8AE558F17155 /* YouTubePatternMetadata.swift */; };
@@ -319,6 +320,7 @@
 		E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */; };
 		E6C3B2816744B19C77DE0ACD /* PatternDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1BBB226BBB92B3E8BA778 /* PatternDocument.swift */; };
 		E6CEF9520B8FF5240924A1BE /* PatternThumbnailFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */; };
+		E725071E376CE470FD329F2A /* KnittingReminderPresentationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209A2245F1F19574274B8FF4 /* KnittingReminderPresentationCoordinator.swift */; };
 		E72856F6A60E6F1BD63F0DC7 /* PatternPDFViewportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09EC1CADA36E1BA0B45FF3D2 /* PatternPDFViewportState.swift */; };
 		E77F0B8B83D0C5B49F48117B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A05992C5E9E4384B11D3C46A /* Assets.xcassets */; };
 		E7B3D88A524E639567C68181 /* EditRowNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3620C73CD8D7A61B1C59473E /* EditRowNoteView.swift */; };
@@ -336,7 +338,6 @@
 		F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		F1A9E3015D8D2FE61E35D6E8 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
 		F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
-		F1C1428EF369D5D0B1D62F19 /* KnittingReminderPresentationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381DBDA177D8D2B826DFCE92 /* KnittingReminderPresentationCoordinator.swift */; };
 		F1D4ABD513EAC331F5609A3C /* PatternReaderAppearancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4859E3F2F774092ADB9A1DE6 /* PatternReaderAppearancePresentation.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
 		F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */; };
@@ -450,6 +451,7 @@
 		1E437DA1AC28AB708F10B123 /* PatternFolderSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternFolderSidebarView.swift; sourceTree = "<group>"; };
 		20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectDeletionActionTests.swift; sourceTree = "<group>"; };
 		2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsLayout.swift; sourceTree = "<group>"; };
+		209A2245F1F19574274B8FF4 /* KnittingReminderPresentationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingReminderPresentationCoordinator.swift; sourceTree = "<group>"; };
 		2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupExportPackage.swift; sourceTree = "<group>"; };
 		225F5466B6FA5D1F71F94F2E /* CounterReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterReminder.swift; sourceTree = "<group>"; };
 		260C2E24AB236712E5FE22CC /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
@@ -479,7 +481,6 @@
 		3620C73CD8D7A61B1C59473E /* EditRowNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRowNoteView.swift; sourceTree = "<group>"; };
 		373195B93B12AF80760B1A6D /* ProcessedWatchCommandLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessedWatchCommandLedger.swift; sourceTree = "<group>"; };
 		3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalAsyncPublicationGate.swift; sourceTree = "<group>"; };
-		381DBDA177D8D2B826DFCE92 /* KnittingReminderPresentationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingReminderPresentationCoordinator.swift; sourceTree = "<group>"; };
 		38994FA8D2614768D26F2CD3 /* PatternInboxProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxProcessing.swift; sourceTree = "<group>"; };
 		391EA8DCA05776530E4CDF0C /* MacYarnEditorFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnEditorFields.swift; sourceTree = "<group>"; };
 		3A8BA0F1D4ABF2AA7472AEE6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -906,7 +907,6 @@
 				F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */,
 				EC0AB225FBF5ECA218077945 /* KnittingReminderEditorView.swift */,
 				6FD414CDA5FB53E60A9B6A51 /* KnittingReminderListView.swift */,
-				381DBDA177D8D2B826DFCE92 /* KnittingReminderPresentationCoordinator.swift */,
 				FAA347AFA005B259A3EF91DB /* KnittingReminderQueueCard.swift */,
 				9EB48148E006BF6D0BB28062 /* KnittingReminderSummary.swift */,
 				C05B67645287474EA73C4DDF /* ProjectCard.swift */,
@@ -1111,6 +1111,7 @@
 				1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */,
 				51AAD0A29D258CA3911989FE /* KnittingReminder.swift */,
 				B4F1AD083924A44815D6AB55 /* KnittingReminderMigrator.swift */,
+				209A2245F1F19574274B8FF4 /* KnittingReminderPresentationCoordinator.swift */,
 				35C129F65E794358A3226311 /* ProjectArchiveSchema.swift */,
 				9A51559E4B7599CA640466E3 /* ProjectCounter.swift */,
 				3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */,
@@ -1529,7 +1530,7 @@
 				B42B4D8E4942A78B47B7B528 /* KnittingReminderEditorView.swift in Sources */,
 				07C709111804310728B7489F /* KnittingReminderListView.swift in Sources */,
 				3165ECFB018FDDE0E70772F8 /* KnittingReminderMigrator.swift in Sources */,
-				F1C1428EF369D5D0B1D62F19 /* KnittingReminderPresentationCoordinator.swift in Sources */,
+				5228A6968BD37F82F24E6FC5 /* KnittingReminderPresentationCoordinator.swift in Sources */,
 				85B482B221FA4149462EE75D /* KnittingReminderQueueCard.swift in Sources */,
 				ED461D22AD44744EAD01E0F0 /* KnittingReminderSummary.swift in Sources */,
 				BD22ADF8A183958BC1DC22CE /* LanguageSelectionProjection.swift in Sources */,
@@ -1706,6 +1707,7 @@
 				12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */,
 				70DDC4D30B176CFD620C8181 /* KnittingReminder.swift in Sources */,
 				8C8B024312EF2A3B9B141B97 /* KnittingReminderMigrator.swift in Sources */,
+				E725071E376CE470FD329F2A /* KnittingReminderPresentationCoordinator.swift in Sources */,
 				8BD7C89C3B99C9855600B5E0 /* LanguageSelectionProjection.swift in Sources */,
 				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
 				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,

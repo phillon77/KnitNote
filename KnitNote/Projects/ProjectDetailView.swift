@@ -26,6 +26,8 @@ struct ProjectDetailView: View {
     @State private var showingPatterns = false
     @State private var showingJournalEditor = false
     @State private var selectedJournalEntry: JournalEntryRoute?
+    @State private var showingKnittingReminders = false
+    @State private var showingCalculators = false
     @State private var counterSaveError: String?
 
     var body: some View {
@@ -103,20 +105,22 @@ struct ProjectDetailView: View {
                         }
 
                         WatercolorCard {
-                            NavigationLink {
-                                KnittingReminderListView(projectID: projectID)
+                            Button {
+                                showingKnittingReminders = true
                             } label: {
                                 Label("knittingReminder.list.title", systemImage: "bell.badge")
                                 Spacer()
                                 Text(project.activeKnittingReminderCount, format: .number)
                             }
+                            .buttonStyle(.plain)
                         }
 
-                        if !project.isCompleted, let reminderLease {
+                        if isQueueCardActuallyVisible, let reminderLease {
                             KnittingReminderQueueCard(
                                 projectID: projectID,
                                 project: project,
-                                lease: reminderLease
+                                lease: reminderLease,
+                                isActuallyVisible: isQueueCardActuallyVisible
                             )
                         }
 
@@ -166,12 +170,13 @@ struct ProjectDetailView: View {
                         }
 
                         WatercolorCard {
-                            NavigationLink {
-                                KnittingCalculatorsView()
+                            Button {
+                                showingCalculators = true
                             } label: {
                                 Label("calculator.tools.title", systemImage: "ruler")
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .buttonStyle(.plain)
                         }
 
                     }
@@ -183,6 +188,12 @@ struct ProjectDetailView: View {
             .navigationTitle(project.name)
             .toolbar {
                 Button("project.edit", systemImage: "pencil") { showingEdit = true }
+            }
+            .navigationDestination(isPresented: $showingKnittingReminders) {
+                KnittingReminderListView(projectID: projectID)
+            }
+            .navigationDestination(isPresented: $showingCalculators) {
+                KnittingCalculatorsView()
             }
             .sheet(isPresented: $showingEdit) {
                 EditProjectView(projectID: projectID) {
@@ -235,10 +246,10 @@ struct ProjectDetailView: View {
                 Text(counterSaveError ?? "")
             }
             .onAppear {
-                acquireReminderLeaseIfNeeded(project: project)
+                synchronizeReminderLease()
             }
-            .onChange(of: project.isCompleted) { _, _ in
-                acquireReminderLeaseIfNeeded(project: project)
+            .onChange(of: isQueueCardActuallyVisible) { _, _ in
+                synchronizeReminderLease()
             }
             .onDisappear {
                 releaseReminderLease()
@@ -265,15 +276,27 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func acquireReminderLeaseIfNeeded(project: StoredProject) {
-        guard !project.isCompleted else {
-            releaseReminderLease()
-            return
-        }
-        guard reminderLease == nil else { return }
-        reminderLease = reminderPresentationStore.acquireSurface(
+    private var isQueueCardActuallyVisible: Bool {
+        guard let project = store.project(id: projectID) else { return false }
+        return !project.isCompleted
+            && !showingEdit
+            && managingCounter == nil
+            && editingNote == nil
+            && !showingAllNotes
+            && !showingPatterns
+            && !showingJournalEditor
+            && selectedJournalEntry == nil
+            && !showingKnittingReminders
+            && !showingCalculators
+            && counterSaveError == nil
+    }
+
+    private func synchronizeReminderLease() {
+        reminderLease = reminderPresentationStore.synchronizeSurface(
             projectID: projectID,
-            surfaceID: reminderSurfaceID
+            surfaceID: reminderSurfaceID,
+            isVisible: isQueueCardActuallyVisible,
+            lease: reminderLease
         )
     }
 

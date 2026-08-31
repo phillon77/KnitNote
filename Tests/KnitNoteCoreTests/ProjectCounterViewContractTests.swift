@@ -183,7 +183,8 @@ import Testing
         let source = try projectSource(named: "ProjectDetailView")
         #expect(source.contains("KnittingReminderQueueCard("))
         #expect(source.contains("lease: reminderLease"))
-        #expect(source.contains("acquireSurface"))
+        #expect(source.contains("isActuallyVisible: isQueueCardActuallyVisible"))
+        #expect(source.contains("synchronizeSurface"))
         #expect(source.contains("releaseSurface"))
         #expect(!source.contains("CounterReminderCard"))
     }

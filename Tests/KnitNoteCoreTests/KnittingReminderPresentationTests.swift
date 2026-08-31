@@ -225,6 +225,130 @@ import Testing
         ))
     }
 
+    @Test @MainActor func detailModalCoverReleasesClaimAndDismissalUsesFreshLease() throws {
+        let projectID = UUID()
+        let states = try presentationProjectsAcrossNewOccurrence(id: projectID)
+        let store = KnittingReminderPresentationStore()
+        let surfaceID = UUID()
+        var showingEditor = false
+        var lease = store.synchronizeSurface(
+            projectID: projectID,
+            surfaceID: surfaceID,
+            isVisible: !showingEditor,
+            lease: nil
+        )
+        let visibleLease = try #require(lease)
+        #expect(store.update(project: states.initialProject)?.id == states.initialOccurrence.id)
+        #expect(store.claimHaptic(
+            for: states.initialOccurrence,
+            projectID: projectID,
+            lease: visibleLease
+        ))
+
+        showingEditor = true
+        lease = store.synchronizeSurface(
+            projectID: projectID,
+            surfaceID: surfaceID,
+            isVisible: !showingEditor,
+            lease: lease
+        )
+        #expect(lease == nil)
+        #expect(!store.isCurrent(visibleLease))
+        #expect(store.update(project: states.futureProject)?.id == states.futureOccurrence.id)
+        #expect(!store.claimHaptic(
+            for: states.futureOccurrence,
+            projectID: projectID,
+            lease: visibleLease
+        ))
+
+        showingEditor = false
+        lease = store.synchronizeSurface(
+            projectID: projectID,
+            surfaceID: surfaceID,
+            isVisible: !showingEditor,
+            lease: lease
+        )
+        let restoredLease = try #require(lease)
+        #expect(restoredLease.generation > visibleLease.generation)
+        #expect(store.claimHaptic(
+            for: states.futureOccurrence,
+            projectID: projectID,
+            lease: restoredLease
+        ))
+        #expect(!store.claimHaptic(
+            for: states.futureOccurrence,
+            projectID: projectID,
+            lease: restoredLease
+        ))
+    }
+
+    @Test @MainActor func readerCoverWaitsForEveryPresentationBeforeReacquiring() throws {
+        let projectID = UUID()
+        let states = try presentationProjectsAcrossNewOccurrence(id: projectID)
+        let store = KnittingReminderPresentationStore()
+        let surfaceID = UUID()
+        var showingPageNote = false
+        var showingReminderList = false
+        var lease = store.synchronizeSurface(
+            projectID: projectID,
+            surfaceID: surfaceID,
+            isVisible: !showingPageNote && !showingReminderList,
+            lease: nil
+        )
+        let visibleLease = try #require(lease)
+        #expect(store.update(project: states.initialProject)?.id == states.initialOccurrence.id)
+        #expect(store.claimHaptic(
+            for: states.initialOccurrence,
+            projectID: projectID,
+            lease: visibleLease
+        ))
+
+        showingPageNote = true
+        showingReminderList = true
+        lease = store.synchronizeSurface(
+            projectID: projectID,
+            surfaceID: surfaceID,
+            isVisible: !showingPageNote && !showingReminderList,
+            lease: lease
+        )
+        #expect(lease == nil)
+        #expect(store.update(project: states.futureProject)?.id == states.futureOccurrence.id)
+        #expect(!store.claimHaptic(
+            for: states.futureOccurrence,
+            projectID: projectID,
+            lease: visibleLease
+        ))
+
+        showingPageNote = false
+        lease = store.synchronizeSurface(
+            projectID: projectID,
+            surfaceID: surfaceID,
+            isVisible: !showingPageNote && !showingReminderList,
+            lease: lease
+        )
+        #expect(lease == nil)
+
+        showingReminderList = false
+        lease = store.synchronizeSurface(
+            projectID: projectID,
+            surfaceID: surfaceID,
+            isVisible: !showingPageNote && !showingReminderList,
+            lease: lease
+        )
+        let restoredLease = try #require(lease)
+        #expect(restoredLease.generation > visibleLease.generation)
+        #expect(store.claimHaptic(
+            for: states.futureOccurrence,
+            projectID: projectID,
+            lease: restoredLease
+        ))
+        #expect(!store.claimHaptic(
+            for: states.futureOccurrence,
+            projectID: projectID,
+            lease: restoredLease
+        ))
+    }
+
     @Test @MainActor func presentationStorePrunesDeletedProjectsWithoutCrossProjectLedgerLeakage() throws {
         let deletedProjectID = UUID()
         let (deletedProject, deletedOccurrence) = try presentationProject(id: deletedProjectID)
@@ -508,6 +632,8 @@ import Testing
         #expect(source.contains("presentationStore"))
         #expect(source.contains("claimHaptic("))
         #expect(source.contains("lease"))
+        #expect(source.contains("isActuallyVisible"))
+        #expect(source.contains("isCurrent(lease)"))
         #expect(source.contains("authoritativeProject"))
     }
 
@@ -521,6 +647,68 @@ import Testing
         #expect(!reader.contains("CounterReminderCard"))
         #expect(!detail.contains("completeCounterReminder"))
         #expect(!reader.contains("completeCounterReminder"))
+    }
+
+    @Test func projectDetailVisibilityAccountsForEveryCoveringPresentation() throws {
+        let source = try sourceFile("KnitNote/Projects/ProjectDetailView.swift")
+        let visibility = try sourceSection(
+            source,
+            from: "private var isQueueCardActuallyVisible",
+            to: "private func synchronizeReminderLease"
+        )
+
+        for token in [
+            "!project.isCompleted",
+            "!showingEdit",
+            "managingCounter == nil",
+            "editingNote == nil",
+            "!showingAllNotes",
+            "!showingPatterns",
+            "!showingJournalEditor",
+            "selectedJournalEntry == nil",
+            "!showingKnittingReminders",
+            "!showingCalculators",
+            "counterSaveError == nil",
+        ] {
+            #expect(visibility.contains(token))
+        }
+        #expect(source.contains(".onChange(of: isQueueCardActuallyVisible)"))
+        #expect(source.contains("isActuallyVisible: isQueueCardActuallyVisible"))
+        #expect(source.contains("navigationDestination(isPresented: $showingKnittingReminders)"))
+        #expect(source.contains("navigationDestination(isPresented: $showingCalculators)"))
+    }
+
+    @Test func patternReaderVisibilityAccountsForEveryCoveringPresentationAndAbsentCardMode() throws {
+        let source = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+        let visibility = try sourceSection(
+            source,
+            from: "private var isQueueCardActuallyVisible",
+            to: "private func synchronizeReminderLease"
+        )
+
+        for token in [
+            "scenePhase == .active",
+            "canvasIsActive",
+            "readerSession.phase == .hydrated",
+            "readerSession.identity == readerContextIdentity",
+            "let content",
+            "FileManager.default.fileExists(atPath: content.url.path)",
+            "!project.isCompleted",
+            "context.canWrite",
+            "!markupMode",
+            "!showingCalculator",
+            "!showingPageNote",
+            "managingCounter == nil",
+            "!showingKnittingReminders",
+            "!loadError",
+            "saveError == nil",
+            "!revisionCoordinator.requiresConflictResolution",
+            "!confirmingMarkupClear",
+        ] {
+            #expect(visibility.contains(token))
+        }
+        #expect(source.contains(".onChange(of: isQueueCardActuallyVisible)"))
+        #expect(source.contains("isActuallyVisible: isQueueCardActuallyVisible"))
     }
 
     @Test func rootReconcilesPresentationStoreWithAuthoritativeProjects() throws {
@@ -549,6 +737,12 @@ import Testing
         return try String(contentsOf: repositoryRoot.appending(path: path), encoding: .utf8)
     }
 
+    private func sourceSection(_ source: String, from start: String, to end: String) throws -> Substring {
+        let startRange = try #require(source.range(of: start))
+        let endRange = try #require(source.range(of: end, range: startRange.upperBound..<source.endIndex))
+        return source[startRange.lowerBound..<endRange.lowerBound]
+    }
+
     private func presentationProject(id: UUID) throws -> (StoredProject, KnittingReminderOccurrence) {
         let counterID = UUID()
         var reminder = try #require(KnittingReminder(
@@ -567,5 +761,37 @@ import Testing
             ),
             occurrence
         )
+    }
+
+    private func presentationProjectsAcrossNewOccurrence(id: UUID) throws -> (
+        initialProject: StoredProject,
+        initialOccurrence: KnittingReminderOccurrence,
+        futureProject: StoredProject,
+        futureOccurrence: KnittingReminderOccurrence
+    ) {
+        let (initialProject, initialOccurrence) = try presentationProject(id: id)
+        let initialReminder = try #require(initialProject.knittingReminders.first)
+        let completedInitial = try initialReminder.applying(.complete(
+            occurrenceID: initialOccurrence.id,
+            observedRevision: initialReminder.mutationRevision
+        ))
+        var futureReminder = try #require(KnittingReminder(
+            counterID: initialReminder.counterID,
+            draft: .oneTime(kind: .measure, target: 2, text: nil),
+            createdAt: Date(timeIntervalSince1970: 2)
+        ))
+        futureReminder = try futureReminder.applying(.trigger(through: 2))
+        let futureOccurrence = try #require(futureReminder.progress.pending.first)
+        let futureProject = try StoredProject(
+            id: id,
+            name: initialProject.name,
+            counters: [ProjectCounter(
+                id: initialReminder.counterID,
+                defaultOrdinal: 1,
+                value: 2
+            )],
+            knittingReminders: [completedInitial, futureReminder]
+        )
+        return (initialProject, initialOccurrence, futureProject, futureOccurrence)
     }
 }

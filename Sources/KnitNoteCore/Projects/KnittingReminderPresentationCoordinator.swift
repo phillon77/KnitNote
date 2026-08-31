@@ -135,6 +135,33 @@ public final class KnittingReminderPresentationStore: ObservableObject {
         activeLeasesByProject[lease.projectID]?.contains(lease) == true
     }
 
+    public func isCurrent(_ lease: KnittingReminderPresentationLease) -> Bool {
+        activeLeasesByProject[lease.projectID]?.last == lease
+    }
+
+    /// Reconciles one surface's exact lease with whether its queue card is
+    /// actually visible. Hiding releases the current token; showing again
+    /// therefore receives a fresh generation, while repeated identical
+    /// visibility updates are idempotent.
+    @discardableResult
+    public func synchronizeSurface(
+        projectID: UUID?,
+        surfaceID: UUID,
+        isVisible: Bool,
+        lease: KnittingReminderPresentationLease?
+    ) -> KnittingReminderPresentationLease? {
+        if let lease {
+            if isVisible,
+               lease.projectID == projectID,
+               isActive(lease) {
+                return lease
+            }
+            releaseSurface(projectID: lease.projectID, lease: lease)
+        }
+        guard isVisible, let projectID else { return nil }
+        return acquireSurface(projectID: projectID, surfaceID: surfaceID)
+    }
+
     public func update(project: StoredProject) -> KnittingReminderPresentation? {
         var coordinator = coordinators[project.id] ?? KnittingReminderPresentationCoordinator()
         coordinator.update(project: project)

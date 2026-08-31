@@ -7,6 +7,7 @@ struct KnittingReminderQueueCard: View {
     let projectID: UUID
     let project: StoredProject
     let lease: KnittingReminderPresentationLease
+    let isActuallyVisible: Bool
 
     @State private var current: KnittingReminderPresentation?
     @State private var hapticOccurrenceID: UUID?
@@ -102,6 +103,13 @@ struct KnittingReminderQueueCard: View {
         .onChange(of: project) { _, updatedProject in
             refresh(updatedProject)
         }
+        .onChange(of: isActuallyVisible) { _, visible in
+            if visible {
+                refresh(project)
+            } else {
+                current = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -140,6 +148,11 @@ struct KnittingReminderQueueCard: View {
     }
 
     private func refresh(_ project: StoredProject) {
+        guard isActuallyVisible,
+              presentationStore.isCurrent(lease) else {
+            current = nil
+            return
+        }
         current = presentationStore.update(project: project)
         guard let current else { return }
         guard presentationStore.claimHaptic(

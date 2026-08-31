@@ -571,7 +571,7 @@ struct PatternReaderView: View {
         .interactiveDismissDisabled()
         .onAppear {
             systemAppearance.start()
-            acquireReminderLeaseIfNeeded()
+            synchronizeReminderLease()
         }
         .task(id: readerContextIdentity) {
             reloadReader(for: readerContextIdentity)
@@ -582,10 +582,9 @@ struct PatternReaderView: View {
         }
         .onChange(of: store.dataGeneration) { _, generation in
             handleStoreGenerationChange(generation)
-            acquireReminderLeaseIfNeeded()
         }
-        .onChange(of: markupMode) { _, _ in
-            acquireReminderLeaseIfNeeded()
+        .onChange(of: isQueueCardActuallyVisible) { _, _ in
+            synchronizeReminderLease()
         }
         .onDisappear {
             releaseReminderLease()
@@ -704,16 +703,15 @@ struct PatternReaderView: View {
 
             if let projectID = context.projectID,
                let project = store.project(id: projectID),
-               !project.isCompleted,
-               context.canWrite,
-               !markupMode,
+               isQueueCardActuallyVisible,
                let reminderLease {
                 VStack {
                     Spacer()
                     KnittingReminderQueueCard(
                         projectID: projectID,
                         project: project,
-                        lease: reminderLease
+                        lease: reminderLease,
+                        isActuallyVisible: isQueueCardActuallyVisible
                     )
                     .frame(maxWidth: 440)
                     .padding()
@@ -726,27 +724,41 @@ struct PatternReaderView: View {
             canvasIsActive = true
             handledPageIndex = state.pageIndex
         }
+        .onDisappear {
+            canvasIsActive = false
+        }
     }
 
-    private func acquireReminderLeaseIfNeeded() {
-        let currentContext = resolvedContext
-        let currentProjectID = currentContext.projectID
-        let canDisplay = currentProjectID.map { projectID in
-            guard let project = store.project(id: projectID) else { return false }
-            return !project.isCompleted && currentContext.canWrite && !markupMode
-        } ?? false
-        if let reminderLease,
-           (!canDisplay || reminderLease.projectID != currentProjectID) {
-            releaseReminderLease()
+    private var isQueueCardActuallyVisible: Bool {
+        guard scenePhase == .active,
+              canvasIsActive,
+              readerSession.phase == .hydrated,
+              readerSession.identity == readerContextIdentity,
+              let content,
+              FileManager.default.fileExists(atPath: content.url.path),
+              let projectID = context.projectID,
+              let project = store.project(id: projectID) else {
+            return false
         }
-        guard reminderLease == nil,
-              canDisplay,
-              let projectID = currentProjectID else {
-            return
-        }
-        reminderLease = reminderPresentationStore.acquireSurface(
-            projectID: projectID,
-            surfaceID: reminderSurfaceID
+        return !project.isCompleted
+            && context.canWrite
+            && !markupMode
+            && !showingCalculator
+            && !showingPageNote
+            && managingCounter == nil
+            && !showingKnittingReminders
+            && !loadError
+            && saveError == nil
+            && !revisionCoordinator.requiresConflictResolution
+            && !confirmingMarkupClear
+    }
+
+    private func synchronizeReminderLease() {
+        reminderLease = reminderPresentationStore.synchronizeSurface(
+            projectID: context.projectID,
+            surfaceID: reminderSurfaceID,
+            isVisible: isQueueCardActuallyVisible,
+            lease: reminderLease
         )
     }
 

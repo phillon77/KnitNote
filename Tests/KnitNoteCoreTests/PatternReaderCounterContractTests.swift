@@ -202,7 +202,8 @@ import Testing
 
         #expect(reader.contains("KnittingReminderQueueCard("))
         #expect(reader.contains("lease: reminderLease"))
-        #expect(reader.contains("acquireSurface"))
+        #expect(reader.contains("isActuallyVisible: isQueueCardActuallyVisible"))
+        #expect(reader.contains("synchronizeSurface"))
         #expect(reader.contains("releaseSurface"))
         #expect(reader.contains("context.canWrite"))
         #expect(!reader.contains("VisibleCounterReminder"))

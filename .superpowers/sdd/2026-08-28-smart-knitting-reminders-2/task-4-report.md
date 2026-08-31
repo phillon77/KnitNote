@@ -55,3 +55,10 @@ Result: all commands exited 0. The macOS build emitted Xcode's existing multiple
 
 - Task 9 still owns the reviewed 13-language catalog expansion. Until then, `KnittingReminderSummary` is locale-aware and has English fallbacks when the new catalog keys are not yet present; user-entered text remains unchanged.
 - This task provides automated source/store coverage and unsigned builds only. Physical iPhone, iPad, and Mac acceptance remains a later release gate.
+
+## Review fix round 1
+
+- An editor opened for an existing reminder now remains an edit for that fixed `reminderID`: it never falls through to `addKnittingReminder` if the record disappears. A missing reminder shows an unavailable error, keeps the sheet open, and disables saving.
+- The editor captures `mutationRevision` exactly once during its initial load. Ordinary body rerenders and store publications do not reload it because `hasLoaded` remains true; a deliberate editor reopen creates a new session and captures the then-current revision. Save always supplies the captured revision, so a concurrent edit is rejected as stale instead of overwritten.
+- RED command: `swift test --disable-sandbox --filter 'KnittingReminderViewContractTests|KnittingReminderStoreTests'` failed with 7 new editor-contract assertions before the fix.
+- GREEN command: the same focused run passed 16 tests across 2 suites. `xcodegen generate`, unsigned generic iOS Simulator and macOS builds, and `git diff --check` all exited 0; macOS emitted only Xcode's multiple-matching-destination warning.

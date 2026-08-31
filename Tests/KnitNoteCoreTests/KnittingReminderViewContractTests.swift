@@ -33,8 +33,26 @@ import Testing
         #expect(source.contains("return .repeating("))
         #expect(source.contains("store.addKnittingReminder(projectID: projectID, draft: draft)"))
         #expect(source.contains("store.updateKnittingReminder("))
-        #expect(source.contains("observedRevision: reminder.mutationRevision"))
+        #expect(source.contains("observedRevision: capturedReminderRevision"))
         #expect(source.contains("Text(verbatim: customText)"))
+    }
+
+    @Test func editorFailsClosedForDeletedEditsAndUsesItsInitiallyLoadedRevision() throws {
+        let source = try sourceFile("KnitNote/Projects/KnittingReminderEditorView.swift")
+
+        #expect(source.contains("@State private var capturedReminderRevision: UInt64?"))
+        #expect(source.contains("capturedReminderRevision = reminder.mutationRevision"))
+        #expect(source.contains("guard let capturedReminderRevision else"))
+        #expect(source.contains("errorMessage = \"This reminder is no longer available.\""))
+        #expect(source.contains("if let reminderID {"))
+        #expect(source.contains("reminderID: reminderID"))
+        #expect(source.contains("observedRevision: capturedReminderRevision"))
+        #expect(!source.contains("observedRevision: reminder.mutationRevision"))
+        #expect(source.contains("isExistingReminderUnavailable"))
+
+        let updateRange = try #require(source.range(of: "try store.updateKnittingReminder("))
+        let addRange = try #require(source.range(of: "try store.addKnittingReminder("))
+        #expect(updateRange.lowerBound < addRange.lowerBound)
     }
 
     @Test func listMutationsUseExactReminderIdentityAndRevision() throws {

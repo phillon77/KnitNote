@@ -17,6 +17,8 @@ struct KnittingReminderEditorView: View {
     @State private var hasFiniteLimit = false
     @State private var limitText = "1"
     @State private var hasLoaded = false
+    @State private var capturedReminderRevision: UInt64?
+    @State private var isExistingReminderUnavailable = false
     @State private var errorMessage: String?
 
     init(projectID: UUID, reminderID: UUID?) {
@@ -87,7 +89,11 @@ struct KnittingReminderEditorView: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("common.save") { save() }
-                    .disabled(validDraft == nil || project?.isCompleted != false)
+                    .disabled(
+                        validDraft == nil ||
+                        project?.isCompleted != false ||
+                        isExistingReminderUnavailable
+                    )
             }
         }
         .alert("error.saveFailed", isPresented: Binding(
@@ -143,10 +149,15 @@ struct KnittingReminderEditorView: View {
     private func loadReminder() {
         guard !hasLoaded else { return }
         hasLoaded = true
-        guard let reminder else {
+        guard reminderID != nil else {
             firstTargetText = "0"
             return
         }
+        guard let reminder else {
+            markExistingReminderUnavailable()
+            return
+        }
+        capturedReminderRevision = reminder.mutationRevision
         kind = reminder.kind
         customText = reminder.text ?? ""
         switch reminder.rule {
@@ -165,11 +176,15 @@ struct KnittingReminderEditorView: View {
     private func save() {
         guard let draft = validDraft else { return }
         do {
-            if let reminder {
+            if let reminderID {
+                guard let capturedReminderRevision else {
+                    markExistingReminderUnavailable()
+                    return
+                }
                 try store.updateKnittingReminder(
                     projectID: projectID,
-                    reminderID: reminder.id,
-                    observedRevision: reminder.mutationRevision,
+                    reminderID: reminderID,
+                    observedRevision: capturedReminderRevision,
                     draft: draft
                 )
             } else {
@@ -178,7 +193,17 @@ struct KnittingReminderEditorView: View {
             }
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
+            if let error = error as? KnittingReminderMutationError,
+               error == .occurrenceNotFound {
+                markExistingReminderUnavailable()
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
+    }
+
+    private func markExistingReminderUnavailable() {
+        isExistingReminderUnavailable = true
+        errorMessage = "This reminder is no longer available."
     }
 }

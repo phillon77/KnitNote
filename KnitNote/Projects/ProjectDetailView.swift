@@ -109,20 +109,8 @@ struct ProjectDetailView: View {
                             }
                         }
 
-                        if let reminder = project.selectedCounter.reminder {
-                            if let pending = reminder.pending {
-                                let counterID = project.selectedCounterID
-                                CounterReminderCard(
-                                    pending: pending,
-                                    message: reminder.message,
-                                    onComplete: {
-                                        completeProjectCounterReminder(counterID: counterID, pending: pending)
-                                    },
-                                    onStop: {
-                                        stopProjectCounterReminder(counterID: counterID, pending: pending)
-                                    }
-                                )
-                            }
+                        if !project.isCompleted {
+                            KnittingReminderQueueCard(projectID: projectID, project: project)
                         }
 
                         WatercolorCard {
@@ -259,91 +247,6 @@ struct ProjectDetailView: View {
             counterSaveError = error.localizedDescription
             return false
         }
-    }
-
-    private func completeProjectCounterReminder(
-        counterID: UUID,
-        pending: CounterReminderPending
-    ) {
-        do {
-            guard let currentProject = store.project(id: projectID),
-                  currentProject.selectedCounterID == counterID,
-                  let currentCounter = currentProject.counters.first(where: { $0.id == counterID }),
-                  currentCounter.id == counterID,
-                  let currentReminder = currentCounter.reminder,
-                  currentReminder.id == pending.reminderID,
-                  let currentPending = currentReminder.pending,
-                  currentPending.reminderID == pending.reminderID,
-                  currentPending.occurrenceCount == pending.occurrenceCount else {
-                reminderActionFailed()
-                return
-            }
-            let dataGenerationBefore = store.dataGeneration
-            try store.completeCounterReminder(
-                projectID: projectID,
-                counterID: counterID,
-                reminderID: pending.reminderID,
-                observedCount: pending.occurrenceCount
-            )
-            guard store.dataGeneration > dataGenerationBefore,
-                  let updatedProject = store.project(id: projectID),
-                  updatedProject.selectedCounterID == counterID,
-                  let updatedCounter = updatedProject.counters.first(where: { $0.id == counterID }),
-                  updatedCounter.id == counterID,
-                  let updatedReminder = updatedCounter.reminder,
-                  updatedReminder.id == pending.reminderID,
-                  updatedReminder.pending == nil else {
-                reminderActionFailed()
-                return
-            }
-        } catch {
-            counterSaveError = error.localizedDescription
-        }
-    }
-
-    private func stopProjectCounterReminder(
-        counterID: UUID,
-        pending: CounterReminderPending
-    ) {
-        do {
-            guard let currentProject = store.project(id: projectID),
-                  currentProject.selectedCounterID == counterID,
-                  let currentCounter = currentProject.counters.first(where: { $0.id == counterID }),
-                  currentCounter.id == counterID,
-                  let currentReminder = currentCounter.reminder,
-                  currentReminder.id == pending.reminderID,
-                  currentReminder.isActive == true,
-                  let currentPending = currentReminder.pending,
-                  currentPending.reminderID == pending.reminderID,
-                  currentPending.occurrenceCount == pending.occurrenceCount else {
-                reminderActionFailed()
-                return
-            }
-            let dataGenerationBefore = store.dataGeneration
-            try store.stopCounterReminder(
-                projectID: projectID,
-                counterID: counterID,
-                reminderID: pending.reminderID
-            )
-            guard store.dataGeneration > dataGenerationBefore,
-                  let updatedProject = store.project(id: projectID),
-                  updatedProject.selectedCounterID == counterID,
-                  let updatedCounter = updatedProject.counters.first(where: { $0.id == counterID }),
-                  updatedCounter.id == counterID,
-                  let updatedReminder = updatedCounter.reminder,
-                  updatedReminder.id == pending.reminderID,
-                  updatedReminder.pending == nil,
-                  updatedReminder.isActive != true else {
-                reminderActionFailed()
-                return
-            }
-        } catch {
-            counterSaveError = error.localizedDescription
-        }
-    }
-
-    private func reminderActionFailed() {
-        counterSaveError = LocaleAwareText.string("counter.error.notSaved", locale: locale)
     }
 
     private var hasActivePatterns: Bool {

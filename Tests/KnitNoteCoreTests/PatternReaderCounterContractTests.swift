@@ -197,15 +197,13 @@ import Testing
         #expect(reader.contains("saveError = .key(\"counter.error.notSaved\")"))
     }
 
-    @Test func readerDerivesTheVisibleReminderFromTheLatestStoredSelectedCounter() throws {
+    @Test func readerUsesTheSharedReminderQueueCardForStoredProjectState() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
 
-        #expect(reader.contains("private var visibleCounterReminder: VisibleCounterReminder?"))
-        #expect(reader.contains("store.project(id: projectID)"))
-        #expect(reader.contains("project.selectedCounter"))
-        #expect(reader.contains("counter.reminder?.pending"))
-        #expect(reader.contains("CounterReminderCard("))
-        #expect(!reader.contains("@State private var visibleCounterReminder"))
+        #expect(reader.contains("KnittingReminderQueueCard(projectID: projectID, project: project)"))
+        #expect(reader.contains("context.canWrite"))
+        #expect(!reader.contains("VisibleCounterReminder"))
+        #expect(!reader.contains("CounterReminderCard("))
     }
 
     @Test func readerUsesTheExactCommittedResultForUpwardCounterMutations() throws {
@@ -228,26 +226,18 @@ import Testing
         #expect(manager.contains("self.expectedDataGeneration = result.generation"))
     }
 
-    @Test func readerReminderActionsUseTheVisiblePersistedIdentityAndKeepFailuresVisible() throws {
+    @Test func readerReminderActionsUseTheSharedStoreBackedCard() throws {
         let reader = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
-        let complete = try #require(sourceSection(
-            reader,
-            from: "private func completeVisibleCounterReminder(",
-            to: "private func stopVisibleCounterReminder("
-        ))
-        let stop = try #require(sourceSection(
-            reader,
-            from: "private func stopVisibleCounterReminder(",
-            to: "private func navigatePDF("
-        ))
 
-        #expect(complete.contains("reminderID: visible.pending.reminderID"))
-        #expect(complete.contains("observedCount: visible.pending.occurrenceCount"))
-        #expect(stop.contains("reminderID: visible.pending.reminderID"))
-        #expect(complete.contains("saveError = .key(\"error.saveFailed\")"))
-        #expect(stop.contains("saveError = .key(\"error.saveFailed\")"))
-        #expect(!complete.contains("visibleCounterReminder = nil"))
-        #expect(!stop.contains("visibleCounterReminder = nil"))
+        let card = try sourceFile("KnitNote/Projects/KnittingReminderQueueCard.swift")
+
+        #expect(reader.contains("KnittingReminderQueueCard("))
+        #expect(card.contains("try store.applyKnittingReminderAction("))
+        #expect(card.contains("reminderID: current.occurrence.reminderID"))
+        #expect(card.contains("occurrenceID: occurrenceID"))
+        #expect(card.contains("observedRevision: current.reminderRevision"))
+        #expect(!reader.contains("completeVisibleCounterReminder"))
+        #expect(!reader.contains("stopVisibleCounterReminder"))
     }
 
     @Test func readerDisablesWriteControlsOnlyForStructurallyReadOnlyContexts() throws {

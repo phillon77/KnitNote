@@ -14,7 +14,6 @@
 		01D00DEA0C7D49522B7DAD3D /* YarnEditorDraftLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE24E4A7CD8BA12753F7AFA /* YarnEditorDraftLabelTests.swift */; };
 		02288F6B6BDCDFC985672ED6 /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		02A8AC06B5EB1AE99351FED1 /* CreateYarnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */; };
-		02EBFD2FF1DC1BA100A4C33F /* CounterReminderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F95B1315DBA157D63E7BED8 /* CounterReminderCard.swift */; };
 		0328CEE941C5F6C87629FEEC /* WatchOptimisticState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */; };
 		0383C350EB8EE615B729A4B5 /* MacFormLayoutSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1B84617CFE68892DFBBD66 /* MacFormLayoutSmokeTests.swift */; };
 		0397F283110D3D83BA57F59F /* ProjectCoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB51A2457EA062265F81BF42 /* ProjectCoverView.swift */; };
@@ -197,6 +196,7 @@
 		81BFF8531BBD2BF153058568 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5F160074737C554D783176A /* LaunchScreen.storyboard */; platformFilters = (ios, ); };
 		829177FF2EAA09E7BBD01AE2 /* KnitNoteShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 67146022BE86DEA48F100C13 /* KnitNoteShare.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		829313A3B81FEE7B46C7EEA5 /* ProjectCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A51559E4B7599CA640466E3 /* ProjectCounter.swift */; };
+		85B482B221FA4149462EE75D /* KnittingReminderQueueCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA347AFA005B259A3EF91DB /* KnittingReminderQueueCard.swift */; };
 		85F28B8AEE9E9F34BB860351 /* PatternProjectUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */; };
 		8720CB67DFF6463DAD9A72CE /* PatternLibraryImportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A55940F5FE8FDFB7A951862 /* PatternLibraryImportPresentation.swift */; };
 		87FBC27580B35C9EB1500B00 /* PatternFolderPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 170124F033C92380D9874C56 /* PatternFolderPresentation.swift */; };
@@ -336,6 +336,7 @@
 		F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		F1A9E3015D8D2FE61E35D6E8 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
 		F1B095AA2C48AE41AB759F1C /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
+		F1C1428EF369D5D0B1D62F19 /* KnittingReminderPresentationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381DBDA177D8D2B826DFCE92 /* KnittingReminderPresentationCoordinator.swift */; };
 		F1D4ABD513EAC331F5609A3C /* PatternReaderAppearancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4859E3F2F774092ADB9A1DE6 /* PatternReaderAppearancePresentation.swift */; };
 		F32AA568D0C99E08D9C6AF82 /* PatternReaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CE1C0101996F572112D739 /* PatternReaderControls.swift */; };
 		F38DAE6BC826FFFF57137DEF /* EditPatternPageNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */; };
@@ -428,7 +429,6 @@
 		09EC1CADA36E1BA0B45FF3D2 /* PatternPDFViewportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPDFViewportState.swift; sourceTree = "<group>"; };
 		0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternLinkIndex.swift; sourceTree = "<group>"; };
 		0E519BC9B336EF9AA75CC7DA /* StoreScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreScreenshotMode.swift; sourceTree = "<group>"; };
-		0F95B1315DBA157D63E7BED8 /* CounterReminderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterReminderCard.swift; sourceTree = "<group>"; };
 		0FC259F6E4729E8DB702FF97 /* AppStoreUpdateLiveNetworkContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreUpdateLiveNetworkContract.swift; sourceTree = "<group>"; };
 		0FE40BDDBFA4B660D0A7F517 /* PatternPageThumbnailPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPageThumbnailPresentation.swift; sourceTree = "<group>"; };
 		1022CE4FDB36687BDEC9BFDD /* KnittingCalculatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingCalculatorsView.swift; sourceTree = "<group>"; };
@@ -479,6 +479,7 @@
 		3620C73CD8D7A61B1C59473E /* EditRowNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRowNoteView.swift; sourceTree = "<group>"; };
 		373195B93B12AF80760B1A6D /* ProcessedWatchCommandLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessedWatchCommandLedger.swift; sourceTree = "<group>"; };
 		3803B909BB62BCCF84FC5BF2 /* ProjectJournalAsyncPublicationGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalAsyncPublicationGate.swift; sourceTree = "<group>"; };
+		381DBDA177D8D2B826DFCE92 /* KnittingReminderPresentationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingReminderPresentationCoordinator.swift; sourceTree = "<group>"; };
 		38994FA8D2614768D26F2CD3 /* PatternInboxProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxProcessing.swift; sourceTree = "<group>"; };
 		391EA8DCA05776530E4CDF0C /* MacYarnEditorFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnEditorFields.swift; sourceTree = "<group>"; };
 		3A8BA0F1D4ABF2AA7472AEE6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -668,6 +669,7 @@
 		F5F160074737C554D783176A /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		F908526E23B7BB45759E5DB7 /* PDFReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReaderView.swift; sourceTree = "<group>"; };
 		FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStoreScreenshotMode.swift; sourceTree = "<group>"; };
+		FAA347AFA005B259A3EF91DB /* KnittingReminderQueueCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingReminderQueueCard.swift; sourceTree = "<group>"; };
 		FD56893C10E9FF664C6B6F3B /* MacYarnLabelFileImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnLabelFileImporter.swift; sourceTree = "<group>"; };
 		FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternThumbnailFileService.swift; sourceTree = "<group>"; };
 		FE75A4BC6F25D9138B684ADF /* RowNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowNote.swift; sourceTree = "<group>"; };
@@ -692,7 +694,6 @@
 				0921465E1F24F5FB8C1A449E /* ChooseLibraryPatternView.swift */,
 				1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */,
 				2A4DC78289ACE6594449E656 /* ChoosePatternReadingContextView.swift */,
-				0F95B1315DBA157D63E7BED8 /* CounterReminderCard.swift */,
 				84E7B7CDFA68E43404E56773 /* EditPatternPageNoteView.swift */,
 				9601A8677B4A82779D2F7E59 /* HighlightOverlay.swift */,
 				45DB5696F3AAF1210D0E30D8 /* ImageReaderView.swift */,
@@ -905,6 +906,8 @@
 				F06831CA9B742E9BB9A212DB /* JournalPhotoPicker.swift */,
 				EC0AB225FBF5ECA218077945 /* KnittingReminderEditorView.swift */,
 				6FD414CDA5FB53E60A9B6A51 /* KnittingReminderListView.swift */,
+				381DBDA177D8D2B826DFCE92 /* KnittingReminderPresentationCoordinator.swift */,
+				FAA347AFA005B259A3EF91DB /* KnittingReminderQueueCard.swift */,
 				9EB48148E006BF6D0BB28062 /* KnittingReminderSummary.swift */,
 				C05B67645287474EA73C4DDF /* ProjectCard.swift */,
 				30A176FC8CBA054D9D2179E6 /* ProjectCounterName.swift */,
@@ -1483,7 +1486,6 @@
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
 				BCA209B015AA3F4D86B281EF /* CounterManagerView.swift in Sources */,
 				805E093B4363B9EAA8F3A84F /* CounterReminder.swift in Sources */,
-				02EBFD2FF1DC1BA100A4C33F /* CounterReminderCard.swift in Sources */,
 				C23217D410DEE408306EE59D /* CounterSelectorGrid.swift in Sources */,
 				225745081B10256F761B5769 /* CounterValueInput.swift in Sources */,
 				A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */,
@@ -1527,6 +1529,8 @@
 				B42B4D8E4942A78B47B7B528 /* KnittingReminderEditorView.swift in Sources */,
 				07C709111804310728B7489F /* KnittingReminderListView.swift in Sources */,
 				3165ECFB018FDDE0E70772F8 /* KnittingReminderMigrator.swift in Sources */,
+				F1C1428EF369D5D0B1D62F19 /* KnittingReminderPresentationCoordinator.swift in Sources */,
+				85B482B221FA4149462EE75D /* KnittingReminderQueueCard.swift in Sources */,
 				ED461D22AD44744EAD01E0F0 /* KnittingReminderSummary.swift in Sources */,
 				BD22ADF8A183958BC1DC22CE /* LanguageSelectionProjection.swift in Sources */,
 				DBF2E2B7BD535C9C8AF1E53C /* LanguageSettings.swift in Sources */,

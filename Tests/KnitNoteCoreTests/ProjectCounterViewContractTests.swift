@@ -181,109 +181,16 @@ import Testing
 
     @Test func projectDetailShowsSelectedPendingReminderBelowCounters() throws {
         let source = try projectSource(named: "ProjectDetailView")
-        let tokens = executableSwiftTokens(in: source)
-        let reminderSection = try #require(executableSection(
-            tokens,
-            from: "CounterSelectorGrid",
-            to: "ProjectYarnSection"
-        ))
-
-        #expect(containsTokenSequence(
-            reminderSection,
-            ["project", ".", "selectedCounter", ".", "reminder"]
-        ))
-        #expect(containsTokenSequence(
-            reminderSection,
-            ["if", "let", "pending", "=", "reminder", ".", "pending"]
-        ))
-        #expect(containsTokenSequence(
-            reminderSection,
-            [
-                "CounterReminderCard", "(",
-                "pending", ":", "pending", ",",
-                "message", ":", "reminder", ".", "message", ",",
-                "onComplete", ":", "{",
-                "completeProjectCounterReminder", "(",
-                "counterID", ":", "counterID", ",",
-                "pending", ":", "pending", ")", "}", ",",
-                "onStop", ":", "{",
-                "stopProjectCounterReminder", "(",
-                "counterID", ":", "counterID", ",",
-                "pending", ":", "pending", ")", "}", ")",
-            ]
-        ))
-        #expect(tokenSequenceCount(reminderSection, matching: ["CounterReminderCard", "("]) == 1)
+        #expect(source.contains("KnittingReminderQueueCard(projectID: projectID, project: project)"))
+        #expect(!source.contains("CounterReminderCard"))
     }
 
-    @Test func projectDetailReminderActionsAreStoreBackedAndFailClosed() throws {
+    @Test func sharedQueueCardOwnsReminderActionsAndProjectDetailHasNoLocalMutation() throws {
         let source = try projectSource(named: "ProjectDetailView")
-        let tripleQuote = String(repeating: "\"", count: 3)
-        let escapedTripleQuote = "\\\(tripleQuote)"
-        let rawStringDelimiter = "#"
-        let lexerFixtures: [(source: String, leakedToken: String)] = [
-            ("let live = 1 // lineCommentDecoy()\n", "lineCommentDecoy"),
-            ("/* outerCommentDecoy() /* nestedCommentDecoy() */ */ let live = 1", "outerCommentDecoy"),
-            ("/* outerCommentDecoy() /* nestedCommentDecoy() */ */ let live = 1", "nestedCommentDecoy"),
-            ("let text = \"ordinary escaped \\\" quote ordinaryStringDecoy()\"\n", "ordinaryStringDecoy"),
-            ("let text = \(tripleQuote)\nplainMultilineDecoy()\n\(tripleQuote)\nlet live = 1", "plainMultilineDecoy"),
-            ("let text = \(tripleQuote)\n\(escapedTripleQuote)\nescapedTripleQuoteDecoy()\n\(escapedTripleQuote)\n\(tripleQuote)\nlet live = 1", "escapedTripleQuoteDecoy"),
-            ("let text = \(rawStringDelimiter)\(tripleQuote)\n\(tripleQuote)\nrawStringDecoy()\n\(tripleQuote)\n\(tripleQuote)\(rawStringDelimiter)\nlet live = 1", "rawStringDecoy"),
-            ("#if os(Linux)\ninactiveBranchDecoy()\n#endif\nlet live = 1", "inactiveBranchDecoy"),
-            ("#if os(Linux)\n/*\n#endif\n*/\ninactiveConditionalCommentDecoy()\n#endif\nlet live = 1", "inactiveConditionalCommentDecoy"),
-            ("#if os(Linux)\nlet text = \(rawStringDelimiter)\(tripleQuote)\n#endif\ninactiveConditionalStringDecoy()\n\(tripleQuote)\(rawStringDelimiter)\n#endif\nlet live = 1", "inactiveConditionalStringDecoy"),
-        ]
-        for fixture in lexerFixtures {
-            #expect(!executableSwiftTokens(in: fixture.source).contains(fixture.leakedToken))
-        }
-
-        let tokens = executableSwiftTokens(in: source)
-        let complete = try #require(executableFunction(
-            named: "completeProjectCounterReminder",
-            in: tokens
-        ))
-        let stop = try #require(executableFunction(
-            named: "stopProjectCounterReminder",
-            in: tokens
-        ))
-
-        #expect(hasFailClosedPrecondition(in: complete, requiresActiveReminder: false))
-        #expect(containsTokenSequence(
-            complete,
-            [
-                "let", "dataGenerationBefore", "=", "store", ".", "dataGeneration",
-                "try", "store", ".", "completeCounterReminder", "(",
-                "projectID", ":", "projectID", ",",
-                "counterID", ":", "counterID", ",",
-                "reminderID", ":", "pending", ".", "reminderID", ",",
-                "observedCount", ":", "pending", ".", "occurrenceCount", ")",
-            ]
-        ))
-        #expect(hasFailClosedPostcondition(in: complete, requiresInactiveReminder: false))
-        #expect(hasErrorRetention(in: complete))
-        #expect(tokenSequenceCount(
-            complete,
-            matching: ["try", "store", ".", "completeCounterReminder", "("]
-        ) == 1)
-        #expect(complete.filter { $0 == "reminderActionFailed" }.count == 2)
-
-        #expect(hasFailClosedPrecondition(in: stop, requiresActiveReminder: true))
-        #expect(containsTokenSequence(
-            stop,
-            [
-                "let", "dataGenerationBefore", "=", "store", ".", "dataGeneration",
-                "try", "store", ".", "stopCounterReminder", "(",
-                "projectID", ":", "projectID", ",",
-                "counterID", ":", "counterID", ",",
-                "reminderID", ":", "pending", ".", "reminderID", ")",
-            ]
-        ))
-        #expect(hasFailClosedPostcondition(in: stop, requiresInactiveReminder: true))
-        #expect(hasErrorRetention(in: stop))
-        #expect(tokenSequenceCount(
-            stop,
-            matching: ["try", "store", ".", "stopCounterReminder", "("]
-        ) == 1)
-        #expect(stop.filter { $0 == "reminderActionFailed" }.count == 2)
+        #expect(source.contains("KnittingReminderQueueCard"))
+        #expect(!source.contains("completeCounterReminder"))
+        #expect(!source.contains("stopCounterReminder"))
+        #expect(!source.contains("project.knittingReminders ="))
     }
 
     @Test func rejectedDirectReminderSaveKeepsTheManagerOpen() throws {
@@ -302,7 +209,7 @@ import Testing
 
     @Test func reminderAccessibilityKeepsLocalizedSemanticsActionsAndAdaptiveHeight() throws {
         let manager = try projectSource(named: "CounterManagerView")
-        let card = try source("KnitNote/Patterns/CounterReminderCard.swift")
+        let card = try source("KnitNote/Projects/KnittingReminderQueueCard.swift")
         let watch = try source("KnitNoteWatch/ProjectCountersView.swift")
 
         #expect(manager.contains(".accessibilityLabel(Text(\"counter.value.edit\"))"))
@@ -310,13 +217,13 @@ import Testing
         #expect(manager.contains("KnittingReminderEditorView(projectID: projectID, reminderID: reminderID)"))
         #expect(!manager.contains("CounterReminderEdit"))
 
-        #expect(card.contains("return \"\\(reachedCopy) · \\(crossedCountCopy)\""))
-        #expect(card.contains(".accessibilityHint(Text(\"counter.reminder.complete.hint\"))"))
-        #expect(card.contains(".accessibilityHint(Text(\"counter.reminder.stop.hint\"))"))
-        #expect(card.components(separatedBy: ".frame(minHeight: 44)").count - 1 == 2)
+        #expect(card.contains("Text(verbatim: text)"))
+        #expect(card.contains(".accessibilityHint(Text(\"knittingReminder.card.complete.hint\"))"))
+        #expect(card.contains(".accessibilityHint(Text(\"knittingReminder.card.stop.hint\"))"))
+        #expect(card.components(separatedBy: "frame(minWidth: 44, minHeight: 44)").count - 1 >= 3)
         #expect(card.contains("ViewThatFits(in: .horizontal)"))
         #expect(!card.contains(".frame(height:"))
-        #expect(card.contains("Text(verbatim: message)"))
+        #expect(card.contains(".accessibilityValue"))
 
         let watchReminder = try #require(sourceSection(
             watch,

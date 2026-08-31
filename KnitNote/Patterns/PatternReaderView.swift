@@ -56,12 +56,6 @@ private struct PatternReaderContent {
     let url: URL
 }
 
-private struct VisibleCounterReminder {
-    let counterID: UUID
-    let pending: CounterReminderPending
-    let message: String?
-}
-
 struct PatternReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
@@ -287,18 +281,6 @@ struct PatternReaderView: View {
                 url: store.patternURL(projectID: projectID, pattern: pattern)
             )
         }
-    }
-
-    private var visibleCounterReminder: VisibleCounterReminder? {
-        guard let projectID = context.projectID,
-              let project = store.project(id: projectID) else { return nil }
-        let counter = project.selectedCounter
-        guard let pending = counter.reminder?.pending else { return nil }
-        return VisibleCounterReminder(
-            counterID: counter.id,
-            pending: pending,
-            message: counter.reminder?.message
-        )
     }
 
     private var readerContextIdentity: PatternReaderContextIdentity {
@@ -711,15 +693,14 @@ struct PatternReaderView: View {
                 )
             }
 
-            if let visible = visibleCounterReminder, !markupMode {
+            if let projectID = context.projectID,
+               let project = store.project(id: projectID),
+               !project.isCompleted,
+               context.canWrite,
+               !markupMode {
                 VStack {
                     Spacer()
-                    CounterReminderCard(
-                        pending: visible.pending,
-                        message: visible.message,
-                        onComplete: { completeVisibleCounterReminder(visible) },
-                        onStop: { stopVisibleCounterReminder(visible) }
-                    )
+                    KnittingReminderQueueCard(projectID: projectID, project: project)
                     .frame(maxWidth: 440)
                     .padding()
                 }
@@ -960,59 +941,6 @@ struct PatternReaderView: View {
         } catch {
             saveError = .key("error.saveFailed")
             return false
-        }
-    }
-
-    private func completeVisibleCounterReminder(_ visible: VisibleCounterReminder) {
-        guard requestReaderWriteAccess(),
-              readerSession.canPersist,
-              readerSession.identity == readerContextIdentity,
-              context.canWrite else { return }
-        do {
-            guard let usageID = context.usageID,
-                  let expectedDataGeneration else { return }
-            let result = try store.mutatePatternReaderCounterWithOutcome(
-                usageID: usageID,
-                counterID: visible.counterID,
-                mutation: .completeReminder(
-                    reminderID: visible.pending.reminderID,
-                    observedCount: visible.pending.occurrenceCount
-                ),
-                expectedDataGeneration: expectedDataGeneration
-            )
-            guard result.generation > expectedDataGeneration else {
-                saveError = .key("error.saveFailed")
-                return
-            }
-            self.expectedDataGeneration = result.generation
-            revisionCoordinator.confirmMutation(generation: result.generation)
-        } catch {
-            saveError = .key("error.saveFailed")
-        }
-    }
-
-    private func stopVisibleCounterReminder(_ visible: VisibleCounterReminder) {
-        guard requestReaderWriteAccess(),
-              readerSession.canPersist,
-              readerSession.identity == readerContextIdentity,
-              context.canWrite else { return }
-        do {
-            guard let usageID = context.usageID,
-                  let expectedDataGeneration else { return }
-            let result = try store.mutatePatternReaderCounterWithOutcome(
-                usageID: usageID,
-                counterID: visible.counterID,
-                mutation: .stopReminder(reminderID: visible.pending.reminderID),
-                expectedDataGeneration: expectedDataGeneration
-            )
-            guard result.generation > expectedDataGeneration else {
-                saveError = .key("error.saveFailed")
-                return
-            }
-            self.expectedDataGeneration = result.generation
-            revisionCoordinator.confirmMutation(generation: result.generation)
-        } catch {
-            saveError = .key("error.saveFailed")
         }
     }
 

@@ -147,16 +147,15 @@ import Testing
         #expect(source.contains("editorLayout\n            .padding()"))
     }
 
-    @Test func counterManagerConfirmsResetAndExposesSemanticValidationAndReminderContent() throws {
+    @Test func counterManagerConfirmsResetAndKeepsOnlyMigratedSecondaryReminderEditing() throws {
         let source = try projectSource(named: "CounterManagerView")
 
         #expect(source.contains("@State private var confirmingValueReset = false"))
         #expect(source.contains(".confirmationDialog(\"counter.reset\""))
         #expect(source.contains("Text(\"counter.value.invalid\")"))
-        #expect(source.contains(".accessibilityLabel(Text(reminderSummary))"))
-        #expect(source.contains(".accessibilityValue(Text(reminderSummary))"))
-        #expect(source.contains("counter.reminder.none"))
-        #expect(source.contains("counter.reminder.nextTarget"))
+        #expect(source.contains("counter.id != mainCounterID"))
+        #expect(source.contains("KnittingReminderEditorView(projectID: projectID, reminderID: reminderID)"))
+        #expect(!source.contains("CounterReminderEdit"))
     }
 
     @Test func projectCounterManagerKeepsItsSheetOpenWithTheSelectedAppLanguageWhenTheStoreRejects() throws {
@@ -168,7 +167,7 @@ import Testing
         #expect(!source.contains("try store.updateCounter(projectID:"))
     }
 
-    @Test func projectCounterManagerPersistsValueNameAndReminderInOneTransaction() throws {
+    @Test func projectCounterManagerPersistsValueAndNameWithoutLegacyReminderCreation() throws {
         let source = try projectSource(named: "ProjectDetailView")
 
         #expect(source.contains("try store.manageCounter("))
@@ -176,7 +175,7 @@ import Testing
         #expect(source.contains("counterID: counter.id"))
         #expect(source.contains("name: save.name"))
         #expect(source.contains("value: save.value"))
-        #expect(source.contains("reminder: save.reminderEdit"))
+        #expect(source.contains("reminder: .unchanged"))
         #expect(!source.contains("try store.configureCounterReminder("))
     }
 
@@ -308,8 +307,8 @@ import Testing
 
         #expect(manager.contains(".accessibilityLabel(Text(\"counter.value.edit\"))"))
         #expect(!manager.contains(".accessibilityLabel(Text(\"counter.value\"))"))
-        #expect(manager.contains("counter.reminder.nextTarget"))
-        #expect(manager.contains(".accessibilityValue(Text(reminderSummary))"))
+        #expect(manager.contains("KnittingReminderEditorView(projectID: projectID, reminderID: reminderID)"))
+        #expect(!manager.contains("CounterReminderEdit"))
 
         #expect(card.contains("return \"\\(reachedCopy) · \\(crossedCountCopy)\""))
         #expect(card.contains(".accessibilityHint(Text(\"counter.reminder.complete.hint\"))"))

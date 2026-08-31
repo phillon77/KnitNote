@@ -15,13 +15,15 @@ private enum CounterManagerPresentationPolicy {
 struct CounterManagerSave {
     let name: String
     let value: Int
-    let reminderEdit: CounterReminderEdit
 }
 
 struct CounterManagerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     let counter: ProjectCounter
+    let projectID: UUID
+    let mainCounterID: UUID
+    let reminderID: UUID?
     let onSave: (CounterManagerSave) -> Bool
     @State private var name = ""
     @State private var valueText = ""
@@ -30,14 +32,19 @@ struct CounterManagerView: View {
     @State private var hasEditedName = false
     @State private var hasInvalidValue = false
     @State private var confirmingValueReset = false
-    @State private var reminderDraft: CounterReminderDraft?
-    @State private var showingReminderEditor = false
-    @State private var confirmingReminderReplacement = false
 
-    init(counter: ProjectCounter, onSave: @escaping (CounterManagerSave) -> Bool) {
+    init(
+        counter: ProjectCounter,
+        projectID: UUID,
+        mainCounterID: UUID,
+        reminderID: UUID?,
+        onSave: @escaping (CounterManagerSave) -> Bool
+    ) {
         self.counter = counter
+        self.projectID = projectID
+        self.mainCounterID = mainCounterID
+        self.reminderID = reminderID
         self.onSave = onSave
-        _reminderDraft = State(initialValue: Self.draft(from: counter.reminder))
     }
 
     var body: some View {
@@ -54,7 +61,6 @@ struct CounterManagerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("common.done") { save() }
-                        .disabled(!hasValidReminderEdit)
                 }
             }
         }
@@ -63,17 +69,6 @@ struct CounterManagerView: View {
                 valueText = "0"
             }
             Button("common.cancel", role: .cancel) {}
-        }
-        .confirmationDialog("counter.reminder.replace", isPresented: $confirmingReminderReplacement,
-            titleVisibility: .visible
-        ) {
-            Button("counter.reminder.replace", role: .destructive) {
-                persistCurrentDraft()
-            }
-            Button("common.cancel", role: .cancel) {}
-        }
-        .sheet(isPresented: $showingReminderEditor) {
-            CounterReminderEditor(draft: $reminderDraft, counterValue: currentValue ?? counter.value)
         }
 #if os(macOS)
         .frame(
@@ -159,24 +154,14 @@ struct CounterManagerView: View {
 
             valueControls
 
-            Label {
-                Text(reminderSummary)
-                    .lineLimit(2)
-            } icon: {
-                Image(systemName: counter.reminder?.isActive == true ? "bell" : "bell.slash")
+            if counter.id != mainCounterID, let reminderID {
+                NavigationLink {
+                    KnittingReminderEditorView(projectID: projectID, reminderID: reminderID)
+                } label: {
+                    Label("Edit migrated reminder", systemImage: "bell.badge")
+                }
+                .frame(minHeight: 44)
             }
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(Text(reminderSummary))
-            .accessibilityValue(Text(reminderSummary))
-
-            Button {
-                showingReminderEditor = true
-            } label: {
-                Label("counter.reminder.edit", systemImage: "bell.badge")
-            }
-            .frame(minHeight: 44)
         }
         .frame(minWidth: 280, maxWidth: .infinity, alignment: .leading)
     }
@@ -254,37 +239,6 @@ struct CounterManagerView: View {
 #endif
     }
 
-    private var reminderSummary: String {
-        guard let reminder = counter.reminder, reminder.isActive else {
-            return LocaleAwareText.string("counter.reminder.none", locale: locale)
-        }
-        let target = reminder.nextTarget.map {
-                "\(LocaleAwareText.string("counter.reminder.nextTarget", locale: locale)) \($0.formatted(.number.locale(locale)))"
-        } ?? LocaleAwareText.string("counter.reminder.none", locale: locale)
-        let message = reminder.message?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return message?.isEmpty == false ? "\(message!) · \(target)" : target
-    }
-
-    private var reminderEdit: CounterReminderEdit {
-        let originalDraft = Self.draft(from: counter.reminder)
-        if originalDraft == reminderDraft { return .unchanged }
-        if let reminderDraft { return .replace(reminderDraft) }
-        return .remove(expectedReminderID: counter.reminder?.id)
-    }
-
-    private var replacementNeedsConfirmation: Bool {
-        guard case .replace = reminderEdit,
-              counter.reminder?.isActive == true else { return false }
-        return (counter.reminder?.acknowledgedCount ?? 0) > 0
-            || counter.reminder?.pending != nil
-    }
-
-    private var hasValidReminderEdit: Bool {
-        guard case let .replace(draft) = reminderEdit else { return true }
-        guard let value = currentValue else { return false }
-        return CounterReminder(draft: draft, anchorValue: value) != nil
-    }
-
     private func loadDraft() {
         guard !hasLoaded else { return }
         defaultName = projectCounterDisplayName(counter, locale: locale)
@@ -309,15 +263,6 @@ struct CounterManagerView: View {
 
     private func save() {
         guard let savedCounter = currentSave() else { return }
-        if replacementNeedsConfirmation {
-            confirmingReminderReplacement = true
-            return
-        }
-        if onSave(savedCounter) { dismiss() }
-    }
-
-    private func persistCurrentDraft() {
-        guard let savedCounter = currentSave() else { return }
         if onSave(savedCounter) { dismiss() }
     }
 
@@ -332,18 +277,7 @@ struct CounterManagerView: View {
             : trimmedName
         return CounterManagerSave(
             name: savedName,
-            value: value,
-            reminderEdit: reminderEdit
+            value: value
         )
-    }
-
-    private static func draft(from reminder: CounterReminder?) -> CounterReminderDraft? {
-        guard let reminder, reminder.isActive else { return nil }
-        switch reminder.rule {
-        case let .oneTime(target):
-            return .oneTime(target: target, message: reminder.message)
-        case let .repeating(interval, limit):
-            return .repeating(interval: interval, limit: limit, message: reminder.message)
-        }
     }
 }

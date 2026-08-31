@@ -22,6 +22,14 @@ import Testing
         #expect(readerSource.contains("managingCounter = project.counters.first"))
     }
 
+    @Test func readerOpensTheSharedProjectReminderList() throws {
+        let readerSource = try sourceFile("KnitNote/Patterns/PatternReaderView.swift")
+
+        #expect(readerSource.contains("KnittingReminderListView(projectID: projectID)"))
+        #expect(readerSource.contains("showingKnittingReminders"))
+        #expect(readerSource.contains("project.activeKnittingReminderCount"))
+    }
+
     @Test func coloredCountersKeepPracticalTouchTargets() throws {
         let source = try sourceFile("KnitNote/Patterns/PatternReaderControls.swift")
 
@@ -184,7 +192,7 @@ import Testing
         #expect(counterEditor.contains("if onSave(savedCounter) { dismiss() }"))
         #expect(reader.contains("private func savePageNoteDirectly() -> Bool"))
         #expect(reader.contains("private func manageCounter(_ counter: ProjectCounter, save: CounterManagerSave) -> Bool"))
-        #expect(reader.contains("mutation: .manage(name: save.name, value: save.value, reminder: save.reminderEdit)"))
+        #expect(reader.contains("mutation: .manage(name: save.name, value: save.value, reminder: .unchanged)"))
         #expect(reader.contains("guard result.generation > expectedDataGeneration else"))
         #expect(reader.contains("saveError = .key(\"counter.error.notSaved\")"))
     }

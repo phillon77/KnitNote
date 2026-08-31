@@ -99,6 +99,16 @@ struct ProjectDetailView: View {
                             )
                         }
 
+                        WatercolorCard {
+                            NavigationLink {
+                                KnittingReminderListView(projectID: projectID)
+                            } label: {
+                                Label("knittingReminder.list.title", systemImage: "bell.badge")
+                                Spacer()
+                                Text(project.activeKnittingReminderCount, format: .number)
+                            }
+                        }
+
                         if let reminder = project.selectedCounter.reminder {
                             if let pending = reminder.pending {
                                 let counterID = project.selectedCounterID
@@ -186,7 +196,12 @@ struct ProjectDetailView: View {
                 }
             }
             .sheet(item: $managingCounter) { counter in
-                CounterManagerView(counter: counter) { save in
+                CounterManagerView(
+                    counter: counter,
+                    projectID: projectID,
+                    mainCounterID: project.mainCounterID,
+                    reminderID: project.knittingReminders.first { $0.counterID == counter.id }?.id
+                ) { save in
                     saveCounter(counter, save: save)
                 }
             }
@@ -234,7 +249,7 @@ struct ProjectDetailView: View {
                 counterID: counter.id,
                 name: save.name,
                 value: save.value,
-                reminder: save.reminderEdit
+                reminder: .unchanged
             ) else {
                 counterSaveError = LocaleAwareText.string("counter.error.notSaved", locale: locale)
                 return false

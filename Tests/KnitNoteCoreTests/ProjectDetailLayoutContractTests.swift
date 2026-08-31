@@ -37,6 +37,15 @@ import Testing
         #expect(journal.contains("project.journalEntries.isEmpty ? Color.primary : WatercolorTheme.actionBerry"))
     }
 
+    @Test func projectDetailOffersTheSharedReminderListBesideCounters() throws {
+        let source = try projectSource()
+        let counters = try #require(source.range(of: "CounterSelectorGrid("))
+        let reminders = try #require(source.range(of: "KnittingReminderListView(projectID: projectID)"))
+
+        #expect(counters.lowerBound < reminders.lowerBound)
+        #expect(source.contains("project.activeKnittingReminderCount"))
+    }
+
     @Test func patternDetailUsesReadablePadWidthAndKeepsActionsInScrollableContent() throws {
         let source = try source(at: "KnitNote/Patterns/PatternDetailView.swift")
         let scroll = try #require(source.range(of: "ScrollView"))

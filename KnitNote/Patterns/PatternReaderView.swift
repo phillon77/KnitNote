@@ -94,6 +94,7 @@ struct PatternReaderView: View {
     @State private var revisionCoordinator = PatternReaderRevisionCoordinator(expectedDataGeneration: 0)
     @State private var pendingPageTransition: PatternReaderPageTransition?
     @State private var managingCounter: ProjectCounter?
+    @State private var showingKnittingReminders = false
     @StateObject private var pdfNavigator = PDFPageNavigator()
     @StateObject private var systemAppearance = PatternSystemAppearanceMonitor()
     private let counterRailSafeAreaWidth: CGFloat = 64
@@ -499,6 +500,19 @@ struct PatternReaderView: View {
                         )
                     }
                 }
+                if let projectID = context.projectID,
+                   let project = store.project(id: projectID) {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showingKnittingReminders = true
+                        } label: {
+                            HStack {
+                                Label("knittingReminder.list.title", systemImage: "bell.badge")
+                                Text(project.activeKnittingReminderCount, format: .number)
+                            }
+                        }
+                    }
+                }
             }
             .alert("patterns.invalid", isPresented: $loadError) { Button("common.ok") { dismiss() } }
             .alert("error.saveFailed", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
@@ -530,8 +544,23 @@ struct PatternReaderView: View {
                 }
             }
             .sheet(item: $managingCounter) { counter in
-                CounterManagerView(counter: counter) { save in
-                    manageCounter(counter, save: save)
+                if let projectID = context.projectID,
+                   let project = store.project(id: projectID) {
+                    CounterManagerView(
+                        counter: counter,
+                        projectID: projectID,
+                        mainCounterID: project.mainCounterID,
+                        reminderID: project.knittingReminders.first { $0.counterID == counter.id }?.id
+                    ) { save in
+                        manageCounter(counter, save: save)
+                    }
+                }
+            }
+            .sheet(isPresented: $showingKnittingReminders) {
+                if let projectID = context.projectID {
+                    NavigationStack {
+                        KnittingReminderListView(projectID: projectID)
+                    }
                 }
             }
             .confirmationDialog("patterns.markup.clear.confirm", isPresented: $confirmingMarkupClear) {
@@ -918,7 +947,7 @@ struct PatternReaderView: View {
             let result = try store.mutatePatternReaderCounterWithOutcome(
                 usageID: usageID,
                 counterID: counter.id,
-                mutation: .manage(name: save.name, value: save.value, reminder: save.reminderEdit),
+                mutation: .manage(name: save.name, value: save.value, reminder: .unchanged),
                 expectedDataGeneration: expectedDataGeneration
             )
             guard result.generation > expectedDataGeneration else {

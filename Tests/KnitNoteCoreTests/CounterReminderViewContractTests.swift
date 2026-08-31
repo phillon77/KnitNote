@@ -2,53 +2,12 @@ import Foundation
 import Testing
 
 @Suite struct CounterReminderViewContractTests {
-    @Test func reminderEditorExposesTheApprovedDraftBoundaryAndControls() throws {
-        let source = try sourceFile("KnitNote/Projects/CounterReminderEditor.swift")
-
-        #expect(source.contains("struct CounterReminderEditor: View"))
-        #expect(source.contains("@Binding var draft: CounterReminderDraft?"))
-        #expect(source.contains("let counterValue: Int"))
-        #expect(source.contains("counter.reminder.mode.oneTime"))
-        #expect(source.contains("counter.reminder.mode.repeating"))
-        #expect(source.contains("counter.reminder.target"))
-        #expect(source.contains("counter.reminder.interval"))
-        #expect(source.contains("counter.reminder.limit"))
-        #expect(source.contains("counter.reminder.message"))
-    }
-
-    @Test func reminderEditorRejectsInvalidTargetsIntervalsAndFiniteCounts() throws {
-        let source = try sourceFile("KnitNote/Projects/CounterReminderEditor.swift")
-
-        #expect(source.contains("target > counterValue"))
-        #expect(source.contains("interval > 0"))
-        #expect(source.contains("limit > 0"))
-        #expect(source.contains(".disabled(validDraft == nil)"))
-    }
-
-    @Test func reminderEditorTrimsCustomCopyAndNormalizesEmptyCopyToNil() throws {
-        let source = try sourceFile("KnitNote/Projects/CounterReminderEditor.swift")
-
-        #expect(source.contains("trimmingCharacters(in: .whitespacesAndNewlines)"))
-        #expect(source.contains("trimmedMessage.isEmpty ? nil : trimmedMessage"))
-        #expect(source.contains("TextField(\"counter.reminder.message\", text: $messageText"))
-    }
-
-    @Test func managerConfirmsReplacingAReminderThatAlreadyHasProgress() throws {
+    @Test func managerDoesNotKeepTheLegacyReminderCreationFlow() throws {
         let source = try sourceFile("KnitNote/Projects/CounterManagerView.swift")
 
-        #expect(source.contains("CounterReminderEditor(draft: $reminderDraft, counterValue:"))
-        #expect(source.contains("counter.reminder?.acknowledgedCount ?? 0) > 0"))
-        #expect(source.contains("counter.reminder?.pending != nil"))
-        #expect(source.contains(".confirmationDialog(\"counter.reminder.replace\""))
-        #expect(source.contains("reminderEdit: reminderEdit"))
-    }
-
-    @Test func managerRevalidatesAReplacementAgainstTheValueThatWillBeSaved() throws {
-        let source = try sourceFile("KnitNote/Projects/CounterManagerView.swift")
-
-        #expect(source.contains("private var hasValidReminderEdit: Bool"))
-        #expect(source.contains("CounterReminder(draft: draft, anchorValue: value) != nil"))
-        #expect(source.contains(".disabled(!hasValidReminderEdit)"))
+        #expect(!source.contains("CounterReminderEditor("))
+        #expect(!source.contains("CounterReminderDraft"))
+        #expect(!source.contains("CounterReminderEdit"))
     }
 
     @Test func reminderCardHasExactlyTheApprovedActions() throws {

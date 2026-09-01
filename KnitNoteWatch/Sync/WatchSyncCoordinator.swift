@@ -219,15 +219,21 @@ final class WatchSyncCoordinator: ObservableObject {
         observedPendingCount: Int? = nil
     ) {
         let previouslyVisibleReminderIDs = Self.visiblePendingReminderIDs(in: state.snapshot)
-        guard let command = try? WatchCounterCommand(
-            validating: WatchCounterCommand.currentSchemaVersion,
-            projectID: projectID,
-            counterID: counterID,
-            operation: operation,
-            reminderID: reminderID,
-            observedPendingCount: observedPendingCount,
-            createdAt: now()
-        ) else {
+        let command: WatchCounterCommand?
+        if let reminderID {
+            command = WatchCounterCommand.legacyWatchUICommand(
+                projectID: projectID, counterID: counterID, operation: operation,
+                reminderID: reminderID, observedPendingCount: observedPendingCount,
+                createdAt: now()
+            )
+        } else {
+            command = try? WatchCounterCommand(
+                validating: WatchCounterCommand.currentSchemaVersion,
+                projectID: projectID, counterID: counterID, operation: operation,
+                createdAt: now()
+            )
+        }
+        guard let command else {
             setError(.unsupportedSchema)
             return
         }

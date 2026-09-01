@@ -113,7 +113,7 @@ import Testing
             target: Int,
             createdAt: TimeInterval
         ) throws -> WatchKnittingReminderSnapshot {
-            let occurrence = WatchKnittingReminderOccurrenceSnapshot(
+            let occurrence = try WatchKnittingReminderOccurrenceSnapshot(
                 id: UUID(uuidString: target == 12 ? "00000000-0000-0000-0000-000000000201" : "00000000-0000-0000-0000-000000000202")!, reminderID: id, kind: .measure, text: "原樣文字",
                 originalTarget: target, displayAt: target, phase: .initial,
                 awaitsNextUpwardChange: false

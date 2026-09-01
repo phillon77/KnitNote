@@ -847,7 +847,7 @@ private extension Fixture {
         awaitsNextUpwardChange: Bool = false
     ) throws -> WatchKnittingReminderSnapshot {
         let reminderID = UUID()
-        let occurrence = WatchKnittingReminderOccurrenceSnapshot(
+        let occurrence = try WatchKnittingReminderOccurrenceSnapshot(
             id: UUID(), reminderID: reminderID, kind: .cable, text: "原樣文字",
             originalTarget: 12, displayAt: awaitsNextUpwardChange ? 13 : 12, phase: phase,
             awaitsNextUpwardChange: awaitsNextUpwardChange

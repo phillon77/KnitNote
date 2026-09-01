@@ -43,27 +43,33 @@ public struct WatchKnittingReminderOccurrenceSnapshot: Codable, Equatable, Ident
     public var phase: KnittingReminderOccurrencePhase
     public var awaitsNextUpwardChange: Bool
 
-    public init(id: UUID, reminderID: UUID, kind: KnittingReminderKind, text: String?, originalTarget: Int, displayAt: Int, phase: KnittingReminderOccurrencePhase, awaitsNextUpwardChange: Bool) {
+    public init(id: UUID, reminderID: UUID, kind: KnittingReminderKind, text: String?, originalTarget: Int, displayAt: Int, phase: KnittingReminderOccurrencePhase, awaitsNextUpwardChange: Bool) throws {
         self.id = id; self.reminderID = reminderID; self.kind = kind; self.text = text
         self.originalTarget = originalTarget; self.displayAt = displayAt; self.phase = phase
         self.awaitsNextUpwardChange = awaitsNextUpwardChange
+        guard isValid else { throw WatchSyncValidationError.invalidReminderSnapshot }
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(id: try c.decode(UUID.self, forKey: .id), reminderID: try c.decode(UUID.self, forKey: .reminderID), kind: try c.decode(KnittingReminderKind.self, forKey: .kind), text: try c.decodeIfPresent(String.self, forKey: .text), originalTarget: try c.decode(Int.self, forKey: .originalTarget), displayAt: try c.decode(Int.self, forKey: .displayAt), phase: try c.decode(KnittingReminderOccurrencePhase.self, forKey: .phase), awaitsNextUpwardChange: try c.decode(Bool.self, forKey: .awaitsNextUpwardChange))
-        guard isValid else { throw WatchSyncValidationError.invalidReminderSnapshot }
+        try self.init(id: c.decode(UUID.self, forKey: .id), reminderID: c.decode(UUID.self, forKey: .reminderID), kind: c.decode(KnittingReminderKind.self, forKey: .kind), text: c.decodeIfPresent(String.self, forKey: .text), originalTarget: c.decode(Int.self, forKey: .originalTarget), displayAt: c.decode(Int.self, forKey: .displayAt), phase: c.decode(KnittingReminderOccurrencePhase.self, forKey: .phase), awaitsNextUpwardChange: c.decode(Bool.self, forKey: .awaitsNextUpwardChange))
     }
 
     init(_ occurrence: KnittingReminderOccurrence) {
-        self.init(id: occurrence.id, reminderID: occurrence.reminderID, kind: occurrence.kind, text: occurrence.text, originalTarget: occurrence.originalTarget, displayAt: occurrence.displayAt, phase: occurrence.phase, awaitsNextUpwardChange: occurrence.awaitsNextUpwardChange)
+        self.init(trustedID: occurrence.id, reminderID: occurrence.reminderID, kind: occurrence.kind, text: occurrence.text, originalTarget: occurrence.originalTarget, displayAt: occurrence.displayAt, phase: occurrence.phase, awaitsNextUpwardChange: occurrence.awaitsNextUpwardChange)
+    }
+
+    private init(trustedID id: UUID, reminderID: UUID, kind: KnittingReminderKind, text: String?, originalTarget: Int, displayAt: Int, phase: KnittingReminderOccurrencePhase, awaitsNextUpwardChange: Bool) {
+        self.id = id; self.reminderID = reminderID; self.kind = kind; self.text = text
+        self.originalTarget = originalTarget; self.displayAt = displayAt; self.phase = phase
+        self.awaitsNextUpwardChange = awaitsNextUpwardChange
     }
 
     fileprivate var isValid: Bool {
         guard originalTarget >= 0, displayAt >= 0 else { return false }
         switch phase {
         case .initial: return displayAt == originalTarget && !awaitsNextUpwardChange
-        case .deferredOnce: return awaitsNextUpwardChange ? displayAt > originalTarget : displayAt >= originalTarget
+        case .deferredOnce: return displayAt > originalTarget
         }
     }
 }
@@ -192,11 +198,15 @@ public struct WatchProjectSnapshot: Codable, Equatable, Identifiable, Sendable {
     /// Core-equivalent global occurrence queue. Nested reminders remain for ownership,
     /// but consumers must render this order rather than flattening nested arrays.
     public var reminderQueue: [WatchKnittingReminderOccurrenceSnapshot] {
-        knittingReminders.flatMap { reminder in
-            reminder.pending.map { (occurrence: $0, createdAt: reminder.createdAt, reminderID: reminder.id) }
-        }.sorted { lhs, rhs in
+        var queue: [(occurrence: WatchKnittingReminderOccurrenceSnapshot, createdAt: Date, reminderID: UUID)] = []
+        for reminder in knittingReminders where reminder.state == .active {
+            guard let counter = counters.first(where: { $0.id == reminder.counterID }) else { continue }
+            queue += reminder.visibleOccurrences(at: counter.value).map {
+                (occurrence: $0, createdAt: reminder.createdAt, reminderID: reminder.id)
+            }
+        }
+        return queue.sorted { lhs, rhs in
             if lhs.occurrence.originalTarget != rhs.occurrence.originalTarget { return lhs.occurrence.originalTarget < rhs.occurrence.originalTarget }
-            if lhs.occurrence.displayAt != rhs.occurrence.displayAt { return lhs.occurrence.displayAt < rhs.occurrence.displayAt }
             if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
             if lhs.reminderID != rhs.reminderID { return lhs.reminderID.uuidString < rhs.reminderID.uuidString }
             return lhs.occurrence.id.uuidString < rhs.occurrence.id.uuidString
@@ -245,7 +255,12 @@ public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
     public let entitlement: WatchEntitlementSnapshot
     public let projects: [WatchProjectSnapshot]
     public let languageCode: String?
-    public init(schemaVersion: Int = currentSchemaVersion, generatedAt: Date, entitlement: WatchEntitlementSnapshot, projects: [WatchProjectSnapshot], languageCode: String? = nil) { self.schemaVersion = schemaVersion; self.generatedAt = generatedAt; self.entitlement = entitlement; self.projects = projects; self.languageCode = languageCode }
+    public init(validatingSchemaVersion schemaVersion: Int, generatedAt: Date, entitlement: WatchEntitlementSnapshot, projects: [WatchProjectSnapshot], languageCode: String? = nil) throws {
+        guard schemaVersion == Self.currentSchemaVersion else { throw WatchSyncValidationError.unsupportedSchema }
+        self.init(schemaVersion: schemaVersion, generatedAt: generatedAt, entitlement: entitlement, projects: projects, languageCode: languageCode)
+    }
+
+    init(schemaVersion: Int = currentSchemaVersion, generatedAt: Date, entitlement: WatchEntitlementSnapshot, projects: [WatchProjectSnapshot], languageCode: String? = nil) { self.schemaVersion = schemaVersion; self.generatedAt = generatedAt; self.entitlement = entitlement; self.projects = projects; self.languageCode = languageCode }
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
@@ -314,7 +329,7 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     /// Validates all wire-level schema and payload combinations before a command
     /// can cross the public module boundary.
     public init(validating schemaVersion: Int, id: UUID = UUID(), projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil, reminderID: UUID? = nil, observedPendingCount: Int? = nil, createdAt: Date = .now) throws {
-        guard schemaVersion == Self.currentSchemaVersion || schemaVersion == 2 else { throw WatchSyncValidationError.unsupportedSchema }
+        guard schemaVersion == Self.currentSchemaVersion else { throw WatchSyncValidationError.unsupportedSchema }
         self.init(uncheckedSchemaVersion: schemaVersion, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, reminderID: reminderID, observedPendingCount: observedPendingCount, createdAt: createdAt)
         guard hasValidPayload else { throw WatchSyncValidationError.invalidCommandPayload }
     }
@@ -322,6 +337,18 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     /// Internal-only compatibility escape hatch for old cache fixture recovery.
     init(schemaVersion: Int = currentSchemaVersion, id: UUID = UUID(), projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil, reminderID: UUID? = nil, observedPendingCount: Int? = nil, createdAt: Date = .now) {
         self.init(uncheckedSchemaVersion: schemaVersion, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, reminderID: reminderID, observedPendingCount: observedPendingCount, createdAt: createdAt)
+    }
+
+    /// Temporary in-module bridge for the shipping legacy Watch card. It cannot
+    /// escape as public construction and is removed with the Task 8 card rewrite.
+    static func legacyWatchUICommand(
+        id: UUID = UUID(), projectID: UUID, counterID: UUID,
+        operation: WatchCounterOperation, reminderID: UUID,
+        observedPendingCount: Int? = nil, createdAt: Date = .now
+    ) -> WatchCounterCommand? {
+        guard operation == .completeReminder || operation == .stopReminder else { return nil }
+        let command = WatchCounterCommand(schemaVersion: 2, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderID: reminderID, observedPendingCount: observedPendingCount, createdAt: createdAt)
+        return command.hasValidPayload ? command : nil
     }
 
     private init(uncheckedSchemaVersion schemaVersion: Int, id: UUID, projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload?, reminderID: UUID?, observedPendingCount: Int?, createdAt: Date) { self.schemaVersion = schemaVersion; self.id = id; self.projectID = projectID; self.counterID = counterID; self.operation = operation; self.reminderPayload = reminderPayload; self.legacyReminderID = reminderID; self.legacyObservedPendingCount = observedPendingCount; self.createdAt = createdAt }
@@ -348,8 +375,16 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
-        guard schemaVersion == Self.currentSchemaVersion || schemaVersion == 2 else { throw WatchSyncValidationError.unsupportedSchema }
-        try self.init(validating: schemaVersion, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: try c.decodeIfPresent(WatchReminderActionPayload.self, forKey: .reminderPayload), reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), createdAt: try c.decode(Date.self, forKey: .createdAt))
+        switch schemaVersion {
+        case Self.currentSchemaVersion:
+            try self.init(validating: schemaVersion, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: try c.decodeIfPresent(WatchReminderActionPayload.self, forKey: .reminderPayload), reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), createdAt: try c.decode(Date.self, forKey: .createdAt))
+        case 2:
+            let command = WatchCounterCommand(schemaVersion: 2, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: nil, reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), createdAt: try c.decode(Date.self, forKey: .createdAt))
+            guard command.hasValidPayload else { throw WatchSyncValidationError.invalidCommandPayload }
+            self = command
+        default:
+            throw WatchSyncValidationError.unsupportedSchema
+        }
     }
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)

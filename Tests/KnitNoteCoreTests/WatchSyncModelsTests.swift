@@ -3,20 +3,48 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchSyncModelsTests {
+    @Test func occurrencePublicConstructionRejectsInvalidDeferredState() {
+        #expect(throws: WatchSyncValidationError.invalidReminderSnapshot) {
+            _ = try WatchKnittingReminderOccurrenceSnapshot(
+                id: UUID(), reminderID: UUID(), kind: .cable, text: nil,
+                originalTarget: 12, displayAt: 12, phase: .deferredOnce,
+                awaitsNextUpwardChange: false
+            )
+        }
+    }
+
     @Test func reminderQueueUsesCoreTargetDisplayAndStableKeysAcrossNestedRules() throws {
         let counterID = UUID()
-        func occurrence(_ target: Int, reminderID: UUID, suffix: Int) -> WatchKnittingReminderOccurrenceSnapshot {
-            WatchKnittingReminderOccurrenceSnapshot(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", suffix))!, reminderID: reminderID, kind: .cable, text: nil, originalTarget: target, displayAt: target, phase: .initial, awaitsNextUpwardChange: false)
+        func occurrence(_ target: Int, reminderID: UUID, suffix: Int) throws -> WatchKnittingReminderOccurrenceSnapshot {
+            try WatchKnittingReminderOccurrenceSnapshot(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", suffix))!, reminderID: reminderID, kind: .cable, text: nil, originalTarget: target, displayAt: target, phase: .initial, awaitsNextUpwardChange: false)
         }
         let firstID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
         let secondID = UUID(uuidString: "00000000-0000-0000-0000-000000000102")!
-        let first = try WatchKnittingReminderSnapshot(id: firstID, counterID: counterID, kind: .cable, text: nil, rule: .repeating(firstTarget: 12, interval: 4, limit: nil), state: .active, mutationRevision: 0, createdAt: Date(timeIntervalSince1970: 2), scheduledCount: 2, completedCount: 0, skippedCount: 0, nextTarget: 20, nextOccurrenceIndex: 3, lastObservedCounterValue: 16, pending: [occurrence(12, reminderID: firstID, suffix: 201), occurrence(16, reminderID: firstID, suffix: 203)])
-        let second = try WatchKnittingReminderSnapshot(id: secondID, counterID: counterID, kind: .cable, text: nil, rule: .oneTime(target: 12), state: .active, mutationRevision: 0, createdAt: Date(timeIntervalSince1970: 1), scheduledCount: 1, completedCount: 0, skippedCount: 0, nextTarget: nil, nextOccurrenceIndex: 2, lastObservedCounterValue: 12, pending: [occurrence(12, reminderID: secondID, suffix: 202)])
+        let first = try WatchKnittingReminderSnapshot(id: firstID, counterID: counterID, kind: .cable, text: nil, rule: .repeating(firstTarget: 12, interval: 4, limit: nil), state: .active, mutationRevision: 0, createdAt: Date(timeIntervalSince1970: 2), scheduledCount: 2, completedCount: 0, skippedCount: 0, nextTarget: 20, nextOccurrenceIndex: 3, lastObservedCounterValue: 16, pending: [try occurrence(12, reminderID: firstID, suffix: 201), try occurrence(16, reminderID: firstID, suffix: 203)])
+        let delayedSecond = try WatchKnittingReminderOccurrenceSnapshot(id: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!, reminderID: secondID, kind: .cable, text: nil, originalTarget: 12, displayAt: 16, phase: .deferredOnce, awaitsNextUpwardChange: false)
+        let second = try WatchKnittingReminderSnapshot(id: secondID, counterID: counterID, kind: .cable, text: nil, rule: .oneTime(target: 12), state: .active, mutationRevision: 0, createdAt: Date(timeIntervalSince1970: 1), scheduledCount: 1, completedCount: 0, skippedCount: 0, nextTarget: nil, nextOccurrenceIndex: 2, lastObservedCounterValue: 12, pending: [delayedSecond])
         let counters = (0..<6).map { WatchCounterSnapshot(id: $0 == 0 ? counterID : UUID(), name: "C", value: 16) }
         let project = try WatchProjectSnapshot(id: UUID(), name: "P", isCompleted: false, updatedAt: .now, counters: counters, selectedCounterID: counterID, knittingReminders: [first, second])
 
         #expect(project.reminderQueue.map(\.originalTarget) == [12, 12, 16])
-        #expect(project.reminderQueue.map(\.id) == [occurrence(12, reminderID: secondID, suffix: 202).id, occurrence(12, reminderID: firstID, suffix: 201).id, occurrence(16, reminderID: firstID, suffix: 203).id])
+        #expect(project.reminderQueue.map(\.id) == [try occurrence(12, reminderID: secondID, suffix: 202).id, try occurrence(12, reminderID: firstID, suffix: 201).id, try occurrence(16, reminderID: firstID, suffix: 203).id])
+    }
+
+    @Test func reminderQueueExcludesInactiveAndHiddenDeferredOccurrences() throws {
+        let counterID = UUID()
+        let visibleID = UUID()
+        let hiddenID = UUID()
+        let inactiveID = UUID()
+        let visible = try WatchKnittingReminderOccurrenceSnapshot(id: visibleID, reminderID: visibleID, kind: .cable, text: nil, originalTarget: 12, displayAt: 12, phase: .initial, awaitsNextUpwardChange: false)
+        let hidden = try WatchKnittingReminderOccurrenceSnapshot(id: hiddenID, reminderID: hiddenID, kind: .cable, text: nil, originalTarget: 12, displayAt: 13, phase: .deferredOnce, awaitsNextUpwardChange: true)
+        let inactive = try WatchKnittingReminderOccurrenceSnapshot(id: inactiveID, reminderID: inactiveID, kind: .cable, text: nil, originalTarget: 12, displayAt: 12, phase: .initial, awaitsNextUpwardChange: false)
+        func reminder(_ id: UUID, state: KnittingReminderState, occurrence: WatchKnittingReminderOccurrenceSnapshot) throws -> WatchKnittingReminderSnapshot {
+            try WatchKnittingReminderSnapshot(id: id, counterID: counterID, kind: .cable, text: nil, rule: .oneTime(target: 12), state: state, mutationRevision: 0, createdAt: .now, scheduledCount: 1, completedCount: 0, skippedCount: 0, nextTarget: state == .active ? nil : nil, nextOccurrenceIndex: 2, lastObservedCounterValue: 12, pending: state == .active ? [occurrence] : [])
+        }
+        let counters = (0..<6).map { WatchCounterSnapshot(id: $0 == 0 ? counterID : UUID(), name: "C", value: 12) }
+        let project = try WatchProjectSnapshot(id: UUID(), name: "P", isCompleted: false, updatedAt: .now, counters: counters, selectedCounterID: counterID, knittingReminders: [try reminder(visibleID, state: .active, occurrence: visible), try reminder(hiddenID, state: .active, occurrence: hidden), try reminder(inactiveID, state: .stopped, occurrence: inactive)])
+
+        #expect(project.reminderQueue.map(\.id) == [visibleID])
     }
 
     @Test func validatedCommandConstructionRejectsIncompatibleSchemaAndPayload() {
@@ -30,6 +58,23 @@ import Testing
             _ = try WatchCounterCommand(
                 validating: 99, projectID: UUID(), counterID: UUID(),
                 operation: .increment
+            )
+        }
+        #expect(throws: WatchSyncValidationError.unsupportedSchema) {
+            _ = try WatchCounterCommand(
+                validating: 2, projectID: UUID(), counterID: UUID(),
+                operation: .increment
+            )
+        }
+    }
+
+    @Test func publicSnapshotConstructionRejectsLegacySchema() {
+        #expect(throws: WatchSyncValidationError.unsupportedSchema) {
+            _ = try WatchSyncSnapshot(
+                validatingSchemaVersion: 3,
+                generatedAt: .now,
+                entitlement: .init(kind: .permanentlyUnlocked, expiresAt: nil, generatedAt: .now),
+                projects: []
             )
         }
     }
@@ -53,7 +98,7 @@ import Testing
     @Test func schemaFourProjectsCarryStrictReminderOccurrences() throws {
         let counterID = UUID()
         let reminderID = UUID()
-        let occurrence = WatchKnittingReminderOccurrenceSnapshot(
+        let occurrence = try WatchKnittingReminderOccurrenceSnapshot(
             id: UUID(), reminderID: reminderID, kind: .changeYarn,
             text: "原樣文字", originalTarget: 12, displayAt: 12,
             phase: .initial, awaitsNextUpwardChange: false

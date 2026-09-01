@@ -22,7 +22,10 @@ public enum WatchSnapshotBuilder {
             generatedAt: generatedAt,
             entitlement: watchEntitlement(from: entitlement, generatedAt: generatedAt),
             projects: try orderedProjects.map { project in
-                try WatchProjectSnapshot(
+                let reminders = try project.knittingReminders
+                    .sorted(by: Self.reminderOrdering)
+                    .map(WatchKnittingReminderSnapshot.init)
+                return try WatchProjectSnapshot(
                     id: project.id,
                     name: project.name,
                     isCompleted: project.isCompleted,
@@ -31,13 +34,15 @@ public enum WatchSnapshotBuilder {
                         WatchCounterSnapshot(
                             id: counter.id,
                             name: counter.displayName(locale: locale),
-                            value: counter.value
+                            value: counter.value,
+                            reminder: Self.legacyCardReminder(
+                                for: counter.id,
+                                reminders: reminders
+                            )
                         )
                     },
                     selectedCounterID: project.selectedCounterID,
-                    knittingReminders: try project.knittingReminders
-                        .sorted(by: Self.reminderOrdering)
-                        .map(WatchKnittingReminderSnapshot.init)
+                    knittingReminders: reminders
                 )
             },
             languageCode: languageCode
@@ -84,5 +89,29 @@ public enum WatchSnapshotBuilder {
                 generatedAt: generatedAt
             )
         }
+    }
+
+    /// Transitional projection for the shipping card until Task 8 renders the
+    /// project reminder queue directly. It is a read-only compatibility view,
+    /// never a second stored reminder representation.
+    private static func legacyCardReminder(
+        for counterID: UUID,
+        reminders: [WatchKnittingReminderSnapshot]
+    ) -> WatchCounterReminderSnapshot? {
+        guard let reminder = reminders.first(where: {
+            $0.counterID == counterID && $0.state == .active
+        }) else { return nil }
+        let pending = reminder.pending
+        let first = pending.map(\.originalTarget).min()
+        let last = pending.map(\.originalTarget).max()
+        return WatchCounterReminderSnapshot(
+            id: reminder.id,
+            nextTarget: reminder.nextTarget,
+            pending: first.flatMap { first in
+                last.map { CounterReminderPending(reminderID: reminder.id, occurrenceCount: pending.count, firstTarget: first, lastTarget: $0) }
+            },
+            message: reminder.text,
+            isActive: true
+        )
     }
 }

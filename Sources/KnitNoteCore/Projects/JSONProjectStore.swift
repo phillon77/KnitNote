@@ -1317,7 +1317,8 @@ final class PatternLibraryDeletionTransaction {
         }
 
         let rejection: WatchCommandRejection?
-        if command.schemaVersion != WatchCounterCommand.currentSchemaVersion
+        if (command.schemaVersion != WatchCounterCommand.currentSchemaVersion
+            && command.schemaVersion != 2)
             || !command.hasValidPayload {
             rejection = .unsupportedSchema
         } else if let project = project(id: command.projectID) {
@@ -1331,8 +1332,11 @@ final class PatternLibraryDeletionTransaction {
                     case .completeReminder:
                         if let reminderID = command.reminderID,
                            let observedPendingCount = command.observedPendingCount,
-                           counter.reminder?.id == reminderID,
-                           counter.reminder?.pending?.occurrenceCount == observedPendingCount {
+                           command.schemaVersion == 2,
+                           project.knittingReminders.contains(where: {
+                               $0.id == reminderID && $0.counterID == counter.id
+                                   && $0.progress.pending.count == observedPendingCount
+                           }) {
                             nil
                         } else {
                             .reminderMismatch
@@ -1341,8 +1345,10 @@ final class PatternLibraryDeletionTransaction {
                         .reminderMismatch
                     case .stopReminder:
                         if let reminderID = command.reminderID,
-                           counter.reminder?.id == reminderID,
-                           counter.reminder?.isActive == true {
+                           command.schemaVersion == 2,
+                           project.knittingReminders.contains(where: {
+                               $0.id == reminderID && $0.counterID == counter.id && $0.state == .active
+                           }) {
                             nil
                         } else {
                             .reminderMismatch

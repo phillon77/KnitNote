@@ -356,7 +356,7 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     }
 
 #if DEBUG
-    /// Test-only recovery fixture. Production Watch UI never constructs schema-2 commands.
+    /// Test-only recovery fixture for archived schema-2 command decoding.
     static func legacyWatchUICommand(
         id: UUID = UUID(), projectID: UUID, counterID: UUID,
         operation: WatchCounterOperation, reminderID: UUID,
@@ -364,22 +364,12 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     ) -> WatchCounterCommand? {
         guard operation == .completeReminder || operation == .stopReminder else { return nil }
         let command = WatchCounterCommand(schemaVersion: 2, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderID: reminderID, observedPendingCount: observedPendingCount, occurrenceID: occurrenceID, observedMutationRevision: observedMutationRevision, createdAt: createdAt)
-        return command.isTrustedLegacyWatchUICommand ? command : nil
+        return command.hasValidPayload ? command : nil
     }
 #endif
 
     private init(uncheckedSchemaVersion schemaVersion: Int, id: UUID, projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload?, reminderID: UUID?, observedPendingCount: Int?, occurrenceID: UUID? = nil, observedMutationRevision: UInt64? = nil, createdAt: Date) { self.schemaVersion = schemaVersion; self.id = id; self.projectID = projectID; self.counterID = counterID; self.operation = operation; self.reminderPayload = reminderPayload; self.legacyReminderID = reminderID; self.legacyObservedPendingCount = observedPendingCount; self.legacyOccurrenceID = occurrenceID; self.legacyObservedMutationRevision = observedMutationRevision; self.createdAt = createdAt }
 
-    var isTrustedLegacyWatchUICommand: Bool {
-        schemaVersion == 2 && (operation == .completeReminder || operation == .stopReminder)
-            && legacyReminderID != nil && legacyOccurrenceID != nil && legacyObservedMutationRevision != nil && hasValidPayload
-    }
-    /// These tokens are deliberately internal: only the shipping legacy card
-    /// bridge may use schema 2 while Task 8 is pending.
-    var legacyOccurrenceIDForCompatibility: UUID? { legacyOccurrenceID }
-    var legacyObservedMutationRevisionForCompatibility: UInt64? {
-        legacyObservedMutationRevision
-    }
     public var hasValidPayload: Bool {
         switch schemaVersion {
         case Self.currentSchemaVersion:

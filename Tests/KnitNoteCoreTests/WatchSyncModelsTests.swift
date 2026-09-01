@@ -10,7 +10,17 @@ import Testing
         )
 
         #expect(cache.schemaVersion == WatchSyncCache.currentSchemaVersion)
-        #expect(cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+        #expect(cache.announcedQueueHeadKeys.isEmpty)
+    }
+
+    @Test func schemaTwoOccurrenceOnlyHapticLedgerMigratesFailOpen() throws {
+        let cache = try WatchSyncCodec.decode(
+            WatchSyncCache.self,
+            from: Data(#"{"schemaVersion":2,"pendingCommands":[],"announcedQueueHeadOccurrenceIDs":["00000000-0000-0000-0000-000000000001"]}"#.utf8)
+        )
+
+        #expect(cache.schemaVersion == WatchSyncCache.currentSchemaVersion)
+        #expect(cache.announcedQueueHeadKeys.isEmpty)
     }
 
     @Test func occurrencePublicConstructionRejectsInvalidDeferredState() {

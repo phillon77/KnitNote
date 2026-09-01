@@ -5,7 +5,7 @@ public struct WatchOptimisticState: Equatable, Sendable {
     public private(set) var pendingCommands: [WatchCounterCommand]
     public private(set) var selectedProjectID: UUID?
     public private(set) var selectedCounterID: UUID?
-    private var announcedQueueHeadOccurrenceIDs: Set<UUID>
+    private var announcedQueueHeadKeys: Set<WatchReminderQueueHapticKey>
 
     public init(cache: WatchSyncCache) {
         authoritativeSnapshot = cache.snapshot
@@ -18,7 +18,7 @@ public struct WatchOptimisticState: Equatable, Sendable {
         }
         selectedProjectID = cache.selectedProjectID
         selectedCounterID = cache.selectedCounterID
-        announcedQueueHeadOccurrenceIDs = cache.announcedQueueHeadOccurrenceIDs
+        announcedQueueHeadKeys = cache.announcedQueueHeadKeys
         repairSelection()
         pruneHapticLedger()
     }
@@ -36,7 +36,7 @@ public struct WatchOptimisticState: Equatable, Sendable {
             pendingCommands: pendingCommands,
             selectedProjectID: selectedProjectID,
             selectedCounterID: selectedCounterID,
-            announcedQueueHeadOccurrenceIDs: announcedQueueHeadOccurrenceIDs
+            announcedQueueHeadKeys: announcedQueueHeadKeys
         )
     }
 
@@ -71,13 +71,20 @@ public struct WatchOptimisticState: Equatable, Sendable {
     /// whenever its project or occurrence is no longer present in the snapshot.
     public mutating func takeNewQueueHeadHapticOccurrenceIDs() -> [UUID] {
         let projects = snapshot?.projects ?? []
-        let allPendingIDs = Set(projects.flatMap(\.reminderQueue).map(\.id))
-        announcedQueueHeadOccurrenceIDs.formIntersection(allPendingIDs)
+        let allPendingKeys = Set(projects.flatMap { project in
+            project.reminderQueue.map {
+                WatchReminderQueueHapticKey(projectID: project.id, occurrenceID: $0.id)
+            }
+        })
+        announcedQueueHeadKeys.formIntersection(allPendingKeys)
         let project = projects.first(where: { $0.id == selectedProjectID }) ?? projects.first
-        guard let headID = project?.reminderQueue.first?.id,
-              !announcedQueueHeadOccurrenceIDs.contains(headID)
+        guard let project,
+              let headID = project.reminderQueue.first?.id
         else { return [] }
-        announcedQueueHeadOccurrenceIDs.insert(headID)
+        let key = WatchReminderQueueHapticKey(projectID: project.id, occurrenceID: headID)
+        guard !announcedQueueHeadKeys.contains(key)
+        else { return [] }
+        announcedQueueHeadKeys.insert(key)
         return [headID]
     }
 
@@ -236,11 +243,15 @@ public struct WatchOptimisticState: Equatable, Sendable {
     }
 
     private mutating func pruneHapticLedger() {
-        let pendingIDs = Set((self.snapshot?.projects ?? []).flatMap(\.reminderQueue).map(\.id))
+        let pendingKeys = Set((self.snapshot?.projects ?? []).flatMap { project in
+            project.reminderQueue.map {
+                WatchReminderQueueHapticKey(projectID: project.id, occurrenceID: $0.id)
+            }
+        })
         // Absence in a newer authoritative snapshot retires an occurrence. If
         // an ID later appears again, it is a new authoritative visibility
         // cycle and may announce once; stale older snapshots never replace it.
-        announcedQueueHeadOccurrenceIDs.formIntersection(pendingIDs)
+        announcedQueueHeadKeys.formIntersection(pendingKeys)
     }
 
     private static func applying(

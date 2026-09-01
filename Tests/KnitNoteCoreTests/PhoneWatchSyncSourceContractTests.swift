@@ -162,6 +162,19 @@ import Testing
         #expect(coordinator.components(separatedBy: "candidate.enqueue(command").count - 1 == 1)
     }
 
+    @Test func phoneStoreDecodesLegacyReminderCommandsWithoutExecutingThem() throws {
+        let store = try source("Sources/KnitNoteCore/Projects/JSONProjectStore.swift")
+        let persistence = try source("Sources/KnitNoteCore/WatchSync/PreparedWatchCommand.swift")
+        let project = try source("Sources/KnitNoteCore/Projects/StoredProject.swift")
+
+        #expect(!store.contains("isTrustedLegacyWatchUICommand"))
+        #expect(!store.contains("legacyOccurrenceIDForCompatibility"))
+        #expect(!project.contains("completeLegacyWatchVisibleReminder"))
+        #expect(!project.contains("stopLegacyWatchVisibleReminder"))
+        #expect(store.contains("ledger.record(command.id, rejection: .unsupportedSchema"))
+        #expect(persistence.contains("ledger.record(prepared.command.id, rejection: .unsupportedSchema"))
+    }
+
     @Test func startupSeparatesOneTimeSetupFromRetryableActivation() throws {
         let coordinator = try source("KnitNote/WatchSync/PhoneWatchSyncCoordinator.swift")
 

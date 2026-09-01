@@ -1237,6 +1237,16 @@ final class PatternLibraryDeletionTransaction {
                 now: now
             )
         }
+        guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
+              command.hasValidPayload else {
+            ledger.record(command.id, rejection: .unsupportedSchema, at: now)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: .unsupportedSchema,
+                entitlement: .permanentlyUnlocked,
+                now: now
+            )
+        }
         try authorizeWatchCounterMutation()
         return try applyAuthorizedWatchCommand(
             command,
@@ -1257,6 +1267,16 @@ final class PatternLibraryDeletionTransaction {
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: processed.rejection,
+                entitlement: entitlement,
+                now: now
+            )
+        }
+        guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
+              command.hasValidPayload else {
+            ledger.record(command.id, rejection: .unsupportedSchema, at: now)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: .unsupportedSchema,
                 entitlement: entitlement,
                 now: now
             )
@@ -1299,11 +1319,13 @@ final class PatternLibraryDeletionTransaction {
         try ensureArchiveAvailable()
         let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
         var ledger = try ledgerFile.load() ?? ProcessedWatchCommandLedger()
-        ledger.record(command.id, rejection: rejection, at: now)
+        let effectiveRejection = command.schemaVersion == WatchCounterCommand.currentSchemaVersion
+            && command.hasValidPayload ? rejection : .unsupportedSchema
+        ledger.record(command.id, rejection: effectiveRejection, at: now)
         try ledgerFile.save(ledger)
         return try watchAcknowledgement(
             for: command.id,
-            rejection: rejection,
+            rejection: effectiveRejection,
             entitlement: entitlement,
             now: now
         )
@@ -1369,8 +1391,7 @@ final class PatternLibraryDeletionTransaction {
         }
 
         let rejection: WatchCommandRejection?
-        if !(command.schemaVersion == WatchCounterCommand.currentSchemaVersion
-                || command.isTrustedLegacyWatchUICommand)
+        if command.schemaVersion != WatchCounterCommand.currentSchemaVersion
             || !command.hasValidPayload {
             rejection = .unsupportedSchema
         } else if let project = project(id: command.projectID) {
@@ -1403,20 +1424,7 @@ final class PatternLibraryDeletionTransaction {
                             requiresInitialOccurrence: false
                         ) ? nil : .reminderMismatch
                     case .stopReminder:
-                        if let reminderID = command.reminderID,
-                           let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-                           let revision = command.legacyObservedMutationRevisionForCompatibility,
-                           command.isTrustedLegacyWatchUICommand,
-                           project.knittingReminders.contains(where: { reminder in
-                               reminder.id == reminderID && reminder.counterID == counter.id
-                                   && reminder.state == .active
-                                   && reminder.mutationRevision == revision
-                                   && reminder.visibleOccurrences(at: counter.value).contains(where: { $0.id == occurrenceID })
-                           }) {
-                            nil
-                        } else {
-                            .reminderMismatch
-                        }
+                        .unsupportedSchema
                     }
                 }
             } else {
@@ -1449,59 +1457,34 @@ final class PatternLibraryDeletionTransaction {
                     try project.resetCounter(id: command.counterID, now: now)?
                         .validateKnittingReminderEvaluation()
                 case .completeReminder:
-                    if let payload = command.reminderPayload {
-                        try project.applyKnittingReminderAction(
-                            id: payload.reminderID,
-                            occurrenceID: payload.occurrenceID,
-                            observedRevision: payload.observedRevision,
-                            action: .complete,
-                            now: now
-                        )
-                    } else if let reminderID = command.reminderID,
-                              let observedPendingCount = command.observedPendingCount,
-                              let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-                              let revision = command.legacyObservedMutationRevisionForCompatibility {
-                        try project.completeLegacyWatchVisibleReminder(
-                            id: command.counterID,
-                            reminderID: reminderID,
-                            occurrenceID: occurrenceID,
-                            observedRevision: revision,
-                            observedVisibleCount: observedPendingCount,
-                            now: now
-                        )
-                    }
+                    guard let payload = command.reminderPayload else { return }
+                    try project.applyKnittingReminderAction(
+                        id: payload.reminderID,
+                        occurrenceID: payload.occurrenceID,
+                        observedRevision: payload.observedRevision,
+                        action: .complete,
+                        now: now
+                    )
                 case .deferReminderOnce:
-                    if let payload = command.reminderPayload {
-                        try project.applyKnittingReminderAction(
-                            id: payload.reminderID,
-                            occurrenceID: payload.occurrenceID,
-                            observedRevision: payload.observedRevision,
-                            action: .deferOnce,
-                            now: now
-                        )
-                    }
+                    guard let payload = command.reminderPayload else { return }
+                    try project.applyKnittingReminderAction(
+                        id: payload.reminderID,
+                        occurrenceID: payload.occurrenceID,
+                        observedRevision: payload.observedRevision,
+                        action: .deferOnce,
+                        now: now
+                    )
                 case .skipReminder:
-                    if let payload = command.reminderPayload {
-                        try project.applyKnittingReminderAction(
-                            id: payload.reminderID,
-                            occurrenceID: payload.occurrenceID,
-                            observedRevision: payload.observedRevision,
-                            action: .skip,
-                            now: now
-                        )
-                    }
+                    guard let payload = command.reminderPayload else { return }
+                    try project.applyKnittingReminderAction(
+                        id: payload.reminderID,
+                        occurrenceID: payload.occurrenceID,
+                        observedRevision: payload.observedRevision,
+                        action: .skip,
+                        now: now
+                    )
                 case .stopReminder:
-                    if let reminderID = command.reminderID,
-                       let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-                       let revision = command.legacyObservedMutationRevisionForCompatibility {
-                        try project.stopLegacyWatchVisibleReminder(
-                            id: command.counterID,
-                            reminderID: reminderID,
-                            occurrenceID: occurrenceID,
-                            observedRevision: revision,
-                            now: now
-                        )
-                    }
+                    return
                 }
             }
         } catch let error as KnittingReminderMutationError {
@@ -1614,32 +1597,14 @@ final class PatternLibraryDeletionTransaction {
         counter: ProjectCounter,
         requiresInitialOccurrence: Bool
     ) -> Bool {
-        if let payload = command.reminderPayload {
-            guard let reminder = project.knittingReminders.first(where: {
-                $0.id == payload.reminderID && $0.counterID == counter.id
-            }),
-            reminder.state == .active,
-            reminder.mutationRevision == payload.observedRevision,
-            let occurrence = reminder.visibleOccurrences(at: counter.value).first(where: {
-                $0.id == payload.occurrenceID
-            })
-            else { return false }
-            return !requiresInitialOccurrence || occurrence.phase == .initial
-        }
-
-        guard let reminderID = command.reminderID,
-              let observedPendingCount = command.observedPendingCount,
-              let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-              let revision = command.legacyObservedMutationRevisionForCompatibility,
-              command.isTrustedLegacyWatchUICommand,
+        guard let payload = command.reminderPayload,
               let reminder = project.knittingReminders.first(where: {
-                  $0.id == reminderID && $0.counterID == counter.id
+                  $0.id == payload.reminderID && $0.counterID == counter.id
               }),
               reminder.state == .active,
-              reminder.mutationRevision == revision,
-              reminder.visibleOccurrences(at: counter.value).count == observedPendingCount,
+              reminder.mutationRevision == payload.observedRevision,
               let occurrence = reminder.visibleOccurrences(at: counter.value).first(where: {
-                  $0.id == occurrenceID
+                  $0.id == payload.occurrenceID
               })
         else { return false }
         return !requiresInitialOccurrence || occurrence.phase == .initial
@@ -2908,7 +2873,7 @@ final class PatternLibraryDeletionTransaction {
         }
     }
 
-    private func watchAcknowledgement(
+    func watchAcknowledgement(
         for commandID: UUID,
         rejection: WatchCommandRejection?,
         entitlement: EntitlementSnapshot,

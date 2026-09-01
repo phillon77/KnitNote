@@ -39,7 +39,7 @@ import Testing
         ))
         #expect(!state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
         state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: []))
-        #expect(state.cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+        #expect(state.cache.announcedQueueHeadKeys.isEmpty)
     }
 
     @Test func acknowledgementPrunesAnAuthoritativelyMissingOccurrenceAndAnnouncesANewHead() throws {
@@ -61,7 +61,7 @@ import Testing
             snapshot: removal
         ))
         #expect(acknowledgedRemoval)
-        #expect(state.cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+        #expect(state.cache.announcedQueueHeadKeys.isEmpty)
 
         let replacement = try fixture.knittingReminder(phase: .initial)
         state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: [replacement]))
@@ -92,7 +92,7 @@ import Testing
             snapshot: authoritativeRemoval
         ))
         #expect(acknowledgedProjectRemoval)
-        #expect(state.cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+        #expect(state.cache.announcedQueueHeadKeys.isEmpty)
     }
 
     @Test func newerAuthoritativeReappearanceStartsANewHapticCycleForThatOccurrenceID() throws {
@@ -117,8 +117,15 @@ import Testing
     @Test func reminderQueueHeadHapticLedgerIsolatesProjectsAcrossNavigation() throws {
         let firstFixture = try Fixture(value: 12)
         let secondFixture = try Fixture(value: 12)
-        let firstReminder = try firstFixture.knittingReminder(phase: .initial)
-        let secondReminder = try secondFixture.knittingReminder(phase: .initial)
+        let sharedOccurrenceID = UUID()
+        let firstReminder = try firstFixture.knittingReminder(
+            phase: .initial,
+            occurrenceID: sharedOccurrenceID
+        )
+        let secondReminder = try secondFixture.knittingReminder(
+            phase: .initial,
+            occurrenceID: sharedOccurrenceID
+        )
         let firstSnapshot = try firstFixture.makeSnapshot(value: 12, knittingReminders: [firstReminder])
         let secondSnapshot = try secondFixture.makeSnapshot(value: 12, knittingReminders: [secondReminder])
         let snapshot = WatchSyncSnapshot(
@@ -135,10 +142,12 @@ import Testing
 
         let firstID = try #require(firstSnapshot.projects.first?.reminderQueue.first?.id)
         let secondID = try #require(secondSnapshot.projects.first?.reminderQueue.first?.id)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [firstID])
+        #expect(firstID == sharedOccurrenceID)
+        #expect(secondID == sharedOccurrenceID)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [sharedOccurrenceID])
         let selectedSecondProject = state.selectProject(secondFixture.projectID)
         #expect(selectedSecondProject)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [secondID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [sharedOccurrenceID])
         let selectedFirstProject = state.selectProject(firstFixture.projectID)
         #expect(selectedFirstProject)
         #expect(state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
@@ -1084,11 +1093,12 @@ private func roundTrip(_ cache: WatchSyncCache) throws -> WatchSyncCache {
 private extension Fixture {
     func knittingReminder(
         phase: KnittingReminderOccurrencePhase,
-        awaitsNextUpwardChange: Bool = false
+        awaitsNextUpwardChange: Bool = false,
+        occurrenceID: UUID = UUID()
     ) throws -> WatchKnittingReminderSnapshot {
         let reminderID = UUID()
         let occurrence = try WatchKnittingReminderOccurrenceSnapshot(
-            id: UUID(), reminderID: reminderID, kind: .cable, text: "原樣文字",
+            id: occurrenceID, reminderID: reminderID, kind: .cable, text: "原樣文字",
             originalTarget: 12, displayAt: awaitsNextUpwardChange ? 13 : 12, phase: phase,
             awaitsNextUpwardChange: awaitsNextUpwardChange
         )

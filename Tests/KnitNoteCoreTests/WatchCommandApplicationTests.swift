@@ -329,7 +329,7 @@ import Testing
         #expect(fixture.store.project(id: project.id)?.counters[0].value == 1)
     }
 
-    @Test @MainActor func duplicateReminderAcknowledgementCannotCompleteTwice() throws {
+    @Test @MainActor func schemaTwoReminderCompletionIsRejectedOnFirstAndDuplicateDelivery() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
         let counterID = project.counters[0].id
@@ -349,12 +349,14 @@ import Testing
             observedMutationRevision: reminder.mutationRevision
         ))
 
-        _ = try fixture.store.applyWatchCommand(command, ledger: &ledger, now: fixture.now)
-        let afterFirst = fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount
-        _ = try fixture.store.applyWatchCommand(command, ledger: &ledger, now: fixture.now)
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        let first = try fixture.store.applyWatchCommand(command, ledger: &ledger, now: fixture.now)
+        let duplicate = try fixture.store.applyWatchCommand(command, ledger: &ledger, now: fixture.now)
 
-        #expect(afterFirst == 1)
-        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == afterFirst)
+        #expect(first.rejection == .unsupportedSchema)
+        #expect(duplicate.rejection == .unsupportedSchema)
+        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == 0)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
         #expect(ledger.entries.count == 1)
     }
 
@@ -467,7 +469,7 @@ import Testing
         #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
     }
 
-    @Test @MainActor func staleReminderIDIsRejectedWithoutMutation() throws {
+    @Test @MainActor func schemaTwoReminderCompletionIsRejectedWithoutMutation() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
         let counterID = project.counters[0].id
@@ -490,11 +492,11 @@ import Testing
             now: fixture.now
         )
 
-        #expect(acknowledgement.rejection == .reminderMismatch)
+        #expect(acknowledgement.rejection == .unsupportedSchema)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.pending.count == 1)
     }
 
-    @Test @MainActor func legacyCardTokenRejectsSameCountRuleReplacement() throws {
+    @Test @MainActor func schemaTwoReminderCompletionCannotApplyAfterRuleReplacement() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
         let counterID = project.counters[0].id
@@ -523,11 +525,11 @@ import Testing
             command, ledger: &ledger, now: fixture.now
         )
 
-        #expect(acknowledgement.rejection == .reminderMismatch)
+        #expect(acknowledgement.rejection == .unsupportedSchema)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == 0)
     }
 
-    @Test @MainActor func stopWinsOverStaleReminderCompletion() throws {
+    @Test @MainActor func schemaTwoStopAndCompletionNeverMutateTheReminder() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
         let counterID = project.counters[0].id
@@ -545,7 +547,8 @@ import Testing
             occurrenceID: occurrence.id,
             observedMutationRevision: reminder.mutationRevision
         ))
-        _ = try fixture.store.applyWatchCommand(stop, ledger: &ledger, now: fixture.now)
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        let stopAcknowledgement = try fixture.store.applyWatchCommand(stop, ledger: &ledger, now: fixture.now)
         let completion = try #require(WatchCounterCommand.legacyWatchUICommand(
             projectID: project.id,
             counterID: counterID,
@@ -557,9 +560,11 @@ import Testing
         ))
         let staleCompletion = try fixture.store.applyWatchCommand(completion, ledger: &ledger, now: fixture.now)
 
-        #expect(staleCompletion.rejection == .reminderMismatch)
-        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.state == .stopped)
+        #expect(stopAcknowledgement.rejection == .unsupportedSchema)
+        #expect(staleCompletion.rejection == .unsupportedSchema)
+        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.state == .active)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == 0)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
     }
 
     @Test @MainActor func exhaustedLegacyCompletionRejectsOnFirstAndDuplicateDelivery() throws {
@@ -586,8 +591,8 @@ import Testing
             command, ledger: &ledger, now: fixture.now.addingTimeInterval(1)
         )
 
-        #expect(first.rejection == .reminderMismatch)
-        #expect(duplicate.rejection == .reminderMismatch)
+        #expect(first.rejection == .unsupportedSchema)
+        #expect(duplicate.rejection == .unsupportedSchema)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.mutationRevision == .max)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == 0)
         #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
@@ -617,8 +622,8 @@ import Testing
             command, ledger: &ledger, now: fixture.now.addingTimeInterval(1)
         )
 
-        #expect(first.rejection == .reminderMismatch)
-        #expect(duplicate.rejection == .reminderMismatch)
+        #expect(first.rejection == .unsupportedSchema)
+        #expect(duplicate.rejection == .unsupportedSchema)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.mutationRevision == .max)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.state == .active)
         #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)

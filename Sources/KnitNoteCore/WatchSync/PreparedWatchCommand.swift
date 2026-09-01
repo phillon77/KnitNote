@@ -109,6 +109,13 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             try removePreparedCommand(at: preparedCommandURL)
             return .ready
         }
+        guard prepared.command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
+              prepared.command.hasValidPayload else {
+            ledger.record(prepared.command.id, rejection: .unsupportedSchema, at: now)
+            try ledgerFile.save(ledger)
+            try removePreparedCommand(at: preparedCommandURL)
+            return .ready
+        }
         guard
             let project = project(id: prepared.command.projectID),
             !project.isCompleted,
@@ -168,6 +175,22 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             now: now
         ) {
             return acknowledgement
+        }
+        guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
+              command.hasValidPayload else {
+            let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+            var ledger = try loadLedgerRecoveringCorruption(from: ledgerFile)
+            guard !ledger.requiresFreshHandshake else {
+                throw WatchCommandPersistenceError.requiresFreshHandshake
+            }
+            ledger.record(command.id, rejection: .unsupportedSchema, at: now)
+            try ledgerFile.save(ledger)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: .unsupportedSchema,
+                entitlement: entitlement,
+                now: now
+            )
         }
         try requireWatchEntitlement(entitlement, now: now)
         try authorizeWatchCounterMutation()

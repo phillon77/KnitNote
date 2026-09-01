@@ -284,6 +284,35 @@ import Testing
         #expect(try file.load()?.pendingCommands.map(\.id) == [schemaThree.id])
     }
 
+    @Test @MainActor
+    func durableSchemaTwoReminderCommandsRejectWithoutChangingTheArchive() throws {
+        for operation in [WatchCounterOperation.completeReminder, .stopReminder] {
+            let fixture = try DurableWatchFixture()
+            let command = try fixture.legacyTriggeredReminderCommand(operation: operation)
+            let store = JSONProjectStore(url: fixture.archiveURL)
+            let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+
+            let first = try store.applyWatchCommandDurably(
+                command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now
+            )
+            let duplicate = try store.applyWatchCommandDurably(
+                command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now.addingTimeInterval(1)
+            )
+
+            #expect(first.rejection == .unsupportedSchema)
+            #expect(duplicate.rejection == .unsupportedSchema)
+            #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+            #expect(store.project(id: fixture.projectID)?.knittingReminders.first?.state == .active)
+            #expect(store.project(id: fixture.projectID)?.knittingReminders.first?.progress.completedCount == 0)
+        }
+    }
+
     @Test func failedAtomicSavePreservesPreviousFile() throws {
         let root = try WatchSyncTemporaryDirectory()
         let url = WatchSyncPaths.watchCache(in: root.url)
@@ -1324,6 +1353,30 @@ private struct PreparedReminderExpectation {
             ),
             createdAt: now
         )
+    }
+
+    func legacyTriggeredReminderCommand(
+        operation: WatchCounterOperation
+    ) throws -> WatchCounterCommand {
+        let store = JSONProjectStore(url: archiveURL)
+        let reminderID = try store.addKnittingReminder(
+            projectID: projectID,
+            draft: .oneTime(kind: .measure, target: 1, text: "watch"),
+            now: now
+        )
+        try store.incrementCounter(projectID: projectID, counterID: counterID)
+        let reminder = try #require(store.project(id: projectID)?.knittingReminders.first)
+        let occurrence = try #require(reminder.progress.pending.first)
+        return try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: projectID,
+            counterID: counterID,
+            operation: operation,
+            reminderID: reminderID,
+            observedPendingCount: operation == .completeReminder ? 1 : nil,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision,
+            createdAt: now
+        ))
     }
 
     func reminderExpectation(

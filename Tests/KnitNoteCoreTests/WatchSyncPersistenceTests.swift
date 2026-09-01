@@ -827,6 +827,157 @@ import Testing
             url: fixture.ledgerURL
         ).load()?.entry(for: command.id)?.rejection == .reminderMismatch)
     }
+
+    @Test @MainActor
+    func persistedDuplicateRequiresReadableArchiveBeforeReturningItsOutcome() throws {
+        let fixture = try DurableWatchFixture()
+        let store = JSONProjectStore(url: fixture.archiveURL)
+        _ = try store.applyWatchCommandDurably(
+            fixture.command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        )
+        try Data("corrupt archive".utf8).write(to: fixture.archiveURL, options: .atomic)
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(throws: ProjectStoreError.archiveUnavailable) {
+            _ = try restarted.applyWatchCommandDurably(
+                fixture.command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now.addingTimeInterval(1)
+            )
+        }
+    }
+
+    @Test @MainActor
+    func persistedDuplicateWithMissingArchiveRequiresFreshHandshake() throws {
+        let fixture = try DurableWatchFixture()
+        let store = JSONProjectStore(url: fixture.archiveURL)
+        _ = try store.applyWatchCommandDurably(
+            fixture.command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        )
+        try FileManager.default.removeItem(at: fixture.archiveURL)
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(throws: WatchCommandPersistenceError.requiresFreshHandshake) {
+            _ = try restarted.applyWatchCommandDurably(
+                fixture.command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now.addingTimeInterval(1)
+            )
+        }
+        #expect(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()?.requiresFreshHandshake == true)
+    }
+
+    @Test @MainActor
+    func persistedDuplicateRequiresHandshakeBeforeReturningItsOutcome() throws {
+        let fixture = try DurableWatchFixture()
+        let store = JSONProjectStore(url: fixture.archiveURL)
+        _ = try store.applyWatchCommandDurably(
+            fixture.command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        )
+        let loadedLedger = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()
+        var ledger = try #require(loadedLedger)
+        ledger.markRequiresFreshHandshake()
+        try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: fixture.ledgerURL).save(ledger)
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(throws: WatchCommandPersistenceError.requiresFreshHandshake) {
+            _ = try restarted.applyWatchCommandDurably(
+                fixture.command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now.addingTimeInterval(1)
+            )
+        }
+    }
+
+    @Test @MainActor
+    func preparedReminderWithOnlyAnAdjacentCounterMutationRequiresHandshake() throws {
+        let fixture = try DurableWatchFixture()
+        let command = try fixture.triggeredReminderCommand(operation: .completeReminder)
+        let expected = try fixture.reminderExpectation(for: command)
+        try AtomicWatchSyncFile<PreparedWatchCommand>(url: fixture.preparedURL).save(
+            PreparedWatchCommand(
+                command: command,
+                expectedCounterRevision: expected.counterRevision,
+                expectedCounterValue: expected.counterValue,
+                expectedReminderID: expected.reminderID,
+                expectedOccurrenceID: expected.occurrenceID,
+                expectedReminderRevision: expected.reminderRevision,
+                expectedReminderOutcome: expected.outcome
+            )
+        )
+        let interleaving = JSONProjectStore(url: fixture.archiveURL)
+        try interleaving.incrementCounter(projectID: fixture.projectID, counterID: fixture.counterID)
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(try restarted.recoverWatchCommandPersistence(
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        ) == .requiresFreshHandshake)
+        #expect(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()?.entry(for: command.id) == nil)
+    }
+
+    @Test(arguments: [
+        (WatchCounterOperation.completeReminder, KnittingReminderAction.skip),
+        (WatchCounterOperation.skipReminder, KnittingReminderAction.complete),
+    ])
+    @MainActor
+    func preparedReminderDoesNotMistakeTheOppositeActionForItsOwnSuccess(
+        operation: WatchCounterOperation,
+        interleavingAction: KnittingReminderAction
+    ) throws {
+        let fixture = try DurableWatchFixture()
+        let command = try fixture.triggeredReminderCommand(operation: operation)
+        let expected = try fixture.reminderExpectation(for: command)
+        try AtomicWatchSyncFile<PreparedWatchCommand>(url: fixture.preparedURL).save(
+            PreparedWatchCommand(
+                command: command,
+                expectedCounterRevision: expected.counterRevision,
+                expectedCounterValue: expected.counterValue,
+                expectedReminderID: expected.reminderID,
+                expectedOccurrenceID: expected.occurrenceID,
+                expectedReminderRevision: expected.reminderRevision,
+                expectedReminderOutcome: expected.outcome
+            )
+        )
+        let interleaving = JSONProjectStore(url: fixture.archiveURL)
+        try interleaving.applyKnittingReminderAction(
+            projectID: fixture.projectID,
+            reminderID: expected.reminderID,
+            occurrenceID: expected.occurrenceID,
+            observedRevision: expected.reminderRevision,
+            action: interleavingAction,
+            now: fixture.now
+        )
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(try restarted.recoverWatchCommandPersistence(
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        ) == .requiresFreshHandshake)
+        #expect(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()?.entry(for: command.id) == nil)
+    }
 }
 
 private struct InjectedWatchSyncFailure: Error {}
@@ -928,6 +1079,15 @@ private final class WatchSyncTemporaryDirectory {
     deinit { try? FileManager.default.removeItem(at: url) }
 }
 
+private struct PreparedReminderExpectation {
+    let counterRevision: UInt64
+    let counterValue: Int
+    let reminderID: UUID
+    let occurrenceID: UUID
+    let reminderRevision: UInt64
+    let outcome: PreparedWatchReminderOutcome
+}
+
 @MainActor private final class DurableWatchFixture {
     let directory: WatchSyncTemporaryDirectory
     let archiveURL: URL
@@ -1013,6 +1173,28 @@ private final class WatchSyncTemporaryDirectory {
                 observedRevision: reminder.mutationRevision
             ),
             createdAt: now
+        )
+    }
+
+    func reminderExpectation(
+        for command: WatchCounterCommand
+    ) throws -> PreparedReminderExpectation {
+        let store = JSONProjectStore(url: archiveURL)
+        let counter = try #require(store.project(id: projectID)?.counters.first)
+        let payload = try #require(command.reminderPayload)
+        let project = try #require(store.project(id: projectID))
+        let outcome = try #require(store.preparedReminderOutcome(
+            for: command,
+            project: project,
+            counter: counter
+        ))
+        return PreparedReminderExpectation(
+            counterRevision: counter.mutationRevision,
+            counterValue: counter.value,
+            reminderID: payload.reminderID,
+            occurrenceID: payload.occurrenceID,
+            reminderRevision: payload.observedRevision,
+            outcome: outcome
         )
     }
 }

@@ -1,5 +1,30 @@
 import Foundation
 
+public struct PreparedWatchReminderOutcome: Codable, Equatable, Sendable {
+    public enum Action: String, Codable, Sendable {
+        case complete
+        case deferOnce
+        case skip
+    }
+
+    public let action: Action
+    public let completedCount: Int
+    public let skippedCount: Int
+    public let deferredDisplayAt: Int?
+
+    public init(
+        action: Action,
+        completedCount: Int,
+        skippedCount: Int,
+        deferredDisplayAt: Int? = nil
+    ) {
+        self.action = action
+        self.completedCount = completedCount
+        self.skippedCount = skippedCount
+        self.deferredDisplayAt = deferredDisplayAt
+    }
+}
+
 public struct PreparedWatchCommand: Codable, Equatable, Sendable {
     public let command: WatchCounterCommand
     public let expectedCounterRevision: UInt64
@@ -7,6 +32,7 @@ public struct PreparedWatchCommand: Codable, Equatable, Sendable {
     public let expectedReminderID: UUID?
     public let expectedOccurrenceID: UUID?
     public let expectedReminderRevision: UInt64?
+    public let expectedReminderOutcome: PreparedWatchReminderOutcome?
 
     public init(
         command: WatchCounterCommand,
@@ -14,7 +40,8 @@ public struct PreparedWatchCommand: Codable, Equatable, Sendable {
         expectedCounterValue: Int? = nil,
         expectedReminderID: UUID? = nil,
         expectedOccurrenceID: UUID? = nil,
-        expectedReminderRevision: UInt64? = nil
+        expectedReminderRevision: UInt64? = nil,
+        expectedReminderOutcome: PreparedWatchReminderOutcome? = nil
     ) {
         self.command = command
         self.expectedCounterRevision = expectedCounterRevision
@@ -22,6 +49,7 @@ public struct PreparedWatchCommand: Codable, Equatable, Sendable {
         self.expectedReminderID = expectedReminderID
         self.expectedOccurrenceID = expectedOccurrenceID
         self.expectedReminderRevision = expectedReminderRevision
+        self.expectedReminderOutcome = expectedReminderOutcome
     }
 }
 
@@ -110,6 +138,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                 _ = try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
             }
         } else if
+            prepared.isCounterOperation &&
             prepared.expectedCounterRevision != UInt64.max,
             counter.mutationRevision == prepared.expectedCounterRevision + 1
         {
@@ -194,13 +223,19 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         }
 
         let preparedFile = AtomicWatchSyncFile<PreparedWatchCommand>(url: preparedCommandURL)
+        let reminderOutcome = preparedReminderOutcome(
+            for: command,
+            project: project,
+            counter: counter
+        )
         try preparedFile.save(PreparedWatchCommand(
             command: command,
             expectedCounterRevision: counter.mutationRevision,
             expectedCounterValue: counter.value,
             expectedReminderID: command.reminderPayload?.reminderID,
             expectedOccurrenceID: command.reminderPayload?.occurrenceID,
-            expectedReminderRevision: command.reminderPayload?.observedRevision
+            expectedReminderRevision: command.reminderPayload?.observedRevision,
+            expectedReminderOutcome: reminderOutcome
         ))
         try failureInjector(.afterPreparedCommandSave)
 
@@ -278,7 +313,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         return .ready
     }
 
-    private func loadLedgerRecoveringCorruption(
+    func loadLedgerRecoveringCorruption(
         from file: AtomicWatchSyncFile<ProcessedWatchCommandLedger>
     ) throws -> ProcessedWatchCommandLedger {
         do {
@@ -309,7 +344,8 @@ private extension PreparedWatchCommand {
     func hasExpectedReminderState(in project: StoredProject, counterID: UUID) -> Bool {
         guard let expectedReminderID,
               let expectedOccurrenceID,
-              let expectedReminderRevision
+              let expectedReminderRevision,
+              expectedReminderOutcome != nil
         else {
             return command.reminderPayload == nil
         }
@@ -324,7 +360,8 @@ private extension PreparedWatchCommand {
     func reminderMutationWasApplied(in project: StoredProject, counterID: UUID) -> Bool {
         guard let expectedReminderID,
               let expectedOccurrenceID,
-              let expectedReminderRevision
+              let expectedReminderRevision,
+              let expectedReminderOutcome
         else { return false }
         let (nextRevision, overflow) = expectedReminderRevision.addingReportingOverflow(1)
         guard !overflow else { return false }
@@ -334,14 +371,37 @@ private extension PreparedWatchCommand {
                 && $0.mutationRevision == nextRevision
         }) else { return false }
         switch command.operation {
-        case .completeReminder, .skipReminder:
-            return reminder.progress.latestHandled?.id == expectedOccurrenceID
+        case .completeReminder:
+            return expectedReminderOutcome.action == .complete
+                && reminder.progress.completedCount == expectedReminderOutcome.completedCount
+                && reminder.progress.skippedCount == expectedReminderOutcome.skippedCount
+                && reminder.progress.latestHandled?.id == expectedOccurrenceID
         case .deferReminderOnce:
-            return reminder.progress.pending.contains {
-                $0.id == expectedOccurrenceID && $0.phase == .deferredOnce
-            }
+            return expectedReminderOutcome.action == .deferOnce
+                && reminder.progress.completedCount == expectedReminderOutcome.completedCount
+                && reminder.progress.skippedCount == expectedReminderOutcome.skippedCount
+                && reminder.progress.pending.contains {
+                    $0.id == expectedOccurrenceID
+                        && $0.phase == .deferredOnce
+                        && $0.awaitsNextUpwardChange
+                        && $0.displayAt == expectedReminderOutcome.deferredDisplayAt
+                }
+        case .skipReminder:
+            return expectedReminderOutcome.action == .skip
+                && reminder.progress.completedCount == expectedReminderOutcome.completedCount
+                && reminder.progress.skippedCount == expectedReminderOutcome.skippedCount
+                && reminder.progress.latestHandled?.id == expectedOccurrenceID
         case .increment, .decrement, .reset, .stopReminder:
             return false
+        }
+    }
+
+    var isCounterOperation: Bool {
+        switch command.operation {
+        case .increment, .decrement, .reset:
+            true
+        case .completeReminder, .deferReminderOnce, .skipReminder, .stopReminder:
+            false
         }
     }
 

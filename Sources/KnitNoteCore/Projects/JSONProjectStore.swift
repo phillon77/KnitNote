@@ -1315,17 +1315,18 @@ final class PatternLibraryDeletionTransaction {
         ledgerURL: URL,
         now: Date
     ) throws -> WatchCommandAcknowledgement? {
-        let ledger: ProcessedWatchCommandLedger?
-        do {
-            ledger = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
-                url: ledgerURL
-            ).load()
-        } catch {
-            // A new command still follows the authorized corruption-recovery
-            // path, which owns any quarantine or handshake writes.
-            return nil
+        try ensureArchiveAvailable()
+        let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+        var ledger = try loadLedgerRecoveringCorruption(from: ledgerFile)
+        guard !ledger.requiresFreshHandshake else {
+            throw WatchCommandPersistenceError.requiresFreshHandshake
         }
-        guard let processed = ledger?.entry(for: command.id) else { return nil }
+        guard let processed = ledger.entry(for: command.id) else { return nil }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            ledger.markRequiresFreshHandshake()
+            try ledgerFile.save(ledger)
+            throw WatchCommandPersistenceError.requiresFreshHandshake
+        }
         return try watchAcknowledgement(
             for: command.id,
             rejection: processed.rejection,
@@ -1555,6 +1556,53 @@ final class PatternLibraryDeletionTransaction {
             )
         case .increment, .decrement, .reset, .stopReminder:
             false
+        }
+    }
+
+    func preparedReminderOutcome(
+        for command: WatchCounterCommand,
+        project: StoredProject,
+        counter: ProjectCounter
+    ) -> PreparedWatchReminderOutcome? {
+        guard let payload = command.reminderPayload,
+              let reminder = project.knittingReminders.first(where: {
+                  $0.id == payload.reminderID && $0.counterID == counter.id
+              }),
+              let occurrence = reminder.progress.pending.first(where: {
+                  $0.id == payload.occurrenceID
+              })
+        else { return nil }
+
+        switch command.operation {
+        case .completeReminder:
+            let (completedCount, overflow) = reminder.progress.completedCount
+                .addingReportingOverflow(1)
+            guard !overflow else { return nil }
+            return PreparedWatchReminderOutcome(
+                action: .complete,
+                completedCount: completedCount,
+                skippedCount: reminder.progress.skippedCount
+            )
+        case .deferReminderOnce:
+            let (displayAt, overflow) = occurrence.originalTarget.addingReportingOverflow(1)
+            guard !overflow else { return nil }
+            return PreparedWatchReminderOutcome(
+                action: .deferOnce,
+                completedCount: reminder.progress.completedCount,
+                skippedCount: reminder.progress.skippedCount,
+                deferredDisplayAt: displayAt
+            )
+        case .skipReminder:
+            let (skippedCount, overflow) = reminder.progress.skippedCount
+                .addingReportingOverflow(1)
+            guard !overflow else { return nil }
+            return PreparedWatchReminderOutcome(
+                action: .skip,
+                completedCount: reminder.progress.completedCount,
+                skippedCount: skippedCount
+            )
+        case .increment, .decrement, .reset, .stopReminder:
+            return nil
         }
     }
 

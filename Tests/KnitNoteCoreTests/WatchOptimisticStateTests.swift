@@ -3,6 +3,74 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchOptimisticStateTests {
+    @Test func reminderQueueHeadHapticLedgerPersistsAndAdvancesWithoutReplayingTheSameOccurrence() throws {
+        let fixture = try Fixture(value: 12)
+        let first = try fixture.knittingReminder(phase: .initial)
+        let second = try fixture.knittingReminder(phase: .initial)
+        var state = WatchOptimisticState(cache: .init(
+            snapshot: try fixture.makeSnapshot(value: 12, knittingReminders: [first, second]),
+            pendingCommands: [], selectedProjectID: fixture.projectID, selectedCounterID: fixture.counterID
+        ))
+
+        let initialQueue = try #require(state.snapshot?.projects.first?.reminderQueue)
+        let firstOccurrence = try #require(initialQueue.first)
+        let secondOccurrence = try #require(initialQueue.dropFirst().first?.id)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [firstOccurrence.id])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+
+        let command = WatchCounterCommand(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .completeReminder,
+            reminderPayload: .init(reminderID: firstOccurrence.reminderID, occurrenceID: firstOccurrence.id, observedRevision: try #require(state.snapshot?.projects.first?.knittingReminders.first(where: { $0.id == firstOccurrence.reminderID })?.mutationRevision))
+        )
+        #expect(state.enqueue(command) == nil)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [secondOccurrence])
+
+        var restored = WatchOptimisticState(cache: try roundTrip(state.cache))
+        #expect(restored.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+    }
+
+    @Test func reminderQueueHeadHapticLedgerPrunesWhenTheProjectOrPendingOccurrenceDisappears() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        var state = WatchOptimisticState(cache: .init(
+            snapshot: try fixture.makeSnapshot(value: 12, knittingReminders: [reminder]),
+            pendingCommands: [], selectedProjectID: fixture.projectID, selectedCounterID: fixture.counterID
+        ))
+        #expect(!state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+        state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: []))
+        #expect(state.cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+    }
+
+    @Test func reminderQueueHeadHapticLedgerIsolatesProjectsAcrossNavigation() throws {
+        let firstFixture = try Fixture(value: 12)
+        let secondFixture = try Fixture(value: 12)
+        let firstReminder = try firstFixture.knittingReminder(phase: .initial)
+        let secondReminder = try secondFixture.knittingReminder(phase: .initial)
+        let firstSnapshot = try firstFixture.makeSnapshot(value: 12, knittingReminders: [firstReminder])
+        let secondSnapshot = try secondFixture.makeSnapshot(value: 12, knittingReminders: [secondReminder])
+        let snapshot = WatchSyncSnapshot(
+            generatedAt: firstSnapshot.generatedAt,
+            entitlement: firstSnapshot.entitlement,
+            projects: firstSnapshot.projects + secondSnapshot.projects
+        )
+        var state = WatchOptimisticState(cache: .init(
+            snapshot: snapshot,
+            pendingCommands: [],
+            selectedProjectID: firstFixture.projectID,
+            selectedCounterID: firstFixture.counterID
+        ))
+
+        let firstID = try #require(firstSnapshot.projects.first?.reminderQueue.first?.id)
+        let secondID = try #require(secondSnapshot.projects.first?.reminderQueue.first?.id)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [firstID])
+        let selectedSecondProject = state.selectProject(secondFixture.projectID)
+        #expect(selectedSecondProject)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [secondID])
+        let selectedFirstProject = state.selectProject(firstFixture.projectID)
+        #expect(selectedFirstProject)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+    }
     @Test func legacyCardBridgeQueuesOnlyTokenBoundCompletionAndDeliversIt() throws {
         let fixture = try Fixture(value: 12)
         let reminder = try fixture.knittingReminder(phase: .initial)

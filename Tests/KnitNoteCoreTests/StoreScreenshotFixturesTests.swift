@@ -25,6 +25,19 @@ import Testing
         }
     }
 
+    @Test func watchScreenshotFixtureContainsStableInitialAndDeferredReminderQueueExamples() throws {
+        let fixture = try StoreScreenshotFixtures.makeWatchFixture(language: .en)
+        let queue = try #require(fixture.cache.snapshot?.projects.first?.reminderQueue)
+
+        #expect(queue.map(\.id) == [
+            UUID(uuidString: "61000000-0000-4000-8000-000000000001")!,
+            UUID(uuidString: "61000000-0000-4000-8000-000000000002")!,
+        ])
+        #expect(queue.map(\.phase) == [.initial, .deferredOnce])
+        #expect(queue.map(\.text) == ["Cream yarn", "Check sleeve length"])
+        #expect(fixture.cache.snapshot?.generatedAt == Date(timeIntervalSince1970: 1_767_225_600))
+    }
+
     @Test func fixturesAreDeterministicAndComplete() throws {
         let first = try StoreScreenshotFixtures.make(language: .zhHant)
         let second = try StoreScreenshotFixtures.make(language: .zhHant)

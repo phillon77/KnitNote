@@ -169,15 +169,19 @@ import Testing
         ))
 
         #expect(source.contains("import WatchKit"))
-        #expect(enqueue.contains("let previouslyVisibleOccurrenceIDs"))
-        #expect(enqueue.contains("let newlyVisibleOccurrenceIDs"))
-        #expect(enqueue.contains("newlyVisibleOccurrenceIDs.subtracting(previouslyVisibleOccurrenceIDs)"))
+        #expect(enqueue.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs()"))
         #expect(enqueue.contains("guard persistThenPublish(candidate) else { return }"))
-        #expect(enqueue.contains("WKInterfaceDevice.current().play(.notification)"))
+        #expect(enqueue.contains("playHaptic()"))
+        #expect(source.contains("playHaptic: @escaping () -> Void"))
         #expect(source.components(separatedBy: "WKInterfaceDevice.current().play(.notification)").count - 1 == 1)
         let persistence = try #require(enqueue.range(of: "guard persistThenPublish(candidate) else { return }"))
-        let haptic = try #require(enqueue.range(of: "WKInterfaceDevice.current().play(.notification)"))
+        let haptic = try #require(enqueue.range(of: "playHaptic()"))
         #expect(persistence.lowerBound < haptic.lowerBound)
+
+        let selection = try #require(source.range(of: "func selectProject(_ projectID: UUID?)"))
+        let selectionBody = String(source[selection.lowerBound...])
+        #expect(selectionBody.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs()"))
+        #expect(selectionBody.contains("guard persistThenPublish(candidate) else { return }"))
     }
 
     @Test func unlockGuidanceIsLocalizedInEnglishAndTraditionalChinese() throws {

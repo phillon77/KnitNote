@@ -3,6 +3,16 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchSyncModelsTests {
+    @Test func legacyWatchCacheDecodesWithoutTheHapticLedger() throws {
+        let cache = try WatchSyncCodec.decode(
+            WatchSyncCache.self,
+            from: Data(#"{"schemaVersion":1,"pendingCommands":[]}"#.utf8)
+        )
+
+        #expect(cache.schemaVersion == WatchSyncCache.currentSchemaVersion)
+        #expect(cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+    }
+
     @Test func occurrencePublicConstructionRejectsInvalidDeferredState() {
         #expect(throws: WatchSyncValidationError.invalidReminderSnapshot) {
             _ = try WatchKnittingReminderOccurrenceSnapshot(

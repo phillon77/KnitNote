@@ -229,20 +229,37 @@ public enum StoreScreenshotFixtures {
         language _: StoreScreenshotLanguage
     ) throws -> (cache: WatchSyncCache, projectID: UUID) {
         let copy = Copy()
-        let counters = zip(copy.counterNames, [48, 6, 12, 4, 18, 18]).enumerated().map { index, item in
+        let counters = zip(copy.counterNames, [49, 6, 12, 4, 18, 18]).enumerated().map { index, item in
             WatchCounterSnapshot(
                 id: UUID(uuidString: String(format: "30000000-0000-4000-8000-%012d", index + 1))!,
                 name: item.0,
                 value: item.1
             )
         }
+        let initialReminderID = UUID(uuidString: "60000000-0000-4000-8000-000000000001")!
+        let deferredReminderID = UUID(uuidString: "60000000-0000-4000-8000-000000000002")!
+        let initialOccurrence = try WatchKnittingReminderOccurrenceSnapshot(
+            id: UUID(uuidString: "61000000-0000-4000-8000-000000000001")!,
+            reminderID: initialReminderID, kind: .changeYarn, text: "Cream yarn",
+            originalTarget: 47, displayAt: 47, phase: .initial, awaitsNextUpwardChange: false
+        )
+        let deferredOccurrence = try WatchKnittingReminderOccurrenceSnapshot(
+            id: UUID(uuidString: "61000000-0000-4000-8000-000000000002")!,
+            reminderID: deferredReminderID, kind: .measure, text: "Check sleeve length",
+            originalTarget: 48, displayAt: 49, phase: .deferredOnce, awaitsNextUpwardChange: false
+        )
+        let reminders = [
+            try WatchKnittingReminderSnapshot(id: initialReminderID, counterID: counters[0].id, kind: .changeYarn, text: "Cream yarn", rule: .oneTime(target: 47), state: .active, mutationRevision: 3, createdAt: fixedDate, scheduledCount: 1, completedCount: 0, skippedCount: 0, nextTarget: nil, nextOccurrenceIndex: 2, lastObservedCounterValue: 49, pending: [initialOccurrence]),
+            try WatchKnittingReminderSnapshot(id: deferredReminderID, counterID: counters[0].id, kind: .measure, text: "Check sleeve length", rule: .oneTime(target: 48), state: .active, mutationRevision: 4, createdAt: fixedDate.addingTimeInterval(1), scheduledCount: 1, completedCount: 0, skippedCount: 0, nextTarget: nil, nextOccurrenceIndex: 2, lastObservedCounterValue: 49, pending: [deferredOccurrence])
+        ]
         let project = try WatchProjectSnapshot(
             id: projectID,
             name: copy.firstProject,
             isCompleted: false,
             updatedAt: fixedDate,
             counters: counters,
-            selectedCounterID: counters[0].id
+            selectedCounterID: counters[0].id,
+            knittingReminders: reminders
         )
         let snapshot = WatchSyncSnapshot(
             generatedAt: fixedDate,

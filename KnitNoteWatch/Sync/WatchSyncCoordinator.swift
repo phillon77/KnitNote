@@ -16,6 +16,7 @@ final class WatchSyncCoordinator: ObservableObject {
     private let cacheFile: AtomicWatchSyncFile<WatchSyncCache>
     private let now: () -> Date
     private let localize: (String, Locale) -> String
+    private let playHaptic: () -> Void
 
     private var state: WatchOptimisticState
     private var currentError: WatchCommandRejection?
@@ -33,6 +34,7 @@ final class WatchSyncCoordinator: ObservableObject {
         transport: (any WatchConnectivityTransport)? = nil,
         applicationSupportRoot: URL? = nil,
         now: @escaping () -> Date = { .now },
+        playHaptic: @escaping () -> Void = { WKInterfaceDevice.current().play(.notification) },
         localize: @escaping (String, Locale) -> String = { key, locale in
             LocaleAwareText.string(key, locale: locale)
         }
@@ -43,6 +45,7 @@ final class WatchSyncCoordinator: ObservableObject {
             .appendingPathComponent("KnitNote", isDirectory: true)
         cacheFile = AtomicWatchSyncFile(url: WatchSyncPaths.watchCache(in: liveRoot))
         self.now = now
+        self.playHaptic = playHaptic
         self.localize = localize
 
         let recovery: WatchSyncCacheRecovery
@@ -113,7 +116,11 @@ final class WatchSyncCoordinator: ObservableObject {
     func selectProject(_ projectID: UUID?) {
         var candidate = state
         guard candidate.selectProject(projectID) else { return }
-        persistThenPublish(candidate)
+        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
+        guard persistThenPublish(candidate) else { return }
+        if !hapticOccurrenceIDs.isEmpty {
+            playHaptic()
+        }
     }
 
     func selectCounter(_ counterID: UUID?) {
@@ -205,7 +212,6 @@ final class WatchSyncCoordinator: ObservableObject {
     }
 
     private func enqueue(projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil) {
-        let previouslyVisibleOccurrenceIDs = Self.visiblePendingOccurrenceIDs(in: state.snapshot)
         let command = try? WatchCounterCommand(validating: WatchCounterCommand.currentSchemaVersion, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, createdAt: now())
         guard let command else {
             setError(.unsupportedSchema)
@@ -216,12 +222,11 @@ final class WatchSyncCoordinator: ObservableObject {
             setError(rejection)
             return
         }
-        let newlyVisibleOccurrenceIDs = Self.visiblePendingOccurrenceIDs(in: candidate.snapshot)
+        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
 
         guard persistThenPublish(candidate) else { return }
-        if operation == .increment,
-           !newlyVisibleOccurrenceIDs.subtracting(previouslyVisibleOccurrenceIDs).isEmpty {
-            WKInterfaceDevice.current().play(.notification)
+        if !hapticOccurrenceIDs.isEmpty {
+            playHaptic()
         }
         clearError()
 
@@ -230,12 +235,6 @@ final class WatchSyncCoordinator: ObservableObject {
         } else {
             beginHandshakeAndReplay()
         }
-    }
-
-    private static func visiblePendingOccurrenceIDs(
-        in snapshot: WatchSyncSnapshot?
-    ) -> Set<UUID> {
-        Set(snapshot?.projects.flatMap(\.reminderQueue).map(\.id) ?? [])
     }
 
     @discardableResult
@@ -263,7 +262,11 @@ final class WatchSyncCoordinator: ObservableObject {
     private func replaceSnapshot(_ snapshot: WatchSyncSnapshot) {
         var candidate = state
         candidate.replaceSnapshot(snapshot)
+        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
         guard persistThenPublish(candidate) else { return }
+        if !hapticOccurrenceIDs.isEmpty {
+            playHaptic()
+        }
         requiresSnapshot = false
         if state.nextDeliverableCommand(now: now()) != nil {
             beginHandshakeAndReplay()

@@ -1,7 +1,7 @@
 import Foundation
 
 public struct WatchSyncCache: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
     public static let empty = WatchSyncCache(snapshot: nil, pendingCommands: [])
 
     public let schemaVersion: Int
@@ -9,13 +9,15 @@ public struct WatchSyncCache: Codable, Equatable, Sendable {
     public let pendingCommands: [WatchCounterCommand]
     public let selectedProjectID: UUID?
     public let selectedCounterID: UUID?
+    public let announcedQueueHeadOccurrenceIDs: Set<UUID>
 
     public init(
         schemaVersion: Int = currentSchemaVersion,
         snapshot: WatchSyncSnapshot?,
         pendingCommands: [WatchCounterCommand],
         selectedProjectID: UUID? = nil,
-        selectedCounterID: UUID? = nil
+        selectedCounterID: UUID? = nil,
+        announcedQueueHeadOccurrenceIDs: Set<UUID> = []
     ) {
         self.schemaVersion = schemaVersion
         self.snapshot = snapshot
@@ -27,20 +29,22 @@ public struct WatchSyncCache: Codable, Equatable, Sendable {
         )
         self.selectedProjectID = selection.projectID
         self.selectedCounterID = selection.counterID
+        self.announcedQueueHeadOccurrenceIDs = announcedQueueHeadOccurrenceIDs
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
-        guard schemaVersion == Self.currentSchemaVersion else {
+        guard (1...Self.currentSchemaVersion).contains(schemaVersion) else {
             throw WatchSyncValidationError.unsupportedSchema
         }
         self.init(
-            schemaVersion: schemaVersion,
+            schemaVersion: Self.currentSchemaVersion,
             snapshot: try container.decodeIfPresent(WatchSyncSnapshot.self, forKey: .snapshot),
             pendingCommands: try container.decode([WatchCounterCommand].self, forKey: .pendingCommands),
             selectedProjectID: try container.decodeIfPresent(UUID.self, forKey: .selectedProjectID),
-            selectedCounterID: try container.decodeIfPresent(UUID.self, forKey: .selectedCounterID)
+            selectedCounterID: try container.decodeIfPresent(UUID.self, forKey: .selectedCounterID),
+            announcedQueueHeadOccurrenceIDs: try container.decodeIfPresent(Set<UUID>.self, forKey: .announcedQueueHeadOccurrenceIDs) ?? []
         )
     }
 

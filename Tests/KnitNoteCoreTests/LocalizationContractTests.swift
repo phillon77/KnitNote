@@ -2960,6 +2960,29 @@ private func isValidDirectPatternFolderLocalization(
         }
     }
 
+    @Test func smartReminderEditorKindAndScheduleStayDistinctInEveryLocale() throws {
+        let strings = try catalogStrings()
+        let kindKey = "knittingReminder.editor.kind"
+        let scheduleKey = "knittingReminder.editor.schedule"
+        let englishKindTokens = printfPlaceholders(
+            in: try localizedValue(kindKey, language: "en", strings: strings)
+        )
+        let englishScheduleTokens = printfPlaceholders(
+            in: try localizedValue(scheduleKey, language: "en", strings: strings)
+        )
+
+        for language in SupportedLocalization.v150Identifiers {
+            let kind = try localizedValue(kindKey, language: language, strings: strings)
+            let schedule = try localizedValue(scheduleKey, language: language, strings: strings)
+
+            #expect(!kind.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            #expect(!schedule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            #expect(kind != schedule, "Reminder kind and schedule labels collided in \(language)")
+            #expect(printfPlaceholders(in: kind) == englishKindTokens)
+            #expect(printfPlaceholders(in: schedule) == englishScheduleTokens)
+        }
+    }
+
     @Test func smartReminderCatalogContractRejectsMissingRawDuplicateTokenAndCommentFixtures() throws {
         let required: Set<String> = ["knittingReminder.card.queue"]
         let sourceKeys = required

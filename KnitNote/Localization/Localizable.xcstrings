@@ -734,7 +734,7 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 일정" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsesplan" } },
         "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinneringsschema" } },
-        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsetyp" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelseschema" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒计划" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒排程" } }
       }

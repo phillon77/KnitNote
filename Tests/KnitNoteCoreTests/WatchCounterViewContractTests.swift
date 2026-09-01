@@ -142,7 +142,43 @@ import Testing
         #expect(queue.contains(".accessibilityLabel("))
         #expect(queue.contains(".accessibilityHint("))
         #expect(queue.contains("queuePosition"))
+        #expect(queue.contains(".accessibilityElement(children: .contain)"))
+        #expect(queue.contains(".accessibilityElement(children: .ignore)"))
+        #expect(!queue.contains(".accessibilityElement(children: .combine)"))
         #expect(!queue.contains("legacy"))
+    }
+
+    @Test func reminderQueueRoutesEverySpokenAndVisibleLabelThroughWatchLocalizationKeys() throws {
+        let queue = try source("KnitNoteWatch/KnittingReminderQueueView.swift")
+        let data = try Data(contentsOf: rootURL().appending(path: "KnitNoteWatch/Localizable.xcstrings"))
+        let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let requiredKeys = [
+            "watch.reminder.accessibility.summary",
+            "watch.reminder.action.complete", "watch.reminder.action.complete.hint",
+            "watch.reminder.action.defer", "watch.reminder.action.defer.hint",
+            "watch.reminder.action.skip", "watch.reminder.action.skip.hint",
+            "watch.reminder.kind.increase", "watch.reminder.kind.decrease",
+            "watch.reminder.kind.changeYarn", "watch.reminder.kind.cable",
+            "watch.reminder.kind.buttonhole", "watch.reminder.kind.measure",
+            "watch.reminder.kind.custom", "watch.reminder.phase.initial",
+            "watch.reminder.phase.deferred", "watch.reminder.queuePosition",
+            "watch.reminder.target",
+        ]
+
+        for key in requiredKeys {
+            #expect(queue.contains("\"\(key)\""))
+            let entry = strings[key] as? [String: Any]
+            #expect(localizedValue("en", in: entry?["localizations"] as? [String: Any]) != nil)
+        }
+        #expect(queue.contains("LocaleAwareText.string"))
+        #expect(queue.contains("LocaleAwareText.format"))
+        #expect(!queue.contains("\"Complete\""))
+        #expect(!queue.contains("\"Remind Next Row\""))
+        #expect(!queue.contains("\"Skip This Time\""))
+        #expect(!queue.contains("Row \\("))
+        #expect(!queue.contains("\"Initial\""))
+        #expect(!queue.contains("\"Deferred\""))
     }
 
     @Test func reminderQueueDoesNotLeaveTheLegacyCardOrBridgeInProductionPaths() throws {
@@ -182,6 +218,15 @@ import Testing
         let selectionBody = String(source[selection.lowerBound...])
         #expect(selectionBody.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs()"))
         #expect(selectionBody.contains("guard persistThenPublish(candidate) else { return }"))
+
+        let acknowledgement = try #require(sourceSection(
+            source,
+            from: "private func handleAcknowledgement",
+            to: "private func beginHandshakeAndReplay"
+        ))
+        #expect(acknowledgement.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs()"))
+        #expect(acknowledgement.contains("guard persistThenPublish(candidate) else"))
+        #expect(acknowledgement.contains("playHaptic()"))
     }
 
     @Test func unlockGuidanceIsLocalizedInEnglishAndTraditionalChinese() throws {

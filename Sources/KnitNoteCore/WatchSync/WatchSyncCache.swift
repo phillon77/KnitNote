@@ -54,11 +54,35 @@ public struct WatchSyncCache: Codable, Equatable, Sendable {
             guard let cache = try file.load() else {
                 return WatchSyncCacheRecovery(cache: .empty, requiresSnapshot: true)
             }
-            return WatchSyncCacheRecovery(cache: cache, requiresSnapshot: cache.snapshot == nil)
+            let sanitized = cache.droppingNonSchemaThreePendingCommands()
+            if sanitized != cache {
+                try file.save(sanitized)
+            }
+            return WatchSyncCacheRecovery(
+                cache: sanitized,
+                requiresSnapshot: sanitized.snapshot == nil
+            )
         } catch {
             try file.quarantineCorruptFile()
             return WatchSyncCacheRecovery(cache: .empty, requiresSnapshot: true)
         }
+    }
+
+    /// Recovery may decode old command bytes so a cache can be inspected and
+    /// rewritten safely, but only schema-3 commands are durable Watch work.
+    public func droppingNonSchemaThreePendingCommands() -> WatchSyncCache {
+        let commands = pendingCommands.filter {
+            $0.schemaVersion == WatchCounterCommand.currentSchemaVersion
+                && $0.hasValidPayload
+        }
+        guard commands != pendingCommands else { return self }
+        return WatchSyncCache(
+            snapshot: snapshot,
+            pendingCommands: commands,
+            selectedProjectID: selectedProjectID,
+            selectedCounterID: selectedCounterID,
+            announcedQueueHeadOccurrenceIDs: announcedQueueHeadOccurrenceIDs
+        )
     }
 
     private static func validSelection(

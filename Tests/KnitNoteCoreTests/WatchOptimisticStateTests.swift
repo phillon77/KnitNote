@@ -42,6 +42,78 @@ import Testing
         #expect(state.cache.announcedQueueHeadOccurrenceIDs.isEmpty)
     }
 
+    @Test func acknowledgementPrunesAnAuthoritativelyMissingOccurrenceAndAnnouncesANewHead() throws {
+        let fixture = try Fixture(value: 12)
+        let first = try fixture.knittingReminder(phase: .initial)
+        var state = WatchOptimisticState(cache: .init(
+            snapshot: try fixture.makeSnapshot(value: 12, knittingReminders: [first]),
+            pendingCommands: [], selectedProjectID: fixture.projectID, selectedCounterID: fixture.counterID
+        ))
+        let firstID = try #require(state.snapshot?.projects.first?.reminderQueue.first?.id)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [firstID])
+
+        let command = fixture.command(.increment)
+        #expect(state.enqueue(command) == nil)
+        let removal = try fixture.makeSnapshot(value: 12, knittingReminders: [])
+        let acknowledgedRemoval = state.acknowledge(.init(
+            commandID: command.id,
+            rejection: .reminderMismatch,
+            snapshot: removal
+        ))
+        #expect(acknowledgedRemoval)
+        #expect(state.cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+
+        let replacement = try fixture.knittingReminder(phase: .initial)
+        state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: [replacement]))
+        let replacementID = try #require(state.snapshot?.projects.first?.reminderQueue.first?.id)
+        #expect(replacementID != firstID)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [replacementID])
+    }
+
+    @Test func acknowledgementPrunesTheHapticLedgerWhenItsProjectIsAuthoritativelyRemoved() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        var state = WatchOptimisticState(cache: .init(
+            snapshot: try fixture.makeSnapshot(value: 12, knittingReminders: [reminder]),
+            pendingCommands: [], selectedProjectID: fixture.projectID, selectedCounterID: fixture.counterID
+        ))
+        #expect(!state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+        let command = fixture.command(.increment)
+        #expect(state.enqueue(command) == nil)
+        let authoritativeRemoval = WatchSyncSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 31),
+            entitlement: .init(kind: .permanentlyUnlocked, expiresAt: nil, generatedAt: Date(timeIntervalSince1970: 31)),
+            projects: []
+        )
+
+        let acknowledgedProjectRemoval = state.acknowledge(.init(
+            commandID: command.id,
+            rejection: .projectMissing,
+            snapshot: authoritativeRemoval
+        ))
+        #expect(acknowledgedProjectRemoval)
+        #expect(state.cache.announcedQueueHeadOccurrenceIDs.isEmpty)
+    }
+
+    @Test func newerAuthoritativeReappearanceStartsANewHapticCycleForThatOccurrenceID() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let visible = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: .init(snapshot: visible, pendingCommands: []))
+        let occurrenceID = try #require(visible.projects.first?.reminderQueue.first?.id)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [occurrenceID])
+
+        state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: []))
+        let reappeared = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        state.replaceSnapshot(WatchSyncSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 31),
+            entitlement: reappeared.entitlement,
+            projects: reappeared.projects
+        ))
+
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [occurrenceID])
+    }
+
     @Test func reminderQueueHeadHapticLedgerIsolatesProjectsAcrossNavigation() throws {
         let firstFixture = try Fixture(value: 12)
         let secondFixture = try Fixture(value: 12)
@@ -71,7 +143,7 @@ import Testing
         #expect(selectedFirstProject)
         #expect(state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
     }
-    @Test func legacyCardBridgeQueuesOnlyTokenBoundCompletionAndDeliversIt() throws {
+    @Test func schemaTwoCardCommandIsDiscardedAndRejectedByTheWatchQueue() throws {
         let fixture = try Fixture(value: 12)
         let reminder = try fixture.knittingReminder(phase: .initial)
         let occurrence = try #require(reminder.pending.first)
@@ -105,8 +177,9 @@ import Testing
         ))
         var state = WatchOptimisticState(cache: .init(snapshot: bridged, pendingCommands: []))
 
-        #expect(state.enqueue(command) == nil)
-        #expect(state.nextDeliverableCommand(now: Date(timeIntervalSince1970: 40)) == command)
+        #expect(state.pendingCommands.isEmpty)
+        #expect(state.nextDeliverableCommand(now: Date(timeIntervalSince1970: 40)) == nil)
+        #expect(state.enqueue(command) == .unsupportedSchema)
     }
 
     @Test func oldTokenlessLegacyCardCommandIsDiscardedBeforeDelivery() throws {
@@ -143,7 +216,7 @@ import Testing
         WatchCounterOperation.decrement,
         WatchCounterOperation.reset,
     ])
-    func legacyStopDoesNotQueueBehindSameCounterMutation(
+    func schemaTwoStopIsRejectedEvenWhenACounterMutationIsPending(
         precedingOperation: WatchCounterOperation
     ) throws {
         let fixture = try Fixture(value: 12)
@@ -159,11 +232,11 @@ import Testing
         ))
 
         #expect(state.enqueue(fixture.command(precedingOperation)) == nil)
-        #expect(state.enqueue(stop) == .pendingCounterMutation)
+        #expect(state.enqueue(stop) == .unsupportedSchema)
         #expect(state.pendingCommands.map(\.operation) == [precedingOperation])
     }
 
-    @Test func unrelatedCounterMutationCanRemainAheadOfLegacyStop() throws {
+    @Test func schemaTwoStopIsRejectedEvenWhenAnotherCounterIsPending() throws {
         let fixture = try Fixture(value: 12)
         let reminder = try fixture.knittingReminder(phase: .initial)
         let occurrence = try #require(reminder.pending.first)
@@ -180,8 +253,8 @@ import Testing
         ))
 
         #expect(state.enqueue(unrelatedReset) == nil)
-        #expect(state.enqueue(stop) == nil)
-        #expect(state.pendingCommands == [unrelatedReset, stop])
+        #expect(state.enqueue(stop) == .unsupportedSchema)
+        #expect(state.pendingCommands == [unrelatedReset])
     }
 
     @Test func counterMutationCanFollowAnAlreadyQueuedReminderAction() throws {

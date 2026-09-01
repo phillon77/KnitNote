@@ -253,6 +253,37 @@ import Testing
         #expect(try AtomicWatchSyncFile<WatchSyncCache>(url: file.url).load()?.pendingCommands == [command])
     }
 
+    @Test func restoredSchemaTwoCacheCommandIsDroppedBeforeWatchDelivery() throws {
+        let root = try WatchSyncTemporaryDirectory()
+        let snapshot = try makeSnapshot()
+        let project = try #require(snapshot.projects.first)
+        let legacy = try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: project.id,
+            counterID: project.selectedCounterID,
+            operation: .completeReminder,
+            reminderID: UUID(),
+            observedPendingCount: 1,
+            occurrenceID: UUID(),
+            observedMutationRevision: 1
+        ))
+        let schemaThree = WatchCounterCommand(
+            projectID: project.id,
+            counterID: project.selectedCounterID,
+            operation: .increment
+        )
+        let file = AtomicWatchSyncFile<WatchSyncCache>(
+            url: WatchSyncPaths.watchCache(in: root.url)
+        )
+        try file.save(.init(snapshot: snapshot, pendingCommands: [legacy, schemaThree]))
+
+        let recovery = try WatchSyncCache.loadRecoveringCorruption(in: root.url)
+        let restored = WatchOptimisticState(cache: recovery.cache)
+
+        #expect(recovery.cache.pendingCommands.map(\.id) == [schemaThree.id])
+        #expect(restored.nextDeliverableCommand(now: Date(timeIntervalSince1970: 200))?.id == schemaThree.id)
+        #expect(try file.load()?.pendingCommands.map(\.id) == [schemaThree.id])
+    }
+
     @Test func failedAtomicSavePreservesPreviousFile() throws {
         let root = try WatchSyncTemporaryDirectory()
         let url = WatchSyncPaths.watchCache(in: root.url)

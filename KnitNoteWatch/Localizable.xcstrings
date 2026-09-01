@@ -1,6 +1,97 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "watch.reminder.accessibility.summary" : {
+      "comment" : "VoiceOver summary for one Apple Watch knitting reminder queue occurrence.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@, %@, %@, %@, %@" } }
+      }
+    },
+    "watch.reminder.action.complete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete" } }
+      }
+    },
+    "watch.reminder.action.complete.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Completes this reminder." } }
+      }
+    },
+    "watch.reminder.action.defer" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remind Next Row" } }
+      }
+    },
+    "watch.reminder.action.defer.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shows this reminder on the next row." } }
+      }
+    },
+    "watch.reminder.action.skip" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Skip This Time" } }
+      }
+    },
+    "watch.reminder.action.skip.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Skips only this occurrence." } }
+      }
+    },
+    "watch.reminder.kind.buttonhole" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Buttonhole" } }
+      }
+    },
+    "watch.reminder.kind.cable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cable" } }
+      }
+    },
+    "watch.reminder.kind.changeYarn" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Change Yarn" } }
+      }
+    },
+    "watch.reminder.kind.custom" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom Reminder" } }
+      }
+    },
+    "watch.reminder.kind.decrease" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease" } }
+      }
+    },
+    "watch.reminder.kind.increase" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase" } }
+      }
+    },
+    "watch.reminder.kind.measure" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Measure" } }
+      }
+    },
+    "watch.reminder.phase.deferred" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Deferred" } }
+      }
+    },
+    "watch.reminder.phase.initial" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Initial" } }
+      }
+    },
+    "watch.reminder.queuePosition" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld of %lld" } }
+      }
+    },
+    "watch.reminder.target" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Row %lld" } }
+      }
+    },
     "counter.reminder.complete" : {
       "comment" : "Compact action label that acknowledges every row-counter reminder occurrence shown on Apple Watch.",
       "localizations" : {

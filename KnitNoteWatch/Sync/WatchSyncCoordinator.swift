@@ -276,11 +276,16 @@ final class WatchSyncCoordinator: ObservableObject {
     private func handleAcknowledgement(_ acknowledgement: WatchCommandAcknowledgement) {
         var candidate = state
         guard candidate.acknowledge(acknowledgement) else { return }
+        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
         guard persistThenPublish(candidate) else {
             deliveryState.cancelInteractiveDelivery()
             reachableHandshakeCompleted = false
             beginHandshakeAndReplay()
             return
+        }
+
+        if !hapticOccurrenceIDs.isEmpty {
+            playHaptic()
         }
 
         _ = deliveryState.acknowledge(acknowledgement.commandID)

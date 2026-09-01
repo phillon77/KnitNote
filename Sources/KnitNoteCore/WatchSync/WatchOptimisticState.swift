@@ -9,19 +9,18 @@ public struct WatchOptimisticState: Equatable, Sendable {
 
     public init(cache: WatchSyncCache) {
         authoritativeSnapshot = cache.snapshot
-        // Old cached schema-2 commands lack the identity/revision token added
-        // for the temporary card bridge. Drop them rather than delivering a
-        // mutation that cannot be proven fresh; the coordinator refreshes the
-        // snapshot before enabling a card action.
+        // Schema-2 command bytes remain decodable for cache recovery only.
+        // They are never eligible for production delivery because their
+        // temporary-card semantics are not schema-3 durable actions.
         pendingCommands = cache.pendingCommands.filter {
             $0.schemaVersion == WatchCounterCommand.currentSchemaVersion
-                ? $0.hasValidPayload
-                : $0.isTrustedLegacyWatchUICommand
+                && $0.hasValidPayload
         }
         selectedProjectID = cache.selectedProjectID
         selectedCounterID = cache.selectedCounterID
         announcedQueueHeadOccurrenceIDs = cache.announcedQueueHeadOccurrenceIDs
         repairSelection()
+        pruneHapticLedger()
     }
 
     public var snapshot: WatchSyncSnapshot? {
@@ -48,8 +47,8 @@ public struct WatchOptimisticState: Equatable, Sendable {
     public func nextDeliverableCommand(now: Date = .now) -> WatchCounterCommand? {
         guard canMutate(now: now) else { return nil }
         guard let command = nextPendingCommand,
-              command.schemaVersion == WatchCounterCommand.currentSchemaVersion
-                || command.isTrustedLegacyWatchUICommand
+              command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
+              command.hasValidPayload
         else { return nil }
         return command
     }
@@ -109,12 +108,11 @@ public struct WatchOptimisticState: Equatable, Sendable {
         _ command: WatchCounterCommand,
         now: Date = .now
     ) -> WatchCommandRejection? {
-        let isCurrentCommand = command.schemaVersion == WatchCounterCommand.currentSchemaVersion
-        let isLegacyCompatibilityCommand = command.isTrustedLegacyWatchUICommand
-        guard isCurrentCommand || isLegacyCompatibilityCommand else {
+        guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
+              command.hasValidPayload
+        else {
             return .unsupportedSchema
         }
-        guard command.hasValidPayload else { return .unsupportedSchema }
         guard canMutate(now: now) else { return .entitlementRequired }
         guard let project = snapshot?.projects.first(where: {
             $0.id == command.projectID
@@ -135,48 +133,20 @@ public struct WatchOptimisticState: Equatable, Sendable {
             guard !hasPendingCounterMutation(for: command) else {
                 return .pendingCounterMutation
             }
-            if isLegacyCompatibilityCommand {
-                guard let reminderID = command.reminderID,
-                      let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-                      let revision = command.legacyObservedMutationRevisionForCompatibility,
-                      let observedCount = command.observedPendingCount,
-                      let reminder = project.knittingReminders.first(where: {
-                          $0.id == reminderID && $0.counterID == counter.id
-                      }),
-                      reminder.mutationRevision == revision,
-                      reminder.visibleOccurrences(at: counter.value).count == observedCount,
-                      reminder.visibleOccurrences(at: counter.value).contains(where: { $0.id == occurrenceID }),
-                      !pendingCommands.contains(where: { $0.reminderID == reminderID })
-                else { return .reminderMismatch }
-            } else {
-                guard let payload = command.reminderPayload,
-                      let reminder = project.knittingReminders.first(where: {
-                          $0.id == payload.reminderID && $0.counterID == counter.id
-                      }),
-                      reminder.mutationRevision == payload.observedRevision,
-                      reminder.visibleOccurrences(at: counter.value).contains(where: {
-                          $0.id == payload.occurrenceID
-                      }),
-                      !pendingCommands.contains(where: {
-                          $0.reminderPayload?.reminderID == payload.reminderID
-                      })
-                else { return .reminderMismatch }
-            }
-        case .stopReminder:
-            guard !hasPendingCounterMutation(for: command) else {
-                return .pendingCounterMutation
-            }
-            guard isLegacyCompatibilityCommand,
-                  let reminderID = command.reminderID,
-                  let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-                  let revision = command.legacyObservedMutationRevisionForCompatibility,
+            guard let payload = command.reminderPayload,
                   let reminder = project.knittingReminders.first(where: {
-                      $0.id == reminderID && $0.counterID == counter.id
+                      $0.id == payload.reminderID && $0.counterID == counter.id
                   }),
-                  reminder.mutationRevision == revision,
-                  reminder.visibleOccurrences(at: counter.value).contains(where: { $0.id == occurrenceID }),
-                  !pendingCommands.contains(where: { $0.reminderID == reminderID })
+                  reminder.mutationRevision == payload.observedRevision,
+                  reminder.visibleOccurrences(at: counter.value).contains(where: {
+                      $0.id == payload.occurrenceID
+                  }),
+                  !pendingCommands.contains(where: {
+                      $0.reminderPayload?.reminderID == payload.reminderID
+                  })
             else { return .reminderMismatch }
+        case .stopReminder:
+            return .unsupportedSchema
         }
         guard !pendingCommands.contains(where: { $0.id == command.id }) else { return nil }
 
@@ -205,6 +175,7 @@ public struct WatchOptimisticState: Equatable, Sendable {
             authoritativeSnapshot = acknowledgement.snapshot
         }
         repairSelection()
+        pruneHapticLedger()
         return true
     }
 
@@ -266,6 +237,9 @@ public struct WatchOptimisticState: Equatable, Sendable {
 
     private mutating func pruneHapticLedger() {
         let pendingIDs = Set((self.snapshot?.projects ?? []).flatMap(\.reminderQueue).map(\.id))
+        // Absence in a newer authoritative snapshot retires an occurrence. If
+        // an ID later appears again, it is a new authoritative visibility
+        // cycle and may announce once; stale older snapshots never replace it.
         announcedQueueHeadOccurrenceIDs.formIntersection(pendingIDs)
     }
 

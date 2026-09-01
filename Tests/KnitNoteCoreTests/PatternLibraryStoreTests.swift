@@ -372,6 +372,7 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     #expect(reminder.counterID == counterID)
     #expect(reminder.mutationRevision == 1)
     #expect(reminder.progress.scheduledCount == 1)
+    #expect(reminder.progress.nextTarget == nil)
     #expect(occurrence.reminderID == reminder.id)
     #expect(occurrence.originalTarget == 2)
     #expect(occurrence.displayAt == 2)
@@ -685,6 +686,10 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             .knittingReminders.first(where: { $0.id == reminderID })
     )
     let occurrence = try #require(pendingReminder.progress.pending.first)
+    let completeRevisionAdvance = pendingReminder.mutationRevision.addingReportingOverflow(1)
+    let expectedRevisionAfterComplete = try #require(
+        completeRevisionAdvance.overflow ? nil : completeRevisionAdvance.partialValue
+    )
     let generationBeforeComplete = harness.store.dataGeneration
     let completeGenerationAdvance = generationBeforeComplete.addingReportingOverflow(1)
     let expectedGenerationAfterComplete = try #require(
@@ -700,6 +705,11 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     )
     #expect(harness.store.dataGeneration == expectedGenerationAfterComplete)
     #expect(harness.store.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
+    let currentReminder = try #require(
+        harness.store.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
+    )
+    #expect(currentReminder.mutationRevision == expectedRevisionAfterComplete)
     let reopenedAfterComplete = try harness.reopenedStore()
     #expect(reopenedAfterComplete.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
     let completedReminder = try #require(
@@ -710,9 +720,10 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     #expect(completedReminder.progress.pending.isEmpty)
     #expect(completedReminder.state == .active)
     #expect(completedReminder.progress.nextTarget == 4)
-    let currentReminder = try #require(
-        harness.store.project(id: harness.projectID)?
-            .knittingReminders.first(where: { $0.id == reminderID })
+    #expect(completedReminder.mutationRevision == expectedRevisionAfterComplete)
+    let stopRevisionAdvance = currentReminder.mutationRevision.addingReportingOverflow(1)
+    let expectedRevisionAfterStop = try #require(
+        stopRevisionAdvance.overflow ? nil : stopRevisionAdvance.partialValue
     )
     let generationBeforeStop = harness.store.dataGeneration
     let stopGenerationAdvance = generationBeforeStop.addingReportingOverflow(1)
@@ -729,6 +740,11 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     )
     #expect(harness.store.dataGeneration == expectedGenerationAfterStop)
     #expect(harness.store.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
+    let currentStoppedReminder = try #require(
+        harness.store.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
+    )
+    #expect(currentStoppedReminder.mutationRevision == expectedRevisionAfterStop)
     let reopenedAfterStop = try harness.reopenedStore()
     #expect(reopenedAfterStop.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
     let stoppedReminder = try #require(
@@ -736,6 +752,7 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             .knittingReminders.first(where: { $0.id == reminderID })
     )
     #expect(stoppedReminder.state == .stopped)
+    #expect(stoppedReminder.mutationRevision == expectedRevisionAfterStop)
     #expect(stoppedReminder.progress.nextTarget == nil)
     #expect(stoppedReminder.progress.pending.isEmpty)
 }

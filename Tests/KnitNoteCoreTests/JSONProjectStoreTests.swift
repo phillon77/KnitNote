@@ -143,15 +143,37 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         counterID: counterID,
         draft: .oneTime(target: 3, message: "First")
     )
-    let staleReminderID = UUID()
+    let staleReminder = try #require(
+        store.project(id: project.id)?.knittingReminders.first
+    )
+    try store.deleteKnittingReminder(
+        projectID: project.id,
+        reminderID: staleReminder.id,
+        observedRevision: staleReminder.mutationRevision
+    )
     try store.configureCounterReminder(
         projectID: project.id,
         counterID: counterID,
         draft: .oneTime(target: 4, message: "Replacement")
     )
+    let replacementReminder = try #require(
+        store.project(id: project.id)?.knittingReminders.first
+    )
+    #expect(replacementReminder.id != staleReminder.id)
+    #expect(replacementReminder.text == "Replacement")
+    let unrelatedReminderID = try store.addKnittingReminder(
+        projectID: project.id,
+        draft: .oneTime(kind: .measure, target: 6, text: "Unrelated")
+    )
     let selectedCounterID = project.counters[1].id
     try store.selectCounter(projectID: project.id, counterID: selectedCounterID)
     let projectsBefore = store.projects
+    let projectBefore = try #require(store.project(id: project.id))
+    let remindersBefore = projectBefore.knittingReminders
+    #expect(remindersBefore.map(\.id) == [replacementReminder.id, unrelatedReminderID])
+    #expect(!remindersBefore.contains(where: { $0.id == staleReminder.id }))
+    let selectionBefore = projectBefore.selectedCounterID
+    #expect(selectionBefore == selectedCounterID)
     let generationBefore = store.dataGeneration
     let archiveBefore = try Data(contentsOf: url)
 
@@ -160,18 +182,20 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
         counterID: counterID,
         name: "Changed",
         value: 2,
-        reminder: .remove(expectedReminderID: staleReminderID)
+        reminder: .remove(expectedReminderID: staleReminder.id)
     )
 
     #expect(result == nil)
     #expect(store.projects == projectsBefore)
-    #expect(store.project(id: project.id)?.selectedCounterID == selectedCounterID)
+    let projectAfter = try #require(store.project(id: project.id))
+    #expect(projectAfter.selectedCounterID == selectionBefore)
     #expect(store.dataGeneration == generationBefore)
     #expect(try Data(contentsOf: url) == archiveBefore)
-    let replacement = try #require(store.project(id: project.id))
-    #expect(replacement.counters[0].customName == nil)
-    #expect(replacement.counters[0].value == 0)
-    #expect(replacement.knittingReminders.first?.text == "First")
+    #expect(projectAfter.counters[0].customName == nil)
+    #expect(projectAfter.counters[0].value == 0)
+    #expect(projectAfter.knittingReminders == remindersBefore)
+    #expect(projectAfter.knittingReminders.map(\.id) == [replacementReminder.id, unrelatedReminderID])
+    #expect(JSONProjectStore(url: url).project(id: project.id) == projectBefore)
 }
 
 @MainActor @Test func rejectedDirectCounterManagerMutationPublishesNothing() throws {

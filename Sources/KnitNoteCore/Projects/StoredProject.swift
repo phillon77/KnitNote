@@ -428,7 +428,6 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
     /// Task 6's temporary Watch card bridge. Unlike the old count-only API,
     /// this is bound to one visible occurrence and its exact Core revision.
     /// It intentionally remains internal until the legacy card disappears.
-    @discardableResult
     mutating func completeLegacyWatchVisibleReminder(
         id: UUID,
         reminderID: UUID,
@@ -436,64 +435,68 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         observedRevision: UInt64,
         observedVisibleCount: Int,
         now: Date = .now
-    ) -> Bool {
-        guard !isCompleted,
-              let counter = counters.first(where: { $0.id == id }),
+    ) throws {
+        guard !isCompleted else { throw KnittingReminderMutationError.invalidAction }
+        guard let counter = counters.first(where: { $0.id == id }),
               let reminderIndex = knittingReminders.firstIndex(where: {
                   $0.id == reminderID && $0.counterID == id
-              })
-        else { return false }
+              }) else {
+            throw KnittingReminderMutationError.occurrenceNotFound
+        }
         let current = knittingReminders[reminderIndex]
         let visible = current.visibleOccurrences(at: counter.value)
-        guard current.state == .active,
-              current.mutationRevision == observedRevision,
-              visible.count == observedVisibleCount,
-              visible.contains(where: { $0.id == occurrenceID })
-        else { return false }
-        do {
-            var updated = current
-            for occurrence in visible {
-                updated = try updated.applying(.complete(
-                    occurrenceID: occurrence.id,
-                    observedRevision: updated.mutationRevision
-                ))
-            }
-            knittingReminders[reminderIndex] = updated
-        } catch {
-            return false
+        guard current.state == .active else {
+            throw KnittingReminderMutationError.invalidAction
         }
+        guard current.mutationRevision == observedRevision else {
+            throw KnittingReminderMutationError.staleRevision
+        }
+        guard visible.count == observedVisibleCount,
+              visible.contains(where: { $0.id == occurrenceID })
+        else {
+            throw KnittingReminderMutationError.occurrenceNotFound
+        }
+        var updated = current
+        for occurrence in visible {
+            updated = try updated.applying(.complete(
+                occurrenceID: occurrence.id,
+                observedRevision: updated.mutationRevision
+            ))
+        }
+        knittingReminders[reminderIndex] = updated
         updatedAt = now
-        return true
     }
 
-    @discardableResult
     mutating func stopLegacyWatchVisibleReminder(
         id: UUID,
         reminderID: UUID,
         occurrenceID: UUID,
         observedRevision: UInt64,
         now: Date = .now
-    ) -> Bool {
-        guard !isCompleted,
-              let counter = counters.first(where: { $0.id == id }),
+    ) throws {
+        guard !isCompleted else { throw KnittingReminderMutationError.invalidAction }
+        guard let counter = counters.first(where: { $0.id == id }),
               let reminderIndex = knittingReminders.firstIndex(where: {
                   $0.id == reminderID && $0.counterID == id
-              })
-        else { return false }
-        let reminder = knittingReminders[reminderIndex]
-        guard reminder.state == .active,
-              reminder.mutationRevision == observedRevision,
-              reminder.visibleOccurrences(at: counter.value).contains(where: { $0.id == occurrenceID })
-        else { return false }
-        do {
-            knittingReminders[reminderIndex] = try reminder.applying(.stop(
-                observedRevision: observedRevision
-            ))
-        } catch {
-            return false
+              }) else {
+            throw KnittingReminderMutationError.occurrenceNotFound
         }
+        let reminder = knittingReminders[reminderIndex]
+        guard reminder.state == .active else {
+            throw KnittingReminderMutationError.invalidAction
+        }
+        guard reminder.mutationRevision == observedRevision else {
+            throw KnittingReminderMutationError.staleRevision
+        }
+        guard
+              reminder.visibleOccurrences(at: counter.value).contains(where: { $0.id == occurrenceID })
+        else {
+            throw KnittingReminderMutationError.occurrenceNotFound
+        }
+        knittingReminders[reminderIndex] = try reminder.applying(.stop(
+            observedRevision: observedRevision
+        ))
         updatedAt = now
-        return true
     }
     public mutating func renameCounter(id: UUID, to name: String?, now: Date = .now) {
         guard !isCompleted else { return }

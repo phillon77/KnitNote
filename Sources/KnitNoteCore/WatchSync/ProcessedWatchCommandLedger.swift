@@ -4,10 +4,16 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
     public struct Entry: Codable, Equatable, Sendable {
         public let id: UUID
         public let processedAt: Date
+        public let rejection: WatchCommandRejection?
 
-        public init(id: UUID, processedAt: Date) {
+        public init(
+            id: UUID,
+            processedAt: Date,
+            rejection: WatchCommandRejection? = nil
+        ) {
             self.id = id
             self.processedAt = processedAt
+            self.rejection = rejection
         }
     }
 
@@ -23,9 +29,17 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
         entries.contains { $0.id == id }
     }
 
-    public mutating func record(_ id: UUID, at date: Date) {
+    public func entry(for id: UUID) -> Entry? {
+        entries.first { $0.id == id }
+    }
+
+    public mutating func record(
+        _ id: UUID,
+        rejection: WatchCommandRejection? = nil,
+        at date: Date
+    ) {
         entries.removeAll { $0.id == id }
-        entries.append(Entry(id: id, processedAt: date))
+        entries.append(Entry(id: id, processedAt: date, rejection: rejection))
         prune(now: date)
     }
 

@@ -1247,7 +1247,7 @@ final class PatternLibraryDeletionTransaction {
             try requireWatchEntitlement(entitlement, now: now)
         } catch ProjectStoreError.accessRestricted {
             try ensureArchiveAvailable()
-            ledger.record(command.id, at: now)
+            ledger.record(command.id, rejection: .entitlementRequired, at: now)
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: .entitlementRequired,
@@ -1273,7 +1273,7 @@ final class PatternLibraryDeletionTransaction {
         try ensureArchiveAvailable()
         let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
         var ledger = try ledgerFile.load() ?? ProcessedWatchCommandLedger()
-        ledger.record(command.id, at: now)
+        ledger.record(command.id, rejection: rejection, at: now)
         try ledgerFile.save(ledger)
         return try watchAcknowledgement(
             for: command.id,
@@ -1307,10 +1307,10 @@ final class PatternLibraryDeletionTransaction {
         now: Date
     ) throws -> WatchCommandAcknowledgement {
         try ensureArchiveAvailable()
-        if ledger.contains(command.id) {
+        if let processed = ledger.entry(for: command.id) {
             return try watchAcknowledgement(
                 for: command.id,
-                rejection: nil,
+                rejection: processed.rejection,
                 entitlement: entitlement,
                 now: now
             )
@@ -1373,7 +1373,7 @@ final class PatternLibraryDeletionTransaction {
         }
 
         if let rejection {
-            ledger.record(command.id, at: now)
+            ledger.record(command.id, rejection: rejection, at: now)
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: rejection,
@@ -1382,46 +1382,57 @@ final class PatternLibraryDeletionTransaction {
             )
         }
 
-        try mutate(id: command.projectID) { project in
-            switch command.operation {
-            case .increment:
-                try project.incrementCounter(id: command.counterID, now: now)?
-                    .validateKnittingReminderEvaluation()
-            case .decrement:
-                try project.decrementCounter(id: command.counterID, now: now)?
-                    .validateKnittingReminderEvaluation()
-            case .reset:
-                try project.resetCounter(id: command.counterID, now: now)?
-                    .validateKnittingReminderEvaluation()
-            case .completeReminder:
-                if let reminderID = command.reminderID,
-                   let observedPendingCount = command.observedPendingCount,
-                   let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-                   let revision = command.legacyObservedMutationRevisionForCompatibility {
-                    project.completeLegacyWatchVisibleReminder(
-                        id: command.counterID,
-                        reminderID: reminderID,
-                        occurrenceID: occurrenceID,
-                        observedRevision: revision,
-                        observedVisibleCount: observedPendingCount,
-                        now: now
-                    )
-                }
-            case .deferReminderOnce, .skipReminder:
-                break
-            case .stopReminder:
-                if let reminderID = command.reminderID,
-                   let occurrenceID = command.legacyOccurrenceIDForCompatibility,
-                   let revision = command.legacyObservedMutationRevisionForCompatibility {
-                    project.stopLegacyWatchVisibleReminder(
-                        id: command.counterID,
-                        reminderID: reminderID,
-                        occurrenceID: occurrenceID,
-                        observedRevision: revision,
-                        now: now
-                    )
+        do {
+            try mutate(id: command.projectID) { project in
+                switch command.operation {
+                case .increment:
+                    try project.incrementCounter(id: command.counterID, now: now)?
+                        .validateKnittingReminderEvaluation()
+                case .decrement:
+                    try project.decrementCounter(id: command.counterID, now: now)?
+                        .validateKnittingReminderEvaluation()
+                case .reset:
+                    try project.resetCounter(id: command.counterID, now: now)?
+                        .validateKnittingReminderEvaluation()
+                case .completeReminder:
+                    if let reminderID = command.reminderID,
+                       let observedPendingCount = command.observedPendingCount,
+                       let occurrenceID = command.legacyOccurrenceIDForCompatibility,
+                       let revision = command.legacyObservedMutationRevisionForCompatibility {
+                        try project.completeLegacyWatchVisibleReminder(
+                            id: command.counterID,
+                            reminderID: reminderID,
+                            occurrenceID: occurrenceID,
+                            observedRevision: revision,
+                            observedVisibleCount: observedPendingCount,
+                            now: now
+                        )
+                    }
+                case .deferReminderOnce, .skipReminder:
+                    break
+                case .stopReminder:
+                    if let reminderID = command.reminderID,
+                       let occurrenceID = command.legacyOccurrenceIDForCompatibility,
+                       let revision = command.legacyObservedMutationRevisionForCompatibility {
+                        try project.stopLegacyWatchVisibleReminder(
+                            id: command.counterID,
+                            reminderID: reminderID,
+                            occurrenceID: occurrenceID,
+                            observedRevision: revision,
+                            now: now
+                        )
+                    }
                 }
             }
+        } catch let error as KnittingReminderMutationError {
+            let rejection = watchRejection(for: error)
+            ledger.record(command.id, rejection: rejection, at: now)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: rejection,
+                entitlement: entitlement,
+                now: now
+            )
         }
         ledger.record(command.id, at: now)
         return try watchAcknowledgement(
@@ -1430,6 +1441,17 @@ final class PatternLibraryDeletionTransaction {
             entitlement: entitlement,
             now: now
         )
+    }
+
+    private func watchRejection(
+        for error: KnittingReminderMutationError
+    ) -> WatchCommandRejection {
+        switch error {
+        case .invalidDraft, .staleRevision, .occurrenceNotFound, .alreadyDeferred,
+             .invalidAction, .arithmeticOverflow, .revisionExhausted,
+             .newReminderRequiresMainCounter:
+            .reminderMismatch
+        }
     }
     public func saveNote(projectID: UUID, counterID: UUID, row: Int, text: String) throws {
         try requireAccess(.editNote)

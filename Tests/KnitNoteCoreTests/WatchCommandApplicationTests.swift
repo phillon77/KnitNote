@@ -339,6 +339,69 @@ import Testing
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == 0)
     }
 
+    @Test @MainActor func exhaustedLegacyCompletionRejectsOnFirstAndDuplicateDelivery() throws {
+        let fixture = try WatchStoreFixture(legacyReminder: .oneTime(target: 1, message: nil))
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        let reminder = try #require(fixture.store.project(id: project.id)?.knittingReminders.first)
+        let occurrence = try #require(reminder.progress.pending.first)
+        try fixture.setReminderRevision(.max, reminderID: reminder.id)
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        let command = try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: project.id, counterID: counterID,
+            operation: .completeReminder, reminderID: reminder.id,
+            observedPendingCount: 1, occurrenceID: occurrence.id,
+            observedMutationRevision: .max
+        ))
+        var ledger = ProcessedWatchCommandLedger()
+
+        let first = try fixture.store.applyWatchCommand(
+            command, ledger: &ledger, now: fixture.now
+        )
+        let duplicate = try fixture.store.applyWatchCommand(
+            command, ledger: &ledger, now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(first.rejection == .reminderMismatch)
+        #expect(duplicate.rejection == .reminderMismatch)
+        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.mutationRevision == .max)
+        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == 0)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+        #expect(ledger.entries.count == 1)
+    }
+
+    @Test @MainActor func exhaustedLegacyStopRejectsOnFirstAndDuplicateDelivery() throws {
+        let fixture = try WatchStoreFixture(legacyReminder: .oneTime(target: 1, message: nil))
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        let reminder = try #require(fixture.store.project(id: project.id)?.knittingReminders.first)
+        let occurrence = try #require(reminder.progress.pending.first)
+        try fixture.setReminderRevision(.max, reminderID: reminder.id)
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        let command = try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: project.id, counterID: counterID,
+            operation: .stopReminder, reminderID: reminder.id,
+            occurrenceID: occurrence.id, observedMutationRevision: .max
+        ))
+        var ledger = ProcessedWatchCommandLedger()
+
+        let first = try fixture.store.applyWatchCommand(
+            command, ledger: &ledger, now: fixture.now
+        )
+        let duplicate = try fixture.store.applyWatchCommand(
+            command, ledger: &ledger, now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(first.rejection == .reminderMismatch)
+        #expect(duplicate.rejection == .reminderMismatch)
+        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.mutationRevision == .max)
+        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.state == .active)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+        #expect(ledger.entries.count == 1)
+    }
+
     @Test @MainActor func incrementDecrementFloorAndResetUseAuthoritativeCurrentValue() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
@@ -570,7 +633,7 @@ private func date(_ seconds: TimeInterval) -> Date {
     let now = date(1_000)
     let store: JSONProjectStore
     private let root: URL
-    private let archiveURL: URL
+    fileprivate let archiveURL: URL
 
     init(completed: Bool = false, legacyReminder: CounterReminderDraft? = nil) throws {
         root = FileManager.default.temporaryDirectory
@@ -594,5 +657,23 @@ private func date(_ seconds: TimeInterval) -> Date {
     func breakArchiveParent() throws {
         try FileManager.default.removeItem(at: root)
         try Data("not a directory".utf8).write(to: root)
+    }
+
+    func setReminderRevision(_ revision: UInt64, reminderID: UUID) throws {
+        var archive = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: archiveURL)) as? [String: Any]
+        )
+        var projects = try #require(archive["projects"] as? [[String: Any]])
+        var project = try #require(projects.first)
+        var reminders = try #require(project["knittingReminders"] as? [[String: Any]])
+        let index = try #require(reminders.firstIndex {
+            $0["id"] as? String == reminderID.uuidString
+        })
+        reminders[index]["mutationRevision"] = NSNumber(value: revision)
+        project["knittingReminders"] = reminders
+        projects[0] = project
+        archive["projects"] = projects
+        try JSONSerialization.data(withJSONObject: archive).write(to: archiveURL, options: .atomic)
+        try store.reloadFromDisk()
     }
 }

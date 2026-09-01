@@ -115,10 +115,9 @@ public struct WatchOptimisticState: Equatable, Sendable {
             // A counter mutation serialised before this command can change both
             // visibility and Core's reminder revision. Never transmit a payload
             // that is already known stale against that earlier command.
-            guard !pendingCommands.contains(where: {
-                $0.projectID == command.projectID && $0.counterID == command.counterID &&
-                ($0.operation == .increment || $0.operation == .decrement || $0.operation == .reset)
-            }) else { return .pendingCounterMutation }
+            guard !hasPendingCounterMutation(for: command) else {
+                return .pendingCounterMutation
+            }
             if isLegacyCompatibilityCommand {
                 guard let reminderID = command.reminderID,
                       let occurrenceID = command.legacyOccurrenceIDForCompatibility,
@@ -147,6 +146,9 @@ public struct WatchOptimisticState: Equatable, Sendable {
                 else { return .reminderMismatch }
             }
         case .stopReminder:
+            guard !hasPendingCounterMutation(for: command) else {
+                return .pendingCounterMutation
+            }
             guard isLegacyCompatibilityCommand,
                   let reminderID = command.reminderID,
                   let occurrenceID = command.legacyOccurrenceIDForCompatibility,
@@ -163,6 +165,15 @@ public struct WatchOptimisticState: Equatable, Sendable {
 
         pendingCommands.append(command)
         return nil
+    }
+
+    private func hasPendingCounterMutation(for command: WatchCounterCommand) -> Bool {
+        pendingCommands.contains {
+            $0.projectID == command.projectID && $0.counterID == command.counterID
+                && ($0.operation == .increment
+                    || $0.operation == .decrement
+                    || $0.operation == .reset)
+        }
     }
 
     @discardableResult

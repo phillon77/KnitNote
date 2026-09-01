@@ -70,6 +70,52 @@ import Testing
         #expect(state.pendingCommands.count == 1)
     }
 
+    @Test(arguments: [
+        WatchCounterOperation.increment,
+        WatchCounterOperation.decrement,
+        WatchCounterOperation.reset,
+    ])
+    func legacyStopDoesNotQueueBehindSameCounterMutation(
+        precedingOperation: WatchCounterOperation
+    ) throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let occurrence = try #require(reminder.pending.first)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+        let stop = try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .stopReminder, reminderID: reminder.id,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision
+        ))
+
+        #expect(state.enqueue(fixture.command(precedingOperation)) == nil)
+        #expect(state.enqueue(stop) == .pendingCounterMutation)
+        #expect(state.pendingCommands.map(\.operation) == [precedingOperation])
+    }
+
+    @Test func unrelatedCounterMutationCanRemainAheadOfLegacyStop() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let occurrence = try #require(reminder.pending.first)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+        let unrelatedReset = WatchCounterCommand(
+            projectID: fixture.projectID, counterID: fixture.counterIDs[1], operation: .reset
+        )
+        let stop = try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .stopReminder, reminderID: reminder.id,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision
+        ))
+
+        #expect(state.enqueue(unrelatedReset) == nil)
+        #expect(state.enqueue(stop) == nil)
+        #expect(state.pendingCommands == [unrelatedReset, stop])
+    }
+
     @Test func counterMutationCanFollowAnAlreadyQueuedReminderAction() throws {
         let fixture = try Fixture(value: 12)
         let reminder = try fixture.knittingReminder(phase: .initial)

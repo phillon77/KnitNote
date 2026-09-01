@@ -61,8 +61,9 @@ public struct WatchOptimisticState: Equatable, Sendable {
         reminderPayload: WatchReminderActionPayload? = nil,
         id: UUID = UUID(),
         createdAt: Date = .now
-    ) -> WatchCounterCommand {
-        let command = WatchCounterCommand(
+    ) throws -> WatchCounterCommand {
+        let command = try WatchCounterCommand(
+            validating: WatchCounterCommand.currentSchemaVersion,
             id: id,
             projectID: projectID,
             counterID: counterID,
@@ -97,6 +98,13 @@ public struct WatchOptimisticState: Equatable, Sendable {
         case .increment, .decrement, .reset:
             break
         case .completeReminder, .deferReminderOnce, .skipReminder:
+            // A counter mutation serialised before this command can change both
+            // visibility and Core's reminder revision. Never transmit a payload
+            // that is already known stale against that earlier command.
+            guard !pendingCommands.contains(where: {
+                $0.projectID == command.projectID && $0.counterID == command.counterID &&
+                ($0.operation == .increment || $0.operation == .decrement || $0.operation == .reset)
+            }) else { return .pendingCounterMutation }
             guard let payload = command.reminderPayload,
                   let reminder = project.knittingReminders.first(where: {
                       $0.id == payload.reminderID && $0.counterID == counter.id
@@ -205,9 +213,11 @@ public struct WatchOptimisticState: Equatable, Sendable {
                 var value = counter.value
                 switch command.operation {
                 case .increment:
-                    value = counter.value == Int.max ? Int.max : counter.value + 1
+                    let result = counter.value.addingReportingOverflow(1)
+                    if !result.overflow { value = result.partialValue }
                 case .decrement:
-                    value = max(0, counter.value - 1)
+                    let result = counter.value.subtractingReportingOverflow(1)
+                    value = result.overflow ? counter.value : max(0, result.partialValue)
                 case .reset:
                     value = 0
                 case .completeReminder, .deferReminderOnce, .skipReminder, .stopReminder:
@@ -216,7 +226,9 @@ public struct WatchOptimisticState: Equatable, Sendable {
                 return WatchCounterSnapshot(id: counter.id, name: counter.name, value: value, reminder: counter.reminder)
             }
 
-            let reminders = applyingReminderCommand(command, project: project, counters: counters)
+            let oldCounterValue = project.counters.first(where: { $0.id == command.counterID })?.value
+            let newCounterValue = counters.first(where: { $0.id == command.counterID })?.value
+            let reminders = applyingReminderCommand(command, project: project, counters: counters, didIncrease: oldCounterValue.map { old in newCounterValue.map { $0 > old } ?? false } ?? false)
 
             return (try? WatchProjectSnapshot(
                 id: project.id,
@@ -241,12 +253,13 @@ public struct WatchOptimisticState: Equatable, Sendable {
     private static func applyingReminderCommand(
         _ command: WatchCounterCommand,
         project: WatchProjectSnapshot,
-        counters: [WatchCounterSnapshot]
+        counters: [WatchCounterSnapshot],
+        didIncrease: Bool
     ) -> [WatchKnittingReminderSnapshot] {
         guard let counter = counters.first(where: { $0.id == command.counterID }) else {
             return project.knittingReminders
         }
-        if command.operation == .increment {
+        if command.operation == .increment, didIncrease {
             return project.knittingReminders.map { reminder in
                 guard reminder.counterID == counter.id else { return reminder }
                 var projected = reminder
@@ -274,11 +287,13 @@ public struct WatchOptimisticState: Equatable, Sendable {
             var projected = reminder
             switch command.operation {
             case .completeReminder, .skipReminder:
+                let updatedCount = (command.operation == .completeReminder ? projected.completedCount : projected.skippedCount).addingReportingOverflow(1)
+                guard !updatedCount.overflow else { return reminder }
                 projected.pending.remove(at: pendingIndex)
                 if command.operation == .completeReminder {
-                    projected.completedCount += 1
+                    projected.completedCount = updatedCount.partialValue
                 } else {
-                    projected.skippedCount += 1
+                    projected.skippedCount = updatedCount.partialValue
                 }
                 if projected.pending.isEmpty, projected.nextTarget == nil {
                     projected.state = .completed

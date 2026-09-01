@@ -2,7 +2,7 @@ import Foundation
 
 public enum WatchSyncValidationError: Error, Equatable {
     case unsupportedSchema, invalidCounterCount, duplicateCounterID
-    case invalidSelectedCounter, invalidReminderSnapshot, invalidCommandPayload
+    case invalidSelectedCounter, invalidCounterValue, invalidReminderSnapshot, invalidCommandPayload
 }
 
 /// Legacy schema-3 shape. New v4 builders never populate it; it remains until
@@ -16,6 +16,20 @@ public struct WatchCounterReminderSnapshot: Codable, Equatable, Sendable {
     public init(id: UUID, nextTarget: Int?, pending: CounterReminderPending?, message: String?, isActive: Bool) {
         self.id = id; self.nextTarget = nextTarget; self.pending = pending
         self.message = message; self.isActive = isActive
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try c.decode(UUID.self, forKey: .id)
+        let nextTarget = try c.decodeIfPresent(Int.self, forKey: .nextTarget)
+        let pending = try c.decodeIfPresent(CounterReminderPending.self, forKey: .pending)
+        let isActive = try c.decode(Bool.self, forKey: .isActive)
+        guard nextTarget.map({ $0 >= 0 }) ?? true,
+              pending.map({ $0.reminderID == id && $0.occurrenceCount > 0 && $0.firstTarget >= 0 && $0.lastTarget >= $0.firstTarget }) ?? true,
+              isActive || (nextTarget == nil && pending == nil)
+        else { throw WatchSyncValidationError.invalidReminderSnapshot }
+        self.init(id: id, nextTarget: nextTarget, pending: pending,
+                  message: try c.decodeIfPresent(String.self, forKey: .message), isActive: isActive)
     }
 }
 
@@ -33,6 +47,12 @@ public struct WatchKnittingReminderOccurrenceSnapshot: Codable, Equatable, Ident
         self.id = id; self.reminderID = reminderID; self.kind = kind; self.text = text
         self.originalTarget = originalTarget; self.displayAt = displayAt; self.phase = phase
         self.awaitsNextUpwardChange = awaitsNextUpwardChange
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(UUID.self, forKey: .id), reminderID: try c.decode(UUID.self, forKey: .reminderID), kind: try c.decode(KnittingReminderKind.self, forKey: .kind), text: try c.decodeIfPresent(String.self, forKey: .text), originalTarget: try c.decode(Int.self, forKey: .originalTarget), displayAt: try c.decode(Int.self, forKey: .displayAt), phase: try c.decode(KnittingReminderOccurrencePhase.self, forKey: .phase), awaitsNextUpwardChange: try c.decode(Bool.self, forKey: .awaitsNextUpwardChange))
+        guard isValid else { throw WatchSyncValidationError.invalidReminderSnapshot }
     }
 
     init(_ occurrence: KnittingReminderOccurrence) {
@@ -64,23 +84,24 @@ public struct WatchKnittingReminderSnapshot: Codable, Equatable, Identifiable, S
     public var nextOccurrenceIndex: Int
     public var lastObservedCounterValue: Int?
     public var pending: [WatchKnittingReminderOccurrenceSnapshot]
+    public var latestHandled: WatchKnittingReminderOccurrenceSnapshot?
 
-    public init(id: UUID, counterID: UUID, kind: KnittingReminderKind, text: String?, rule: KnittingReminderRule, state: KnittingReminderState, mutationRevision: UInt64, createdAt: Date, scheduledCount: Int, completedCount: Int, skippedCount: Int, nextTarget: Int?, nextOccurrenceIndex: Int, lastObservedCounterValue: Int?, pending: [WatchKnittingReminderOccurrenceSnapshot]) throws {
+    public init(id: UUID, counterID: UUID, kind: KnittingReminderKind, text: String?, rule: KnittingReminderRule, state: KnittingReminderState, mutationRevision: UInt64, createdAt: Date, scheduledCount: Int, completedCount: Int, skippedCount: Int, nextTarget: Int?, nextOccurrenceIndex: Int, lastObservedCounterValue: Int?, pending: [WatchKnittingReminderOccurrenceSnapshot], latestHandled: WatchKnittingReminderOccurrenceSnapshot? = nil) throws {
         self.id = id; self.counterID = counterID; self.kind = kind; self.text = text; self.rule = rule
         self.state = state; self.mutationRevision = mutationRevision; self.createdAt = createdAt
         self.scheduledCount = scheduledCount; self.completedCount = completedCount; self.skippedCount = skippedCount
         self.nextTarget = nextTarget; self.nextOccurrenceIndex = nextOccurrenceIndex
-        self.lastObservedCounterValue = lastObservedCounterValue; self.pending = pending
+        self.lastObservedCounterValue = lastObservedCounterValue; self.pending = pending; self.latestHandled = latestHandled
         guard isValid else { throw WatchSyncValidationError.invalidReminderSnapshot }
     }
 
     init(_ reminder: KnittingReminder) throws {
-        try self.init(id: reminder.id, counterID: reminder.counterID, kind: reminder.kind, text: reminder.text, rule: reminder.rule, state: reminder.state, mutationRevision: reminder.mutationRevision, createdAt: reminder.createdAt, scheduledCount: reminder.progress.scheduledCount, completedCount: reminder.progress.completedCount, skippedCount: reminder.progress.skippedCount, nextTarget: reminder.progress.nextTarget, nextOccurrenceIndex: reminder.progress.nextOccurrenceIndex, lastObservedCounterValue: reminder.progress.lastObservedCounterValue, pending: reminder.progress.pending.map(WatchKnittingReminderOccurrenceSnapshot.init))
+        try self.init(id: reminder.id, counterID: reminder.counterID, kind: reminder.kind, text: reminder.text, rule: reminder.rule, state: reminder.state, mutationRevision: reminder.mutationRevision, createdAt: reminder.createdAt, scheduledCount: reminder.progress.scheduledCount, completedCount: reminder.progress.completedCount, skippedCount: reminder.progress.skippedCount, nextTarget: reminder.progress.nextTarget, nextOccurrenceIndex: reminder.progress.nextOccurrenceIndex, lastObservedCounterValue: reminder.progress.lastObservedCounterValue, pending: reminder.progress.pending.map(WatchKnittingReminderOccurrenceSnapshot.init), latestHandled: reminder.progress.latestHandled.map(WatchKnittingReminderOccurrenceSnapshot.init))
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        try self.init(id: c.decode(UUID.self, forKey: .id), counterID: c.decode(UUID.self, forKey: .counterID), kind: c.decode(KnittingReminderKind.self, forKey: .kind), text: c.decodeIfPresent(String.self, forKey: .text), rule: c.decode(KnittingReminderRule.self, forKey: .rule), state: c.decode(KnittingReminderState.self, forKey: .state), mutationRevision: c.decode(UInt64.self, forKey: .mutationRevision), createdAt: c.decode(Date.self, forKey: .createdAt), scheduledCount: c.decode(Int.self, forKey: .scheduledCount), completedCount: c.decode(Int.self, forKey: .completedCount), skippedCount: c.decode(Int.self, forKey: .skippedCount), nextTarget: c.decodeIfPresent(Int.self, forKey: .nextTarget), nextOccurrenceIndex: c.decode(Int.self, forKey: .nextOccurrenceIndex), lastObservedCounterValue: c.decodeIfPresent(Int.self, forKey: .lastObservedCounterValue), pending: c.decode([WatchKnittingReminderOccurrenceSnapshot].self, forKey: .pending))
+        try self.init(id: c.decode(UUID.self, forKey: .id), counterID: c.decode(UUID.self, forKey: .counterID), kind: c.decode(KnittingReminderKind.self, forKey: .kind), text: c.decodeIfPresent(String.self, forKey: .text), rule: c.decode(KnittingReminderRule.self, forKey: .rule), state: c.decode(KnittingReminderState.self, forKey: .state), mutationRevision: c.decode(UInt64.self, forKey: .mutationRevision), createdAt: c.decode(Date.self, forKey: .createdAt), scheduledCount: c.decode(Int.self, forKey: .scheduledCount), completedCount: c.decode(Int.self, forKey: .completedCount), skippedCount: c.decode(Int.self, forKey: .skippedCount), nextTarget: c.decodeIfPresent(Int.self, forKey: .nextTarget), nextOccurrenceIndex: c.decode(Int.self, forKey: .nextOccurrenceIndex), lastObservedCounterValue: c.decodeIfPresent(Int.self, forKey: .lastObservedCounterValue), pending: c.decode([WatchKnittingReminderOccurrenceSnapshot].self, forKey: .pending), latestHandled: c.decodeIfPresent(WatchKnittingReminderOccurrenceSnapshot.self, forKey: .latestHandled))
     }
 
     public func visibleOccurrences(at counterValue: Int) -> [WatchKnittingReminderOccurrenceSnapshot] {
@@ -89,15 +110,55 @@ public struct WatchKnittingReminderSnapshot: Codable, Equatable, Identifiable, S
 
     fileprivate var isValid: Bool {
         let pendingIDs = Set(pending.map(\.id))
+        let expectedNext = target(forOccurrence: nextOccurrenceIndex)
         guard rule.isValidForWatchSnapshot, scheduledCount >= 0, completedCount >= 0, skippedCount >= 0,
               nextTarget.map({ $0 >= 0 }) ?? true, nextOccurrenceIndex > 0,
               lastObservedCounterValue.map({ $0 >= 0 }) ?? true,
-              pending.count <= scheduledCount, pendingIDs.count == pending.count,
-              pending.allSatisfy({ $0.reminderID == id && $0.kind == kind && $0.text == text && $0.isValid })
+              pending.count <= scheduledCount,
+              pendingIDs.count == pending.count,
+              pending.allSatisfy(isValidOccurrence),
+              latestHandled.map(isValidOccurrence) ?? true,
+              latestHandled.map({ !pendingIDs.contains($0.id) }) ?? true,
+              pending.allSatisfy(isScheduledByRule), latestHandled.map(isScheduledByRule) ?? true
         else { return false }
         switch state {
-        case .active: return true
+        case .active: return nextTarget == expectedNext
         case .completed, .stopped: return nextTarget == nil && pending.isEmpty
+        }
+    }
+
+    private func isValidOccurrence(_ occurrence: WatchKnittingReminderOccurrenceSnapshot) -> Bool {
+        occurrence.reminderID == id && occurrence.kind == kind && occurrence.text == text && occurrence.isValid
+    }
+
+    private func isScheduledByRule(_ occurrence: WatchKnittingReminderOccurrenceSnapshot) -> Bool {
+        guard let index = occurrenceIndex(for: occurrence.originalTarget) else { return false }
+        return index < nextOccurrenceIndex
+    }
+
+    private func occurrenceIndex(for target: Int) -> Int? {
+        switch rule {
+        case let .oneTime(expected): return target == expected ? 1 : nil
+        case let .repeating(first, interval, limit):
+            guard target >= first else { return nil }
+            let difference = target - first
+            guard difference % interval == 0 else { return nil }
+            let (index, overflow) = (difference / interval).addingReportingOverflow(1)
+            guard !overflow, limit.map({ index <= $0 }) ?? true else { return nil }
+            return index
+        }
+    }
+
+    private func target(forOccurrence occurrence: Int) -> Int? {
+        guard occurrence > 0 else { return nil }
+        switch rule {
+        case let .oneTime(target): return occurrence == 1 ? target : nil
+        case let .repeating(first, interval, limit):
+            guard limit.map({ occurrence <= $0 }) ?? true else { return nil }
+            let (offset, overflow) = interval.multipliedReportingOverflow(by: occurrence - 1)
+            guard !overflow else { return nil }
+            let (target, addOverflow) = first.addingReportingOverflow(offset)
+            return addOverflow ? nil : target
         }
     }
 }
@@ -110,6 +171,13 @@ public struct WatchCounterSnapshot: Codable, Equatable, Identifiable, Sendable {
     public init(id: UUID, name: String, value: Int, reminder: WatchCounterReminderSnapshot? = nil) {
         self.id = id; self.name = name; self.value = max(0, value); self.reminder = reminder
     }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let value = try c.decode(Int.self, forKey: .value)
+        guard value >= 0 else { throw WatchSyncValidationError.invalidCounterValue }
+        self.init(id: try c.decode(UUID.self, forKey: .id), name: try c.decode(String.self, forKey: .name), value: value, reminder: try? c.decode(WatchCounterReminderSnapshot.self, forKey: .reminder))
+    }
 }
 
 public struct WatchProjectSnapshot: Codable, Equatable, Identifiable, Sendable {
@@ -120,6 +188,20 @@ public struct WatchProjectSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let counters: [WatchCounterSnapshot]
     public let selectedCounterID: UUID
     public var knittingReminders: [WatchKnittingReminderSnapshot]
+
+    /// Core-equivalent global occurrence queue. Nested reminders remain for ownership,
+    /// but consumers must render this order rather than flattening nested arrays.
+    public var reminderQueue: [WatchKnittingReminderOccurrenceSnapshot] {
+        knittingReminders.flatMap { reminder in
+            reminder.pending.map { (occurrence: $0, createdAt: reminder.createdAt, reminderID: reminder.id) }
+        }.sorted { lhs, rhs in
+            if lhs.occurrence.originalTarget != rhs.occurrence.originalTarget { return lhs.occurrence.originalTarget < rhs.occurrence.originalTarget }
+            if lhs.occurrence.displayAt != rhs.occurrence.displayAt { return lhs.occurrence.displayAt < rhs.occurrence.displayAt }
+            if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+            if lhs.reminderID != rhs.reminderID { return lhs.reminderID.uuidString < rhs.reminderID.uuidString }
+            return lhs.occurrence.id.uuidString < rhs.occurrence.id.uuidString
+        }.map(\.occurrence)
+    }
 
     public init(id: UUID, name: String, isCompleted: Bool, updatedAt: Date, counters: [WatchCounterSnapshot], selectedCounterID: UUID, knittingReminders: [WatchKnittingReminderSnapshot] = []) throws {
         guard counters.count == 6 else { throw WatchSyncValidationError.invalidCounterCount }
@@ -167,8 +249,46 @@ public struct WatchSyncSnapshot: Codable, Equatable, Sendable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
-        guard schemaVersion == Self.currentSchemaVersion || schemaVersion == 3 else { throw WatchSyncValidationError.unsupportedSchema }
-        self.init(schemaVersion: schemaVersion, generatedAt: try c.decode(Date.self, forKey: .generatedAt), entitlement: try c.decode(WatchEntitlementSnapshot.self, forKey: .entitlement), projects: try c.decode([WatchProjectSnapshot].self, forKey: .projects), languageCode: try c.decodeIfPresent(String.self, forKey: .languageCode))
+        switch schemaVersion {
+        case Self.currentSchemaVersion:
+            self.init(schemaVersion: schemaVersion, generatedAt: try c.decode(Date.self, forKey: .generatedAt), entitlement: try c.decode(WatchEntitlementSnapshot.self, forKey: .entitlement), projects: try c.decode([WatchProjectSnapshot].self, forKey: .projects), languageCode: try c.decodeIfPresent(String.self, forKey: .languageCode))
+        case 3:
+            let legacy = try LegacySchemaThreeSnapshot(from: decoder)
+            self.init(schemaVersion: 3, generatedAt: legacy.generatedAt, entitlement: legacy.entitlement, projects: try legacy.projects.map(WatchProjectSnapshot.init), languageCode: legacy.languageCode)
+        default:
+            throw WatchSyncValidationError.unsupportedSchema
+        }
+    }
+}
+
+/// Explicit recovery-only schema-3 wire models. Their deliberately forgiving
+/// counter/reminder conversion preserves the old cache's clamping/drop policy.
+private struct LegacySchemaThreeSnapshot: Decodable {
+    let generatedAt: Date
+    let entitlement: WatchEntitlementSnapshot
+    let projects: [Project]
+    let languageCode: String?
+    struct Project: Decodable {
+        let id: UUID; let name: String; let isCompleted: Bool; let updatedAt: Date
+        let counters: [Counter]; let selectedCounterID: UUID
+        struct Counter: Decodable {
+            let id: UUID; let name: String; let value: Int
+            let reminder: WatchCounterReminderSnapshot?
+            private enum CodingKeys: String, CodingKey { case id, name, value, reminder }
+            init(from decoder: any Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                id = try c.decode(UUID.self, forKey: .id)
+                name = try c.decode(String.self, forKey: .name)
+                value = try c.decode(Int.self, forKey: .value)
+                reminder = try? c.decode(WatchCounterReminderSnapshot.self, forKey: .reminder)
+            }
+        }
+    }
+}
+
+private extension WatchProjectSnapshot {
+    init(_ legacy: LegacySchemaThreeSnapshot.Project) throws {
+        try self.init(id: legacy.id, name: legacy.name, isCompleted: legacy.isCompleted, updatedAt: legacy.updatedAt, counters: legacy.counters.map { WatchCounterSnapshot(id: $0.id, name: $0.name, value: $0.value, reminder: $0.reminder) }, selectedCounterID: legacy.selectedCounterID, knittingReminders: [])
     }
 }
 
@@ -191,7 +311,20 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     public let createdAt: Date
     public var reminderID: UUID? { reminderPayload?.reminderID ?? legacyReminderID }
     public var observedPendingCount: Int? { legacyObservedPendingCount }
-    public init(schemaVersion: Int = currentSchemaVersion, id: UUID = UUID(), projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil, reminderID: UUID? = nil, observedPendingCount: Int? = nil, createdAt: Date = .now) { self.schemaVersion = schemaVersion; self.id = id; self.projectID = projectID; self.counterID = counterID; self.operation = operation; self.reminderPayload = reminderPayload; self.legacyReminderID = reminderID; self.legacyObservedPendingCount = observedPendingCount; self.createdAt = createdAt }
+    /// Validates all wire-level schema and payload combinations before a command
+    /// can cross the public module boundary.
+    public init(validating schemaVersion: Int, id: UUID = UUID(), projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil, reminderID: UUID? = nil, observedPendingCount: Int? = nil, createdAt: Date = .now) throws {
+        guard schemaVersion == Self.currentSchemaVersion || schemaVersion == 2 else { throw WatchSyncValidationError.unsupportedSchema }
+        self.init(uncheckedSchemaVersion: schemaVersion, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, reminderID: reminderID, observedPendingCount: observedPendingCount, createdAt: createdAt)
+        guard hasValidPayload else { throw WatchSyncValidationError.invalidCommandPayload }
+    }
+
+    /// Internal-only compatibility escape hatch for old cache fixture recovery.
+    init(schemaVersion: Int = currentSchemaVersion, id: UUID = UUID(), projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil, reminderID: UUID? = nil, observedPendingCount: Int? = nil, createdAt: Date = .now) {
+        self.init(uncheckedSchemaVersion: schemaVersion, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, reminderID: reminderID, observedPendingCount: observedPendingCount, createdAt: createdAt)
+    }
+
+    private init(uncheckedSchemaVersion schemaVersion: Int, id: UUID, projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload?, reminderID: UUID?, observedPendingCount: Int?, createdAt: Date) { self.schemaVersion = schemaVersion; self.id = id; self.projectID = projectID; self.counterID = counterID; self.operation = operation; self.reminderPayload = reminderPayload; self.legacyReminderID = reminderID; self.legacyObservedPendingCount = observedPendingCount; self.createdAt = createdAt }
     public var hasValidPayload: Bool {
         switch schemaVersion {
         case Self.currentSchemaVersion:
@@ -216,8 +349,7 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
         guard schemaVersion == Self.currentSchemaVersion || schemaVersion == 2 else { throw WatchSyncValidationError.unsupportedSchema }
-        self.init(schemaVersion: schemaVersion, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: try c.decodeIfPresent(WatchReminderActionPayload.self, forKey: .reminderPayload), reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), createdAt: try c.decode(Date.self, forKey: .createdAt))
-        guard hasValidPayload else { throw WatchSyncValidationError.invalidCommandPayload }
+        try self.init(validating: schemaVersion, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: try c.decodeIfPresent(WatchReminderActionPayload.self, forKey: .reminderPayload), reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), createdAt: try c.decode(Date.self, forKey: .createdAt))
     }
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -233,7 +365,7 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-public enum WatchCommandRejection: String, Codable, Equatable, Sendable { case unsupportedSchema, projectMissing, counterMissing, reminderMismatch, projectCompleted, entitlementRequired, storageFailure }
+public enum WatchCommandRejection: String, Codable, Equatable, Sendable { case unsupportedSchema, projectMissing, counterMissing, reminderMismatch, pendingCounterMutation, projectCompleted, entitlementRequired, storageFailure }
 public struct WatchCommandAcknowledgement: Codable, Equatable, Sendable { public let commandID: UUID; public let rejection: WatchCommandRejection?; public let snapshot: WatchSyncSnapshot }
 public enum WatchSyncCodec {
     public static func encode<T: Encodable>(_ value: T) throws -> Data { let e = JSONEncoder(); e.dateEncodingStrategy = .millisecondsSince1970; return try e.encode(value) }

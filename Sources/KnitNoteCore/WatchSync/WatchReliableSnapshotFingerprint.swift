@@ -29,6 +29,7 @@ struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
             let nextOccurrenceIndex: Int
             let lastObservedCounterValue: Int?
             let pending: [Occurrence]
+            let latestHandled: Occurrence?
         }
 
         struct Counter: Equatable, Sendable {
@@ -93,11 +94,23 @@ struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
                                 phase: $0.phase,
                                 awaitsNextUpwardChange: $0.awaitsNextUpwardChange
                             )
-                        }.sorted { $0.id.uuidString < $1.id.uuidString }
+                        }.sorted(by: Self.occurrenceOrdering),
+                        latestHandled: reminder.latestHandled.map {
+                            Project.Reminder.Occurrence(id: $0.id, reminderID: $0.reminderID, kind: $0.kind, text: $0.text, originalTarget: $0.originalTarget, displayAt: $0.displayAt, phase: $0.phase, awaitsNextUpwardChange: $0.awaitsNextUpwardChange)
+                        }
                     )
-                }.sorted { $0.id.uuidString < $1.id.uuidString }
+                }.sorted {
+                    if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                    return $0.id.uuidString < $1.id.uuidString
+                }
             )
         }.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    private static func occurrenceOrdering(_ lhs: Project.Reminder.Occurrence, _ rhs: Project.Reminder.Occurrence) -> Bool {
+        if lhs.originalTarget != rhs.originalTarget { return lhs.originalTarget < rhs.originalTarget }
+        if lhs.displayAt != rhs.displayAt { return lhs.displayAt < rhs.displayAt }
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 }
 

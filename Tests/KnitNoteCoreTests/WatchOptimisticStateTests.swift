@@ -3,6 +3,60 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchOptimisticStateTests {
+    @Test func reminderActionDoesNotQueueBehindSameCounterMutation() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+        let occurrence = try #require(reminder.pending.first)
+        let action = WatchCounterCommand(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .completeReminder,
+            reminderPayload: .init(reminderID: reminder.id, occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision)
+        )
+
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+        #expect(state.enqueue(action) == .pendingCounterMutation)
+        #expect(state.pendingCommands.count == 1)
+    }
+
+    @Test func counterMutationCanFollowAnAlreadyQueuedReminderAction() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+        let occurrence = try #require(reminder.pending.first)
+        let action = WatchCounterCommand(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .completeReminder,
+            reminderPayload: .init(reminderID: reminder.id, occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision)
+        )
+
+        #expect(state.enqueue(action) == nil)
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+        #expect(state.pendingCommands.map(\.operation) == [.completeReminder, .increment])
+    }
+
+    @Test func saturatedIncrementDoesNotReleaseDeferredReminder() throws {
+        let fixture = try Fixture(value: .max)
+        let reminder = try fixture.knittingReminder(phase: .deferredOnce, awaitsNextUpwardChange: true)
+        let snapshot = try fixture.makeSnapshot(value: .max, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+        #expect(state.snapshot?.projects[0].counters[0].value == .max)
+        #expect(state.snapshot?.projects[0].knittingReminders[0].pending[0].awaitsNextUpwardChange == true)
+    }
+
+    @Test func checkedCounterArithmeticNeverWrapsAtIntegerBounds() throws {
+        let minimumFixture = try Fixture(value: .min)
+        var state = WatchOptimisticState(cache: minimumFixture.cache)
+
+        #expect(state.displayedValue(projectID: minimumFixture.projectID, counterID: minimumFixture.counterID) == 0)
+        #expect(state.enqueue(minimumFixture.command(.decrement)) == nil)
+        #expect(state.displayedValue(projectID: minimumFixture.projectID, counterID: minimumFixture.counterID) == 0)
+    }
+
     @Test func reminderActionsOptimisticallyTransformOnlyTheMatchedOccurrence() throws {
         let fixture = try Fixture(value: 12)
         let reminder = try fixture.knittingReminder(phase: .initial)
@@ -789,13 +843,14 @@ private func roundTrip(_ cache: WatchSyncCache) throws -> WatchSyncCache {
 
 private extension Fixture {
     func knittingReminder(
-        phase: KnittingReminderOccurrencePhase
+        phase: KnittingReminderOccurrencePhase,
+        awaitsNextUpwardChange: Bool = false
     ) throws -> WatchKnittingReminderSnapshot {
         let reminderID = UUID()
         let occurrence = WatchKnittingReminderOccurrenceSnapshot(
             id: UUID(), reminderID: reminderID, kind: .cable, text: "原樣文字",
-            originalTarget: 12, displayAt: 12, phase: phase,
-            awaitsNextUpwardChange: false
+            originalTarget: 12, displayAt: awaitsNextUpwardChange ? 13 : 12, phase: phase,
+            awaitsNextUpwardChange: awaitsNextUpwardChange
         )
         return try WatchKnittingReminderSnapshot(
             id: reminderID, counterID: counterID, kind: .cable, text: "原樣文字",

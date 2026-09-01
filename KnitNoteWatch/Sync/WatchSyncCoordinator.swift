@@ -219,14 +219,18 @@ final class WatchSyncCoordinator: ObservableObject {
         observedPendingCount: Int? = nil
     ) {
         let previouslyVisibleReminderIDs = Self.visiblePendingReminderIDs(in: state.snapshot)
-        let command = WatchCounterCommand(
+        guard let command = try? WatchCounterCommand(
+            validating: WatchCounterCommand.currentSchemaVersion,
             projectID: projectID,
             counterID: counterID,
             operation: operation,
             reminderID: reminderID,
             observedPendingCount: observedPendingCount,
             createdAt: now()
-        )
+        ) else {
+            setError(.unsupportedSchema)
+            return
+        }
         var candidate = state
         if let rejection = candidate.enqueue(command, now: now()) {
             setError(rejection)
@@ -448,6 +452,8 @@ private extension WatchCommandRejection {
         case .counterMissing:
             "watch.sync.error.counterMissing"
         case .reminderMismatch:
+            "watch.sync.error.reminderMismatch"
+        case .pendingCounterMutation:
             "watch.sync.error.reminderMismatch"
         case .projectCompleted:
             "watch.sync.error.projectCompleted"

@@ -146,15 +146,19 @@ import Testing
         #expect(coordinator.contains("publishLatestSnapshotIfChanged()"))
     }
 
-    @Test func watchReminderActionsUseTheExistingDurableCommandQueue() throws {
+    @Test func watchReminderQueueActionsUseTheExistingSchemaThreeDurableCommandQueue() throws {
         let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
 
         #expect(coordinator.contains("func completeReminder("))
         #expect(coordinator.contains("operation: .completeReminder"))
-        #expect(coordinator.contains("observedPendingCount: observedPendingCount"))
-        #expect(coordinator.contains("func stopReminder("))
-        #expect(coordinator.contains("operation: .stopReminder"))
-        #expect(coordinator.contains("reminderID: reminderID"))
+        #expect(coordinator.contains("func deferReminderOnce("))
+        #expect(coordinator.contains("operation: .deferReminderOnce"))
+        #expect(coordinator.contains("func skipReminder("))
+        #expect(coordinator.contains("operation: .skipReminder"))
+        #expect(coordinator.contains("WatchReminderActionPayload("))
+        #expect(coordinator.contains("reminderPayload: payload"))
+        #expect(!coordinator.contains("func stopReminder("))
+        #expect(!coordinator.contains("legacyWatchUICommand("))
         #expect(coordinator.components(separatedBy: "candidate.enqueue(command").count - 1 == 1)
     }
 

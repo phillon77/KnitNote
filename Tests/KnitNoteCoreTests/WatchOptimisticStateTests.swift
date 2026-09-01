@@ -727,9 +727,9 @@ import Testing
         #expect(coordinator.contains("func increment(projectID: UUID, counterID: UUID)"))
         #expect(coordinator.contains("func decrement(projectID: UUID, counterID: UUID)"))
         #expect(coordinator.contains("func reset(projectID: UUID, counterID: UUID)"))
-        #expect(coordinator.contains("legacyCompatibilityToken("))
+        #expect(coordinator.contains("WatchReminderActionPayload("))
         #expect(coordinator.contains("requestSnapshotInBackground()"))
-        #expect(coordinator.contains("occurrenceID: token.occurrenceID"))
+        #expect(coordinator.contains("reminderPayload: payload"))
 
         let save = try #require(coordinator.range(of: "try cacheFile.save(candidate.cache)"))
         let publish = try #require(coordinator.range(of: "publish(candidate)", range: save.upperBound..<coordinator.endIndex))

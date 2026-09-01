@@ -106,43 +106,61 @@ import Testing
         #expect(coordinator.contains("state.nextDeliverableCommand(now: now())"))
     }
 
-    @Test func pendingReminderConfirmationHasOnlyCompleteAndStopActions() throws {
-        let source = try source("KnitNoteWatch/ProjectCountersView.swift")
-        let confirmation = try #require(sourceSection(
-            source,
-            from: "private func reminderConfirmation(",
-            to: "private func activeCounterRow"
-        ))
+    @Test func reminderQueueRendersOneSchemaFourOccurrenceWithOnlyPhaseAppropriateActions() throws {
+        let counters = try source("KnitNoteWatch/ProjectCountersView.swift")
+        let queue = try source("KnitNoteWatch/KnittingReminderQueueView.swift")
 
-        #expect(confirmation.contains("reminder.pending"))
-        #expect(confirmation.contains("Text(verbatim: message)"))
-        #expect(confirmation.contains("Button(\"counter.reminder.complete\")"))
-        #expect(confirmation.contains("Button(\"counter.reminder.stop\", role: .destructive)"))
-        #expect(confirmation.components(separatedBy: "Button(").count - 1 == 2)
-        #expect(confirmation.contains("observedPendingCount: pending.occurrenceCount"))
-        #expect(!confirmation.localizedCaseInsensitiveContains("snooze"))
+        #expect(counters.contains("KnittingReminderQueueView("))
+        #expect(counters.contains("project.reminderQueue"))
+        #expect(queue.contains("queue.first"))
+        #expect(queue.contains("currentIndex"))
+        #expect(queue.contains("totalCount"))
+        #expect(queue.contains("occurrence.kind"))
+        #expect(queue.contains("Text(verbatim: text)"))
+        #expect(queue.contains("occurrence.originalTarget"))
+        #expect(queue.contains("case .initial:"))
+        #expect(queue.contains("case .deferredOnce:"))
+        #expect(queue.contains("coordinator.completeReminder("))
+        #expect(queue.contains("coordinator.deferReminderOnce("))
+        #expect(queue.contains("coordinator.skipReminder("))
+        #expect(!queue.contains("TextField("))
+        #expect(!queue.contains("addKnittingReminder"))
+        #expect(!queue.contains("stopReminder"))
+        #expect(!queue.contains("rule"))
     }
 
-    @Test func pendingReminderCountsUseLocaleAwareIntegerFormattingAndPluralSelection() throws {
-        let source = try source("KnitNoteWatch/ProjectCountersView.swift")
-        let confirmation = try #require(sourceSection(
-            source,
-            from: "private func reminderConfirmation(",
-            to: "private func activeCounterRow"
-        ))
+    @Test func reminderQueueUsesFullPayloadAccessibilityAndPendingDisablement() throws {
+        let queue = try source("KnitNoteWatch/KnittingReminderQueueView.swift")
 
-        #expect(source.contains("@Environment(\\.locale)"))
-        #expect(confirmation.contains("LocaleAwareText.format("))
-        #expect(confirmation.contains("\"counter.reminder.reached\""))
-        #expect(confirmation.contains("pending.lastTarget"))
-        #expect(confirmation.contains("LocaleAwareText.interpolated("))
-        #expect(confirmation.contains("\"counter.reminder.crossedCount\""))
-        #expect(confirmation.contains("pending.occurrenceCount"))
-        #expect(!confirmation.contains("Text(\"counter.reminder.reached\")"))
-        #expect(!confirmation.contains("Text(\"counter.reminder.crossedCount\")"))
+        #expect(queue.contains("projectID: project.id"))
+        #expect(queue.contains("counterID: reminder.counterID"))
+        #expect(queue.contains("reminderID: occurrence.reminderID"))
+        #expect(queue.contains("occurrenceID: occurrence.id"))
+        #expect(queue.contains("observedRevision: reminder.mutationRevision"))
+        #expect(queue.contains(".frame(minHeight: 44)"))
+        #expect(queue.contains(".disabled(isPending"))
+        #expect(queue.contains(".accessibilityLabel("))
+        #expect(queue.contains(".accessibilityHint("))
+        #expect(queue.contains("queuePosition"))
+        #expect(!queue.contains("legacy"))
     }
 
-    @Test func localIncrementCrossingPlaysOneNotificationHapticAfterPersistence() throws {
+    @Test func reminderQueueDoesNotLeaveTheLegacyCardOrBridgeInProductionPaths() throws {
+        let counters = try source("KnitNoteWatch/ProjectCountersView.swift")
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+        let builder = try source("Sources/KnitNoteCore/WatchSync/WatchSnapshotBuilder.swift")
+        let models = try source("Sources/KnitNoteCore/WatchSync/WatchSyncModels.swift")
+
+        #expect(!counters.contains("reminderConfirmation("))
+        #expect(!counters.contains("counter.reminder.stop"))
+        #expect(!coordinator.contains("legacyCompatibilityToken("))
+        #expect(!coordinator.contains("legacyWatchUICommand("))
+        #expect(!builder.contains("legacyCardReminder("))
+        #expect(models.contains("#if DEBUG"))
+        #expect(models.contains("case 2:"))
+    }
+
+    @Test func newlyVisibleQueueOccurrencesPlayOneNotificationHapticAfterPersistence() throws {
         let source = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
         let enqueue = try #require(sourceSection(
             source,
@@ -151,9 +169,9 @@ import Testing
         ))
 
         #expect(source.contains("import WatchKit"))
-        #expect(enqueue.contains("let previouslyVisibleReminderIDs"))
-        #expect(enqueue.contains("let newlyVisibleReminderIDs"))
-        #expect(enqueue.contains("newlyVisibleReminderIDs.subtracting(previouslyVisibleReminderIDs)"))
+        #expect(enqueue.contains("let previouslyVisibleOccurrenceIDs"))
+        #expect(enqueue.contains("let newlyVisibleOccurrenceIDs"))
+        #expect(enqueue.contains("newlyVisibleOccurrenceIDs.subtracting(previouslyVisibleOccurrenceIDs)"))
         #expect(enqueue.contains("guard persistThenPublish(candidate) else { return }"))
         #expect(enqueue.contains("WKInterfaceDevice.current().play(.notification)"))
         #expect(source.components(separatedBy: "WKInterfaceDevice.current().play(.notification)").count - 1 == 1)

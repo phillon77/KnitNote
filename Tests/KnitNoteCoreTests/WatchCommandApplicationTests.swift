@@ -63,9 +63,9 @@ import Testing
         #expect(reminder.pending.map(\.originalTarget) == [2])
         #expect(reminder.pending.map(\.text) == ["Change yarn"])
         #expect(reminder.mutationRevision > 0)
-        #expect(snapshot.projects[0].counters[0].reminder?.id == reminderID)
-        #expect(snapshot.projects[0].counters[0].reminder?.legacyOccurrenceID == reminder.pending.first?.id)
-        #expect(snapshot.projects[0].counters[0].reminder?.legacyObservedMutationRevision == reminder.mutationRevision)
+        #expect(snapshot.projects[0].counters[0].reminder == nil)
+        #expect(snapshot.projects[0].reminderQueue.first?.reminderID == reminderID)
+        #expect(snapshot.projects[0].reminderQueue.first?.id == reminder.pending.first?.id)
     }
 
     @Test @MainActor func legacyCardProjectionHidesDeferredAndResetOccurrences() throws {

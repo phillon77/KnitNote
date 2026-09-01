@@ -150,6 +150,7 @@
 		62BCA7D27A65D36BC9BFDE9A /* YouTubePatternAddCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEC91FEB50303032D9924E3 /* YouTubePatternAddCoordinator.swift */; };
 		6345EDF609A796A784E5E63C /* CounterReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225F5466B6FA5D1F71F94F2E /* CounterReminder.swift */; };
 		6495C02F7B77E988D6CF3330 /* YarnLabelDraftSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */; };
+		64D4380CD289CDB58E784D75 /* KnittingReminderQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7FB47249C23092689F1BCC /* KnittingReminderQueueView.swift */; };
 		65746D5C7B11C3982003394B /* RowIntervalAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFEF29B5AF1EF4FB1D1A18C /* RowIntervalAdjustmentCalculator.swift */; };
 		66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121DC898B51C86C11B40705C /* KnitNoteCore.swift */; };
 		6786A9F0609EA2C72C5611A4 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB235B6DC453F8BE362501B /* AppVersionInfo.swift */; };
@@ -445,6 +446,7 @@
 		1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementProjection.swift; sourceTree = "<group>"; };
 		1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingProject.swift; sourceTree = "<group>"; };
 		1B41E39467311A8A58E19259 /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
+		1C7FB47249C23092689F1BCC /* KnittingReminderQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingReminderQueueView.swift; sourceTree = "<group>"; };
 		1D2B00C1065A2E66F17AE4CC /* WatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSession.swift; sourceTree = "<group>"; };
 		1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoosePatternProjectView.swift; sourceTree = "<group>"; };
 		1E3AEB2A7F20F40D8B6D410F /* MacYarnLabelFileImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnLabelFileImporterTests.swift; sourceTree = "<group>"; };
@@ -1090,6 +1092,7 @@
 				A05992C5E9E4384B11D3C46A /* Assets.xcassets */,
 				67B197FE70BCFA63ECA25D5C /* Info.plist */,
 				C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */,
+				1C7FB47249C23092689F1BCC /* KnittingReminderQueueView.swift */,
 				599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */,
 				A58F9A06D7271342CB94E81E /* PrivacyInfo.xcprivacy */,
 				9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */,
@@ -1708,6 +1711,7 @@
 				70DDC4D30B176CFD620C8181 /* KnittingReminder.swift in Sources */,
 				8C8B024312EF2A3B9B141B97 /* KnittingReminderMigrator.swift in Sources */,
 				E725071E376CE470FD329F2A /* KnittingReminderPresentationCoordinator.swift in Sources */,
+				64D4380CD289CDB58E784D75 /* KnittingReminderQueueView.swift in Sources */,
 				8BD7C89C3B99C9855600B5E0 /* LanguageSelectionProjection.swift in Sources */,
 				C825CFFB032FD78332EFF6E9 /* LanguageSettings.swift in Sources */,
 				24CA166D7986870DA6232BB9 /* LaunchExperienceState.swift in Sources */,

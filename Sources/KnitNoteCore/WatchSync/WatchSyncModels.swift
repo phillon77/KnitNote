@@ -355,8 +355,8 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         self.init(uncheckedSchemaVersion: schemaVersion, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, reminderID: reminderID, observedPendingCount: observedPendingCount, occurrenceID: occurrenceID, observedMutationRevision: observedMutationRevision, createdAt: createdAt)
     }
 
-    /// Temporary in-module bridge for the shipping legacy Watch card. It cannot
-    /// escape as public construction and is removed with the Task 8 card rewrite.
+#if DEBUG
+    /// Test-only recovery fixture. Production Watch UI never constructs schema-2 commands.
     static func legacyWatchUICommand(
         id: UUID = UUID(), projectID: UUID, counterID: UUID,
         operation: WatchCounterOperation, reminderID: UUID,
@@ -366,6 +366,7 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         let command = WatchCounterCommand(schemaVersion: 2, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderID: reminderID, observedPendingCount: observedPendingCount, occurrenceID: occurrenceID, observedMutationRevision: observedMutationRevision, createdAt: createdAt)
         return command.isTrustedLegacyWatchUICommand ? command : nil
     }
+#endif
 
     private init(uncheckedSchemaVersion schemaVersion: Int, id: UUID, projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload?, reminderID: UUID?, observedPendingCount: Int?, occurrenceID: UUID? = nil, observedMutationRevision: UInt64? = nil, createdAt: Date) { self.schemaVersion = schemaVersion; self.id = id; self.projectID = projectID; self.counterID = counterID; self.operation = operation; self.reminderPayload = reminderPayload; self.legacyReminderID = reminderID; self.legacyObservedPendingCount = observedPendingCount; self.legacyOccurrenceID = occurrenceID; self.legacyObservedMutationRevision = observedMutationRevision; self.createdAt = createdAt }
 

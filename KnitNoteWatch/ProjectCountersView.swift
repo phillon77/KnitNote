@@ -4,7 +4,6 @@ struct ProjectCountersView: View {
     let projectID: UUID
     @ObservedObject var coordinator: WatchSyncCoordinator
     let onStoreScreenshotReady: @MainActor @Sendable () -> Void
-    @Environment(\.locale) private var locale
     @State private var actionCounterID: UUID?
 
     private var project: WatchProjectSnapshot? {
@@ -86,18 +85,10 @@ struct ProjectCountersView: View {
                     .padding(.horizontal, 8)
                 }
                 ForEach(project.counters) { counter in
-                    VStack(spacing: 6) {
-                        counterRow(counter, in: project, canMutate: canMutate)
-                        if let reminder = counter.reminder,
-                           reminder.pending != nil {
-                            reminderConfirmation(
-                                reminder,
-                                counter: counter,
-                                project: project,
-                                canMutate: canMutate
-                            )
-                        }
-                    }
+                    counterRow(counter, in: project, canMutate: canMutate)
+                }
+                if !project.reminderQueue.isEmpty {
+                    KnittingReminderQueueView(project: project, coordinator: coordinator)
                 }
             }
             .padding(.horizontal, 4)
@@ -186,69 +177,6 @@ struct ProjectCountersView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(WatchWatercolorTheme.lavender.opacity(0.5), lineWidth: 1)
         }
-    }
-
-    private func reminderConfirmation(
-        _ reminder: WatchCounterReminderSnapshot,
-        counter: WatchCounterSnapshot,
-        project: WatchProjectSnapshot,
-        canMutate: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let message = reminder.message {
-                Text(verbatim: message)
-                    .font(.callout.weight(.semibold))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let pending = reminder.pending {
-                Text(verbatim: LocaleAwareText.format(
-                    "counter.reminder.reached",
-                    locale: locale,
-                    pending.lastTarget
-                ))
-                .font(.caption)
-                if pending.occurrenceCount > 1 {
-                    Text(verbatim: LocaleAwareText.interpolated(
-                        "counter.reminder.crossedCount",
-                        defaultValue: "\(pending.occurrenceCount) reminders crossed",
-                        locale: locale
-                    ))
-                    .font(.caption2)
-                }
-
-                Button("counter.reminder.complete") {
-                    coordinator.completeReminder(
-                        projectID: project.id,
-                        counterID: counter.id,
-                        reminderID: reminder.id,
-                        observedPendingCount: pending.occurrenceCount
-                    )
-                }
-                .frame(minHeight: 44)
-                .accessibilityHint(Text("counter.reminder.complete.hint"))
-                Button("counter.reminder.stop", role: .destructive) {
-                    coordinator.stopReminder(
-                        projectID: project.id,
-                        counterID: counter.id,
-                        reminderID: reminder.id
-                    )
-                }
-                .frame(minHeight: 44)
-                .accessibilityHint(Text("counter.reminder.stop.hint"))
-            }
-        }
-        .foregroundStyle(WatchWatercolorTheme.ink)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(
-            WatchWatercolorTheme.softWhite.opacity(0.96),
-            in: .rect(cornerRadius: 14, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(WatchWatercolorTheme.berry.opacity(0.65), lineWidth: 1)
-        }
-        .disabled(!canMutate || project.isCompleted)
     }
 
     private func activeCounterRow<Row: View>(

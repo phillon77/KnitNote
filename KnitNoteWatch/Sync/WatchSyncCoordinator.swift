@@ -90,28 +90,16 @@ final class WatchSyncCoordinator: ObservableObject {
         enqueue(projectID: projectID, counterID: counterID, operation: .reset)
     }
 
-    func completeReminder(
-        projectID: UUID,
-        counterID: UUID,
-        reminderID: UUID,
-        observedPendingCount: Int
-    ) {
-        enqueue(
-            projectID: projectID,
-            counterID: counterID,
-            operation: .completeReminder,
-            reminderID: reminderID,
-            observedPendingCount: observedPendingCount
-        )
+    func completeReminder(projectID: UUID, counterID: UUID, reminderID: UUID, occurrenceID: UUID, observedRevision: UInt64) {
+        enqueueReminder(projectID: projectID, counterID: counterID, operation: .completeReminder, reminderID: reminderID, occurrenceID: occurrenceID, observedRevision: observedRevision)
     }
 
-    func stopReminder(projectID: UUID, counterID: UUID, reminderID: UUID) {
-        enqueue(
-            projectID: projectID,
-            counterID: counterID,
-            operation: .stopReminder,
-            reminderID: reminderID
-        )
+    func deferReminderOnce(projectID: UUID, counterID: UUID, reminderID: UUID, occurrenceID: UUID, observedRevision: UInt64) {
+        enqueueReminder(projectID: projectID, counterID: counterID, operation: .deferReminderOnce, reminderID: reminderID, occurrenceID: occurrenceID, observedRevision: observedRevision)
+    }
+
+    func skipReminder(projectID: UUID, counterID: UUID, reminderID: UUID, occurrenceID: UUID, observedRevision: UInt64) {
+        enqueueReminder(projectID: projectID, counterID: counterID, operation: .skipReminder, reminderID: reminderID, occurrenceID: occurrenceID, observedRevision: observedRevision)
     }
 
     func hasPending(projectID: UUID, counterID: UUID) -> Bool {
@@ -211,42 +199,14 @@ final class WatchSyncCoordinator: ObservableObject {
         }
     }
 
-    private func enqueue(
-        projectID: UUID,
-        counterID: UUID,
-        operation: WatchCounterOperation,
-        reminderID: UUID? = nil,
-        observedPendingCount: Int? = nil
-    ) {
-        let previouslyVisibleReminderIDs = Self.visiblePendingReminderIDs(in: state.snapshot)
-        let command: WatchCounterCommand?
-        if let reminderID {
-            guard let token = Self.legacyCompatibilityToken(
-                in: state.snapshot,
-                projectID: projectID,
-                counterID: counterID,
-                reminderID: reminderID
-            ) else {
-                // A schema-3 cached card has no identity token. Never mutate
-                // from it; ask the phone for the schema-4 projection first.
-                setError(.reminderMismatch)
-                requestSnapshotInBackground()
-                return
-            }
-            command = WatchCounterCommand.legacyWatchUICommand(
-                projectID: projectID, counterID: counterID, operation: operation,
-                reminderID: reminderID, observedPendingCount: observedPendingCount,
-                occurrenceID: token.occurrenceID,
-                observedMutationRevision: token.observedMutationRevision,
-                createdAt: now()
-            )
-        } else {
-            command = try? WatchCounterCommand(
-                validating: WatchCounterCommand.currentSchemaVersion,
-                projectID: projectID, counterID: counterID, operation: operation,
-                createdAt: now()
-            )
-        }
+    private func enqueueReminder(projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderID: UUID, occurrenceID: UUID, observedRevision: UInt64) {
+        let payload = WatchReminderActionPayload(reminderID: reminderID, occurrenceID: occurrenceID, observedRevision: observedRevision)
+        enqueue(projectID: projectID, counterID: counterID, operation: operation, reminderPayload: payload)
+    }
+
+    private func enqueue(projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil) {
+        let previouslyVisibleOccurrenceIDs = Self.visiblePendingOccurrenceIDs(in: state.snapshot)
+        let command = try? WatchCounterCommand(validating: WatchCounterCommand.currentSchemaVersion, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, createdAt: now())
         guard let command else {
             setError(.unsupportedSchema)
             return
@@ -256,11 +216,11 @@ final class WatchSyncCoordinator: ObservableObject {
             setError(rejection)
             return
         }
-        let newlyVisibleReminderIDs = Self.visiblePendingReminderIDs(in: candidate.snapshot)
+        let newlyVisibleOccurrenceIDs = Self.visiblePendingOccurrenceIDs(in: candidate.snapshot)
 
         guard persistThenPublish(candidate) else { return }
         if operation == .increment,
-           !newlyVisibleReminderIDs.subtracting(previouslyVisibleReminderIDs).isEmpty {
+           !newlyVisibleOccurrenceIDs.subtracting(previouslyVisibleOccurrenceIDs).isEmpty {
             WKInterfaceDevice.current().play(.notification)
         }
         clearError()
@@ -272,28 +232,10 @@ final class WatchSyncCoordinator: ObservableObject {
         }
     }
 
-    private static func visiblePendingReminderIDs(
+    private static func visiblePendingOccurrenceIDs(
         in snapshot: WatchSyncSnapshot?
     ) -> Set<UUID> {
-        Set(snapshot?.projects.flatMap(\.counters).compactMap {
-            $0.reminder?.pending?.reminderID
-        } ?? [])
-    }
-
-    private static func legacyCompatibilityToken(
-        in snapshot: WatchSyncSnapshot?,
-        projectID: UUID,
-        counterID: UUID,
-        reminderID: UUID
-    ) -> (occurrenceID: UUID, observedMutationRevision: UInt64)? {
-        guard let reminder = snapshot?.projects.first(where: { $0.id == projectID })?
-            .counters.first(where: { $0.id == counterID })?.reminder,
-              reminder.id == reminderID,
-              reminder.pending != nil,
-              let occurrenceID = reminder.legacyOccurrenceID,
-              let observedMutationRevision = reminder.legacyObservedMutationRevision
-        else { return nil }
-        return (occurrenceID, observedMutationRevision)
+        Set(snapshot?.projects.flatMap(\.reminderQueue).map(\.id) ?? [])
     }
 
     @discardableResult

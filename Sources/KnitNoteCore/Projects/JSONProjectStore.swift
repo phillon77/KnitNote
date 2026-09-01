@@ -1584,7 +1584,9 @@ final class PatternLibraryDeletionTransaction {
                 skippedCount: reminder.progress.skippedCount
             )
         case .deferReminderOnce:
-            let (displayAt, overflow) = occurrence.originalTarget.addingReportingOverflow(1)
+            let observedCounterValue = reminder.progress.lastObservedCounterValue
+                ?? occurrence.originalTarget
+            let (displayAt, overflow) = observedCounterValue.addingReportingOverflow(1)
             guard !overflow else { return nil }
             return PreparedWatchReminderOutcome(
                 action: .deferOnce,

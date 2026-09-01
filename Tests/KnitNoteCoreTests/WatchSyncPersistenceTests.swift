@@ -756,6 +756,125 @@ import Testing
     }
 
     @Test @MainActor
+    func durableDeferredReminderUsesObservedCounterValueForArchiveCrashRecovery() throws {
+        let fixture = try DurableWatchFixture()
+        let firstStore = JSONProjectStore(url: fixture.archiveURL)
+        let reminderID = try firstStore.addKnittingReminder(
+            projectID: fixture.projectID,
+            draft: .oneTime(kind: .measure, target: 1, text: "watch"),
+            now: fixture.now
+        )
+        for _ in 0..<5 {
+            try firstStore.incrementCounter(projectID: fixture.projectID, counterID: fixture.counterID)
+        }
+        let reminder = try #require(
+            firstStore.project(id: fixture.projectID)?.knittingReminders.first
+        )
+        let occurrence = try #require(reminder.progress.pending.first)
+        let command = try WatchCounterCommand(
+            validating: WatchCounterCommand.currentSchemaVersion,
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .deferReminderOnce,
+            reminderPayload: WatchReminderActionPayload(
+                reminderID: reminderID,
+                occurrenceID: occurrence.id,
+                observedRevision: reminder.mutationRevision
+            ),
+            createdAt: fixture.now
+        )
+
+        #expect(throws: InjectedWatchSyncFailure.self) {
+            try firstStore.applyWatchCommandDurably(
+                command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now,
+                failureInjector: { boundary in
+                    guard boundary == .afterProjectArchiveSave else { return }
+                    throw InjectedWatchSyncFailure()
+                }
+            )
+        }
+
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+        #expect(try restarted.recoverWatchCommandPersistence(
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        ) == .ready)
+        let duplicate = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(2)
+        )
+        let deferred = try #require(
+            restarted.project(id: fixture.projectID)?.knittingReminders.first?.progress.pending.first
+        )
+
+        #expect(duplicate.rejection == nil)
+        #expect(deferred.originalTarget == 1)
+        #expect(deferred.displayAt == 6)
+        #expect(deferred.phase == .deferredOnce)
+        #expect(deferred.awaitsNextUpwardChange)
+    }
+
+    @Test @MainActor
+    func deferredReminderAtObservedCounterMaximumFailsClosedWithoutPreparedSuccessProof() throws {
+        let fixture = try DurableWatchFixture()
+        let counter = ProjectCounter(defaultOrdinal: 1, value: .max)
+        var reminder = try #require(KnittingReminder(
+            counterID: counter.id,
+            draft: .oneTime(kind: .measure, target: 1, text: "watch"),
+            createdAt: fixture.now
+        ))
+        reminder = try reminder.applying(.trigger(through: .max))
+        let project = try StoredProject(
+            name: "Watch project",
+            counters: [counter],
+            knittingReminders: [reminder],
+            now: fixture.now
+        )
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [project]
+        )).write(to: fixture.archiveURL, options: .atomic)
+        let store = JSONProjectStore(url: fixture.archiveURL)
+        let persistedProject = try #require(store.project(id: project.id))
+        let persistedCounter = try #require(persistedProject.counters.first)
+        let persistedReminder = try #require(persistedProject.knittingReminders.first)
+        let occurrence = try #require(persistedReminder.progress.pending.first)
+        let command = try WatchCounterCommand(
+            validating: WatchCounterCommand.currentSchemaVersion,
+            projectID: project.id,
+            counterID: counter.id,
+            operation: .deferReminderOnce,
+            reminderPayload: WatchReminderActionPayload(
+                reminderID: persistedReminder.id,
+                occurrenceID: occurrence.id,
+                observedRevision: persistedReminder.mutationRevision
+            ),
+            createdAt: fixture.now
+        )
+
+        #expect(store.preparedReminderOutcome(
+            for: command,
+            project: persistedProject,
+            counter: persistedCounter
+        ) == nil)
+        let acknowledgement = try store.applyWatchCommandDurably(
+            command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        )
+
+        #expect(acknowledgement.rejection == .reminderMismatch)
+        #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
+    }
+
+    @Test @MainActor
     func durableMixedCounterReminderCounterOrderRejectsOnlyTheStaleReminder() throws {
         let fixture = try DurableWatchFixture()
         let staleReminder = try fixture.triggeredReminderCommand(

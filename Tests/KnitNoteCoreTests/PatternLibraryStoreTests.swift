@@ -354,163 +354,176 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     )
 
     #expect(result.generation == harness.store.dataGeneration)
-    #expect(result.outcome?.pendingReminder?.occurrenceCount == 1)
+    #expect(result.outcome?.pendingReminder == nil)
+    let reminder = try #require(
+        harness.store.project(id: harness.projectID)?.knittingReminders.first
+    )
+    let occurrence = try #require(reminder.progress.pending.first)
+    #expect(reminder.counterID == counterID)
+    #expect(occurrence.originalTarget == 2)
     let reopened = try harness.reopenedStore()
-    #expect(reopened.project(id: harness.projectID)?.counters[0].reminder?.pending != nil)
+    #expect(reopened.project(id: harness.projectID)?.knittingReminders == [reminder])
 }
 
 @MainActor @Test func staleReaderReminderActionPublishesNothing() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
     let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
     let counterID = try #require(harness.store.project(id: harness.projectID)?.counters[0].id)
-    let configuredGeneration = harness.store.dataGeneration
+    let reminderID = try harness.store.addKnittingReminder(
+        projectID: harness.projectID,
+        draft: .oneTime(kind: .custom, target: 3, text: nil)
+    )
     let managed = try harness.store.mutatePatternReaderCounterWithOutcome(
         usageID: usage.id,
         counterID: counterID,
-        mutation: .manage(
-            name: "Body",
-            value: 2,
-            reminder: .replace(.oneTime(target: 3, message: nil))
-        ),
-        expectedDataGeneration: configuredGeneration
+        mutation: .manage(name: "Body", value: 2, reminder: .unchanged),
+        expectedDataGeneration: harness.store.dataGeneration
     )
+    let staleRevision = try #require(
+        harness.store.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
+    ).mutationRevision
     let due = try harness.store.mutatePatternReaderCounterWithOutcome(
         usageID: usage.id,
         counterID: counterID,
         mutation: .increment,
         expectedDataGeneration: managed.generation
     )
-    let pending = try #require(due.outcome?.pendingReminder)
+    let dueReminder = try #require(
+        harness.store.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
+    )
+    let occurrence = try #require(dueReminder.progress.pending.first)
+    let projectsBefore = harness.store.projects
+    let archiveBefore = try Data(contentsOf: harness.archiveURL)
 
-    #expect(throws: ProjectStoreError.staleDataGeneration) {
-        try harness.store.mutatePatternReaderCounterWithOutcome(
-            usageID: usage.id,
-            counterID: counterID,
-            mutation: .completeReminder(
-                reminderID: pending.reminderID,
-                observedCount: pending.occurrenceCount
-            ),
-            expectedDataGeneration: configuredGeneration
+    #expect(throws: KnittingReminderMutationError.staleRevision) {
+        try harness.store.applyKnittingReminderAction(
+            projectID: harness.projectID,
+            reminderID: reminderID,
+            occurrenceID: occurrence.id,
+            observedRevision: staleRevision,
+            action: .complete
         )
     }
 
+    #expect(harness.store.projects == projectsBefore)
     #expect(harness.store.dataGeneration == due.generation)
-    #expect(
-        harness.store.project(id: harness.projectID)?.counters[0].reminder?.pending == pending
-    )
-    #expect(
-        try harness.reopenedStore().project(id: harness.projectID)?
-            .counters[0].reminder?.pending == pending
-    )
+    #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+    #expect(try harness.reopenedStore().project(id: harness.projectID)?.knittingReminders == [dueReminder])
 }
 
 @MainActor @Test func rejectedReaderReminderActionsPublishNothingOrSelection() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
     let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
     let project = try #require(harness.store.project(id: harness.projectID))
-    let initiallySelectedCounterID = project.counters[0].id
-    let reminderCounterID = project.counters[1].id
-    try harness.store.configureCounterReminder(
+    let mainCounterID = project.counters[0].id
+    let initiallySelectedCounterID = project.counters[1].id
+    let reminderID = try harness.store.addKnittingReminder(
         projectID: harness.projectID,
-        counterID: reminderCounterID,
-        draft: .oneTime(target: 1, message: nil)
+        draft: .oneTime(kind: .custom, target: 1, text: nil)
     )
-    _ = try harness.store.updateCounter(
+    _ = try harness.store.mutatePatternReaderCounterWithOutcome(
+        usageID: usage.id,
+        counterID: mainCounterID,
+        mutation: .increment,
+        expectedDataGeneration: harness.store.dataGeneration
+    )
+    try harness.store.selectCounter(
         projectID: harness.projectID,
-        counterID: reminderCounterID,
-        name: nil,
-        value: 1
+        counterID: initiallySelectedCounterID
     )
-    let pending = try #require(
+    let reminder = try #require(
         harness.store.project(id: harness.projectID)?
-            .counters[1].reminder?.pending
+            .knittingReminders.first(where: { $0.id == reminderID })
     )
-    let rejectedMutations: [(UUID, PatternReaderCounterMutation)] = [
-        (
-            UUID(),
-            .completeReminder(
-                reminderID: pending.reminderID,
-                observedCount: pending.occurrenceCount
-            )
-        ),
-        (
-            reminderCounterID,
-            .completeReminder(
-                reminderID: pending.reminderID,
-                observedCount: pending.occurrenceCount + 1
-            )
-        ),
-        (reminderCounterID, .stopReminder(reminderID: UUID())),
-    ]
+    let occurrence = try #require(reminder.progress.pending.first)
+    let projectsBefore = harness.store.projects
+    let generationBefore = harness.store.dataGeneration
+    let archiveBefore = try Data(contentsOf: harness.archiveURL)
 
-    for (counterID, mutation) in rejectedMutations {
-        let projectsBefore = harness.store.projects
-        let generationBefore = harness.store.dataGeneration
-        let archiveBefore = try Data(contentsOf: harness.archiveURL)
-
-        let result = try harness.store.mutatePatternReaderCounterWithOutcome(
-            usageID: usage.id,
-            counterID: counterID,
-            mutation: mutation,
-            expectedDataGeneration: generationBefore
+    #expect(throws: KnittingReminderMutationError.occurrenceNotFound) {
+        try harness.store.applyKnittingReminderAction(
+            projectID: harness.projectID,
+            reminderID: UUID(),
+            occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision,
+            action: .complete
         )
-
-        #expect(result.generation == generationBefore)
-        #expect(result.outcome == nil)
-        #expect(harness.store.projects == projectsBefore)
-        #expect(
-            harness.store.project(id: harness.projectID)?.selectedCounterID
-                == initiallySelectedCounterID
-        )
-        #expect(harness.store.dataGeneration == generationBefore)
-        #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
     }
+    #expect(throws: KnittingReminderMutationError.occurrenceNotFound) {
+        try harness.store.applyKnittingReminderAction(
+            projectID: harness.projectID,
+            reminderID: reminderID,
+            occurrenceID: UUID(),
+            observedRevision: reminder.mutationRevision,
+            action: .complete
+        )
+    }
+    #expect(throws: KnittingReminderMutationError.staleRevision) {
+        try harness.store.applyKnittingReminderAction(
+            projectID: harness.projectID,
+            reminderID: reminderID,
+            occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision &+ 1,
+            action: .complete
+        )
+    }
+
+    #expect(harness.store.projects == projectsBefore)
+    #expect(
+        harness.store.project(id: harness.projectID)?.selectedCounterID
+            == initiallySelectedCounterID
+    )
+    #expect(harness.store.dataGeneration == generationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
 }
 
 @MainActor @Test func completedProjectRejectsReaderReminderActionsWithoutPublishing() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
     let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
     let counterID = try #require(harness.store.project(id: harness.projectID)?.counters[0].id)
-    try harness.store.configureCounterReminder(
+    let reminderID = try harness.store.addKnittingReminder(
         projectID: harness.projectID,
+        draft: .oneTime(kind: .custom, target: 1, text: nil)
+    )
+    _ = try harness.store.mutatePatternReaderCounterWithOutcome(
+        usageID: usage.id,
         counterID: counterID,
-        draft: .oneTime(target: 1, message: nil)
+        mutation: .increment,
+        expectedDataGeneration: harness.store.dataGeneration
     )
-    _ = try harness.store.updateCounter(
-        projectID: harness.projectID,
-        counterID: counterID,
-        name: nil,
-        value: 1
+    let reminder = try #require(
+        harness.store.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
     )
-    let pending = try #require(
-        harness.store.project(id: harness.projectID)?.counters[0].reminder?.pending
-    )
+    let occurrence = try #require(reminder.progress.pending.first)
     try harness.store.markCompleted(projectID: harness.projectID)
-    let mutations: [PatternReaderCounterMutation] = [
-        .completeReminder(
-            reminderID: pending.reminderID,
-            observedCount: pending.occurrenceCount
-        ),
-        .stopReminder(reminderID: pending.reminderID),
-    ]
+    let projectsBefore = harness.store.projects
+    let generationBefore = harness.store.dataGeneration
+    let archiveBefore = try Data(contentsOf: harness.archiveURL)
 
-    for mutation in mutations {
-        let projectsBefore = harness.store.projects
-        let generationBefore = harness.store.dataGeneration
-        let archiveBefore = try Data(contentsOf: harness.archiveURL)
-
-        #expect(throws: PatternLibraryMutationError.projectCompleted) {
-            try harness.store.mutatePatternReaderCounterWithOutcome(
-                usageID: usage.id,
-                counterID: counterID,
-                mutation: mutation,
-                expectedDataGeneration: generationBefore
-            )
-        }
-        #expect(harness.store.projects == projectsBefore)
-        #expect(harness.store.dataGeneration == generationBefore)
-        #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+    #expect(throws: PatternLibraryMutationError.projectCompleted) {
+        try harness.store.applyKnittingReminderAction(
+            projectID: harness.projectID,
+            reminderID: reminderID,
+            occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision,
+            action: .complete
+        )
     }
+    #expect(throws: PatternLibraryMutationError.projectCompleted) {
+        try harness.store.applyKnittingReminderAction(
+            projectID: harness.projectID,
+            reminderID: reminderID,
+            occurrenceID: nil,
+            observedRevision: reminder.mutationRevision,
+            action: .stop
+        )
+    }
+    #expect(harness.store.projects == projectsBefore)
+    #expect(harness.store.dataGeneration == generationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
 }
 
 @MainActor @Test func failedReminderPersistencePublishesNothing() throws {
@@ -518,14 +531,12 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     let directProjectsBefore = direct.store.projects
     let directGenerationBefore = direct.store.dataGeneration
     let directArchiveBefore = try Data(contentsOf: direct.archiveURL)
-    let directCounterID = try #require(direct.store.projects.first?.counters[0].id)
     direct.archiveWriteGate?.shouldFail = true
 
     #expect(throws: ProjectStoreError.persistenceFailed) {
-        try direct.store.configureCounterReminder(
+        try direct.store.addKnittingReminder(
             projectID: direct.projectID,
-            counterID: directCounterID,
-            draft: .oneTime(target: 1, message: nil)
+            draft: .oneTime(kind: .custom, target: 1, text: nil)
         )
     }
     #expect(direct.store.projects == directProjectsBefore)
@@ -535,36 +546,39 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     let reader = try PatternLibraryStoreHarness.onePatternAndProject(failingArchiveWrites: true)
     let usage = try reader.store.linkPattern(patternID: reader.patternID, to: reader.projectID)
     let project = try #require(reader.store.project(id: reader.projectID))
-    let initiallySelectedCounterID = project.counters[0].id
-    let reminderCounterID = project.counters[1].id
-    try reader.store.configureCounterReminder(
+    let reminderCounterID = project.counters[0].id
+    let initiallySelectedCounterID = project.counters[1].id
+    let reminderID = try reader.store.addKnittingReminder(
         projectID: reader.projectID,
-        counterID: reminderCounterID,
-        draft: .oneTime(target: 1, message: nil)
+        draft: .oneTime(kind: .custom, target: 1, text: nil)
     )
-    _ = try reader.store.updateCounter(
+    _ = try reader.store.mutatePatternReaderCounterWithOutcome(
+        usageID: usage.id,
+        counterID: reminderCounterID,
+        mutation: .increment,
+        expectedDataGeneration: reader.store.dataGeneration
+    )
+    try reader.store.selectCounter(
         projectID: reader.projectID,
-        counterID: reminderCounterID,
-        name: nil,
-        value: 1
+        counterID: initiallySelectedCounterID
     )
-    let pending = try #require(
-        reader.store.project(id: reader.projectID)?.counters[1].reminder?.pending
+    let reminder = try #require(
+        reader.store.project(id: reader.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
     )
+    let occurrence = try #require(reminder.progress.pending.first)
     let readerProjectsBefore = reader.store.projects
     let readerGenerationBefore = reader.store.dataGeneration
     let readerArchiveBefore = try Data(contentsOf: reader.archiveURL)
     reader.archiveWriteGate?.shouldFail = true
 
     #expect(throws: ProjectStoreError.persistenceFailed) {
-        try reader.store.mutatePatternReaderCounterWithOutcome(
-            usageID: usage.id,
-            counterID: reminderCounterID,
-            mutation: .completeReminder(
-                reminderID: pending.reminderID,
-                observedCount: pending.occurrenceCount
-            ),
-            expectedDataGeneration: readerGenerationBefore
+        try reader.store.applyKnittingReminderAction(
+            projectID: reader.projectID,
+            reminderID: reminderID,
+            occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision,
+            action: .complete
         )
     }
     #expect(reader.store.projects == readerProjectsBefore)
@@ -580,59 +594,76 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     let harness = try PatternLibraryStoreHarness.onePatternAndProject()
     let usage = try harness.store.linkPattern(patternID: harness.patternID, to: harness.projectID)
     let project = try #require(harness.store.project(id: harness.projectID))
-    let reminderCounterID = project.counters[1].id
-    try harness.store.configureCounterReminder(
+    let reminderCounterID = project.counters[0].id
+    let selectedCounterID = project.counters[1].id
+    let reminderID = try harness.store.addKnittingReminder(
         projectID: harness.projectID,
-        counterID: reminderCounterID,
-        draft: .repeating(interval: 2, limit: nil, message: nil)
+        draft: .repeating(
+            kind: .custom,
+            firstTarget: 2,
+            interval: 2,
+            limit: nil,
+            text: nil
+        )
     )
-    _ = try harness.store.updateCounter(
-        projectID: harness.projectID,
-        counterID: reminderCounterID,
-        name: nil,
-        value: 2
-    )
-    let pending = try #require(
-        harness.store.project(id: harness.projectID)?.counters[1].reminder?.pending
-    )
-
-    let completed = try harness.store.mutatePatternReaderCounterWithOutcome(
+    _ = try harness.store.mutatePatternReaderCounterWithOutcome(
         usageID: usage.id,
         counterID: reminderCounterID,
-        mutation: .completeReminder(
-            reminderID: pending.reminderID,
-            observedCount: pending.occurrenceCount
-        ),
+        mutation: .update(name: nil, value: 2),
         expectedDataGeneration: harness.store.dataGeneration
     )
-    #expect(completed.generation == harness.store.dataGeneration)
-    let reopenedAfterComplete = try harness.reopenedStore()
-    #expect(reopenedAfterComplete.project(id: harness.projectID)?.selectedCounterID == reminderCounterID)
-    #expect(
-        reopenedAfterComplete.project(id: harness.projectID)?
-            .counters[1].reminder?.acknowledgedCount == 1
+    try harness.store.selectCounter(
+        projectID: harness.projectID,
+        counterID: selectedCounterID
     )
-    #expect(
-        reopenedAfterComplete.project(id: harness.projectID)?
-            .counters[1].reminder?.pending == nil
+    let pendingReminder = try #require(
+        harness.store.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
     )
+    let occurrence = try #require(pendingReminder.progress.pending.first)
+    let generationBeforeComplete = harness.store.dataGeneration
 
-    let stopped = try harness.store.mutatePatternReaderCounterWithOutcome(
-        usageID: usage.id,
-        counterID: reminderCounterID,
-        mutation: .stopReminder(reminderID: pending.reminderID),
-        expectedDataGeneration: completed.generation
+    try harness.store.applyKnittingReminderAction(
+        projectID: harness.projectID,
+        reminderID: reminderID,
+        occurrenceID: occurrence.id,
+        observedRevision: pendingReminder.mutationRevision,
+        action: .complete
     )
-    #expect(stopped.generation == harness.store.dataGeneration)
+    #expect(harness.store.dataGeneration > generationBeforeComplete)
+    let reopenedAfterComplete = try harness.reopenedStore()
+    #expect(reopenedAfterComplete.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
+    let completedReminder = try #require(
+        reopenedAfterComplete.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
+    )
+    #expect(completedReminder.progress.completedCount == 1)
+    #expect(completedReminder.progress.pending.isEmpty)
+    #expect(completedReminder.state == .active)
+    #expect(completedReminder.progress.nextTarget == 4)
+    let currentReminder = try #require(
+        harness.store.project(id: harness.projectID)?
+            .knittingReminders.first(where: { $0.id == reminderID })
+    )
+    let generationBeforeStop = harness.store.dataGeneration
+
+    try harness.store.applyKnittingReminderAction(
+        projectID: harness.projectID,
+        reminderID: reminderID,
+        occurrenceID: nil,
+        observedRevision: currentReminder.mutationRevision,
+        action: .stop
+    )
+    #expect(harness.store.dataGeneration > generationBeforeStop)
     let reopenedAfterStop = try harness.reopenedStore()
-    #expect(
+    #expect(reopenedAfterStop.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
+    let stoppedReminder = try #require(
         reopenedAfterStop.project(id: harness.projectID)?
-            .counters[1].reminder?.isActive == false
+            .knittingReminders.first(where: { $0.id == reminderID })
     )
-    #expect(
-        reopenedAfterStop.project(id: harness.projectID)?
-            .counters[1].reminder?.nextTarget == nil
-    )
+    #expect(stoppedReminder.state == .stopped)
+    #expect(stoppedReminder.progress.nextTarget == nil)
+    #expect(stoppedReminder.progress.pending.isEmpty)
 }
 
 @MainActor @Test func readerUsageMutationKeepsExternalOptimisticConcurrencyRejection() throws {

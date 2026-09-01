@@ -345,22 +345,38 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
         counterID: counterID,
         draft: .oneTime(target: 2, message: nil)
     )
+    let generationBeforeMutation = harness.store.dataGeneration
+    let generationAdvance = generationBeforeMutation.addingReportingOverflow(1)
+    let expectedGeneration = try #require(
+        generationAdvance.overflow ? nil : generationAdvance.partialValue
+    )
 
     let result = try harness.store.mutatePatternReaderCounterWithOutcome(
         usageID: usage.id,
         counterID: counterID,
         mutation: .update(name: nil, value: 3),
-        expectedDataGeneration: harness.store.dataGeneration
+        expectedDataGeneration: generationBeforeMutation
     )
 
-    #expect(result.generation == harness.store.dataGeneration)
-    #expect(result.outcome?.pendingReminder == nil)
+    #expect(result.generation == expectedGeneration)
+    #expect(harness.store.dataGeneration == expectedGeneration)
+    let outcome = try #require(result.outcome)
+    #expect(outcome.oldValue == 0)
+    #expect(outcome.newValue == 3)
+    #expect(outcome.pendingReminder == nil)
     let reminder = try #require(
         harness.store.project(id: harness.projectID)?.knittingReminders.first
     )
+    #expect(reminder.progress.pending.count == 1)
     let occurrence = try #require(reminder.progress.pending.first)
     #expect(reminder.counterID == counterID)
+    #expect(reminder.mutationRevision == 1)
+    #expect(reminder.progress.scheduledCount == 1)
+    #expect(occurrence.reminderID == reminder.id)
     #expect(occurrence.originalTarget == 2)
+    #expect(occurrence.displayAt == 2)
+    #expect(occurrence.phase == .initial)
+    #expect(occurrence.awaitsNextUpwardChange == false)
     let reopened = try harness.reopenedStore()
     #expect(reopened.project(id: harness.projectID)?.knittingReminders == [reminder])
 }
@@ -395,6 +411,8 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     )
     let occurrence = try #require(dueReminder.progress.pending.first)
     let projectsBefore = harness.store.projects
+    let selectionBefore = harness.store.project(id: harness.projectID)?.selectedCounterID
+    let generationBefore = harness.store.dataGeneration
     let archiveBefore = try Data(contentsOf: harness.archiveURL)
 
     #expect(throws: KnittingReminderMutationError.staleRevision) {
@@ -408,7 +426,9 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     }
 
     #expect(harness.store.projects == projectsBefore)
-    #expect(harness.store.dataGeneration == due.generation)
+    #expect(harness.store.project(id: harness.projectID)?.selectedCounterID == selectionBefore)
+    #expect(harness.store.dataGeneration == generationBefore)
+    #expect(generationBefore == due.generation)
     #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
     #expect(try harness.reopenedStore().project(id: harness.projectID)?.knittingReminders == [dueReminder])
 }
@@ -438,9 +458,15 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             .knittingReminders.first(where: { $0.id == reminderID })
     )
     let occurrence = try #require(reminder.progress.pending.first)
-    let projectsBefore = harness.store.projects
-    let generationBefore = harness.store.dataGeneration
-    let archiveBefore = try Data(contentsOf: harness.archiveURL)
+    let staleRevisionAdvance = reminder.mutationRevision.addingReportingOverflow(1)
+    let staleRevision = try #require(
+        staleRevisionAdvance.overflow ? nil : staleRevisionAdvance.partialValue
+    )
+
+    let missingReminderProjectsBefore = harness.store.projects
+    let missingReminderSelectionBefore = harness.store.project(id: harness.projectID)?.selectedCounterID
+    let missingReminderGenerationBefore = harness.store.dataGeneration
+    let missingReminderArchiveBefore = try Data(contentsOf: harness.archiveURL)
 
     #expect(throws: KnittingReminderMutationError.occurrenceNotFound) {
         try harness.store.applyKnittingReminderAction(
@@ -451,6 +477,19 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             action: .complete
         )
     }
+    #expect(harness.store.projects == missingReminderProjectsBefore)
+    #expect(
+        harness.store.project(id: harness.projectID)?.selectedCounterID
+            == missingReminderSelectionBefore
+    )
+    #expect(harness.store.dataGeneration == missingReminderGenerationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == missingReminderArchiveBefore)
+
+    let missingOccurrenceProjectsBefore = harness.store.projects
+    let missingOccurrenceSelectionBefore = harness.store.project(id: harness.projectID)?.selectedCounterID
+    let missingOccurrenceGenerationBefore = harness.store.dataGeneration
+    let missingOccurrenceArchiveBefore = try Data(contentsOf: harness.archiveURL)
+
     #expect(throws: KnittingReminderMutationError.occurrenceNotFound) {
         try harness.store.applyKnittingReminderAction(
             projectID: harness.projectID,
@@ -460,23 +499,36 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             action: .complete
         )
     }
+    #expect(harness.store.projects == missingOccurrenceProjectsBefore)
+    #expect(
+        harness.store.project(id: harness.projectID)?.selectedCounterID
+            == missingOccurrenceSelectionBefore
+    )
+    #expect(harness.store.dataGeneration == missingOccurrenceGenerationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == missingOccurrenceArchiveBefore)
+
+    let staleRevisionProjectsBefore = harness.store.projects
+    let staleRevisionSelectionBefore = harness.store.project(id: harness.projectID)?.selectedCounterID
+    let staleRevisionGenerationBefore = harness.store.dataGeneration
+    let staleRevisionArchiveBefore = try Data(contentsOf: harness.archiveURL)
+
     #expect(throws: KnittingReminderMutationError.staleRevision) {
         try harness.store.applyKnittingReminderAction(
             projectID: harness.projectID,
             reminderID: reminderID,
             occurrenceID: occurrence.id,
-            observedRevision: reminder.mutationRevision &+ 1,
+            observedRevision: staleRevision,
             action: .complete
         )
     }
-
-    #expect(harness.store.projects == projectsBefore)
+    #expect(harness.store.projects == staleRevisionProjectsBefore)
     #expect(
         harness.store.project(id: harness.projectID)?.selectedCounterID
-            == initiallySelectedCounterID
+            == staleRevisionSelectionBefore
     )
-    #expect(harness.store.dataGeneration == generationBefore)
-    #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+    #expect(harness.store.dataGeneration == staleRevisionGenerationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == staleRevisionArchiveBefore)
+    #expect(staleRevisionSelectionBefore == initiallySelectedCounterID)
 }
 
 @MainActor @Test func completedProjectRejectsReaderReminderActionsWithoutPublishing() throws {
@@ -499,9 +551,10 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     )
     let occurrence = try #require(reminder.progress.pending.first)
     try harness.store.markCompleted(projectID: harness.projectID)
-    let projectsBefore = harness.store.projects
-    let generationBefore = harness.store.dataGeneration
-    let archiveBefore = try Data(contentsOf: harness.archiveURL)
+    let completeProjectsBefore = harness.store.projects
+    let completeSelectionBefore = harness.store.project(id: harness.projectID)?.selectedCounterID
+    let completeGenerationBefore = harness.store.dataGeneration
+    let completeArchiveBefore = try Data(contentsOf: harness.archiveURL)
 
     #expect(throws: PatternLibraryMutationError.projectCompleted) {
         try harness.store.applyKnittingReminderAction(
@@ -512,6 +565,16 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             action: .complete
         )
     }
+    #expect(harness.store.projects == completeProjectsBefore)
+    #expect(harness.store.project(id: harness.projectID)?.selectedCounterID == completeSelectionBefore)
+    #expect(harness.store.dataGeneration == completeGenerationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == completeArchiveBefore)
+
+    let stopProjectsBefore = harness.store.projects
+    let stopSelectionBefore = harness.store.project(id: harness.projectID)?.selectedCounterID
+    let stopGenerationBefore = harness.store.dataGeneration
+    let stopArchiveBefore = try Data(contentsOf: harness.archiveURL)
+
     #expect(throws: PatternLibraryMutationError.projectCompleted) {
         try harness.store.applyKnittingReminderAction(
             projectID: harness.projectID,
@@ -521,9 +584,10 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             action: .stop
         )
     }
-    #expect(harness.store.projects == projectsBefore)
-    #expect(harness.store.dataGeneration == generationBefore)
-    #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+    #expect(harness.store.projects == stopProjectsBefore)
+    #expect(harness.store.project(id: harness.projectID)?.selectedCounterID == stopSelectionBefore)
+    #expect(harness.store.dataGeneration == stopGenerationBefore)
+    #expect(try Data(contentsOf: harness.archiveURL) == stopArchiveBefore)
 }
 
 @MainActor @Test func failedReminderPersistencePublishesNothing() throws {
@@ -622,6 +686,10 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
     )
     let occurrence = try #require(pendingReminder.progress.pending.first)
     let generationBeforeComplete = harness.store.dataGeneration
+    let completeGenerationAdvance = generationBeforeComplete.addingReportingOverflow(1)
+    let expectedGenerationAfterComplete = try #require(
+        completeGenerationAdvance.overflow ? nil : completeGenerationAdvance.partialValue
+    )
 
     try harness.store.applyKnittingReminderAction(
         projectID: harness.projectID,
@@ -630,7 +698,8 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
         observedRevision: pendingReminder.mutationRevision,
         action: .complete
     )
-    #expect(harness.store.dataGeneration > generationBeforeComplete)
+    #expect(harness.store.dataGeneration == expectedGenerationAfterComplete)
+    #expect(harness.store.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
     let reopenedAfterComplete = try harness.reopenedStore()
     #expect(reopenedAfterComplete.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
     let completedReminder = try #require(
@@ -646,6 +715,10 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
             .knittingReminders.first(where: { $0.id == reminderID })
     )
     let generationBeforeStop = harness.store.dataGeneration
+    let stopGenerationAdvance = generationBeforeStop.addingReportingOverflow(1)
+    let expectedGenerationAfterStop = try #require(
+        stopGenerationAdvance.overflow ? nil : stopGenerationAdvance.partialValue
+    )
 
     try harness.store.applyKnittingReminderAction(
         projectID: harness.projectID,
@@ -654,7 +727,8 @@ func patternAppearancePreferenceBypassesMutationAuthorization() throws {
         observedRevision: currentReminder.mutationRevision,
         action: .stop
     )
-    #expect(harness.store.dataGeneration > generationBeforeStop)
+    #expect(harness.store.dataGeneration == expectedGenerationAfterStop)
+    #expect(harness.store.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
     let reopenedAfterStop = try harness.reopenedStore()
     #expect(reopenedAfterStop.project(id: harness.projectID)?.selectedCounterID == selectedCounterID)
     let stoppedReminder = try #require(

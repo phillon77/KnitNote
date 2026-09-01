@@ -1270,6 +1270,14 @@ final class PatternLibraryDeletionTransaction {
         ledgerURL: URL,
         now: Date = .now
     ) throws -> WatchCommandAcknowledgement {
+        if let acknowledgement = try persistedWatchCommandAcknowledgement(
+            for: command,
+            entitlement: entitlement,
+            ledgerURL: ledgerURL,
+            now: now
+        ) {
+            return acknowledgement
+        }
         try ensureArchiveAvailable()
         let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
         var ledger = try ledgerFile.load() ?? ProcessedWatchCommandLedger()
@@ -1278,6 +1286,31 @@ final class PatternLibraryDeletionTransaction {
         return try watchAcknowledgement(
             for: command.id,
             rejection: rejection,
+            entitlement: entitlement,
+            now: now
+        )
+    }
+
+    func persistedWatchCommandAcknowledgement(
+        for command: WatchCounterCommand,
+        entitlement: EntitlementSnapshot,
+        ledgerURL: URL,
+        now: Date
+    ) throws -> WatchCommandAcknowledgement? {
+        let ledger: ProcessedWatchCommandLedger?
+        do {
+            ledger = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+                url: ledgerURL
+            ).load()
+        } catch {
+            // A new command still follows the authorized corruption-recovery
+            // path, which owns any quarantine or handshake writes.
+            return nil
+        }
+        guard let processed = ledger?.entry(for: command.id) else { return nil }
+        return try watchAcknowledgement(
+            for: command.id,
+            rejection: processed.rejection,
             entitlement: entitlement,
             now: now
         )

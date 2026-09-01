@@ -118,6 +118,14 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         now: Date = .now,
         failureInjector: (WatchCommandPersistenceBoundary) throws -> Void = { _ in }
     ) throws -> WatchCommandAcknowledgement {
+        if let acknowledgement = try persistedWatchCommandAcknowledgement(
+            for: command,
+            entitlement: entitlement,
+            ledgerURL: ledgerURL,
+            now: now
+        ) {
+            return acknowledgement
+        }
         try requireWatchEntitlement(entitlement, now: now)
         try authorizeWatchCounterMutation()
         guard try recoverAuthorizedWatchCommandPersistence(

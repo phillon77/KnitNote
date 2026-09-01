@@ -621,6 +621,68 @@ import Testing
         #expect(store.project(id: fixture.projectID)?.counters[0].value == 1)
     }
 
+    @Test(arguments: PersistedWatchCommandOutcome.allCases)
+    @MainActor func durableApplyDuplicateReturnsPersistedOutcomeBeforeTransitionedAccess(
+        outcome: PersistedWatchCommandOutcome
+    ) throws {
+        let fixture = try DurableWatchFixture()
+        let command = try outcome.command(in: fixture)
+        let original = try fixture.persist(command, as: outcome)
+        let archiveAfterOriginal = try Data(contentsOf: fixture.archiveURL)
+        let ledgerAfterOriginal = try Data(contentsOf: fixture.ledgerURL)
+        var authorizationChecks: [FeatureMutation] = []
+        let restarted = JSONProjectStore(
+            url: fixture.archiveURL,
+            authorizeMutation: {
+                authorizationChecks.append($0)
+                return .allow
+            }
+        )
+
+        let duplicate = try restarted.applyWatchCommandDurably(
+            command,
+            entitlement: outcome.duplicateEntitlement(at: fixture.now),
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(original.rejection == outcome.rejection)
+        #expect(duplicate.rejection == outcome.rejection)
+        #expect(authorizationChecks.isEmpty)
+        #expect(restarted.project(id: fixture.projectID)?.counters[0].value == outcome.counterValue)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveAfterOriginal)
+        #expect(try Data(contentsOf: fixture.ledgerURL) == ledgerAfterOriginal)
+        #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
+    }
+
+    @Test(arguments: PersistedWatchCommandOutcome.allCases)
+    @MainActor func durableRejectedAcknowledgementDuplicateKeepsPersistedOutcome(
+        outcome: PersistedWatchCommandOutcome
+    ) throws {
+        let fixture = try DurableWatchFixture()
+        let command = try outcome.command(in: fixture)
+        let original = try fixture.persist(command, as: outcome)
+        let archiveAfterOriginal = try Data(contentsOf: fixture.archiveURL)
+        let ledgerAfterOriginal = try Data(contentsOf: fixture.ledgerURL)
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+
+        let duplicate = try restarted.acknowledgeRejectedWatchCommandDurably(
+            command,
+            rejection: outcome.replacementRejection,
+            entitlement: outcome.duplicateEntitlement(at: fixture.now),
+            ledgerURL: fixture.ledgerURL,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(original.rejection == outcome.rejection)
+        #expect(duplicate.rejection == outcome.rejection)
+        #expect(restarted.project(id: fixture.projectID)?.counters[0].value == outcome.counterValue)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveAfterOriginal)
+        #expect(try Data(contentsOf: fixture.ledgerURL) == ledgerAfterOriginal)
+        #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
+    }
+
     @Test @MainActor func durableResetThenIncrementPreservesCommandOrder() throws {
         let fixture = try DurableWatchFixture(value: 7)
         let store = JSONProjectStore(url: fixture.archiveURL)
@@ -675,6 +737,70 @@ enum NoOpWatchCommandCase: CaseIterable, Sendable {
     }
 }
 
+enum PersistedWatchCommandOutcome: CaseIterable, Sendable {
+    case success
+    case reminderMismatch
+    case entitlementRequired
+
+    var rejection: WatchCommandRejection? {
+        switch self {
+        case .success:
+            nil
+        case .reminderMismatch:
+            .reminderMismatch
+        case .entitlementRequired:
+            .entitlementRequired
+        }
+    }
+
+    var replacementRejection: WatchCommandRejection {
+        switch self {
+        case .success, .reminderMismatch:
+            .entitlementRequired
+        case .entitlementRequired:
+            .reminderMismatch
+        }
+    }
+
+    var counterValue: Int {
+        self == .success ? 1 : 0
+    }
+
+    func duplicateEntitlement(at now: Date) -> EntitlementSnapshot {
+        switch self {
+        case .success, .reminderMismatch:
+            .trial(
+                startedAt: now.addingTimeInterval(-100),
+                expiresAt: now
+            )
+        case .entitlementRequired:
+            .permanentlyUnlocked
+        }
+    }
+
+    @MainActor fileprivate func command(
+        in fixture: DurableWatchFixture
+    ) throws -> WatchCounterCommand {
+        switch self {
+        case .success, .entitlementRequired:
+            fixture.command
+        case .reminderMismatch:
+            try WatchCounterCommand(
+                validating: WatchCounterCommand.currentSchemaVersion,
+                projectID: fixture.projectID,
+                counterID: fixture.counterID,
+                operation: .completeReminder,
+                reminderPayload: WatchReminderActionPayload(
+                    reminderID: UUID(),
+                    occurrenceID: UUID(),
+                    observedRevision: 0
+                ),
+                createdAt: fixture.now
+            )
+        }
+    }
+}
+
 private final class WatchSyncTemporaryDirectory {
     let url: URL
 
@@ -719,6 +845,33 @@ private final class WatchSyncTemporaryDirectory {
             version: ProjectArchive.currentVersion,
             projects: [project]
         )).write(to: archiveURL, options: .atomic)
+    }
+
+    func persist(
+        _ command: WatchCounterCommand,
+        as outcome: PersistedWatchCommandOutcome
+    ) throws -> WatchCommandAcknowledgement {
+        let store = JSONProjectStore(url: archiveURL)
+        switch outcome {
+        case .success, .reminderMismatch:
+            return try store.applyWatchCommandDurably(
+                command,
+                ledgerURL: ledgerURL,
+                preparedCommandURL: preparedURL,
+                now: now
+            )
+        case .entitlementRequired:
+            return try store.acknowledgeRejectedWatchCommandDurably(
+                command,
+                rejection: .entitlementRequired,
+                entitlement: .trial(
+                    startedAt: now.addingTimeInterval(-100),
+                    expiresAt: now
+                ),
+                ledgerURL: ledgerURL,
+                now: now
+            )
+        }
     }
 }
 

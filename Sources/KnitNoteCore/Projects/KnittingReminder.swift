@@ -39,6 +39,28 @@ public enum KnittingReminderDraft: Equatable, Sendable {
     )
 }
 
+public enum KnittingReminderDraftValidationIssue: Equatable, Sendable {
+    case firstTarget
+    case interval
+    case limit
+}
+
+public enum KnittingReminderDraftValidation {
+    public static func issue(
+        firstTarget: Int?,
+        isRepeating: Bool,
+        interval: Int?,
+        hasFiniteLimit: Bool,
+        limit: Int?
+    ) -> KnittingReminderDraftValidationIssue? {
+        guard let firstTarget, firstTarget >= 0 else { return .firstTarget }
+        guard isRepeating else { return nil }
+        guard let interval, interval >= 1 else { return .interval }
+        guard !hasFiniteLimit || (limit.map { $0 >= 1 } ?? false) else { return .limit }
+        return nil
+    }
+}
+
 public enum KnittingReminderState: String, Codable, Hashable, Sendable {
     case active, completed, stopped
 }

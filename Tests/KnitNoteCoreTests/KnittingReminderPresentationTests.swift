@@ -3,6 +3,34 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct KnittingReminderPresentationTests {
+    @Test func accessibilityProjectionKeepsEverySemanticFieldAndVerbatimNote() {
+        let occurrence = KnittingReminderOccurrence(
+            id: UUID(),
+            reminderID: UUID(),
+            kind: .changeYarn,
+            text: "K2, luego 米白色 — 사용자 메모",
+            originalTarget: 14,
+            displayAt: 15,
+            phase: .deferredOnce,
+            awaitsNextUpwardChange: false
+        )
+        let presentation = KnittingReminderPresentation(
+            occurrence: occurrence,
+            reminderRevision: 9,
+            currentIndex: 2,
+            totalCount: 4
+        )
+
+        let projection = KnittingReminderAccessibilityProjection(presentation: presentation)
+
+        #expect(projection.kind == .changeYarn)
+        #expect(projection.note == "K2, luego 米白色 — 사용자 메모")
+        #expect(projection.originalTarget == 14)
+        #expect(projection.phase == .deferredOnce)
+        #expect(projection.currentIndex == 2)
+        #expect(projection.totalCount == 4)
+    }
+
     @Test func coordinatorDefinesStableSingleItemQueueAndBoundedHapticLedger() throws {
         let source = try sourceFile("Sources/KnitNoteCore/Projects/KnittingReminderPresentationCoordinator.swift")
 
@@ -627,7 +655,10 @@ import Testing
         #expect(source.contains("Text(verbatim:"))
         #expect(source.contains("ViewThatFits(in: .horizontal)"))
         #expect(source.contains("frame(minWidth: 44, minHeight: 44)"))
-        #expect(source.contains("accessibilityValue"))
+        #expect(source.contains("KnittingReminderAccessibilityProjection(presentation: current)"))
+        #expect(source.contains(".accessibilityElement(children: .ignore)"))
+        #expect(!source.contains(".accessibilityElement(children: .contain)"))
+        #expect(!source.contains("accessibilityValue"))
         #expect(source.contains("sensoryFeedback"))
         #expect(source.contains("presentationStore"))
         #expect(source.contains("claimHaptic("))

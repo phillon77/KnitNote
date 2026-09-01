@@ -70,6 +70,9 @@ struct KnittingReminderEditorView: View {
                     .keyboardType(.numberPad)
 #endif
                     .monospacedDigit()
+                if validationIssue == .firstTarget {
+                    validationError
+                }
 
                 if mode == .repeating {
                     TextField(
@@ -80,6 +83,9 @@ struct KnittingReminderEditorView: View {
                         .keyboardType(.numberPad)
 #endif
                         .monospacedDigit()
+                    if validationIssue == .interval {
+                        validationError
+                    }
                     Toggle(
                         LocaleAwareText.string("knittingReminder.editor.limited", locale: locale),
                         isOn: $hasFiniteLimit
@@ -93,6 +99,9 @@ struct KnittingReminderEditorView: View {
                             .keyboardType(.numberPad)
 #endif
                             .monospacedDigit()
+                        if validationIssue == .limit {
+                            validationError
+                        }
                     }
                 }
             }
@@ -107,13 +116,6 @@ struct KnittingReminderEditorView: View {
                         Text(verbatim: customText)
                     }
                 }
-            } else {
-                Text(verbatim: LocaleAwareText.string(
-                    "knittingReminder.editor.validation",
-                    locale: locale
-                ))
-                    .font(.footnote)
-                    .foregroundStyle(.red)
             }
         }
         .navigationTitle(LocaleAwareText.string(
@@ -158,17 +160,48 @@ struct KnittingReminderEditorView: View {
         return project?.knittingReminders.first { $0.id == reminderID }
     }
 
+    private var firstTarget: Int? {
+        try? CounterValueInput.parse(firstTargetText)
+    }
+
+    private var interval: Int? {
+        try? CounterValueInput.parse(intervalText)
+    }
+
+    private var finiteLimit: Int? {
+        try? CounterValueInput.parse(limitText)
+    }
+
+    private var validationIssue: KnittingReminderDraftValidationIssue? {
+        KnittingReminderDraftValidation.issue(
+            firstTarget: firstTarget,
+            isRepeating: mode == .repeating,
+            interval: interval,
+            hasFiniteLimit: hasFiniteLimit,
+            limit: finiteLimit
+        )
+    }
+
+    private var validationError: some View {
+        Text(verbatim: LocaleAwareText.string(
+            "knittingReminder.editor.validation",
+            locale: locale
+        ))
+            .font(.footnote)
+            .foregroundStyle(.red)
+    }
+
     private var validDraft: KnittingReminderDraft? {
-        guard let firstTarget = try? CounterValueInput.parse(firstTargetText) else { return nil }
+        guard validationIssue == nil, let firstTarget else { return nil }
         let text = customText.isEmpty ? nil : customText
         switch mode {
         case .oneTime:
             return .oneTime(kind: kind, target: firstTarget, text: text)
         case .repeating:
-            guard let interval = try? CounterValueInput.parse(intervalText), interval > 0 else { return nil }
+            guard let interval else { return nil }
             let limit: Int?
             if hasFiniteLimit {
-                guard let finiteLimit = try? CounterValueInput.parse(limitText), finiteLimit > 0 else { return nil }
+                guard let finiteLimit else { return nil }
                 limit = finiteLimit
             } else {
                 limit = nil

@@ -2,7 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     "watch.reminder.accessibility.summary" : {
-      "comment" : "VoiceOver summary for one Apple Watch knitting reminder queue occurrence.",
+      "comment" : "Combined Watch VoiceOver summary. %1$@ is the localized kind; %2$@ is the verbatim user note; %3$@ is the localized original target; %4$@ is the localized phase; %5$@ is the localized queue position.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Type: %1$@; note: %2$@; %3$@; fase: %4$@; kø: %5$@" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Typ: %1$@; Notiz: %2$@; %3$@; Phase: %4$@; Warteschlange: %5$@" } },
@@ -20,10 +20,11 @@
       }
     },
     "watch.reminder.action.complete" : {
+      "comment" : "Compact Watch button label that completes the current reminder occurrence, not the whole rule.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Færdig" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Fertig" } },
-        "el" : { "stringUnit" : { "state" : "translated", "value" : "Τέλος" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ολοκλήρωση" } },
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete" } },
         "fi" : { "stringUnit" : { "state" : "translated", "value" : "Valmis" } },
         "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminé" } },
@@ -37,6 +38,7 @@
       }
     },
     "watch.reminder.action.complete.hint" : {
+      "comment" : "Watch accessibility hint explaining that Complete handles only the current occurrence.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Markerer denne påmindelse som fuldført." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Markiert dieses Erinnerungsvorkommen als abgeschlossen." } },
@@ -54,23 +56,25 @@
       }
     },
     "watch.reminder.action.defer" : {
+      "comment" : "Compact Watch initial-phase button that defers the occurrence until the next upward row change.",
       "localizations" : {
-        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmind næste pind" } },
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nächste Reihe erinnern" } },
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmind på næste pind" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "In der nächsten Reihe erinnern" } },
         "el" : { "stringUnit" : { "state" : "translated", "value" : "Υπενθύμιση στην επόμενη σειρά" } },
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Remind Next Row" } },
         "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistuta seuraavalla kerroksella" } },
         "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rappel au rang suivant" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の段で再通知" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 단에 알림" } },
-        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminn neste rad" } },
-        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinner volgende toer" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminn på neste rad" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinner bij de volgende toer" } },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminn nästa varv" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一行再提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一段再提醒" } }
       }
     },
     "watch.reminder.action.defer.hint" : {
+      "comment" : "Watch accessibility hint explaining that the occurrence will appear again after the next row.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Viser denne påmindelse igen efter næste pind." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Zeigt diese Erinnerung nach der nächsten Reihe erneut." } },
@@ -88,6 +92,7 @@
       }
     },
     "watch.reminder.action.skip" : {
+      "comment" : "Compact Watch deferred-phase button that skips this occurrence without stopping its rule.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Spring over denne gang" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diesmal überspringen" } },
@@ -105,6 +110,7 @@
       }
     },
     "watch.reminder.action.skip.hint" : {
+      "comment" : "Watch accessibility hint explaining that Skip affects only the occurrence currently shown.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Springer kun denne påmindelse over." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Überspringt nur dieses Erinnerungsvorkommen." } },
@@ -122,6 +128,7 @@
       }
     },
     "watch.reminder.kind.buttonhole" : {
+      "comment" : "Compact Watch system name for the semantic reminder kind that tells the knitter to make a buttonhole.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Knaphul" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Knopfloch" } },
@@ -139,6 +146,7 @@
       }
     },
     "watch.reminder.kind.cable" : {
+      "comment" : "Compact Watch system name for the semantic reminder kind that tells the knitter to work a cable.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Snoning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Zopfmuster" } },
@@ -156,6 +164,7 @@
       }
     },
     "watch.reminder.kind.changeYarn" : {
+      "comment" : "Compact Watch system name for the semantic reminder kind that tells the knitter to change yarn or color.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Skift garn" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Garn wechseln" } },
@@ -173,6 +182,7 @@
       }
     },
     "watch.reminder.kind.custom" : {
+      "comment" : "Compact Watch system name for a custom reminder kind; the separate user note stays verbatim.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Egen påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Eigene Erinnerung" } },
@@ -190,6 +200,7 @@
       }
     },
     "watch.reminder.kind.decrease" : {
+      "comment" : "Compact Watch system name for the semantic reminder kind that tells the knitter to decrease stitches.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Indtagning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Abnehmen" } },
@@ -207,6 +218,7 @@
       }
     },
     "watch.reminder.kind.increase" : {
+      "comment" : "Compact Watch system name for the semantic reminder kind that tells the knitter to increase stitches.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Udtagning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Zunehmen" } },
@@ -224,6 +236,7 @@
       }
     },
     "watch.reminder.kind.measure" : {
+      "comment" : "Compact Watch system name for the semantic reminder kind that tells the knitter to measure the work.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Mål" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Messen" } },
@@ -241,6 +254,7 @@
       }
     },
     "watch.reminder.phase.deferred" : {
+      "comment" : "Spoken Watch phase name for an occurrence that was deferred once and cannot be deferred again.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Udsat én gang" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmal verschoben" } },
@@ -258,6 +272,7 @@
       }
     },
     "watch.reminder.phase.initial" : {
+      "comment" : "Spoken Watch phase name for an occurrence being presented for the first time.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Første visning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erste Anzeige" } },
@@ -275,6 +290,7 @@
       }
     },
     "watch.reminder.queuePosition" : {
+      "comment" : "Compact Watch queue position format. %1$lld is the current occurrence position; %2$lld is the total queue count.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld af %2$lld" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld von %2$lld" } },
@@ -292,6 +308,7 @@
       }
     },
     "watch.reminder.target" : {
+      "comment" : "Compact Watch target format. %lld is the occurrence's original target row number, including after deferral.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Pind %lld" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihe %lld" } },

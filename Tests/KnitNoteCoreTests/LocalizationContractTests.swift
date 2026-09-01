@@ -2857,16 +2857,197 @@ private func isValidDirectPatternFolderLocalization(
             "watch.reminder.queuePosition", "watch.reminder.target",
         ]
 
+        let dynamicReminderKeyRegistry: [String: Set<String>] = [:]
+        let mainSourceKeys = try productionReminderSourceKeys(
+            directory: "KnitNote",
+            prefix: "knittingReminder.",
+            dynamicKeyRegistry: dynamicReminderKeyRegistry
+        )
+        let watchSourceKeys = try productionReminderSourceKeys(
+            directory: "KnitNoteWatch",
+            prefix: "watch.reminder.",
+            dynamicKeyRegistry: dynamicReminderKeyRegistry
+        )
+
+        #expect(mainSourceKeys == mainKeys)
+        #expect(watchSourceKeys == watchKeys)
+
         try assertSmartReminderCatalog(
             strings: catalogStrings(),
             requiredKeys: mainKeys,
+            sourceKeys: mainSourceKeys,
             prefix: "knittingReminder."
         )
         try assertSmartReminderCatalog(
             strings: watchCatalogStrings(),
             requiredKeys: watchKeys,
+            sourceKeys: watchSourceKeys,
             prefix: "watch.reminder."
         )
+    }
+
+    @Test func highRiskSmartReminderCopyMatchesTheReviewedTask9Oracle() throws {
+        let oracleURL = repositoryRoot.appending(
+            path: "Tests/KnitNoteCoreTests/Fixtures/Task9-SmartReminder-HighRiskCopy.tsv"
+        )
+        let rows = try String(contentsOf: oracleURL, encoding: .utf8)
+            .split(whereSeparator: \.isNewline)
+            .map { $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
+        let header = try #require(rows.first)
+        let main = try catalogStrings()
+
+        #expect(header == [
+            "language",
+            "knittingReminder.editor.validation",
+            "knittingReminder.card.complete",
+            "knittingReminder.card.defer",
+            "knittingReminder.card.skip",
+            "knittingReminder.card.stop",
+            "knittingReminder.editor.schedule",
+            "knittingReminder.editor.schedule.oneTime",
+            "knittingReminder.editor.schedule.repeating",
+            "knittingReminder.error.invalid",
+            "knittingReminder.error.stale",
+            "knittingReminder.error.unavailable",
+            "knittingReminder.error.accessRestricted",
+            "knittingReminder.error.save",
+            "knittingReminder.card.phase.initial",
+            "knittingReminder.card.phase.deferred",
+            "knittingReminder.card.queue",
+            "knittingReminder.card.target",
+        ])
+        #expect(rows.count == SupportedLocalization.v150Identifiers.count + 1)
+        #expect(Set(rows.dropFirst().compactMap(\.first)) == Set(SupportedLocalization.v150Identifiers))
+        for row in rows.dropFirst() {
+            #expect(row.count == header.count)
+            let language = try #require(row.first)
+            for index in 1..<header.count {
+                #expect(
+                    try localizedValue(header[index], language: language, strings: main) == row[index],
+                    "Reviewed Task 9 copy changed for \(header[index]) in \(language)"
+                )
+            }
+        }
+
+        let watch = try watchCatalogStrings()
+        let sharedCopyKeys = [
+            "knittingReminder.card.complete": "watch.reminder.action.complete",
+            "knittingReminder.card.defer": "watch.reminder.action.defer",
+            "knittingReminder.card.skip": "watch.reminder.action.skip",
+            "knittingReminder.card.phase.initial": "watch.reminder.phase.initial",
+            "knittingReminder.card.phase.deferred": "watch.reminder.phase.deferred",
+            "knittingReminder.card.queue": "watch.reminder.queuePosition",
+            "knittingReminder.card.target": "watch.reminder.target",
+        ]
+        for language in SupportedLocalization.v150Identifiers {
+            for (mainKey, watchKey) in sharedCopyKeys {
+                #expect(
+                    try localizedValue(mainKey, language: language, strings: main)
+                        == localizedValue(watchKey, language: language, strings: watch),
+                    "Main and Watch copy diverged for \(mainKey) in \(language)"
+                )
+            }
+            let occurrenceAndRuleActions = try [
+                "knittingReminder.card.complete",
+                "knittingReminder.card.skip",
+                "knittingReminder.card.stop",
+                "knittingReminder.action.delete",
+            ].map { try localizedValue($0, language: language, strings: main) }
+            #expect(
+                Set(occurrenceAndRuleActions).count == occurrenceAndRuleActions.count,
+                "Complete, skip once, stop rule, and delete must remain distinct in \(language)"
+            )
+        }
+    }
+
+    @Test func smartReminderCatalogContractRejectsMissingRawDuplicateTokenAndCommentFixtures() throws {
+        let required: Set<String> = ["knittingReminder.card.queue"]
+        let sourceKeys = required
+        let fixtureLocalizations: [String: Any] = Dictionary(
+            uniqueKeysWithValues: SupportedLocalization.v150Identifiers.map {
+                ($0, smartReminderFixtureLocalization(
+                    value: $0 == "en" ? "%1$lld of %2$lld" : "%1$lld / %2$lld"
+                ))
+            }
+        )
+        let baseEntry: [String: Any] = [
+            "comment": "Queue position format. %1$lld is the current occurrence; %2$lld is the total occurrence count.",
+            "localizations": fixtureLocalizations,
+        ]
+        let base: [String: Any] = ["knittingReminder.card.queue": baseEntry]
+        #expect(smartReminderCatalogFindings(
+            strings: base,
+            requiredKeys: required,
+            sourceKeys: sourceKeys,
+            prefix: "knittingReminder."
+        ).isEmpty)
+
+        #expect(smartReminderCatalogFindings(
+            strings: [:],
+            requiredKeys: required,
+            sourceKeys: sourceKeys,
+            prefix: "knittingReminder."
+        ).contains("catalog-domain"))
+
+        var raw = base
+        raw = replacingSmartReminderValue(
+            in: raw,
+            key: "knittingReminder.card.queue",
+            language: "de",
+            value: "knittingReminder.card.queue"
+        )
+        #expect(smartReminderCatalogFindings(
+            strings: raw,
+            requiredKeys: required,
+            sourceKeys: sourceKeys,
+            prefix: "knittingReminder."
+        ).contains("raw:knittingReminder.card.queue|de"))
+
+        var duplicate = base
+        duplicate = replacingSmartReminderValue(
+            in: duplicate,
+            key: "knittingReminder.card.queue",
+            language: "de",
+            value: "%1$lld of %2$lld"
+        )
+        #expect(smartReminderCatalogFindings(
+            strings: duplicate,
+            requiredKeys: required,
+            sourceKeys: sourceKeys,
+            prefix: "knittingReminder."
+        ).contains("english-duplicate:knittingReminder.card.queue|de"))
+        #expect(smartReminderCatalogFindings(
+            strings: duplicate,
+            requiredKeys: required,
+            sourceKeys: sourceKeys,
+            prefix: "knittingReminder.",
+            allowedEnglishDuplicates: ["knittingReminder.card.queue|de"]
+        ).isEmpty)
+
+        var tokenMismatch = base
+        tokenMismatch = replacingSmartReminderValue(
+            in: tokenMismatch,
+            key: "knittingReminder.card.queue",
+            language: "de",
+            value: "%1$lld / total"
+        )
+        #expect(smartReminderCatalogFindings(
+            strings: tokenMismatch,
+            requiredKeys: required,
+            sourceKeys: sourceKeys,
+            prefix: "knittingReminder."
+        ).contains("token-mismatch:knittingReminder.card.queue|de"))
+
+        var missingComment = base
+        var entry = try #require(missingComment["knittingReminder.card.queue"] as? [String: Any])
+        entry.removeValue(forKey: "comment")
+        missingComment["knittingReminder.card.queue"] = entry
+        #expect(smartReminderCatalogFindings(
+            strings: missingComment,
+            requiredKeys: required,
+            sourceKeys: sourceKeys,
+            prefix: "knittingReminder."
+        ).contains("comment-missing:knittingReminder.card.queue"))
     }
 
     @Test func smartReminderFormatPlaceholdersMatchEnglishInEverySupportedLanguage() throws {
@@ -2912,19 +3093,122 @@ private func isValidDirectPatternFolderLocalization(
     private func assertSmartReminderCatalog(
         strings: [String: Any],
         requiredKeys: Set<String>,
+        sourceKeys: Set<String>,
         prefix: String
     ) throws {
-        #expect(Set(strings.keys.filter { $0.hasPrefix(prefix) }) == requiredKeys)
+        let findings = smartReminderCatalogFindings(
+            strings: strings,
+            requiredKeys: requiredKeys,
+            sourceKeys: sourceKeys,
+            prefix: prefix
+        )
+        #expect(findings.isEmpty, "Smart reminder catalog findings: \(findings.sorted())")
+    }
+
+    private func smartReminderCatalogFindings(
+        strings: [String: Any],
+        requiredKeys: Set<String>,
+        sourceKeys: Set<String>,
+        prefix: String,
+        allowedEnglishDuplicates: Set<String> = []
+    ) -> Set<String> {
+        var findings = Set<String>()
+        let catalogKeys = Set(strings.keys.filter { $0.hasPrefix(prefix) })
+        if catalogKeys != requiredKeys { findings.insert("catalog-domain") }
+        if sourceKeys != requiredKeys { findings.insert("source-domain") }
+        var comments = Set<String>()
+
         for key in requiredKeys {
-            let entry = try #require(strings[key] as? [String: Any])
-            let localizations = try #require(entry["localizations"] as? [String: Any])
-            #expect(Set(localizations.keys) == Set(SupportedLocalization.v150Identifiers))
+            guard let entry = strings[key] as? [String: Any] else { continue }
+            let comment = (entry["comment"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if comment.isEmpty {
+                findings.insert("comment-missing:\(key)")
+            } else {
+                comments.insert(comment)
+                if comment == "Localized smart knitting reminder system copy; user-created reminder text remains verbatim." {
+                    findings.insert("comment-generic:\(key)")
+                }
+            }
+            guard let localizations = entry["localizations"] as? [String: Any] else {
+                findings.insert("languages:\(key)")
+                continue
+            }
+            if Set(localizations.keys) != Set(SupportedLocalization.v150Identifiers) {
+                findings.insert("languages:\(key)")
+            }
+            guard let english = try? localizedValue(key, language: "en", strings: strings) else { continue }
+            let expectedTokens = printfPlaceholders(in: english)
+            for token in Set(expectedTokens) where !comment.contains(token) {
+                findings.insert("comment-token:\(key)|\(token)")
+            }
             for language in SupportedLocalization.v150Identifiers {
-                let value = try localizedValue(key, language: language, strings: strings)
-                #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                #expect(value != key)
+                guard let value = try? localizedValue(key, language: language, strings: strings) else {
+                    findings.insert("missing:\(key)|\(language)")
+                    continue
+                }
+                if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || value == key {
+                    findings.insert("raw:\(key)|\(language)")
+                }
+                let languageKey = "\(key)|\(language)"
+                if language != "en", value == english,
+                   !allowedEnglishDuplicates.contains(languageKey) {
+                    findings.insert("english-duplicate:\(key)|\(language)")
+                }
+                if printfPlaceholders(in: value) != expectedTokens {
+                    findings.insert("token-mismatch:\(key)|\(language)")
+                }
             }
         }
+        if requiredKeys.count > 1, comments.count != requiredKeys.count {
+            findings.insert("comments-not-per-key")
+        }
+        return findings
+    }
+
+    private func replacingSmartReminderValue(
+        in strings: [String: Any],
+        key: String,
+        language: String,
+        value: String
+    ) -> [String: Any] {
+        var result = strings
+        guard var entry = result[key] as? [String: Any],
+              var localizations = entry["localizations"] as? [String: Any]
+        else { return result }
+        localizations[language] = smartReminderFixtureLocalization(value: value)
+        entry["localizations"] = localizations
+        result[key] = entry
+        return result
+    }
+
+    private func smartReminderFixtureLocalization(value: String) -> [String: Any] {
+        ["stringUnit": ["state": "translated", "value": value]]
+    }
+
+    private func productionReminderSourceKeys(
+        directory: String,
+        prefix: String,
+        dynamicKeyRegistry: [String: Set<String>]
+    ) throws -> Set<String> {
+        let directoryURL = repositoryRoot.appending(path: directory)
+        let enumerator = try #require(FileManager.default.enumerator(
+            at: directoryURL,
+            includingPropertiesForKeys: nil
+        ))
+        let expression = try NSRegularExpression(
+            pattern: NSRegularExpression.escapedPattern(for: prefix) + #"[A-Za-z0-9._-]+"#
+        )
+        var keys = Set<String>()
+        while let url = enumerator.nextObject() as? URL {
+            guard url.pathExtension == "swift" else { continue }
+            let source = try String(contentsOf: url, encoding: .utf8)
+            let range = NSRange(source.startIndex..., in: source)
+            keys.formUnion(expression.matches(in: source, range: range).compactMap {
+                Range($0.range, in: source).map { String(source[$0]) }
+            })
+            keys.formUnion(dynamicKeyRegistry[url.path] ?? [])
+        }
+        return keys
     }
 
     private func printfPlaceholders(in value: String) -> [String] {

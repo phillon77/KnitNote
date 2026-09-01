@@ -35,6 +35,10 @@ import Testing
         #expect(source.contains("store.updateKnittingReminder("))
         #expect(source.contains("observedRevision: capturedReminderRevision"))
         #expect(source.contains("Text(verbatim: customText)"))
+        #expect(source.contains("KnittingReminderDraftValidation.issue("))
+        #expect(source.contains("validationIssue == .firstTarget"))
+        #expect(source.contains("validationIssue == .interval"))
+        #expect(source.contains("validationIssue == .limit"))
     }
 
     @Test func editorFailsClosedForDeletedEditsAndUsesItsInitiallyLoadedRevision() throws {
@@ -84,7 +88,11 @@ import Testing
         #expect(card.contains("Text(verbatim: text)"))
         #expect(card.contains("ViewThatFits(in: .horizontal)"))
         #expect(card.components(separatedBy: ".frame(minWidth: 44, minHeight: 44)").count - 1 >= 4)
+        #expect(card.contains("private func summaryContent(for current:"))
+        #expect(card.contains(".accessibilityElement(children: .ignore)"))
         #expect(card.contains(".accessibilityLabel(Text(verbatim: accessibilitySummary(for: current)))"))
+        #expect(card.contains("KnittingReminderAccessibilityProjection(presentation: current)"))
+        #expect(!card.contains(".accessibilityElement(children: .contain)"))
         #expect(!card.contains(".accessibilityValue(Text(verbatim: accessibilitySummary(for: current)))"))
         #expect(card.contains(".keyboardShortcut(.cancelAction)"))
         #expect(editor.contains(".keyboardShortcut(.defaultAction)"))
@@ -136,6 +144,10 @@ import Testing
         #expect(editor.components(separatedBy: ".keyboardShortcut(.cancelAction)").count - 1 == 1)
         #expect(card.components(separatedBy: ".keyboardShortcut(.defaultAction)").count - 1 == 1)
         #expect(card.contains(".keyboardShortcut(.cancelAction)"))
+
+        #expect(keyboardShortcutsAreButtonScoped(in: editor))
+        #expect(keyboardShortcutsAreButtonScoped(in: card))
+        #expect(!keyboardShortcutsAreButtonScoped(in: "TextField(\"Row\", text: $row).keyboardShortcut(.defaultAction)"))
     }
 
     @Test func counterManagerHasNoLegacyCreationAffordanceButKeepsSecondaryEditLink() throws {
@@ -153,5 +165,22 @@ import Testing
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         return try String(contentsOf: repositoryRoot.appending(path: path), encoding: .utf8)
+    }
+
+    private func keyboardShortcutsAreButtonScoped(in source: String) -> Bool {
+        var searchStart = source.startIndex
+        while let shortcut = source.range(
+            of: ".keyboardShortcut(",
+            range: searchStart..<source.endIndex
+        ) {
+            let prefix = source[..<shortcut.lowerBound]
+            guard let button = prefix.range(of: "Button", options: .backwards) else { return false }
+            if let textField = prefix.range(of: "TextField", options: .backwards),
+               textField.lowerBound > button.lowerBound {
+                return false
+            }
+            searchStart = shortcut.upperBound
+        }
+        return true
     }
 }

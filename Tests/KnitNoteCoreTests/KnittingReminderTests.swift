@@ -33,6 +33,58 @@ import Testing
         #expect(KnittingReminder(counterID: id, draft: .repeating(kind: .cable, firstTarget: 8, interval: 4, limit: 0, text: nil), createdAt: .now) == nil)
     }
 
+    @Test func draftInputValidationIdentifiesTheExactInvalidBoundaryField() {
+        #expect(KnittingReminderDraftValidation.issue(
+            firstTarget: 0,
+            isRepeating: false,
+            interval: nil,
+            hasFiniteLimit: false,
+            limit: nil
+        ) == nil)
+        #expect(KnittingReminderDraftValidation.issue(
+            firstTarget: -1,
+            isRepeating: false,
+            interval: nil,
+            hasFiniteLimit: false,
+            limit: nil
+        ) == .firstTarget)
+        #expect(KnittingReminderDraftValidation.issue(
+            firstTarget: 8,
+            isRepeating: true,
+            interval: 0,
+            hasFiniteLimit: false,
+            limit: nil
+        ) == .interval)
+        #expect(KnittingReminderDraftValidation.issue(
+            firstTarget: 8,
+            isRepeating: true,
+            interval: -1,
+            hasFiniteLimit: false,
+            limit: nil
+        ) == .interval)
+        #expect(KnittingReminderDraftValidation.issue(
+            firstTarget: 8,
+            isRepeating: true,
+            interval: 1,
+            hasFiniteLimit: true,
+            limit: 0
+        ) == .limit)
+        #expect(KnittingReminderDraftValidation.issue(
+            firstTarget: 8,
+            isRepeating: true,
+            interval: 1,
+            hasFiniteLimit: true,
+            limit: -1
+        ) == .limit)
+        #expect(KnittingReminderDraftValidation.issue(
+            firstTarget: 8,
+            isRepeating: true,
+            interval: 1,
+            hasFiniteLimit: true,
+            limit: 1
+        ) == nil)
+    }
+
     @Test func deferredOccurrenceReturnsOnceOnTheNextUpwardRow() throws {
         var reminder = try #require(KnittingReminder(
             counterID: UUID(),

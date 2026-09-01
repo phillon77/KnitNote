@@ -2,7 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     "knittingReminder.kind.increase" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "System name for the semantic reminder kind that tells the knitter to increase stitches; never used for the optional user note.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Udtagning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Zunehmen" } },
@@ -20,7 +20,7 @@
       }
     },
     "knittingReminder.kind.decrease" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "System name for the semantic reminder kind that tells the knitter to decrease stitches; never replaces user-entered text.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Indtagning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Abnehmen" } },
@@ -38,7 +38,7 @@
       }
     },
     "knittingReminder.kind.changeYarn" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "System name for the semantic reminder kind that tells the knitter to change yarn or color; user notes remain verbatim.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Skift garn" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Garn wechseln" } },
@@ -56,7 +56,7 @@
       }
     },
     "knittingReminder.kind.cable" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "System name for the semantic reminder kind that tells the knitter to work a cable stitch pattern.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Snoning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Zopfmuster" } },
@@ -74,7 +74,7 @@
       }
     },
     "knittingReminder.kind.buttonhole" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "System name for the semantic reminder kind that tells the knitter to make a buttonhole.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Knaphul" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Knopfloch" } },
@@ -92,7 +92,7 @@
       }
     },
     "knittingReminder.kind.measure" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "System name for the semantic reminder kind that tells the knitter to measure the work.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Mål" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Messen" } },
@@ -110,7 +110,7 @@
       }
     },
     "knittingReminder.kind.custom" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "System name for a custom reminder kind; the separate user-authored note must remain untranslated.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Egen påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Eigene Erinnerung" } },
@@ -128,7 +128,7 @@
       }
     },
     "knittingReminder.list.title" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Navigation title for the project-level smart knitting reminder list.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelser" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungen" } },
@@ -146,7 +146,7 @@
       }
     },
     "knittingReminder.section.active" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Section heading for reminder rules that are still active and may schedule occurrences.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Aktive" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
@@ -164,7 +164,7 @@
       }
     },
     "knittingReminder.section.ended" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Section heading for reminder rules that have completed or were manually stopped.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Afsluttede" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Beendet" } },
@@ -182,7 +182,7 @@
       }
     },
     "knittingReminder.next" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Next-target summary for a reminder rule. %lld is the next target row number.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Næste pind %lld" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Nächste Reihe %lld" } },
@@ -200,7 +200,7 @@
       }
     },
     "knittingReminder.next.none" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Next-target summary when a reminder rule has no future scheduled row.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Ingen næste pind" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Keine nächste Reihe" } },
@@ -218,7 +218,7 @@
       }
     },
     "knittingReminder.rule.oneTime" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "One-time reminder rule summary. %lld is the absolute target row number for its sole occurrence.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Én gang på pind %lld" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmal in Reihe %lld" } },
@@ -236,7 +236,7 @@
       }
     },
     "knittingReminder.rule.repeating" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Unlimited repeating-rule summary. %1$lld is the first target row; %2$lld is the row interval.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Fra pind %1$lld, hver %2$lld. pind" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Ab Reihe %1$lld, alle %2$lld Reihen" } },
@@ -254,7 +254,7 @@
       }
     },
     "knittingReminder.rule.repeating.limited" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Finite repeating-rule summary. %1$lld is the first target row; %2$lld is the row interval; %3$lld is the total occurrence limit.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Fra pind %1$lld, hver %2$lld. pind, %3$lld gange" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Ab Reihe %1$lld, alle %2$lld Reihen, %3$lld-mal" } },
@@ -272,11 +272,11 @@
       }
     },
     "knittingReminder.card.complete" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Primary queue-card button that completes the currently presented reminder occurrence, not the entire rule.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Færdig" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Fertig" } },
-        "el" : { "stringUnit" : { "state" : "translated", "value" : "Τέλος" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ολοκλήρωση" } },
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete" } },
         "fi" : { "stringUnit" : { "state" : "translated", "value" : "Valmis" } },
         "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminé" } },
@@ -290,7 +290,7 @@
       }
     },
     "knittingReminder.card.complete.hint" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Accessibility hint explaining that Complete handles only the current reminder occurrence.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Markerer denne påmindelse som fuldført." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Markiert dieses Erinnerungsvorkommen als abgeschlossen." } },
@@ -308,25 +308,25 @@
       }
     },
     "knittingReminder.card.defer" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Initial-phase queue-card button that defers the current occurrence until the next upward row change.",
       "localizations" : {
-        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmind næste pind" } },
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nächste Reihe erinnern" } },
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmind på næste pind" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "In der nächsten Reihe erinnern" } },
         "el" : { "stringUnit" : { "state" : "translated", "value" : "Υπενθύμιση στην επόμενη σειρά" } },
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Remind Next Row" } },
         "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistuta seuraavalla kerroksella" } },
         "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rappel au rang suivant" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の段で再通知" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 단에 알림" } },
-        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminn neste rad" } },
-        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinner volgende toer" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminn på neste rad" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinner bij de volgende toer" } },
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminn nästa varv" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一行再提醒" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一段再提醒" } }
       }
     },
     "knittingReminder.card.defer.hint" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Accessibility hint explaining that the current occurrence will be shown again after the next row.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Viser denne påmindelse igen efter næste pind." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Zeigt diese Erinnerung nach der nächsten Reihe erneut." } },
@@ -344,7 +344,7 @@
       }
     },
     "knittingReminder.card.skip" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Deferred-phase queue-card button that skips this occurrence once without stopping its rule.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Spring over denne gang" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diesmal überspringen" } },
@@ -362,7 +362,7 @@
       }
     },
     "knittingReminder.card.skip.hint" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Accessibility hint explaining that Skip affects only the deferred occurrence currently shown.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Springer kun denne påmindelse over." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Überspringt nur dieses Erinnerungsvorkommen." } },
@@ -380,7 +380,7 @@
       }
     },
     "knittingReminder.card.stop" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Destructive queue-card menu action that stops the whole reminder rule from scheduling again.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Stop påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung stoppen" } },
@@ -398,7 +398,7 @@
       }
     },
     "knittingReminder.card.stop.hint" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Accessibility hint for the rule-level Stop action, distinct from completing or skipping one occurrence.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Forhindrer reglen i at oprette flere påmindelser." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Verhindert, dass diese Regel weitere Erinnerungen erstellt." } },
@@ -416,7 +416,7 @@
       }
     },
     "knittingReminder.card.stop.confirm" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Confirmation-dialog question before stopping a queue card's entire reminder rule.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du stoppe denne påmindelsesregel?" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerungsregel stoppen?" } },
@@ -434,7 +434,7 @@
       }
     },
     "knittingReminder.card.more" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Label for the queue card overflow menu that contains the rule-level Stop action.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Mere" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Mehr" } },
@@ -452,7 +452,7 @@
       }
     },
     "knittingReminder.card.queue" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Queue position format. %1$lld is the current occurrence position; %2$lld is the total visible occurrence count.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld af %2$lld" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld von %2$lld" } },
@@ -470,7 +470,7 @@
       }
     },
     "knittingReminder.card.target" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Queue-card target format. %lld is the occurrence's original target row number, even after deferral.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Pind %lld" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihe %lld" } },
@@ -488,7 +488,7 @@
       }
     },
     "knittingReminder.card.phase.initial" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Spoken phase name for an occurrence being presented for the first time.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Første visning" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erste Anzeige" } },
@@ -506,7 +506,7 @@
       }
     },
     "knittingReminder.card.phase.deferred" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Spoken phase name for an occurrence that was deferred once and cannot be deferred again.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Udsat én gang" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmal verschoben" } },
@@ -524,7 +524,7 @@
       }
     },
     "knittingReminder.card.accessibility.summary" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Combined VoiceOver summary for the non-action card content. %1$@ is the localized kind; %2$@ is the verbatim user note; %3$@ is the localized original target; %4$@ is the localized phase; %5$@ is the localized queue position.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Type: %1$@; note: %2$@; %3$@; fase: %4$@; kø: %5$@" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Typ: %1$@; Notiz: %2$@; %3$@; Phase: %4$@; Warteschlange: %5$@" } },
@@ -542,7 +542,7 @@
       }
     },
     "knittingReminder.list.unavailable" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Read-only list message shown when the requested project cannot be loaded.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Projektet er ikke tilgængeligt" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Projekt nicht verfügbar" } },
@@ -560,7 +560,7 @@
       }
     },
     "knittingReminder.list.add" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Button label for creating a new reminder bound to the project's main counter.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Tilføj påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung hinzufügen" } },
@@ -578,7 +578,7 @@
       }
     },
     "knittingReminder.state.active" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Visible non-color state label for a reminder rule that can still schedule occurrences.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
@@ -596,7 +596,7 @@
       }
     },
     "knittingReminder.state.completed" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Visible non-color state label for a reminder rule whose finite schedule is complete.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Fuldført" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Abgeschlossen" } },
@@ -614,7 +614,7 @@
       }
     },
     "knittingReminder.state.stopped" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Visible non-color state label for a reminder rule the user manually stopped.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Stoppet" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Gestoppt" } },
@@ -632,7 +632,7 @@
       }
     },
     "knittingReminder.secondaryCounter" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Migrated-rule label. %@ is the localized display name of the original secondary counter; it is not a project name or rule name.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Oprindelig tæller: %@" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Ursprünglicher Zähler: %@" } },
@@ -650,7 +650,7 @@
       }
     },
     "knittingReminder.editor.title.new" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Navigation title for the editor while creating a new main-counter reminder rule.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Ny påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Neue Erinnerung" } },
@@ -668,7 +668,7 @@
       }
     },
     "knittingReminder.editor.title.edit" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Navigation title for atomically replacing an existing reminder rule's settings.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Rediger påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung bearbeiten" } },
@@ -686,7 +686,7 @@
       }
     },
     "knittingReminder.editor.kind" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor picker label for choosing one of the seven semantic reminder kinds.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelsestype" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungstyp" } },
@@ -704,7 +704,7 @@
       }
     },
     "knittingReminder.editor.note" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor field label for an optional user-authored reminder note; the entered value is never translated.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Valgfri note" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Optionale Notiz" } },
@@ -722,7 +722,7 @@
       }
     },
     "knittingReminder.editor.schedule" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor segmented-picker label for choosing the schedule type, distinct from the numeric row interval.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelsesplan" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungsplan" } },
@@ -734,13 +734,13 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 일정" } },
         "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsesplan" } },
         "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinneringsschema" } },
-        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsesintervall" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsetyp" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒计划" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒排程" } }
       }
     },
     "knittingReminder.editor.schedule.oneTime" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor schedule option for a rule that produces exactly one occurrence.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Én gang" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmalig" } },
@@ -758,7 +758,7 @@
       }
     },
     "knittingReminder.editor.schedule.repeating" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor schedule option for a rule that repeats at a positive row interval.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Gentagende" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Wiederholend" } },
@@ -776,7 +776,7 @@
       }
     },
     "knittingReminder.editor.firstRow" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor field label for the absolute first target row; valid whole-number values begin at 0.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Første pind" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erste Reihe" } },
@@ -794,7 +794,7 @@
       }
     },
     "knittingReminder.editor.interval" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor field label for the repeating row interval; valid whole-number values begin at 1.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Pindeinterval" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihenintervall" } },
@@ -812,7 +812,7 @@
       }
     },
     "knittingReminder.editor.limited" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor toggle label that changes a repeating rule from unlimited to a finite occurrence count.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Begræns gentagelser" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Wiederholungen begrenzen" } },
@@ -830,7 +830,7 @@
       }
     },
     "knittingReminder.editor.limit" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor field label for a finite rule's total number of occurrences; valid whole numbers begin at 1.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Antal gange" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Anzahl" } },
@@ -848,7 +848,7 @@
       }
     },
     "knittingReminder.editor.summary" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Editor section heading above the complete locale-aware rule preview and verbatim user note.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Oversigt" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Zusammenfassung" } },
@@ -866,25 +866,25 @@
       }
     },
     "knittingReminder.editor.validation" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Field-adjacent validation copy: first target must be a whole number at least 0; repeating interval and finite occurrence count must be whole numbers at least 1.",
       "localizations" : {
-        "da" : { "stringUnit" : { "state" : "translated", "value" : "Indtast hele pindetal, der er større end eller lig med nul." } },
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib für Reihen ganze Zahlen größer oder gleich null ein." } },
-        "el" : { "stringUnit" : { "state" : "translated", "value" : "Εισαγάγετε ακέραιες τιμές σειρών μεγαλύτερες ή ίσες με μηδέν." } },
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter whole-number row values greater than or equal to zero." } },
-        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Anna kerrosarvoiksi kokonaislukuja, jotka ovat vähintään nolla." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez des nombres entiers de rangs supérieurs ou égaux à zéro." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "段数には0以上の整数を入力してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "단 수에는 0 이상의 정수를 입력하세요." } },
-        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Skriv inn hele radtall som er større enn eller lik null." } },
-        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Voer gehele toerwaarden in die groter dan of gelijk aan nul zijn." } },
-        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ange heltal för varv som är större än eller lika med noll." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入大于或等于零的整数行数。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入大於或等於零的整數段數。" } }
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Første pind skal være et heltal fra og med 0. Interval og antal gange skal være heltal fra og med 1." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die erste Reihe muss eine ganze Zahl ab 0 sein. Intervall und Anzahl müssen ganze Zahlen ab 1 sein." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Η πρώτη σειρά πρέπει να είναι ακέραιος αριθμός από 0 και πάνω. Το διάστημα και ο αριθμός επαναλήψεων πρέπει να είναι ακέραιοι από 1 και πάνω." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "First row must be a whole number that is at least 0. Interval and number of times must be whole numbers that are at least 1." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Ensimmäisen kerroksen on oltava kokonaisluku, joka on vähintään 0. Välin ja kertojen määrän on oltava kokonaislukuja, jotka ovat vähintään 1." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le premier rang doit être un entier supérieur ou égal à 0. L’intervalle et le nombre de fois doivent être des entiers supérieurs ou égaux à 1." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "最初の段は0以上の整数、間隔と回数は1以上の整数で入力してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첫 단은 0 이상의 정수여야 합니다. 간격과 횟수는 1 이상의 정수여야 합니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Første rad må være et heltall fra og med 0. Intervall og antall ganger må være heltall fra og med 1." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "De eerste toer moet een geheel getal van 0 of hoger zijn. Het interval en het aantal keren moeten gehele getallen van 1 of hoger zijn." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Första varvet måste vara ett heltal från 0. Intervall och antal gånger måste vara heltal från 1." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第一行须为 0 以上的整数；间隔和次数须为 1 以上的整数。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第一段須為 0 以上的整數；間隔與次數須為 1 以上的整數。" } }
       }
     },
     "knittingReminder.action.stop" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Reminder-list action label for stopping a complete rule, not completing its current occurrence.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Stop påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung stoppen" } },
@@ -902,7 +902,7 @@
       }
     },
     "knittingReminder.action.reset" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Reminder-list action label for resetting only the latest completed or skipped occurrence.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Nulstil påmindelse" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung zurücksetzen" } },
@@ -920,7 +920,7 @@
       }
     },
     "knittingReminder.action.delete" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Destructive reminder-list action label for deleting the rule and its pending occurrences.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Slet" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Löschen" } },
@@ -938,7 +938,7 @@
       }
     },
     "knittingReminder.confirm.stop" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Reminder-list confirmation question before stopping a rule and preserving its history.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du stoppe denne påmindelsesregel?" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerungsregel stoppen?" } },
@@ -956,7 +956,7 @@
       }
     },
     "knittingReminder.confirm.reset" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Reminder-list confirmation question before recreating the latest handled occurrence as pending.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du nulstille den senest fuldførte eller oversprungne forekomst?" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Das letzte abgeschlossene oder übersprungene Vorkommen zurücksetzen?" } },
@@ -974,7 +974,7 @@
       }
     },
     "knittingReminder.confirm.delete" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Reminder-list confirmation question before deleting a rule and all of its pending occurrences.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du slette denne påmindelse og dens ventende forekomster?" } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung und ihre ausstehenden Vorkommen löschen?" } },
@@ -992,7 +992,7 @@
       }
     },
     "knittingReminder.error.invalid" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Error shown when a reminder draft or persisted reminder state fails domain validation.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelsesindstillingerne er ugyldige." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Die Erinnerungseinstellungen sind ungültig." } },
@@ -1010,7 +1010,7 @@
       }
     },
     "knittingReminder.error.stale" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Recovery error shown when an occurrence or rule revision changed after this UI captured it.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Denne påmindelse blev ændret et andet sted. Åbn den igen, og prøv igen." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung wurde an anderer Stelle geändert. Öffne sie erneut und versuche es noch einmal." } },
@@ -1028,7 +1028,7 @@
       }
     },
     "knittingReminder.error.unavailable" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Error shown when the reminder being edited or acted on was deleted or can no longer be found.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Denne påmindelse er ikke længere tilgængelig." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung ist nicht mehr verfügbar." } },
@@ -1046,7 +1046,7 @@
       }
     },
     "knittingReminder.error.accessRestricted" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Entitlement error shown when reminder mutations require KnitNote to be unlocked.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Lås KnitNote op for at ændre påmindelser." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Entsperre KnitNote, um Erinnerungen zu ändern." } },
@@ -1064,7 +1064,7 @@
       }
     },
     "knittingReminder.error.save" : {
-      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "comment" : "Generic persistence error shown after a reminder mutation could not be saved atomically.",
       "localizations" : {
         "da" : { "stringUnit" : { "state" : "translated", "value" : "Denne påmindelse kunne ikke gemmes. Prøv igen." } },
         "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung konnte nicht gespeichert werden. Versuche es erneut." } },

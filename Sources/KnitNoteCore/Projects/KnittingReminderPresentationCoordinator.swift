@@ -11,6 +11,24 @@ public struct KnittingReminderPresentation: Identifiable, Equatable, Sendable {
     public var phase: KnittingReminderOccurrencePhase { occurrence.phase }
 }
 
+public struct KnittingReminderAccessibilityProjection: Equatable, Sendable {
+    public let kind: KnittingReminderKind
+    public let note: String
+    public let originalTarget: Int
+    public let phase: KnittingReminderOccurrencePhase
+    public let currentIndex: Int
+    public let totalCount: Int
+
+    public init(presentation: KnittingReminderPresentation) {
+        kind = presentation.occurrence.kind
+        note = presentation.occurrence.text ?? ""
+        originalTarget = presentation.occurrence.originalTarget
+        phase = presentation.phase
+        currentIndex = presentation.currentIndex
+        totalCount = presentation.totalCount
+    }
+}
+
 public struct KnittingReminderPresentationCoordinator: Sendable {
     public private(set) var current: KnittingReminderPresentation?
     public private(set) var totalCount = 0

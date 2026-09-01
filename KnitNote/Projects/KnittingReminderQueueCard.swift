@@ -19,24 +19,7 @@ struct KnittingReminderQueueCard: View {
             if let current {
                 WatercolorCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Label {
-                            Text(verbatim: KnittingReminderSummary.kind(current.occurrence.kind, locale: locale))
-                        } icon: {
-                            Image(systemName: "bell.fill")
-                        }
-                        .font(.headline)
-
-                        if let text = current.occurrence.text, !text.isEmpty {
-                            Text(verbatim: text)
-                        }
-
-                        Text(verbatim: queueCopy(for: current))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        Text(verbatim: targetCopy(for: current))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        summaryContent(for: current)
 
                         ViewThatFits(in: .horizontal) {
                             HStack(spacing: 12) { actionButtons(for: current) }
@@ -63,8 +46,6 @@ struct KnittingReminderQueueCard: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(Text(verbatim: accessibilitySummary(for: current)))
                 .sensoryFeedback(.impact(weight: .light), trigger: hapticOccurrenceID)
                 .confirmationDialog(
                     Text(verbatim: cardCopy("knittingReminder.card.stop.confirm")),
@@ -110,6 +91,32 @@ struct KnittingReminderQueueCard: View {
                 current = nil
             }
         }
+    }
+
+    @ViewBuilder
+    private func summaryContent(for current: KnittingReminderPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label {
+                Text(verbatim: KnittingReminderSummary.kind(current.occurrence.kind, locale: locale))
+            } icon: {
+                Image(systemName: "bell.fill")
+            }
+            .font(.headline)
+
+            if let text = current.occurrence.text, !text.isEmpty {
+                Text(verbatim: text)
+            }
+
+            Text(verbatim: queueCopy(for: current))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text(verbatim: targetCopy(for: current))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: accessibilitySummary(for: current)))
     }
 
     @ViewBuilder
@@ -214,17 +221,29 @@ struct KnittingReminderQueueCard: View {
     }
 
     private func accessibilitySummary(for current: KnittingReminderPresentation) -> String {
-        let phase = current.phase == .initial
+        let projection = KnittingReminderAccessibilityProjection(presentation: current)
+        let phase = projection.phase == .initial
             ? LocaleAwareText.string("knittingReminder.card.phase.initial", locale: locale)
             : LocaleAwareText.string("knittingReminder.card.phase.deferred", locale: locale)
+        let target = LocaleAwareText.format(
+            "knittingReminder.card.target",
+            locale: locale,
+            projection.originalTarget
+        )
+        let position = LocaleAwareText.format(
+            "knittingReminder.card.queue",
+            locale: locale,
+            projection.currentIndex,
+            projection.totalCount
+        )
         return LocaleAwareText.format(
             "knittingReminder.card.accessibility.summary",
             locale: locale,
-            KnittingReminderSummary.kind(current.occurrence.kind, locale: locale),
-            current.occurrence.text ?? "",
-            targetCopy(for: current),
+            KnittingReminderSummary.kind(projection.kind, locale: locale),
+            projection.note,
+            target,
             phase,
-            queueCopy(for: current)
+            position
         )
     }
 

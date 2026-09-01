@@ -1317,8 +1317,8 @@ final class PatternLibraryDeletionTransaction {
         }
 
         let rejection: WatchCommandRejection?
-        if (command.schemaVersion != WatchCounterCommand.currentSchemaVersion
-            && command.schemaVersion != 2)
+        if !(command.schemaVersion == WatchCounterCommand.currentSchemaVersion
+                || command.isTrustedLegacyWatchUICommand)
             || !command.hasValidPayload {
             rejection = .unsupportedSchema
         } else if let project = project(id: command.projectID) {
@@ -1332,10 +1332,15 @@ final class PatternLibraryDeletionTransaction {
                     case .completeReminder:
                         if let reminderID = command.reminderID,
                            let observedPendingCount = command.observedPendingCount,
-                           command.schemaVersion == 2,
-                           project.knittingReminders.contains(where: {
-                               $0.id == reminderID && $0.counterID == counter.id
-                                   && $0.progress.pending.count == observedPendingCount
+                           let occurrenceID = command.legacyOccurrenceIDForCompatibility,
+                           let revision = command.legacyObservedMutationRevisionForCompatibility,
+                           command.isTrustedLegacyWatchUICommand,
+                           project.knittingReminders.contains(where: { reminder in
+                               reminder.id == reminderID && reminder.counterID == counter.id
+                                   && reminder.state == .active
+                                   && reminder.mutationRevision == revision
+                                   && reminder.visibleOccurrences(at: counter.value).count == observedPendingCount
+                                   && reminder.visibleOccurrences(at: counter.value).contains(where: { $0.id == occurrenceID })
                            }) {
                             nil
                         } else {
@@ -1345,9 +1350,14 @@ final class PatternLibraryDeletionTransaction {
                         .reminderMismatch
                     case .stopReminder:
                         if let reminderID = command.reminderID,
-                           command.schemaVersion == 2,
-                           project.knittingReminders.contains(where: {
-                               $0.id == reminderID && $0.counterID == counter.id && $0.state == .active
+                           let occurrenceID = command.legacyOccurrenceIDForCompatibility,
+                           let revision = command.legacyObservedMutationRevisionForCompatibility,
+                           command.isTrustedLegacyWatchUICommand,
+                           project.knittingReminders.contains(where: { reminder in
+                               reminder.id == reminderID && reminder.counterID == counter.id
+                                   && reminder.state == .active
+                                   && reminder.mutationRevision == revision
+                                   && reminder.visibleOccurrences(at: counter.value).contains(where: { $0.id == occurrenceID })
                            }) {
                             nil
                         } else {
@@ -1385,21 +1395,29 @@ final class PatternLibraryDeletionTransaction {
                     .validateKnittingReminderEvaluation()
             case .completeReminder:
                 if let reminderID = command.reminderID,
-                   let observedPendingCount = command.observedPendingCount {
-                    project.completeCounterReminder(
+                   let observedPendingCount = command.observedPendingCount,
+                   let occurrenceID = command.legacyOccurrenceIDForCompatibility,
+                   let revision = command.legacyObservedMutationRevisionForCompatibility {
+                    project.completeLegacyWatchVisibleReminder(
                         id: command.counterID,
                         reminderID: reminderID,
-                        observedCount: observedPendingCount,
+                        occurrenceID: occurrenceID,
+                        observedRevision: revision,
+                        observedVisibleCount: observedPendingCount,
                         now: now
                     )
                 }
             case .deferReminderOnce, .skipReminder:
                 break
             case .stopReminder:
-                if let reminderID = command.reminderID {
-                    project.stopCounterReminder(
+                if let reminderID = command.reminderID,
+                   let occurrenceID = command.legacyOccurrenceIDForCompatibility,
+                   let revision = command.legacyObservedMutationRevisionForCompatibility {
+                    project.stopLegacyWatchVisibleReminder(
                         id: command.counterID,
                         reminderID: reminderID,
+                        occurrenceID: occurrenceID,
+                        observedRevision: revision,
                         now: now
                     )
                 }

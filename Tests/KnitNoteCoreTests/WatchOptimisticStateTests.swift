@@ -3,6 +3,56 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchOptimisticStateTests {
+    @Test func legacyCardBridgeQueuesOnlyTokenBoundCompletionAndDeliversIt() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let occurrence = try #require(reminder.pending.first)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        let project = try #require(snapshot.projects.first)
+        let card = WatchCounterReminderSnapshot(
+            id: reminder.id, nextTarget: nil,
+            pending: .init(reminderID: reminder.id, occurrenceCount: 1, firstTarget: 12, lastTarget: 12),
+            message: reminder.text, isActive: true,
+            occurrenceID: occurrence.id, observedMutationRevision: reminder.mutationRevision
+        )
+        let counters = project.counters.map {
+            $0.id == fixture.counterID
+                ? WatchCounterSnapshot(id: $0.id, name: $0.name, value: $0.value, reminder: card)
+                : $0
+        }
+        let bridged = WatchSyncSnapshot(
+            generatedAt: snapshot.generatedAt, entitlement: snapshot.entitlement,
+            projects: [try WatchProjectSnapshot(
+                id: project.id, name: project.name, isCompleted: project.isCompleted,
+                updatedAt: project.updatedAt, counters: counters,
+                selectedCounterID: project.selectedCounterID,
+                knittingReminders: project.knittingReminders
+            )]
+        )
+        let command = try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .completeReminder, reminderID: reminder.id,
+            observedPendingCount: 1, occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision
+        ))
+        var state = WatchOptimisticState(cache: .init(snapshot: bridged, pendingCommands: []))
+
+        #expect(state.enqueue(command) == nil)
+        #expect(state.nextDeliverableCommand(now: Date(timeIntervalSince1970: 40)) == command)
+    }
+
+    @Test func oldTokenlessLegacyCardCommandIsDiscardedBeforeDelivery() throws {
+        let fixture = try Fixture(value: 12)
+        let oldCommand = WatchCounterCommand(
+            schemaVersion: 2, projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .completeReminder, reminderID: UUID(), observedPendingCount: 1
+        )
+        let state = WatchOptimisticState(cache: .init(snapshot: fixture.snapshot, pendingCommands: [oldCommand]))
+
+        #expect(state.pendingCommands.isEmpty)
+        #expect(state.nextDeliverableCommand(now: Date(timeIntervalSince1970: 40)) == nil)
+    }
+
     @Test func reminderActionDoesNotQueueBehindSameCounterMutation() throws {
         let fixture = try Fixture(value: 12)
         let reminder = try fixture.knittingReminder(phase: .initial)
@@ -631,6 +681,9 @@ import Testing
         #expect(coordinator.contains("func increment(projectID: UUID, counterID: UUID)"))
         #expect(coordinator.contains("func decrement(projectID: UUID, counterID: UUID)"))
         #expect(coordinator.contains("func reset(projectID: UUID, counterID: UUID)"))
+        #expect(coordinator.contains("legacyCompatibilityToken("))
+        #expect(coordinator.contains("requestSnapshotInBackground()"))
+        #expect(coordinator.contains("occurrenceID: token.occurrenceID"))
 
         let save = try #require(coordinator.range(of: "try cacheFile.save(candidate.cache)"))
         let publish = try #require(coordinator.range(of: "publish(candidate)", range: save.upperBound..<coordinator.endIndex))

@@ -64,6 +64,39 @@ import Testing
         #expect(reminder.pending.map(\.text) == ["Change yarn"])
         #expect(reminder.mutationRevision > 0)
         #expect(snapshot.projects[0].counters[0].reminder?.id == reminderID)
+        #expect(snapshot.projects[0].counters[0].reminder?.legacyOccurrenceID == reminder.pending.first?.id)
+        #expect(snapshot.projects[0].counters[0].reminder?.legacyObservedMutationRevision == reminder.mutationRevision)
+    }
+
+    @Test @MainActor func legacyCardProjectionHidesDeferredAndResetOccurrences() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        let reminderID = try fixture.store.addKnittingReminder(
+            projectID: project.id,
+            draft: .oneTime(kind: .custom, target: 1, text: nil),
+            now: fixture.now
+        )
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        let pending = try #require(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.pending.first)
+        let revision = try #require(fixture.store.project(id: project.id)?.knittingReminders.first?.mutationRevision)
+        try fixture.store.applyKnittingReminderAction(
+            projectID: project.id, reminderID: reminderID, occurrenceID: pending.id,
+            observedRevision: revision, action: .deferOnce, now: fixture.now
+        )
+
+        let deferred = try WatchSnapshotBuilder.make(
+            projects: fixture.store.projects, entitlement: .permanentlyUnlocked,
+            locale: Locale(identifier: "en"), generatedAt: fixture.now
+        )
+        #expect(deferred.projects[0].counters[0].reminder == nil)
+
+        try fixture.store.resetCounter(projectID: project.id, counterID: counterID)
+        let reset = try WatchSnapshotBuilder.make(
+            projects: fixture.store.projects, entitlement: .permanentlyUnlocked,
+            locale: Locale(identifier: "en"), generatedAt: fixture.now
+        )
+        #expect(reset.projects[0].counters[0].reminder == nil)
     }
 
     @Test func counterDisplayNameUsesCustomNameOrLocalizedDefaultFormat() {
@@ -189,6 +222,7 @@ import Testing
         try fixture.store.configureCounterReminder(projectID: project.id, counterID: counterID, draft: .oneTime(target: 1, message: nil))
         try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
         let reminder = try #require(fixture.store.project(id: project.id)?.knittingReminders.first)
+        let occurrence = try #require(reminder.progress.pending.first)
         var ledger = ProcessedWatchCommandLedger()
         let command = try #require(WatchCounterCommand.legacyWatchUICommand(
             id: UUID(),
@@ -196,7 +230,9 @@ import Testing
             counterID: counterID,
             operation: .completeReminder,
             reminderID: reminder.id,
-            observedPendingCount: 1
+            observedPendingCount: 1,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision
         ))
 
         _ = try fixture.store.applyWatchCommand(command, ledger: &ledger, now: fixture.now)
@@ -220,7 +256,9 @@ import Testing
             counterID: counterID,
             operation: .completeReminder,
             reminderID: UUID(),
-            observedPendingCount: 1
+            observedPendingCount: 1,
+            occurrenceID: UUID(),
+            observedMutationRevision: 0
         ))
 
         let acknowledgement = try fixture.store.applyWatchCommand(
@@ -233,6 +271,39 @@ import Testing
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.pending.count == 1)
     }
 
+    @Test @MainActor func legacyCardTokenRejectsSameCountRuleReplacement() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.configureCounterReminder(
+            projectID: project.id, counterID: counterID,
+            draft: .oneTime(target: 1, message: nil)
+        )
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        let before = try #require(fixture.store.project(id: project.id)?.knittingReminders.first)
+        let occurrence = try #require(before.progress.pending.first)
+        let command = try #require(WatchCounterCommand.legacyWatchUICommand(
+            projectID: project.id, counterID: counterID,
+            operation: .completeReminder, reminderID: before.id,
+            observedPendingCount: 1, occurrenceID: occurrence.id,
+            observedMutationRevision: before.mutationRevision
+        ))
+        try fixture.store.updateKnittingReminder(
+            projectID: project.id, reminderID: before.id,
+            observedRevision: before.mutationRevision,
+            draft: .oneTime(kind: .custom, target: 1, text: "replacement"),
+            now: fixture.now
+        )
+        var ledger = ProcessedWatchCommandLedger()
+
+        let acknowledgement = try fixture.store.applyWatchCommand(
+            command, ledger: &ledger, now: fixture.now
+        )
+
+        #expect(acknowledgement.rejection == .reminderMismatch)
+        #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == 0)
+    }
+
     @Test @MainActor func stopWinsOverStaleReminderCompletion() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
@@ -240,13 +311,16 @@ import Testing
         try fixture.store.configureCounterReminder(projectID: project.id, counterID: counterID, draft: .repeating(interval: 1, limit: nil, message: nil))
         try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
         let reminder = try #require(fixture.store.project(id: project.id)?.knittingReminders.first)
+        let occurrence = try #require(reminder.progress.pending.first)
         var ledger = ProcessedWatchCommandLedger()
 
         let stop = try #require(WatchCounterCommand.legacyWatchUICommand(
             projectID: project.id,
             counterID: counterID,
             operation: .stopReminder,
-            reminderID: reminder.id
+            reminderID: reminder.id,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision
         ))
         _ = try fixture.store.applyWatchCommand(stop, ledger: &ledger, now: fixture.now)
         let completion = try #require(WatchCounterCommand.legacyWatchUICommand(
@@ -254,7 +328,9 @@ import Testing
             counterID: counterID,
             operation: .completeReminder,
             reminderID: reminder.id,
-            observedPendingCount: 1
+            observedPendingCount: 1,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision
         ))
         let staleCompletion = try fixture.store.applyWatchCommand(completion, ledger: &ledger, now: fixture.now)
 

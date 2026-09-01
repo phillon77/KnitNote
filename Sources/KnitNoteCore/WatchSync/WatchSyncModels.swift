@@ -13,9 +13,22 @@ public struct WatchCounterReminderSnapshot: Codable, Equatable, Sendable {
     public let pending: CounterReminderPending?
     public let message: String?
     public let isActive: Bool
+    /// Task-8 bridge token. Missing tokens identify old cache data and are
+    /// intentionally non-mutable until a fresh snapshot arrives.
+    private let occurrenceID: UUID?
+    private let observedMutationRevision: UInt64?
+    /// Read-only bridge token for the existing Watch card. Callers cannot use
+    /// this to construct an old-schema command.
+    public var legacyOccurrenceID: UUID? { occurrenceID }
+    public var legacyObservedMutationRevision: UInt64? { observedMutationRevision }
     public init(id: UUID, nextTarget: Int?, pending: CounterReminderPending?, message: String?, isActive: Bool) {
+        self.init(id: id, nextTarget: nextTarget, pending: pending, message: message,
+                  isActive: isActive, occurrenceID: nil, observedMutationRevision: nil)
+    }
+    init(id: UUID, nextTarget: Int?, pending: CounterReminderPending?, message: String?, isActive: Bool, occurrenceID: UUID?, observedMutationRevision: UInt64?) {
         self.id = id; self.nextTarget = nextTarget; self.pending = pending
         self.message = message; self.isActive = isActive
+        self.occurrenceID = occurrenceID; self.observedMutationRevision = observedMutationRevision
     }
 
     public init(from decoder: any Decoder) throws {
@@ -29,7 +42,8 @@ public struct WatchCounterReminderSnapshot: Codable, Equatable, Sendable {
               isActive || (nextTarget == nil && pending == nil)
         else { throw WatchSyncValidationError.invalidReminderSnapshot }
         self.init(id: id, nextTarget: nextTarget, pending: pending,
-                  message: try c.decodeIfPresent(String.self, forKey: .message), isActive: isActive)
+                  message: try c.decodeIfPresent(String.self, forKey: .message), isActive: isActive,
+                  occurrenceID: try c.decodeIfPresent(UUID.self, forKey: .occurrenceID), observedMutationRevision: try c.decodeIfPresent(UInt64.self, forKey: .observedMutationRevision))
     }
 }
 
@@ -323,6 +337,8 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     public let reminderPayload: WatchReminderActionPayload?
     private let legacyReminderID: UUID?
     private let legacyObservedPendingCount: Int?
+    private let legacyOccurrenceID: UUID?
+    private let legacyObservedMutationRevision: UInt64?
     public let createdAt: Date
     public var reminderID: UUID? { reminderPayload?.reminderID ?? legacyReminderID }
     public var observedPendingCount: Int? { legacyObservedPendingCount }
@@ -335,8 +351,8 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     }
 
     /// Internal-only compatibility escape hatch for old cache fixture recovery.
-    init(schemaVersion: Int = currentSchemaVersion, id: UUID = UUID(), projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil, reminderID: UUID? = nil, observedPendingCount: Int? = nil, createdAt: Date = .now) {
-        self.init(uncheckedSchemaVersion: schemaVersion, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, reminderID: reminderID, observedPendingCount: observedPendingCount, createdAt: createdAt)
+    init(schemaVersion: Int = currentSchemaVersion, id: UUID = UUID(), projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload? = nil, reminderID: UUID? = nil, observedPendingCount: Int? = nil, occurrenceID: UUID? = nil, observedMutationRevision: UInt64? = nil, createdAt: Date = .now) {
+        self.init(uncheckedSchemaVersion: schemaVersion, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderPayload: reminderPayload, reminderID: reminderID, observedPendingCount: observedPendingCount, occurrenceID: occurrenceID, observedMutationRevision: observedMutationRevision, createdAt: createdAt)
     }
 
     /// Temporary in-module bridge for the shipping legacy Watch card. It cannot
@@ -344,26 +360,37 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     static func legacyWatchUICommand(
         id: UUID = UUID(), projectID: UUID, counterID: UUID,
         operation: WatchCounterOperation, reminderID: UUID,
-        observedPendingCount: Int? = nil, createdAt: Date = .now
+        observedPendingCount: Int? = nil, occurrenceID: UUID, observedMutationRevision: UInt64, createdAt: Date = .now
     ) -> WatchCounterCommand? {
         guard operation == .completeReminder || operation == .stopReminder else { return nil }
-        let command = WatchCounterCommand(schemaVersion: 2, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderID: reminderID, observedPendingCount: observedPendingCount, createdAt: createdAt)
-        return command.hasValidPayload ? command : nil
+        let command = WatchCounterCommand(schemaVersion: 2, id: id, projectID: projectID, counterID: counterID, operation: operation, reminderID: reminderID, observedPendingCount: observedPendingCount, occurrenceID: occurrenceID, observedMutationRevision: observedMutationRevision, createdAt: createdAt)
+        return command.isTrustedLegacyWatchUICommand ? command : nil
     }
 
-    private init(uncheckedSchemaVersion schemaVersion: Int, id: UUID, projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload?, reminderID: UUID?, observedPendingCount: Int?, createdAt: Date) { self.schemaVersion = schemaVersion; self.id = id; self.projectID = projectID; self.counterID = counterID; self.operation = operation; self.reminderPayload = reminderPayload; self.legacyReminderID = reminderID; self.legacyObservedPendingCount = observedPendingCount; self.createdAt = createdAt }
+    private init(uncheckedSchemaVersion schemaVersion: Int, id: UUID, projectID: UUID, counterID: UUID, operation: WatchCounterOperation, reminderPayload: WatchReminderActionPayload?, reminderID: UUID?, observedPendingCount: Int?, occurrenceID: UUID? = nil, observedMutationRevision: UInt64? = nil, createdAt: Date) { self.schemaVersion = schemaVersion; self.id = id; self.projectID = projectID; self.counterID = counterID; self.operation = operation; self.reminderPayload = reminderPayload; self.legacyReminderID = reminderID; self.legacyObservedPendingCount = observedPendingCount; self.legacyOccurrenceID = occurrenceID; self.legacyObservedMutationRevision = observedMutationRevision; self.createdAt = createdAt }
+
+    var isTrustedLegacyWatchUICommand: Bool {
+        schemaVersion == 2 && (operation == .completeReminder || operation == .stopReminder)
+            && legacyReminderID != nil && legacyOccurrenceID != nil && legacyObservedMutationRevision != nil && hasValidPayload
+    }
+    /// These tokens are deliberately internal: only the shipping legacy card
+    /// bridge may use schema 2 while Task 8 is pending.
+    var legacyOccurrenceIDForCompatibility: UUID? { legacyOccurrenceID }
+    var legacyObservedMutationRevisionForCompatibility: UInt64? {
+        legacyObservedMutationRevision
+    }
     public var hasValidPayload: Bool {
         switch schemaVersion {
         case Self.currentSchemaVersion:
             switch operation {
-            case .increment, .decrement, .reset: return reminderPayload == nil && legacyReminderID == nil && legacyObservedPendingCount == nil
-            case .completeReminder, .deferReminderOnce, .skipReminder: return reminderPayload != nil && legacyReminderID == nil && legacyObservedPendingCount == nil
+            case .increment, .decrement, .reset: return reminderPayload == nil && legacyReminderID == nil && legacyObservedPendingCount == nil && legacyOccurrenceID == nil && legacyObservedMutationRevision == nil
+            case .completeReminder, .deferReminderOnce, .skipReminder: return reminderPayload != nil && legacyReminderID == nil && legacyObservedPendingCount == nil && legacyOccurrenceID == nil && legacyObservedMutationRevision == nil
             case .stopReminder: return false
             }
         case 2:
             guard reminderPayload == nil else { return false }
             switch operation {
-            case .increment, .decrement, .reset: return legacyReminderID == nil && legacyObservedPendingCount == nil
+            case .increment, .decrement, .reset: return legacyReminderID == nil && legacyObservedPendingCount == nil && legacyOccurrenceID == nil && legacyObservedMutationRevision == nil
             case .completeReminder: return legacyReminderID != nil && (legacyObservedPendingCount ?? 0) > 0
             case .stopReminder: return legacyReminderID != nil && legacyObservedPendingCount == nil
             case .deferReminderOnce, .skipReminder: return false
@@ -371,7 +398,7 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         default: return false
         }
     }
-    private enum CodingKeys: String, CodingKey { case schemaVersion, id, projectID, counterID, operation, reminderPayload, reminderID, observedPendingCount, createdAt }
+    private enum CodingKeys: String, CodingKey { case schemaVersion, id, projectID, counterID, operation, reminderPayload, reminderID, observedPendingCount, occurrenceID, observedMutationRevision, createdAt }
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
@@ -379,7 +406,7 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         case Self.currentSchemaVersion:
             try self.init(validating: schemaVersion, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: try c.decodeIfPresent(WatchReminderActionPayload.self, forKey: .reminderPayload), reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), createdAt: try c.decode(Date.self, forKey: .createdAt))
         case 2:
-            let command = WatchCounterCommand(schemaVersion: 2, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: nil, reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), createdAt: try c.decode(Date.self, forKey: .createdAt))
+            let command = WatchCounterCommand(schemaVersion: 2, id: try c.decode(UUID.self, forKey: .id), projectID: try c.decode(UUID.self, forKey: .projectID), counterID: try c.decode(UUID.self, forKey: .counterID), operation: try c.decode(WatchCounterOperation.self, forKey: .operation), reminderPayload: nil, reminderID: try c.decodeIfPresent(UUID.self, forKey: .reminderID), observedPendingCount: try c.decodeIfPresent(Int.self, forKey: .observedPendingCount), occurrenceID: try c.decodeIfPresent(UUID.self, forKey: .occurrenceID), observedMutationRevision: try c.decodeIfPresent(UInt64.self, forKey: .observedMutationRevision), createdAt: try c.decode(Date.self, forKey: .createdAt))
             guard command.hasValidPayload else { throw WatchSyncValidationError.invalidCommandPayload }
             self = command
         default:
@@ -396,6 +423,8 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
         try c.encodeIfPresent(reminderPayload, forKey: .reminderPayload)
         try c.encodeIfPresent(legacyReminderID, forKey: .reminderID)
         try c.encodeIfPresent(legacyObservedPendingCount, forKey: .observedPendingCount)
+        try c.encodeIfPresent(legacyOccurrenceID, forKey: .occurrenceID)
+        try c.encodeIfPresent(legacyObservedMutationRevision, forKey: .observedMutationRevision)
         try c.encode(createdAt, forKey: .createdAt)
     }
 }

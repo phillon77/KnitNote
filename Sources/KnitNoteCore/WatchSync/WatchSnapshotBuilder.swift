@@ -37,6 +37,7 @@ public enum WatchSnapshotBuilder {
                             value: counter.value,
                             reminder: Self.legacyCardReminder(
                                 for: counter.id,
+                                counterValue: counter.value,
                                 reminders: reminders
                             )
                         )
@@ -96,22 +97,35 @@ public enum WatchSnapshotBuilder {
     /// never a second stored reminder representation.
     private static func legacyCardReminder(
         for counterID: UUID,
+        counterValue: Int,
         reminders: [WatchKnittingReminderSnapshot]
     ) -> WatchCounterReminderSnapshot? {
-        guard let reminder = reminders.first(where: {
-            $0.counterID == counterID && $0.state == .active
-        }) else { return nil }
-        let pending = reminder.pending
-        let first = pending.map(\.originalTarget).min()
-        let last = pending.map(\.originalTarget).max()
+        let candidates = reminders.compactMap { reminder -> (WatchKnittingReminderSnapshot, [WatchKnittingReminderOccurrenceSnapshot])? in
+            guard reminder.counterID == counterID, reminder.state == .active else { return nil }
+            let visible = reminder.visibleOccurrences(at: counterValue)
+            return visible.isEmpty ? nil : (reminder, visible)
+        }.sorted { lhs, rhs in
+            let leftTarget = lhs.1.map(\.originalTarget).min() ?? .max
+            let rightTarget = rhs.1.map(\.originalTarget).min() ?? .max
+            if leftTarget != rightTarget { return leftTarget < rightTarget }
+            if lhs.0.createdAt != rhs.0.createdAt { return lhs.0.createdAt < rhs.0.createdAt }
+            return lhs.0.id.uuidString < rhs.0.id.uuidString
+        }
+        guard let (reminder, visible) = candidates.first,
+              let occurrence = visible.first
+        else { return nil }
+        let first = visible.map(\.originalTarget).min()
+        let last = visible.map(\.originalTarget).max()
         return WatchCounterReminderSnapshot(
             id: reminder.id,
             nextTarget: reminder.nextTarget,
             pending: first.flatMap { first in
-                last.map { CounterReminderPending(reminderID: reminder.id, occurrenceCount: pending.count, firstTarget: first, lastTarget: $0) }
+                last.map { CounterReminderPending(reminderID: reminder.id, occurrenceCount: visible.count, firstTarget: first, lastTarget: $0) }
             },
             message: reminder.text,
-            isActive: true
+            isActive: true,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: reminder.mutationRevision
         )
     }
 }

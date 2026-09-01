@@ -221,9 +221,23 @@ final class WatchSyncCoordinator: ObservableObject {
         let previouslyVisibleReminderIDs = Self.visiblePendingReminderIDs(in: state.snapshot)
         let command: WatchCounterCommand?
         if let reminderID {
+            guard let token = Self.legacyCompatibilityToken(
+                in: state.snapshot,
+                projectID: projectID,
+                counterID: counterID,
+                reminderID: reminderID
+            ) else {
+                // A schema-3 cached card has no identity token. Never mutate
+                // from it; ask the phone for the schema-4 projection first.
+                setError(.reminderMismatch)
+                requestSnapshotInBackground()
+                return
+            }
             command = WatchCounterCommand.legacyWatchUICommand(
                 projectID: projectID, counterID: counterID, operation: operation,
                 reminderID: reminderID, observedPendingCount: observedPendingCount,
+                occurrenceID: token.occurrenceID,
+                observedMutationRevision: token.observedMutationRevision,
                 createdAt: now()
             )
         } else {
@@ -264,6 +278,22 @@ final class WatchSyncCoordinator: ObservableObject {
         Set(snapshot?.projects.flatMap(\.counters).compactMap {
             $0.reminder?.pending?.reminderID
         } ?? [])
+    }
+
+    private static func legacyCompatibilityToken(
+        in snapshot: WatchSyncSnapshot?,
+        projectID: UUID,
+        counterID: UUID,
+        reminderID: UUID
+    ) -> (occurrenceID: UUID, observedMutationRevision: UInt64)? {
+        guard let reminder = snapshot?.projects.first(where: { $0.id == projectID })?
+            .counters.first(where: { $0.id == counterID })?.reminder,
+              reminder.id == reminderID,
+              reminder.pending != nil,
+              let occurrenceID = reminder.legacyOccurrenceID,
+              let observedMutationRevision = reminder.legacyObservedMutationRevision
+        else { return nil }
+        return (occurrenceID, observedMutationRevision)
     }
 
     @discardableResult

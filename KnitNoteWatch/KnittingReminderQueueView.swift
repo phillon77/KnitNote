@@ -45,7 +45,7 @@ struct KnittingReminderQueueView: View {
         } label: {
             Text(verbatim: copy("watch.reminder.action.complete"))
         }
-        .frame(minHeight: 44)
+        .frame(minWidth: 44, minHeight: 44)
         .disabled(isPending || project.isCompleted || !coordinator.canMutate())
         .accessibilityLabel(Text(verbatim: copy("watch.reminder.action.complete")))
         .accessibilityHint(Text(verbatim: copy("watch.reminder.action.complete.hint")))
@@ -57,7 +57,7 @@ struct KnittingReminderQueueView: View {
             } label: {
                 Text(verbatim: copy("watch.reminder.action.defer"))
             }
-            .frame(minHeight: 44)
+            .frame(minWidth: 44, minHeight: 44)
             .disabled(isPending || project.isCompleted || !coordinator.canMutate())
             .accessibilityLabel(Text(verbatim: copy("watch.reminder.action.defer")))
             .accessibilityHint(Text(verbatim: copy("watch.reminder.action.defer.hint")))
@@ -67,7 +67,7 @@ struct KnittingReminderQueueView: View {
             } label: {
                 Text(verbatim: copy("watch.reminder.action.skip"))
             }
-            .frame(minHeight: 44)
+            .frame(minWidth: 44, minHeight: 44)
             .disabled(isPending || project.isCompleted || !coordinator.canMutate())
             .accessibilityLabel(Text(verbatim: copy("watch.reminder.action.skip")))
             .accessibilityHint(Text(verbatim: copy("watch.reminder.action.skip.hint")))

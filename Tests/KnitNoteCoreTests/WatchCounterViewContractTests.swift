@@ -137,7 +137,7 @@ import Testing
         #expect(queue.contains("reminderID: occurrence.reminderID"))
         #expect(queue.contains("occurrenceID: occurrence.id"))
         #expect(queue.contains("observedRevision: reminder.mutationRevision"))
-        #expect(queue.contains(".frame(minHeight: 44)"))
+        #expect(queue.components(separatedBy: ".frame(minWidth: 44, minHeight: 44)").count - 1 == 3)
         #expect(queue.contains(".disabled(isPending"))
         #expect(queue.contains(".accessibilityLabel("))
         #expect(queue.contains(".accessibilityHint("))

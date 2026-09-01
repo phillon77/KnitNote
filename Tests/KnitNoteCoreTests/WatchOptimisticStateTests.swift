@@ -3,6 +3,50 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchOptimisticStateTests {
+    @Test func reminderActionsOptimisticallyTransformOnlyTheMatchedOccurrence() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: WatchSyncCache(snapshot: snapshot, pendingCommands: []))
+        let occurrence = try #require(reminder.pending.first)
+        let payload = WatchReminderActionPayload(
+            reminderID: reminder.id, occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision
+        )
+
+        #expect(state.enqueue(.init(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .deferReminderOnce, reminderPayload: payload
+        )) == nil)
+        let deferred = try #require(state.snapshot?.projects[0].knittingReminders[0].pending.first)
+        #expect(deferred.phase == .deferredOnce)
+        #expect(deferred.awaitsNextUpwardChange)
+        #expect(state.snapshot?.projects[0].counters[0].value == 12)
+
+        #expect(state.enqueue(fixture.command(.increment)) == nil)
+        let released = try #require(state.snapshot?.projects[0].knittingReminders[0].pending.first)
+        #expect(released.phase == .deferredOnce)
+        #expect(!released.awaitsNextUpwardChange)
+        #expect(released.displayAt == 13)
+    }
+
+    @Test func optimisticReminderActionRejectsStaleOrMissingOccurrence() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: WatchSyncCache(snapshot: snapshot, pendingCommands: []))
+        let payload = WatchReminderActionPayload(
+            reminderID: reminder.id, occurrenceID: UUID(),
+            observedRevision: reminder.mutationRevision
+        )
+
+        #expect(state.enqueue(.init(
+            projectID: fixture.projectID, counterID: fixture.counterID,
+            operation: .completeReminder, reminderPayload: payload
+        )) == .reminderMismatch)
+        #expect(state.pendingCommands.isEmpty)
+    }
+
     @Test func incrementCrossingKnownTargetCreatesOneOptimisticPendingReminder() throws {
         let fixture = try Fixture(value: 4, reminderTarget: 5)
         var state = WatchOptimisticState(cache: fixture.cache)
@@ -12,11 +56,8 @@ import Testing
         let reminder = try #require(
             state.snapshot?.projects[0].counters[0].reminder
         )
-        #expect(reminder.pending?.reminderID == fixture.reminderID)
-        #expect(reminder.pending?.occurrenceCount == 1)
-        #expect(reminder.pending?.firstTarget == 5)
-        #expect(reminder.pending?.lastTarget == 5)
-        #expect(reminder.nextTarget == nil)
+        #expect(reminder.pending == nil)
+        #expect(reminder.nextTarget == 5)
     }
 
     @Test func incrementWithoutReminderSnapshotDoesNotInventReminder() throws {
@@ -42,10 +83,10 @@ import Testing
 
         let reminder = try #require(state.snapshot?.projects[0].counters[0].reminder)
         #expect(reminder.id == fixture.reminderID)
-        #expect(reminder.pending?.occurrenceCount == 2)
+        #expect(reminder.pending?.occurrenceCount == 1)
         #expect(reminder.pending?.firstTarget == 1)
-        #expect(reminder.pending?.lastTarget == 2)
-        #expect(reminder.nextTarget == nil)
+        #expect(reminder.pending?.lastTarget == 1)
+        #expect(reminder.nextTarget == 2)
         #expect(reminder.message == "Turn")
         #expect(reminder.isActive)
     }
@@ -63,9 +104,9 @@ import Testing
         let reloaded = WatchOptimisticState(cache: try roundTrip(state.cache))
         let reminder = try #require(reloaded.snapshot?.projects[0].counters[0].reminder)
 
-        #expect(reminder.pending?.occurrenceCount == 2)
+        #expect(reminder.pending?.occurrenceCount == 1)
         #expect(reminder.pending?.firstTarget == 1)
-        #expect(reminder.pending?.lastTarget == 2)
+        #expect(reminder.pending?.lastTarget == 1)
         #expect(reminder.message == "Turn")
     }
 
@@ -88,12 +129,11 @@ import Testing
             createdAt: Date(timeIntervalSince1970: 30)
         )
 
-        #expect(state.enqueue(complete) == nil)
+        #expect(state.enqueue(complete) == .unsupportedSchema)
         let reloaded = WatchOptimisticState(cache: try roundTrip(state.cache))
 
-        #expect(reloaded.pendingCommands.last == complete)
-        #expect(reloaded.pendingCommands.last?.observedPendingCount == 2)
-        #expect(reloaded.snapshot?.projects[0].counters[0].reminder?.pending == nil)
+        #expect(reloaded.pendingCommands.count == 1)
+        #expect(reloaded.snapshot?.projects[0].counters[0].reminder?.pending?.occurrenceCount == 1)
     }
 
     @Test func optimisticReminderCompletionUsesTheObservedPendingCount() throws {
@@ -107,9 +147,9 @@ import Testing
             observedPendingCount: 1
         )
 
-        #expect(state.enqueue(command) == nil)
+        #expect(state.enqueue(command) == .unsupportedSchema)
 
-        #expect(state.snapshot?.projects[0].counters[0].reminder?.pending == nil)
+        #expect(state.snapshot?.projects[0].counters[0].reminder?.pending?.occurrenceCount == 1)
     }
     @Test func optimisticCounterMutationPreservesSelectedLanguage() throws {
         let fixture = try Fixture(value: 4, languageCode: "ja")
@@ -745,4 +785,42 @@ private func roundTrip(_ cache: WatchSyncCache) throws -> WatchSyncCache {
         WatchSyncCache.self,
         from: WatchSyncCodec.encode(cache)
     )
+}
+
+private extension Fixture {
+    func knittingReminder(
+        phase: KnittingReminderOccurrencePhase
+    ) throws -> WatchKnittingReminderSnapshot {
+        let reminderID = UUID()
+        let occurrence = WatchKnittingReminderOccurrenceSnapshot(
+            id: UUID(), reminderID: reminderID, kind: .cable, text: "原樣文字",
+            originalTarget: 12, displayAt: 12, phase: phase,
+            awaitsNextUpwardChange: false
+        )
+        return try WatchKnittingReminderSnapshot(
+            id: reminderID, counterID: counterID, kind: .cable, text: "原樣文字",
+            rule: .oneTime(target: 12), state: .active, mutationRevision: 4,
+            createdAt: Date(timeIntervalSince1970: 1), scheduledCount: 1,
+            completedCount: 0, skippedCount: 0, nextTarget: nil,
+            nextOccurrenceIndex: 2, lastObservedCounterValue: 12, pending: [occurrence]
+        )
+    }
+
+    func makeSnapshot(
+        value: Int,
+        knittingReminders: [WatchKnittingReminderSnapshot]
+    ) throws -> WatchSyncSnapshot {
+        let counters = counterIDs.enumerated().map { index, id in
+            WatchCounterSnapshot(id: id, name: "Counter \(index + 1)", value: index == 0 ? value : 0)
+        }
+        return WatchSyncSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 30),
+            entitlement: .init(kind: .permanentlyUnlocked, expiresAt: nil, generatedAt: Date(timeIntervalSince1970: 30)),
+            projects: [try WatchProjectSnapshot(
+                id: projectID, name: "Sweater", isCompleted: false,
+                updatedAt: Date(timeIntervalSince1970: 29), counters: counters,
+                selectedCounterID: counterID, knittingReminders: knittingReminders
+            )]
+        )
+    }
 }

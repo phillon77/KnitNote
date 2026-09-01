@@ -277,6 +277,8 @@ private extension PreparedWatchCommand {
             expectedCounterValue == 0
         case .completeReminder, .stopReminder:
             false
+        case .deferReminderOnce, .skipReminder:
+            false
         }
     }
 }

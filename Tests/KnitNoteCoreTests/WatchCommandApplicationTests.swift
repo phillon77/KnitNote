@@ -38,14 +38,14 @@ import Testing
         #expect(mapped.counters[0].name == "Counter 1")
     }
 
-    @Test @MainActor func snapshotMapsOnlyTheReminderStateWatchNeeds() throws {
+    @Test @MainActor func snapshotMapsProjectReminderStateWatchNeeds() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
         let counterID = project.counters[0].id
-        try fixture.store.configureCounterReminder(
+        let reminderID = try fixture.store.addKnittingReminder(
             projectID: project.id,
-            counterID: counterID,
-            draft: .repeating(interval: 2, limit: 4, message: "Change yarn")
+            draft: .oneTime(kind: .changeYarn, target: 2, text: "Change yarn"),
+            now: fixture.now
         )
         try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
         try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
@@ -56,15 +56,13 @@ import Testing
             locale: Locale(identifier: "en"),
             generatedAt: fixture.now
         )
-        let reminder = try #require(snapshot.projects[0].counters[0].reminder)
+        let reminder = try #require(snapshot.projects[0].knittingReminders.first)
 
-        #expect(reminder.id == fixture.store.projects[0].counters[0].reminder?.id)
-        #expect(reminder.nextTarget == 4)
-        #expect(reminder.pending?.occurrenceCount == 1)
-        #expect(reminder.pending?.firstTarget == 2)
-        #expect(reminder.pending?.lastTarget == 2)
-        #expect(reminder.message == "Change yarn")
-        #expect(reminder.isActive)
+        #expect(reminder.id == reminderID)
+        #expect(reminder.counterID == counterID)
+        #expect(reminder.pending.map(\.originalTarget) == [2])
+        #expect(reminder.pending.map(\.text) == ["Change yarn"])
+        #expect(reminder.mutationRevision > 0)
     }
 
     @Test func counterDisplayNameUsesCustomNameOrLocalizedDefaultFormat() {

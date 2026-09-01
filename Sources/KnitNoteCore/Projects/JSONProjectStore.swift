@@ -1337,6 +1337,8 @@ final class PatternLibraryDeletionTransaction {
                         } else {
                             .reminderMismatch
                         }
+                    case .deferReminderOnce, .skipReminder:
+                        .reminderMismatch
                     case .stopReminder:
                         if let reminderID = command.reminderID,
                            counter.reminder?.id == reminderID,
@@ -1385,6 +1387,8 @@ final class PatternLibraryDeletionTransaction {
                         now: now
                     )
                 }
+            case .deferReminderOnce, .skipReminder:
+                break
             case .stopReminder:
                 if let reminderID = command.reminderID {
                     project.stopCounterReminder(

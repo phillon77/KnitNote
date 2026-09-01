@@ -3,6 +3,71 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchSyncModelsTests {
+    @Test func schemaFourProjectsCarryStrictReminderOccurrences() throws {
+        let counterID = UUID()
+        let reminderID = UUID()
+        let occurrence = WatchKnittingReminderOccurrenceSnapshot(
+            id: UUID(), reminderID: reminderID, kind: .changeYarn,
+            text: "原樣文字", originalTarget: 12, displayAt: 12,
+            phase: .initial, awaitsNextUpwardChange: false
+        )
+        let reminder = try WatchKnittingReminderSnapshot(
+            id: reminderID, counterID: counterID, kind: .changeYarn,
+            text: "原樣文字", rule: .oneTime(target: 12), state: .active,
+            mutationRevision: 7, createdAt: Date(timeIntervalSince1970: 1),
+            scheduledCount: 1, completedCount: 0, skippedCount: 0,
+            nextTarget: nil, nextOccurrenceIndex: 2, lastObservedCounterValue: 12,
+            pending: [occurrence]
+        )
+        let counters = (0..<6).map { ordinal in
+            WatchCounterSnapshot(id: ordinal == 0 ? counterID : UUID(), name: "C", value: 12)
+        }
+        let project = try WatchProjectSnapshot(
+            id: UUID(), name: "Project", isCompleted: false, updatedAt: .now,
+            counters: counters, selectedCounterID: counterID, knittingReminders: [reminder]
+        )
+        let snapshot = WatchSyncSnapshot(
+            generatedAt: .now,
+            entitlement: .init(kind: .permanentlyUnlocked, expiresAt: nil, generatedAt: .now),
+            projects: [project]
+        )
+
+        let decoded = try WatchSyncCodec.decode(WatchSyncSnapshot.self, from: WatchSyncCodec.encode(snapshot))
+
+        #expect(WatchSyncSnapshot.currentSchemaVersion == 4)
+        #expect(decoded.projects[0].knittingReminders[0].pending[0].text == "原樣文字")
+        #expect(decoded.projects[0].knittingReminders[0].mutationRevision == 7)
+    }
+
+    @Test func schemaThreeSnapshotAndSchemaTwoCommandDecodeForRecoveryOnly() throws {
+        let snapshot = try WatchSyncCodec.decode(WatchSyncSnapshot.self, from: Data(#"""
+        {"schemaVersion":3,"generatedAt":0,"entitlement":{"kind":"permanentlyUnlocked","generatedAt":0},"projects":[]}
+        """#.utf8))
+        let command = try WatchSyncCodec.decode(WatchCounterCommand.self, from: Data(#"""
+        {"schemaVersion":2,"id":"00000000-0000-0000-0000-000000000001","projectID":"00000000-0000-0000-0000-000000000002","counterID":"00000000-0000-0000-0000-000000000003","operation":"increment","createdAt":0}
+        """#.utf8))
+
+        #expect(snapshot.schemaVersion == 3)
+        #expect(command.schemaVersion == 2)
+        #expect(WatchCounterCommand.currentSchemaVersion == 3)
+    }
+
+    @Test func reminderCommandsRequireOneExactActionPayload() throws {
+        let payload = WatchReminderActionPayload(
+            reminderID: UUID(), occurrenceID: UUID(), observedRevision: 3
+        )
+        let command = WatchCounterCommand(
+            projectID: UUID(), counterID: UUID(), operation: .deferReminderOnce,
+            reminderPayload: payload
+        )
+
+        #expect(command.hasValidPayload)
+        #expect(try WatchSyncCodec.decode(WatchCounterCommand.self, from: WatchSyncCodec.encode(command)) == command)
+        #expect(!WatchCounterCommand(
+            projectID: UUID(), counterID: UUID(), operation: .skipReminder
+        ).hasValidPayload)
+    }
+
     @Test func newSnapshotRoundTripPreservesSelectedLanguage() throws {
         let snapshot = WatchSyncSnapshot(
             generatedAt: Date(timeIntervalSince1970: 101),
@@ -20,7 +85,7 @@ import Testing
             from: WatchSyncCodec.encode(snapshot)
         )
 
-        #expect(decoded.schemaVersion == 3)
+        #expect(decoded.schemaVersion == 4)
         #expect(decoded.languageCode == "ja")
     }
 
@@ -157,7 +222,7 @@ import Testing
         let counter = try WatchSyncCodec.decode(WatchCounterSnapshot.self, from: data)
 
         #expect(counter.value == 5)
-        #expect(counter.reminder == nil)
+        #expect(counter.reminder?.nextTarget == 3)
     }
 
     @Test func unsupportedSchemaIsRejected() throws {
@@ -179,31 +244,16 @@ import Testing
     }
 
     @Test func reminderSnapshotAndCommandPayloadRoundTrip() throws {
+        let counter = WatchCounterSnapshot(id: UUID(), name: "Body", value: 20)
         let reminderID = UUID()
-        let reminder = WatchCounterReminderSnapshot(
-            id: reminderID,
-            nextTarget: 24,
-            pending: CounterReminderPending(
-                reminderID: reminderID,
-                occurrenceCount: 2,
-                firstTarget: 16,
-                lastTarget: 20
-            ),
-            message: "Change yarn",
-            isActive: true
-        )
-        let counter = WatchCounterSnapshot(
-            id: UUID(),
-            name: "Body",
-            value: 20,
-            reminder: reminder
+        let payload = WatchReminderActionPayload(
+            reminderID: reminderID, occurrenceID: UUID(), observedRevision: 2
         )
         let command = WatchCounterCommand(
             projectID: UUID(),
             counterID: counter.id,
             operation: .completeReminder,
-            reminderID: reminderID,
-            observedPendingCount: 2,
+            reminderPayload: payload,
             createdAt: Date(timeIntervalSince1970: 42)
         )
 

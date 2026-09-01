@@ -325,7 +325,7 @@ struct ProjectCountersView: View {
             coordinator.decrement(projectID: project.id, counterID: counterID)
         case .reset:
             coordinator.reset(projectID: project.id, counterID: counterID)
-        case .completeReminder, .stopReminder:
+        case .completeReminder, .deferReminderOnce, .skipReminder, .stopReminder:
             return
         }
         actionCounterID = nil

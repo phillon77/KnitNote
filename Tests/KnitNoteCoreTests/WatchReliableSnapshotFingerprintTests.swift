@@ -3,6 +3,14 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct WatchReliableSnapshotFingerprintTests {
+    @Test func detectsReminderMutationsButNotEquivalentReminderReordering() throws {
+        let first = try snapshotWithReminder(reversed: false, revision: 1)
+        let reordered = try snapshotWithReminder(reversed: true, revision: 1)
+        let mutated = try snapshotWithReminder(reversed: false, revision: 2)
+
+        #expect(WatchReliableSnapshotFingerprint(snapshot: first) == WatchReliableSnapshotFingerprint(snapshot: reordered))
+        #expect(WatchReliableSnapshotFingerprint(snapshot: first) != WatchReliableSnapshotFingerprint(snapshot: mutated))
+    }
     @Test func detectsLanguageChangesThatMustReachWatchReliably() throws {
         let english = try snapshot(languageCode: "en")
         let japanese = try snapshot(languageCode: "ja")
@@ -90,6 +98,48 @@ import Testing
         #expect(
             WatchReliableSnapshotFingerprint(snapshot: first)
                 == WatchReliableSnapshotFingerprint(snapshot: reordered)
+        )
+    }
+
+    private func snapshotWithReminder(
+        reversed: Bool,
+        revision: UInt64
+    ) throws -> WatchSyncSnapshot {
+        let baseline = try snapshot()
+        let counters = baseline.projects[0].counters
+        func reminder(
+            id: UUID,
+            counterID: UUID,
+            target: Int,
+            createdAt: TimeInterval
+        ) throws -> WatchKnittingReminderSnapshot {
+            let occurrence = WatchKnittingReminderOccurrenceSnapshot(
+                id: UUID(uuidString: target == 12 ? "00000000-0000-0000-0000-000000000201" : "00000000-0000-0000-0000-000000000202")!, reminderID: id, kind: .measure, text: "原樣文字",
+                originalTarget: target, displayAt: target, phase: .initial,
+                awaitsNextUpwardChange: false
+            )
+            return try WatchKnittingReminderSnapshot(
+                id: id, counterID: counterID, kind: .measure, text: "原樣文字",
+                rule: .oneTime(target: target), state: .active,
+                mutationRevision: revision, createdAt: Date(timeIntervalSince1970: createdAt),
+                scheduledCount: 1, completedCount: 0, skippedCount: 0, nextTarget: nil,
+                nextOccurrenceIndex: 2, lastObservedCounterValue: target, pending: [occurrence]
+            )
+        }
+        var reminders = [
+            try reminder(id: UUID(uuidString: "00000000-0000-0000-0000-000000000101")!, counterID: counters[0].id, target: 12, createdAt: 1),
+            try reminder(id: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!, counterID: counters[1].id, target: 16, createdAt: 2)
+        ]
+        if reversed { reminders.reverse() }
+        let project = try WatchProjectSnapshot(
+            id: baseline.projects[0].id, name: baseline.projects[0].name,
+            isCompleted: false, updatedAt: baseline.projects[0].updatedAt,
+            counters: counters, selectedCounterID: counters[0].id,
+            knittingReminders: reminders
+        )
+        return WatchSyncSnapshot(
+            generatedAt: baseline.generatedAt, entitlement: baseline.entitlement,
+            projects: [project]
         )
     }
 

@@ -31,23 +31,27 @@ public enum WatchSnapshotBuilder {
                         WatchCounterSnapshot(
                             id: counter.id,
                             name: counter.displayName(locale: locale),
-                            value: counter.value,
-                            reminder: counter.reminder.map {
-                                WatchCounterReminderSnapshot(
-                                    id: $0.id,
-                                    nextTarget: $0.nextTarget,
-                                    pending: $0.pending,
-                                    message: $0.message,
-                                    isActive: $0.isActive
-                                )
-                            }
+                            value: counter.value
                         )
                     },
-                    selectedCounterID: project.selectedCounterID
+                    selectedCounterID: project.selectedCounterID,
+                    knittingReminders: try project.knittingReminders
+                        .sorted(by: Self.reminderOrdering)
+                        .map(WatchKnittingReminderSnapshot.init)
                 )
             },
             languageCode: languageCode
         )
+    }
+
+    private static func reminderOrdering(
+        _ lhs: KnittingReminder,
+        _ rhs: KnittingReminder
+    ) -> Bool {
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt < rhs.createdAt
+        }
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 
     private static func watchEntitlement(

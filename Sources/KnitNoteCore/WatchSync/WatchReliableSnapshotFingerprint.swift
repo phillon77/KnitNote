@@ -2,6 +2,35 @@ import Foundation
 
 struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
     private struct Project: Equatable, Sendable {
+        struct Reminder: Equatable, Sendable {
+            struct Occurrence: Equatable, Sendable {
+                let id: UUID
+                let reminderID: UUID
+                let kind: KnittingReminderKind
+                let text: String?
+                let originalTarget: Int
+                let displayAt: Int
+                let phase: KnittingReminderOccurrencePhase
+                let awaitsNextUpwardChange: Bool
+            }
+
+            let id: UUID
+            let counterID: UUID
+            let kind: KnittingReminderKind
+            let text: String?
+            let rule: KnittingReminderRule
+            let state: KnittingReminderState
+            let mutationRevision: UInt64
+            let createdAt: Date
+            let scheduledCount: Int
+            let completedCount: Int
+            let skippedCount: Int
+            let nextTarget: Int?
+            let nextOccurrenceIndex: Int
+            let lastObservedCounterValue: Int?
+            let pending: [Occurrence]
+        }
+
         struct Counter: Equatable, Sendable {
             let id: UUID
             let name: String
@@ -12,6 +41,7 @@ struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
         let isCompleted: Bool
         let counters: [Counter]
         let selectedCounterID: UUID
+        let reminders: [Reminder]
     }
 
     private let projects: [Project]
@@ -35,7 +65,37 @@ struct WatchReliableSnapshotFingerprint: Equatable, Sendable {
                 counters: project.counters.map { counter in
                     Project.Counter(id: counter.id, name: counter.name)
                 }.sorted { $0.id.uuidString < $1.id.uuidString },
-                selectedCounterID: project.selectedCounterID
+                selectedCounterID: project.selectedCounterID,
+                reminders: project.knittingReminders.map { reminder in
+                    Project.Reminder(
+                        id: reminder.id,
+                        counterID: reminder.counterID,
+                        kind: reminder.kind,
+                        text: reminder.text,
+                        rule: reminder.rule,
+                        state: reminder.state,
+                        mutationRevision: reminder.mutationRevision,
+                        createdAt: reminder.createdAt,
+                        scheduledCount: reminder.scheduledCount,
+                        completedCount: reminder.completedCount,
+                        skippedCount: reminder.skippedCount,
+                        nextTarget: reminder.nextTarget,
+                        nextOccurrenceIndex: reminder.nextOccurrenceIndex,
+                        lastObservedCounterValue: reminder.lastObservedCounterValue,
+                        pending: reminder.pending.map {
+                            Project.Reminder.Occurrence(
+                                id: $0.id,
+                                reminderID: $0.reminderID,
+                                kind: $0.kind,
+                                text: $0.text,
+                                originalTarget: $0.originalTarget,
+                                displayAt: $0.displayAt,
+                                phase: $0.phase,
+                                awaitsNextUpwardChange: $0.awaitsNextUpwardChange
+                            )
+                        }.sorted { $0.id.uuidString < $1.id.uuidString }
+                    )
+                }.sorted { $0.id.uuidString < $1.id.uuidString }
             )
         }.sorted { $0.id.uuidString < $1.id.uuidString }
     }

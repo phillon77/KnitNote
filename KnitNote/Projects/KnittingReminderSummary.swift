@@ -4,45 +4,91 @@ enum KnittingReminderSummary {
     static func kind(_ kind: KnittingReminderKind, locale: Locale) -> String {
         switch kind {
         case .increase:
-            localized("knittingReminder.kind.increase", fallback: "Increase", locale: locale)
+            localized("knittingReminder.kind.increase", locale: locale)
         case .decrease:
-            localized("knittingReminder.kind.decrease", fallback: "Decrease", locale: locale)
+            localized("knittingReminder.kind.decrease", locale: locale)
         case .changeYarn:
-            localized("knittingReminder.kind.changeYarn", fallback: "Change yarn", locale: locale)
+            localized("knittingReminder.kind.changeYarn", locale: locale)
         case .cable:
-            localized("knittingReminder.kind.cable", fallback: "Cable", locale: locale)
+            localized("knittingReminder.kind.cable", locale: locale)
         case .buttonhole:
-            localized("knittingReminder.kind.buttonhole", fallback: "Buttonhole", locale: locale)
+            localized("knittingReminder.kind.buttonhole", locale: locale)
         case .measure:
-            localized("knittingReminder.kind.measure", fallback: "Measure", locale: locale)
+            localized("knittingReminder.kind.measure", locale: locale)
         case .custom:
-            localized("knittingReminder.kind.custom", fallback: "Custom", locale: locale)
+            localized("knittingReminder.kind.custom", locale: locale)
         }
     }
 
     static func rule(_ rule: KnittingReminderRule, locale: Locale) -> String {
         switch rule {
         case let .oneTime(target):
-            return "\(localized("knittingReminder.rule.oneTime", fallback: "One time at row", locale: locale)) \(target.formatted(.number.locale(locale)))"
+            return LocaleAwareText.format("knittingReminder.rule.oneTime", locale: locale, target)
         case let .repeating(firstTarget, interval, limit):
-            let first = firstTarget.formatted(.number.locale(locale))
-            let every = interval.formatted(.number.locale(locale))
             if let limit {
-                return "\(localized("knittingReminder.rule.repeating", fallback: "From row", locale: locale)) \(first), \(localized("knittingReminder.rule.every", fallback: "every", locale: locale)) \(every) \(localized("knittingReminder.rule.rows", fallback: "rows", locale: locale)), \(limit.formatted(.number.locale(locale))) \(localized("knittingReminder.rule.times", fallback: "times", locale: locale))"
+                return LocaleAwareText.format(
+                    "knittingReminder.rule.repeating.limited",
+                    locale: locale,
+                    firstTarget,
+                    interval,
+                    limit
+                )
             }
-            return "\(localized("knittingReminder.rule.repeating", fallback: "From row", locale: locale)) \(first), \(localized("knittingReminder.rule.every", fallback: "every", locale: locale)) \(every) \(localized("knittingReminder.rule.rows", fallback: "rows", locale: locale))"
+            return LocaleAwareText.format(
+                "knittingReminder.rule.repeating",
+                locale: locale,
+                firstTarget,
+                interval
+            )
         }
     }
 
     static func nextTarget(_ target: Int?, locale: Locale) -> String {
         guard let target else {
-            return localized("knittingReminder.next.none", fallback: "No next row", locale: locale)
+            return localized("knittingReminder.next.none", locale: locale)
         }
-        return "\(localized("knittingReminder.next", fallback: "Next row", locale: locale)) \(target.formatted(.number.locale(locale)))"
+        return LocaleAwareText.format("knittingReminder.next", locale: locale, target)
     }
 
-    private static func localized(_ key: String, fallback: String, locale: Locale) -> String {
-        let copy = LocaleAwareText.string(key, locale: locale)
-        return copy == key ? fallback : copy
+    static func state(_ state: KnittingReminderState, locale: Locale) -> String {
+        let key = switch state {
+        case .active: "knittingReminder.state.active"
+        case .completed: "knittingReminder.state.completed"
+        case .stopped: "knittingReminder.state.stopped"
+        }
+        return localized(key, locale: locale)
+    }
+
+    static func secondaryCounter(_ name: String, locale: Locale) -> String {
+        LocaleAwareText.format("knittingReminder.secondaryCounter", locale: locale, name)
+    }
+
+    static func error(_ error: Error, locale: Locale) -> String {
+        if let reminderError = error as? KnittingReminderMutationError {
+            let key = switch reminderError {
+            case .invalidDraft, .alreadyDeferred, .invalidAction,
+                 .arithmeticOverflow, .revisionExhausted,
+                 .newReminderRequiresMainCounter:
+                "knittingReminder.error.invalid"
+            case .staleRevision:
+                "knittingReminder.error.stale"
+            case .occurrenceNotFound:
+                "knittingReminder.error.unavailable"
+            }
+            return localized(key, locale: locale)
+        }
+        if let storeError = error as? ProjectStoreError,
+           storeError == .accessRestricted {
+            return localized("knittingReminder.error.accessRestricted", locale: locale)
+        }
+        if let libraryError = error as? PatternLibraryMutationError,
+           libraryError == .projectNotFound {
+            return localized("knittingReminder.error.unavailable", locale: locale)
+        }
+        return localized("knittingReminder.error.save", locale: locale)
+    }
+
+    private static func localized(_ key: String, locale: Locale) -> String {
+        LocaleAwareText.string(key, locale: locale)
     }
 }

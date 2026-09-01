@@ -214,7 +214,7 @@ import Testing
     @Test func reminderAccessibilityKeepsLocalizedSemanticsActionsAndAdaptiveHeight() throws {
         let manager = try projectSource(named: "CounterManagerView")
         let card = try source("KnitNote/Projects/KnittingReminderQueueCard.swift")
-        let watch = try source("KnitNoteWatch/ProjectCountersView.swift")
+        let watch = try source("KnitNoteWatch/KnittingReminderQueueView.swift")
 
         #expect(manager.contains(".accessibilityLabel(Text(\"counter.value.edit\"))"))
         #expect(!manager.contains(".accessibilityLabel(Text(\"counter.value\"))"))
@@ -227,19 +227,16 @@ import Testing
         #expect(card.components(separatedBy: "frame(minWidth: 44, minHeight: 44)").count - 1 >= 3)
         #expect(card.contains("ViewThatFits(in: .horizontal)"))
         #expect(!card.contains(".frame(height:"))
-        #expect(card.contains(".accessibilityValue"))
+        #expect(card.contains(".accessibilityLabel(Text(verbatim: accessibilitySummary(for: current)))"))
+        #expect(!card.contains(".accessibilityValue(Text(verbatim: accessibilitySummary(for: current)))"))
 
-        let watchReminder = try #require(sourceSection(
-            watch,
-            from: "private func reminderConfirmation(",
-            to: "private func activeCounterRow"
-        ))
-        #expect(watchReminder.contains(".accessibilityHint(Text(\"counter.reminder.complete.hint\"))"))
-        #expect(watchReminder.contains(".accessibilityHint(Text(\"counter.reminder.stop.hint\"))"))
-        #expect(watchReminder.components(separatedBy: ".frame(minHeight: 44)").count - 1 == 2)
-        #expect(!watchReminder.contains(".frame(height:"))
-        #expect(!watchReminder.contains(".lineLimit("))
-        #expect(watchReminder.contains("Text(verbatim: message)"))
+        #expect(watch.contains(".accessibilityHint("))
+        #expect(watch.contains("watch.reminder.action.complete.hint"))
+        #expect(watch.contains("watch.reminder.action.defer.hint"))
+        #expect(watch.contains("watch.reminder.action.skip.hint"))
+        #expect(watch.components(separatedBy: ".frame(minWidth: 44, minHeight: 44)").count - 1 == 3)
+        #expect(!watch.contains(".frame(height:"))
+        #expect(watch.contains("Text(verbatim: text)"))
     }
 
     @Test func completionUIShowsStatusAndLocksProjectCounters() throws {

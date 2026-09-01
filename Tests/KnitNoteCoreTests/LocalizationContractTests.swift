@@ -1423,6 +1423,66 @@ private func isValidDirectPatternFolderLocalization(
                 "counter.reminder.nextTarget",
                 "counter.reminder.none",
                 "counter.value.invalid",
+                "knittingReminder.kind.increase",
+                "knittingReminder.kind.decrease",
+                "knittingReminder.kind.changeYarn",
+                "knittingReminder.kind.cable",
+                "knittingReminder.kind.buttonhole",
+                "knittingReminder.kind.measure",
+                "knittingReminder.kind.custom",
+                "knittingReminder.list.title",
+                "knittingReminder.list.unavailable",
+                "knittingReminder.list.add",
+                "knittingReminder.section.active",
+                "knittingReminder.section.ended",
+                "knittingReminder.state.active",
+                "knittingReminder.state.completed",
+                "knittingReminder.state.stopped",
+                "knittingReminder.secondaryCounter",
+                "knittingReminder.next",
+                "knittingReminder.next.none",
+                "knittingReminder.rule.oneTime",
+                "knittingReminder.rule.repeating",
+                "knittingReminder.rule.repeating.limited",
+                "knittingReminder.editor.title.new",
+                "knittingReminder.editor.title.edit",
+                "knittingReminder.editor.kind",
+                "knittingReminder.editor.note",
+                "knittingReminder.editor.schedule",
+                "knittingReminder.editor.schedule.oneTime",
+                "knittingReminder.editor.schedule.repeating",
+                "knittingReminder.editor.firstRow",
+                "knittingReminder.editor.interval",
+                "knittingReminder.editor.limited",
+                "knittingReminder.editor.limit",
+                "knittingReminder.editor.summary",
+                "knittingReminder.editor.validation",
+                "knittingReminder.action.stop",
+                "knittingReminder.action.reset",
+                "knittingReminder.action.delete",
+                "knittingReminder.confirm.stop",
+                "knittingReminder.confirm.reset",
+                "knittingReminder.confirm.delete",
+                "knittingReminder.error.invalid",
+                "knittingReminder.error.stale",
+                "knittingReminder.error.unavailable",
+                "knittingReminder.error.accessRestricted",
+                "knittingReminder.error.save",
+                "knittingReminder.card.complete",
+                "knittingReminder.card.complete.hint",
+                "knittingReminder.card.defer",
+                "knittingReminder.card.defer.hint",
+                "knittingReminder.card.skip",
+                "knittingReminder.card.skip.hint",
+                "knittingReminder.card.stop",
+                "knittingReminder.card.stop.hint",
+                "knittingReminder.card.stop.confirm",
+                "knittingReminder.card.more",
+                "knittingReminder.card.queue",
+                "knittingReminder.card.target",
+                "knittingReminder.card.phase.initial",
+                "knittingReminder.card.phase.deferred",
+                "knittingReminder.card.accessibility.summary",
                 "counter.value.edit",
                 "counter.reminder.edit",
                 "counter.reminder.mode",
@@ -2747,6 +2807,132 @@ private func isValidDirectPatternFolderLocalization(
                 )
             }
         }
+    }
+
+    @Test func smartReminderCatalogsExposeTheExactThirteenLanguageDomain() throws {
+        let mainKeys: Set<String> = [
+            "knittingReminder.kind.increase", "knittingReminder.kind.decrease",
+            "knittingReminder.kind.changeYarn", "knittingReminder.kind.cable",
+            "knittingReminder.kind.buttonhole", "knittingReminder.kind.measure",
+            "knittingReminder.kind.custom", "knittingReminder.list.title",
+            "knittingReminder.list.unavailable", "knittingReminder.list.add",
+            "knittingReminder.section.active", "knittingReminder.section.ended",
+            "knittingReminder.state.active", "knittingReminder.state.completed",
+            "knittingReminder.state.stopped", "knittingReminder.secondaryCounter",
+            "knittingReminder.next", "knittingReminder.next.none",
+            "knittingReminder.rule.oneTime", "knittingReminder.rule.repeating",
+            "knittingReminder.rule.repeating.limited",
+            "knittingReminder.editor.title.new", "knittingReminder.editor.title.edit",
+            "knittingReminder.editor.kind", "knittingReminder.editor.note",
+            "knittingReminder.editor.schedule", "knittingReminder.editor.schedule.oneTime",
+            "knittingReminder.editor.schedule.repeating", "knittingReminder.editor.firstRow",
+            "knittingReminder.editor.interval", "knittingReminder.editor.limited",
+            "knittingReminder.editor.limit", "knittingReminder.editor.summary",
+            "knittingReminder.editor.validation",
+            "knittingReminder.action.stop", "knittingReminder.action.reset",
+            "knittingReminder.action.delete", "knittingReminder.confirm.stop",
+            "knittingReminder.confirm.reset", "knittingReminder.confirm.delete",
+            "knittingReminder.error.invalid", "knittingReminder.error.stale",
+            "knittingReminder.error.unavailable", "knittingReminder.error.accessRestricted",
+            "knittingReminder.error.save",
+            "knittingReminder.card.complete",
+            "knittingReminder.card.complete.hint", "knittingReminder.card.defer",
+            "knittingReminder.card.defer.hint", "knittingReminder.card.skip",
+            "knittingReminder.card.skip.hint", "knittingReminder.card.stop",
+            "knittingReminder.card.stop.hint", "knittingReminder.card.stop.confirm",
+            "knittingReminder.card.more", "knittingReminder.card.queue",
+            "knittingReminder.card.target", "knittingReminder.card.phase.initial",
+            "knittingReminder.card.phase.deferred",
+            "knittingReminder.card.accessibility.summary",
+        ]
+        let watchKeys: Set<String> = [
+            "watch.reminder.accessibility.summary", "watch.reminder.action.complete",
+            "watch.reminder.action.complete.hint", "watch.reminder.action.defer",
+            "watch.reminder.action.defer.hint", "watch.reminder.action.skip",
+            "watch.reminder.action.skip.hint", "watch.reminder.kind.increase",
+            "watch.reminder.kind.decrease", "watch.reminder.kind.changeYarn",
+            "watch.reminder.kind.cable", "watch.reminder.kind.buttonhole",
+            "watch.reminder.kind.measure", "watch.reminder.kind.custom",
+            "watch.reminder.phase.initial", "watch.reminder.phase.deferred",
+            "watch.reminder.queuePosition", "watch.reminder.target",
+        ]
+
+        try assertSmartReminderCatalog(
+            strings: catalogStrings(),
+            requiredKeys: mainKeys,
+            prefix: "knittingReminder."
+        )
+        try assertSmartReminderCatalog(
+            strings: watchCatalogStrings(),
+            requiredKeys: watchKeys,
+            prefix: "watch.reminder."
+        )
+    }
+
+    @Test func smartReminderFormatPlaceholdersMatchEnglishInEverySupportedLanguage() throws {
+        let catalogs: [([String: Any], String)] = [
+            (try catalogStrings(), "knittingReminder."),
+            (try watchCatalogStrings(), "watch.reminder."),
+        ]
+        for (strings, prefix) in catalogs {
+            for key in strings.keys.filter({ $0.hasPrefix(prefix) }) {
+                let english = try localizedValue(key, language: "en", strings: strings)
+                for language in SupportedLocalization.v150Identifiers {
+                    let localized = try localizedValue(key, language: language, strings: strings)
+                    #expect(
+                        printfPlaceholders(in: localized) == printfPlaceholders(in: english),
+                        "\(key) must preserve placeholders in \(language)"
+                    )
+                }
+            }
+        }
+    }
+
+    @Test func smartReminderCopyIsNotDuplicatedFromEnglishInNonEnglishLocales() throws {
+        // Add only reviewed "key|language" pairs here when a symbol or proper
+        // knitting term is legitimately identical to English.
+        let legitimateEnglishMatches: Set<String> = []
+        for (strings, prefix) in [
+            (try catalogStrings(), "knittingReminder."),
+            (try watchCatalogStrings(), "watch.reminder."),
+        ] {
+            for key in strings.keys where key.hasPrefix(prefix) {
+                let english = try localizedValue(key, language: "en", strings: strings)
+                for language in SupportedLocalization.v150Identifiers where language != "en" {
+                    guard !legitimateEnglishMatches.contains("\(key)|\(language)") else { continue }
+                    #expect(
+                        try localizedValue(key, language: language, strings: strings) != english,
+                        "\(key) must not copy English into \(language)"
+                    )
+                }
+            }
+        }
+    }
+
+    private func assertSmartReminderCatalog(
+        strings: [String: Any],
+        requiredKeys: Set<String>,
+        prefix: String
+    ) throws {
+        #expect(Set(strings.keys.filter { $0.hasPrefix(prefix) }) == requiredKeys)
+        for key in requiredKeys {
+            let entry = try #require(strings[key] as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            #expect(Set(localizations.keys) == Set(SupportedLocalization.v150Identifiers))
+            for language in SupportedLocalization.v150Identifiers {
+                let value = try localizedValue(key, language: language, strings: strings)
+                #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                #expect(value != key)
+            }
+        }
+    }
+
+    private func printfPlaceholders(in value: String) -> [String] {
+        let expression = try! NSRegularExpression(pattern: #"%(?:\d+\$)?(?:lld|@)"#)
+        let range = NSRange(value.startIndex..., in: value)
+        return expression.matches(in: value, range: range).compactMap {
+            Range($0.range, in: value).map { String(value[$0]) }
+        }.sorted()
     }
 
     private func catalogStrings() throws -> [String: Any] {

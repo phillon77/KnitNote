@@ -43,7 +43,7 @@ import Testing
         #expect(source.contains("@State private var capturedReminderRevision: UInt64?"))
         #expect(source.contains("capturedReminderRevision = reminder.mutationRevision"))
         #expect(source.contains("guard let capturedReminderRevision else"))
-        #expect(source.contains("errorMessage = \"This reminder is no longer available.\""))
+        #expect(source.contains("knittingReminder.error.unavailable"))
         #expect(source.contains("if let reminderID {"))
         #expect(source.contains("reminderID: reminderID"))
         #expect(source.contains("observedRevision: capturedReminderRevision"))
@@ -70,8 +70,72 @@ import Testing
 
         #expect(source.contains("enum KnittingReminderSummary"))
         #expect(source.contains("LocaleAwareText.string"))
-        #expect(source.contains("return copy == key ? fallback : copy"))
+        #expect(!source.contains("fallback:"))
         #expect(!source.contains("text.localized"))
+    }
+
+    @Test func reminderSurfacesKeepUserTextVerbatimAndMacKeyboardActionsScoped() throws {
+        let list = try sourceFile("KnitNote/Projects/KnittingReminderListView.swift")
+        let editor = try sourceFile("KnitNote/Projects/KnittingReminderEditorView.swift")
+        let card = try sourceFile("KnitNote/Projects/KnittingReminderQueueCard.swift")
+
+        #expect(list.contains("Text(verbatim: text)"))
+        #expect(editor.contains("Text(verbatim: customText)"))
+        #expect(card.contains("Text(verbatim: text)"))
+        #expect(card.contains("ViewThatFits(in: .horizontal)"))
+        #expect(card.components(separatedBy: ".frame(minWidth: 44, minHeight: 44)").count - 1 >= 4)
+        #expect(card.contains(".accessibilityLabel(Text(verbatim: accessibilitySummary(for: current)))"))
+        #expect(!card.contains(".accessibilityValue(Text(verbatim: accessibilitySummary(for: current)))"))
+        #expect(card.contains(".keyboardShortcut(.cancelAction)"))
+        #expect(editor.contains(".keyboardShortcut(.defaultAction)"))
+        #expect(editor.contains(".keyboardShortcut(.cancelAction)"))
+    }
+
+    @Test func everyReminderSurfaceUsesCatalogCopyWithoutEnglishFallbacks() throws {
+        let list = try sourceFile("KnitNote/Projects/KnittingReminderListView.swift")
+        let editor = try sourceFile("KnitNote/Projects/KnittingReminderEditorView.swift")
+        let card = try sourceFile("KnitNote/Projects/KnittingReminderQueueCard.swift")
+        let summary = try sourceFile("KnitNote/Projects/KnittingReminderSummary.swift")
+        let combined = [list, editor, card, summary].joined(separator: "\n")
+
+        for english in [
+            "Project unavailable", "Add reminder", "Delete reminder?",
+            "Stop reminder", "Reset reminder", "Reminder kind", "Optional note",
+            "Reminder schedule", "One time", "Repeating", "First row", "Interval",
+            "Limited repetitions", "Number of times", "Summary", "New reminder",
+            "Edit reminder", "This reminder is no longer available.",
+        ] {
+            #expect(
+                !combined.contains("\"" + english + "\""),
+                "Raw reminder copy must be localized: \(english)"
+            )
+        }
+        #expect(!summary.contains("fallback:"))
+        #expect(!card.contains("fallback:"))
+        #expect(list.contains("KnittingReminderSummary.error(error, locale: locale)"))
+        #expect(editor.contains("KnittingReminderSummary.error(error, locale: locale)"))
+        #expect(card.contains("KnittingReminderSummary.error(error, locale: locale)"))
+    }
+
+    @Test func listShowsNonColorStateAndSecondaryCounterLabelsWithConfirmedMutations() throws {
+        let source = try sourceFile("KnitNote/Projects/KnittingReminderListView.swift")
+
+        #expect(source.contains("KnittingReminderSummary.state(reminder.state, locale: locale)"))
+        #expect(source.contains("KnittingReminderSummary.secondaryCounter("))
+        #expect(source.contains("knittingReminder.confirm.stop"))
+        #expect(source.contains("knittingReminder.confirm.reset"))
+        #expect(source.contains("knittingReminder.confirm.delete"))
+        #expect(source.contains(".keyboardShortcut(.cancelAction)"))
+    }
+
+    @Test func cardAndEditorExposeMacPrimaryAndCancelShortcutsWithoutHijackingFields() throws {
+        let editor = try sourceFile("KnitNote/Projects/KnittingReminderEditorView.swift")
+        let card = try sourceFile("KnitNote/Projects/KnittingReminderQueueCard.swift")
+
+        #expect(editor.components(separatedBy: ".keyboardShortcut(.defaultAction)").count - 1 == 1)
+        #expect(editor.components(separatedBy: ".keyboardShortcut(.cancelAction)").count - 1 == 1)
+        #expect(card.components(separatedBy: ".keyboardShortcut(.defaultAction)").count - 1 == 1)
+        #expect(card.contains(".keyboardShortcut(.cancelAction)"))
     }
 
     @Test func counterManagerHasNoLegacyCreationAffordanceButKeepsSecondaryEditLink() throws {

@@ -7,11 +7,14 @@ extension StoredProject {
 }
 
 struct KnittingReminderListView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @EnvironmentObject private var store: JSONProjectStore
     let projectID: UUID
 
     @State private var showingNewReminder = false
+    @State private var reminderPendingStop: KnittingReminder?
+    @State private var reminderPendingReset: KnittingReminder?
     @State private var reminderPendingDeletion: KnittingReminder?
     @State private var errorMessage: String?
 
@@ -31,30 +34,63 @@ struct KnittingReminderListView: View {
                     }
                 }
             } else {
-                ContentUnavailableView("Project unavailable", systemImage: "exclamationmark.triangle")
+                ContentUnavailableView(
+                    LocaleAwareText.string("knittingReminder.list.unavailable", locale: locale),
+                    systemImage: "exclamationmark.triangle"
+                )
             }
         }
-        .navigationTitle("knittingReminder.list.title")
+        .navigationTitle(LocaleAwareText.string("knittingReminder.list.title", locale: locale))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingNewReminder = true
                 } label: {
-                    Label("Add reminder", systemImage: "plus")
+                    Label(
+                        LocaleAwareText.string("knittingReminder.list.add", locale: locale),
+                        systemImage: "plus"
+                    )
                 }
+#if os(macOS)
+                .keyboardShortcut(.defaultAction)
+#endif
                 .disabled(project?.isCompleted != false)
             }
+#if os(macOS)
+            ToolbarItem(placement: .cancellationAction) {
+                Button("common.cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+#endif
         }
         .sheet(isPresented: $showingNewReminder) {
             NavigationStack {
                 KnittingReminderEditorView(projectID: projectID, reminderID: nil)
             }
         }
-        .confirmationDialog("Delete reminder?", isPresented: Binding(
+        .confirmationDialog("knittingReminder.confirm.stop", isPresented: Binding(
+            get: { reminderPendingStop != nil },
+            set: { if !$0 { reminderPendingStop = nil } }
+        ), titleVisibility: .visible) {
+            Button("knittingReminder.action.stop", role: .destructive) {
+                if let reminder = reminderPendingStop { apply(.stop, to: reminder) }
+            }
+            Button("common.cancel", role: .cancel) {}
+        }
+        .confirmationDialog("knittingReminder.confirm.reset", isPresented: Binding(
+            get: { reminderPendingReset != nil },
+            set: { if !$0 { reminderPendingReset = nil } }
+        ), titleVisibility: .visible) {
+            Button("knittingReminder.action.reset") {
+                if let reminder = reminderPendingReset { apply(.resetLatest, to: reminder) }
+            }
+            Button("common.cancel", role: .cancel) {}
+        }
+        .confirmationDialog("knittingReminder.confirm.delete", isPresented: Binding(
             get: { reminderPendingDeletion != nil },
             set: { if !$0 { reminderPendingDeletion = nil } }
         ), titleVisibility: .visible) {
-            Button("common.delete", role: .destructive) {
+            Button("knittingReminder.action.delete", role: .destructive) {
                 if let reminder = reminderPendingDeletion { delete(reminder) }
             }
             Button("common.cancel", role: .cancel) {}
@@ -119,9 +155,14 @@ struct KnittingReminderListView: View {
             Text(KnittingReminderSummary.rule(reminder.rule, locale: locale))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            Text(KnittingReminderSummary.state(reminder.state, locale: locale))
+                .font(.footnote.weight(.semibold))
             if reminder.counterID != project.mainCounterID,
                let counter = project.counters.first(where: { $0.id == reminder.counterID }) {
-                Text(projectCounterDisplayName(counter, locale: locale))
+                Text(KnittingReminderSummary.secondaryCounter(
+                    projectCounterDisplayName(counter, locale: locale),
+                    locale: locale
+                ))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(WatercolorTheme.actionBerry)
             }
@@ -131,12 +172,16 @@ struct KnittingReminderListView: View {
     @ViewBuilder
     private func reminderActions(_ reminder: KnittingReminder) -> some View {
         if reminder.state == .active {
-            Button("Stop reminder", role: .destructive) { apply(.stop, to: reminder) }
+            Button("knittingReminder.action.stop", role: .destructive) {
+                reminderPendingStop = reminder
+            }
         }
         if reminder.progress.latestHandled != nil {
-            Button("Reset reminder") { apply(.resetLatest, to: reminder) }
+            Button("knittingReminder.action.reset") { reminderPendingReset = reminder }
         }
-        Button("common.delete", role: .destructive) { reminderPendingDeletion = reminder }
+        Button("knittingReminder.action.delete", role: .destructive) {
+            reminderPendingDeletion = reminder
+        }
     }
 
     private func apply(_ action: KnittingReminderAction, to reminder: KnittingReminder) {
@@ -149,7 +194,7 @@ struct KnittingReminderListView: View {
                 action: action
             )
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = KnittingReminderSummary.error(error, locale: locale)
         }
     }
 
@@ -161,7 +206,7 @@ struct KnittingReminderListView: View {
                 observedRevision: reminder.mutationRevision
             )
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = KnittingReminderSummary.error(error, locale: locale)
         }
     }
 }

@@ -30,11 +30,11 @@ struct KnittingReminderQueueCard: View {
                             Text(verbatim: text)
                         }
 
-                        Text(queueCopy(for: current))
+                        Text(verbatim: queueCopy(for: current))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
-                        Text(targetCopy(for: current))
+                        Text(verbatim: targetCopy(for: current))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
@@ -48,43 +48,43 @@ struct KnittingReminderQueueCard: View {
                             Button(role: .destructive) {
                                 showingStopConfirmation = true
                             } label: {
-                                Text(verbatim: cardCopy("knittingReminder.card.stop", fallback: "Stop rule"))
+                                Text(verbatim: cardCopy("knittingReminder.card.stop"))
                             }
-                            .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.stop.hint", fallback: "Stops this reminder rule.")))
+                            .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.stop.hint")))
                         } label: {
                             Label {
-                                Text(verbatim: cardCopy("knittingReminder.card.more", fallback: "More"))
+                                Text(verbatim: cardCopy("knittingReminder.card.more"))
                             } icon: {
                                 Image(systemName: "ellipsis.circle")
                             }
                                 .frame(minWidth: 44, minHeight: 44)
                         }
-                        .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.more", fallback: "More")))
+                        .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.more")))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .accessibilityElement(children: .contain)
-                .accessibilityValue(Text(accessibilityValue(for: current)))
+                .accessibilityLabel(Text(verbatim: accessibilitySummary(for: current)))
                 .sensoryFeedback(.impact(weight: .light), trigger: hapticOccurrenceID)
                 .confirmationDialog(
-                    Text(verbatim: cardCopy("knittingReminder.card.stop.confirm", fallback: "Stop this reminder rule?")),
+                    Text(verbatim: cardCopy("knittingReminder.card.stop.confirm")),
                     isPresented: $showingStopConfirmation,
                     titleVisibility: .visible
                 ) {
                     Button(role: .destructive) {
                         apply(.stop, current: current)
                     } label: {
-                        Text(verbatim: cardCopy("knittingReminder.card.stop", fallback: "Stop rule"))
+                        Text(verbatim: cardCopy("knittingReminder.card.stop"))
                     }
                     .buttonStyle(.borderedProminent)
                     Button {
                     } label: {
-                        Text(verbatim: cardCopy("common.cancel", fallback: "Cancel"))
+                        Text(verbatim: cardCopy("common.cancel"))
                     }
                     .keyboardShortcut(.cancelAction)
                 }
                 .alert(
-                    Text(verbatim: cardCopy("error.saveFailed", fallback: "Could not save")),
+                    Text(verbatim: cardCopy("error.saveFailed")),
                     isPresented: Binding(
                         get: { errorMessage != nil },
                         set: { if !$0 { errorMessage = nil } }
@@ -92,7 +92,7 @@ struct KnittingReminderQueueCard: View {
                 ) {
                     Button {
                     } label: {
-                        Text(verbatim: cardCopy("common.ok", fallback: "OK"))
+                        Text(verbatim: cardCopy("common.ok"))
                     }
                 } message: {
                     Text(verbatim: errorMessage ?? "")
@@ -117,33 +117,36 @@ struct KnittingReminderQueueCard: View {
         Button {
             apply(.complete, current: current)
         } label: {
-            Text(verbatim: cardCopy("knittingReminder.card.complete", fallback: "Complete"))
+            Text(verbatim: cardCopy("knittingReminder.card.complete"))
         }
         .buttonStyle(.borderedProminent)
+#if os(macOS)
+        .keyboardShortcut(.defaultAction)
+#endif
         .frame(minWidth: 44, minHeight: 44)
-        .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.complete", fallback: "Complete")))
-        .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.complete.hint", fallback: "Marks this reminder complete.")))
+        .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.complete")))
+        .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.complete.hint")))
 
         if current.phase == .initial {
             Button {
                 apply(.deferOnce, current: current)
             } label: {
-                Text(verbatim: cardCopy("knittingReminder.card.defer", fallback: "Remind next row"))
+                Text(verbatim: cardCopy("knittingReminder.card.defer"))
             }
             .buttonStyle(.bordered)
             .frame(minWidth: 44, minHeight: 44)
-            .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.defer", fallback: "Remind next row")))
-            .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.defer.hint", fallback: "Shows this reminder after the next row.")))
+            .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.defer")))
+            .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.defer.hint")))
         } else {
             Button {
                 apply(.skip, current: current)
             } label: {
-                Text(verbatim: cardCopy("knittingReminder.card.skip", fallback: "Skip this time"))
+                Text(verbatim: cardCopy("knittingReminder.card.skip"))
             }
             .buttonStyle(.bordered)
             .frame(minWidth: 44, minHeight: 44)
-            .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.skip", fallback: "Skip this time")))
-            .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.skip.hint", fallback: "Skips this occurrence only.")))
+            .accessibilityLabel(Text(verbatim: cardCopy("knittingReminder.card.skip")))
+            .accessibilityHint(Text(verbatim: cardCopy("knittingReminder.card.skip.hint")))
         }
     }
 
@@ -186,7 +189,7 @@ struct KnittingReminderQueueCard: View {
                 refresh(updatedProject)
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = KnittingReminderSummary.error(error, locale: locale)
             if let authoritativeProject = store.project(id: projectID) {
                 refresh(authoritativeProject)
             }
@@ -194,31 +197,38 @@ struct KnittingReminderQueueCard: View {
     }
 
     private func queueCopy(for current: KnittingReminderPresentation) -> String {
-        let position = current.currentIndex.formatted(.number.locale(locale))
-        let total = current.totalCount.formatted(.number.locale(locale))
-        let prefix = LocaleAwareText.string("knittingReminder.card.queue", locale: locale)
-        return prefix == "knittingReminder.card.queue"
-            ? "\(position) / \(total)"
-            : "\(prefix) \(position) / \(total)"
+        LocaleAwareText.format(
+            "knittingReminder.card.queue",
+            locale: locale,
+            current.currentIndex,
+            current.totalCount
+        )
     }
 
     private func targetCopy(for current: KnittingReminderPresentation) -> String {
-        let target = current.occurrence.originalTarget.formatted(.number.locale(locale))
-        let prefix = LocaleAwareText.string("knittingReminder.card.target", locale: locale)
-        return prefix == "knittingReminder.card.target"
-            ? "Row \(target)"
-            : "\(prefix) \(target)"
+        LocaleAwareText.format(
+            "knittingReminder.card.target",
+            locale: locale,
+            current.occurrence.originalTarget
+        )
     }
 
-    private func accessibilityValue(for current: KnittingReminderPresentation) -> String {
+    private func accessibilitySummary(for current: KnittingReminderPresentation) -> String {
         let phase = current.phase == .initial
             ? LocaleAwareText.string("knittingReminder.card.phase.initial", locale: locale)
             : LocaleAwareText.string("knittingReminder.card.phase.deferred", locale: locale)
-        return "\(queueCopy(for: current)); \(targetCopy(for: current)); \(phase)"
+        return LocaleAwareText.format(
+            "knittingReminder.card.accessibility.summary",
+            locale: locale,
+            KnittingReminderSummary.kind(current.occurrence.kind, locale: locale),
+            current.occurrence.text ?? "",
+            targetCopy(for: current),
+            phase,
+            queueCopy(for: current)
+        )
     }
 
-    private func cardCopy(_ key: String, fallback: String) -> String {
-        let copy = LocaleAwareText.string(key, locale: locale)
-        return copy == key ? fallback : copy
+    private func cardCopy(_ key: String) -> String {
+        LocaleAwareText.string(key, locale: locale)
     }
 }

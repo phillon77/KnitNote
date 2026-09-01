@@ -29,38 +29,66 @@ struct KnittingReminderEditorView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Reminder kind", selection: $kind) {
+                Picker(
+                    LocaleAwareText.string("knittingReminder.editor.kind", locale: locale),
+                    selection: $kind
+                ) {
                     ForEach(KnittingReminderKind.allCases, id: \.self) { kind in
                         Text(KnittingReminderSummary.kind(kind, locale: locale)).tag(kind)
                     }
                 }
 
-                TextField("Optional note", text: $customText, axis: .vertical)
+                TextField(
+                    LocaleAwareText.string("knittingReminder.editor.note", locale: locale),
+                    text: $customText,
+                    axis: .vertical
+                )
                     .lineLimit(2...4)
             }
 
             Section {
-                Picker("Reminder schedule", selection: $mode) {
-                    Text("One time").tag(Mode.oneTime)
-                    Text("Repeating").tag(Mode.repeating)
+                Picker(
+                    LocaleAwareText.string("knittingReminder.editor.schedule", locale: locale),
+                    selection: $mode
+                ) {
+                    Text(verbatim: LocaleAwareText.string(
+                        "knittingReminder.editor.schedule.oneTime",
+                        locale: locale
+                    )).tag(Mode.oneTime)
+                    Text(verbatim: LocaleAwareText.string(
+                        "knittingReminder.editor.schedule.repeating",
+                        locale: locale
+                    )).tag(Mode.repeating)
                 }
                 .pickerStyle(.segmented)
 
-                TextField("First row", text: $firstTargetText)
+                TextField(
+                    LocaleAwareText.string("knittingReminder.editor.firstRow", locale: locale),
+                    text: $firstTargetText
+                )
 #if os(iOS)
                     .keyboardType(.numberPad)
 #endif
                     .monospacedDigit()
 
                 if mode == .repeating {
-                    TextField("Interval", text: $intervalText)
+                    TextField(
+                        LocaleAwareText.string("knittingReminder.editor.interval", locale: locale),
+                        text: $intervalText
+                    )
 #if os(iOS)
                         .keyboardType(.numberPad)
 #endif
                         .monospacedDigit()
-                    Toggle("Limited repetitions", isOn: $hasFiniteLimit)
+                    Toggle(
+                        LocaleAwareText.string("knittingReminder.editor.limited", locale: locale),
+                        isOn: $hasFiniteLimit
+                    )
                     if hasFiniteLimit {
-                        TextField("Number of times", text: $limitText)
+                        TextField(
+                            LocaleAwareText.string("knittingReminder.editor.limit", locale: locale),
+                            text: $limitText
+                        )
 #if os(iOS)
                             .keyboardType(.numberPad)
 #endif
@@ -70,25 +98,42 @@ struct KnittingReminderEditorView: View {
             }
 
             if let draft = validDraft {
-                Section("Summary") {
+                Section(LocaleAwareText.string(
+                    "knittingReminder.editor.summary",
+                    locale: locale
+                )) {
                     Text(KnittingReminderSummary.rule(rule(for: draft), locale: locale))
                     if !customText.isEmpty {
                         Text(verbatim: customText)
                     }
                 }
             } else {
-                Text("Enter whole-number row values greater than or equal to zero.")
+                Text(verbatim: LocaleAwareText.string(
+                    "knittingReminder.editor.validation",
+                    locale: locale
+                ))
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
         }
-        .navigationTitle(reminderID == nil ? "New reminder" : "Edit reminder")
+        .navigationTitle(LocaleAwareText.string(
+            reminderID == nil
+                ? "knittingReminder.editor.title.new"
+                : "knittingReminder.editor.title.edit",
+            locale: locale
+        ))
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("common.cancel") { dismiss() }
+#if os(macOS)
+                    .keyboardShortcut(.cancelAction)
+#endif
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("common.save") { save() }
+#if os(macOS)
+                    .keyboardShortcut(.defaultAction)
+#endif
                     .disabled(
                         validDraft == nil ||
                         project?.isCompleted != false ||
@@ -197,13 +242,16 @@ struct KnittingReminderEditorView: View {
                error == .occurrenceNotFound {
                 markExistingReminderUnavailable()
             } else {
-                errorMessage = error.localizedDescription
+                errorMessage = KnittingReminderSummary.error(error, locale: locale)
             }
         }
     }
 
     private func markExistingReminderUnavailable() {
         isExistingReminderUnavailable = true
-        errorMessage = "This reminder is no longer available."
+        errorMessage = LocaleAwareText.string(
+            "knittingReminder.error.unavailable",
+            locale: locale
+        )
     }
 }

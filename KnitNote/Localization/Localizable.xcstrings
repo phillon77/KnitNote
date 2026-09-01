@@ -1,6 +1,1086 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "knittingReminder.kind.increase" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Udtagning" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zunehmen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αύξηση πόντων" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Increase" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lisäys" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Augmenter" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "増し目" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "코 늘리기" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Økning" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Meerderen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ökning" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "加针" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加針" } }
+      }
+    },
+    "knittingReminder.kind.decrease" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Indtagning" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Abnehmen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Μείωση πόντων" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Decrease" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kavennus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Diminuer" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "減らし目" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "코 줄이기" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Felling" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Minderen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Minskning" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "减针" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "減針" } }
+      }
+    },
+    "knittingReminder.kind.changeYarn" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Skift garn" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Garn wechseln" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αλλαγή νήματος" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Change Yarn" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Vaihda lanka" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Changer de fil" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "糸を替える" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "실 바꾸기" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Bytt garn" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Wissel van garen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Byt garn" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "换色" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "換色" } }
+      }
+    },
+    "knittingReminder.kind.cable" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Snoning" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zopfmuster" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Πλεξούδα" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cable" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Palmikko" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Torsade" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "縄編み" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "꽈배기" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Flette" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Kabelsteek" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Fläta" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "麻花" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "麻花" } }
+      }
+    },
+    "knittingReminder.kind.buttonhole" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Knaphul" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Knopfloch" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Κουμπότρυπα" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Buttonhole" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Napinläpi" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Boutonnière" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ボタンホール" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "단춧구멍" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Knapphull" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Knoopsgat" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Knapphål" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开扣眼" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開扣眼" } }
+      }
+    },
+    "knittingReminder.kind.measure" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Mål" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Messen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Μέτρηση" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Measure" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Mittaa" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mesurer" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "寸法を測る" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "치수 재기" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Mål" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Meten" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Mät" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "量尺寸" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "量尺寸" } }
+      }
+    },
+    "knittingReminder.kind.custom" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Egen påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Eigene Erinnerung" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Προσαρμοσμένη υπενθύμιση" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom Reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Oma muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rappel personnalisé" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カスタムリマインダー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사용자 지정 알림" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Egen påminnelse" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Aangepaste herinnering" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Egen påminnelse" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自訂提醒" } }
+      }
+    },
+    "knittingReminder.list.title" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelser" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Υπενθυμίσεις" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reminders" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistutukset" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rappels" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelser" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinneringen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelser" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒" } }
+      }
+    },
+    "knittingReminder.section.active" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Aktive" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ενεργές" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Aktiiviset" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Actifs" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "활성" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Aktive" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Actief" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Aktiva" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已启用" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟用中" } }
+      }
+    },
+    "knittingReminder.section.ended" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Afsluttede" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Beendet" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ολοκληρωμένες" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ended" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Päättyneet" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminés" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "終了" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "종료됨" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Avsluttede" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Beëindigd" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Avslutade" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已结束" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已結束" } }
+      }
+    },
+    "knittingReminder.next" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Næste pind %lld" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nächste Reihe %lld" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επόμενη σειρά %lld" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next row %lld" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Seuraava kerros %lld" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Prochain rang : %lld" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次は%lld段目" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 %lld단" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Neste rad %lld" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Volgende toer %lld" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Nästa varv %lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次：第 %lld 行" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一次：第 %lld 段" } }
+      }
+    },
+    "knittingReminder.next.none" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Ingen næste pind" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Keine nächste Reihe" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Δεν υπάρχει επόμενη σειρά" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No next row" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Ei seuraavaa kerrosta" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucun prochain rang" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の段はありません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 단 없음" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Ingen neste rad" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Geen volgende toer" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Inget nästa varv" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有下一个目标行" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有下一個目標段" } }
+      }
+    },
+    "knittingReminder.rule.oneTime" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Én gang på pind %lld" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmal in Reihe %lld" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Μία φορά στη σειρά %lld" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "One time at row %lld" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerran kerroksella %lld" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Une fois au rang %lld" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld段目に1回" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld단에서 한 번" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Én gang på rad %lld" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Eenmalig bij toer %lld" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "En gång på varv %lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第 %lld 行提醒一次" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第 %lld 段提醒一次" } }
+      }
+    },
+    "knittingReminder.rule.repeating" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Fra pind %1$lld, hver %2$lld. pind" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Ab Reihe %1$lld, alle %2$lld Reihen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Από τη σειρά %1$lld, κάθε %2$lld σειρές" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "From row %1$lld, every %2$lld rows" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerroksesta %1$lld alkaen %2$lld kerroksen välein" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "À partir du rang %1$lld, tous les %2$lld rangs" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld段目から%2$lld段ごと" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld단부터 %2$lld단마다" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Fra rad %1$lld, hver %2$lld. rad" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Vanaf toer %1$lld, elke %2$lld toeren" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Från varv %1$lld, vart %2$lld varv" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从第 %1$lld 行开始，每 %2$lld 行" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從第 %1$lld 段開始，每 %2$lld 段" } }
+      }
+    },
+    "knittingReminder.rule.repeating.limited" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Fra pind %1$lld, hver %2$lld. pind, %3$lld gange" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Ab Reihe %1$lld, alle %2$lld Reihen, %3$lld-mal" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Από τη σειρά %1$lld, κάθε %2$lld σειρές, %3$lld φορές" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "From row %1$lld, every %2$lld rows, %3$lld times" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerroksesta %1$lld alkaen %2$lld kerroksen välein, %3$lld kertaa" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "À partir du rang %1$lld, tous les %2$lld rangs, %3$lld fois" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld段目から%2$lld段ごと、%3$lld回" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld단부터 %2$lld단마다, 총 %3$lld회" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Fra rad %1$lld, hver %2$lld. rad, %3$lld ganger" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Vanaf toer %1$lld, elke %2$lld toeren, %3$lld keer" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Från varv %1$lld, vart %2$lld varv, %3$lld gånger" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从第 %1$lld 行开始，每 %2$lld 行，共 %3$lld 次" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從第 %1$lld 段開始，每 %2$lld 段，共 %3$lld 次" } }
+      }
+    },
+    "knittingReminder.card.complete" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Færdig" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Fertig" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Τέλος" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Valmis" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminé" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "완료" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Ferdig" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Gereed" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Klar" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
+      }
+    },
+    "knittingReminder.card.complete.hint" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Markerer denne påmindelse som fuldført." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Markiert dieses Erinnerungsvorkommen als abgeschlossen." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Σημειώνει αυτή την εμφάνιση υπενθύμισης ως ολοκληρωμένη." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Marks this reminder occurrence complete." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Merkitsee tämän muistutuskerran valmiiksi." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Marque cette occurrence de rappel comme terminée." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今回のリマインダーを完了にします。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이번 알림을 완료로 표시합니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Markerer denne påminnelsen som fullført." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Markeert deze herinneringskeer als voltooid." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Markerar den här påminnelseförekomsten som slutförd." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将此次提醒标记为已完成。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將這次提醒標記為已完成。" } }
+      }
+    },
+    "knittingReminder.card.defer" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmind næste pind" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nächste Reihe erinnern" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Υπενθύμιση στην επόμενη σειρά" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remind Next Row" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistuta seuraavalla kerroksella" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rappel au rang suivant" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の段で再通知" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 단에 알림" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminn neste rad" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinner volgende toer" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminn nästa varv" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一行再提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一段再提醒" } }
+      }
+    },
+    "knittingReminder.card.defer.hint" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Viser denne påmindelse igen efter næste pind." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zeigt diese Erinnerung nach der nächsten Reihe erneut." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Εμφανίζει ξανά αυτή την υπενθύμιση μετά την επόμενη σειρά." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shows this reminder again after the next row." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Näyttää tämän muistutuksen uudelleen seuraavan kerroksen jälkeen." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Affiche de nouveau ce rappel après le rang suivant." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の段の後に、このリマインダーをもう一度表示します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 단 후에 이 알림을 다시 표시합니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Viser denne påminnelsen igjen etter neste rad." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Toont deze herinnering opnieuw na de volgende toer." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Visar den här påminnelsen igen efter nästa varv." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一行后再次显示此提醒。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一段後再次顯示這個提醒。" } }
+      }
+    },
+    "knittingReminder.card.skip" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Spring over denne gang" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diesmal überspringen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Παράλειψη αυτής της φοράς" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Skip This Time" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Ohita tämä kerta" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ignorer cette fois" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今回はスキップ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이번 건너뛰기" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Hopp over denne gangen" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Deze keer overslaan" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Hoppa över den här gången" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跳过此次" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "略過這次" } }
+      }
+    },
+    "knittingReminder.card.skip.hint" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Springer kun denne påmindelse over." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Überspringt nur dieses Erinnerungsvorkommen." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Παραλείπει μόνο αυτή την εμφάνιση υπενθύμισης." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Skips only this reminder occurrence." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Ohittaa vain tämän muistutuskerran." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ignore uniquement cette occurrence du rappel." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今回のリマインダーだけをスキップします。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이번 알림만 건너뜁니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Hopper bare over denne påminnelsen." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Slaat alleen deze herinneringskeer over." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Hoppar bara över den här påminnelseförekomsten." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅跳过此次提醒。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "只略過這次提醒。" } }
+      }
+    },
+    "knittingReminder.card.stop" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Stop påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung stoppen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διακοπή υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop Rule" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lopeta muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Arrêter le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを停止" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 중지" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stopp påminnelsen" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinnering stoppen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } }
+      }
+    },
+    "knittingReminder.card.stop.hint" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Forhindrer reglen i at oprette flere påmindelser." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Verhindert, dass diese Regel weitere Erinnerungen erstellt." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Εμποδίζει αυτόν τον κανόνα να δημιουργεί άλλες υπενθυμίσεις." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stops this rule from creating more reminders." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Estää tätä sääntöä luomasta uusia muistutuksia." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Empêche cette règle de créer d’autres rappels." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このルールによる新しいリマインダーの作成を停止します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 규칙이 새 알림을 만들지 않도록 중지합니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Hindrer regelen i å opprette flere påminnelser." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Voorkomt dat deze regel meer herinneringen aanmaakt." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Hindrar regeln från att skapa fler påminnelser." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止此规则，不再创建新提醒。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止這個規則，不再建立新提醒。" } }
+      }
+    },
+    "knittingReminder.card.stop.confirm" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du stoppe denne påmindelsesregel?" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerungsregel stoppen?" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Να διακοπεί αυτός ο κανόνας υπενθύμισης;" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop this reminder rule?" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lopetetaanko tämä muistutussääntö?" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Arrêter cette règle de rappel ?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダールールを停止しますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림 규칙을 중지할까요?" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stoppe denne påminnelsesregelen?" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Deze herinneringsregel stoppen?" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa den här påminnelseregeln?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要停止此提醒规则吗？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要停止這個提醒規則嗎？" } }
+      }
+    },
+    "knittingReminder.card.more" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Mere" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Mehr" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Περισσότερα" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "More" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lisää" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Plus" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "その他" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "더 보기" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Mer" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Meer" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Mer" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更多" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "更多" } }
+      }
+    },
+    "knittingReminder.card.queue" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld af %2$lld" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld von %2$lld" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld από %2$lld" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld of %2$lld" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld/%2$lld" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld sur %2$lld" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%2$lld件中%1$lld件目" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%2$lld개 중 %1$lld번째" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld av %2$lld" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld van %2$lld" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld av %2$lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第 %1$lld 项，共 %2$lld 项" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第 %1$lld 項，共 %2$lld 項" } }
+      }
+    },
+    "knittingReminder.card.target" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Pind %lld" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihe %lld" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Σειρά %lld" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Row %lld" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerros %lld" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rang %lld" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld段目" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld단" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rad %lld" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Toer %lld" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Varv %lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第 %lld 行" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第 %lld 段" } }
+      }
+    },
+    "knittingReminder.card.phase.initial" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Første visning" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erste Anzeige" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Πρώτη εμφάνιση" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "First presentation" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Ensimmäinen näyttökerta" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Première présentation" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "初回表示" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첫 표시" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Første visning" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Eerste weergave" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Första visningen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "首次显示" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "首次顯示" } }
+      }
+    },
+    "knittingReminder.card.phase.deferred" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Udsat én gang" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmal verschoben" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αναβλήθηκε μία φορά" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Deferred once" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Siirretty kerran" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Reporté une fois" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1回延期済み" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "한 번 연기됨" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Utsatt én gang" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Eenmaal uitgesteld" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Uppskjuten en gång" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已延后一次" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已延後一次" } }
+      }
+    },
+    "knittingReminder.card.accessibility.summary" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Type: %1$@; note: %2$@; %3$@; fase: %4$@; kø: %5$@" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Typ: %1$@; Notiz: %2$@; %3$@; Phase: %4$@; Warteschlange: %5$@" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Τύπος: %1$@· σημείωση: %2$@· %3$@· φάση: %4$@· ουρά: %5$@" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Type: %1$@; note: %2$@; %3$@; phase: %4$@; queue: %5$@" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Tyyppi: %1$@; huomautus: %2$@; %3$@; vaihe: %4$@; jono: %5$@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Type : %1$@ ; note : %2$@ ; %3$@ ; phase : %4$@ ; file : %5$@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "種類：%1$@、メモ：%2$@、%3$@、段階：%4$@、順番：%5$@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "유형: %1$@; 메모: %2$@; %3$@; 단계: %4$@; 대기열: %5$@" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Type: %1$@; notat: %2$@; %3$@; fase: %4$@; kø: %5$@" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Type: %1$@; notitie: %2$@; %3$@; fase: %4$@; wachtrij: %5$@" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Typ: %1$@; anteckning: %2$@; %3$@; fas: %4$@; kö: %5$@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "类型：%1$@；补充文字：%2$@；%3$@；阶段：%4$@；队列：%5$@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "類型：%1$@；補充文字：%2$@；%3$@；階段：%4$@；佇列：%5$@" } }
+      }
+    },
+    "knittingReminder.list.unavailable" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Projektet er ikke tilgængeligt" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Projekt nicht verfügbar" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Το έργο δεν είναι διαθέσιμο" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Project unavailable" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Projekti ei ole käytettävissä" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Projet indisponible" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "作品を利用できません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "작품을 사용할 수 없음" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Prosjektet er utilgjengelig" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Project niet beschikbaar" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Projektet är inte tillgängligt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法使用此作品" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法使用此作品" } }
+      }
+    },
+    "knittingReminder.list.add" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Tilføj påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung hinzufügen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Προσθήκη υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lisää muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajouter un rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを追加" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 추가" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Legg til påminnelse" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinnering toevoegen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Lägg till påminnelse" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增提醒" } }
+      }
+    },
+    "knittingReminder.state.active" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ενεργή" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Aktiivinen" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Actif" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "활성" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Actief" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Aktiv" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已启用" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟用中" } }
+      }
+    },
+    "knittingReminder.state.completed" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Fuldført" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Abgeschlossen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ολοκληρώθηκε" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Valmis" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminé" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "완료됨" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "ferdig" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Voltooid" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "avslutad" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已完成" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已完成" } }
+      }
+    },
+    "knittingReminder.state.stopped" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Stoppet" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gestoppt" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διακόπηκε" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stopped" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Pysäytetty" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Arrêté" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "停止" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "중지됨" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stoppet" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Gestopt" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppad" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已停止" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已停止" } }
+      }
+    },
+    "knittingReminder.secondaryCounter" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Oprindelig tæller: %@" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Ursprünglicher Zähler: %@" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αρχικός μετρητής: %@" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Original counter: %@" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Alkuperäinen laskuri: %@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Compteur d’origine : %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "元のカウンター：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "기존 카운터: %@" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Opprinnelig teller: %@" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Oorspronkelijke toerenteller: %@" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ursprunglig räknare: %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原计数器：%@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "原計數器：%@" } }
+      }
+    },
+    "knittingReminder.editor.title.new" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Ny påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Neue Erinnerung" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Νέα υπενθύμιση" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New Reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Uusi muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nouveau rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいリマインダー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 알림" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Ny påminnelse" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Nieuwe herinnering" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ny påminnelse" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增提醒" } }
+      }
+    },
+    "knittingReminder.editor.title.edit" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Rediger påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung bearbeiten" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επεξεργασία υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muokkaa muistutusta" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modifier le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを編集" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 편집" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rediger påminnelse" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinnering bewerken" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera påminnelse" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯提醒" } }
+      }
+    },
+    "knittingReminder.editor.kind" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelsestype" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungstyp" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Τύπος υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reminder kind" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistutuksen tyyppi" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Type de rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーの種類" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 유형" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsestype" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Type herinnering" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsetyp" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒类型" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒類型" } }
+      }
+    },
+    "knittingReminder.editor.note" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Valgfri note" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Optionale Notiz" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Προαιρετική σημείωση" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Optional note" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Valinnainen huomautus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Note facultative" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "補足メモ（任意）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "추가 메모(선택 사항)" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Valgfritt notat" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Optionele notitie" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Valfri anteckning" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "补充文字（可选）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "補充文字（選填）" } }
+      }
+    },
+    "knittingReminder.editor.schedule" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelsesplan" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerungsplan" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Πρόγραμμα υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reminder schedule" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistutuksen aikataulu" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Planification du rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーの予定" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 일정" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsesplan" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinneringsschema" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsesintervall" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒计划" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒排程" } }
+      }
+    },
+    "knittingReminder.editor.schedule.oneTime" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Én gang" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Einmalig" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Μία φορά" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "One Time" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerran" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Une fois" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1回" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "한 번" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Én gang" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Eenmalig" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "En gång" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单次" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單次" } }
+      }
+    },
+    "knittingReminder.editor.schedule.repeating" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Gentagende" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wiederholend" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επαναλαμβανόμενη" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Repeating" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Toistuva" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Répétitif" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "繰り返し" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "반복" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Gjentakende" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herhalend" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Återkommande" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重复" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重複" } }
+      }
+    },
+    "knittingReminder.editor.firstRow" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Første pind" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erste Reihe" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Πρώτη σειρά" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "First row" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Ensimmäinen kerros" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Premier rang" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "開始段" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "시작 단" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Første rad" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Eerste toer" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Första varvet" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "起始行数" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "起始段數" } }
+      }
+    },
+    "knittingReminder.editor.interval" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Pindeinterval" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Reihenintervall" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διάστημα σειρών" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Interval" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kerrosväli" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Intervalle de rangs" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "段の間隔" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "단 간격" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Radintervall" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Toerinterval" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Varvintervall" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "间隔行数" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "間隔段數" } }
+      }
+    },
+    "knittingReminder.editor.limited" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Begræns gentagelser" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wiederholungen begrenzen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Περιορισμός επαναλήψεων" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Limit repetitions" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Rajoita toistoja" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Limiter les répétitions" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "繰り返し回数を制限" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "반복 횟수 제한" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Begrens gjentakelser" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herhalingen beperken" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Begränsa upprepningar" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "限制重复次数" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "限制重複次數" } }
+      }
+    },
+    "knittingReminder.editor.limit" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Antal gange" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Anzahl" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αριθμός φορών" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Number of times" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Kertojen määrä" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nombre de fois" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "回数" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "횟수" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Antall ganger" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Aantal keer" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Antal gånger" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒次数" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒次數" } }
+      }
+    },
+    "knittingReminder.editor.summary" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Oversigt" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zusammenfassung" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Σύνοψη" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Summary" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Yhteenveto" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Résumé" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "概要" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "요약" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Sammendrag" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Samenvatting" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Sammanfattning" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "摘要" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "摘要" } }
+      }
+    },
+    "knittingReminder.editor.validation" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Indtast hele pindetal, der er større end eller lig med nul." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib für Reihen ganze Zahlen größer oder gleich null ein." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Εισαγάγετε ακέραιες τιμές σειρών μεγαλύτερες ή ίσες με μηδέν." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter whole-number row values greater than or equal to zero." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Anna kerrosarvoiksi kokonaislukuja, jotka ovat vähintään nolla." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez des nombres entiers de rangs supérieurs ou égaux à zéro." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "段数には0以上の整数を入力してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "단 수에는 0 이상의 정수를 입력하세요." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Skriv inn hele radtall som er større enn eller lik null." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Voer gehele toerwaarden in die groter dan of gelijk aan nul zijn." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ange heltal för varv som är större än eller lika med noll." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入大于或等于零的整数行数。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入大於或等於零的整數段數。" } }
+      }
+    },
+    "knittingReminder.action.stop" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Stop påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung stoppen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διακοπή υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lopeta muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Arrêter le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを停止" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 중지" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stopp påminnelsen" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinnering stoppen" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止提醒" } }
+      }
+    },
+    "knittingReminder.action.reset" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Nulstil påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung zurücksetzen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επαναφορά υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Nollaa muistutus" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Réinitialiser le rappel" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーをリセット" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 재설정" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Tilbakestill påminnelsen" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinnering resetten" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Återställ påminnelsen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重設提醒" } }
+      }
+    },
+    "knittingReminder.action.delete" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Slet" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Löschen" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Διαγραφή" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Poista" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "삭제" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Slett" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Verwijder" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Radera" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
+      }
+    },
+    "knittingReminder.confirm.stop" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du stoppe denne påmindelsesregel?" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerungsregel stoppen?" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Να διακοπεί αυτός ο κανόνας υπενθύμισης;" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop this reminder rule?" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Lopetetaanko tämä muistutussääntö?" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Arrêter cette règle de rappel ?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダールールを停止しますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림 규칙을 중지할까요?" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Stoppe denne påminnelsesregelen?" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Deze herinneringsregel stoppen?" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Stoppa den här påminnelseregeln?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要停止此提醒规则吗？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要停止這個提醒規則嗎？" } }
+      }
+    },
+    "knittingReminder.confirm.reset" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du nulstille den senest fuldførte eller oversprungne forekomst?" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Das letzte abgeschlossene oder übersprungene Vorkommen zurücksetzen?" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Να γίνει επαναφορά της τελευταίας ολοκληρωμένης ή παραλειφθείσας εμφάνισης;" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset the latest completed or skipped occurrence?" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Nollataanko viimeisin suoritettu tai ohitettu kerta?" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Réinitialiser la dernière occurrence terminée ou ignorée ?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "直近の完了またはスキップした回をリセットしますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "최근 완료하거나 건너뛴 항목을 재설정할까요?" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Tilbakestille den siste fullførte eller hoppede forekomsten?" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "De laatst voltooide of overgeslagen keer resetten?" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Återställa den senast slutförda eller överhoppade förekomsten?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要重置最近一次已完成或跳过的提醒吗？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要重設最近一次已完成或略過的提醒嗎？" } }
+      }
+    },
+    "knittingReminder.confirm.delete" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Vil du slette denne påmindelse og dens ventende forekomster?" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung und ihre ausstehenden Vorkommen löschen?" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Να διαγραφεί αυτή η υπενθύμιση και οι εκκρεμείς εμφανίσεις της;" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete this reminder and its pending occurrences?" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Poistetaanko tämä muistutus ja sen odottavat kerrat?" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer ce rappel et ses occurrences en attente ?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーと保留中の項目を削除しますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림과 대기 중인 항목을 삭제할까요?" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Slette denne påminnelsen og ventende forekomster?" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Deze herinnering en openstaande keren verwijderen?" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Radera den här påminnelsen och väntande förekomster?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要删除此提醒及其待处理项目吗？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要刪除這個提醒及其待處理項目嗎？" } }
+      }
+    },
+    "knittingReminder.error.invalid" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Påmindelsesindstillingerne er ugyldige." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die Erinnerungseinstellungen sind ungültig." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Οι ρυθμίσεις της υπενθύμισης δεν είναι έγκυρες." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The reminder settings are invalid." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muistutuksen asetukset eivät kelpaa." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les réglages du rappel ne sont pas valides." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーの設定が無効です。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림 설정이 올바르지 않습니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelsesinnstillingene er ugyldige." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "De herinneringsinstellingen zijn ongeldig." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Påminnelseinställningarna är ogiltiga." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒设置无效。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "提醒設定無效。" } }
+      }
+    },
+    "knittingReminder.error.stale" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Denne påmindelse blev ændret et andet sted. Åbn den igen, og prøv igen." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung wurde an anderer Stelle geändert. Öffne sie erneut und versuche es noch einmal." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αυτή η υπενθύμιση άλλαξε αλλού. Ανοίξτε την ξανά και δοκιμάστε πάλι." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This reminder changed elsewhere. Reopen it and try again." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Tätä muistutusta muutettiin muualla. Avaa se uudelleen ja yritä uudelleen." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce rappel a été modifié ailleurs. Rouvrez-le et réessayez." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーは別の画面で変更されました。開き直して、もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림이 다른 화면에서 변경되었습니다. 다시 연 후 다시 시도하세요." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Denne påminnelsen ble endret et annet sted. Åpne den på nytt og prøv igjen." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Deze herinnering is elders gewijzigd. Open deze opnieuw en probeer het nogmaals." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Den här påminnelsen ändrades någon annanstans. Öppna den igen och försök igen." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此提醒已在其他页面更改。请重新打开后重试。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個提醒已在其他畫面變更。請重新開啟後再試一次。" } }
+      }
+    },
+    "knittingReminder.error.unavailable" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Denne påmindelse er ikke længere tilgængelig." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung ist nicht mehr verfügbar." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αυτή η υπενθύμιση δεν είναι πλέον διαθέσιμη." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This reminder is no longer available." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Tämä muistutus ei ole enää käytettävissä." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce rappel n’est plus disponible." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーは利用できなくなりました。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림은 더 이상 사용할 수 없습니다." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Denne påminnelsen er ikke lenger tilgjengelig." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Deze herinnering is niet meer beschikbaar." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Den här påminnelsen är inte längre tillgänglig." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此提醒已无法使用。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個提醒已無法使用。" } }
+      }
+    },
+    "knittingReminder.error.accessRestricted" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Lås KnitNote op for at ændre påmindelser." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Entsperre KnitNote, um Erinnerungen zu ändern." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Ξεκλειδώστε το KnitNote για να αλλάξετε υπενθυμίσεις." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock KnitNote to change reminders." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muuta muistutuksia avaamalla KnitNote." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déverrouillez KnitNote pour modifier les rappels." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを変更するにはKnitNoteのロックを解除してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림을 변경하려면 KnitNote 잠금을 해제하세요." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Lås opp KnitNote for å endre påminnelser." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Ontgrendel KnitNote om herinneringen te wijzigen." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Lås upp KnitNote för att ändra påminnelser." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "解锁 KnitNote 后才能更改提醒。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "解除 KnitNote 鎖定後才能變更提醒。" } }
+      }
+    },
+    "knittingReminder.error.save" : {
+      "comment" : "Localized smart knitting reminder system copy; user-created reminder text remains verbatim.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Denne påmindelse kunne ikke gemmes. Prøv igen." } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Diese Erinnerung konnte nicht gespeichert werden. Versuche es erneut." } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Δεν ήταν δυνατή η αποθήκευση αυτής της υπενθύμισης. Δοκιμάστε ξανά." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t save this reminder. Try again." } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Tätä muistutusta ei voitu tallentaa. Yritä uudelleen." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Impossible d’enregistrer ce rappel. Réessayez." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このリマインダーを保存できませんでした。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 알림을 저장할 수 없습니다. 다시 시도하세요." } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Kunne ikke lagre denne påminnelsen. Prøv igjen." } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Deze herinnering kon niet worden bewaard. Probeer opnieuw." } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Det gick inte att spara den här påminnelsen. Försök igen." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存此提醒。请重试。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存這個提醒。請再試一次。" } }
+      }
+    },
     ", " : {
       "comment" : "A conjunction used to join two items.",
       "isCommentAutoGenerated" : true,

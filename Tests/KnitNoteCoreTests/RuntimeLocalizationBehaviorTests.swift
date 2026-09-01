@@ -204,6 +204,83 @@ import Testing
         #expect(store.yarns == [userYarn])
     }
 
+    @Test func smartReminderSemanticsReorderForSelectedLocalesWhileCustomTextStaysVerbatim() throws {
+        let keys = [
+            "knittingReminder.kind.changeYarn",
+            "knittingReminder.rule.repeating.limited",
+            "knittingReminder.card.queue",
+        ]
+        let bundle = try localizedFixtureBundle(
+            additionalStringsByLanguage: try shippingCatalogValues(keys: keys)
+        )
+
+        #expect(LocaleAwareText.string(
+            "knittingReminder.kind.changeYarn",
+            locale: Locale(identifier: "zh-Hant"),
+            bundle: bundle
+        ) == "換色")
+        #expect(LocaleAwareText.format(
+            "knittingReminder.rule.repeating.limited",
+            locale: Locale(identifier: "de"),
+            bundle: bundle,
+            10, 4, 6
+        ) == "Ab Reihe 10, alle 4 Reihen, 6-mal")
+        #expect(LocaleAwareText.format(
+            "knittingReminder.rule.repeating.limited",
+            locale: Locale(identifier: "ja"),
+            bundle: bundle,
+            10, 4, 6
+        ) == "10段目から4段ごと、6回")
+        #expect(LocaleAwareText.format(
+            "knittingReminder.card.queue",
+            locale: Locale(identifier: "nb"),
+            bundle: bundle,
+            2, 5
+        ) == "2 av 5")
+
+        let userText = "K2, luego 米白色 — 사용자 메모"
+        let reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .oneTime(kind: .changeYarn, target: 10, text: userText),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let restored = try JSONDecoder().decode(
+            KnittingReminder.self,
+            from: JSONEncoder().encode(reminder)
+        )
+        for language in ["zh-Hant", "de", "ja", "nb"] {
+            _ = LocaleAwareText.string(
+                "knittingReminder.kind.changeYarn",
+                locale: Locale(identifier: language),
+                bundle: bundle
+            )
+            #expect(restored.text == "K2, luego 米白色 — 사용자 메모")
+        }
+    }
+
+}
+
+private func shippingCatalogValues(keys: [String]) throws -> [String: [String: String]] {
+    let repositoryRoot = URL(filePath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let data = try Data(contentsOf: repositoryRoot.appending(
+        path: "KnitNote/Localization/Localizable.xcstrings"
+    ))
+    let catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let strings = try #require(catalog["strings"] as? [String: Any])
+    var result: [String: [String: String]] = [:]
+    for key in keys {
+        let entry = try #require(strings[key] as? [String: Any])
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        for language in SupportedLocalization.v150Identifiers {
+            let localization = try #require(localizations[language] as? [String: Any])
+            let unit = try #require(localization["stringUnit"] as? [String: Any])
+            result[language, default: [:]][key] = try #require(unit["value"] as? String)
+        }
+    }
+    return result
 }
 
 private func navigationTitlesFromShippingCatalog(key: String) throws -> [String: String] {

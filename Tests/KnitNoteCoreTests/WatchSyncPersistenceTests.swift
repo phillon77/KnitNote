@@ -712,6 +712,121 @@ import Testing
 
         #expect(store.project(id: fixture.projectID)?.counters[0].value == 1)
     }
+
+    @Test @MainActor
+    func durableDeferredReminderRecoversAsTheOriginalSuccessAfterArchiveCrash() throws {
+        let fixture = try DurableWatchFixture()
+        let command = try fixture.triggeredReminderCommand(operation: .deferReminderOnce)
+        let firstStore = JSONProjectStore(url: fixture.archiveURL)
+
+        #expect(throws: InjectedWatchSyncFailure.self) {
+            try firstStore.applyWatchCommandDurably(
+                command,
+                ledgerURL: fixture.ledgerURL,
+                preparedCommandURL: fixture.preparedURL,
+                now: fixture.now,
+                failureInjector: { boundary in
+                    guard boundary == .afterProjectArchiveSave else { return }
+                    throw InjectedWatchSyncFailure()
+                }
+            )
+        }
+
+        let restarted = JSONProjectStore(url: fixture.archiveURL)
+        #expect(try restarted.recoverWatchCommandPersistence(
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        ) == .ready)
+        let duplicate = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(2)
+        )
+        let reminder = try #require(
+            restarted.project(id: fixture.projectID)?.knittingReminders.first
+        )
+
+        #expect(duplicate.rejection == nil)
+        #expect(reminder.progress.pending.first?.phase == .deferredOnce)
+        #expect(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()?.entry(for: command.id)?.rejection == nil)
+    }
+
+    @Test @MainActor
+    func durableMixedCounterReminderCounterOrderRejectsOnlyTheStaleReminder() throws {
+        let fixture = try DurableWatchFixture()
+        let staleReminder = try fixture.triggeredReminderCommand(
+            operation: .completeReminder,
+            occurrenceID: UUID()
+        )
+        let incrementOne = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .increment,
+            createdAt: fixture.now
+        )
+        let incrementTwo = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .increment,
+            createdAt: fixture.now.addingTimeInterval(2)
+        )
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        let first = try store.applyWatchCommandDurably(
+            incrementOne,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now
+        )
+        let middle = try store.applyWatchCommandDurably(
+            staleReminder,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(1)
+        )
+        let last = try store.applyWatchCommandDurably(
+            incrementTwo,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now.addingTimeInterval(2)
+        )
+
+        #expect(first.rejection == nil)
+        #expect(middle.rejection == .reminderMismatch)
+        #expect(last.rejection == nil)
+        #expect(store.project(id: fixture.projectID)?.counters[0].value == 3)
+    }
+
+    @Test @MainActor
+    func durableReminderMismatchIsRecordedWithoutPreparingAReceipt() throws {
+        let fixture = try DurableWatchFixture()
+        let command = try fixture.triggeredReminderCommand(
+            operation: .completeReminder,
+            occurrenceID: UUID()
+        )
+        let store = JSONProjectStore(url: fixture.archiveURL)
+
+        let acknowledgement = try store.applyWatchCommandDurably(
+            command,
+            ledgerURL: fixture.ledgerURL,
+            preparedCommandURL: fixture.preparedURL,
+            now: fixture.now,
+            failureInjector: { boundary in
+                guard boundary == .afterPreparedCommandSave else { return }
+                throw InjectedWatchSyncFailure()
+            }
+        )
+
+        #expect(acknowledgement.rejection == .reminderMismatch)
+        #expect(!FileManager.default.fileExists(atPath: fixture.preparedURL.path))
+        #expect(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: fixture.ledgerURL
+        ).load()?.entry(for: command.id)?.rejection == .reminderMismatch)
+    }
 }
 
 private struct InjectedWatchSyncFailure: Error {}
@@ -872,6 +987,33 @@ private final class WatchSyncTemporaryDirectory {
                 now: now
             )
         }
+    }
+
+    func triggeredReminderCommand(
+        operation: WatchCounterOperation,
+        occurrenceID: UUID? = nil
+    ) throws -> WatchCounterCommand {
+        let store = JSONProjectStore(url: archiveURL)
+        let reminderID = try store.addKnittingReminder(
+            projectID: projectID,
+            draft: .oneTime(kind: .measure, target: 1, text: "watch"),
+            now: now
+        )
+        try store.incrementCounter(projectID: projectID, counterID: counterID)
+        let reminder = try #require(store.project(id: projectID)?.knittingReminders.first)
+        let pending = try #require(reminder.progress.pending.first)
+        return try WatchCounterCommand(
+            validating: WatchCounterCommand.currentSchemaVersion,
+            projectID: projectID,
+            counterID: counterID,
+            operation: operation,
+            reminderPayload: WatchReminderActionPayload(
+                reminderID: reminderID,
+                occurrenceID: occurrenceID ?? pending.id,
+                observedRevision: reminder.mutationRevision
+            ),
+            createdAt: now
+        )
     }
 }
 

@@ -4,15 +4,24 @@ public struct PreparedWatchCommand: Codable, Equatable, Sendable {
     public let command: WatchCounterCommand
     public let expectedCounterRevision: UInt64
     public let expectedCounterValue: Int?
+    public let expectedReminderID: UUID?
+    public let expectedOccurrenceID: UUID?
+    public let expectedReminderRevision: UInt64?
 
     public init(
         command: WatchCounterCommand,
         expectedCounterRevision: UInt64,
-        expectedCounterValue: Int? = nil
+        expectedCounterValue: Int? = nil,
+        expectedReminderID: UUID? = nil,
+        expectedOccurrenceID: UUID? = nil,
+        expectedReminderRevision: UInt64? = nil
     ) {
         self.command = command
         self.expectedCounterRevision = expectedCounterRevision
         self.expectedCounterValue = expectedCounterValue
+        self.expectedReminderID = expectedReminderID
+        self.expectedOccurrenceID = expectedOccurrenceID
+        self.expectedReminderRevision = expectedReminderRevision
     }
 }
 
@@ -87,7 +96,12 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                     try requireFreshHandshake(ledger: &ledger, file: ledgerFile)
                     return .requiresFreshHandshake
                 }
-                if prepared.isAcceptedNoOp {
+                if prepared.reminderMutationWasApplied(in: project, counterID: counter.id) {
+                    ledger.record(prepared.command.id, at: now)
+                } else if !prepared.hasExpectedReminderState(in: project, counterID: counter.id) {
+                    try requireFreshHandshake(ledger: &ledger, file: ledgerFile)
+                    return .requiresFreshHandshake
+                } else if prepared.isAcceptedNoOp {
                     ledger.record(prepared.command.id, at: now)
                 } else {
                     _ = try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
@@ -152,6 +166,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
 
         guard
             command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
+            command.hasValidPayload,
             let project = project(id: command.projectID),
             !project.isCompleted,
             let counter = project.counters.first(where: { $0.id == command.counterID })
@@ -166,11 +181,26 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             return acknowledgement
         }
 
+        if command.reminderPayload != nil,
+           !reminderCommandIsCurrent(command, project: project, counter: counter) {
+            let acknowledgement = try applyAuthorizedWatchCommand(
+                command,
+                entitlement: entitlement,
+                ledger: &ledger,
+                now: now
+            )
+            try ledgerFile.save(ledger)
+            return acknowledgement
+        }
+
         let preparedFile = AtomicWatchSyncFile<PreparedWatchCommand>(url: preparedCommandURL)
         try preparedFile.save(PreparedWatchCommand(
             command: command,
             expectedCounterRevision: counter.mutationRevision,
-            expectedCounterValue: counter.value
+            expectedCounterValue: counter.value,
+            expectedReminderID: command.reminderPayload?.reminderID,
+            expectedOccurrenceID: command.reminderPayload?.occurrenceID,
+            expectedReminderRevision: command.reminderPayload?.observedRevision
         ))
         try failureInjector(.afterPreparedCommandSave)
 
@@ -276,6 +306,45 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
 }
 
 private extension PreparedWatchCommand {
+    func hasExpectedReminderState(in project: StoredProject, counterID: UUID) -> Bool {
+        guard let expectedReminderID,
+              let expectedOccurrenceID,
+              let expectedReminderRevision
+        else {
+            return command.reminderPayload == nil
+        }
+        return project.knittingReminders.contains { reminder in
+            reminder.id == expectedReminderID
+                && reminder.counterID == counterID
+                && reminder.mutationRevision == expectedReminderRevision
+                && reminder.progress.pending.contains(where: { $0.id == expectedOccurrenceID })
+        }
+    }
+
+    func reminderMutationWasApplied(in project: StoredProject, counterID: UUID) -> Bool {
+        guard let expectedReminderID,
+              let expectedOccurrenceID,
+              let expectedReminderRevision
+        else { return false }
+        let (nextRevision, overflow) = expectedReminderRevision.addingReportingOverflow(1)
+        guard !overflow else { return false }
+        guard let reminder = project.knittingReminders.first(where: {
+            $0.id == expectedReminderID
+                && $0.counterID == counterID
+                && $0.mutationRevision == nextRevision
+        }) else { return false }
+        switch command.operation {
+        case .completeReminder, .skipReminder:
+            return reminder.progress.latestHandled?.id == expectedOccurrenceID
+        case .deferReminderOnce:
+            return reminder.progress.pending.contains {
+                $0.id == expectedOccurrenceID && $0.phase == .deferredOnce
+            }
+        case .increment, .decrement, .reset, .stopReminder:
+            return false
+        }
+    }
+
     var isAcceptedNoOp: Bool {
         guard let expectedCounterValue else { return false }
         return switch command.operation {

@@ -215,6 +215,120 @@ import Testing
         #expect(ledger.entries.count == 1)
     }
 
+    @Test @MainActor
+    func inMemoryDuplicatePrecedesRestoredAccessChecks() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let command = WatchCounterCommand(
+            projectID: project.id,
+            counterID: project.counters[0].id,
+            operation: .increment,
+            createdAt: fixture.now
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        let original = try fixture.store.applyWatchCommand(
+            command,
+            ledger: &ledger,
+            now: fixture.now
+        )
+        var checks: [FeatureMutation] = []
+        let restricted = JSONProjectStore(
+            url: fixture.archiveURL,
+            authorizeMutation: {
+                checks.append($0)
+                return .requiresUnlock
+            }
+        )
+
+        let duplicate = try restricted.applyWatchCommand(
+            command,
+            ledger: &ledger,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(original.rejection == nil)
+        #expect(duplicate.rejection == nil)
+        #expect(checks.isEmpty)
+        #expect(restricted.project(id: project.id)?.counters[0].value == 1)
+    }
+
+    @Test @MainActor
+    func inMemoryRejectedDuplicatePrecedesRestoredEntitlementAndAccessChecks() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let command = WatchCounterCommand(
+            projectID: project.id,
+            counterID: project.counters[0].id,
+            operation: .increment,
+            createdAt: fixture.now
+        )
+        let expired = EntitlementSnapshot.trial(
+            startedAt: fixture.now.addingTimeInterval(-100),
+            expiresAt: fixture.now
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        let original = try fixture.store.applyWatchCommand(
+            command,
+            entitlement: expired,
+            ledger: &ledger,
+            now: fixture.now
+        )
+        var checks: [FeatureMutation] = []
+        let restricted = JSONProjectStore(
+            url: fixture.archiveURL,
+            authorizeMutation: {
+                checks.append($0)
+                return .requiresUnlock
+            }
+        )
+
+        let duplicate = try restricted.applyWatchCommand(
+            command,
+            entitlement: .permanentlyUnlocked,
+            ledger: &ledger,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(original.rejection == .entitlementRequired)
+        #expect(duplicate.rejection == .entitlementRequired)
+        #expect(checks.isEmpty)
+        #expect(restricted.project(id: project.id)?.counters[0].value == 0)
+    }
+
+    @Test @MainActor
+    func inMemorySuccessfulDuplicatePrecedesExpiredEntitlement() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let command = WatchCounterCommand(
+            projectID: project.id,
+            counterID: project.counters[0].id,
+            operation: .increment,
+            createdAt: fixture.now
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        let original = try fixture.store.applyWatchCommand(
+            command,
+            entitlement: .permanentlyUnlocked,
+            ledger: &ledger,
+            now: fixture.now
+        )
+        let expired = EntitlementSnapshot.trial(
+            startedAt: fixture.now.addingTimeInterval(-100),
+            expiresAt: fixture.now
+        )
+
+        let duplicate = try fixture.store.applyWatchCommand(
+            command,
+            entitlement: expired,
+            ledger: &ledger,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(original.rejection == nil)
+        #expect(duplicate.rejection == nil)
+        #expect(fixture.store.project(id: project.id)?.counters[0].value == 1)
+    }
+
     @Test @MainActor func duplicateReminderAcknowledgementCannotCompleteTwice() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)
@@ -242,6 +356,115 @@ import Testing
         #expect(afterFirst == 1)
         #expect(fixture.store.project(id: project.id)?.knittingReminders.first?.progress.completedCount == afterFirst)
         #expect(ledger.entries.count == 1)
+    }
+
+    @Test @MainActor
+    func schemaThreeReminderCommandsApplyTheirExactOccurrenceActions() throws {
+        let cases: [WatchCounterOperation] = [
+            .completeReminder,
+            .deferReminderOnce,
+            .skipReminder,
+        ]
+
+        for operation in cases {
+            let fixture = try WatchStoreFixture()
+            let project = try #require(fixture.store.projects.first)
+            let counterID = project.counters[0].id
+            let reminderID = try fixture.store.addKnittingReminder(
+                projectID: project.id,
+                draft: .oneTime(kind: .measure, target: 1, text: "watch"),
+                now: fixture.now
+            )
+            try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+            let reminder = try #require(
+                fixture.store.project(id: project.id)?.knittingReminders.first
+            )
+            let occurrence = try #require(reminder.progress.pending.first)
+            let command = try WatchCounterCommand(
+                validating: WatchCounterCommand.currentSchemaVersion,
+                projectID: project.id,
+                counterID: counterID,
+                operation: operation,
+                reminderPayload: WatchReminderActionPayload(
+                    reminderID: reminderID,
+                    occurrenceID: occurrence.id,
+                    observedRevision: reminder.mutationRevision
+                ),
+                createdAt: fixture.now
+            )
+            var ledger = ProcessedWatchCommandLedger()
+
+            let acknowledgement = try fixture.store.applyWatchCommand(
+                command,
+                ledger: &ledger,
+                now: fixture.now
+            )
+            let updated = try #require(
+                fixture.store.project(id: project.id)?.knittingReminders.first
+            )
+
+            #expect(acknowledgement.rejection == nil)
+            #expect(ledger.entry(for: command.id)?.rejection == nil)
+            switch operation {
+            case .completeReminder:
+                #expect(updated.state == .completed)
+                #expect(updated.progress.completedCount == 1)
+            case .deferReminderOnce:
+                #expect(updated.state == .active)
+                #expect(updated.progress.pending.first?.phase == .deferredOnce)
+            case .skipReminder:
+                #expect(updated.state == .completed)
+                #expect(updated.progress.skippedCount == 1)
+            default:
+                Issue.record("unexpected reminder operation")
+            }
+        }
+    }
+
+    @Test @MainActor
+    func schemaThreeReminderMismatchIsRecordedOnceWithoutMutation() throws {
+        let fixture = try WatchStoreFixture()
+        let project = try #require(fixture.store.projects.first)
+        let counterID = project.counters[0].id
+        try fixture.store.addKnittingReminder(
+            projectID: project.id,
+            draft: .oneTime(kind: .measure, target: 1, text: nil),
+            now: fixture.now
+        )
+        try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+        let reminder = try #require(
+            fixture.store.project(id: project.id)?.knittingReminders.first
+        )
+        let command = try WatchCounterCommand(
+            validating: WatchCounterCommand.currentSchemaVersion,
+            projectID: project.id,
+            counterID: counterID,
+            operation: .completeReminder,
+            reminderPayload: WatchReminderActionPayload(
+                reminderID: reminder.id,
+                occurrenceID: UUID(),
+                observedRevision: reminder.mutationRevision
+            ),
+            createdAt: fixture.now
+        )
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+        var ledger = ProcessedWatchCommandLedger()
+
+        let first = try fixture.store.applyWatchCommand(
+            command,
+            ledger: &ledger,
+            now: fixture.now
+        )
+        let duplicate = try fixture.store.applyWatchCommand(
+            command,
+            ledger: &ledger,
+            now: fixture.now.addingTimeInterval(1)
+        )
+
+        #expect(first.rejection == .reminderMismatch)
+        #expect(duplicate.rejection == .reminderMismatch)
+        #expect(ledger.entries.count == 1)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
     }
 
     @Test @MainActor func staleReminderIDIsRejectedWithoutMutation() throws {

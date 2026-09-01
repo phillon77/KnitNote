@@ -1457,9 +1457,11 @@ private func isValidDirectPatternFolderLocalization(
                 "knittingReminder.editor.limit",
                 "knittingReminder.editor.summary",
                 "knittingReminder.editor.validation",
+                "knittingReminder.action.editMigrated",
                 "knittingReminder.action.stop",
                 "knittingReminder.action.reset",
                 "knittingReminder.action.delete",
+                "knittingReminder.confirm.replaceProgress",
                 "knittingReminder.confirm.stop",
                 "knittingReminder.confirm.reset",
                 "knittingReminder.confirm.delete",
@@ -2829,8 +2831,10 @@ private func isValidDirectPatternFolderLocalization(
             "knittingReminder.editor.interval", "knittingReminder.editor.limited",
             "knittingReminder.editor.limit", "knittingReminder.editor.summary",
             "knittingReminder.editor.validation",
+            "knittingReminder.action.editMigrated",
             "knittingReminder.action.stop", "knittingReminder.action.reset",
             "knittingReminder.action.delete", "knittingReminder.confirm.stop",
+            "knittingReminder.confirm.replaceProgress",
             "knittingReminder.confirm.reset", "knittingReminder.confirm.delete",
             "knittingReminder.error.invalid", "knittingReminder.error.stale",
             "knittingReminder.error.unavailable", "knittingReminder.error.accessRestricted",
@@ -2884,6 +2888,69 @@ private func isValidDirectPatternFolderLocalization(
             sourceKeys: watchSourceKeys,
             prefix: "watch.reminder."
         )
+    }
+
+    @Test func migratedEditAndProgressResetCopyMatchTheThirteenLocaleOracle() throws {
+        let strings = try catalogStrings()
+        let migratedEdit: [String: String] = [
+            "da": "Rediger overført påmindelse",
+            "de": "Migrierte Erinnerung bearbeiten",
+            "el": "Επεξεργασία μεταφερμένης υπενθύμισης",
+            "en": "Edit Migrated Reminder",
+            "fi": "Muokkaa siirrettyä muistutusta",
+            "fr": "Modifier le rappel migré",
+            "ja": "移行したリマインダーを編集",
+            "ko": "이전된 알림 편집",
+            "nb": "Rediger overført påminnelse",
+            "nl": "Gemigreerde herinnering bewerken",
+            "sv": "Redigera migrerad påminnelse",
+            "zh-Hans": "编辑已迁移的提醒",
+            "zh-Hant": "編輯已遷移的提醒",
+        ]
+        let resetProgress: [String: String] = [
+            "da": "Erstat påmindelsen og nulstil status?",
+            "de": "Erinnerung ersetzen und Fortschritt zurücksetzen?",
+            "el": "Αντικατάσταση υπενθύμισης και επαναφορά προόδου;",
+            "en": "Replace Reminder and Reset Progress?",
+            "fi": "Korvataanko muistutus ja nollataanko edistyminen?",
+            "fr": "Remplacer le rappel et réinitialiser la progression ?",
+            "ja": "リマインダーを置き換えて進捗をリセットしますか？",
+            "ko": "알림을 교체하고 진행 상황을 재설정할까요?",
+            "nb": "Erstatt påminnelsen og nullstill fremdriften?",
+            "nl": "Herinnering vervangen en voortgang opnieuw instellen?",
+            "sv": "Ersätta påminnelsen och nollställa förloppet?",
+            "zh-Hans": "替换提醒并重置进度？",
+            "zh-Hant": "取代提醒並重設進度？",
+        ]
+
+        #expect(Set(migratedEdit.keys) == Set(SupportedLocalization.v150Identifiers))
+        #expect(Set(resetProgress.keys) == Set(SupportedLocalization.v150Identifiers))
+        for language in SupportedLocalization.v150Identifiers {
+            #expect(try localizedValue(
+                "knittingReminder.action.editMigrated",
+                language: language,
+                strings: strings
+            ) == migratedEdit[language])
+            #expect(try localizedValue(
+                "knittingReminder.confirm.replaceProgress",
+                language: language,
+                strings: strings
+            ) == resetProgress[language])
+        }
+
+        let managerSource = try String(
+            contentsOf: repositoryRoot.appending(path: "KnitNote/Projects/CounterManagerView.swift"),
+            encoding: .utf8
+        )
+        #expect(managerSource.contains("Label(\"knittingReminder.action.editMigrated\""))
+        let editEntry = try #require(strings["knittingReminder.action.editMigrated"] as? [String: Any])
+        let editComment = try #require(editEntry["comment"] as? String)
+        #expect(editComment.contains("secondary counter"))
+        #expect(editComment.contains("migrated"))
+        let resetEntry = try #require(strings["knittingReminder.confirm.replaceProgress"] as? [String: Any])
+        let resetComment = try #require(resetEntry["comment"] as? String)
+        #expect(resetComment.contains("proposed rule summary"))
+        #expect(resetComment.contains("resetting"))
     }
 
     @Test func highRiskSmartReminderCopyMatchesTheReviewedTask9Oracle() throws {

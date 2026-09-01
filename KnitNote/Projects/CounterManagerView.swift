@@ -158,7 +158,7 @@ struct CounterManagerView: View {
                 NavigationLink {
                     KnittingReminderEditorView(projectID: projectID, reminderID: reminderID)
                 } label: {
-                    Label("Edit migrated reminder", systemImage: "bell.badge")
+                    Label("knittingReminder.action.editMigrated", systemImage: "bell.badge")
                 }
                 .frame(minHeight: 44)
             }

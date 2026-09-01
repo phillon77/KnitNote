@@ -1402,26 +1402,11 @@ final class PatternLibraryDeletionTransaction {
                     rejection = switch command.operation {
                     case .increment, .decrement, .reset:
                         nil
-                    case .completeReminder:
+                    case .completeReminder, .deferReminderOnce, .skipReminder:
                         reminderCommandIsCurrent(
                             command,
                             project: project,
-                            counter: counter,
-                            requiresInitialOccurrence: false
-                        ) ? nil : .reminderMismatch
-                    case .deferReminderOnce:
-                        reminderCommandIsCurrent(
-                            command,
-                            project: project,
-                            counter: counter,
-                            requiresInitialOccurrence: true
-                        ) ? nil : .reminderMismatch
-                    case .skipReminder:
-                        reminderCommandIsCurrent(
-                            command,
-                            project: project,
-                            counter: counter,
-                            requiresInitialOccurrence: false
+                            counter: counter
                         ) ? nil : .reminderMismatch
                     case .stopReminder:
                         .unsupportedSchema
@@ -1512,7 +1497,7 @@ final class PatternLibraryDeletionTransaction {
         switch error {
         case .invalidDraft, .staleRevision, .occurrenceNotFound, .alreadyDeferred,
              .invalidAction, .arithmeticOverflow, .revisionExhausted,
-             .newReminderRequiresMainCounter:
+             .newReminderRequiresMainCounter, .occurrenceLimitExceeded:
             .reminderMismatch
         }
     }
@@ -1523,19 +1508,12 @@ final class PatternLibraryDeletionTransaction {
         counter: ProjectCounter
     ) -> Bool {
         switch command.operation {
-        case .completeReminder, .skipReminder:
+        case .completeReminder, .deferReminderOnce, .skipReminder:
             reminderCommandIsCurrent(
                 command,
                 project: project,
                 counter: counter,
-                requiresInitialOccurrence: false
-            )
-        case .deferReminderOnce:
-            reminderCommandIsCurrent(
-                command,
-                project: project,
-                counter: counter,
-                requiresInitialOccurrence: true
+                operation: command.operation
             )
         case .increment, .decrement, .reset, .stopReminder:
             false
@@ -1595,7 +1573,7 @@ final class PatternLibraryDeletionTransaction {
         _ command: WatchCounterCommand,
         project: StoredProject,
         counter: ProjectCounter,
-        requiresInitialOccurrence: Bool
+        operation: WatchCounterOperation? = nil
     ) -> Bool {
         guard let payload = command.reminderPayload,
               let reminder = project.knittingReminders.first(where: {
@@ -1607,7 +1585,16 @@ final class PatternLibraryDeletionTransaction {
                   $0.id == payload.occurrenceID
               })
         else { return false }
-        return !requiresInitialOccurrence || occurrence.phase == .initial
+        switch operation ?? command.operation {
+        case .completeReminder:
+            return true
+        case .deferReminderOnce:
+            return occurrence.phase == .initial
+        case .skipReminder:
+            return occurrence.phase == .deferredOnce && !occurrence.awaitsNextUpwardChange
+        case .increment, .decrement, .reset, .stopReminder:
+            return false
+        }
     }
     public func saveNote(projectID: UUID, counterID: UUID, row: Int, text: String) throws {
         try requireAccess(.editNote)

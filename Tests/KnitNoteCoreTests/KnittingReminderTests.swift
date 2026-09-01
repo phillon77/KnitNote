@@ -113,6 +113,15 @@ import Testing
         ))
         reminder = try reminder.applying(.trigger(through: 8))
         let occurrence = try #require(reminder.progress.pending.first)
+        reminder = try reminder.applying(.deferOnce(
+            occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision
+        ))
+        reminder = try #require(KnittingReminderEvaluator.evaluate(
+            oldValue: 8,
+            newValue: 9,
+            reminders: [reminder]
+        ).reminders.first)
         reminder = try reminder.applying(.skip(occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision))
 
         #expect(reminder.state == .completed)
@@ -300,6 +309,15 @@ import Testing
         ))
         reminder = try reminder.applying(.trigger(through: 7))
         let first = try #require(reminder.progress.pending.first)
+        reminder = try reminder.applying(.deferOnce(
+            occurrenceID: first.id,
+            observedRevision: reminder.mutationRevision
+        ))
+        reminder = try #require(KnittingReminderEvaluator.evaluate(
+            oldValue: 7,
+            newValue: 8,
+            reminders: [reminder]
+        ).reminders.first)
         reminder = try reminder.applying(.skip(occurrenceID: first.id, observedRevision: reminder.mutationRevision))
 
         let data = try JSONEncoder().encode(reminder)
@@ -347,6 +365,15 @@ import Testing
         ))
         reminder = try reminder.applying(.trigger(through: 6))
         let first = try #require(reminder.progress.pending.first)
+        reminder = try reminder.applying(.deferOnce(
+            occurrenceID: first.id,
+            observedRevision: reminder.mutationRevision
+        ))
+        reminder = try #require(KnittingReminderEvaluator.evaluate(
+            oldValue: 6,
+            newValue: 7,
+            reminders: [reminder]
+        ).reminders.first)
         reminder = try reminder.applying(.skip(occurrenceID: first.id, observedRevision: reminder.mutationRevision))
         reminder = try reminder.applying(.resetLatest(observedRevision: reminder.mutationRevision))
         let reset = try #require(reminder.progress.pending.first)
@@ -435,5 +462,98 @@ import Testing
         #expect(result.rejectedReminderIDs == [exhausted.id])
         #expect(result.reminders == [exhausted])
         #expect(result.pending.isEmpty)
+    }
+
+    @Test func hugeIntervalOneJumpIsRejectedBeforeMaterializingOccurrences() throws {
+        let reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .repeating(kind: .cable, firstTarget: 1, interval: 1, limit: nil, text: nil),
+            createdAt: .now
+        ))
+
+        #expect(throws: KnittingReminderMutationError.occurrenceLimitExceeded(
+            limit: KnittingReminder.maximumPendingOccurrences
+        )) {
+            try reminder.applying(.trigger(through: .max))
+        }
+        #expect(reminder.progress.pending.isEmpty)
+        #expect(reminder.progress.scheduledCount == 0)
+    }
+
+    @Test func occurrenceMaterializationAcceptsTheExactOperationalBoundary() throws {
+        let limit = KnittingReminder.maximumPendingOccurrences
+        let reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .repeating(kind: .increase, firstTarget: 1, interval: 1, limit: limit, text: nil),
+            createdAt: .now
+        ))
+
+        let result = KnittingReminderEvaluator.evaluate(oldValue: 0, newValue: limit, reminders: [reminder])
+        let updated = try #require(result.reminders.first)
+
+        #expect(result.rejectedReminderIDs.isEmpty)
+        #expect(updated.progress.pending.count == limit)
+        #expect(updated.progress.pending.first?.originalTarget == 1)
+        #expect(updated.progress.pending.last?.originalTarget == limit)
+    }
+
+    @Test func checkedCrossingArithmeticRejectsAnOverflowSizedRangeAtomically() throws {
+        let reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .repeating(kind: .measure, firstTarget: 0, interval: 1, limit: nil, text: nil),
+            createdAt: .now
+        ))
+
+        let result = KnittingReminderEvaluator.evaluate(oldValue: 0, newValue: .max, reminders: [reminder])
+
+        #expect(result.rejectedReminderIDs == [reminder.id])
+        #expect(result.reminders == [reminder])
+        #expect(result.pending.isEmpty)
+    }
+
+    @Test func skipRequiresAReleasedDeferredOccurrence() throws {
+        var reminder = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .oneTime(kind: .buttonhole, target: 1, text: nil),
+            createdAt: .now
+        ))
+        reminder = try reminder.applying(.trigger(through: 1))
+        let occurrence = try #require(reminder.progress.pending.first)
+
+        #expect(throws: KnittingReminderMutationError.invalidAction) {
+            try reminder.applying(.skip(occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision))
+        }
+
+        reminder = try reminder.applying(.deferOnce(
+            occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision
+        ))
+        #expect(throws: KnittingReminderMutationError.invalidAction) {
+            try reminder.applying(.skip(occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision))
+        }
+
+        let released = KnittingReminderEvaluator.evaluate(oldValue: 1, newValue: 2, reminders: [reminder])
+        reminder = try #require(released.reminders.first)
+        let skipped = try reminder.applying(.skip(
+            occurrenceID: occurrence.id,
+            observedRevision: reminder.mutationRevision
+        ))
+        #expect(skipped.progress.skippedCount == 1)
+    }
+
+    @Test func editPolicyConfirmsAnyProgressButAllowsAPristineRuleToSaveDirectly() throws {
+        let pristine = try #require(KnittingReminder(
+            counterID: UUID(),
+            draft: .oneTime(kind: .measure, target: 10, text: nil),
+            createdAt: .now
+        ))
+        #expect(!KnittingReminderEditPolicy.requiresProgressResetConfirmation(pristine))
+
+        let observed = KnittingReminderEvaluator.evaluate(oldValue: 0, newValue: 1, reminders: [pristine])
+        let progressed = try #require(observed.reminders.first)
+        #expect(KnittingReminderEditPolicy.requiresProgressResetConfirmation(progressed))
+
+        let stopped = try pristine.applying(.stop(observedRevision: pristine.mutationRevision))
+        #expect(KnittingReminderEditPolicy.requiresProgressResetConfirmation(stopped))
     }
 }

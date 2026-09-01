@@ -2,6 +2,12 @@ import SwiftUI
 
 struct KnittingReminderEditorView: View {
     private enum Mode: Hashable { case oneTime, repeating }
+    private struct PendingProgressResetUpdate {
+        let reminderID: UUID
+        let observedRevision: UInt64
+        let draft: KnittingReminderDraft
+        let proposedSummary: String
+    }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
@@ -18,6 +24,8 @@ struct KnittingReminderEditorView: View {
     @State private var limitText = "1"
     @State private var hasLoaded = false
     @State private var capturedReminderRevision: UInt64?
+    @State private var requiresProgressResetConfirmation = false
+    @State private var pendingProgressResetUpdate: PendingProgressResetUpdate?
     @State private var isExistingReminderUnavailable = false
     @State private var errorMessage: String?
 
@@ -150,6 +158,17 @@ struct KnittingReminderEditorView: View {
         } message: {
             Text(verbatim: errorMessage ?? "")
         }
+        .alert("knittingReminder.confirm.replaceProgress", isPresented: Binding(
+            get: { pendingProgressResetUpdate != nil },
+            set: { if !$0 { pendingProgressResetUpdate = nil } }
+        )) {
+            Button("common.save") { confirmProgressResetUpdate() }
+            Button("common.cancel", role: .cancel) {
+                pendingProgressResetUpdate = nil
+            }
+        } message: {
+            Text(verbatim: pendingProgressResetUpdate?.proposedSummary ?? "")
+        }
         .onAppear(perform: loadReminder)
     }
 
@@ -236,6 +255,8 @@ struct KnittingReminderEditorView: View {
             return
         }
         capturedReminderRevision = reminder.mutationRevision
+        requiresProgressResetConfirmation =
+            KnittingReminderEditPolicy.requiresProgressResetConfirmation(reminder)
         kind = reminder.kind
         customText = reminder.text ?? ""
         switch reminder.rule {
@@ -251,6 +272,19 @@ struct KnittingReminderEditorView: View {
         }
     }
 
+    private func performUpdate(
+        reminderID: UUID,
+        observedRevision: UInt64,
+        draft: KnittingReminderDraft
+    ) throws {
+        try store.updateKnittingReminder(
+            projectID: projectID,
+            reminderID: reminderID,
+            observedRevision: observedRevision,
+            draft: draft
+        )
+    }
+
     private func save() {
         guard let draft = validDraft else { return }
         do {
@@ -259,8 +293,18 @@ struct KnittingReminderEditorView: View {
                     markExistingReminderUnavailable()
                     return
                 }
-                try store.updateKnittingReminder(
-                    projectID: projectID,
+                if requiresProgressResetConfirmation {
+                    var summary = KnittingReminderSummary.rule(rule(for: draft), locale: locale)
+                    if !customText.isEmpty { summary += "\n\(customText)" }
+                    pendingProgressResetUpdate = PendingProgressResetUpdate(
+                        reminderID: reminderID,
+                        observedRevision: capturedReminderRevision,
+                        draft: draft,
+                        proposedSummary: summary
+                    )
+                    return
+                }
+                try performUpdate(
                     reminderID: reminderID,
                     observedRevision: capturedReminderRevision,
                     draft: draft
@@ -277,6 +321,30 @@ struct KnittingReminderEditorView: View {
             } else {
                 errorMessage = KnittingReminderSummary.error(error, locale: locale)
             }
+        }
+    }
+
+    private func confirmProgressResetUpdate() {
+        guard let pending = pendingProgressResetUpdate else { return }
+        pendingProgressResetUpdate = nil
+        do {
+            try performUpdate(
+                reminderID: pending.reminderID,
+                observedRevision: pending.observedRevision,
+                draft: pending.draft
+            )
+            dismiss()
+        } catch {
+            handleSaveError(error)
+        }
+    }
+
+    private func handleSaveError(_ error: Error) {
+        if let error = error as? KnittingReminderMutationError,
+           error == .occurrenceNotFound {
+            markExistingReminderUnavailable()
+        } else {
+            errorMessage = KnittingReminderSummary.error(error, locale: locale)
         }
     }
 

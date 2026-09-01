@@ -140,6 +140,60 @@ import Testing
         #expect(JSONProjectStore(url: archiveURL).loadError == nil)
     }
 
+    @Test func migratedSecondaryReminderTriggersOnlyFromItsOwningCounterAfterReload() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SecondaryReminderReload-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let archiveURL = root.appendingPathComponent("projects-v1.json")
+        let mainID = UUID()
+        let secondaryID = UUID()
+        let unrelatedID = UUID()
+        let legacy = try #require(CounterReminder(
+            draft: .repeating(interval: 2, limit: nil, message: "Secondary"),
+            anchorValue: 0,
+            id: UUID()
+        ))
+        let project = try StoredProject(
+            name: "Sleeve",
+            counters: [
+                ProjectCounter(id: mainID, defaultOrdinal: 1),
+                ProjectCounter(id: secondaryID, defaultOrdinal: 2, reminder: legacy),
+                ProjectCounter(id: unrelatedID, defaultOrdinal: 3),
+            ]
+        )
+        try JSONEncoder().encode(ProjectArchive(version: 13, projects: [project]))
+            .write(to: archiveURL, options: .atomic)
+
+        var store = JSONProjectStore(url: archiveURL)
+        #expect(store.loadError == nil)
+        store = JSONProjectStore(url: archiveURL)
+        let migrated = try #require(store.project(id: project.id)?.knittingReminders.first)
+        #expect(migrated.counterID == secondaryID)
+
+        _ = try store.incrementCounter(projectID: project.id, counterID: mainID)
+        _ = try store.updateCounter(
+            projectID: project.id,
+            counterID: unrelatedID,
+            name: nil,
+            value: 20
+        )
+        #expect(store.project(id: project.id)?.knittingReminders.first?.progress.pending.isEmpty == true)
+
+        _ = try store.incrementCounter(projectID: project.id, counterID: secondaryID)
+        _ = try store.incrementCounter(projectID: project.id, counterID: secondaryID)
+        #expect(store.project(id: project.id)?.knittingReminders.first?.progress.pending.map(\.originalTarget) == [2])
+
+        _ = try store.updateCounter(
+            projectID: project.id,
+            counterID: secondaryID,
+            name: nil,
+            value: 7
+        )
+        let reloaded = JSONProjectStore(url: archiveURL)
+        #expect(reloaded.project(id: project.id)?.knittingReminders.first?.progress.pending.map(\.originalTarget) == [2, 4, 6])
+    }
+
     @Test func startupPersistenceFailureLeavesLegacyArchiveAndPublishedStateUnchanged() throws {
         enum WriteFailure: Error { case expected }
 

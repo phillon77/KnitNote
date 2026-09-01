@@ -87,12 +87,12 @@ public struct KnittingReminderProgress: Codable, Hashable, Sendable {
     }
 
     mutating func schedule(
-        _ occurrence: KnittingReminderOccurrence,
+        _ occurrences: [KnittingReminderOccurrence],
         scheduledCount: Int,
         nextTarget: Int?,
         nextOccurrenceIndex: Int
     ) {
-        pending.append(occurrence)
+        pending.append(contentsOf: occurrences)
         self.scheduledCount = scheduledCount
         self.nextTarget = nextTarget
         self.nextOccurrenceIndex = nextOccurrenceIndex
@@ -186,6 +186,24 @@ public enum KnittingReminderMutationError: Error, Equatable, Sendable {
     case arithmeticOverflow
     case revisionExhausted
     case newReminderRequiresMainCounter
+    case occurrenceLimitExceeded(limit: Int)
+}
+
+public enum KnittingReminderEditPolicy {
+    /// A replacement discards generated progress, so only a genuinely pristine
+    /// reminder can be edited without an explicit reset confirmation.
+    public static func requiresProgressResetConfirmation(
+        _ reminder: KnittingReminder
+    ) -> Bool {
+        reminder.state != .active
+            || reminder.progress.scheduledCount != 0
+            || reminder.progress.completedCount != 0
+            || reminder.progress.skippedCount != 0
+            || reminder.progress.nextOccurrenceIndex != 1
+            || reminder.progress.lastObservedCounterValue != nil
+            || !reminder.progress.pending.isEmpty
+            || reminder.progress.latestHandled != nil
+    }
 }
 
 public struct KnittingReminderEvaluationResult: Equatable, Sendable {
@@ -195,6 +213,11 @@ public struct KnittingReminderEvaluationResult: Equatable, Sendable {
 }
 
 public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
+    /// A single reminder is capped at 1,000 queued occurrences. This keeps
+    /// persisted archives and Watch snapshots bounded while remaining far
+    /// above the number of reminder cards a person can act on usefully.
+    public static let maximumPendingOccurrences = 1_000
+
     public let id: UUID
     public let counterID: UUID
     public private(set) var kind: KnittingReminderKind
@@ -290,11 +313,7 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         case let .deferOnce(occurrenceID, observedRevision):
             try copy.deferOnce(occurrenceID: occurrenceID, observedRevision: observedRevision)
         case let .skip(occurrenceID, observedRevision):
-            try copy.handle(
-                occurrenceID: occurrenceID,
-                observedRevision: observedRevision,
-                wasSkipped: true
-            )
+            try copy.skip(occurrenceID: occurrenceID, observedRevision: observedRevision)
         case let .stop(observedRevision):
             try copy.stop(observedRevision: observedRevision)
         case let .resetLatest(observedRevision):
@@ -329,33 +348,7 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
     private mutating func trigger(through counterValue: Int) throws {
         guard state == .active else { return }
 
-        var didChange = false
-        while let scheduledTarget = progress.nextTarget, scheduledTarget <= counterValue {
-            let occurrence = KnittingReminderOccurrence(
-                id: UUID(),
-                reminderID: id,
-                kind: kind,
-                text: text,
-                originalTarget: scheduledTarget,
-                displayAt: scheduledTarget,
-                phase: .initial,
-                awaitsNextUpwardChange: false
-            )
-            let (scheduledCount, countOverflow) = progress.scheduledCount.addingReportingOverflow(1)
-            guard !countOverflow else {
-                progress.stopScheduling()
-                didChange = true
-                break
-            }
-            let (nextTarget, nextOccurrenceIndex) = nextCandidate()
-            progress.schedule(
-                occurrence,
-                scheduledCount: scheduledCount,
-                nextTarget: nextTarget,
-                nextOccurrenceIndex: nextOccurrenceIndex
-            )
-            didChange = true
-        }
+        var didChange = try materializeCandidates(through: counterValue)
         didChange = progress.recordObservedCounterValue(counterValue) || didChange
         try incrementRevisionIfNeeded(didChange)
     }
@@ -366,52 +359,108 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         var didChange = false
         if newValue > oldValue {
             didChange = !progress.releaseDeferredOccurrences(at: newValue).isEmpty
-            while let staleTarget = progress.nextTarget, staleTarget <= oldValue {
-                advanceCandidate()
-                didChange = true
-            }
-
-            while let scheduledTarget = progress.nextTarget, scheduledTarget <= newValue {
-                let occurrence = KnittingReminderOccurrence(
-                    id: UUID(),
-                    reminderID: id,
-                    kind: kind,
-                    text: text,
-                    originalTarget: scheduledTarget,
-                    displayAt: scheduledTarget,
-                    phase: .initial,
-                    awaitsNextUpwardChange: false
-                )
-                let (scheduledCount, countOverflow) = progress.scheduledCount.addingReportingOverflow(1)
-                guard !countOverflow else {
-                    progress.stopScheduling()
-                    didChange = true
-                    break
-                }
-                let (nextTarget, nextOccurrenceIndex) = nextCandidate()
-                progress.schedule(
-                    occurrence,
-                    scheduledCount: scheduledCount,
-                    nextTarget: nextTarget,
-                    nextOccurrenceIndex: nextOccurrenceIndex
-                )
-                didChange = true
-            }
+            didChange = try skipCandidates(through: oldValue) || didChange
+            didChange = try materializeCandidates(through: newValue) || didChange
         }
 
         didChange = progress.recordObservedCounterValue(newValue) || didChange
         try incrementRevisionIfNeeded(didChange)
     }
 
-    private mutating func advanceCandidate() {
-        let (nextTarget, nextOccurrenceIndex) = nextCandidate()
-        progress.advanceCandidate(nextTarget: nextTarget, nextOccurrenceIndex: nextOccurrenceIndex)
+    /// Advances candidates already at or below a prior counter value in O(1).
+    private mutating func skipCandidates(through counterValue: Int) throws -> Bool {
+        guard let candidate = progress.nextTarget, candidate <= counterValue else { return false }
+        let count = try crossedCandidateCount(from: candidate, through: counterValue)
+        let (nextIndex, overflow) = progress.nextOccurrenceIndex.addingReportingOverflow(count)
+        guard !overflow else { throw KnittingReminderMutationError.arithmeticOverflow }
+        progress.advanceCandidate(
+            nextTarget: target(forOccurrence: nextIndex),
+            nextOccurrenceIndex: nextIndex
+        )
+        return true
     }
 
-    private func nextCandidate() -> (target: Int?, occurrenceIndex: Int) {
-        let (nextOccurrenceIndex, overflow) = progress.nextOccurrenceIndex.addingReportingOverflow(1)
-        guard !overflow else { return (nil, progress.nextOccurrenceIndex) }
-        return (target(forOccurrence: nextOccurrenceIndex), nextOccurrenceIndex)
+    /// Computes the crossed count before creating UUIDs or arrays, then creates
+    /// at most `maximumPendingOccurrences` cards.
+    private mutating func materializeCandidates(through counterValue: Int) throws -> Bool {
+        guard let candidate = progress.nextTarget, candidate <= counterValue else { return false }
+        let available = Self.maximumPendingOccurrences - progress.pending.count
+        guard available >= 0 else {
+            throw KnittingReminderMutationError.occurrenceLimitExceeded(
+                limit: Self.maximumPendingOccurrences
+            )
+        }
+
+        let quotient: Int
+        switch rule {
+        case .oneTime:
+            quotient = 0
+        case let .repeating(_, interval, limit):
+            let crossedQuotient = (counterValue - candidate) / interval
+            if let limit {
+                let remaining = limit - progress.nextOccurrenceIndex + 1
+                quotient = min(crossedQuotient, remaining - 1)
+            } else {
+                quotient = crossedQuotient
+            }
+        }
+        // count == quotient + 1; compare first so Int.max never overflows.
+        guard quotient < available else {
+            throw KnittingReminderMutationError.occurrenceLimitExceeded(
+                limit: Self.maximumPendingOccurrences
+            )
+        }
+        let count = quotient + 1
+        let (scheduledCount, countOverflow) = progress.scheduledCount.addingReportingOverflow(count)
+        let (nextIndex, indexOverflow) = progress.nextOccurrenceIndex.addingReportingOverflow(count)
+        guard !countOverflow, !indexOverflow else {
+            throw KnittingReminderMutationError.arithmeticOverflow
+        }
+
+        var occurrences = [KnittingReminderOccurrence]()
+        occurrences.reserveCapacity(count)
+        for offset in 0..<count {
+            let (occurrenceIndex, overflow) = progress.nextOccurrenceIndex.addingReportingOverflow(offset)
+            guard !overflow, let target = target(forOccurrence: occurrenceIndex) else {
+                throw KnittingReminderMutationError.arithmeticOverflow
+            }
+            occurrences.append(KnittingReminderOccurrence(
+                id: UUID(),
+                reminderID: id,
+                kind: kind,
+                text: text,
+                originalTarget: target,
+                displayAt: target,
+                phase: .initial,
+                awaitsNextUpwardChange: false
+            ))
+        }
+        progress.schedule(
+            occurrences,
+            scheduledCount: scheduledCount,
+            nextTarget: target(forOccurrence: nextIndex),
+            nextOccurrenceIndex: nextIndex
+        )
+        return true
+    }
+
+    private func crossedCandidateCount(from candidate: Int, through counterValue: Int) throws -> Int {
+        let quotient: Int
+        switch rule {
+        case .oneTime:
+            quotient = 0
+        case let .repeating(_, interval, limit):
+            let crossedQuotient = (counterValue - candidate) / interval
+            if let limit {
+                let remaining = limit - progress.nextOccurrenceIndex + 1
+                quotient = min(crossedQuotient, remaining - 1)
+            } else {
+                quotient = crossedQuotient
+            }
+        }
+        let (count, overflow) = quotient.addingReportingOverflow(1)
+        guard !overflow else { throw KnittingReminderMutationError.arithmeticOverflow }
+        return count
     }
 
     private mutating func handle(
@@ -448,6 +497,23 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
         progress.replacePending(occurrence)
     }
 
+    private mutating func skip(occurrenceID: UUID, observedRevision: UInt64) throws {
+        try validate(observedRevision: observedRevision)
+        guard let occurrence = progress.pending.first(where: { $0.id == occurrenceID }) else {
+            throw KnittingReminderMutationError.occurrenceNotFound
+        }
+        guard occurrence.phase == .deferredOnce,
+              !occurrence.awaitsNextUpwardChange,
+              let observed = progress.lastObservedCounterValue,
+              occurrence.displayAt <= observed
+        else { throw KnittingReminderMutationError.invalidAction }
+        try handle(
+            occurrenceID: occurrenceID,
+            observedRevision: observedRevision,
+            wasSkipped: true
+        )
+    }
+
     private mutating func stop(observedRevision: UInt64) throws {
         try validate(observedRevision: observedRevision)
         guard state == .active else { throw KnittingReminderMutationError.invalidAction }
@@ -460,6 +526,11 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
     private mutating func resetLatest(observedRevision: UInt64) throws {
         try validateRevision(observedRevision)
         guard progress.hasLatestHandledOccurrence else { throw KnittingReminderMutationError.invalidAction }
+        guard progress.pending.count < Self.maximumPendingOccurrences else {
+            throw KnittingReminderMutationError.occurrenceLimitExceeded(
+                limit: Self.maximumPendingOccurrences
+            )
+        }
         try incrementRevisionIfNeeded(true)
         _ = progress.resetLatest()
         state = .active
@@ -496,6 +567,7 @@ public struct KnittingReminder: Identifiable, Codable, Hashable, Sendable {
               progress.nextOccurrenceIndex > 0,
               progress.nextTarget.map({ $0 >= 0 }) ?? true,
               progress.lastObservedCounterValue.map({ $0 >= 0 }) ?? true,
+              progress.pending.count <= Self.maximumPendingOccurrences,
               progress.pending.count <= progress.scheduledCount,
               pendingIDs.count == progress.pending.count,
               progress.pending.allSatisfy(isValidOccurrence),

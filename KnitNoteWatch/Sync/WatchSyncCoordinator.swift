@@ -109,18 +109,29 @@ final class WatchSyncCoordinator: ObservableObject {
         state.hasPending(projectID: projectID, counterID: counterID)
     }
 
+    func hasPendingReminderAction(projectID: UUID, reminderID: UUID) -> Bool {
+        state.hasPendingReminderAction(projectID: projectID, reminderID: reminderID)
+    }
+
     func canMutate(at date: Date? = nil) -> Bool {
         state.canMutate(now: date ?? now())
+    }
+
+    func reminderQueueBecameVisible(projectID: UUID) {
+        var candidate = state
+        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs(
+            visibleProjectID: projectID
+        )
+        guard persistThenPublish(candidate) else { return }
+        if !hapticOccurrenceIDs.isEmpty {
+            playHaptic()
+        }
     }
 
     func selectProject(_ projectID: UUID?) {
         var candidate = state
         guard candidate.selectProject(projectID) else { return }
-        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
-        guard persistThenPublish(candidate) else { return }
-        if !hapticOccurrenceIDs.isEmpty {
-            playHaptic()
-        }
+        persistThenPublish(candidate)
     }
 
     func selectCounter(_ counterID: UUID?) {
@@ -222,12 +233,7 @@ final class WatchSyncCoordinator: ObservableObject {
             setError(rejection)
             return
         }
-        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
-
         guard persistThenPublish(candidate) else { return }
-        if !hapticOccurrenceIDs.isEmpty {
-            playHaptic()
-        }
         clearError()
 
         if reachableHandshakeCompleted {
@@ -262,11 +268,7 @@ final class WatchSyncCoordinator: ObservableObject {
     private func replaceSnapshot(_ snapshot: WatchSyncSnapshot) {
         var candidate = state
         candidate.replaceSnapshot(snapshot)
-        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
         guard persistThenPublish(candidate) else { return }
-        if !hapticOccurrenceIDs.isEmpty {
-            playHaptic()
-        }
         requiresSnapshot = false
         if state.nextDeliverableCommand(now: now()) != nil {
             beginHandshakeAndReplay()
@@ -276,16 +278,11 @@ final class WatchSyncCoordinator: ObservableObject {
     private func handleAcknowledgement(_ acknowledgement: WatchCommandAcknowledgement) {
         var candidate = state
         guard candidate.acknowledge(acknowledgement) else { return }
-        let hapticOccurrenceIDs = candidate.takeNewQueueHeadHapticOccurrenceIDs()
         guard persistThenPublish(candidate) else {
             deliveryState.cancelInteractiveDelivery()
             reachableHandshakeCompleted = false
             beginHandshakeAndReplay()
             return
-        }
-
-        if !hapticOccurrenceIDs.isEmpty {
-            playHaptic()
         }
 
         _ = deliveryState.acknowledge(acknowledgement.commandID)

@@ -883,6 +883,24 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "第一段須為 0 以上的整數；間隔與次數須為 1 以上的整數。" } }
       }
     },
+    "knittingReminder.action.editMigrated" : {
+      "comment" : "Action label on a secondary counter for editing the reminder migrated from that counter's legacy reminder.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Rediger overført påmindelse" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Migrierte Erinnerung bearbeiten" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Επεξεργασία μεταφερμένης υπενθύμισης" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Migrated Reminder" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Muokkaa siirrettyä muistutusta" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modifier le rappel migré" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "移行したリマインダーを編集" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이전된 알림 편집" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Rediger overført påminnelse" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Gemigreerde herinnering bewerken" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Redigera migrerad påminnelse" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑已迁移的提醒" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯已遷移的提醒" } }
+      }
+    },
     "knittingReminder.action.stop" : {
       "comment" : "Reminder-list action label for stopping a complete rule, not completing its current occurrence.",
       "localizations" : {
@@ -935,6 +953,24 @@
         "sv" : { "stringUnit" : { "state" : "translated", "value" : "Radera" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
+      }
+    },
+    "knittingReminder.confirm.replaceProgress" : {
+      "comment" : "Confirmation title shown before replacing an existing reminder rule and resetting all generated, pending, completed, skipped, or ended progress; the proposed rule summary appears below it.",
+      "localizations" : {
+        "da" : { "stringUnit" : { "state" : "translated", "value" : "Erstat påmindelsen og nulstil status?" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erinnerung ersetzen und Fortschritt zurücksetzen?" } },
+        "el" : { "stringUnit" : { "state" : "translated", "value" : "Αντικατάσταση υπενθύμισης και επαναφορά προόδου;" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replace Reminder and Reset Progress?" } },
+        "fi" : { "stringUnit" : { "state" : "translated", "value" : "Korvataanko muistutus ja nollataanko edistyminen?" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Remplacer le rappel et réinitialiser la progression ?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リマインダーを置き換えて進捗をリセットしますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알림을 교체하고 진행 상황을 재설정할까요?" } },
+        "nb" : { "stringUnit" : { "state" : "translated", "value" : "Erstatt påminnelsen og nullstill fremdriften?" } },
+        "nl" : { "stringUnit" : { "state" : "translated", "value" : "Herinnering vervangen en voortgang opnieuw instellen?" } },
+        "sv" : { "stringUnit" : { "state" : "translated", "value" : "Ersätta påminnelsen och nollställa förloppet?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "替换提醒并重置进度？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取代提醒並重設進度？" } }
       }
     },
     "knittingReminder.confirm.stop" : {

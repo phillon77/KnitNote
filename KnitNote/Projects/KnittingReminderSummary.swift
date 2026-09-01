@@ -68,7 +68,7 @@ enum KnittingReminderSummary {
             let key = switch reminderError {
             case .invalidDraft, .alreadyDeferred, .invalidAction,
                  .arithmeticOverflow, .revisionExhausted,
-                 .newReminderRequiresMainCounter:
+                 .newReminderRequiresMainCounter, .occurrenceLimitExceeded:
                 "knittingReminder.error.invalid"
             case .staleRevision:
                 "knittingReminder.error.stale"

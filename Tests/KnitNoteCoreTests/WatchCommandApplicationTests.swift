@@ -378,10 +378,24 @@ import Testing
                 now: fixture.now
             )
             try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
-            let reminder = try #require(
+            var reminder = try #require(
                 fixture.store.project(id: project.id)?.knittingReminders.first
             )
             let occurrence = try #require(reminder.progress.pending.first)
+            if operation == .skipReminder {
+                try fixture.store.applyKnittingReminderAction(
+                    projectID: project.id,
+                    reminderID: reminder.id,
+                    occurrenceID: occurrence.id,
+                    observedRevision: reminder.mutationRevision,
+                    action: .deferOnce,
+                    now: fixture.now
+                )
+                try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+                reminder = try #require(
+                    fixture.store.project(id: project.id)?.knittingReminders.first
+                )
+            }
             let command = try WatchCounterCommand(
                 validating: WatchCounterCommand.currentSchemaVersion,
                 projectID: project.id,
@@ -420,6 +434,61 @@ import Testing
             default:
                 Issue.record("unexpected reminder operation")
             }
+        }
+    }
+
+    @Test @MainActor func watchSkipRejectsInitialAndAwaitingOccurrencesWithoutArchiveMutation() throws {
+        for shouldDeferFirst in [false, true] {
+            let fixture = try WatchStoreFixture()
+            let project = try #require(fixture.store.projects.first)
+            let counterID = project.counters[0].id
+            _ = try fixture.store.addKnittingReminder(
+                projectID: project.id,
+                draft: .oneTime(kind: .measure, target: 1, text: nil),
+                now: fixture.now
+            )
+            try fixture.store.incrementCounter(projectID: project.id, counterID: counterID)
+            var reminder = try #require(
+                fixture.store.project(id: project.id)?.knittingReminders.first
+            )
+            let occurrence = try #require(reminder.progress.pending.first)
+            if shouldDeferFirst {
+                try fixture.store.applyKnittingReminderAction(
+                    projectID: project.id,
+                    reminderID: reminder.id,
+                    occurrenceID: occurrence.id,
+                    observedRevision: reminder.mutationRevision,
+                    action: .deferOnce,
+                    now: fixture.now
+                )
+                reminder = try #require(
+                    fixture.store.project(id: project.id)?.knittingReminders.first
+                )
+            }
+            let command = try WatchCounterCommand(
+                validating: WatchCounterCommand.currentSchemaVersion,
+                projectID: project.id,
+                counterID: counterID,
+                operation: .skipReminder,
+                reminderPayload: .init(
+                    reminderID: reminder.id,
+                    occurrenceID: occurrence.id,
+                    observedRevision: reminder.mutationRevision
+                ),
+                createdAt: fixture.now
+            )
+            let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+            var ledger = ProcessedWatchCommandLedger()
+
+            let acknowledgement = try fixture.store.applyWatchCommand(
+                command,
+                ledger: &ledger,
+                now: fixture.now
+            )
+
+            #expect(acknowledgement.rejection == .reminderMismatch)
+            #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+            #expect(ledger.entry(for: command.id)?.rejection == .reminderMismatch)
         }
     }
 

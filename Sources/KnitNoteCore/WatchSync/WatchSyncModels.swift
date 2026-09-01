@@ -135,6 +135,7 @@ public struct WatchKnittingReminderSnapshot: Codable, Equatable, Identifiable, S
               nextTarget.map({ $0 >= 0 }) ?? true, nextOccurrenceIndex > 0,
               lastObservedCounterValue.map({ $0 >= 0 }) ?? true,
               pending.count <= scheduledCount,
+              pending.count <= KnittingReminder.maximumPendingOccurrences,
               pendingIDs.count == pending.count,
               pending.allSatisfy(isValidOccurrence),
               latestHandled.map(isValidOccurrence) ?? true,
@@ -243,7 +244,7 @@ public struct WatchProjectSnapshot: Codable, Equatable, Identifiable, Sendable {
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        try self.init(id: c.decode(UUID.self, forKey: .id), name: c.decode(String.self, forKey: .name), isCompleted: c.decode(Bool.self, forKey: .isCompleted), updatedAt: c.decode(Date.self, forKey: .updatedAt), counters: c.decode([WatchCounterSnapshot].self, forKey: .counters), selectedCounterID: c.decode(UUID.self, forKey: .selectedCounterID), knittingReminders: c.decodeIfPresent([WatchKnittingReminderSnapshot].self, forKey: .knittingReminders) ?? [])
+        try self.init(id: c.decode(UUID.self, forKey: .id), name: c.decode(String.self, forKey: .name), isCompleted: c.decode(Bool.self, forKey: .isCompleted), updatedAt: c.decode(Date.self, forKey: .updatedAt), counters: c.decode([WatchCounterSnapshot].self, forKey: .counters), selectedCounterID: c.decode(UUID.self, forKey: .selectedCounterID), knittingReminders: c.decode([WatchKnittingReminderSnapshot].self, forKey: .knittingReminders))
     }
 }
 

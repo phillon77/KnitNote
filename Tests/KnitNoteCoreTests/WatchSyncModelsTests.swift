@@ -151,6 +151,35 @@ import Testing
         #expect(decoded.projects[0].knittingReminders[0].mutationRevision == 7)
     }
 
+    @Test func schemaFourProjectRejectsMissingRequiredReminderCollection() {
+        let data = Data(#"""
+        {
+          "schemaVersion":4,
+          "generatedAt":0,
+          "entitlement":{"kind":"permanentlyUnlocked","generatedAt":0},
+          "projects":[{
+            "id":"00000000-0000-0000-0000-000000000001",
+            "name":"Missing reminders",
+            "isCompleted":false,
+            "updatedAt":0,
+            "counters":[
+              {"id":"00000000-0000-0000-0000-000000000010","name":"C1","value":0},
+              {"id":"00000000-0000-0000-0000-000000000011","name":"C2","value":0},
+              {"id":"00000000-0000-0000-0000-000000000012","name":"C3","value":0},
+              {"id":"00000000-0000-0000-0000-000000000013","name":"C4","value":0},
+              {"id":"00000000-0000-0000-0000-000000000014","name":"C5","value":0},
+              {"id":"00000000-0000-0000-0000-000000000015","name":"C6","value":0}
+            ],
+            "selectedCounterID":"00000000-0000-0000-0000-000000000010"
+          }]
+        }
+        """#.utf8)
+
+        #expect(throws: DecodingError.self) {
+            _ = try WatchSyncCodec.decode(WatchSyncSnapshot.self, from: data)
+        }
+    }
+
     @Test func schemaThreeSnapshotAndSchemaTwoCommandDecodeForRecoveryOnly() throws {
         let snapshot = try WatchSyncCodec.decode(WatchSyncSnapshot.self, from: Data(#"""
         {"schemaVersion":3,"generatedAt":0,"entitlement":{"kind":"permanentlyUnlocked","generatedAt":0},"projects":[]}
@@ -309,7 +338,7 @@ import Testing
 
     @Test func decodedProjectRejectsMalformedCounterArray() {
         let data = Data(#"""
-        {"id":"00000000-0000-0000-0000-000000000001","name":"Bad","isCompleted":false,"updatedAt":0,"counters":[{"id":"00000000-0000-0000-0000-000000000002","name":"Only","value":0}],"selectedCounterID":"00000000-0000-0000-0000-000000000002"}
+        {"id":"00000000-0000-0000-0000-000000000001","name":"Bad","isCompleted":false,"updatedAt":0,"counters":[{"id":"00000000-0000-0000-0000-000000000002","name":"Only","value":0}],"selectedCounterID":"00000000-0000-0000-0000-000000000002","knittingReminders":[]}
         """#.utf8)
 
         #expect(throws: WatchSyncValidationError.invalidCounterCount) {

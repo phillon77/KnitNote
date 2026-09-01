@@ -138,6 +138,9 @@ import Testing
         #expect(queue.contains("occurrenceID: occurrence.id"))
         #expect(queue.contains("observedRevision: reminder.mutationRevision"))
         #expect(queue.components(separatedBy: ".frame(minWidth: 44, minHeight: 44)").count - 1 == 3)
+        #expect(queue.contains("coordinator.hasPendingReminderAction("))
+        #expect(queue.contains("reminderID: reminder.id"))
+        #expect(!queue.contains("coordinator.hasPending(projectID: project.id, counterID: reminder.counterID)"))
         #expect(queue.contains(".disabled(isPending"))
         #expect(queue.contains(".accessibilityLabel("))
         #expect(queue.contains(".accessibilityHint("))
@@ -146,6 +149,29 @@ import Testing
         #expect(queue.contains(".accessibilityElement(children: .ignore)"))
         #expect(!queue.contains(".accessibilityElement(children: .combine)"))
         #expect(!queue.contains("legacy"))
+    }
+
+    @Test func onlyTheVisibleReminderCardLifecycleClaimsWatchHaptics() throws {
+        let queue = try source("KnitNoteWatch/KnittingReminderQueueView.swift")
+        let coordinator = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
+
+        #expect(queue.contains("coordinator.reminderQueueBecameVisible(projectID: project.id)"))
+        #expect(queue.contains(".onAppear"))
+        #expect(queue.contains(".onChange(of: queue.first?.id)"))
+        #expect(coordinator.contains("func reminderQueueBecameVisible(projectID: UUID)"))
+
+        let visibleLifecycle = try #require(coordinator.range(of: "func reminderQueueBecameVisible(projectID: UUID)"))
+        let selectProject = try #require(coordinator.range(of: "func selectProject(_ projectID: UUID?)"))
+        let replaceSnapshot = try #require(coordinator.range(of: "private func replaceSnapshot(_ snapshot: WatchSyncSnapshot)"))
+        let acknowledge = try #require(coordinator.range(of: "private func handleAcknowledgement("))
+        #expect(visibleLifecycle.lowerBound < selectProject.lowerBound)
+
+        for forbiddenRange in [
+            selectProject.lowerBound..<replaceSnapshot.lowerBound,
+            replaceSnapshot.lowerBound..<acknowledge.lowerBound,
+        ] {
+            #expect(!coordinator[forbiddenRange].contains("takeNewQueueHeadHapticOccurrenceIDs"))
+        }
     }
 
     @Test func reminderQueueRoutesEverySpokenAndVisibleLabelThroughWatchLocalizationKeys() throws {
@@ -196,37 +222,24 @@ import Testing
         #expect(models.contains("case 2:"))
     }
 
-    @Test func newlyVisibleQueueOccurrencesPlayOneNotificationHapticAfterPersistence() throws {
+    @Test func visibleQueueLifecyclePlaysOneNotificationHapticAfterPersistence() throws {
         let source = try source("KnitNoteWatch/Sync/WatchSyncCoordinator.swift")
-        let enqueue = try #require(sourceSection(
+        let lifecycle = try #require(sourceSection(
             source,
-            from: "private func enqueue(",
-            to: "private func persistThenPublish"
+            from: "func reminderQueueBecameVisible(projectID: UUID)",
+            to: "func selectProject(_ projectID: UUID?)"
         ))
 
         #expect(source.contains("import WatchKit"))
-        #expect(enqueue.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs()"))
-        #expect(enqueue.contains("guard persistThenPublish(candidate) else { return }"))
-        #expect(enqueue.contains("playHaptic()"))
+        #expect(lifecycle.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs("))
+        #expect(lifecycle.contains("visibleProjectID: projectID"))
+        #expect(lifecycle.contains("guard persistThenPublish(candidate) else { return }"))
+        #expect(lifecycle.contains("playHaptic()"))
         #expect(source.contains("playHaptic: @escaping () -> Void"))
         #expect(source.components(separatedBy: "WKInterfaceDevice.current().play(.notification)").count - 1 == 1)
-        let persistence = try #require(enqueue.range(of: "guard persistThenPublish(candidate) else { return }"))
-        let haptic = try #require(enqueue.range(of: "playHaptic()"))
+        let persistence = try #require(lifecycle.range(of: "guard persistThenPublish(candidate) else { return }"))
+        let haptic = try #require(lifecycle.range(of: "playHaptic()"))
         #expect(persistence.lowerBound < haptic.lowerBound)
-
-        let selection = try #require(source.range(of: "func selectProject(_ projectID: UUID?)"))
-        let selectionBody = String(source[selection.lowerBound...])
-        #expect(selectionBody.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs()"))
-        #expect(selectionBody.contains("guard persistThenPublish(candidate) else { return }"))
-
-        let acknowledgement = try #require(sourceSection(
-            source,
-            from: "private func handleAcknowledgement",
-            to: "private func beginHandshakeAndReplay"
-        ))
-        #expect(acknowledgement.contains("candidate.takeNewQueueHeadHapticOccurrenceIDs()"))
-        #expect(acknowledgement.contains("guard persistThenPublish(candidate) else"))
-        #expect(acknowledgement.contains("playHaptic()"))
     }
 
     @Test func unlockGuidanceIsLocalizedInEnglishAndTraditionalChinese() throws {

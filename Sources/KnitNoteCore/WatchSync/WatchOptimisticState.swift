@@ -67,9 +67,17 @@ public struct WatchOptimisticState: Equatable, Sendable {
         }
     }
 
+    public func hasPendingReminderAction(projectID: UUID, reminderID: UUID) -> Bool {
+        pendingCommands.contains {
+            $0.projectID == projectID && $0.reminderPayload?.reminderID == reminderID
+        }
+    }
+
     /// Returns a newly visible queue head once. The persisted ledger is pruned
     /// whenever its project or occurrence is no longer present in the snapshot.
-    public mutating func takeNewQueueHeadHapticOccurrenceIDs() -> [UUID] {
+    public mutating func takeNewQueueHeadHapticOccurrenceIDs(
+        visibleProjectID: UUID
+    ) -> [UUID] {
         let projects = snapshot?.projects ?? []
         let allPendingKeys = Set(projects.flatMap { project in
             project.reminderQueue.map {
@@ -77,8 +85,7 @@ public struct WatchOptimisticState: Equatable, Sendable {
             }
         })
         announcedQueueHeadKeys.formIntersection(allPendingKeys)
-        let project = projects.first(where: { $0.id == selectedProjectID }) ?? projects.first
-        guard let project,
+        guard let project = projects.first(where: { $0.id == visibleProjectID }),
               let headID = project.reminderQueue.first?.id
         else { return [] }
         let key = WatchReminderQueueHapticKey(projectID: project.id, occurrenceID: headID)
@@ -145,11 +152,13 @@ public struct WatchOptimisticState: Equatable, Sendable {
                       $0.id == payload.reminderID && $0.counterID == counter.id
                   }),
                   reminder.mutationRevision == payload.observedRevision,
-                  reminder.visibleOccurrences(at: counter.value).contains(where: {
+                  let occurrence = reminder.visibleOccurrences(at: counter.value).first(where: {
                       $0.id == payload.occurrenceID
                   }),
+                  Self.occurrence(occurrence, permits: command.operation),
                   !pendingCommands.contains(where: {
-                      $0.reminderPayload?.reminderID == payload.reminderID
+                      $0.projectID == command.projectID
+                          && $0.reminderPayload?.reminderID == payload.reminderID
                   })
             else { return .reminderMismatch }
         case .stopReminder:
@@ -167,6 +176,22 @@ public struct WatchOptimisticState: Equatable, Sendable {
                 && ($0.operation == .increment
                     || $0.operation == .decrement
                     || $0.operation == .reset)
+        }
+    }
+
+    private static func occurrence(
+        _ occurrence: WatchKnittingReminderOccurrenceSnapshot,
+        permits operation: WatchCounterOperation
+    ) -> Bool {
+        switch operation {
+        case .completeReminder:
+            true
+        case .deferReminderOnce:
+            occurrence.phase == .initial
+        case .skipReminder:
+            occurrence.phase == .deferredOnce && !occurrence.awaitsNextUpwardChange
+        case .increment, .decrement, .reset, .stopReminder:
+            false
         }
     }
 
@@ -339,7 +364,11 @@ public struct WatchOptimisticState: Equatable, Sendable {
                   }),
                   let pendingIndex = reminder.pending.firstIndex(where: {
                       $0.id == reminder.visibleOccurrences(at: counter.value)[occurrenceIndex].id
-                  })
+                  }),
+                  occurrence(
+                      reminder.pending[pendingIndex],
+                      permits: command.operation
+                  )
             else { return reminder }
 
             var projected = reminder

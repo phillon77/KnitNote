@@ -59,6 +59,24 @@ import Testing
         #expect(updateRange.lowerBound < addRange.lowerBound)
     }
 
+    @Test func progressedEditShowsProposedSummaryAndRequiresExplicitResetConfirmation() throws {
+        let source = try sourceFile("KnitNote/Projects/KnittingReminderEditorView.swift")
+
+        #expect(source.contains("KnittingReminderEditPolicy.requiresProgressResetConfirmation"))
+        #expect(source.contains("pendingProgressResetUpdate"))
+        #expect(source.contains("knittingReminder.confirm.replaceProgress"))
+        #expect(source.contains("KnittingReminderSummary.rule(rule(for: draft), locale: locale)"))
+        #expect(source.contains("observedRevision: pending.observedRevision"))
+        #expect(source.contains("Button(\"common.cancel\", role: .cancel)"))
+
+        let confirmation = try #require(source.range(of: ".alert(\"knittingReminder.confirm.replaceProgress\""))
+        let update = try #require(source.range(
+            of: "try store.updateKnittingReminder(",
+            range: confirmation.lowerBound..<source.endIndex
+        ))
+        #expect(confirmation.lowerBound < update.lowerBound)
+    }
+
     @Test func listMutationsUseExactReminderIdentityAndRevision() throws {
         let source = try sourceFile("KnitNote/Projects/KnittingReminderListView.swift")
 
@@ -157,6 +175,8 @@ import Testing
         #expect(!source.contains("CounterReminderDraft"))
         #expect(source.contains("KnittingReminderEditorView(projectID: projectID, reminderID: reminderID)"))
         #expect(source.contains("counter.id != mainCounterID"))
+        #expect(source.contains("Label(\"knittingReminder.action.editMigrated\""))
+        #expect(!source.contains("Edit migrated reminder"))
     }
 
     private func sourceFile(_ path: String) throws -> String {

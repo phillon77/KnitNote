@@ -1124,7 +1124,10 @@ import Testing
         interleavingAction: KnittingReminderAction
     ) throws {
         let fixture = try DurableWatchFixture()
-        let command = try fixture.triggeredReminderCommand(operation: operation)
+        let command = try fixture.triggeredReminderCommand(
+            operation: operation,
+            releasedDeferred: true
+        )
         let expected = try fixture.reminderExpectation(for: command)
         try AtomicWatchSyncFile<PreparedWatchCommand>(url: fixture.preparedURL).save(
             PreparedWatchCommand(
@@ -1330,7 +1333,8 @@ private struct PreparedReminderExpectation {
 
     func triggeredReminderCommand(
         operation: WatchCounterOperation,
-        occurrenceID: UUID? = nil
+        occurrenceID: UUID? = nil,
+        releasedDeferred: Bool = false
     ) throws -> WatchCounterCommand {
         let store = JSONProjectStore(url: archiveURL)
         let reminderID = try store.addKnittingReminder(
@@ -1339,7 +1343,20 @@ private struct PreparedReminderExpectation {
             now: now
         )
         try store.incrementCounter(projectID: projectID, counterID: counterID)
-        let reminder = try #require(store.project(id: projectID)?.knittingReminders.first)
+        var reminder = try #require(store.project(id: projectID)?.knittingReminders.first)
+        if releasedDeferred {
+            let occurrence = try #require(reminder.progress.pending.first)
+            try store.applyKnittingReminderAction(
+                projectID: projectID,
+                reminderID: reminderID,
+                occurrenceID: occurrence.id,
+                observedRevision: reminder.mutationRevision,
+                action: .deferOnce,
+                now: now
+            )
+            try store.incrementCounter(projectID: projectID, counterID: counterID)
+            reminder = try #require(store.project(id: projectID)?.knittingReminders.first)
+        }
         let pending = try #require(reminder.progress.pending.first)
         return try WatchCounterCommand(
             validating: WatchCounterCommand.currentSchemaVersion,

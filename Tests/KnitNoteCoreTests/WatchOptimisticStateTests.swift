@@ -15,8 +15,8 @@ import Testing
         let initialQueue = try #require(state.snapshot?.projects.first?.reminderQueue)
         let firstOccurrence = try #require(initialQueue.first)
         let secondOccurrence = try #require(initialQueue.dropFirst().first?.id)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [firstOccurrence.id])
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID) == [firstOccurrence.id])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID).isEmpty)
 
         let command = WatchCounterCommand(
             projectID: fixture.projectID, counterID: fixture.counterID,
@@ -24,10 +24,10 @@ import Testing
             reminderPayload: .init(reminderID: firstOccurrence.reminderID, occurrenceID: firstOccurrence.id, observedRevision: try #require(state.snapshot?.projects.first?.knittingReminders.first(where: { $0.id == firstOccurrence.reminderID })?.mutationRevision))
         )
         #expect(state.enqueue(command) == nil)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [secondOccurrence])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID) == [secondOccurrence])
 
         var restored = WatchOptimisticState(cache: try roundTrip(state.cache))
-        #expect(restored.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+        #expect(restored.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID).isEmpty)
     }
 
     @Test func reminderQueueHeadHapticLedgerPrunesWhenTheProjectOrPendingOccurrenceDisappears() throws {
@@ -37,7 +37,7 @@ import Testing
             snapshot: try fixture.makeSnapshot(value: 12, knittingReminders: [reminder]),
             pendingCommands: [], selectedProjectID: fixture.projectID, selectedCounterID: fixture.counterID
         ))
-        #expect(!state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+        #expect(!state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID).isEmpty)
         state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: []))
         #expect(state.cache.announcedQueueHeadKeys.isEmpty)
     }
@@ -50,7 +50,7 @@ import Testing
             pendingCommands: [], selectedProjectID: fixture.projectID, selectedCounterID: fixture.counterID
         ))
         let firstID = try #require(state.snapshot?.projects.first?.reminderQueue.first?.id)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [firstID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID) == [firstID])
 
         let command = fixture.command(.increment)
         #expect(state.enqueue(command) == nil)
@@ -67,7 +67,7 @@ import Testing
         state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: [replacement]))
         let replacementID = try #require(state.snapshot?.projects.first?.reminderQueue.first?.id)
         #expect(replacementID != firstID)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [replacementID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID) == [replacementID])
     }
 
     @Test func acknowledgementPrunesTheHapticLedgerWhenItsProjectIsAuthoritativelyRemoved() throws {
@@ -77,7 +77,7 @@ import Testing
             snapshot: try fixture.makeSnapshot(value: 12, knittingReminders: [reminder]),
             pendingCommands: [], selectedProjectID: fixture.projectID, selectedCounterID: fixture.counterID
         ))
-        #expect(!state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+        #expect(!state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID).isEmpty)
         let command = fixture.command(.increment)
         #expect(state.enqueue(command) == nil)
         let authoritativeRemoval = WatchSyncSnapshot(
@@ -101,7 +101,7 @@ import Testing
         let visible = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
         var state = WatchOptimisticState(cache: .init(snapshot: visible, pendingCommands: []))
         let occurrenceID = try #require(visible.projects.first?.reminderQueue.first?.id)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [occurrenceID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID) == [occurrenceID])
 
         state.replaceSnapshot(try fixture.makeSnapshot(value: 12, knittingReminders: []))
         let reappeared = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
@@ -111,7 +111,7 @@ import Testing
             projects: reappeared.projects
         ))
 
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [occurrenceID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID) == [occurrenceID])
     }
 
     @Test func reminderQueueHeadHapticLedgerIsolatesProjectsAcrossNavigation() throws {
@@ -144,13 +144,33 @@ import Testing
         let secondID = try #require(secondSnapshot.projects.first?.reminderQueue.first?.id)
         #expect(firstID == sharedOccurrenceID)
         #expect(secondID == sharedOccurrenceID)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [sharedOccurrenceID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: firstFixture.projectID) == [sharedOccurrenceID])
         let selectedSecondProject = state.selectProject(secondFixture.projectID)
         #expect(selectedSecondProject)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs() == [sharedOccurrenceID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: secondFixture.projectID) == [sharedOccurrenceID])
         let selectedFirstProject = state.selectProject(firstFixture.projectID)
         #expect(selectedFirstProject)
-        #expect(state.takeNewQueueHeadHapticOccurrenceIDs().isEmpty)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: firstFixture.projectID).isEmpty)
+    }
+
+    @Test func projectListAndSelectionCannotConsumeAVisibleCardHapticClaim() throws {
+        let fixture = try Fixture(value: 12)
+        let reminder = try fixture.knittingReminder(phase: .initial)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+        var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+        let occurrenceID = try #require(snapshot.projects.first?.reminderQueue.first?.id)
+
+        #expect(state.cache.announcedQueueHeadKeys.isEmpty)
+        let selected = state.selectProject(fixture.projectID)
+        #expect(selected)
+        #expect(state.cache.announcedQueueHeadKeys.isEmpty)
+        state.replaceSnapshot(snapshot)
+        #expect(state.cache.announcedQueueHeadKeys.isEmpty)
+
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: UUID()).isEmpty)
+        #expect(state.cache.announcedQueueHeadKeys.isEmpty)
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID) == [occurrenceID])
+        #expect(state.takeNewQueueHeadHapticOccurrenceIDs(visibleProjectID: fixture.projectID).isEmpty)
     }
     @Test func schemaTwoCardCommandIsDiscardedAndRejectedByTheWatchQueue() throws {
         let fixture = try Fixture(value: 12)
@@ -218,6 +238,67 @@ import Testing
         #expect(state.enqueue(fixture.command(.increment)) == nil)
         #expect(state.enqueue(action) == .pendingCounterMutation)
         #expect(state.pendingCommands.count == 1)
+    }
+
+    @Test func twoSameCounterRemindersCanQueueDistinctOfflineActions() throws {
+        let fixture = try Fixture(value: 12)
+        let first = try fixture.knittingReminder(phase: .initial)
+        let second = try fixture.knittingReminder(phase: .initial)
+        let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [first, second])
+        var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+        let firstOccurrence = try #require(first.pending.first)
+        let secondOccurrence = try #require(second.pending.first)
+        let firstAction = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .completeReminder,
+            reminderPayload: .init(
+                reminderID: first.id,
+                occurrenceID: firstOccurrence.id,
+                observedRevision: first.mutationRevision
+            )
+        )
+        let secondAction = WatchCounterCommand(
+            projectID: fixture.projectID,
+            counterID: fixture.counterID,
+            operation: .completeReminder,
+            reminderPayload: .init(
+                reminderID: second.id,
+                occurrenceID: secondOccurrence.id,
+                observedRevision: second.mutationRevision
+            )
+        )
+
+        #expect(state.enqueue(firstAction) == nil)
+        #expect(state.hasPendingReminderAction(projectID: fixture.projectID, reminderID: first.id))
+        #expect(!state.hasPendingReminderAction(projectID: fixture.projectID, reminderID: second.id))
+        #expect(state.enqueue(secondAction) == nil)
+        #expect(state.pendingCommands.map(\.reminderPayload?.reminderID) == [first.id, second.id])
+    }
+
+    @Test func optimisticSkipRejectsInitialAndAwaitingOccurrences() throws {
+        let fixture = try Fixture(value: 12)
+        for reminder in [
+            try fixture.knittingReminder(phase: .initial),
+            try fixture.knittingReminder(phase: .deferredOnce, awaitsNextUpwardChange: true),
+        ] {
+            let snapshot = try fixture.makeSnapshot(value: 12, knittingReminders: [reminder])
+            var state = WatchOptimisticState(cache: .init(snapshot: snapshot, pendingCommands: []))
+            let occurrence = try #require(reminder.pending.first)
+            let command = WatchCounterCommand(
+                projectID: fixture.projectID,
+                counterID: fixture.counterID,
+                operation: .skipReminder,
+                reminderPayload: .init(
+                    reminderID: reminder.id,
+                    occurrenceID: occurrence.id,
+                    observedRevision: reminder.mutationRevision
+                )
+            )
+
+            #expect(state.enqueue(command) == .reminderMismatch)
+            #expect(state.pendingCommands.isEmpty)
+        }
     }
 
     @Test(arguments: [

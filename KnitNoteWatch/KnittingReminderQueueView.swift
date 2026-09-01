@@ -21,6 +21,12 @@ struct KnittingReminderQueueView: View {
             .background(WatchWatercolorTheme.softWhite.opacity(0.96), in: .rect(cornerRadius: 14, style: .continuous))
             .overlay { RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(WatchWatercolorTheme.berry.opacity(0.65), lineWidth: 1) }
             .accessibilityElement(children: .contain)
+            .onAppear {
+                coordinator.reminderQueueBecameVisible(projectID: project.id)
+            }
+            .onChange(of: queue.first?.id) { _, _ in
+                coordinator.reminderQueueBecameVisible(projectID: project.id)
+            }
         }
     }
 
@@ -39,7 +45,10 @@ struct KnittingReminderQueueView: View {
     }
 
     @ViewBuilder private func actions(occurrence: WatchKnittingReminderOccurrenceSnapshot, reminder: WatchKnittingReminderSnapshot) -> some View {
-        let isPending = coordinator.hasPending(projectID: project.id, counterID: reminder.counterID)
+        let isPending = coordinator.hasPendingReminderAction(
+            projectID: project.id,
+            reminderID: reminder.id
+        )
         Button {
             coordinator.completeReminder(projectID: project.id, counterID: reminder.counterID, reminderID: occurrence.reminderID, occurrenceID: occurrence.id, observedRevision: reminder.mutationRevision)
         } label: {

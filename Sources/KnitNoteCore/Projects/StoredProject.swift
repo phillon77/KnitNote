@@ -637,7 +637,7 @@ public struct StoredProject: Identifiable, Codable, Hashable, Sendable {
         afterChanging counterID: UUID,
         outcome: CounterMutationOutcome?
     ) -> (occurrences: [KnittingReminderOccurrence], error: StoredProjectCounterMutationError?) {
-        guard let outcome, counterID == mainCounterID else { return ([], nil) }
+        guard let outcome else { return ([], nil) }
         let result = KnittingReminderEvaluator.evaluate(
             oldValue: outcome.oldValue,
             newValue: outcome.newValue,

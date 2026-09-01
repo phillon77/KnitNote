@@ -521,14 +521,15 @@ import Testing
         coordinator.update(project: releasedProject)
         #expect(coordinator.current?.id == deferredID)
 
-        let skipped = try deferredReminder.applying(.skip(
+        let releasedReminder = try #require(released.reminders.first)
+        let skipped = try releasedReminder.applying(.skip(
             occurrenceID: deferredID,
-            observedRevision: deferredReminder.mutationRevision
+            observedRevision: releasedReminder.mutationRevision
         ))
         let skippedProject = try StoredProject(
             id: baseProject.id,
             name: baseProject.name,
-            counters: baseProject.counters,
+            counters: releasedProject.counters,
             knittingReminders: [skipped]
         )
         coordinator.update(project: skippedProject)
@@ -574,14 +575,28 @@ import Testing
         #expect(coordinator.shouldPlayHaptic(for: second.occurrence))
         coordinator.markHapticPresented(occurrenceID: second.id)
 
+        reminder = try reminder.applying(.deferOnce(
+            occurrenceID: second.id,
+            observedRevision: reminder.mutationRevision
+        ))
+        reminder = try #require(KnittingReminderEvaluator.evaluate(
+            oldValue: 3,
+            newValue: 4,
+            reminders: [reminder]
+        ).reminders.first)
         reminder = try reminder.applying(.skip(
             occurrenceID: second.id,
             observedRevision: reminder.mutationRevision
         ))
+        let progressedCounters = [ProjectCounter(
+            id: counterID,
+            defaultOrdinal: 1,
+            value: 4
+        )]
         project = try StoredProject(
             id: projectID,
             name: project.name,
-            counters: project.counters,
+            counters: progressedCounters,
             knittingReminders: [reminder]
         )
         coordinator.update(project: project)

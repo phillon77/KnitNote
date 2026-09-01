@@ -182,6 +182,36 @@ import Testing
         #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
     }
 
+    @Test func hugeReminderJumpRejectsWithoutPublishingOrPersistingCounterMutation() throws {
+        let harness = try KnittingReminderStoreHarness()
+        defer { harness.removeFiles() }
+        let reminderID = try harness.store.addKnittingReminder(
+            projectID: harness.projectID,
+            draft: .repeating(
+                kind: .increase,
+                firstTarget: 1,
+                interval: 1,
+                limit: nil,
+                text: nil
+            )
+        )
+        let projectsBefore = harness.store.projects
+        let archiveBefore = try Data(contentsOf: harness.archiveURL)
+
+        #expect(throws: StoredProjectCounterMutationError.reminderEvaluationRejected([reminderID])) {
+            _ = try harness.store.manageCounter(
+                projectID: harness.projectID,
+                counterID: harness.mainCounterID,
+                name: "Main",
+                value: .max,
+                reminder: .unchanged
+            )
+        }
+
+        #expect(harness.store.projects == projectsBefore)
+        #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+    }
+
     @Test func exhaustedReminderRevisionDoesNotReplaceRuleOrPersist() throws {
         let harness = try KnittingReminderStoreHarness()
         defer { harness.removeFiles() }
@@ -204,6 +234,77 @@ import Testing
 
         #expect(harness.store.projects == projectsBefore)
         #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+    }
+
+    @Test func confirmationUsesCapturedRevisionAndRejectsAConcurrentChangeWithoutOverwrite() throws {
+        let harness = try KnittingReminderStoreHarness(triggeredReminder: true)
+        defer { harness.removeFiles() }
+        let captured = try #require(
+            harness.store.project(id: harness.projectID)?.knittingReminders.first
+        )
+        let occurrence = try #require(captured.progress.pending.first)
+
+        try harness.store.applyKnittingReminderAction(
+            projectID: harness.projectID,
+            reminderID: captured.id,
+            occurrenceID: occurrence.id,
+            observedRevision: captured.mutationRevision,
+            action: .complete
+        )
+        let concurrentlyChanged = try #require(
+            harness.store.project(id: harness.projectID)?.knittingReminders.first
+        )
+        let archiveBeforeConfirmation = try Data(contentsOf: harness.archiveURL)
+
+        #expect(throws: KnittingReminderMutationError.staleRevision) {
+            try harness.store.updateKnittingReminder(
+                projectID: harness.projectID,
+                reminderID: captured.id,
+                observedRevision: captured.mutationRevision,
+                draft: .oneTime(kind: .measure, target: 8, text: "Proposed")
+            )
+        }
+
+        #expect(harness.store.project(id: harness.projectID)?.knittingReminders.first == concurrentlyChanged)
+        #expect(try Data(contentsOf: harness.archiveURL) == archiveBeforeConfirmation)
+    }
+
+    @Test func storeRejectsSkipForInitialAndStillAwaitingOccurrencesWithoutMutation() throws {
+        let harness = try KnittingReminderStoreHarness(triggeredReminder: true)
+        defer { harness.removeFiles() }
+        var reminder = try #require(
+            harness.store.project(id: harness.projectID)?.knittingReminders.first
+        )
+        let occurrence = try #require(reminder.progress.pending.first)
+
+        for shouldDeferFirst in [false, true] {
+            if shouldDeferFirst {
+                try harness.store.applyKnittingReminderAction(
+                    projectID: harness.projectID,
+                    reminderID: reminder.id,
+                    occurrenceID: occurrence.id,
+                    observedRevision: reminder.mutationRevision,
+                    action: .deferOnce
+                )
+                reminder = try #require(
+                    harness.store.project(id: harness.projectID)?.knittingReminders.first
+                )
+            }
+            let projectsBefore = harness.store.projects
+            let archiveBefore = try Data(contentsOf: harness.archiveURL)
+
+            #expect(throws: KnittingReminderMutationError.invalidAction) {
+                try harness.store.applyKnittingReminderAction(
+                    projectID: harness.projectID,
+                    reminderID: reminder.id,
+                    occurrenceID: occurrence.id,
+                    observedRevision: reminder.mutationRevision,
+                    action: .skip
+                )
+            }
+            #expect(harness.store.projects == projectsBefore)
+            #expect(try Data(contentsOf: harness.archiveURL) == archiveBefore)
+        }
     }
 
     @Test func deniedReminderMutationsDoNotPersistOrPublish() throws {

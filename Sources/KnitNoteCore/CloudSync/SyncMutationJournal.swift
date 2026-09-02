@@ -227,6 +227,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     private let url: URL
     private let atomicWrite: AtomicWrite
+    private let reader: SyncRegularFileReader
     private let lock = NSLock()
     private var loadedMutations: [SyncMutation]?
 
@@ -238,10 +239,30 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     public convenience init(url: URL) {
-        self.init(url: url, synchronizeDirectory: Self.defaultSynchronizeDirectory)
+        self.init(
+            url: url,
+            reader: .init(),
+            synchronizeDirectory: Self.defaultSynchronizeDirectory
+        )
     }
 
     convenience init(url: URL, synchronizeDirectory: @escaping SynchronizeDirectory) {
+        self.init(url: url, reader: .init(), synchronizeDirectory: synchronizeDirectory)
+    }
+
+    convenience init(url: URL, reader: SyncRegularFileReader) {
+        self.init(
+            url: url,
+            reader: reader,
+            synchronizeDirectory: Self.defaultSynchronizeDirectory
+        )
+    }
+
+    private convenience init(
+        url: URL,
+        reader: SyncRegularFileReader,
+        synchronizeDirectory: @escaping SynchronizeDirectory
+    ) {
         self.init(
             url: url,
             atomicWrite: { data, destination in
@@ -250,13 +271,23 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                     to: destination,
                     synchronizeDirectory: synchronizeDirectory
                 )
-            }
+            },
+            reader: reader
         )
     }
 
-    init(url: URL, atomicWrite: @escaping AtomicWrite) {
+    convenience init(url: URL, atomicWrite: @escaping AtomicWrite) {
+        self.init(url: url, atomicWrite: atomicWrite, reader: .init())
+    }
+
+    init(
+        url: URL,
+        atomicWrite: @escaping AtomicWrite,
+        reader: SyncRegularFileReader
+    ) {
         self.url = url
         self.atomicWrite = atomicWrite
+        self.reader = reader
     }
 
     public func enqueue(_ mutations: [SyncMutation]) throws {
@@ -400,17 +431,17 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             return nil
         }
         do {
-            return try SyncRegularFileReader().read(
+            return try reader.read(
                 url,
                 maximumBytes: Self.maximumEncodedBytes
             ).data
         } catch let error as SyncRegularFileReadError {
             switch error {
-            case .unsafeFile:
+            case .unsafeFile, .replaced:
                 throw SyncMutationJournalError.unsafeFile
             case .tooLarge:
                 throw SyncMutationJournalError.tooLarge
-            case .unavailable, .replaced, .changed, .expectationMismatch:
+            case .unavailable, .changed, .expectationMismatch:
                 throw SyncMutationJournalError.corrupt
             }
         }
@@ -545,7 +576,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             throw SyncMutationJournalError.invalidAttachment
         }
         do {
-            return try SyncRegularFileReader().read(
+            return try reader.read(
                 file,
                 maximumBytes: Int(expectedByteCount),
                 expected: .init(byteCount: expectedByteCount, sha256: expectedSHA256)

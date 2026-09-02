@@ -167,6 +167,21 @@ import Testing
         }
     }
 
+    @Test func journalAdapterMapsPathReplacementToUnsafeFile() throws {
+        let fixture = try FinalFixJournalFixture()
+        let url = fixture.url
+        try Data(#"{"version":2,"mutations":[]}"#.utf8).write(to: url)
+        let reader = SyncRegularFileReader(beforeOpen: {
+            try FileManager.default.removeItem(at: url)
+            try Data(#"{"version":2,"mutations":[]}"#.utf8).write(to: url)
+        })
+        let journal = FileSyncMutationJournal(url: url, reader: reader)
+
+        #expect(throws: SyncMutationJournalError.unsafeFile) {
+            _ = try journal.pending()
+        }
+    }
+
     @Test(.timeLimit(.minutes(1))) func restartRejectsFifoStagedAttachmentWithoutBlocking() throws {
         let fixture = try FinalFixJournalFixture()
         let source = fixture.directory.appendingPathComponent("source.json")

@@ -53,13 +53,13 @@ import Testing
         #expect(try pending[2].stagedAttachmentBytes() == firstBytes)
     }
 
-    @Test func duplicateMutationIDAfterWriteThenThrowIsIdempotentAndRepersisted() throws {
+    @Test func duplicateMutationIDAfterWriteThenThrowIsIdempotentWithoutSecondFrame() throws {
         let fixture = try FinalFixJournalFixture()
         let mutation = try projectSave(mutationID: UUID())
         let writes = LockedCounter()
-        let uncertain = FileSyncMutationJournal(url: fixture.url, atomicWrite: { data, url in
+        let uncertain = FileSyncMutationJournal(url: fixture.url, appendFrames: { data, url in
             writes.increment()
-            try data.write(to: url, options: .atomic)
+            try appendFinalFixJournalData(data, to: url)
             throw FinalFixWriteThenThrow()
         })
 
@@ -68,10 +68,8 @@ import Testing
         }
         #expect(try uncertain.pending() == [mutation])
 
-        #expect(throws: FinalFixWriteThenThrow.self) {
-            try uncertain.enqueue(mutation)
-        }
-        #expect(writes.value == 2)
+        try uncertain.enqueue(mutation)
+        #expect(writes.value == 1)
         #expect(try uncertain.pending() == [mutation])
         #expect(try FileSyncMutationJournal(url: fixture.url).pending() == [mutation])
     }
@@ -136,13 +134,14 @@ import Testing
         let save = try projectSave(mutationID: mutationID)
         let journal = FileSyncMutationJournal(url: fixture.url)
         try journal.enqueue(save)
-        let committedBytes = try Data(contentsOf: fixture.url)
+        let segmentURL = fixture.url.appendingPathExtension("segment")
+        let committedBytes = try Data(contentsOf: segmentURL)
 
         #expect(throws: SyncMutationJournalError.duplicateMutationID) {
             try journal.enqueue(.delete(save.recordID, mutationID: mutationID))
         }
         #expect(try journal.pending() == [save])
-        #expect(try Data(contentsOf: fixture.url) == committedBytes)
+        #expect(try Data(contentsOf: segmentURL) == committedBytes)
     }
 
     @Test func symlinkJournalIsRejectedWithoutFollowingTarget() throws {
@@ -222,9 +221,9 @@ import Testing
     @Test func batchEnqueueAndPartialAcknowledgementEachPersistOnce() throws {
         let fixture = try FinalFixJournalFixture()
         let writes = LockedCounter()
-        let journal = FileSyncMutationJournal(url: fixture.url, atomicWrite: { data, url in
+        let journal = FileSyncMutationJournal(url: fixture.url, appendFrames: { data, url in
             writes.increment()
-            try data.write(to: url, options: .atomic)
+            try appendFinalFixJournalData(data, to: url)
         })
         let mutations = try (0..<2_000).map { index in
             try projectSave(
@@ -248,6 +247,17 @@ import Testing
 }
 
 private struct FinalFixWriteThenThrow: Error {}
+
+private func appendFinalFixJournalData(_ data: Data, to destination: URL) throws {
+    if !FileManager.default.fileExists(atPath: destination.path) {
+        #expect(FileManager.default.createFile(atPath: destination.path, contents: nil))
+    }
+    let handle = try FileHandle(forWritingTo: destination)
+    defer { try? handle.close() }
+    try handle.seekToEnd()
+    try handle.write(contentsOf: data)
+    try handle.synchronize()
+}
 
 private final class LockedCounter: @unchecked Sendable {
     private let lock = NSLock()

@@ -219,17 +219,122 @@ public extension SyncMutationJournalProtocol {
     }
 }
 
+enum SyncJournalFrameKind: UInt8, Codable, Sendable {
+    case enqueue = 1
+    case acknowledge = 2
+}
+
+struct SyncJournalFrame: Codable, Sendable {
+    let sequence: UInt64
+    let kind: SyncJournalFrameKind
+    let payload: Data
+    let checksum: Data
+
+    private enum CodingKeys: String, CodingKey {
+        case version, sequence, kind, payload, checksum
+    }
+
+    init(
+        sequence: UInt64,
+        kind: SyncJournalFrameKind,
+        payload: Data,
+        checksum: Data
+    ) {
+        self.sequence = sequence
+        self.kind = kind
+        self.payload = payload
+        self.checksum = checksum
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(Int.self, forKey: .version) == 1 else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .version,
+                in: container,
+                debugDescription: "Unsupported sync journal frame version"
+            )
+        }
+        sequence = try container.decode(UInt64.self, forKey: .sequence)
+        kind = try container.decode(SyncJournalFrameKind.self, forKey: .kind)
+        payload = try container.decode(Data.self, forKey: .payload)
+        checksum = try container.decode(Data.self, forKey: .checksum)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(1, forKey: .version)
+        try container.encode(sequence, forKey: .sequence)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(payload, forKey: .payload)
+        try container.encode(checksum, forKey: .checksum)
+    }
+}
+
+struct SyncJournalCheckpoint: Codable, Sendable {
+    let version: Int
+    let throughSequence: UInt64
+    let pending: [SyncMutation]
+}
+
+struct SyncJournalIOCounters: Sendable {
+    private final class Storage: @unchecked Sendable {
+        let lock = NSLock()
+        var appendedFrameCount = 0
+        var fullCheckpointRewriteCount = 0
+        var bytesRead = 0
+    }
+
+    private let storage = Storage()
+
+    var appendedFrameCount: Int {
+        storage.lock.withLock { storage.appendedFrameCount }
+    }
+
+    var fullCheckpointRewriteCount: Int {
+        storage.lock.withLock { storage.fullCheckpointRewriteCount }
+    }
+
+    var bytesRead: Int {
+        storage.lock.withLock { storage.bytesRead }
+    }
+
+    fileprivate func recordAppendedFrames(_ count: Int) {
+        storage.lock.withLock { storage.appendedFrameCount += count }
+    }
+
+    fileprivate func recordCheckpointRewrite() {
+        storage.lock.withLock { storage.fullCheckpointRewriteCount += 1 }
+    }
+
+    fileprivate func recordBytesRead(_ count: Int) {
+        storage.lock.withLock { storage.bytesRead += count }
+    }
+}
+
 public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchecked Sendable {
     public static let maximumEncodedBytes = 64 * 1_024 * 1_024
+    private static let frameTrailerMagic = Data([
+        0x4b, 0x4e, 0x4a, 0x46, 0x52, 0x4d, 0x31, 0x21
+    ])
+    private static let frameTrailerByteCount = MemoryLayout<UInt64>.size + 8
 
     typealias AtomicWrite = @Sendable (Data, URL) throws -> Void
+    typealias AppendFrames = @Sendable (Data, URL) throws -> Void
     typealias SynchronizeDirectory = @Sendable (URL) throws -> Void
 
     private let url: URL
     private let atomicWrite: AtomicWrite
+    private let appendFrames: AppendFrames
+    private let synchronizeDirectory: SynchronizeDirectory
     private let reader: SyncRegularFileReader
+    private let counters: SyncJournalIOCounters
     private let lock = NSLock()
-    private var loadedMutations: [SyncMutation]?
+    private var loadedState: LoadedState?
+
+    private var checkpointURL: URL { url.appendingPathExtension("checkpoint") }
+    private var segmentURL: URL { url.appendingPathExtension("segment") }
+    private var migratedURL: URL { url.appendingPathExtension("migrated") }
 
     private var attachmentsDirectory: URL {
         url.deletingLastPathComponent().appendingPathComponent(
@@ -242,18 +347,34 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         self.init(
             url: url,
             reader: .init(),
+            counters: SyncJournalIOCounters(),
+            synchronizeDirectory: Self.defaultSynchronizeDirectory
+        )
+    }
+
+    convenience init(url: URL, counters: SyncJournalIOCounters) {
+        self.init(
+            url: url,
+            reader: .init(),
+            counters: counters,
             synchronizeDirectory: Self.defaultSynchronizeDirectory
         )
     }
 
     convenience init(url: URL, synchronizeDirectory: @escaping SynchronizeDirectory) {
-        self.init(url: url, reader: .init(), synchronizeDirectory: synchronizeDirectory)
+        self.init(
+            url: url,
+            reader: .init(),
+            counters: SyncJournalIOCounters(),
+            synchronizeDirectory: synchronizeDirectory
+        )
     }
 
     convenience init(url: URL, reader: SyncRegularFileReader) {
         self.init(
             url: url,
             reader: reader,
+            counters: SyncJournalIOCounters(),
             synchronizeDirectory: Self.defaultSynchronizeDirectory
         )
     }
@@ -261,6 +382,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     private convenience init(
         url: URL,
         reader: SyncRegularFileReader,
+        counters: SyncJournalIOCounters,
         synchronizeDirectory: @escaping SynchronizeDirectory
     ) {
         self.init(
@@ -272,12 +394,67 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                     synchronizeDirectory: synchronizeDirectory
                 )
             },
-            reader: reader
+            appendFrames: { data, destination in
+                try Self.defaultAppendFrames(
+                    data,
+                    to: destination,
+                    synchronizeDirectory: synchronizeDirectory
+                )
+            },
+            synchronizeDirectory: synchronizeDirectory,
+            reader: reader,
+            counters: counters
         )
     }
 
     convenience init(url: URL, atomicWrite: @escaping AtomicWrite) {
-        self.init(url: url, atomicWrite: atomicWrite, reader: .init())
+        self.init(
+            url: url,
+            counters: SyncJournalIOCounters(),
+            atomicWrite: atomicWrite
+        )
+    }
+
+    convenience init(
+        url: URL,
+        counters: SyncJournalIOCounters,
+        atomicWrite: @escaping AtomicWrite
+    ) {
+        self.init(
+            url: url,
+            atomicWrite: atomicWrite,
+            appendFrames: { data, destination in
+                try Self.defaultAppendFrames(
+                    data,
+                    to: destination,
+                    synchronizeDirectory: Self.defaultSynchronizeDirectory
+                )
+            },
+            synchronizeDirectory: Self.defaultSynchronizeDirectory,
+            reader: .init(),
+            counters: counters
+        )
+    }
+
+    convenience init(
+        url: URL,
+        counters: SyncJournalIOCounters = SyncJournalIOCounters(),
+        appendFrames: @escaping AppendFrames
+    ) {
+        self.init(
+            url: url,
+            atomicWrite: { data, destination in
+                try Self.defaultAtomicWrite(
+                    data,
+                    to: destination,
+                    synchronizeDirectory: Self.defaultSynchronizeDirectory
+                )
+            },
+            appendFrames: appendFrames,
+            synchronizeDirectory: Self.defaultSynchronizeDirectory,
+            reader: .init(),
+            counters: counters
+        )
     }
 
     init(
@@ -287,31 +464,58 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     ) {
         self.url = url
         self.atomicWrite = atomicWrite
+        self.appendFrames = { data, destination in
+            try Self.defaultAppendFrames(
+                data,
+                to: destination,
+                synchronizeDirectory: Self.defaultSynchronizeDirectory
+            )
+        }
+        self.synchronizeDirectory = Self.defaultSynchronizeDirectory
         self.reader = reader
+        self.counters = SyncJournalIOCounters()
+    }
+
+    init(
+        url: URL,
+        atomicWrite: @escaping AtomicWrite,
+        appendFrames: @escaping AppendFrames,
+        synchronizeDirectory: @escaping SynchronizeDirectory,
+        reader: SyncRegularFileReader,
+        counters: SyncJournalIOCounters
+    ) {
+        self.url = url
+        self.atomicWrite = atomicWrite
+        self.appendFrames = appendFrames
+        self.synchronizeDirectory = synchronizeDirectory
+        self.reader = reader
+        self.counters = counters
     }
 
     public func enqueue(_ mutations: [SyncMutation]) throws {
         guard !mutations.isEmpty else { return }
         try lock.withLock {
-            let current = try mutationsLocked()
-            var byMutationID = Dictionary(uniqueKeysWithValues: current.map { ($0.mutationID, $0) })
-            var candidate = current
+            var candidate = try stateLocked()
+            var frames: [SyncJournalFrame] = []
             for requested in mutations {
                 let requested = try requested.validated()
-                if let existing = byMutationID[requested.mutationID] {
+                if let existing = candidate.seenByMutationID[requested.mutationID] {
                     guard Self.hasSameImmutableIdentity(existing, requested) else {
                         throw SyncMutationJournalError.duplicateMutationID
                     }
                     continue
                 }
                 let staged = try stageAttachmentIfNeeded(for: requested)
-                byMutationID[staged.mutationID] = staged
-                candidate.append(staged)
+                let frame = try makeFrame(
+                    sequence: candidate.nextSequence,
+                    kind: .enqueue,
+                    value: staged
+                )
+                try apply(frame, to: &candidate)
+                frames.append(frame)
             }
-
-            // Re-persist even when every identity already exists. This repairs
-            // ambiguous post-rename durability without appending duplicates.
-            try persistReconcilingMemoryLocked(candidate)
+            guard !frames.isEmpty else { return }
+            try appendReconcilingMemoryLocked(frames, candidate: candidate)
         }
     }
 
@@ -340,101 +544,490 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     public func pending() throws -> [SyncMutation] {
-        try lock.withLock { try mutationsLocked() }
+        try lock.withLock { try stateLocked().pending }
     }
 
     public func acknowledge(_ identities: Set<SyncMutationIdentity>) throws {
         guard !identities.isEmpty else { return }
         try lock.withLock {
-            let current = try mutationsLocked()
-            let removed = current.filter { identities.contains($0.identity) }
+            var candidate = try stateLocked()
+            let removed = candidate.pending.filter { identities.contains($0.identity) }
             guard !removed.isEmpty else { return }
-            let candidate = current.filter { !identities.contains($0.identity) }
-            try persistReconcilingMemoryLocked(candidate)
+            let sortedIdentities = removed.map(\.identity).sorted(by: Self.identityPrecedes)
+            var frames: [SyncJournalFrame] = []
+            for identity in sortedIdentities {
+                let frame = try makeFrame(
+                    sequence: candidate.nextSequence,
+                    kind: .acknowledge,
+                    value: identity
+                )
+                try apply(frame, to: &candidate)
+                frames.append(frame)
+            }
+            try appendReconcilingMemoryLocked(frames, candidate: candidate)
             for mutation in removed {
-                removeStagedAttachmentIfUnreferenced(mutation, remaining: candidate)
+                removeStagedAttachmentIfUnreferenced(mutation, remaining: candidate.pending)
             }
         }
     }
 
-    private func mutationsLocked() throws -> [SyncMutation] {
-        if let loadedMutations { return loadedMutations }
-        let mutations = try readLiveMutationsLocked()
-        loadedMutations = mutations
-        return mutations
+    private static func identityPrecedes(
+        _ lhs: SyncMutationIdentity,
+        _ rhs: SyncMutationIdentity
+    ) -> Bool {
+        let left = (
+            lhs.recordID.kind.rawValue,
+            lhs.recordID.uuid.uuidString,
+            lhs.mutationID.uuidString
+        )
+        let right = (
+            rhs.recordID.kind.rawValue,
+            rhs.recordID.uuid.uuidString,
+            rhs.mutationID.uuidString
+        )
+        return left < right
     }
 
-    private func readLiveMutationsLocked() throws -> [SyncMutation] {
-        guard let data = try readDataFromRegularFile() else { return [] }
-        let envelope: Envelope
-        do {
-            envelope = try JSONDecoder().decode(Envelope.self, from: data)
-        } catch {
+    private func stateLocked() throws -> LoadedState {
+        if let loadedState { return loadedState }
+        let state = try loadStateLocked()
+        loadedState = state
+        return state
+    }
+
+    private func loadStateLocked() throws -> LoadedState {
+        let hasCheckpoint = try pathExists(checkpointURL)
+        let hasSegment = try pathExists(segmentURL)
+        if hasCheckpoint || hasSegment {
+            let state = try loadSegmentedStateLocked()
+            if try pathExists(url) {
+                try finishInterruptedLegacyMigrationLocked(matching: state.pending)
+            }
+            return state
+        }
+        guard try pathExists(url) else { return .empty }
+        return try migrateLegacyEnvelopeLocked()
+    }
+
+    private func loadSegmentedStateLocked() throws -> LoadedState {
+        var checkpoint = SyncJournalCheckpoint(version: 1, throughSequence: 0, pending: [])
+        var totalBytes = 0
+        if let checkpointData = try readArtifact(checkpointURL) {
+            totalBytes += checkpointData.count
+            checkpoint = try decodeCheckpoint(checkpointData)
+        }
+        guard checkpoint.version == 1,
+              checkpoint.throughSequence < UInt64.max else {
             throw SyncMutationJournalError.corrupt
         }
-        guard envelope.version == Envelope.currentVersion else {
-            throw SyncMutationJournalError.corrupt
-        }
-        var seenMutationIDs = Set<UUID>()
-        return try envelope.mutations.map { mutation in
+
+        var seen: [UUID: SyncMutation] = [:]
+        var pending: [SyncMutation] = []
+        for mutation in checkpoint.pending {
             let validated = try mutation.validatedForJournalLoad()
-            guard seenMutationIDs.insert(validated.mutationID).inserted else {
+            guard seen[validated.mutationID] == nil else {
                 throw SyncMutationJournalError.corrupt
             }
             try validatePersistedAttachmentSource(in: validated)
-            return validated
+            seen[validated.mutationID] = validated
+            pending.append(validated)
+        }
+        var state = LoadedState(
+            pending: pending,
+            seenByMutationID: seen,
+            nextSequence: checkpoint.throughSequence + 1,
+            framesSinceCheckpoint: 0,
+            enqueuedOperationCount: 0,
+            acknowledgedOperationCount: 0,
+            validSegmentByteCount: 0,
+            hasPartialFinalFrame: false
+        )
+
+        guard let segmentData = try readArtifact(segmentURL) else { return state }
+        totalBytes += segmentData.count
+        guard totalBytes <= Self.maximumEncodedBytes else {
+            throw SyncMutationJournalError.tooLarge
+        }
+        try replaySegment(segmentData, after: checkpoint.throughSequence, into: &state)
+        for mutation in state.pending {
+            try validatePersistedAttachmentSource(in: mutation)
+        }
+        return state
+    }
+
+    private func replaySegment(
+        _ data: Data,
+        after checkpointSequence: UInt64,
+        into state: inout LoadedState
+    ) throws {
+        var offset = 0
+        var lastFrameSequence: UInt64?
+        while offset < data.count {
+            let frameStart = offset
+            guard data.count - offset >= MemoryLayout<UInt64>.size else {
+                state.validSegmentByteCount = frameStart
+                state.hasPartialFinalFrame = true
+                return
+            }
+            let bodyLength = data[offset..<(offset + 8)].reduce(UInt64(0)) {
+                ($0 << 8) | UInt64($1)
+            }
+            guard bodyLength > 0, bodyLength <= UInt64(Self.maximumEncodedBytes) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            offset += 8
+            guard bodyLength <= UInt64(data.count - offset) else {
+                if Self.hasCommittedTrailer(in: data, frameStart: frameStart) {
+                    throw SyncMutationJournalError.corrupt
+                }
+                state.validSegmentByteCount = frameStart
+                state.hasPartialFinalFrame = true
+                return
+            }
+            let bodyEnd = offset + Int(bodyLength)
+            guard data.count - bodyEnd >= Self.frameTrailerByteCount else {
+                state.validSegmentByteCount = frameStart
+                state.hasPartialFinalFrame = true
+                return
+            }
+            let frame: SyncJournalFrame
+            do {
+                frame = try JSONDecoder().decode(
+                    SyncJournalFrame.self,
+                    from: Data(data[offset..<bodyEnd])
+                )
+            } catch {
+                throw SyncMutationJournalError.corrupt
+            }
+            let trailerLength = data[bodyEnd..<(bodyEnd + 8)].reduce(UInt64(0)) {
+                ($0 << 8) | UInt64($1)
+            }
+            let magicStart = bodyEnd + 8
+            let magicEnd = magicStart + Self.frameTrailerMagic.count
+            guard trailerLength == bodyLength,
+                  data[magicStart..<magicEnd] == Self.frameTrailerMagic else {
+                throw SyncMutationJournalError.corrupt
+            }
+            offset = magicEnd
+            state.validSegmentByteCount = offset
+            guard frame.checksum == Self.checksum(
+                sequence: frame.sequence,
+                kind: frame.kind,
+                payload: frame.payload
+            ) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            guard frame.sequence > 0, frame.sequence < UInt64.max else {
+                throw SyncMutationJournalError.corrupt
+            }
+            if let lastFrameSequence {
+                guard frame.sequence == lastFrameSequence + 1 else {
+                    throw SyncMutationJournalError.corrupt
+                }
+            }
+            lastFrameSequence = frame.sequence
+            if frame.sequence <= checkpointSequence { continue }
+            try apply(frame, to: &state)
         }
     }
 
-    private func persistReconcilingMemoryLocked(_ mutations: [SyncMutation]) throws {
+    private func appendReconcilingMemoryLocked(
+        _ frames: [SyncJournalFrame],
+        candidate: LoadedState
+    ) throws {
         do {
-            try persistLocked(mutations)
-            loadedMutations = mutations
+            let encoded = try encodeFrames(frames)
+            let current = try stateLocked()
+            if current.hasPartialFinalFrame {
+                try truncateSegment(to: current.validSegmentByteCount)
+            }
+            guard current.validSegmentByteCount <= Self.maximumEncodedBytes - encoded.count else {
+                throw SyncMutationJournalError.tooLarge
+            }
+            try appendFrames(encoded, segmentURL)
+            counters.recordAppendedFrames(frames.count)
+            var committed = candidate
+            committed.validSegmentByteCount = current.validSegmentByteCount + encoded.count
+            committed.hasPartialFinalFrame = false
+            loadedState = committed
+            try compactIfNeededLocked()
         } catch {
             let persistenceError = error
-            do {
-                loadedMutations = try readLiveMutationsLocked()
-            } catch {
-                loadedMutations = nil
-            }
+            loadedState = try? loadStateLocked()
             throw persistenceError
         }
     }
 
-    private func persistLocked(_ mutations: [SyncMutation]) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        encoder.userInfo[.encodeLegacyStandaloneReminderForMigration] = true
-        let data = try encoder.encode(Envelope(mutations: mutations))
+    private func compactIfNeededLocked() throws {
+        guard let current = loadedState,
+              current.framesSinceCheckpoint >= 256,
+              current.acknowledgedOperationCount * 2 >= current.enqueuedOperationCount else {
+            return
+        }
+        let throughSequence = current.nextSequence - 1
+        let checkpoint = SyncJournalCheckpoint(
+            version: 1,
+            throughSequence: throughSequence,
+            pending: current.pending
+        )
+        try atomicWrite(try encodeCheckpoint(checkpoint), checkpointURL)
+        counters.recordCheckpointRewrite()
+        try atomicWrite(Data(), segmentURL)
+        loadedState = LoadedState(
+            pending: current.pending,
+            seenByMutationID: Dictionary(
+                uniqueKeysWithValues: current.pending.map { ($0.mutationID, $0) }
+            ),
+            nextSequence: throughSequence + 1,
+            framesSinceCheckpoint: 0,
+            enqueuedOperationCount: 0,
+            acknowledgedOperationCount: 0,
+            validSegmentByteCount: 0,
+            hasPartialFinalFrame: false
+        )
+    }
+
+    private func makeFrame<Value: Encodable>(
+        sequence: UInt64,
+        kind: SyncJournalFrameKind,
+        value: Value
+    ) throws -> SyncJournalFrame {
+        let payload = try Self.deterministicEncoder().encode(value)
+        return SyncJournalFrame(
+            sequence: sequence,
+            kind: kind,
+            payload: payload,
+            checksum: Self.checksum(sequence: sequence, kind: kind, payload: payload)
+        )
+    }
+
+    private func apply(_ frame: SyncJournalFrame, to state: inout LoadedState) throws {
+        guard frame.sequence == state.nextSequence else {
+            throw SyncMutationJournalError.corrupt
+        }
+        switch frame.kind {
+        case .enqueue:
+            let mutation: SyncMutation
+            do {
+                mutation = try JSONDecoder().decode(SyncMutation.self, from: frame.payload)
+                    .validatedForJournalLoad()
+            } catch let error as SyncMutationJournalError {
+                throw error
+            } catch {
+                throw SyncMutationJournalError.corrupt
+            }
+            if let existing = state.seenByMutationID[mutation.mutationID] {
+                guard Self.hasSameImmutableIdentity(existing, mutation) else {
+                    throw SyncMutationJournalError.corrupt
+                }
+            } else {
+                state.seenByMutationID[mutation.mutationID] = mutation
+                state.pending.append(mutation)
+            }
+            state.enqueuedOperationCount += 1
+        case .acknowledge:
+            let identity: SyncMutationIdentity
+            do {
+                identity = try JSONDecoder().decode(
+                    SyncMutationIdentity.self,
+                    from: frame.payload
+                )
+            } catch {
+                throw SyncMutationJournalError.corrupt
+            }
+            guard let index = state.pending.firstIndex(where: { $0.identity == identity }) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            state.pending.remove(at: index)
+            state.acknowledgedOperationCount += 1
+        }
+        state.framesSinceCheckpoint += 1
+        state.nextSequence += 1
+    }
+
+    private func encodeFrames(_ frames: [SyncJournalFrame]) throws -> Data {
+        let encoder = Self.deterministicEncoder()
+        var result = Data()
+        for frame in frames {
+            let body = try encoder.encode(frame)
+            guard body.count <= Self.maximumEncodedBytes else {
+                throw SyncMutationJournalError.tooLarge
+            }
+            var length = UInt64(body.count).bigEndian
+            withUnsafeBytes(of: &length) { result.append(contentsOf: $0) }
+            result.append(body)
+            withUnsafeBytes(of: &length) { result.append(contentsOf: $0) }
+            result.append(Self.frameTrailerMagic)
+        }
+        return result
+    }
+
+    private static func hasCommittedTrailer(in data: Data, frameStart: Int) -> Bool {
+        let bodyStart = frameStart + MemoryLayout<UInt64>.size
+        var searchStart = bodyStart + MemoryLayout<UInt64>.size
+        while searchStart <= data.count - frameTrailerMagic.count,
+              let magicRange = data.range(
+                  of: frameTrailerMagic,
+                  options: [],
+                  in: searchStart..<data.count
+              ) {
+            let lengthStart = magicRange.lowerBound - MemoryLayout<UInt64>.size
+            if lengthStart >= bodyStart {
+                let recordedLength = data[lengthStart..<magicRange.lowerBound].reduce(UInt64(0)) {
+                    ($0 << 8) | UInt64($1)
+                }
+                if recordedLength <= UInt64(Int.max),
+                   bodyStart + Int(recordedLength) == lengthStart {
+                    return true
+                }
+            }
+            searchStart = magicRange.lowerBound + 1
+        }
+        return false
+    }
+
+    private static func checksum(
+        sequence: UInt64,
+        kind: SyncJournalFrameKind,
+        payload: Data
+    ) -> Data {
+        var material = Data()
+        material.append(1)
+        var sequence = sequence.bigEndian
+        withUnsafeBytes(of: &sequence) { material.append(contentsOf: $0) }
+        material.append(kind.rawValue)
+        material.append(payload)
+        return Data(SHA256.hash(data: material))
+    }
+
+    private func encodeCheckpoint(_ checkpoint: SyncJournalCheckpoint) throws -> Data {
+        let checkpointData = try Self.deterministicEncoder(
+            allowLegacyReminder: true
+        ).encode(checkpoint)
+        let file = CheckpointFile(
+            version: 1,
+            checkpoint: checkpointData,
+            checksum: Data(SHA256.hash(data: checkpointData))
+        )
+        let data = try Self.deterministicEncoder().encode(file)
         guard data.count <= Self.maximumEncodedBytes else {
             throw SyncMutationJournalError.tooLarge
         }
-        try atomicWrite(data, url)
+        return data
     }
 
-    private struct Envelope: Codable {
-        static let currentVersion = 2
-        let version: Int
-        let mutations: [SyncMutation]
-
-        init(mutations: [SyncMutation]) {
-            version = Self.currentVersion
-            self.mutations = mutations
-        }
-    }
-
-    private func readDataFromRegularFile() throws -> Data? {
-        var pathStatus = stat()
-        let pathResult = url.path.withCString { Darwin.lstat($0, &pathStatus) }
-        if pathResult != 0 {
-            guard errno == ENOENT else { throw currentPOSIXError() }
-            return nil
-        }
+    private func decodeCheckpoint(_ data: Data) throws -> SyncJournalCheckpoint {
         do {
-            return try reader.read(
-                url,
+            let file = try JSONDecoder().decode(CheckpointFile.self, from: data)
+            guard file.version == 1,
+                  file.checksum == Data(SHA256.hash(data: file.checkpoint)) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            return try JSONDecoder().decode(SyncJournalCheckpoint.self, from: file.checkpoint)
+        } catch let error as SyncMutationJournalError {
+            throw error
+        } catch {
+            throw SyncMutationJournalError.corrupt
+        }
+    }
+
+    private static func deterministicEncoder(allowLegacyReminder: Bool = false) -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        if allowLegacyReminder {
+            encoder.userInfo[.encodeLegacyStandaloneReminderForMigration] = true
+        }
+        return encoder
+    }
+
+    private func migrateLegacyEnvelopeLocked() throws -> LoadedState {
+        guard let legacyData = try readArtifact(url) else { return .empty }
+        let mutations = try decodeAndValidateLegacyEnvelope(legacyData)
+        let checkpoint = SyncJournalCheckpoint(
+            version: 1,
+            throughSequence: 0,
+            pending: mutations
+        )
+        try atomicWrite(try encodeCheckpoint(checkpoint), checkpointURL)
+        counters.recordCheckpointRewrite()
+        try atomicWrite(Data(), segmentURL)
+        try retainMigratedLegacyEnvelope()
+        return LoadedState(
+            pending: mutations,
+            seenByMutationID: Dictionary(
+                uniqueKeysWithValues: mutations.map { ($0.mutationID, $0) }
+            ),
+            nextSequence: 1,
+            framesSinceCheckpoint: 0,
+            enqueuedOperationCount: 0,
+            acknowledgedOperationCount: 0,
+            validSegmentByteCount: 0,
+            hasPartialFinalFrame: false
+        )
+    }
+
+    private func finishInterruptedLegacyMigrationLocked(matching pending: [SyncMutation]) throws {
+        guard let legacyData = try readArtifact(url) else { return }
+        let legacyMutations = try decodeAndValidateLegacyEnvelope(legacyData)
+        guard legacyMutations == pending else { throw SyncMutationJournalError.corrupt }
+        if !(try pathExists(segmentURL)) { try atomicWrite(Data(), segmentURL) }
+        try retainMigratedLegacyEnvelope()
+    }
+
+    private func decodeAndValidateLegacyEnvelope(_ data: Data) throws -> [SyncMutation] {
+        let envelope: LegacyEnvelope
+        do {
+            envelope = try JSONDecoder().decode(LegacyEnvelope.self, from: data)
+        } catch {
+            throw SyncMutationJournalError.corrupt
+        }
+        guard envelope.version == LegacyEnvelope.currentVersion else {
+            throw SyncMutationJournalError.corrupt
+        }
+        var seenMutationIDs = Set<UUID>()
+        return try envelope.mutations.map { mutation in
+            do {
+                let validated = try mutation.validatedForJournalLoad()
+                guard seenMutationIDs.insert(validated.mutationID).inserted else {
+                    throw SyncMutationJournalError.corrupt
+                }
+                try validatePersistedAttachmentSource(in: validated)
+                return validated
+            } catch let error as SyncMutationJournalError {
+                switch error {
+                case .unsafeFile, .tooLarge:
+                    throw error
+                case .corrupt, .duplicateMutationID, .invalidAttachment:
+                    throw SyncMutationJournalError.corrupt
+                }
+            } catch {
+                throw SyncMutationJournalError.corrupt
+            }
+        }
+    }
+
+    private func retainMigratedLegacyEnvelope() throws {
+        guard !(try pathExists(migratedURL)) else {
+            throw SyncMutationJournalError.corrupt
+        }
+        let result = url.path.withCString { source in
+            migratedURL.path.withCString { destination in
+                Darwin.rename(source, destination)
+            }
+        }
+        guard result == 0 else { throw currentPOSIXError() }
+        try synchronizeDirectory(url.deletingLastPathComponent())
+    }
+
+    private func readArtifact(_ artifactURL: URL) throws -> Data? {
+        guard try pathExists(artifactURL) else { return nil }
+        do {
+            let read = try reader.read(
+                artifactURL,
                 maximumBytes: Self.maximumEncodedBytes
-            ).data
+            )
+            counters.recordBytesRead(read.data.count)
+            return read.data
         } catch let error as SyncRegularFileReadError {
             switch error {
             case .unsafeFile, .replaced:
@@ -445,6 +1038,72 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 throw SyncMutationJournalError.corrupt
             }
         }
+    }
+
+    private func pathExists(_ artifactURL: URL) throws -> Bool {
+        var status = stat()
+        let result = artifactURL.path.withCString { Darwin.lstat($0, &status) }
+        if result == 0 { return true }
+        guard errno == ENOENT else { throw currentPOSIXError() }
+        return false
+    }
+
+    private func truncateSegment(to byteCount: Int) throws {
+        var pathStatus = stat()
+        guard segmentURL.path.withCString({ Darwin.lstat($0, &pathStatus) }) == 0,
+              Self.isRegularFile(pathStatus) else {
+            throw SyncMutationJournalError.unsafeFile
+        }
+        let descriptor = segmentURL.path.withCString {
+            Darwin.open($0, O_WRONLY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else { throw currentPOSIXError() }
+        defer { Darwin.close(descriptor) }
+        var status = stat()
+        guard Darwin.fstat(descriptor, &status) == 0,
+              Self.isRegularFile(status),
+              pathStatus.st_dev == status.st_dev,
+              pathStatus.st_ino == status.st_ino else {
+            throw SyncMutationJournalError.unsafeFile
+        }
+        guard Darwin.ftruncate(descriptor, off_t(byteCount)) == 0,
+              Darwin.fsync(descriptor) == 0 else {
+            throw currentPOSIXError()
+        }
+    }
+
+    private struct LoadedState {
+        var pending: [SyncMutation]
+        var seenByMutationID: [UUID: SyncMutation]
+        var nextSequence: UInt64
+        var framesSinceCheckpoint: Int
+        var enqueuedOperationCount: Int
+        var acknowledgedOperationCount: Int
+        var validSegmentByteCount: Int
+        var hasPartialFinalFrame: Bool
+
+        static let empty = LoadedState(
+            pending: [],
+            seenByMutationID: [:],
+            nextSequence: 1,
+            framesSinceCheckpoint: 0,
+            enqueuedOperationCount: 0,
+            acknowledgedOperationCount: 0,
+            validSegmentByteCount: 0,
+            hasPartialFinalFrame: false
+        )
+    }
+
+    private struct CheckpointFile: Codable {
+        let version: Int
+        let checkpoint: Data
+        let checksum: Data
+    }
+
+    private struct LegacyEnvelope: Codable {
+        static let currentVersion = 2
+        let version: Int
+        let mutations: [SyncMutation]
     }
 
     private func stageAttachmentIfNeeded(for mutation: SyncMutation) throws -> SyncMutation {
@@ -606,6 +1265,61 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         if source.fileURL.path.withCString({ Darwin.unlink($0) }) == 0 {
             try? Self.defaultSynchronizeDirectory(attachmentsDirectory)
         }
+    }
+
+    private static func defaultAppendFrames(
+        _ data: Data,
+        to destination: URL,
+        synchronizeDirectory: SynchronizeDirectory
+    ) throws {
+        guard !data.isEmpty, data.count <= maximumEncodedBytes else {
+            throw SyncMutationJournalError.tooLarge
+        }
+        let parent = destination.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+
+        var pathStatus = stat()
+        let pathResult = destination.path.withCString { Darwin.lstat($0, &pathStatus) }
+        let existed = pathResult == 0
+        if existed, !isRegularFile(pathStatus) {
+            throw SyncMutationJournalError.unsafeFile
+        }
+        if !existed, errno != ENOENT { throw currentPOSIXError() }
+
+        let descriptor = destination.path.withCString {
+            Darwin.open(
+                $0,
+                O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
+                S_IRUSR | S_IWUSR
+            )
+        }
+        guard descriptor >= 0 else {
+            if errno == ELOOP { throw SyncMutationJournalError.unsafeFile }
+            throw currentPOSIXError()
+        }
+        defer { Darwin.close(descriptor) }
+
+        var openedStatus = stat()
+        guard Darwin.fstat(descriptor, &openedStatus) == 0 else {
+            throw currentPOSIXError()
+        }
+        guard isRegularFile(openedStatus) else {
+            throw SyncMutationJournalError.unsafeFile
+        }
+        if existed {
+            guard pathStatus.st_dev == openedStatus.st_dev,
+                  pathStatus.st_ino == openedStatus.st_ino else {
+                throw SyncMutationJournalError.unsafeFile
+            }
+        }
+        guard openedStatus.st_size >= 0,
+              openedStatus.st_size <= off_t(maximumEncodedBytes - data.count) else {
+            throw SyncMutationJournalError.tooLarge
+        }
+
+        try write(data, to: descriptor)
+        guard Darwin.fsync(descriptor) == 0 else { throw currentPOSIXError() }
+        if !existed { try synchronizeDirectory(parent) }
     }
 
     private static func defaultAtomicWrite(

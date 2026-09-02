@@ -77,7 +77,7 @@ import Testing
 
         let interrupted = FileSyncMutationJournal(
             url: fixture.url,
-            atomicWrite: { _, _ in throw SyncMutationJournalWriteInterruption() }
+            appendFrames: { _, _ in throw SyncMutationJournalWriteInterruption() }
         )
         #expect(throws: SyncMutationJournalWriteInterruption.self) {
             try interrupted.acknowledge(recordID: recordID, mutationID: mutationID)
@@ -87,7 +87,7 @@ import Testing
         #expect(try FileSyncMutationJournal(url: fixture.url).pending() == [original])
     }
 
-    @Test func enqueueReconcilesCommittedBytesAfterParentSyncFailure() throws {
+    @Test func enqueueReconcilesCommittedFramesAfterAppendReportsFailure() throws {
         let fixture = try SyncMutationJournalFixture()
         let recordID = SyncEntityID(
             kind: .project,
@@ -103,7 +103,10 @@ import Testing
         )
         let journal = FileSyncMutationJournal(
             url: fixture.url,
-            synchronizeDirectory: { _ in throw SyncMutationJournalParentSyncFailure() }
+            appendFrames: { data, destination in
+                try appendJournalTestData(data, to: destination)
+                throw SyncMutationJournalParentSyncFailure()
+            }
         )
 
         #expect(throws: SyncMutationJournalParentSyncFailure.self) {
@@ -118,7 +121,7 @@ import Testing
         #expect(try FileSyncMutationJournal(url: fixture.url).pending() == [first, second])
     }
 
-    @Test func acknowledgementReconcilesCommittedBytesAfterParentSyncFailure() throws {
+    @Test func acknowledgementReconcilesCommittedFrameAfterAppendReportsFailure() throws {
         let fixture = try SyncMutationJournalFixture()
         let recordID = SyncEntityID(
             kind: .yarn,
@@ -132,7 +135,10 @@ import Testing
 
         let journal = FileSyncMutationJournal(
             url: fixture.url,
-            synchronizeDirectory: { _ in throw SyncMutationJournalParentSyncFailure() }
+            appendFrames: { data, destination in
+                try appendJournalTestData(data, to: destination)
+                throw SyncMutationJournalParentSyncFailure()
+            }
         )
         #expect(try journal.pending() == [original])
         #expect(throws: SyncMutationJournalParentSyncFailure.self) {
@@ -154,6 +160,17 @@ import Testing
 
 private struct SyncMutationJournalWriteInterruption: Error {}
 private struct SyncMutationJournalParentSyncFailure: Error {}
+
+private func appendJournalTestData(_ data: Data, to destination: URL) throws {
+    if !FileManager.default.fileExists(atPath: destination.path) {
+        #expect(FileManager.default.createFile(atPath: destination.path, contents: nil))
+    }
+    let handle = try FileHandle(forWritingTo: destination)
+    defer { try? handle.close() }
+    try handle.seekToEnd()
+    try handle.write(contentsOf: data)
+    try handle.synchronize()
+}
 
 private final class SyncMutationJournalFixture {
     let directory: URL

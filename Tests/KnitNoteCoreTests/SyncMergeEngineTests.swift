@@ -41,6 +41,57 @@ import Testing
         }
     }
 
+    @Test func repeatedIDFieldCorruptionIsRejectedInEveryInputOrder() {
+        let id = SyncEntityID(kind: .project, uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000013")!)
+        let olderA = SyncRecord.project(id: id, name: "A", note: "", nameRevision: 1, noteRevision: 1)
+        let olderB = SyncRecord.project(id: id, name: "B", note: "", nameRevision: 1, noteRevision: 1)
+        let newer = SyncRecord.project(id: id, name: "C", note: "", nameRevision: 2, noteRevision: 1)
+        let permutations = [
+            [olderA, olderB, newer],
+            [olderA, newer, olderB],
+            [olderB, olderA, newer],
+            [olderB, newer, olderA],
+            [newer, olderA, olderB],
+            [newer, olderB, olderA]
+        ]
+
+        for records in permutations {
+            #expect(throws: SyncMergeError.corruptEqualStamp(entity: id, field: "name")) {
+                try SyncMergeEngine().merge(local: records, remote: [], pendingLocal: [])
+            }
+        }
+    }
+
+    @Test func repeatedIDDeletedAtCorruptionIsRejectedInEveryInputOrder() {
+        let id = SyncEntityID(kind: .project, uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000014")!)
+        var olderNil = SyncRecord.project(id: id, name: "Project", note: "", nameRevision: 1, noteRevision: 1)
+        var olderDeleted = olderNil
+        var newerDeleted = olderNil
+        olderNil.deletedAt = .init(value: nil, stamp: .test(revision: 1))
+        olderDeleted.deletedAt = .init(
+            value: Date(timeIntervalSince1970: 100),
+            stamp: .test(revision: 1)
+        )
+        newerDeleted.deletedAt = .init(
+            value: Date(timeIntervalSince1970: 200),
+            stamp: .test(revision: 2)
+        )
+        let permutations = [
+            [olderNil, olderDeleted, newerDeleted],
+            [olderNil, newerDeleted, olderDeleted],
+            [olderDeleted, olderNil, newerDeleted],
+            [olderDeleted, newerDeleted, olderNil],
+            [newerDeleted, olderNil, olderDeleted],
+            [newerDeleted, olderDeleted, olderNil]
+        ]
+
+        for records in permutations {
+            #expect(throws: SyncMergeError.corruptEqualStamp(entity: id, field: "deletedAt")) {
+                try SyncMergeEngine().merge(local: records, remote: [], pendingLocal: [])
+            }
+        }
+    }
+
     @Test func deletePlusModifyStaysDeletedAndRetainsMergedPayload() throws {
         let id = SyncEntityID(kind: .project, uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!)
         let local = SyncRecord.project(id: id, name: "Project", note: "Offline edit", nameRevision: 1, noteRevision: 8)

@@ -38,28 +38,18 @@ public struct SyncMergeEngine: Sendable {
         remote: some Sequence<SyncRecord>,
         pendingLocal: Set<SyncEntityID>
     ) throws -> SyncMergeResult {
-        let localRecords = try canonicalRecords(local)
-        let remoteRecords = try canonicalRecords(remote)
-        let ids = Set(localRecords.keys).union(remoteRecords.keys).sorted(by: Self.entityIDLess)
+        let localGroups = try groupedRecords(local)
+        let remoteGroups = try groupedRecords(remote)
+        let ids = Set(localGroups.keys).union(remoteGroups.keys).sorted(by: Self.entityIDLess)
         var mergedRecords: [SyncRecord] = []
         var recordsToUpload: Set<SyncEntityID> = []
 
         for id in ids {
-            let merged: SyncRecord
-            switch (localRecords[id], remoteRecords[id]) {
-            case let (local?, remote?):
-                merged = try merge(local, remote)
-            case let (local?, nil):
-                merged = local
-            case let (nil, remote?):
-                merged = remote
-            case (nil, nil):
-                continue
-            }
-
+            let merged = try merge((localGroups[id] ?? []) + (remoteGroups[id] ?? []))
             let validated = try validator.validate(merged)
             mergedRecords.append(validated)
-            if remoteRecords[id] != validated || pendingLocal.contains(id) {
+            let remoteRecord = try remoteGroups[id].map(merge)
+            if remoteRecord != validated || pendingLocal.contains(id) {
                 recordsToUpload.insert(id)
             }
         }
@@ -74,71 +64,67 @@ public struct SyncMergeEngine: Sendable {
         )
     }
 
-    private func canonicalRecords<S: Sequence>(_ records: S) throws -> [SyncEntityID: SyncRecord]
+    private func groupedRecords<S: Sequence>(_ records: S) throws -> [SyncEntityID: [SyncRecord]]
     where S.Element == SyncRecord {
-        var result: [SyncEntityID: SyncRecord] = [:]
+        var result: [SyncEntityID: [SyncRecord]] = [:]
         for candidate in records {
             let normalized = try validator.validate(normalize(candidate))
-            if let current = result[normalized.id] {
-                result[normalized.id] = try merge(current, normalized)
-            } else {
-                result[normalized.id] = normalized
-            }
+            result[normalized.id, default: []].append(normalized)
         }
         return result
     }
 
-    private func merge(_ lhs: SyncRecord, _ rhs: SyncRecord) throws -> SyncRecord {
-        precondition(lhs.id == rhs.id)
-        let fieldNames = Set(lhs.payload.fields.keys)
-            .union(rhs.payload.fields.keys)
-            .sorted()
+    private func merge(_ records: [SyncRecord]) throws -> SyncRecord {
+        precondition(!records.isEmpty)
+        let first = records[0]
+        precondition(records.allSatisfy { $0.id == first.id })
+        let fieldNames = Set(records.flatMap { $0.payload.fields.keys }).sorted()
         var fields: [String: SyncFieldVersion<SyncScalar>] = [:]
 
         for field in fieldNames {
-            switch (lhs.payload.fields[field], rhs.payload.fields[field]) {
-            case let (left?, right?):
-                fields[field] = try newest(left, right, entity: lhs.id, field: field)
-            case let (left?, nil):
-                fields[field] = left
-            case let (nil, right?):
-                fields[field] = right
-            case (nil, nil):
-                break
-            }
+            fields[field] = try newest(
+                records.compactMap { $0.payload.fields[field] },
+                entity: first.id,
+                field: field
+            )
         }
 
-        let deletedAt = try newest(lhs.deletedAt, rhs.deletedAt, entity: lhs.id, field: "deletedAt")
+        let deletedAt = try newest(
+            records.map(\.deletedAt),
+            entity: first.id,
+            field: "deletedAt"
+        )
         let merged = SyncRecord(
-            schemaVersion: max(lhs.schemaVersion, rhs.schemaVersion),
-            id: lhs.id,
-            createdAt: min(lhs.createdAt, rhs.createdAt),
-            entityRevision: max(lhs.entityRevision, rhs.entityRevision),
+            schemaVersion: records.map(\.schemaVersion).max() ?? first.schemaVersion,
+            id: first.id,
+            createdAt: records.map(\.createdAt).min() ?? first.createdAt,
+            entityRevision: records.map(\.entityRevision).max() ?? first.entityRevision,
             payload: SyncRecordPayload(
                 fields: fields,
                 deletedRelatedEntityIDs: Self.sortedEntityIDs(
-                    Set(lhs.payload.deletedRelatedEntityIDs).union(rhs.payload.deletedRelatedEntityIDs)
+                    Set(records.flatMap { $0.payload.deletedRelatedEntityIDs })
                 )
             ),
-            relationships: Self.sortedRelationships(lhs.relationships + rhs.relationships),
+            relationships: Self.sortedRelationships(records.flatMap(\.relationships)),
             deletedAt: deletedAt
         )
         return try validator.validate(merged)
     }
 
     private func newest<Value: Codable & Equatable & Sendable>(
-        _ lhs: SyncFieldVersion<Value>,
-        _ rhs: SyncFieldVersion<Value>,
+        _ versions: [SyncFieldVersion<Value>],
         entity: SyncEntityID,
         field: String
     ) throws -> SyncFieldVersion<Value> {
-        if lhs.stamp == rhs.stamp {
-            guard lhs.value == rhs.value else {
+        precondition(!versions.isEmpty)
+        var valuesByStamp: [SyncMutationStamp: Value] = [:]
+        for version in versions {
+            if let existingValue = valuesByStamp[version.stamp], existingValue != version.value {
                 throw SyncMergeError.corruptEqualStamp(entity: entity, field: field)
             }
-            return lhs
+            valuesByStamp[version.stamp] = version.value
         }
-        return lhs.stamp < rhs.stamp ? rhs : lhs
+        return versions.max { $0.stamp < $1.stamp } ?? versions[0]
     }
 
     private func normalize(_ record: SyncRecord) -> SyncRecord {

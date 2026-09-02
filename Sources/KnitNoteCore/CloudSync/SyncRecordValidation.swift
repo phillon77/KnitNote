@@ -144,32 +144,27 @@ public struct SyncRecordValidator: Sendable {
     private func validateAtomicDomain(in record: SyncRecord) throws {
         switch (record.id.kind, record.payload.atomicDomain?.value) {
         case let (.projectCounter, .projectCounter(state)):
+            let reminderIDs = Set(state.reminders.map(\.id))
             guard state.counter.id == record.id.uuid,
                   record.payload.atomicDomain?.stamp.logicalRevision == record.entityRevision,
                   state.counter.mutationRevision <= record.entityRevision,
-                  state.reminder.map({ $0.counterID == state.counter.id }) ?? true,
-                  state.occurrence == state.reminder?.progress.nextOccurrenceIndex,
+                  reminderIDs.count == state.reminders.count,
+                  state.reminders.allSatisfy({ $0.counterID == state.counter.id }),
+                  state.occurrence.map({ occurrence in
+                      state.reminders.contains {
+                          $0.progress.nextOccurrenceIndex == occurrence
+                      }
+                  }) ?? true,
                   preparedCommandIsAligned(state.preparedCommand, with: state) else {
                 throw SyncRecordValidationError.illegalAtomicDomain(record.id)
             }
-            if let reminder = state.reminder {
-                guard reminder.mutationRevision <= record.entityRevision else {
-                    throw SyncRecordValidationError.illegalAtomicDomain(record.id)
-                }
-            }
-        case let (.knittingReminder, .knittingReminder(reminder)):
-            guard reminder.id == record.id.uuid,
-                  reminder.mutationRevision == record.entityRevision,
-                  record.payload.atomicDomain?.stamp.logicalRevision == reminder.mutationRevision,
-                  record.relationships.contains(where: {
-                      $0.role == "counter"
-                          && $0.target == SyncEntityID(
-                              kind: .projectCounter,
-                              uuid: reminder.counterID
-                          )
-                  }) else {
+            guard state.reminders.allSatisfy({
+                $0.mutationRevision <= record.entityRevision
+            }) else {
                 throw SyncRecordValidationError.illegalAtomicDomain(record.id)
             }
+        case (.knittingReminder, .knittingReminder):
+            throw SyncRecordValidationError.illegalAtomicDomain(record.id)
         case (.projectCounter, nil), (.knittingReminder, nil):
             throw SyncRecordValidationError.missingAtomicDomain(record.id)
         case (.projectCounter, _), (.knittingReminder, _):
@@ -201,8 +196,10 @@ public struct SyncRecordValidator: Sendable {
                 && prepared.expectedOccurrenceID == nil
                 && prepared.expectedReminderRevision == nil
         case .completeReminder, .deferReminderOnce, .skipReminder, .stopReminder:
-            guard let reminder = state.reminder,
-                  prepared.expectedReminderID == reminder.id,
+            guard let expectedReminderID = prepared.expectedReminderID,
+                  let reminder = state.reminders.first(where: {
+                      $0.id == expectedReminderID
+                  }),
                   prepared.expectedReminderRevision.map({ $0 <= reminder.mutationRevision }) == true
             else {
                 return false

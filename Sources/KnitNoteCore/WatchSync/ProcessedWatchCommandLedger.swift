@@ -5,15 +5,18 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
         public let id: UUID
         public let processedAt: Date
         public let rejection: WatchCommandRejection?
+        public let preparedCommand: PreparedWatchCommand?
 
         public init(
             id: UUID,
             processedAt: Date,
-            rejection: WatchCommandRejection? = nil
+            rejection: WatchCommandRejection? = nil,
+            preparedCommand: PreparedWatchCommand? = nil
         ) {
             self.id = id
             self.processedAt = processedAt
             self.rejection = rejection
+            self.preparedCommand = preparedCommand
         }
     }
 
@@ -36,10 +39,16 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
     public mutating func record(
         _ id: UUID,
         rejection: WatchCommandRejection? = nil,
+        preparedCommand: PreparedWatchCommand? = nil,
         at date: Date
     ) {
         entries.removeAll { $0.id == id }
-        entries.append(Entry(id: id, processedAt: date, rejection: rejection))
+        entries.append(Entry(
+            id: id,
+            processedAt: date,
+            rejection: rejection,
+            preparedCommand: preparedCommand
+        ))
         prune(now: date)
     }
 

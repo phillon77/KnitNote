@@ -67,7 +67,7 @@ public struct SyncCounterReminderMergePolicy: Sendable {
             return lhs
         }
 
-        let winner = lhs.stamp < rhs.stamp ? rhs : lhs
+        var winner = lhs.stamp < rhs.stamp ? rhs : lhs
         let older = lhs.stamp < rhs.stamp ? lhs : rhs
         guard winner.value.counter.id == older.value.counter.id,
               winner.value.counter.mutationRevision >= older.value.counter.mutationRevision,
@@ -78,15 +78,26 @@ public struct SyncCounterReminderMergePolicy: Sendable {
             )
         }
 
+        if let prepared = winner.value.preparedCommand,
+           prepared.command.operation == .stopReminder,
+           context.processedLedger.contains(prepared.command.id) {
+            let outcome = try applyingStop(
+                prepared,
+                to: winner.value,
+                processedLedger: context.processedLedger
+            )
+            winner = .init(value: outcome.state, stamp: winner.stamp)
+        }
+
         var mergedIDs = winner.value.processedCommandIDs
         for commandID in older.value.processedCommandIDs.subtracting(mergedIDs) {
             guard let entry = context.processedLedger.entry(for: commandID) else {
                 throw SyncMergeError.processedWatchCommandWouldRegress(commandID)
             }
             if entry.rejection == nil {
-                guard let prepared = context.preparedCommands.first(where: {
-                    $0.command.id == commandID
-                }), command(prepared, isReflectedIn: winner.value) else {
+                guard let prepared = entry.preparedCommand
+                    ?? context.preparedCommands.first(where: { $0.command.id == commandID }),
+                    commandIsReflected(prepared, in: winner.value) else {
                     throw SyncMergeError.processedWatchCommandWouldRegress(commandID)
                 }
             }
@@ -110,8 +121,9 @@ public struct SyncCounterReminderMergePolicy: Sendable {
               prepared.command.counterID == state.counter.id,
               let expectedReminderID = prepared.expectedReminderID,
               let expectedRevision = prepared.expectedReminderRevision,
-              let reminder = state.reminder,
-              reminder.id == expectedReminderID else {
+              let reminder = state.reminders.first(where: {
+                  $0.id == expectedReminderID
+              }) else {
             throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
         }
 
@@ -119,7 +131,7 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         if reminder.state == .stopped {
             return .noOp(replacing(
                 state,
-                reminder: reminder,
+                reminders: state.reminders,
                 processedCommandIDs: processedIDs
             ))
         }
@@ -138,7 +150,9 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         }
         return .persisted(replacing(
             state,
-            reminder: stopped,
+            reminders: state.reminders.map {
+                $0.id == stopped.id ? stopped : $0
+            },
             processedCommandIDs: processedIDs
         ))
     }
@@ -147,43 +161,92 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         from older: SyncCounterReminderState,
         to newer: SyncCounterReminderState
     ) -> Bool {
-        guard let olderReminder = older.reminder,
-              let newerReminder = newer.reminder,
-              olderReminder.id == newerReminder.id else {
-            return false
+        let newerByID = Dictionary(uniqueKeysWithValues: newer.reminders.map {
+            ($0.id, $0)
+        })
+        for olderReminder in older.reminders {
+            guard let newerReminder = newerByID[olderReminder.id] else {
+                continue
+            }
+            if newerReminder.mutationRevision < olderReminder.mutationRevision {
+                return true
+            }
         }
-        return newerReminder.mutationRevision < olderReminder.mutationRevision
+        return false
     }
 
-    private func command(
+    func commandIsReflected(
         _ prepared: PreparedWatchCommand,
-        isReflectedIn state: SyncCounterReminderState
+        in state: SyncCounterReminderState
     ) -> Bool {
         guard prepared.command.counterID == state.counter.id else { return false }
         switch prepared.command.operation {
         case .increment, .decrement, .reset:
-            let acceptedNoOp: Bool
+            guard let value = prepared.expectedCounterValue else { return false }
+            let expected: (value: Int, revision: UInt64)
+            let (nextRevision, revisionOverflow) =
+                prepared.expectedCounterRevision.addingReportingOverflow(1)
             switch prepared.command.operation {
-            case .increment: acceptedNoOp = prepared.expectedCounterValue == Int.max
-            case .decrement, .reset: acceptedNoOp = prepared.expectedCounterValue == 0
-            default: acceptedNoOp = false
-            }
-            let minimumRevision = acceptedNoOp
-                ? prepared.expectedCounterRevision
-                : prepared.expectedCounterRevision == .max
-                    ? .max
-                    : prepared.expectedCounterRevision + 1
-            return state.counter.mutationRevision >= minimumRevision
-        case .completeReminder, .deferReminderOnce, .skipReminder:
-            guard let reminder = state.reminder,
-                  reminder.id == prepared.expectedReminderID,
-                  let expectedRevision = prepared.expectedReminderRevision else {
+            case .increment where value == .max:
+                expected = (value, prepared.expectedCounterRevision)
+            case .increment:
+                guard !revisionOverflow else { return false }
+                expected = (value + 1, nextRevision)
+            case .decrement where value == 0, .reset where value == 0:
+                expected = (value, prepared.expectedCounterRevision)
+            case .decrement:
+                guard !revisionOverflow else { return false }
+                expected = (value - 1, nextRevision)
+            case .reset:
+                guard !revisionOverflow else { return false }
+                expected = (0, nextRevision)
+            default:
                 return false
             }
-            return reminder.mutationRevision > expectedRevision
+            return state.counter.value == expected.value
+                && state.counter.mutationRevision == expected.revision
+        case .completeReminder, .deferReminderOnce, .skipReminder:
+            guard let expectedReminderID = prepared.expectedReminderID,
+                  let reminder = state.reminders.first(where: {
+                      $0.id == expectedReminderID
+                  }),
+                  let occurrenceID = prepared.expectedOccurrenceID,
+                  let expectedRevision = prepared.expectedReminderRevision,
+                  let outcome = prepared.expectedReminderOutcome,
+                  expectedRevision != .max,
+                  reminder.mutationRevision == expectedRevision + 1 else {
+                return false
+            }
+            guard reminder.progress.completedCount == outcome.completedCount,
+                  reminder.progress.skippedCount == outcome.skippedCount else { return false }
+            switch prepared.command.operation {
+            case .completeReminder:
+                return outcome.action == .complete
+                    && reminder.progress.latestHandled?.id == occurrenceID
+            case .skipReminder:
+                return outcome.action == .skip
+                    && reminder.progress.latestHandled?.id == occurrenceID
+            case .deferReminderOnce:
+                return outcome.action == .deferOnce
+                    && reminder.progress.pending.contains {
+                        $0.id == occurrenceID && $0.phase == .deferredOnce
+                            && $0.awaitsNextUpwardChange
+                            && $0.displayAt == outcome.deferredDisplayAt
+                    }
+            default:
+                return false
+            }
         case .stopReminder:
-            return state.reminder?.id == prepared.expectedReminderID
-                && state.reminder?.state == .stopped
+            guard let revision = prepared.expectedReminderRevision,
+                  let occurrenceID = prepared.expectedOccurrenceID,
+                  revision != .max else {
+                return false
+            }
+            return state.reminders.contains {
+                $0.id == prepared.expectedReminderID && $0.state == .stopped
+                    && $0.mutationRevision == revision + 1
+                    && !$0.progress.pending.contains { $0.id == occurrenceID }
+            }
         }
     }
 
@@ -191,20 +254,20 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         in state: SyncCounterReminderState,
         with ids: Set<UUID>
     ) -> SyncCounterReminderState {
-        replacing(state, reminder: state.reminder, processedCommandIDs: ids)
+        replacing(state, reminders: state.reminders, processedCommandIDs: ids)
     }
 
     private func replacing(
         _ state: SyncCounterReminderState,
-        reminder: KnittingReminder?,
+        reminders: [KnittingReminder],
         processedCommandIDs: Set<UUID>
     ) -> SyncCounterReminderState {
         SyncCounterReminderState(
             counter: state.counter,
-            reminder: reminder,
+            reminders: reminders,
             preparedCommand: state.preparedCommand,
             processedCommandIDs: processedCommandIDs,
-            occurrence: reminder?.progress.nextOccurrenceIndex
+            occurrence: state.occurrence
         )
     }
 }
@@ -261,8 +324,15 @@ public struct SyncMergeEngine: Sendable {
         pendingMutations: [SyncMutation],
         counterReminderContext: SyncCounterReminderMergeContext
     ) throws -> SyncMergeResult {
-        let localGroups = try groupedRecords(local)
-        let remoteGroups = try groupedRecords(remote)
+        let fallback = local + remote
+        let (canonicalLocal, migratedLocalCounterIDs) = try migrateLegacyReminders(
+            in: local, counterFallback: fallback
+        )
+        let (canonicalRemote, migratedRemoteCounterIDs) = try migrateLegacyReminders(
+            in: remote, counterFallback: fallback
+        )
+        let localGroups = try groupedRecords(canonicalLocal)
+        let remoteGroups = try groupedRecords(canonicalRemote)
         let ids = Set(localGroups.keys).union(remoteGroups.keys).sorted(by: Self.entityIDLess)
         var mergedRecords: [SyncRecord] = []
         var recordsToUpload: Set<SyncEntityID> = []
@@ -279,7 +349,9 @@ public struct SyncMergeEngine: Sendable {
             let remoteRecord = try remoteGroups[id].map {
                 try merge($0, counterReminderContext: counterReminderContext)
             }
-            if remoteRecord != validated || pendingLocal.contains(id) {
+            if remoteRecord != validated || pendingLocal.contains(id)
+                || migratedLocalCounterIDs.contains(id)
+                || migratedRemoteCounterIDs.contains(id) {
                 recordsToUpload.insert(id)
             }
         }
@@ -298,8 +370,90 @@ public struct SyncMergeEngine: Sendable {
             records: mergedRecords,
             conflicts: conflicts.sorted(by: Self.conflictLess),
             recordsToUpload: recordsToUpload,
-            mutationsToUpload: pendingMutations
+            mutationsToUpload: pendingMutations.filter {
+                $0.recordID.kind != .knittingReminder
+            }
         )
+    }
+
+    private func migrateLegacyReminders(
+        in records: [SyncRecord],
+        counterFallback: [SyncRecord]
+    ) throws -> ([SyncRecord], Set<SyncEntityID>) {
+        var canonical = records.filter { $0.id.kind != .knittingReminder }
+        var migratedCounterIDs: Set<SyncEntityID> = []
+        let legacy = records.filter { $0.id.kind == .knittingReminder }.sorted {
+            let lhs = $0.payload.atomicDomain?.stamp ?? $0.deletedAt.stamp
+            let rhs = $1.payload.atomicDomain?.stamp ?? $1.deletedAt.stamp
+            if lhs != rhs { return lhs < rhs }
+            return $0.id.uuid.uuidString < $1.id.uuid.uuidString
+        }
+        var legacyValuesByIdentityAndStamp: [String: SyncAtomicDomainValue] = [:]
+        for record in legacy {
+            guard case let .knittingReminder(reminder)? = record.payload.atomicDomain?.value,
+                  reminder.id == record.id.uuid,
+                  reminder.mutationRevision == record.entityRevision,
+                  record.payload.atomicDomain?.stamp.logicalRevision == record.entityRevision,
+                  record.relationships.contains(where: {
+                      $0.role == "counter"
+                          && $0.target == .init(kind: .projectCounter, uuid: reminder.counterID)
+                  }) else {
+                throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+            }
+            let atomicStamp = record.payload.atomicDomain!.stamp
+            let identityAndStamp = "\(record.id.uuid.uuidString)|\(atomicStamp.logicalRevision)|\(atomicStamp.modifiedAt.timeIntervalSinceReferenceDate)|\(atomicStamp.deviceID)"
+            if let existing = legacyValuesByIdentityAndStamp[identityAndStamp],
+               existing != record.payload.atomicDomain!.value {
+                throw SyncMergeError.corruptEqualStamp(
+                    entity: record.id, field: "counterReminderState"
+                )
+            }
+            legacyValuesByIdentityAndStamp[identityAndStamp] = record.payload.atomicDomain!.value
+            let counterID = SyncEntityID(kind: .projectCounter, uuid: reminder.counterID)
+            let ownCounters = canonical.filter { $0.id == counterID }
+            let candidates = ownCounters.isEmpty
+                ? counterFallback.filter { $0.id == counterID }
+                : ownCounters
+            guard let counterRecord = candidates.max(by: {
+                ($0.payload.atomicDomain?.stamp ?? $0.deletedAt.stamp)
+                    < ($1.payload.atomicDomain?.stamp ?? $1.deletedAt.stamp)
+            }), case .projectCounter? = counterRecord.payload.atomicDomain?.value,
+                  let reminderVersion = record.payload.atomicDomain else {
+                throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+            }
+            let existing = canonical.firstIndex { $0.id == counterID }
+            let base = existing.map { canonical[$0] } ?? counterRecord
+            guard case let .projectCounter(baseState)? = base.payload.atomicDomain?.value,
+                  let baseVersion = base.payload.atomicDomain else {
+                throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+            }
+            let reminders = baseState.reminders.filter { $0.id != reminder.id } + [reminder]
+            let stamp = max(baseVersion.stamp, reminderVersion.stamp)
+            let migratedState = SyncCounterReminderState(
+                counter: baseState.counter,
+                reminders: reminders,
+                preparedCommand: baseState.preparedCommand,
+                processedCommandIDs: baseState.processedCommandIDs,
+                occurrence: baseState.occurrence
+            )
+            let migrated = SyncRecord(
+                schemaVersion: base.schemaVersion,
+                id: counterID,
+                createdAt: min(base.createdAt, record.createdAt),
+                entityRevision: max(stamp.logicalRevision, reminder.mutationRevision),
+                payload: .init(
+                    fields: base.payload.fields,
+                    deletionCascade: base.payload.deletionCascade,
+                    atomicDomain: .init(value: .projectCounter(migratedState), stamp: stamp),
+                    attachment: base.payload.attachment
+                ),
+                relationships: base.relationships,
+                deletedAt: base.deletedAt
+            )
+            if let existing { canonical[existing] = migrated } else { canonical.append(migrated) }
+            migratedCounterIDs.insert(counterID)
+        }
+        return (canonical, migratedCounterIDs)
     }
 
     private func groupedRecords<S: Sequence>(_ records: S) throws -> [SyncEntityID: [SyncRecord]]
@@ -510,57 +664,26 @@ public struct SyncMergeEngine: Sendable {
         context: SyncCounterReminderMergeContext
     ) throws {
         let byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
-        for prepared in context.preparedCommands {
+        var preparedByID = Dictionary(uniqueKeysWithValues: context.preparedCommands.map {
+            ($0.command.id, $0)
+        })
+        for entry in context.processedLedger.entries {
+            if let prepared = entry.preparedCommand {
+                preparedByID[prepared.command.id] = prepared
+            }
+        }
+        for prepared in preparedByID.values {
             guard let entry = context.processedLedger.entry(for: prepared.command.id),
                   entry.rejection == nil else { continue }
-            switch prepared.command.operation {
-            case .increment, .decrement, .reset:
-                let id = SyncEntityID(kind: .projectCounter, uuid: prepared.command.counterID)
-                guard let record = byID[id],
-                      case let .projectCounter(state)? = record.payload.atomicDomain?.value else {
-                    throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
-                }
-                let counter = state.counter
-                let acceptedNoOp: Bool
-                switch prepared.command.operation {
-                case .increment: acceptedNoOp = prepared.expectedCounterValue == Int.max
-                case .decrement, .reset: acceptedNoOp = prepared.expectedCounterValue == 0
-                default: acceptedNoOp = false
-                }
-                let minimumRevision: UInt64
-                if acceptedNoOp {
-                    minimumRevision = prepared.expectedCounterRevision
-                } else {
-                    guard prepared.expectedCounterRevision < .max else {
-                        throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
-                    }
-                    minimumRevision = prepared.expectedCounterRevision + 1
-                }
-                guard counter.mutationRevision >= minimumRevision else {
-                    throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
-                }
-            case .completeReminder, .deferReminderOnce, .skipReminder:
-                guard let expectedRevision = prepared.expectedReminderRevision,
-                      let record = byID[.init(
-                          kind: .projectCounter,
-                          uuid: prepared.command.counterID
-                      )],
-                      case let .projectCounter(state)? = record.payload.atomicDomain?.value,
-                      let reminder = state.reminder,
-                      reminder.id == prepared.expectedReminderID,
-                      reminder.mutationRevision > expectedRevision else {
-                    throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
-                }
-            case .stopReminder:
-                guard let record = byID[.init(
-                    kind: .projectCounter,
-                    uuid: prepared.command.counterID
-                )],
-                case let .projectCounter(state)? = record.payload.atomicDomain?.value,
-                state.reminder?.id == prepared.expectedReminderID,
-                state.reminder?.state == .stopped else {
-                    throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
-                }
+            guard let record = byID[.init(
+                kind: .projectCounter,
+                uuid: prepared.command.counterID
+            )], case let .projectCounter(state)? = record.payload.atomicDomain?.value else {
+                throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+            }
+            if state.processedCommandIDs.contains(prepared.command.id) { continue }
+            guard counterReminderPolicy.commandIsReflected(prepared, in: state) else {
+                throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
             }
         }
     }

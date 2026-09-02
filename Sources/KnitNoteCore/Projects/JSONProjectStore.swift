@@ -202,6 +202,8 @@ private struct SyncPublicationSnapshot {
     init(
         archive: ProjectArchive,
         deviceID: String,
+        preparedWatchCommand: PreparedWatchCommand? = nil,
+        processedWatchLedger: ProcessedWatchCommandLedger = .init(),
         reusing cache: SyncPublicationProjectionCache? = nil
     ) throws {
         let encoder = JSONEncoder()
@@ -235,10 +237,10 @@ private struct SyncPublicationSnapshot {
                     }
                 }
             })
-        let previousRemindersByCounter = Dictionary(uniqueKeysWithValues:
-            (cache?.archive.projects ?? []).flatMap(\.knittingReminders).map {
-                ($0.counterID, $0)
-            })
+        let previousRemindersByCounter = Dictionary(grouping:
+            (cache?.archive.projects ?? []).flatMap(\.knittingReminders),
+            by: \.counterID
+        )
         let previousEntries = Dictionary(uniqueKeysWithValues:
             (cache?.archive.projects ?? []).flatMap(\.journalEntries).map { ($0.id, $0) })
         let previousYarns = Dictionary(uniqueKeysWithValues:
@@ -301,8 +303,10 @@ private struct SyncPublicationSnapshot {
 
         for project in archive.projects {
             let projectID = SyncEntityID(kind: .project, uuid: project.id)
-            let remindersByCounter = Dictionary(uniqueKeysWithValues:
-                project.knittingReminders.map { ($0.counterID, $0) })
+            let remindersByCounter = Dictionary(
+                grouping: project.knittingReminders,
+                by: \.counterID
+            )
             if !reuse(
                 projectID,
                 when: previousProjects[project.id].map(SyncProjectProjection.init)
@@ -318,16 +322,31 @@ private struct SyncPublicationSnapshot {
             )
             }
             for counter in project.counters {
-                let reminder = remindersByCounter[counter.id]
+                let reminders = remindersByCounter[counter.id] ?? []
                 let counterID = SyncEntityID(kind: .projectCounter, uuid: counter.id)
+                let prepared = preparedWatchCommand.flatMap {
+                    $0.command.counterID == counter.id ? $0 : nil
+                }
+                let processedIDs = Set(processedWatchLedger.entries.compactMap { entry in
+                    entry.preparedCommand?.command.counterID == counter.id ? entry.id : nil
+                })
+                let cachedState: SyncCounterReminderState?
+                if case let .projectCounter(state)? =
+                    cache?.records[counterID]?.payload.atomicDomain?.value {
+                    cachedState = state
+                } else {
+                    cachedState = nil
+                }
                 if !reuse(
                     counterID,
                     when: previousCounters[counter.id] == counter
-                        && previousRemindersByCounter[counter.id] == reminder
+                        && previousRemindersByCounter[counter.id] == reminders
+                        && cachedState?.preparedCommand == prepared
+                        && cachedState?.processedCommandIDs == processedIDs
                 ) {
                     let aggregateRevision = max(
                         counter.mutationRevision,
-                        reminder?.mutationRevision ?? 0
+                        reminders.map(\.mutationRevision).max() ?? 0
                     )
                     try add(
                         counter,
@@ -344,10 +363,13 @@ private struct SyncPublicationSnapshot {
                         )],
                         atomicDomain: .projectCounter(SyncCounterReminderState(
                             counter: counter,
-                            reminder: reminder,
-                            preparedCommand: nil,
-                            processedCommandIDs: [],
-                            occurrence: reminder?.progress.nextOccurrenceIndex
+                            reminders: reminders,
+                            preparedCommand: prepared,
+                            processedCommandIDs: processedIDs,
+                            occurrence: prepared.flatMap { command in
+                                reminders.first { $0.id == command.expectedReminderID }?
+                                    .progress.nextOccurrenceIndex
+                            }
                         ))
                     )
                 }
@@ -1187,6 +1209,8 @@ final class PatternLibraryDeletionTransaction {
     private var syncAttachmentPublicationEvidence: SyncAttachmentPublicationEvidence
     private let syncAttachmentPublicationEvidenceLoadFailed: Bool
     private var syncProjectionCache: SyncPublicationProjectionCache?
+    private var activePreparedWatchCommand: PreparedWatchCommand?
+    private var activeProcessedWatchLedger = ProcessedWatchCommandLedger()
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
     private var activeJournalPhotoTransactions = 0
     private var activePatternTransactions = 0
@@ -4313,6 +4337,54 @@ final class PatternLibraryDeletionTransaction {
         )]
     }
 
+    func withWatchSyncPublicationMetadata<Result>(
+        preparedCommand: PreparedWatchCommand?,
+        processedLedger: ProcessedWatchCommandLedger,
+        _ operation: () throws -> Result
+    ) rethrows -> Result {
+        let previousPrepared = activePreparedWatchCommand
+        let previousLedger = activeProcessedWatchLedger
+        activePreparedWatchCommand = preparedCommand
+        activeProcessedWatchLedger = processedLedger
+        defer {
+            activePreparedWatchCommand = previousPrepared
+            activeProcessedWatchLedger = previousLedger
+        }
+        return try operation()
+    }
+
+    func publishWatchSyncMetadata(
+        preparedCommand: PreparedWatchCommand?,
+        processedLedger: ProcessedWatchCommandLedger
+    ) throws {
+        if isSyncPublicationEnabled, syncProjectionCache == nil {
+            let archive = ProjectArchive(
+                version: ProjectArchive.currentVersion,
+                projects: projects,
+                yarns: yarns,
+                patternFolders: patternFolders,
+                patternAssets: patternAssets,
+                patterns: patterns,
+                patternUsages: patternUsages
+            )
+            syncProjectionCache = SyncPublicationProjectionCache(
+                archive: archive,
+                records: try SyncPublicationSnapshot(
+                    archive: archive,
+                    deviceID: syncPublicationDeviceID,
+                    preparedWatchCommand: activePreparedWatchCommand,
+                    processedWatchLedger: activeProcessedWatchLedger
+                ).records
+            )
+        }
+        try withWatchSyncPublicationMetadata(
+            preparedCommand: preparedCommand,
+            processedLedger: processedLedger
+        ) {
+            try persist(projects: projects, yarns: yarns)
+        }
+    }
+
     private func persist(
         projects stagedProjects: [StoredProject],
         yarns stagedYarns: [StoredYarn],
@@ -4380,7 +4452,9 @@ final class PatternLibraryDeletionTransaction {
                 } else {
                     originalRecords = try SyncPublicationSnapshot(
                         archive: originalArchive,
-                        deviceID: syncPublicationDeviceID
+                        deviceID: syncPublicationDeviceID,
+                        preparedWatchCommand: activePreparedWatchCommand,
+                        processedWatchLedger: activeProcessedWatchLedger
                     ).records
                 }
                 originalProjectionCache = SyncPublicationProjectionCache(
@@ -4390,6 +4464,8 @@ final class PatternLibraryDeletionTransaction {
                 let committedRecords = try SyncPublicationSnapshot(
                     archive: committedArchive,
                     deviceID: syncPublicationDeviceID,
+                    preparedWatchCommand: activePreparedWatchCommand,
+                    processedWatchLedger: activeProcessedWatchLedger,
                     reusing: originalProjectionCache
                 ).records
                 committedProjectionCache = SyncPublicationProjectionCache(

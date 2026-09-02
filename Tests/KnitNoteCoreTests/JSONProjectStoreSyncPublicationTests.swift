@@ -33,6 +33,94 @@ import UniformTypeIdentifiers
         #expect(state.reminder?.id == reminderID)
     }
 
+    @Test func multipleRemindersOnOneCounterPublishAndRestartWithoutLoss() throws {
+        let fixture = try SyncPublicationFixture()
+        let firstSink = RecordingSyncMutationSink()
+        let firstStore = fixture.store(sink: firstSink)
+        let counterID = try #require(
+            firstStore.project(id: fixture.projectID)?.counters.first?.id
+        )
+        let firstID = try firstStore.addKnittingReminder(
+            projectID: fixture.projectID,
+            draft: .oneTime(kind: .cable, target: 4, text: "Cable"),
+            now: Date(timeIntervalSince1970: 4)
+        )
+        let secondID = try firstStore.addKnittingReminder(
+            projectID: fixture.projectID,
+            draft: .oneTime(kind: .measure, target: 8, text: "Measure"),
+            now: Date(timeIntervalSince1970: 5)
+        )
+        let firstRecord = try #require(firstSink.mutations.compactMap(
+            \.savedRecordVersion?.record
+        ).last { $0.id == .init(kind: .projectCounter, uuid: counterID) })
+        guard case let .projectCounter(firstState)? = firstRecord.payload.atomicDomain?.value else {
+            Issue.record("Missing counter aggregate")
+            return
+        }
+        #expect(firstState.reminders.map(\.id) == [firstID, secondID].sorted {
+            $0.uuidString < $1.uuidString
+        })
+
+        let restartedSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: restartedSink)
+        let thirdID = try restarted.addKnittingReminder(
+            projectID: fixture.projectID,
+            draft: .oneTime(kind: .changeYarn, target: 12, text: "Yarn"),
+            now: Date(timeIntervalSince1970: 6)
+        )
+        let restartedRecord = try #require(restartedSink.mutations.compactMap(
+            \.savedRecordVersion?.record
+        ).last { $0.id == .init(kind: .projectCounter, uuid: counterID) })
+        guard case let .projectCounter(restartedState)? =
+            restartedRecord.payload.atomicDomain?.value else {
+            Issue.record("Missing restarted counter aggregate")
+            return
+        }
+        #expect(Set(restartedState.reminders.map(\.id)) == [firstID, secondID, thirdID])
+        #expect(restarted.project(id: fixture.projectID)?.knittingReminders.count == 3)
+    }
+
+    @Test func durableWatchCommandPublishesPreparedThenLedgerAndRestoresItAfterRestart() throws {
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink()
+        let store = fixture.store(sink: sink)
+        let counterID = try #require(store.project(id: fixture.projectID)?.counters.first?.id)
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 10)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+
+        _ = try store.applyWatchCommandDurably(
+            command, ledgerURL: ledgerURL, preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 11)
+        )
+
+        let states = sink.mutations.compactMap(\.savedRecordVersion?.record)
+            .filter { $0.id == .init(kind: .projectCounter, uuid: counterID) }
+            .compactMap(\.counterReminderState)
+        #expect(states.contains { $0.preparedCommand?.command.id == command.id })
+        #expect(states.last?.preparedCommand == nil)
+        #expect(states.last?.processedCommandIDs == [command.id])
+        let ledger = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: ledgerURL
+        ).load())
+        #expect(ledger.entry(for: command.id)?.preparedCommand?.command == command)
+
+        let restartedSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: restartedSink)
+        #expect(try restarted.recoverWatchCommandPersistence(
+            ledgerURL: ledgerURL, preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 12)
+        ) == .ready)
+        let restored = restartedSink.mutations.compactMap(\.savedRecordVersion?.record)
+            .last { $0.id == .init(kind: .projectCounter, uuid: counterID) }?
+            .counterReminderState
+        #expect(restored?.processedCommandIDs == [command.id])
+        #expect(restored?.preparedCommand == nil)
+    }
+
     @Test func rebuiltLedgerUsesProjectedEntityRevisionAsItsCausalFloor() throws {
         let fixture = try SyncPublicationFixture()
         let sink = RecordingSyncMutationSink()
@@ -1383,6 +1471,13 @@ private struct TestBackupReplacementPayload: Codable {
     let rollbackName: String
     let hadLiveRoot: Bool
     let phase: String
+}
+
+private extension SyncRecord {
+    var counterReminderState: SyncCounterReminderState? {
+        guard case let .projectCounter(state)? = payload.atomicDomain?.value else { return nil }
+        return state
+    }
 }
 
 private struct TestBackupReplacementJournal: Codable {

@@ -69,14 +69,33 @@ public struct SyncRecordPayload: Codable, Equatable, Sendable {
 }
 
 /// The complete state for one counter-owned synchronization domain. A smart
-/// reminder and Watch exactly-once metadata travel with their counter so a
+/// reminders and Watch exactly-once metadata travel with their counter so a
 /// merge can never assemble a state that did not exist on either device.
 public struct SyncCounterReminderState: Codable, Equatable, Sendable {
     public let counter: ProjectCounter
-    public let reminder: KnittingReminder?
+    public let reminders: [KnittingReminder]
     public let preparedCommand: PreparedWatchCommand?
     public let processedCommandIDs: Set<UUID>
     public let occurrence: Int?
+
+    /// Source-compatible convenience for callers which are already scoped to
+    /// a single reminder. Synchronization and validation always use
+    /// `reminders`, never this projection.
+    public var reminder: KnittingReminder? { reminders.first }
+
+    public init(
+        counter: ProjectCounter,
+        reminders: [KnittingReminder],
+        preparedCommand: PreparedWatchCommand?,
+        processedCommandIDs: Set<UUID>,
+        occurrence: Int?
+    ) {
+        self.counter = counter
+        self.reminders = reminders.sorted { $0.id.uuidString < $1.id.uuidString }
+        self.preparedCommand = preparedCommand
+        self.processedCommandIDs = processedCommandIDs
+        self.occurrence = occurrence
+    }
 
     public init(
         counter: ProjectCounter,
@@ -85,15 +104,18 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
         processedCommandIDs: Set<UUID>,
         occurrence: Int?
     ) {
-        self.counter = counter
-        self.reminder = reminder
-        self.preparedCommand = preparedCommand
-        self.processedCommandIDs = processedCommandIDs
-        self.occurrence = occurrence
+        self.init(
+            counter: counter,
+            reminders: reminder.map { [$0] } ?? [],
+            preparedCommand: preparedCommand,
+            processedCommandIDs: processedCommandIDs,
+            occurrence: occurrence
+        )
     }
 
     private enum CodingKeys: String, CodingKey {
         case counter
+        case reminders
         case reminder
         case preparedCommand
         case processedCommandIDs
@@ -103,7 +125,19 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         counter = try container.decode(ProjectCounter.self, forKey: .counter)
-        reminder = try container.decodeIfPresent(KnittingReminder.self, forKey: .reminder)
+        let decodedReminders: [KnittingReminder]
+        if container.contains(.reminders) {
+            decodedReminders = try container.decode(
+                [KnittingReminder].self,
+                forKey: .reminders
+            )
+        } else {
+            decodedReminders = try container.decodeIfPresent(
+                KnittingReminder.self,
+                forKey: .reminder
+            ).map { [$0] } ?? []
+        }
+        reminders = decodedReminders.sorted { $0.id.uuidString < $1.id.uuidString }
         preparedCommand = try container.decodeIfPresent(
             PreparedWatchCommand.self,
             forKey: .preparedCommand
@@ -123,7 +157,7 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(counter, forKey: .counter)
-        try container.encodeIfPresent(reminder, forKey: .reminder)
+        try container.encode(reminders, forKey: .reminders)
         try container.encodeIfPresent(preparedCommand, forKey: .preparedCommand)
         try container.encode(
             processedCommandIDs.sorted { $0.uuidString < $1.uuidString },
@@ -223,11 +257,13 @@ public enum SyncAtomicDomainValue: Codable, Equatable, Sendable {
             )
             try value.encode(state, forKey: .value)
         case let .knittingReminder(reminder):
-            var value = container.nestedContainer(
-                keyedBy: AssociatedValueKey.self,
-                forKey: .knittingReminder
+            throw EncodingError.invalidValue(
+                reminder,
+                .init(
+                    codingPath: encoder.codingPath,
+                    debugDescription: "Standalone reminder records are decode-only legacy input"
+                )
             )
-            try value.encode(reminder, forKey: .value)
         }
     }
 

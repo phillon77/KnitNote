@@ -103,10 +103,14 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             return .requiresFreshHandshake
         }
         if ledger.requiresFreshHandshake { return .requiresFreshHandshake }
-        guard let prepared else { return .ready }
+        guard let prepared else {
+            try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
+            return .ready
+        }
 
         if ledger.contains(prepared.command.id) {
             try removePreparedCommand(at: preparedCommandURL)
+            try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
             return .ready
         }
         guard prepared.command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
@@ -132,24 +136,36 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                     return .requiresFreshHandshake
                 }
                 if prepared.reminderMutationWasApplied(in: project, counterID: counter.id) {
-                    ledger.record(prepared.command.id, at: now)
+                    ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
                 } else if !prepared.hasExpectedReminderState(in: project, counterID: counter.id) {
                     try requireFreshHandshake(ledger: &ledger, file: ledgerFile)
                     return .requiresFreshHandshake
                 } else if prepared.isAcceptedNoOp {
-                    ledger.record(prepared.command.id, at: now)
+                    ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
                 } else {
-                    _ = try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
+                    _ = try withWatchSyncPublicationMetadata(
+                        preparedCommand: prepared,
+                        processedLedger: ledger
+                    ) {
+                        try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
+                    }
+                    ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
                 }
             } else {
-                _ = try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
+                _ = try withWatchSyncPublicationMetadata(
+                    preparedCommand: prepared,
+                    processedLedger: ledger
+                ) {
+                    try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
+                }
+                ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
             }
         } else if
             prepared.isCounterOperation &&
             prepared.expectedCounterRevision != UInt64.max,
             counter.mutationRevision == prepared.expectedCounterRevision + 1
         {
-            ledger.record(prepared.command.id, at: now)
+            ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
         } else {
             try requireFreshHandshake(ledger: &ledger, file: ledgerFile)
             return .requiresFreshHandshake
@@ -157,6 +173,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
 
         try ledgerFile.save(ledger)
         try removePreparedCommand(at: preparedCommandURL)
+        try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
         return .ready
     }
 
@@ -251,7 +268,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             project: project,
             counter: counter
         )
-        try preparedFile.save(PreparedWatchCommand(
+        let prepared = PreparedWatchCommand(
             command: command,
             expectedCounterRevision: counter.mutationRevision,
             expectedCounterValue: counter.value,
@@ -259,19 +276,32 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             expectedOccurrenceID: command.reminderPayload?.occurrenceID,
             expectedReminderRevision: command.reminderPayload?.observedRevision,
             expectedReminderOutcome: reminderOutcome
-        ))
+        )
+        try preparedFile.save(prepared)
         try failureInjector(.afterPreparedCommandSave)
 
-        let acknowledgement = try applyAuthorizedWatchCommand(
-            command,
-            entitlement: entitlement,
-            ledger: &ledger,
-            now: now
+        let acknowledgement = try withWatchSyncPublicationMetadata(
+            preparedCommand: prepared,
+            processedLedger: ledger
+        ) {
+            try applyAuthorizedWatchCommand(
+                command,
+                entitlement: entitlement,
+                ledger: &ledger,
+                now: now
+            )
+        }
+        ledger.record(
+            command.id,
+            rejection: acknowledgement.rejection,
+            preparedCommand: prepared,
+            at: now
         )
         try failureInjector(.afterProjectArchiveSave)
         try ledgerFile.save(ledger)
         try failureInjector(.afterLedgerSave)
         try removePreparedCommand(at: preparedCommandURL)
+        try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
         try failureInjector(.afterPreparedCommandDeletion)
         return acknowledgement
     }

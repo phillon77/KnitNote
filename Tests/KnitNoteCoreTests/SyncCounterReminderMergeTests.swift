@@ -33,6 +33,62 @@ import Testing
         #expect(state.occurrence == nil)
     }
 
+    @Test func legacyStandaloneReminderMigratesWithoutRemainingPublicationAuthority() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let baseReminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 4, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let reminder = try baseReminder.applying(.trigger(through: 0))
+        let zeroStamp = stamp(revision: 0, deviceID: "legacy")
+        let reminderStamp = stamp(
+            revision: reminder.mutationRevision, deviceID: "legacy-reminder"
+        )
+        let reminderObject = try #require(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(reminder)
+        ) as? [String: Any])
+        let legacyAtomic = try JSONDecoder().decode(
+            SyncAtomicDomainValue.self,
+            from: JSONSerialization.data(withJSONObject: [
+                "knittingReminder": ["_0": reminderObject]
+            ])
+        )
+        guard case .knittingReminder = legacyAtomic else {
+            Issue.record("Legacy standalone reminder did not decode")
+            return
+        }
+        let counter = record(
+            state: state(counterID: counterID, value: 0, counterRevision: 0),
+            projectID: projectID, stamp: zeroStamp
+        )
+        let legacyID = SyncEntityID(kind: .knittingReminder, uuid: reminder.id)
+        let legacy = SyncRecord(
+            schemaVersion: 1, id: legacyID, createdAt: reminder.createdAt,
+            entityRevision: reminder.mutationRevision,
+            payload: .init(fields: [:], atomicDomain: .init(
+                value: legacyAtomic, stamp: reminderStamp
+            )),
+            relationships: [.init(
+                role: "counter", target: .init(kind: .projectCounter, uuid: counterID)
+            )],
+            deletedAt: .init(value: nil, stamp: reminderStamp)
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [counter], remote: [legacy], pendingLocal: [legacyID]
+        )
+
+        #expect(result.records.map(\.id) == [.init(kind: .projectCounter, uuid: counterID)])
+        #expect(result.records[0].counterReminderState?.reminders.map(\.id) == [reminder.id])
+        #expect(result.recordsToUpload == [.init(kind: .projectCounter, uuid: counterID)])
+        #expect(result.mutationsToUpload.allSatisfy { $0.recordID.kind != .knittingReminder })
+        #expect(throws: (any Error).self) {
+            _ = try JSONEncoder().encode(SyncAtomicDomainValue.knittingReminder(reminder))
+        }
+    }
+
     @Test func processedCommandIDsEncodeInStableLexicalOrder() throws {
         let ids = [
             try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000003")),
@@ -136,6 +192,85 @@ import Testing
         )
 
         #expect(merged.value.reminder == nil)
+    }
+
+    @Test func aggregatePreservesEveryReminderInStableIdentityOrder() throws {
+        let counterID = UUID()
+        let first = try #require(KnittingReminder(
+            id: UUID(),
+            counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 4, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let second = try #require(KnittingReminder(
+            id: UUID(),
+            counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 8, text: nil),
+            createdAt: Date(timeIntervalSince1970: 2)
+        ))
+
+        let aggregate = SyncCounterReminderState(
+            counter: ProjectCounter(id: counterID, defaultOrdinal: 1),
+            reminders: [second, first],
+            preparedCommand: nil,
+            processedCommandIDs: [],
+            occurrence: nil
+        )
+
+        #expect(aggregate.reminders.map(\.id) == [first.id, second.id].sorted {
+            $0.uuidString < $1.uuidString
+        })
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let merged = try SyncMergeEngine().merge(
+            local: [record(
+                state: aggregate, projectID: projectID,
+                stamp: stamp(revision: 1, deviceID: "local")
+            )],
+            remote: [record(
+                state: aggregate, projectID: projectID,
+                stamp: stamp(revision: 2, deviceID: "remote")
+            )],
+            pendingLocal: []
+        )
+        #expect(merged.records[0].counterReminderState?.reminders.map(\.id)
+            == aggregate.reminders.map(\.id))
+    }
+
+    @Test func aggregateValidatorRejectsDuplicateOrForeignReminderOwnership() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 2, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let duplicate = SyncCounterReminderState(
+            counter: ProjectCounter(id: counterID, defaultOrdinal: 1),
+            reminders: [reminder, reminder], preparedCommand: nil,
+            processedCommandIDs: [], occurrence: nil
+        )
+        let foreign = try #require(KnittingReminder(
+            id: UUID(), counterID: UUID(),
+            draft: .oneTime(kind: .cable, target: 3, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let foreignOwner = SyncCounterReminderState(
+            counter: ProjectCounter(id: counterID, defaultOrdinal: 1),
+            reminders: [reminder, foreign], preparedCommand: nil,
+            processedCommandIDs: [], occurrence: nil
+        )
+        let expected = SyncRecordValidationError.illegalAtomicDomain(
+            .init(kind: .projectCounter, uuid: counterID)
+        )
+
+        for invalid in [duplicate, foreignOwner] {
+            #expect(throws: expected) {
+                _ = try SyncRecordValidator().validate(record(
+                    state: invalid, projectID: projectID,
+                    stamp: stamp(revision: 0, deviceID: "validation")
+                ))
+            }
+        }
     }
 
     @Test func causalWinnerCannotRollBackCounterMutationRevision() {
@@ -256,6 +391,122 @@ import Testing
         }
     }
 
+    @Test func differentCounterOperationAtExpectedRevisionCannotProveReceipt() {
+        let counterID = UUID()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command, expectedCounterRevision: 4, expectedCounterValue: 9
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(command.id, preparedCommand: prepared, at: Date(timeIntervalSince1970: 2))
+
+        #expect(throws: SyncMergeError.processedWatchCommandWouldRegress(command.id)) {
+            _ = try SyncCounterReminderMergePolicy().merge(
+                .init(value: state(counterID: counterID, value: 10, counterRevision: 5,
+                    processedCommandIDs: [command.id]), stamp: stamp(revision: 5, deviceID: "old")),
+                .init(value: state(counterID: counterID, value: 8, counterRevision: 5),
+                    stamp: stamp(revision: 6, deviceID: "new")),
+                context: .init(processedLedger: ledger)
+            )
+        }
+    }
+
+    @Test func deferCannotProvePreparedCompleteReceipt() throws {
+        let counterID = UUID()
+        let base = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 1, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let triggered = try base.applying(.trigger(through: 1))
+        let occurrence = try #require(triggered.progress.pending.first)
+        let deferred = try triggered.applying(.deferOnce(
+            occurrenceID: occurrence.id, observedRevision: triggered.mutationRevision
+        ))
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: counterID,
+            operation: .completeReminder, reminderID: triggered.id,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: triggered.mutationRevision,
+            createdAt: Date(timeIntervalSince1970: 2)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command, expectedCounterRevision: 1, expectedCounterValue: 1,
+            expectedReminderID: triggered.id, expectedOccurrenceID: occurrence.id,
+            expectedReminderRevision: triggered.mutationRevision,
+            expectedReminderOutcome: .init(
+                action: .complete, completedCount: 1, skippedCount: 0
+            )
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(command.id, preparedCommand: prepared, at: Date(timeIntervalSince1970: 3))
+
+        #expect(throws: SyncMergeError.processedWatchCommandWouldRegress(command.id)) {
+            _ = try SyncCounterReminderMergePolicy().merge(
+                .init(value: state(counterID: counterID, value: 1, counterRevision: 1,
+                    reminder: triggered, processedCommandIDs: [command.id]),
+                    stamp: stamp(revision: 4, deviceID: "old")),
+                .init(value: state(counterID: counterID, value: 1, counterRevision: 1,
+                    reminder: deferred), stamp: stamp(revision: 5, deviceID: "new")),
+                context: .init(processedLedger: ledger)
+            )
+        }
+    }
+
+    @Test func completeCannotProvePreparedDeferOrSkipReceipts() throws {
+        let counterID = UUID()
+        let base = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 1, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let triggered = try base.applying(.trigger(through: 1))
+        let occurrence = try #require(triggered.progress.pending.first)
+        let completed = try triggered.applying(.complete(
+            occurrenceID: occurrence.id, observedRevision: triggered.mutationRevision
+        ))
+        let cases: [(WatchCounterOperation, PreparedWatchReminderOutcome)] = [
+            (.deferReminderOnce, .init(
+                action: .deferOnce, completedCount: 0, skippedCount: 0,
+                deferredDisplayAt: 2
+            )),
+            (.skipReminder, .init(
+                action: .skip, completedCount: 0, skippedCount: 1
+            )),
+        ]
+
+        for (operation, outcome) in cases {
+            let command = WatchCounterCommand(
+                id: UUID(), projectID: UUID(), counterID: counterID,
+                operation: operation, reminderID: triggered.id,
+                occurrenceID: occurrence.id,
+                observedMutationRevision: triggered.mutationRevision,
+                createdAt: Date(timeIntervalSince1970: 2)
+            )
+            let prepared = PreparedWatchCommand(
+                command: command, expectedCounterRevision: 1, expectedCounterValue: 1,
+                expectedReminderID: triggered.id, expectedOccurrenceID: occurrence.id,
+                expectedReminderRevision: triggered.mutationRevision,
+                expectedReminderOutcome: outcome
+            )
+            var ledger = ProcessedWatchCommandLedger()
+            ledger.record(command.id, preparedCommand: prepared, at: Date(timeIntervalSince1970: 3))
+            #expect(throws: SyncMergeError.processedWatchCommandWouldRegress(command.id)) {
+                _ = try SyncCounterReminderMergePolicy().merge(
+                    .init(value: state(counterID: counterID, value: 1, counterRevision: 1,
+                        reminder: triggered, processedCommandIDs: [command.id]),
+                        stamp: stamp(revision: 4, deviceID: "old")),
+                    .init(value: state(counterID: counterID, value: 1, counterRevision: 1,
+                        reminder: completed), stamp: stamp(revision: 5, deviceID: "new")),
+                    context: .init(processedLedger: ledger)
+                )
+            }
+        }
+    }
+
     @Test func ledgeredStopReturnsPersistedOrNoOpWithoutThrowing() throws {
         let projectID = UUID()
         let counterID = UUID()
@@ -313,12 +564,19 @@ import Testing
             to: first.state,
             processedLedger: ledger
         )
+        let productionMerge = try policy.merge(
+            .init(value: initial, stamp: stamp(revision: 4, deviceID: "older")),
+            .init(value: initial, stamp: stamp(revision: 5, deviceID: "winner")),
+            context: .init(preparedCommands: [prepared], processedLedger: ledger)
+        )
 
         #expect(first.isPersisted)
         #expect(replay.isNoOp)
         #expect(first.state.reminder?.state == .stopped)
         #expect(first.state.processedCommandIDs == replay.state.processedCommandIDs)
         #expect(first.state.processedCommandIDs == [command.id])
+        #expect(productionMerge.value.reminders.first?.state == .stopped)
+        #expect(productionMerge.value.processedCommandIDs == [command.id])
     }
 }
 

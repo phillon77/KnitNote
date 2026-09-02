@@ -142,7 +142,7 @@ import Testing
         ])
     }
 
-    @Test func reminderTerminalOccurrenceStatePrecedesConcurrentDeferral() throws {
+    @Test func reminderOccurrenceStateFollowsTheNewerAggregateStamp() throws {
         let projectID = SyncEntityID(kind: .project, uuid: UUID())
         let counterID = UUID()
         let base = try #require(KnittingReminder(
@@ -179,9 +179,8 @@ import Testing
             pendingLocal: []
         )
 
-        #expect(result.records.single.atomicReminder == completed)
-        #expect(result.records.single.atomicReminder?.progress.latestHandled?.id == occurrence.id)
-        #expect(result.records.single.atomicReminder?.progress.pending.isEmpty == true)
+        #expect(result.records.single.atomicReminder == deferred)
+        #expect(result.records.single.atomicReminder?.progress.pending.first?.phase == .deferredOnce)
     }
 
     @Test func processedWatchCommandCannotMergeBackToItsPreparedPreMutationState() throws {
@@ -409,7 +408,16 @@ private func atomicCounterRecord(
         entityRevision: counter.mutationRevision,
         payload: .init(
             fields: [:],
-            atomicDomain: .init(value: .projectCounter(counter), stamp: recordStamp)
+            atomicDomain: .init(
+                value: .projectCounter(SyncCounterReminderState(
+                    counter: counter,
+                    reminder: nil,
+                    preparedCommand: nil,
+                    processedCommandIDs: [],
+                    occurrence: nil
+                )),
+                stamp: recordStamp
+            )
         ),
         relationships: [.init(role: "project", target: project)],
         deletedAt: .init(value: nil, stamp: recordStamp)
@@ -429,17 +437,27 @@ private func atomicReminderRecord(
     )
     return SyncRecord(
         schemaVersion: 1,
-        id: .init(kind: .knittingReminder, uuid: reminder.id),
+        id: .init(kind: .projectCounter, uuid: reminder.counterID),
         createdAt: reminder.createdAt,
         entityRevision: reminder.mutationRevision,
         payload: .init(
             fields: [:],
-            atomicDomain: .init(value: .knittingReminder(reminder), stamp: recordStamp)
+            atomicDomain: .init(
+                value: .projectCounter(SyncCounterReminderState(
+                    counter: ProjectCounter(
+                        id: reminder.counterID,
+                        defaultOrdinal: 1,
+                        mutationRevision: 0
+                    ),
+                    reminder: reminder,
+                    preparedCommand: nil,
+                    processedCommandIDs: [],
+                    occurrence: reminder.progress.nextOccurrenceIndex
+                )),
+                stamp: recordStamp
+            )
         ),
-        relationships: [
-            .init(role: "project", target: project),
-            .init(role: "counter", target: .init(kind: .projectCounter, uuid: reminder.counterID))
-        ],
+        relationships: [.init(role: "project", target: project)],
         deletedAt: .init(value: nil, stamp: recordStamp)
     )
 }
@@ -472,13 +490,13 @@ private func entityLess(_ lhs: SyncEntityID, _ rhs: SyncEntityID) -> Bool {
 
 private extension SyncRecord {
     var atomicCounter: ProjectCounter? {
-        guard case let .projectCounter(counter)? = payload.atomicDomain?.value else { return nil }
-        return counter
+        guard case let .projectCounter(state)? = payload.atomicDomain?.value else { return nil }
+        return state.counter
     }
 
     var atomicReminder: KnittingReminder? {
-        guard case let .knittingReminder(reminder)? = payload.atomicDomain?.value else { return nil }
-        return reminder
+        guard case let .projectCounter(state)? = payload.atomicDomain?.value else { return nil }
+        return state.reminder
     }
 }
 

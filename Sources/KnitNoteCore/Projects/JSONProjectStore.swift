@@ -235,8 +235,10 @@ private struct SyncPublicationSnapshot {
                     }
                 }
             })
-        let previousReminders = Dictionary(uniqueKeysWithValues:
-            (cache?.archive.projects ?? []).flatMap(\.knittingReminders).map { ($0.id, $0) })
+        let previousRemindersByCounter = Dictionary(uniqueKeysWithValues:
+            (cache?.archive.projects ?? []).flatMap(\.knittingReminders).map {
+                ($0.counterID, $0)
+            })
         let previousEntries = Dictionary(uniqueKeysWithValues:
             (cache?.archive.projects ?? []).flatMap(\.journalEntries).map { ($0.id, $0) })
         let previousYarns = Dictionary(uniqueKeysWithValues:
@@ -299,6 +301,8 @@ private struct SyncPublicationSnapshot {
 
         for project in archive.projects {
             let projectID = SyncEntityID(kind: .project, uuid: project.id)
+            let remindersByCounter = Dictionary(uniqueKeysWithValues:
+                project.knittingReminders.map { ($0.counterID, $0) })
             if !reuse(
                 projectID,
                 when: previousProjects[project.id].map(SyncProjectProjection.init)
@@ -314,23 +318,38 @@ private struct SyncPublicationSnapshot {
             )
             }
             for counter in project.counters {
+                let reminder = remindersByCounter[counter.id]
                 let counterID = SyncEntityID(kind: .projectCounter, uuid: counter.id)
-                if !reuse(counterID, when: previousCounters[counter.id] == counter) {
-                try add(
-                    counter,
-                    kind: .projectCounter,
-                    id: counter.id,
-                    createdAt: project.createdAt,
-                    modifiedAt: Date(
-                        timeIntervalSinceReferenceDate: TimeInterval(counter.mutationRevision)
-                    ),
-                    logicalRevision: counter.mutationRevision,
-                    relationships: [.init(
-                        role: "project",
-                        target: .init(kind: .project, uuid: project.id)
-                    )],
-                    atomicDomain: .projectCounter(counter)
-                )
+                if !reuse(
+                    counterID,
+                    when: previousCounters[counter.id] == counter
+                        && previousRemindersByCounter[counter.id] == reminder
+                ) {
+                    let aggregateRevision = max(
+                        counter.mutationRevision,
+                        reminder?.mutationRevision ?? 0
+                    )
+                    try add(
+                        counter,
+                        kind: .projectCounter,
+                        id: counter.id,
+                        createdAt: project.createdAt,
+                        modifiedAt: Date(
+                            timeIntervalSinceReferenceDate: TimeInterval(aggregateRevision)
+                        ),
+                        logicalRevision: aggregateRevision,
+                        relationships: [.init(
+                            role: "project",
+                            target: .init(kind: .project, uuid: project.id)
+                        )],
+                        atomicDomain: .projectCounter(SyncCounterReminderState(
+                            counter: counter,
+                            reminder: reminder,
+                            preparedCommand: nil,
+                            processedCommandIDs: [],
+                            occurrence: reminder?.progress.nextOccurrenceIndex
+                        ))
+                    )
                 }
                 for note in counter.rowNotes {
                     let noteID = deterministicSyncUUID(
@@ -353,33 +372,6 @@ private struct SyncPublicationSnapshot {
                         )]
                     )
                 }
-            }
-            for reminder in project.knittingReminders {
-                if reuse(
-                    .init(kind: .knittingReminder, uuid: reminder.id),
-                    when: previousReminders[reminder.id] == reminder
-                ) { continue }
-                try add(
-                    reminder,
-                    kind: .knittingReminder,
-                    id: reminder.id,
-                    createdAt: reminder.createdAt,
-                    modifiedAt: reminder.createdAt.addingTimeInterval(
-                        TimeInterval(reminder.mutationRevision)
-                    ),
-                    logicalRevision: reminder.mutationRevision,
-                    relationships: [
-                        .init(
-                            role: "project",
-                            target: .init(kind: .project, uuid: project.id)
-                        ),
-                        .init(
-                            role: "counter",
-                            target: .init(kind: .projectCounter, uuid: reminder.counterID)
-                        )
-                    ],
-                    atomicDomain: .knittingReminder(reminder)
-                )
             }
             for entry in project.journalEntries {
                 if reuse(

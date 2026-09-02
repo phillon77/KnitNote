@@ -49,11 +49,176 @@ public struct SyncCounterReminderMergeContext: Sendable {
     }
 }
 
+public struct SyncCounterReminderMergePolicy: Sendable {
+    public init() {}
+
+    public func merge(
+        _ lhs: SyncFieldVersion<SyncCounterReminderState>,
+        _ rhs: SyncFieldVersion<SyncCounterReminderState>,
+        context: SyncCounterReminderMergeContext
+    ) throws -> SyncFieldVersion<SyncCounterReminderState> {
+        if lhs.stamp == rhs.stamp {
+            guard lhs.value == rhs.value else {
+                throw SyncMergeError.corruptEqualStamp(
+                    entity: .init(kind: .projectCounter, uuid: lhs.value.counter.id),
+                    field: "counterReminderState"
+                )
+            }
+            return lhs
+        }
+
+        let winner = lhs.stamp < rhs.stamp ? rhs : lhs
+        let older = lhs.stamp < rhs.stamp ? lhs : rhs
+        guard winner.value.counter.id == older.value.counter.id,
+              winner.value.counter.mutationRevision >= older.value.counter.mutationRevision,
+              !reminderRevisionRegressed(from: older.value, to: winner.value) else {
+            throw SyncMergeError.corruptAtomicDomain(
+                entity: .init(kind: .projectCounter, uuid: winner.value.counter.id),
+                revision: winner.value.counter.mutationRevision
+            )
+        }
+
+        var mergedIDs = winner.value.processedCommandIDs
+        for commandID in older.value.processedCommandIDs.subtracting(mergedIDs) {
+            guard let entry = context.processedLedger.entry(for: commandID) else {
+                throw SyncMergeError.processedWatchCommandWouldRegress(commandID)
+            }
+            if entry.rejection == nil {
+                guard let prepared = context.preparedCommands.first(where: {
+                    $0.command.id == commandID
+                }), command(prepared, isReflectedIn: winner.value) else {
+                    throw SyncMergeError.processedWatchCommandWouldRegress(commandID)
+                }
+            }
+            mergedIDs.insert(commandID)
+        }
+        guard mergedIDs != winner.value.processedCommandIDs else { return winner }
+        return .init(
+            value: replacingProcessedIDs(in: winner.value, with: mergedIDs),
+            stamp: winner.stamp
+        )
+    }
+
+    public func applyingStop(
+        _ prepared: PreparedWatchCommand,
+        to state: SyncCounterReminderState,
+        processedLedger: ProcessedWatchCommandLedger
+    ) throws -> SyncReminderStopOutcome {
+        guard prepared.command.operation == .stopReminder,
+              let entry = processedLedger.entry(for: prepared.command.id),
+              entry.rejection == nil,
+              prepared.command.counterID == state.counter.id,
+              let expectedReminderID = prepared.expectedReminderID,
+              let expectedRevision = prepared.expectedReminderRevision,
+              let reminder = state.reminder,
+              reminder.id == expectedReminderID else {
+            throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+        }
+
+        let processedIDs = state.processedCommandIDs.union([prepared.command.id])
+        if reminder.state == .stopped {
+            return .noOp(replacing(
+                state,
+                reminder: reminder,
+                processedCommandIDs: processedIDs
+            ))
+        }
+        guard reminder.mutationRevision == expectedRevision else {
+            throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+        }
+        if let expectedOccurrenceID = prepared.expectedOccurrenceID,
+           !reminder.progress.pending.contains(where: { $0.id == expectedOccurrenceID }) {
+            throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+        }
+        let stopped: KnittingReminder
+        do {
+            stopped = try reminder.applying(.stop(observedRevision: expectedRevision))
+        } catch {
+            throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+        }
+        return .persisted(replacing(
+            state,
+            reminder: stopped,
+            processedCommandIDs: processedIDs
+        ))
+    }
+
+    private func reminderRevisionRegressed(
+        from older: SyncCounterReminderState,
+        to newer: SyncCounterReminderState
+    ) -> Bool {
+        guard let olderReminder = older.reminder,
+              let newerReminder = newer.reminder,
+              olderReminder.id == newerReminder.id else {
+            return false
+        }
+        return newerReminder.mutationRevision < olderReminder.mutationRevision
+    }
+
+    private func command(
+        _ prepared: PreparedWatchCommand,
+        isReflectedIn state: SyncCounterReminderState
+    ) -> Bool {
+        guard prepared.command.counterID == state.counter.id else { return false }
+        switch prepared.command.operation {
+        case .increment, .decrement, .reset:
+            let acceptedNoOp: Bool
+            switch prepared.command.operation {
+            case .increment: acceptedNoOp = prepared.expectedCounterValue == Int.max
+            case .decrement, .reset: acceptedNoOp = prepared.expectedCounterValue == 0
+            default: acceptedNoOp = false
+            }
+            let minimumRevision = acceptedNoOp
+                ? prepared.expectedCounterRevision
+                : prepared.expectedCounterRevision == .max
+                    ? .max
+                    : prepared.expectedCounterRevision + 1
+            return state.counter.mutationRevision >= minimumRevision
+        case .completeReminder, .deferReminderOnce, .skipReminder:
+            guard let reminder = state.reminder,
+                  reminder.id == prepared.expectedReminderID,
+                  let expectedRevision = prepared.expectedReminderRevision else {
+                return false
+            }
+            return reminder.mutationRevision > expectedRevision
+        case .stopReminder:
+            return state.reminder?.id == prepared.expectedReminderID
+                && state.reminder?.state == .stopped
+        }
+    }
+
+    private func replacingProcessedIDs(
+        in state: SyncCounterReminderState,
+        with ids: Set<UUID>
+    ) -> SyncCounterReminderState {
+        replacing(state, reminder: state.reminder, processedCommandIDs: ids)
+    }
+
+    private func replacing(
+        _ state: SyncCounterReminderState,
+        reminder: KnittingReminder?,
+        processedCommandIDs: Set<UUID>
+    ) -> SyncCounterReminderState {
+        SyncCounterReminderState(
+            counter: state.counter,
+            reminder: reminder,
+            preparedCommand: state.preparedCommand,
+            processedCommandIDs: processedCommandIDs,
+            occurrence: reminder?.progress.nextOccurrenceIndex
+        )
+    }
+}
+
 public struct SyncMergeEngine: Sendable {
     private let validator: SyncRecordValidator
+    private let counterReminderPolicy: SyncCounterReminderMergePolicy
 
-    public init(validator: SyncRecordValidator = SyncRecordValidator()) {
+    public init(
+        validator: SyncRecordValidator = SyncRecordValidator(),
+        counterReminderPolicy: SyncCounterReminderMergePolicy = .init()
+    ) {
         self.validator = validator
+        self.counterReminderPolicy = counterReminderPolicy
     }
 
     public func merge(
@@ -105,13 +270,15 @@ public struct SyncMergeEngine: Sendable {
 
         for id in ids {
             let candidates = (localGroups[id] ?? []) + (remoteGroups[id] ?? [])
-            let merged = try merge(candidates)
+            let merged = try merge(candidates, counterReminderContext: counterReminderContext)
             let validated = try validator.validate(merged)
             mergedRecords.append(validated)
             if let conflict = counterConflict(in: candidates, entity: id) {
                 atomicConflicts.append(conflict)
             }
-            let remoteRecord = try remoteGroups[id].map(merge)
+            let remoteRecord = try remoteGroups[id].map {
+                try merge($0, counterReminderContext: counterReminderContext)
+            }
             if remoteRecord != validated || pendingLocal.contains(id) {
                 recordsToUpload.insert(id)
             }
@@ -148,7 +315,10 @@ public struct SyncMergeEngine: Sendable {
         return result
     }
 
-    private func merge(_ records: [SyncRecord]) throws -> SyncRecord {
+    private func merge(
+        _ records: [SyncRecord],
+        counterReminderContext: SyncCounterReminderMergeContext
+    ) throws -> SyncRecord {
         precondition(!records.isEmpty)
         let first = records[0]
         precondition(records.allSatisfy { $0.id == first.id })
@@ -170,7 +340,8 @@ public struct SyncMergeEngine: Sendable {
         )
         let atomicDomain = try newestAtomicDomain(
             records.compactMap(\.payload.atomicDomain),
-            entity: first.id
+            entity: first.id,
+            context: counterReminderContext
         )
         let cascades = records.compactMap(\.payload.deletionCascade)
         let newestCascade = cascades.isEmpty ? nil : try newest(
@@ -181,7 +352,7 @@ public struct SyncMergeEngine: Sendable {
         let deletionCascade = newestCascade?.stamp == deletedAt.stamp
             ? newestCascade
             : nil
-        let entityRevision = atomicDomain?.value.mutationRevision
+        let entityRevision = atomicDomain?.stamp.logicalRevision
             ?? (records.map(\.entityRevision).max() ?? first.entityRevision)
         let merged = SyncRecord(
             schemaVersion: records.map(\.schemaVersion).max() ?? first.schemaVersion,
@@ -207,41 +378,44 @@ public struct SyncMergeEngine: Sendable {
 
     private func newestAtomicDomain(
         _ versions: [SyncFieldVersion<SyncAtomicDomainValue>],
-        entity: SyncEntityID
+        entity: SyncEntityID,
+        context: SyncCounterReminderMergeContext
     ) throws -> SyncFieldVersion<SyncAtomicDomainValue>? {
         guard !versions.isEmpty else { return nil }
-        let revision = versions.map(\.value.mutationRevision).max()!
-        let candidates = versions.filter { $0.value.mutationRevision == revision }
-        guard let first = candidates.first else { return nil }
-        if candidates.allSatisfy({ $0.value == first.value }) {
-            return candidates.max { $0.stamp < $1.stamp }
+        let aggregateVersions = versions.compactMap {
+            version -> SyncFieldVersion<SyncCounterReminderState>? in
+            guard case let .projectCounter(state) = version.value else { return nil }
+            return .init(value: state, stamp: version.stamp)
+        }
+        if aggregateVersions.count == versions.count {
+            let ordered = aggregateVersions.sorted { $0.stamp < $1.stamp }
+            let merged = try ordered.dropFirst().reduce(ordered[0]) {
+                try counterReminderPolicy.merge($0, $1, context: context)
+            }
+            return .init(value: .projectCounter(merged.value), stamp: merged.stamp)
         }
 
-        switch first.value {
-        case .projectCounter:
-            guard candidates.allSatisfy({
-                if case .projectCounter = $0.value { return true }
-                return false
-            }) else {
-                throw SyncMergeError.corruptAtomicDomain(entity: entity, revision: revision)
-            }
-            // Concurrent absolute counter assignments from one base are never
-            // added. The mutation stamp chooses one complete value.
-            return candidates.max { $0.stamp < $1.stamp }
-        case .knittingReminder:
-            guard candidates.allSatisfy({
-                if case .knittingReminder = $0.value { return true }
-                return false
-            }) else {
-                throw SyncMergeError.corruptAtomicDomain(entity: entity, revision: revision)
-            }
-            return candidates.max { lhs, rhs in
-                let lhsKey = reminderPrecedence(lhs.value)
-                let rhsKey = reminderPrecedence(rhs.value)
-                if lhsKey != rhsKey { return lhsKey.lexicographicallyPrecedes(rhsKey) }
-                return lhs.stamp < rhs.stamp
-            }
+        let legacyReminderVersions = versions.filter {
+            if case .knittingReminder = $0.value { return true }
+            return false
         }
+        guard legacyReminderVersions.count == versions.count else {
+            throw SyncMergeError.corruptAtomicDomain(
+                entity: entity,
+                revision: versions.map(\.value.mutationRevision).max() ?? 0
+            )
+        }
+        var valuesByStamp: [SyncMutationStamp: SyncAtomicDomainValue] = [:]
+        for version in legacyReminderVersions {
+            if let existing = valuesByStamp[version.stamp], existing != version.value {
+                throw SyncMergeError.corruptEqualStamp(
+                    entity: entity,
+                    field: "counterReminderState"
+                )
+            }
+            valuesByStamp[version.stamp] = version.value
+        }
+        return legacyReminderVersions.max { $0.stamp < $1.stamp }
     }
 
     private func newestAttachment(
@@ -261,10 +435,10 @@ public struct SyncMergeEngine: Sendable {
         entity: SyncEntityID
     ) -> SyncConflict? {
         let counters = records.compactMap { record -> ProjectCounter? in
-            guard case let .projectCounter(counter)? = record.payload.atomicDomain?.value else {
+            guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else {
                 return nil
             }
-            return counter
+            return state.counter
         }
         guard let revision = counters.map(\.mutationRevision).max() else { return nil }
         let values = Set(counters.lazy
@@ -343,9 +517,10 @@ public struct SyncMergeEngine: Sendable {
             case .increment, .decrement, .reset:
                 let id = SyncEntityID(kind: .projectCounter, uuid: prepared.command.counterID)
                 guard let record = byID[id],
-                      case let .projectCounter(counter)? = record.payload.atomicDomain?.value else {
+                      case let .projectCounter(state)? = record.payload.atomicDomain?.value else {
                     throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
                 }
+                let counter = state.counter
                 let acceptedNoOp: Bool
                 switch prepared.command.operation {
                 case .increment: acceptedNoOp = prepared.expectedCounterValue == Int.max
@@ -365,36 +540,29 @@ public struct SyncMergeEngine: Sendable {
                     throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
                 }
             case .completeReminder, .deferReminderOnce, .skipReminder:
-                guard let reminderID = prepared.expectedReminderID,
-                      let expectedRevision = prepared.expectedReminderRevision,
-                      let record = byID[.init(kind: .knittingReminder, uuid: reminderID)],
-                      case let .knittingReminder(reminder)? = record.payload.atomicDomain?.value,
+                guard let expectedRevision = prepared.expectedReminderRevision,
+                      let record = byID[.init(
+                          kind: .projectCounter,
+                          uuid: prepared.command.counterID
+                      )],
+                      case let .projectCounter(state)? = record.payload.atomicDomain?.value,
+                      let reminder = state.reminder,
+                      reminder.id == prepared.expectedReminderID,
                       reminder.mutationRevision > expectedRevision else {
                     throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
                 }
             case .stopReminder:
-                throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+                guard let record = byID[.init(
+                    kind: .projectCounter,
+                    uuid: prepared.command.counterID
+                )],
+                case let .projectCounter(state)? = record.payload.atomicDomain?.value,
+                state.reminder?.id == prepared.expectedReminderID,
+                state.reminder?.state == .stopped else {
+                    throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+                }
             }
         }
-    }
-
-    private func reminderPrecedence(_ value: SyncAtomicDomainValue) -> [UInt64] {
-        guard case let .knittingReminder(reminder) = value else { return [] }
-        let terminal = UInt64(reminder.progress.completedCount)
-            + UInt64(reminder.progress.skippedCount)
-        let deferred = UInt64(reminder.progress.pending.filter { $0.phase == .deferredOnce }.count)
-        let released = UInt64(reminder.progress.pending.filter {
-            $0.phase == .deferredOnce && !$0.awaitsNextUpwardChange
-        }.count)
-        return [
-            terminal,
-            reminder.progress.latestHandled == nil ? 0 : 1,
-            UInt64(reminder.progress.skippedCount),
-            UInt64(reminder.progress.completedCount),
-            released,
-            deferred,
-            reminder.state == .active ? 0 : 1
-        ]
     }
 
     private func possibleDuplicateConflicts(in records: [SyncRecord]) -> [SyncConflict] {

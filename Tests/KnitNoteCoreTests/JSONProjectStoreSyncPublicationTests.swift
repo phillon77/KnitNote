@@ -8,6 +8,31 @@ import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct JSONProjectStoreSyncPublicationTests {
+    @Test func reminderPublicationUsesOnlyItsCounterAggregateAuthority() throws {
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink()
+        let store = fixture.store(sink: sink)
+        let counterID = try #require(store.project(id: fixture.projectID)?.counters.first?.id)
+
+        let reminderID = try store.addKnittingReminder(
+            projectID: fixture.projectID,
+            draft: .oneTime(kind: .changeYarn, target: 3, text: "Change yarn"),
+            now: Date(timeIntervalSince1970: 3)
+        )
+
+        let saved = sink.mutations.compactMap(\.savedRecordVersion?.record)
+        #expect(!saved.contains { $0.id.kind == .knittingReminder })
+        let counterRecord = try #require(saved.last { record in
+            record.id == SyncEntityID(kind: .projectCounter, uuid: counterID)
+        })
+        guard case let .projectCounter(state)? = counterRecord.payload.atomicDomain?.value else {
+            Issue.record("Counter publication did not contain the aggregate state")
+            return
+        }
+        #expect(state.counter.id == counterID)
+        #expect(state.reminder?.id == reminderID)
+    }
+
     @Test func rebuiltLedgerUsesProjectedEntityRevisionAsItsCausalFloor() throws {
         let fixture = try SyncPublicationFixture()
         let sink = RecordingSyncMutationSink()

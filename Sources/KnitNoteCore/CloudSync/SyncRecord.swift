@@ -68,15 +68,172 @@ public struct SyncRecordPayload: Codable, Equatable, Sendable {
     )
 }
 
-/// Counter and reminder state is one indivisible domain value. These values
-/// deliberately do not participate in generic per-field LWW merging.
+/// The complete state for one counter-owned synchronization domain. A smart
+/// reminder and Watch exactly-once metadata travel with their counter so a
+/// merge can never assemble a state that did not exist on either device.
+public struct SyncCounterReminderState: Codable, Equatable, Sendable {
+    public let counter: ProjectCounter
+    public let reminder: KnittingReminder?
+    public let preparedCommand: PreparedWatchCommand?
+    public let processedCommandIDs: Set<UUID>
+    public let occurrence: Int?
+
+    public init(
+        counter: ProjectCounter,
+        reminder: KnittingReminder?,
+        preparedCommand: PreparedWatchCommand?,
+        processedCommandIDs: Set<UUID>,
+        occurrence: Int?
+    ) {
+        self.counter = counter
+        self.reminder = reminder
+        self.preparedCommand = preparedCommand
+        self.processedCommandIDs = processedCommandIDs
+        self.occurrence = occurrence
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case counter
+        case reminder
+        case preparedCommand
+        case processedCommandIDs
+        case occurrence
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        counter = try container.decode(ProjectCounter.self, forKey: .counter)
+        reminder = try container.decodeIfPresent(KnittingReminder.self, forKey: .reminder)
+        preparedCommand = try container.decodeIfPresent(
+            PreparedWatchCommand.self,
+            forKey: .preparedCommand
+        )
+        let decodedIDs = try container.decode([UUID].self, forKey: .processedCommandIDs)
+        processedCommandIDs = Set(decodedIDs)
+        guard processedCommandIDs.count == decodedIDs.count else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .processedCommandIDs,
+                in: container,
+                debugDescription: "Duplicate processed Watch command ID"
+            )
+        }
+        occurrence = try container.decodeIfPresent(Int.self, forKey: .occurrence)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(counter, forKey: .counter)
+        try container.encodeIfPresent(reminder, forKey: .reminder)
+        try container.encodeIfPresent(preparedCommand, forKey: .preparedCommand)
+        try container.encode(
+            processedCommandIDs.sorted { $0.uuidString < $1.uuidString },
+            forKey: .processedCommandIDs
+        )
+        try container.encodeIfPresent(occurrence, forKey: .occurrence)
+    }
+}
+
+public enum SyncReminderStopOutcome: Equatable, Sendable {
+    case persisted(SyncCounterReminderState)
+    case noOp(SyncCounterReminderState)
+
+    public var state: SyncCounterReminderState {
+        switch self {
+        case let .persisted(state), let .noOp(state): state
+        }
+    }
+
+    public var isPersisted: Bool {
+        if case .persisted = self { return true }
+        return false
+    }
+
+    public var isNoOp: Bool {
+        if case .noOp = self { return true }
+        return false
+    }
+}
+
+/// Counter and reminder state is one indivisible domain value. The legacy
+/// reminder case remains decodable for migration, but new publication uses a
+/// counter record containing `SyncCounterReminderState`.
 public enum SyncAtomicDomainValue: Codable, Equatable, Sendable {
-    case projectCounter(ProjectCounter)
+    case projectCounter(SyncCounterReminderState)
     case knittingReminder(KnittingReminder)
+
+    private enum CodingKeys: String, CodingKey {
+        case projectCounter
+        case knittingReminder
+    }
+
+    private enum AssociatedValueKey: String, CodingKey {
+        case value = "_0"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if container.contains(.projectCounter) {
+            let value = try container.nestedContainer(
+                keyedBy: AssociatedValueKey.self,
+                forKey: .projectCounter
+            )
+            if let aggregate = try? value.decode(
+                SyncCounterReminderState.self,
+                forKey: .value
+            ) {
+                self = .projectCounter(aggregate)
+            } else {
+                let legacyCounter = try value.decode(ProjectCounter.self, forKey: .value)
+                self = .projectCounter(SyncCounterReminderState(
+                    counter: legacyCounter,
+                    reminder: nil,
+                    preparedCommand: nil,
+                    processedCommandIDs: [],
+                    occurrence: nil
+                ))
+            }
+            return
+        }
+        if container.contains(.knittingReminder) {
+            let value = try container.nestedContainer(
+                keyedBy: AssociatedValueKey.self,
+                forKey: .knittingReminder
+            )
+            self = .knittingReminder(try value.decode(
+                KnittingReminder.self,
+                forKey: .value
+            ))
+            return
+        }
+        throw DecodingError.dataCorrupted(
+            .init(
+                codingPath: decoder.codingPath,
+                debugDescription: "Unknown atomic synchronization domain"
+            )
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .projectCounter(state):
+            var value = container.nestedContainer(
+                keyedBy: AssociatedValueKey.self,
+                forKey: .projectCounter
+            )
+            try value.encode(state, forKey: .value)
+        case let .knittingReminder(reminder):
+            var value = container.nestedContainer(
+                keyedBy: AssociatedValueKey.self,
+                forKey: .knittingReminder
+            )
+            try value.encode(reminder, forKey: .value)
+        }
+    }
 
     public var mutationRevision: UInt64 {
         switch self {
-        case let .projectCounter(counter): counter.mutationRevision
+        case let .projectCounter(state): state.counter.mutationRevision
         case let .knittingReminder(reminder): reminder.mutationRevision
         }
     }

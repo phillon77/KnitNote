@@ -143,11 +143,19 @@ public struct SyncRecordValidator: Sendable {
 
     private func validateAtomicDomain(in record: SyncRecord) throws {
         switch (record.id.kind, record.payload.atomicDomain?.value) {
-        case let (.projectCounter, .projectCounter(counter)):
-            guard counter.id == record.id.uuid,
-                  counter.mutationRevision == record.entityRevision,
-                  record.payload.atomicDomain?.stamp.logicalRevision == counter.mutationRevision else {
+        case let (.projectCounter, .projectCounter(state)):
+            guard state.counter.id == record.id.uuid,
+                  record.payload.atomicDomain?.stamp.logicalRevision == record.entityRevision,
+                  state.counter.mutationRevision <= record.entityRevision,
+                  state.reminder.map({ $0.counterID == state.counter.id }) ?? true,
+                  state.occurrence == state.reminder?.progress.nextOccurrenceIndex,
+                  preparedCommandIsAligned(state.preparedCommand, with: state) else {
                 throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+            }
+            if let reminder = state.reminder {
+                guard reminder.mutationRevision <= record.entityRevision else {
+                    throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+                }
             }
         case let (.knittingReminder, .knittingReminder(reminder)):
             guard reminder.id == record.id.uuid,
@@ -170,6 +178,41 @@ public struct SyncRecordValidator: Sendable {
             break
         case (_, _):
             throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+        }
+    }
+
+    private func preparedCommandIsAligned(
+        _ prepared: PreparedWatchCommand?,
+        with state: SyncCounterReminderState
+    ) -> Bool {
+        guard let prepared else { return true }
+        guard prepared.command.counterID == state.counter.id,
+              prepared.expectedCounterRevision <= state.counter.mutationRevision else {
+            return false
+        }
+        if prepared.expectedCounterRevision == state.counter.mutationRevision,
+           let expectedValue = prepared.expectedCounterValue,
+           expectedValue != state.counter.value {
+            return false
+        }
+        switch prepared.command.operation {
+        case .increment, .decrement, .reset:
+            return prepared.expectedReminderID == nil
+                && prepared.expectedOccurrenceID == nil
+                && prepared.expectedReminderRevision == nil
+        case .completeReminder, .deferReminderOnce, .skipReminder, .stopReminder:
+            guard let reminder = state.reminder,
+                  prepared.expectedReminderID == reminder.id,
+                  prepared.expectedReminderRevision.map({ $0 <= reminder.mutationRevision }) == true
+            else {
+                return false
+            }
+            if let expectedOccurrenceID = prepared.expectedOccurrenceID {
+                return reminder.progress.pending.contains { $0.id == expectedOccurrenceID }
+                    || reminder.progress.latestHandled?.id == expectedOccurrenceID
+                    || reminder.state != .active
+            }
+            return true
         }
     }
 

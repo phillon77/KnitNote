@@ -187,6 +187,89 @@ import Testing
         #expect(ledger.entries == [.init(id: id, processedAt: date(20))])
     }
 
+    @Test func mergedLedgeredStopAcceptsTheStoppedAggregateWithoutThrowing() throws {
+        let projectID = UUID()
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(),
+            counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 1, text: nil),
+            createdAt: date(1)
+        ))
+        let triggered = try reminder.applying(.trigger(through: 1))
+        let occurrence = try #require(triggered.progress.pending.first)
+        let stopped = try triggered.applying(.stop(
+            observedRevision: triggered.mutationRevision
+        ))
+        let command = WatchCounterCommand(
+            schemaVersion: 2,
+            id: UUID(),
+            projectID: projectID,
+            counterID: counterID,
+            operation: .stopReminder,
+            reminderID: reminder.id,
+            occurrenceID: occurrence.id,
+            observedMutationRevision: triggered.mutationRevision,
+            createdAt: date(2)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command,
+            expectedCounterRevision: 4,
+            expectedCounterValue: 1,
+            expectedReminderID: reminder.id,
+            expectedOccurrenceID: occurrence.id,
+            expectedReminderRevision: triggered.mutationRevision
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(command.id, at: date(3))
+        let stamp = SyncMutationStamp(
+            logicalRevision: 8,
+            modifiedAt: date(8),
+            deviceID: "iphone"
+        )
+        let record = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .projectCounter, uuid: counterID),
+            createdAt: date(0),
+            entityRevision: 8,
+            payload: .init(
+                fields: [:],
+                atomicDomain: .init(
+                    value: .projectCounter(SyncCounterReminderState(
+                        counter: ProjectCounter(
+                            id: counterID,
+                            defaultOrdinal: 1,
+                            value: 1,
+                            mutationRevision: 4
+                        ),
+                        reminder: stopped,
+                        preparedCommand: prepared,
+                        processedCommandIDs: [command.id],
+                        occurrence: stopped.progress.nextOccurrenceIndex
+                    )),
+                    stamp: stamp
+                )
+            ),
+            relationships: [.init(
+                role: "project",
+                target: .init(kind: .project, uuid: projectID)
+            )],
+            deletedAt: .init(value: nil, stamp: stamp)
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [record],
+            remote: [],
+            pendingLocal: [],
+            counterReminderContext: .init(
+                preparedCommands: [prepared],
+                processedLedger: ledger
+            )
+        )
+
+        #expect(result.records.count == 1)
+    }
+
     @Test @MainActor func duplicateDeliveryMutatesOnlyOnceAndReturnsFreshState() throws {
         let fixture = try WatchStoreFixture()
         let project = try #require(fixture.store.projects.first)

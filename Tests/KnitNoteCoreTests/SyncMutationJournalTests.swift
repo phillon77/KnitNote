@@ -194,7 +194,16 @@ extension SyncMutation {
             )
             payload = SyncRecordPayload(
                 fields: [:],
-                atomicDomain: .init(value: .projectCounter(counter), stamp: stamp)
+                atomicDomain: .init(
+                    value: .projectCounter(SyncCounterReminderState(
+                        counter: counter,
+                        reminder: nil,
+                        preparedCommand: nil,
+                        processedCommandIDs: [],
+                        occurrence: nil
+                    )),
+                    stamp: stamp
+                )
             )
             relationships = [.init(
                 role: "project",

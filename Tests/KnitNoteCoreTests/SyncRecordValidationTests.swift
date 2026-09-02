@@ -88,6 +88,53 @@ import Testing
             try SyncRecordValidator().validate(link)
         }
     }
+
+    @Test func extraRelationshipRoleIsRejected() {
+        let link = SyncRecord.fixture(kind: .projectYarnLink, relationships: [
+            .init(role: "project", target: .init(kind: .project, uuid: UUID())),
+            .init(role: "yarn", target: .init(kind: .yarn, uuid: UUID())),
+            .init(role: "counter", target: .init(kind: .projectCounter, uuid: UUID()))
+        ])
+
+        #expect(throws: SyncRecordValidationError.unsupportedRelationshipRole(link.id, "counter")) {
+            try SyncRecordValidator().validate(link)
+        }
+    }
+
+    @Test func relationshipOnKindWithoutRulesIsRejected() {
+        let project = SyncRecord.fixture(kind: .project, relationships: [
+            .init(role: "parent", target: .init(kind: .project, uuid: UUID()))
+        ])
+
+        #expect(throws: SyncRecordValidationError.unsupportedRelationshipRole(project.id, "parent")) {
+            try SyncRecordValidator().validate(project)
+        }
+    }
+
+    @Test func nonLinkRecordCannotRequestYarnDeletion() {
+        let yarnID = SyncEntityID(kind: .yarn, uuid: UUID())
+        var project = SyncRecord.fixture()
+        project.payload.deletedRelatedEntityIDs = [yarnID]
+
+        #expect(throws: SyncRecordValidationError.illegalRelatedDeletion(project.id, yarnID)) {
+            try SyncRecordValidator().validate(project)
+        }
+    }
+
+    @Test func missingCreatedAtMetadataIsRejectedDuringDecoding() throws {
+        let record = SyncRecord.fixture()
+        var encoded = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as? [String: Any]
+        )
+        encoded.removeValue(forKey: "createdAt")
+
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(
+                SyncRecord.self,
+                from: JSONSerialization.data(withJSONObject: encoded)
+            )
+        }
+    }
 }
 
 private extension SyncMutationStamp {
@@ -108,6 +155,7 @@ private extension SyncRecord {
         SyncRecord(
             schemaVersion: schemaVersion,
             id: .init(kind: kind, uuid: UUID()),
+            createdAt: Date(timeIntervalSince1970: 0),
             entityRevision: 1,
             payload: .init(fields: fields),
             relationships: relationships,

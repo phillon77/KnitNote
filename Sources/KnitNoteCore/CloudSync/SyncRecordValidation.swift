@@ -4,6 +4,7 @@ public enum SyncRecordValidationError: Error, Equatable, Sendable {
     case unsupportedSchema(Int)
     case missingRequiredRelationship(SyncEntityID, String)
     case duplicateSingularRelationship(SyncEntityID, String)
+    case unsupportedRelationshipRole(SyncEntityID, String)
     case illegalRelationshipKind(SyncEntityID, String, SyncEntityKind)
     case scalarValueTooLarge(String, Int)
     case illegalRelatedDeletion(SyncEntityID, SyncEntityID)
@@ -40,8 +41,19 @@ public struct SyncRecordValidator: Sendable {
     }
 
     private func validateRelationships(in record: SyncRecord) throws {
-        guard let rules = Self.relationshipRules[record.id.kind] else {
-            return
+        let rules = Self.relationshipRules[record.id.kind] ?? []
+
+        for relationship in record.relationships {
+            guard let rule = rules.first(where: { $0.role == relationship.role }) else {
+                throw SyncRecordValidationError.unsupportedRelationshipRole(record.id, relationship.role)
+            }
+            guard rule.allowedTargetKinds.contains(relationship.target.kind) else {
+                throw SyncRecordValidationError.illegalRelationshipKind(
+                    record.id,
+                    rule.role,
+                    relationship.target.kind
+                )
+            }
         }
 
         for rule in rules {
@@ -52,21 +64,10 @@ public struct SyncRecordValidator: Sendable {
             if rule.isSingular, relationships.count > 1 {
                 throw SyncRecordValidationError.duplicateSingularRelationship(record.id, rule.role)
             }
-            for relationship in relationships where !rule.allowedTargetKinds.contains(relationship.target.kind) {
-                throw SyncRecordValidationError.illegalRelationshipKind(
-                    record.id,
-                    rule.role,
-                    relationship.target.kind
-                )
-            }
         }
     }
 
     private func validateRelatedDeletions(in record: SyncRecord) throws {
-        guard record.id.kind == .projectYarnLink else {
-            return
-        }
-
         if let yarnID = record.payload.deletedRelatedEntityIDs.first(where: { $0.kind == .yarn }) {
             throw SyncRecordValidationError.illegalRelatedDeletion(record.id, yarnID)
         }

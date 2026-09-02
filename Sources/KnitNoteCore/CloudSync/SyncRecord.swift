@@ -47,6 +47,7 @@ public struct SyncRelationship: Codable, Equatable, Sendable {
 public struct SyncRecord: Codable, Equatable, Sendable {
     public let schemaVersion: Int
     public let id: SyncEntityID
+    public let createdAt: Date
     public var entityRevision: UInt64
     public var payload: SyncRecordPayload
     public var relationships: [SyncRelationship]
@@ -55,6 +56,7 @@ public struct SyncRecord: Codable, Equatable, Sendable {
     public init(
         schemaVersion: Int,
         id: SyncEntityID,
+        createdAt: Date,
         entityRevision: UInt64,
         payload: SyncRecordPayload,
         relationships: [SyncRelationship],
@@ -62,6 +64,7 @@ public struct SyncRecord: Codable, Equatable, Sendable {
     ) {
         self.schemaVersion = schemaVersion
         self.id = id
+        self.createdAt = createdAt
         self.entityRevision = entityRevision
         self.payload = payload
         self.relationships = relationships

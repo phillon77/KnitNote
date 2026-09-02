@@ -597,7 +597,7 @@ import UniformTypeIdentifiers
         ))
     }
 
-    @Test func deletingLegacyPatternPublishesMarkupAndSourceAttachmentDeletes() throws {
+    @Test func deletingLegacyPatternDeletesIssuedMarkupWithoutInventingAnUnissuedSourceVersion() throws {
         let fixture = try SyncPublicationFixture()
         let patternID = try fixture.installLegacyPattern()
         let setupSink = RecordingSyncMutationSink()
@@ -618,7 +618,7 @@ import UniformTypeIdentifiers
         let attachmentDeletes = deletionSink.mutations.filter {
             $0.operation == .delete && $0.recordKind == .attachment
         }
-        #expect(attachmentDeletes.count == 2)
+        #expect(attachmentDeletes.count == 1)
         #expect(attachmentDeletes.contains { $0.recordID == markupID })
         #expect(!FileManager.default.fileExists(
             atPath: fixture.legacyMarkupURL(

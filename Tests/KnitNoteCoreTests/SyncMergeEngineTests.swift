@@ -206,7 +206,7 @@ private extension SyncRecord {
         slotID: String,
         bytes: Data
     ) throws -> SyncRecord {
-        let attachment = try SyncAttachmentVersion(
+        let attachment = try SyncAttachmentVersion.issuing(
             slot: .init(owner: owner, role: role, slotID: slotID),
             contentSHA256: Data(SHA256.hash(data: bytes)),
             byteCount: Int64(bytes.count),

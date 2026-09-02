@@ -112,10 +112,9 @@ public struct SyncAttachmentSlot: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-/// Immutable attachment metadata. `versionID` is derived from the semantic
-/// slot and the content digest, while `conflictGroupID` is derived only from
-/// the slot so concurrent versions can be compared without grouping unrelated
-/// label photos or markup pages.
+/// Immutable attachment metadata. `versionID` is issued once for each save,
+/// while `conflictGroupID` is derived only from the slot so concurrent versions
+/// can be compared without grouping unrelated label photos or markup pages.
 public struct SyncAttachmentVersion: Codable, Equatable, Sendable {
     public let slot: SyncAttachmentSlot
     public let versionID: UUID
@@ -128,6 +127,8 @@ public struct SyncAttachmentVersion: Codable, Equatable, Sendable {
 
     public init(
         slot: SyncAttachmentSlot,
+        versionID: UUID,
+        conflictGroupID: UUID,
         contentSHA256: Data,
         byteCount: Int64,
         mediaType: String,
@@ -135,28 +136,45 @@ public struct SyncAttachmentVersion: Codable, Equatable, Sendable {
         replacesVersionID: UUID? = nil
     ) throws {
         self.slot = try slot.validated()
+        self.versionID = versionID
+        self.conflictGroupID = conflictGroupID
         self.contentSHA256 = contentSHA256
         self.byteCount = byteCount
         self.mediaType = mediaType
         self.displayFilename = displayFilename
         self.replacesVersionID = replacesVersionID
-        versionID = try Self.identity(prefix: "attachment-version", slot: slot, digest: contentSHA256)
-        conflictGroupID = try Self.identity(prefix: "attachment-slot", slot: slot, digest: nil)
         try validateMetadata()
+    }
+
+    public static func issuing(
+        slot: SyncAttachmentSlot,
+        contentSHA256: Data,
+        byteCount: Int64,
+        mediaType: String,
+        displayFilename: String,
+        replacesVersionID: UUID? = nil,
+        versionID: UUID = UUID()
+    ) throws -> Self {
+        try Self(
+            slot: slot,
+            versionID: versionID,
+            conflictGroupID: try conflictGroupID(for: slot),
+            contentSHA256: contentSHA256,
+            byteCount: byteCount,
+            mediaType: mediaType,
+            displayFilename: displayFilename,
+            replacesVersionID: replacesVersionID
+        )
+    }
+
+    public static func conflictGroupID(for slot: SyncAttachmentSlot) throws -> UUID {
+        try identity(prefix: "attachment-slot", slot: slot, digest: nil)
     }
 
     public func validated() throws -> Self {
         _ = try slot.validated()
         try validateMetadata()
-        guard versionID == (try Self.identity(
-            prefix: "attachment-version",
-            slot: slot,
-            digest: contentSHA256
-        )), conflictGroupID == (try Self.identity(
-            prefix: "attachment-slot",
-            slot: slot,
-            digest: nil
-        )) else {
+        guard conflictGroupID == (try Self.conflictGroupID(for: slot)) else {
             throw SyncAttachmentVersionError.invalidIdentity
         }
         return self

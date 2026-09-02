@@ -107,6 +107,67 @@ private struct SyncPublicationProjectionCache {
     let records: [SyncEntityID: SyncRecord]
 }
 
+/// Durable local evidence of the active issued version for each attachment
+/// slot. The archive deliberately retains user content only, so this sidecar
+/// keeps a restart from minting an ID or guessing a replacement lineage.
+private struct SyncAttachmentPublicationEvidence: Codable {
+    private var versions: [SyncAttachmentVersion]
+
+    init(versions: [SyncAttachmentVersion] = []) {
+        self.versions = versions
+    }
+
+    func versionID(for slot: SyncAttachmentSlot) -> UUID? {
+        versions.first { $0.slot == slot }?.versionID
+    }
+
+    mutating func apply(_ mutations: [SyncMutation]) {
+        for mutation in mutations {
+            switch mutation {
+            case let .save(save):
+                guard let attachment = save.recordVersion.record.payload.attachment else {
+                    continue
+                }
+                versions.removeAll { $0.slot == attachment.slot }
+                versions.append(attachment)
+            case let .delete(delete):
+                versions.removeAll { $0.versionID == delete.recordID.uuid }
+            }
+        }
+        versions.sort {
+            (
+                $0.slot.owner.kind.rawValue,
+                $0.slot.owner.uuid.uuidString,
+                $0.slot.role,
+                $0.slot.slotID
+            ) < (
+                $1.slot.owner.kind.rawValue,
+                $1.slot.owner.uuid.uuidString,
+                $1.slot.role,
+                $1.slot.slotID
+            )
+        }
+    }
+}
+
+private struct SyncAttachmentPublicationEvidenceFile {
+    let url: URL
+
+    func load() throws -> SyncAttachmentPublicationEvidence {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return SyncAttachmentPublicationEvidence()
+        }
+        return try JSONDecoder().decode(
+            SyncAttachmentPublicationEvidence.self,
+            from: Data(contentsOf: url)
+        )
+    }
+
+    func save(_ evidence: SyncAttachmentPublicationEvidence) throws {
+        try JSONEncoder().encode(evidence).write(to: url, options: .atomic)
+    }
+}
+
 private struct SyncPublicationSnapshot {
     var records: [SyncEntityID: SyncRecord] = [:]
 
@@ -503,6 +564,7 @@ private func syncAttachmentMutation(
     slotID: String,
     originalData: Data?,
     committedData: Data?,
+    replacesVersionID: UUID?,
     sourceURL: URL,
     mediaType: String,
     displayFilename: String,
@@ -510,35 +572,23 @@ private func syncAttachmentMutation(
 ) throws -> SyncMutation? {
     guard originalData != committedData else { return nil }
     let slot = SyncAttachmentSlot(owner: owner, role: role, slotID: slotID)
-    let originalVersionID: UUID?
-    if let originalData {
-        originalVersionID = try SyncAttachmentVersion(
-            slot: slot,
-            contentSHA256: Data(SHA256.hash(data: originalData)),
-            byteCount: Int64(originalData.count),
-            mediaType: mediaType,
-            displayFilename: displayFilename
-        ).versionID
-    } else {
-        originalVersionID = nil
-    }
 
     guard let committedData else {
-        guard let originalVersionID else { return nil }
+        guard let replacesVersionID else { return nil }
         return .delete(
-            SyncEntityID(kind: .attachment, uuid: originalVersionID),
+            SyncEntityID(kind: .attachment, uuid: replacesVersionID),
             mutationID: UUID()
         )
     }
 
     let contentSHA256 = Data(SHA256.hash(data: committedData))
-    let attachment = try SyncAttachmentVersion(
+    let attachment = try SyncAttachmentVersion.issuing(
         slot: slot,
         contentSHA256: contentSHA256,
         byteCount: Int64(committedData.count),
         mediaType: mediaType,
         displayFilename: displayFilename,
-        replacesVersionID: originalVersionID
+        replacesVersionID: replacesVersionID
     )
     let revision: UInt64 = 0
     let modifiedAt = Date.now
@@ -589,16 +639,6 @@ private struct SyncAttachmentProjection: Equatable {
             && lhs.mediaType == rhs.mediaType
     }
 
-    func version(replacesVersionID: UUID? = nil) throws -> SyncAttachmentVersion {
-        try SyncAttachmentVersion(
-            slot: slot,
-            contentSHA256: contentSHA256,
-            byteCount: byteCount,
-            mediaType: mediaType,
-            displayFilename: displayFilename,
-            replacesVersionID: replacesVersionID
-        )
-    }
 }
 
 private struct SyncRegularFileMetadata {
@@ -1123,6 +1163,8 @@ final class PatternLibraryDeletionTransaction {
     private let isSyncPublicationEnabled: Bool
     private let syncInstallationID: String?
     private let syncRevisionLedger: SyncRevisionLedger?
+    private let syncAttachmentPublicationEvidenceFile: SyncAttachmentPublicationEvidenceFile
+    private var syncAttachmentPublicationEvidence: SyncAttachmentPublicationEvidence
     private var syncProjectionCache: SyncPublicationProjectionCache?
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
     private var activeJournalPhotoTransactions = 0
@@ -1269,6 +1311,12 @@ final class PatternLibraryDeletionTransaction {
                 deviceID: $0
             )
         }
+        let attachmentEvidenceFile = SyncAttachmentPublicationEvidenceFile(
+            url: syncMetadataRoot.appendingPathComponent("attachment-versions.json")
+        )
+        syncAttachmentPublicationEvidenceFile = attachmentEvidenceFile
+        syncAttachmentPublicationEvidence = (try? attachmentEvidenceFile.load())
+            ?? SyncAttachmentPublicationEvidence()
         self.authorizeMutation = authorizeMutation
         self.commitSuccessfulMutation = commitSuccessfulMutation
         self.patternFolderNameContext = patternFolderNameContext
@@ -1492,6 +1540,7 @@ final class PatternLibraryDeletionTransaction {
             throw SyncPublicationError.sinkUnavailable
         }
         do {
+            try persistAttachmentPublicationEvidence(for: transaction.mutations)
             try publish(transaction, transactionFile: transactionFile)
             syncPublicationError = nil
             completeDeferredLoadAfterSyncPublicationIfNeeded()
@@ -3118,6 +3167,11 @@ final class PatternLibraryDeletionTransaction {
             slotID: "page:\(page)",
             originalData: originalPageData,
             committedData: encodedPage,
+            replacesVersionID: syncAttachmentVersionID(for: .init(
+                owner: .init(kind: .patternUsage, uuid: usageID),
+                role: "usage-markup",
+                slotID: "page:\(page)"
+            )),
             sourceURL: pageURL,
             mediaType: "application/json",
             displayFilename: "\(page).json",
@@ -3279,6 +3333,11 @@ final class PatternLibraryDeletionTransaction {
             slotID: "project:\(projectID.uuidString)/page:\(page)",
             originalData: originalPageData,
             committedData: encodedPage,
+            replacesVersionID: syncAttachmentVersionID(for: .init(
+                owner: .init(kind: .pattern, uuid: patternID),
+                role: "legacy-markup",
+                slotID: "project:\(projectID.uuidString)/page:\(page)"
+            )),
             sourceURL: pageURL,
             mediaType: "application/json",
             displayFilename: "\(page).json",
@@ -4462,6 +4521,14 @@ final class PatternLibraryDeletionTransaction {
             throw ProjectStoreError.persistenceFailed
         }
 
+        do {
+            try persistAttachmentPublicationEvidence(for: causallyStamped.mutations)
+        } catch {
+            onArchiveCommitted?(causallyStamped.mutations)
+            applyCommittedState()
+            syncPublicationError = .pendingRepair
+            return
+        }
         onArchiveCommitted?(causallyStamped.mutations)
         applyCommittedState()
         if archiveWriteFailure != nil {
@@ -4564,7 +4631,7 @@ final class PatternLibraryDeletionTransaction {
             let old = originalAttachments[slot]
             let new = committedAttachments[slot]
             guard old != new else { continue }
-            let oldVersionID = try old?.version().versionID
+            let oldVersionID = syncAttachmentVersionID(for: slot)
             guard let new else {
                 if let oldVersionID {
                     mutations.append(.delete(
@@ -4574,9 +4641,13 @@ final class PatternLibraryDeletionTransaction {
                 }
                 continue
             }
-            let contentVersionID = try new.version().versionID
-            let attachment = try new.version(
-                replacesVersionID: contentVersionID == oldVersionID ? nil : oldVersionID
+            let attachment = try SyncAttachmentVersion.issuing(
+                slot: new.slot,
+                contentSHA256: new.contentSHA256,
+                byteCount: new.byteCount,
+                mediaType: new.mediaType,
+                displayFilename: new.displayFilename,
+                replacesVersionID: oldVersionID
             )
             let revision: UInt64 = 0
             let modifiedAt = Date.now
@@ -4756,21 +4827,25 @@ final class PatternLibraryDeletionTransaction {
         for mutations: [SyncMutation],
         committedArchive: ProjectArchive
     ) throws -> [SyncPublicationArtifactEvidence] {
-        let attachmentSaveIDs = Set(mutations.compactMap { mutation -> SyncEntityID? in
-            guard mutation.intent == .save, mutation.recordID.kind == .attachment else {
-                return nil
-            }
-            return mutation.recordID
-        })
-        guard !attachmentSaveIDs.isEmpty else { return [] }
-
-        let attachmentURLs = try syncAttachmentURLs(in: committedArchive)
+        let attachmentSaves = mutations.compactMap { mutation -> SyncAttachmentVersion? in
+            mutation.savedRecordVersion?.record.payload.attachment
+        }
+        guard !attachmentSaves.isEmpty else { return [] }
+        var metadataCache: [URL: SyncRegularFileMetadata] = [:]
+        let attachments = try syncArchiveAttachments(
+            in: committedArchive,
+            metadataCache: &metadataCache
+        )
         let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
-        return try attachmentSaveIDs.sorted(by: syncEntityIDIsOrderedBefore).map { id in
-            guard let artifactURL = attachmentURLs[id] else {
+        return try attachmentSaves.sorted {
+            syncAttachmentSlotIsOrderedBefore($0.slot, $1.slot)
+        }.map { version in
+            guard let attachment = attachments[version.slot],
+                  attachment.contentSHA256 == version.contentSHA256,
+                  attachment.byteCount == version.byteCount else {
                 throw SyncPublicationTransactionFileError.corrupt
             }
-            let relativePath = try syncArtifactRelativePath(for: artifactURL)
+            let relativePath = try syncArtifactRelativePath(for: attachment.sourceURL)
             return try transactionFile.evidenceForExistingArtifact(
                 relativePath: relativePath,
                 archiveURL: url
@@ -4783,25 +4858,16 @@ final class PatternLibraryDeletionTransaction {
     ) throws -> [SyncMutation] {
         guard isSyncPublicationEnabled else { return [] }
         return try usageIDs.sorted { $0.uuidString < $1.uuidString }.flatMap { usageID in
-            try patternMarkupFileService.usageMarkupPageIndices(usageID: usageID).map { page in
-                let pageURL = try patternMarkupFileService.usagePageURL(
-                    usageID: usageID,
-                    pageIndex: page
-                )
-                let metadata = try syncRegularFileMetadata(at: pageURL)
-                let version = try SyncAttachmentVersion(
-                    slot: .init(
-                        owner: .init(kind: .patternUsage, uuid: usageID),
-                        role: "usage-markup",
-                        slotID: "page:\(page)"
-                    ),
-                    contentSHA256: metadata.contentSHA256,
-                    byteCount: metadata.byteCount,
-                    mediaType: "application/json",
-                    displayFilename: "\(page).json"
-                )
+            try patternMarkupFileService.usageMarkupPageIndices(usageID: usageID).compactMap { page in
+                guard let versionID = syncAttachmentVersionID(for: .init(
+                    owner: .init(kind: .patternUsage, uuid: usageID),
+                    role: "usage-markup",
+                    slotID: "page:\(page)"
+                )) else {
+                    return nil
+                }
                 return SyncMutation.delete(
-                    SyncEntityID(kind: .attachment, uuid: version.versionID),
+                    SyncEntityID(kind: .attachment, uuid: versionID),
                     mutationID: UUID()
                 )
             }
@@ -4817,49 +4883,39 @@ final class PatternLibraryDeletionTransaction {
             try patternMarkupFileService.legacyMarkupPageIndices(
                 projectID: projectID,
                 patternID: patternID
-            ).map { page in
-                let pageURL = try patternMarkupFileService.legacyPageURL(
-                    projectID: projectID,
-                    patternID: patternID,
-                    pageIndex: page
-                )
-                let metadata = try syncRegularFileMetadata(at: pageURL)
-                let version = try SyncAttachmentVersion(
-                    slot: .init(
-                        owner: .init(kind: .pattern, uuid: patternID),
-                        role: "legacy-markup",
-                        slotID: "project:\(projectID.uuidString)/page:\(page)"
-                    ),
-                    contentSHA256: metadata.contentSHA256,
-                    byteCount: metadata.byteCount,
-                    mediaType: "application/json",
-                    displayFilename: "\(page).json"
-                )
+            ).compactMap { page in
+                guard let versionID = syncAttachmentVersionID(for: .init(
+                    owner: .init(kind: .pattern, uuid: patternID),
+                    role: "legacy-markup",
+                    slotID: "project:\(projectID.uuidString)/page:\(page)"
+                )) else {
+                    return nil
+                }
                 return SyncMutation.delete(
-                    SyncEntityID(kind: .attachment, uuid: version.versionID),
+                    SyncEntityID(kind: .attachment, uuid: versionID),
                     mutationID: UUID()
                 )
             }
         }
     }
 
-    private func syncAttachmentURLs(
-        in archive: ProjectArchive
-    ) throws -> [SyncEntityID: URL] {
-        var metadataCache: [URL: SyncRegularFileMetadata] = [:]
-        let attachments = try syncArchiveAttachments(
-            in: archive,
-            metadataCache: &metadataCache
-        )
-        return try Dictionary(uniqueKeysWithValues: attachments.values.map { attachment in
-            (
-                SyncEntityID(
-                    kind: .attachment,
-                    uuid: try attachment.version().versionID
-                ),
-                attachment.sourceURL
-            )
-        })
+    private func syncAttachmentVersionID(for slot: SyncAttachmentSlot) -> UUID? {
+        syncAttachmentPublicationEvidence.versionID(for: slot)
+            ?? syncProjectionCache?.records.values.compactMap { record -> SyncRecord? in
+            guard record.id.kind == .attachment,
+                  record.deletedAt.value == nil,
+                  record.payload.attachment?.slot == slot else {
+                return nil
+            }
+            return record
+        }.max { $0.deletedAt.stamp < $1.deletedAt.stamp }?.payload.attachment?.versionID
+    }
+
+    private func persistAttachmentPublicationEvidence(for mutations: [SyncMutation]) throws {
+        var updated = syncAttachmentPublicationEvidence
+        updated.apply(mutations)
+        try syncAttachmentPublicationEvidenceFile.save(updated)
+        syncAttachmentPublicationEvidence = updated
     }
 
     private func syncArtifactRelativePath(for artifactURL: URL) throws -> String {

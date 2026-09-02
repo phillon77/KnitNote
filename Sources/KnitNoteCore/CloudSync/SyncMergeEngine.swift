@@ -3,6 +3,7 @@ import Foundation
 public enum SyncMergeError: Error, Equatable, Sendable {
     case corruptEqualStamp(entity: SyncEntityID, field: String)
     case corruptAtomicDomain(entity: SyncEntityID, revision: UInt64)
+    case corruptAttachmentVersion(UUID)
     case processedWatchCommandWouldRegress(UUID)
 }
 
@@ -250,10 +251,7 @@ public struct SyncMergeEngine: Sendable {
         let attachments = records.compactMap(\.payload.attachment)
         guard let first = attachments.first else { return nil }
         guard attachments.allSatisfy({ $0 == first }) else {
-            throw SyncMergeError.corruptAtomicDomain(
-                entity: entity,
-                revision: records.map(\.entityRevision).max() ?? 0
-            )
+            throw SyncMergeError.corruptAttachmentVersion(first.versionID)
         }
         return first
     }

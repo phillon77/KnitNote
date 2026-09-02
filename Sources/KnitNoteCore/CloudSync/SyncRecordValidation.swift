@@ -16,6 +16,8 @@ public enum SyncRecordValidationError: Error, Equatable, Sendable {
     case missingAtomicDomain(SyncEntityID)
     case illegalAtomicDomain(SyncEntityID)
     case invalidAttachment(SyncEntityID)
+    case corruptAttachmentVersion(UUID)
+    case crossSlotAttachmentReplacement(UUID)
 }
 
 public struct SyncRecordValidator: Sendable {
@@ -47,6 +49,7 @@ public struct SyncRecordValidator: Sendable {
     @discardableResult
     public func validate(_ records: [SyncRecord]) throws -> [SyncRecord] {
         let validated = try records.map(validate)
+        try validateAttachmentVersions(in: validated)
         var byID: [SyncEntityID: SyncRecord] = [:]
         for record in validated {
             guard byID.updateValue(record, forKey: record.id) == nil else {
@@ -61,6 +64,25 @@ public struct SyncRecordValidator: Sendable {
             }
         }
         return validated
+    }
+
+    private func validateAttachmentVersions(in records: [SyncRecord]) throws {
+        var versions: [UUID: SyncAttachmentVersion] = [:]
+        for record in records {
+            guard let attachment = record.payload.attachment else { continue }
+            if let existing = versions[attachment.versionID], existing != attachment {
+                throw SyncRecordValidationError.corruptAttachmentVersion(attachment.versionID)
+            }
+            versions[attachment.versionID] = attachment
+        }
+        for attachment in versions.values {
+            guard let replaced = attachment.replacesVersionID,
+                  let prior = versions[replaced],
+                  prior.slot != attachment.slot else {
+                continue
+            }
+            throw SyncRecordValidationError.crossSlotAttachmentReplacement(attachment.versionID)
+        }
     }
 
     private func validateScalars(in record: SyncRecord) throws {

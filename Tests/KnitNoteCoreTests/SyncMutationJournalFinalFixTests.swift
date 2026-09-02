@@ -5,7 +5,7 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncMutationJournalFinalFixTests {
-    @Test func saveReplaceDeleteRestartRetainsEachImmutableRecordAndStagedBytes() throws {
+    @Test func saveReplaceRestoreBytesRestartRetainsEachImmutableRecordAndStagedBytes() throws {
         let fixture = try FinalFixJournalFixture()
         let owner = SyncEntityID(kind: .patternUsage, uuid: UUID())
         let slot = SyncAttachmentSlot(owner: owner, role: "usage-markup", slotID: "page:2")
@@ -26,19 +26,31 @@ import Testing
             replacing: try #require(first.savedRecordVersion?.record.payload.attachment?.versionID)
         )
         try journal.enqueue(second)
-        try journal.enqueue(.delete(second.recordID, mutationID: UUID()))
+        try firstBytes.write(to: source, options: .atomic)
+        let third = try attachmentSave(
+            slot: slot,
+            bytes: firstBytes,
+            source: source,
+            replacing: try #require(second.savedRecordVersion?.record.payload.attachment?.versionID)
+        )
+        try journal.enqueue(third)
 
         try FileManager.default.removeItem(at: source)
         let reopened = FileSyncMutationJournal(url: fixture.url)
         let pending = try reopened.pending()
 
         #expect(pending.count == 3)
-        #expect(pending.map(\.intent) == [.save, .save, .delete])
+        #expect(pending.map(\.intent) == [.save, .save, .save])
         #expect(pending[0].savedRecordVersion?.versionID != pending[1].savedRecordVersion?.versionID)
         #expect(pending[1].savedRecordVersion?.record.payload.attachment?.replacesVersionID
             == pending[0].savedRecordVersion?.record.payload.attachment?.versionID)
+        #expect(pending[2].savedRecordVersion?.record.payload.attachment?.versionID
+            != pending[0].savedRecordVersion?.record.payload.attachment?.versionID)
+        #expect(pending[2].savedRecordVersion?.record.payload.attachment?.replacesVersionID
+            == pending[1].savedRecordVersion?.record.payload.attachment?.versionID)
         #expect(try pending[0].stagedAttachmentBytes() == firstBytes)
         #expect(try pending[1].stagedAttachmentBytes() == secondBytes)
+        #expect(try pending[2].stagedAttachmentBytes() == firstBytes)
     }
 
     @Test func duplicateMutationIDAfterWriteThenThrowIsIdempotentAndRepersisted() throws {
@@ -251,7 +263,7 @@ private func attachmentSave(
     mutationID: UUID = UUID()
 ) throws -> SyncMutation {
     let digest = Data(SHA256.hash(data: bytes))
-    let attachment = try SyncAttachmentVersion(
+    let attachment = try SyncAttachmentVersion.issuing(
         slot: slot,
         contentSHA256: digest,
         byteCount: Int64(bytes.count),

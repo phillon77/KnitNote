@@ -12,7 +12,7 @@ import Testing
         )
         let bytes = Data("same-version".utf8)
         let digest = Data(SHA256.hash(data: bytes))
-        let version = try SyncAttachmentVersion(
+        let version = try SyncAttachmentVersion.issuing(
             slot: slot,
             contentSHA256: digest,
             byteCount: Int64(bytes.count),
@@ -21,13 +21,14 @@ import Testing
         )
 
         #expect(throws: SyncAttachmentVersionError.invalidMetadata) {
-            try SyncAttachmentVersion(
+            try SyncAttachmentVersion.issuing(
                 slot: slot,
                 contentSHA256: digest,
                 byteCount: Int64(bytes.count),
                 mediaType: "image/jpeg",
                 displayFilename: "photo.jpg",
-                replacesVersionID: version.versionID
+                replacesVersionID: version.versionID,
+                versionID: version.versionID
             )
         }
     }
@@ -370,7 +371,7 @@ private func attachmentRecord(
     replaces: UUID? = nil
 ) throws -> SyncRecord {
     let slot = SyncAttachmentSlot(owner: owner, role: "yarn-label-photo", slotID: slotID)
-    let attachment = try SyncAttachmentVersion(
+    let attachment = try SyncAttachmentVersion.issuing(
         slot: slot,
         contentSHA256: Data(SHA256.hash(data: bytes)),
         byteCount: Int64(bytes.count),

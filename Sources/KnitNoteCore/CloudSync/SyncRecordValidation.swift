@@ -1,6 +1,7 @@
 import Foundation
 
 public enum SyncRecordValidationError: Error, Equatable, Sendable {
+    case duplicateRecord(SyncEntityID)
     case unsupportedSchema(Int)
     case missingRequiredRelationship(SyncEntityID, String)
     case duplicateSingularRelationship(SyncEntityID, String)
@@ -8,6 +9,13 @@ public enum SyncRecordValidationError: Error, Equatable, Sendable {
     case illegalRelationshipKind(SyncEntityID, String, SyncEntityKind)
     case scalarValueTooLarge(String, Int)
     case illegalRelatedDeletion(SyncEntityID, SyncEntityID)
+    case deletionCascadeStampMismatch(SyncEntityID)
+    case liveRecordHasDeletionCascade(SyncEntityID)
+    case duplicateRelatedDeletion(SyncEntityID, SyncEntityID)
+    case unownedRelatedDeletion(SyncEntityID, SyncEntityID)
+    case missingAtomicDomain(SyncEntityID)
+    case illegalAtomicDomain(SyncEntityID)
+    case invalidAttachment(SyncEntityID)
 }
 
 public struct SyncRecordValidator: Sendable {
@@ -28,7 +36,31 @@ public struct SyncRecordValidator: Sendable {
         try validateScalars(in: record)
         try validateRelationships(in: record)
         try validateRelatedDeletions(in: record)
+        try validateAtomicDomain(in: record)
+        try validateAttachment(in: record)
         return record
+    }
+
+    /// Validates relationship ownership once all records in a merge batch are
+    /// available. Missing or unrelated cascade targets are staged/rejected by
+    /// callers instead of being interpreted as authority to delete them.
+    @discardableResult
+    public func validate(_ records: [SyncRecord]) throws -> [SyncRecord] {
+        let validated = try records.map(validate)
+        var byID: [SyncEntityID: SyncRecord] = [:]
+        for record in validated {
+            guard byID.updateValue(record, forKey: record.id) == nil else {
+                throw SyncRecordValidationError.duplicateRecord(record.id)
+            }
+        }
+        for owner in validated {
+            for targetID in owner.payload.deletionCascade?.value ?? [] {
+                guard isOwned(targetID, by: owner.id, records: byID) else {
+                    throw SyncRecordValidationError.unownedRelatedDeletion(owner.id, targetID)
+                }
+            }
+        }
+        return validated
     }
 
     private func validateScalars(in record: SyncRecord) throws {
@@ -68,9 +100,92 @@ public struct SyncRecordValidator: Sendable {
     }
 
     private func validateRelatedDeletions(in record: SyncRecord) throws {
-        if let yarnID = record.payload.deletedRelatedEntityIDs.first(where: { $0.kind == .yarn }) {
-            throw SyncRecordValidationError.illegalRelatedDeletion(record.id, yarnID)
+        guard let cascade = record.payload.deletionCascade else { return }
+        let allowedKinds = Self.allowedRelatedDeletionKinds[record.id.kind] ?? []
+        var seen: Set<SyncEntityID> = []
+        for targetID in cascade.value {
+            guard seen.insert(targetID).inserted else {
+                throw SyncRecordValidationError.duplicateRelatedDeletion(record.id, targetID)
+            }
+            guard allowedKinds.contains(targetID.kind), targetID != record.id else {
+                throw SyncRecordValidationError.illegalRelatedDeletion(record.id, targetID)
+            }
         }
+        guard cascade.stamp == record.deletedAt.stamp else {
+            throw SyncRecordValidationError.deletionCascadeStampMismatch(record.id)
+        }
+        if record.deletedAt.value == nil, !cascade.value.isEmpty {
+            throw SyncRecordValidationError.liveRecordHasDeletionCascade(record.id)
+        }
+    }
+
+    private func validateAtomicDomain(in record: SyncRecord) throws {
+        switch (record.id.kind, record.payload.atomicDomain?.value) {
+        case let (.projectCounter, .projectCounter(counter)):
+            guard counter.id == record.id.uuid,
+                  counter.mutationRevision == record.entityRevision,
+                  record.payload.atomicDomain?.stamp.logicalRevision == counter.mutationRevision else {
+                throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+            }
+        case let (.knittingReminder, .knittingReminder(reminder)):
+            guard reminder.id == record.id.uuid,
+                  reminder.mutationRevision == record.entityRevision,
+                  record.payload.atomicDomain?.stamp.logicalRevision == reminder.mutationRevision,
+                  record.relationships.contains(where: {
+                      $0.role == "counter"
+                          && $0.target == SyncEntityID(
+                              kind: .projectCounter,
+                              uuid: reminder.counterID
+                          )
+                  }) else {
+                throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+            }
+        case (.projectCounter, nil), (.knittingReminder, nil):
+            throw SyncRecordValidationError.missingAtomicDomain(record.id)
+        case (.projectCounter, _), (.knittingReminder, _):
+            throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+        case (_, nil):
+            break
+        case (_, _):
+            throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+        }
+    }
+
+    private func validateAttachment(in record: SyncRecord) throws {
+        guard record.id.kind == .attachment else {
+            guard record.payload.attachment == nil else {
+                throw SyncRecordValidationError.invalidAttachment(record.id)
+            }
+            return
+        }
+        guard let attachment = try? record.payload.attachment?.validated(),
+              record.id.uuid == attachment.versionID,
+              record.relationships.contains(where: {
+                  $0.role == "owner" && $0.target == attachment.slot.owner
+              }) else {
+            throw SyncRecordValidationError.invalidAttachment(record.id)
+        }
+    }
+
+    private func isOwned(
+        _ targetID: SyncEntityID,
+        by ownerID: SyncEntityID,
+        records: [SyncEntityID: SyncRecord]
+    ) -> Bool {
+        var pending = [targetID]
+        var visited: Set<SyncEntityID> = []
+        while let candidate = pending.popLast() {
+            if candidate == ownerID { return true }
+            guard visited.insert(candidate).inserted,
+                  let record = records[candidate] else { continue }
+            pending.append(contentsOf: record.relationships.compactMap { relationship in
+                switch relationship.role {
+                case "project", "owner", "pattern", "yarn": relationship.target
+                default: nil
+                }
+            })
+        }
+        return false
     }
 
     private struct RelationshipRule: Sendable {
@@ -99,6 +214,13 @@ public struct SyncRecordValidator: Sendable {
             isSingular: true
         )
 
+        static let counter = Self(
+            role: "counter",
+            allowedTargetKinds: [.projectCounter],
+            required: true,
+            isSingular: true
+        )
+
         static let owner = Self(
             role: "owner",
             allowedTargetKinds: [.project, .yarn, .journalEntry, .pattern, .patternUsage],
@@ -110,10 +232,21 @@ public struct SyncRecordValidator: Sendable {
     private static let relationshipRules: [SyncEntityKind: [RelationshipRule]] = [
         .projectCounter: [RelationshipRule.projectParent],
         .rowNote: [RelationshipRule.projectParent],
-        .knittingReminder: [RelationshipRule.projectParent],
+        .knittingReminder: [RelationshipRule.projectParent, RelationshipRule.counter],
         .journalEntry: [RelationshipRule.projectParent],
         .projectYarnLink: [RelationshipRule.projectParent, RelationshipRule.yarn],
         .patternUsage: [RelationshipRule.projectParent, RelationshipRule.pattern],
         .attachment: [RelationshipRule.owner]
+    ]
+
+    private static let allowedRelatedDeletionKinds: [SyncEntityKind: Set<SyncEntityKind>] = [
+        .project: [
+            .projectCounter, .rowNote, .knittingReminder, .journalEntry,
+            .projectYarnLink, .patternUsage, .attachment
+        ],
+        .journalEntry: [.attachment],
+        .yarn: [.attachment],
+        .pattern: [.attachment],
+        .patternUsage: [.attachment]
     ]
 }

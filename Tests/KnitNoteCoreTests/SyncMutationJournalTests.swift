@@ -55,7 +55,7 @@ import Testing
 
     @Test func unsupportedEnvelopeVersionIsCorruptAndPreserved() throws {
         let fixture = try SyncMutationJournalFixture()
-        let unsupportedBytes = Data(#"{"version":2,"mutations":[]}"#.utf8)
+        let unsupportedBytes = Data(#"{"version":3,"mutations":[]}"#.utf8)
         try unsupportedBytes.write(to: fixture.url)
 
         #expect(throws: SyncMutationJournalError.corrupt) {
@@ -174,5 +174,48 @@ private final class SyncMutationJournalFixture {
 
     deinit {
         try? FileManager.default.removeItem(at: directory)
+    }
+}
+
+extension SyncMutation {
+    static func save(_ recordID: SyncEntityID, mutationID: UUID) -> SyncMutation {
+        let stamp = SyncMutationStamp(
+            logicalRevision: 1,
+            modifiedAt: Date(timeIntervalSince1970: 1),
+            deviceID: "legacy-test-fixture"
+        )
+        let payload: SyncRecordPayload
+        let relationships: [SyncRelationship]
+        if recordID.kind == .projectCounter {
+            let counter = ProjectCounter(
+                id: recordID.uuid,
+                defaultOrdinal: 1,
+                mutationRevision: 1
+            )
+            payload = SyncRecordPayload(
+                fields: [:],
+                atomicDomain: .init(value: .projectCounter(counter), stamp: stamp)
+            )
+            relationships = [.init(
+                role: "project",
+                target: .init(kind: .project, uuid: UUID())
+            )]
+        } else {
+            payload = SyncRecordPayload(fields: [:])
+            relationships = []
+        }
+        let record = SyncRecord(
+            schemaVersion: 1,
+            id: recordID,
+            createdAt: Date(timeIntervalSince1970: 0),
+            entityRevision: 1,
+            payload: payload,
+            relationships: relationships,
+            deletedAt: .init(value: nil, stamp: stamp)
+        )
+        return try! .save(
+            recordVersion: SyncRecordVersion(record: record),
+            mutationID: mutationID
+        )
     }
 }

@@ -4,16 +4,23 @@ import Foundation
 
 public protocol SyncMutationSink: Sendable {
     func publish(_ mutation: SyncMutation) throws
+    func publish(_ mutations: [SyncMutation]) throws
 }
 
-public protocol SyncRecordProvider: Sendable {
-    func record(for id: SyncEntityID) throws -> SyncRecord?
+public extension SyncMutationSink {
+    func publish(_ mutations: [SyncMutation]) throws {
+        for mutation in mutations {
+            try publish(mutation)
+        }
+    }
 }
 
 public struct DisabledSyncMutationSink: SyncMutationSink {
     public init() {}
 
     public func publish(_ mutation: SyncMutation) throws {}
+
+    public func publish(_ mutations: [SyncMutation]) throws {}
 }
 
 public struct JournalSyncMutationSink: SyncMutationSink {
@@ -25,6 +32,10 @@ public struct JournalSyncMutationSink: SyncMutationSink {
 
     public func publish(_ mutation: SyncMutation) throws {
         try journal.enqueue(mutation)
+    }
+
+    public func publish(_ mutations: [SyncMutation]) throws {
+        try journal.enqueue(mutations)
     }
 }
 
@@ -123,15 +134,6 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             throw SyncPublicationTransactionFileError.corrupt
         }
         return self
-    }
-
-    func replacingMutations(_ mutations: [SyncMutation]) throws -> Self {
-        try Self(
-            expectedArchiveSHA256: expectedArchiveSHA256,
-            mutations: mutations,
-            commitBoundary: commitBoundary,
-            artifactEvidence: artifactEvidence
-        )
     }
 
     private static func integrity(

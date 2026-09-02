@@ -2,6 +2,23 @@ import Foundation
 import Testing
 
 @Suite struct Task8XcodeProjectMembershipTests {
+    @Test func cloudSyncCoreBelongsToBothAppAndWatchTargets() throws {
+        let project = try PBXProjectMembership(
+            contents: readRepositoryFile("KnitNote.xcodeproj/project.pbxproj")
+        )
+        let required = Set([
+            "SyncIdentity.swift",
+            "SyncMergeEngine.swift",
+            "SyncMutationJournal.swift",
+            "SyncMutationPublishing.swift",
+            "SyncRecord.swift",
+            "SyncRecordValidation.swift",
+        ])
+
+        #expect(required.isSubset(of: Set(try project.sourceFilenames(targetName: "KnitNote"))))
+        #expect(required.isSubset(of: Set(try project.sourceFilenames(targetName: "KnitNoteWatch"))))
+    }
+
     @Test func task8SourcesBelongToTheAppTargetAndNeverTheWatchTarget() throws {
         let project = try PBXProjectMembership(
             contents: readRepositoryFile("KnitNote.xcodeproj/project.pbxproj")

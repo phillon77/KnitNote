@@ -3,6 +3,14 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncRecordValidationTests {
+    @Test func duplicateRecordIDsAreRejectedInsteadOfTrappingBatchValidation() {
+        let record = SyncRecord.fixture()
+
+        #expect(throws: SyncRecordValidationError.duplicateRecord(record.id)) {
+            try SyncRecordValidator().validate([record, record])
+        }
+    }
+
     @Test func yarnLinkRequiresProjectAndYarnWithoutDeletingYarn() throws {
         let link = SyncRecord.fixture(kind: .projectYarnLink, relationships: [
             .init(role: "project", target: .init(kind: .project, uuid: UUID())),

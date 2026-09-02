@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import KnitNoteCore
@@ -110,10 +111,20 @@ import Testing
 
     @Test func concurrentAttachmentVersionsAreBothRetainedAndSurfaced() throws {
         let owner = SyncEntityID(kind: .project, uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!)
-        let firstID = SyncEntityID(kind: .attachment, uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!)
-        let secondID = SyncEntityID(kind: .attachment, uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!)
-        let first = SyncRecord.attachment(id: firstID, owner: owner, role: "projectPhoto")
-        let second = SyncRecord.attachment(id: secondID, owner: owner, role: "projectPhoto")
+        let first = try SyncRecord.attachment(
+            owner: owner,
+            role: "projectPhoto",
+            slotID: "primary",
+            bytes: Data("first".utf8)
+        )
+        let second = try SyncRecord.attachment(
+            owner: owner,
+            role: "projectPhoto",
+            slotID: "primary",
+            bytes: Data("second".utf8)
+        )
+        let firstID = first.id
+        let secondID = second.id
 
         let result = try SyncMergeEngine().merge(local: [second], remote: [first], pendingLocal: [secondID])
 
@@ -189,15 +200,27 @@ private extension SyncRecord {
         )
     }
 
-    static func attachment(id: SyncEntityID, owner: SyncEntityID, role: String) -> SyncRecord {
-        SyncRecord(
+    static func attachment(
+        owner: SyncEntityID,
+        role: String,
+        slotID: String,
+        bytes: Data
+    ) throws -> SyncRecord {
+        let attachment = try SyncAttachmentVersion(
+            slot: .init(owner: owner, role: role, slotID: slotID),
+            contentSHA256: Data(SHA256.hash(data: bytes)),
+            byteCount: Int64(bytes.count),
+            mediaType: "image/jpeg",
+            displayFilename: "photo.jpg"
+        )
+        return SyncRecord(
             schemaVersion: 1,
-            id: id,
+            id: .init(kind: .attachment, uuid: attachment.versionID),
             createdAt: Date(timeIntervalSince1970: 0),
             entityRevision: 1,
             payload: .init(fields: [
                 "role": .init(value: .string(role), stamp: .test(revision: 1))
-            ]),
+            ], attachment: attachment),
             relationships: [.init(role: "owner", target: owner)],
             deletedAt: .init(value: nil, stamp: .test(revision: 1))
         )

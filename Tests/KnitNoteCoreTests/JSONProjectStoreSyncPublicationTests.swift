@@ -200,6 +200,91 @@ import UniformTypeIdentifiers
         #expect(attachmentDeletes.first?.recordID == firstAttachment.recordID)
     }
 
+    @Test func realJournalRetainsSaveReplaceDeleteVersionsAcrossStoreAndJournalRestarts() throws {
+        let fixture = try SyncPublicationFixture()
+        let journalURL = fixture.root.appendingPathComponent("sync-mutations.json")
+        let firstBytes = try makeSyncPublicationJPEG(red: 0.15)
+        let secondBytes = try makeSyncPublicationJPEG(red: 0.85)
+
+        let firstJournal = FileSyncMutationJournal(url: journalURL)
+        let firstStore = fixture.store(sink: JournalSyncMutationSink(journal: firstJournal))
+        let original = try #require(firstStore.project(id: fixture.projectID))
+        try firstStore.updateProject(
+            id: original.id,
+            name: original.name,
+            toolType: original.toolType,
+            toolSize: original.toolSize,
+            toolNotes: original.toolNotes,
+            photoChange: .replace(firstBytes)
+        )
+        let firstSave = try #require(try firstJournal.pending().first(where: {
+            $0.attachmentSource != nil
+                && $0.savedRecordVersion?.record.payload.attachment?.slot.role == "project-photo"
+        }))
+        let firstSource = try #require(firstSave.attachmentSource)
+        let firstCommittedProject = try #require(firstStore.project(id: fixture.projectID))
+        let firstCommittedURL = try #require(firstStore.photoURL(for: firstCommittedProject))
+        let firstCommittedBytes = try Data(contentsOf: firstCommittedURL)
+        #expect(firstSource.isJournalStaged)
+        #expect(try Data(contentsOf: firstSource.fileURL) == firstCommittedBytes)
+
+        let secondJournal = FileSyncMutationJournal(url: journalURL)
+        let secondStore = fixture.store(sink: JournalSyncMutationSink(journal: secondJournal))
+        let withFirstPhoto = try #require(secondStore.project(id: fixture.projectID))
+        try secondStore.updateProject(
+            id: withFirstPhoto.id,
+            name: withFirstPhoto.name,
+            toolType: withFirstPhoto.toolType,
+            toolSize: withFirstPhoto.toolSize,
+            toolNotes: withFirstPhoto.toolNotes,
+            photoChange: .replace(secondBytes)
+        )
+        let photoSaves = try secondJournal.pending().filter {
+            $0.savedRecordVersion?.record.payload.attachment?.slot.role == "project-photo"
+        }
+        #expect(photoSaves.count == 2)
+        let replacement = try #require(photoSaves.last)
+        #expect(replacement.recordID != firstSave.recordID)
+        #expect(
+            replacement.savedRecordVersion?.record.payload.attachment?.replacesVersionID
+                == firstSave.recordID.uuid
+        )
+        let secondCommittedProject = try #require(secondStore.project(id: fixture.projectID))
+        let secondCommittedURL = try #require(secondStore.photoURL(for: secondCommittedProject))
+        let secondCommittedBytes = try Data(contentsOf: secondCommittedURL)
+        let replacementSource = try #require(replacement.attachmentSource)
+        #expect(try Data(contentsOf: firstSource.fileURL) == firstCommittedBytes)
+        #expect(try Data(contentsOf: replacementSource.fileURL) == secondCommittedBytes)
+
+        let thirdJournal = FileSyncMutationJournal(url: journalURL)
+        let thirdStore = fixture.store(sink: JournalSyncMutationSink(journal: thirdJournal))
+        let withReplacement = try #require(thirdStore.project(id: fixture.projectID))
+        try thirdStore.updateProject(
+            id: withReplacement.id,
+            name: withReplacement.name,
+            toolType: withReplacement.toolType,
+            toolSize: withReplacement.toolSize,
+            toolNotes: withReplacement.toolNotes,
+            photoChange: .remove
+        )
+
+        let restartedJournal = FileSyncMutationJournal(url: journalURL)
+        let restartedPending = try restartedJournal.pending()
+        #expect(restartedPending.contains(firstSave))
+        #expect(restartedPending.contains(replacement))
+        #expect(restartedPending.contains {
+            $0.intent == .delete && $0.recordID == replacement.recordID
+        })
+        #expect(!restartedPending.contains {
+            $0.intent == .delete && $0.recordID == firstSave.recordID
+        })
+        #expect(try Data(contentsOf: firstSource.fileURL) == firstCommittedBytes)
+
+        try restartedJournal.acknowledge([firstSave.identity])
+        #expect(!FileManager.default.fileExists(atPath: firstSource.fileURL.path))
+        #expect(try restartedJournal.pending().contains(replacement))
+    }
+
     @Test func yarnPhotoAndLabelsPublishStableAttachmentSavesAndDeletes() throws {
         let fixture = try SyncPublicationFixture()
         let firstSink = RecordingSyncMutationSink()
@@ -701,7 +786,7 @@ import UniformTypeIdentifiers
         }
     }
 
-    @Test func partialPublicationPersistsOnlyUnpublishedSuffixForRepair() throws {
+    @Test func partialPublicationRetainsWholeIdempotentBatchForLinearRepair() throws {
         let fixture = try SyncPublicationFixture()
         let partialSink = RecordingSyncMutationSink(failureAtAttempt: 2)
         let first = fixture.store(sink: partialSink)
@@ -722,7 +807,7 @@ import UniformTypeIdentifiers
             archiveURL: fixture.archiveURL
         ).load()
         let pending = try #require(loadedTransaction).mutations
-        #expect(pending == Array(partialSink.mutations.dropFirst()))
+        #expect(pending == partialSink.mutations)
 
         let repairSink = RecordingSyncMutationSink()
         let restarted = fixture.store(sink: repairSink)
@@ -730,6 +815,90 @@ import UniformTypeIdentifiers
 
         #expect(repairSink.mutations == pending)
         #expect(restarted.syncPublicationError == nil)
+    }
+
+    @Test func writeThenThrowKeepsReceiptMarkerAndDoesNotPublish() throws {
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink()
+        let store = fixture.store(
+            sink: sink,
+            archiveWrite: { data, url in
+                try data.write(to: url, options: .atomic)
+                throw SyncPublicationInjectedFailure()
+            }
+        )
+
+        try store.rename(id: fixture.projectID, to: "Durable but uncertain")
+
+        #expect(store.project(id: fixture.projectID)?.name == "Durable but uncertain")
+        #expect(store.syncPublicationError == .pendingRepair)
+        #expect(sink.mutations.isEmpty)
+        let loaded = try SyncPublicationTransactionFile(
+            archiveURL: fixture.archiveURL
+        ).load()
+        let pending = try #require(loaded).mutations
+        #expect(!pending.isEmpty)
+
+        let repairSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: repairSink)
+        #expect(restarted.syncPublicationError == .pendingRepair)
+        try restarted.repairSyncPublication()
+        #expect(repairSink.mutations == pending)
+        #expect(restarted.syncPublicationError == nil)
+    }
+
+    @Test func liveFactoryInjectsOneAtomicBatchWhileDefaultScreenshotStyleStoreIsDisabled() throws {
+        let enabledFixture = try SyncPublicationFixture()
+        let batchSink = BatchRecordingSyncMutationSink()
+        let enabled = JSONProjectStore.live(
+            baseDirectory: enabledFixture.root,
+            syncMutationSink: batchSink
+        )
+
+        try enabled.rename(id: enabledFixture.projectID, to: "Enabled")
+
+        #expect(batchSink.batchCount == 1)
+        #expect(batchSink.mutations.contains { $0.recordKind == .project })
+
+        let disabledFixture = try SyncPublicationFixture()
+        let disabled = JSONProjectStore.live(baseDirectory: disabledFixture.root)
+        try disabled.rename(id: disabledFixture.projectID, to: "Screenshot")
+        #expect(try SyncPublicationTransactionFile(
+            archiveURL: disabledFixture.archiveURL
+        ).load() == nil)
+    }
+
+    @Test func largeDeletionUsesCachedProjectionAndOneBoundedBatch() throws {
+        let fixture = try SyncPublicationFixture()
+        let current = try fixture.archive()
+        let yarns = try (0..<1_500).map { index in
+            try StoredYarn(
+                id: syncPerformanceUUID(index),
+                name: "Performance yarn \(index)"
+            )
+        }
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: current.projects,
+            yarns: yarns
+        )).write(to: fixture.archiveURL, options: .atomic)
+        let sink = BatchRecordingSyncMutationSink()
+        let store = fixture.store(sink: sink)
+        let clock = ContinuousClock()
+
+        let firstStart = clock.now
+        try store.deleteYarn(id: yarns[0].id)
+        let firstDuration = firstStart.duration(to: clock.now)
+        let secondStart = clock.now
+        try store.deleteYarn(id: yarns[1].id)
+        let secondDuration = secondStart.duration(to: clock.now)
+
+        #expect(firstDuration < .seconds(3))
+        #expect(secondDuration < .seconds(3))
+        #expect(sink.batchCount == 2)
+        #expect(sink.mutations.filter {
+            $0.intent == .delete && $0.recordKind == .yarn
+        }.count == 2)
     }
 
     @Test func journalSinkSynchronouslyEnqueuesExactMutation() throws {
@@ -750,6 +919,13 @@ import UniformTypeIdentifiers
 }
 
 private struct SyncPublicationInjectedFailure: Error {}
+
+private func syncPerformanceUUID(_ value: Int) -> UUID {
+    UUID(uuidString: String(
+        format: "00000000-0000-0000-0000-%012x",
+        value + 1
+    ))!
+}
 
 private final class RecordingSyncMutationSink: SyncMutationSink, @unchecked Sendable {
     private let lock = NSLock()
@@ -798,6 +974,26 @@ private final class RecordingSyncMutationSink: SyncMutationSink, @unchecked Send
     }
 }
 
+private final class BatchRecordingSyncMutationSink: SyncMutationSink, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [SyncMutation] = []
+    private var batches = 0
+
+    func publish(_ mutation: SyncMutation) throws {
+        lock.withLock { recorded.append(mutation) }
+    }
+
+    func publish(_ mutations: [SyncMutation]) throws {
+        lock.withLock {
+            batches += 1
+            recorded.append(contentsOf: mutations)
+        }
+    }
+
+    var mutations: [SyncMutation] { lock.withLock { recorded } }
+    var batchCount: Int { lock.withLock { batches } }
+}
+
 private extension SyncMutation {
     enum TestOperation: Equatable {
         case save
@@ -805,10 +1001,7 @@ private extension SyncMutation {
     }
 
     var recordKind: SyncEntityKind {
-        switch self {
-        case let .save(id, _), let .delete(id, _):
-            id.kind
-        }
+        recordID.kind
     }
 
     var operation: TestOperation {
@@ -818,11 +1011,6 @@ private extension SyncMutation {
         }
     }
 
-    var recordID: SyncEntityID {
-        switch self {
-        case let .save(id, _), let .delete(id, _): id
-        }
-    }
 }
 
 private extension Array where Element == SyncMutation {

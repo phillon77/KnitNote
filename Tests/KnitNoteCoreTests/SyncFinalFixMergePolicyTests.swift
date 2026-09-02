@@ -200,7 +200,17 @@ import Testing
             expectedCounterValue: 9
         )
         var ledger = ProcessedWatchCommandLedger()
-        ledger.record(command.id, at: Date(timeIntervalSince1970: 2))
+        ledger.record(
+            command.id,
+            preparedCommand: prepared,
+            effectProof: .init(counter: ProjectCounter(
+                id: counterID,
+                defaultOrdinal: 1,
+                value: 10,
+                mutationRevision: 5
+            )),
+            at: Date(timeIntervalSince1970: 2)
+        )
         let stale = atomicCounterRecord(
             ProjectCounter(
                 id: counterID,

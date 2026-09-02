@@ -18,6 +18,10 @@ public struct SyncMergeResult: Equatable, Sendable {
     public let records: [SyncRecord]
     public let conflicts: [SyncConflict]
     public let recordsToUpload: Set<SyncEntityID>
+    /// Decode-only standalone reminder records consumed by migration. The
+    /// transport must delete these IDs so replay cannot restore a second live
+    /// synchronization authority.
+    public let legacyRecordIDsToDelete: Set<SyncEntityID>
     /// Exact pending operations, including immutable save payloads and delete
     /// intent. This prevents a later current-state lookup from changing what a
     /// previously committed mutation uploads.
@@ -27,11 +31,13 @@ public struct SyncMergeResult: Equatable, Sendable {
         records: [SyncRecord],
         conflicts: [SyncConflict],
         recordsToUpload: Set<SyncEntityID>,
+        legacyRecordIDsToDelete: Set<SyncEntityID> = [],
         mutationsToUpload: [SyncMutation] = []
     ) {
         self.records = records
         self.conflicts = conflicts
         self.recordsToUpload = recordsToUpload
+        self.legacyRecordIDsToDelete = legacyRecordIDsToDelete
         self.mutationsToUpload = mutationsToUpload
     }
 }
@@ -115,6 +121,9 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         guard prepared.command.operation == .stopReminder,
               let entry = processedLedger.entry(for: prepared.command.id),
               entry.rejection == nil,
+              entry.preparedCommand == prepared,
+              let effectProof = entry.effectProof,
+              processedEffectProof(effectProof, reflects: prepared),
               prepared.command.counterID == state.counter.id,
               let expectedReminderID = prepared.expectedReminderID,
               let expectedRevision = prepared.expectedReminderRevision,
@@ -129,9 +138,8 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         }
         let processedIDs = state.processedCommandIDs.union([prepared.command.id])
         if reminder.state == .stopped {
-            guard let effectProof = entry.effectProof,
-                  entry.preparedCommand == prepared,
-                  processedEffectProof(effectProof, reflects: prepared) else {
+            guard commandIsReflected(prepared, in: state),
+                  effectProof.reminder == reminder else {
                 throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
             }
             return .noOp(replacing(
@@ -151,6 +159,10 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         do {
             stopped = try reminder.applying(.stop(observedRevision: expectedRevision))
         } catch {
+            throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
+        }
+        guard effectProof.counter == state.counter,
+              effectProof.reminder == stopped else {
             throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
         }
         return .persisted(replacing(
@@ -282,15 +294,46 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         guard let entry = context.processedLedger.entry(for: commandID) else {
             return false
         }
-        if entry.rejection != nil { return true }
-        guard let prepared = entry.preparedCommand
-            ?? context.preparedCommands.first(where: { $0.command.id == commandID }),
+        guard let prepared = entry.preparedCommand,
             prepared.command.id == commandID,
+            prepared.command.counterID == state.counter.id,
             preparedCommandTargetsMatch(prepared) else { return false }
-        if let proof = entry.effectProof {
-            if processedEffectProof(proof, reflects: prepared) { return true }
+        if let transient = context.preparedCommands.first(where: {
+            $0.command.id == commandID
+        }), transient != prepared {
+            return false
         }
-        return commandIsReflected(prepared, in: state)
+        if entry.rejection != nil {
+            return entry.effectProof == nil
+        }
+        guard let proof = entry.effectProof else { return false }
+        return processedEffectProof(proof, reflects: prepared)
+            && stateHasNotRegressedBelowProof(state, proof: proof)
+    }
+
+    private func stateHasNotRegressedBelowProof(
+        _ state: SyncCounterReminderState,
+        proof: ProcessedWatchCommandEffectProof
+    ) -> Bool {
+        guard state.counter.id == proof.counter.id,
+              state.counter.mutationRevision >= proof.counter.mutationRevision else {
+            return false
+        }
+        if state.counter.mutationRevision == proof.counter.mutationRevision,
+           state.counter.value != proof.counter.value {
+            return false
+        }
+        guard let proofReminder = proof.reminder,
+              let reminder = state.reminders.first(where: {
+                  $0.id == proofReminder.id
+              }) else {
+            return true
+        }
+        guard reminder.mutationRevision >= proofReminder.mutationRevision else {
+            return false
+        }
+        return reminder.mutationRevision != proofReminder.mutationRevision
+            || reminder == proofReminder
     }
 
     private func processedEffectProof(
@@ -362,11 +405,13 @@ public struct SyncMergeEngine: Sendable {
         pendingLocalMutations: [SyncMutation],
         counterReminderContext: SyncCounterReminderMergeContext = .init()
     ) throws -> SyncMergeResult {
-        let pendingSaveRecords = pendingLocalMutations.compactMap {
-            $0.savedRecordVersion?.record
+        let pendingCanonicalSaveRecords: [SyncRecord] = pendingLocalMutations.compactMap {
+            guard let record = $0.savedRecordVersion?.record,
+                  record.id.kind != .knittingReminder else { return nil }
+            return record
         }
         return try mergeRecords(
-            local: Array(local) + pendingSaveRecords,
+            local: Array(local) + pendingCanonicalSaveRecords,
             remote: Array(remote),
             pendingLocal: Set(pendingLocalMutations.map(\.recordID)),
             pendingMutations: pendingLocalMutations,
@@ -400,8 +445,7 @@ public struct SyncMergeEngine: Sendable {
             if let resolutions = legacyPlan.resolutionsByCounter[id] {
                 merged = try applyingLegacyReminderResolutions(
                     resolutions,
-                    to: merged,
-                    pendingDeleteIDs: legacyPlan.pendingDeleteReminderIDs
+                    to: merged
                 )
             }
             let validated = try validator.validate(merged)
@@ -418,53 +462,27 @@ public struct SyncMergeEngine: Sendable {
             }
         }
 
-        mergedRecords = try validator.validate(mergedRecords)
+        let conflicts = atomicConflicts
+            + attachmentConflicts(in: mergedRecords)
+            + possibleDuplicateConflicts(in: mergedRecords)
+        let converted = try convertingLegacyReminderMutations(
+            pendingMutations,
+            records: mergedRecords,
+            plan: legacyPlan
+        )
+        mergedRecords = try validator.validate(converted.records)
+        recordsToUpload.formUnion(legacyPlan.pendingCounterIDs)
         try validateCounterReminderContext(
             records: mergedRecords,
             context: counterReminderContext
         )
 
-        let conflicts = atomicConflicts
-            + attachmentConflicts(in: mergedRecords)
-            + possibleDuplicateConflicts(in: mergedRecords)
-
-        let convertedPendingMutations = try pendingMutations.map { mutation in
-            guard mutation.recordID.kind == .knittingReminder else { return mutation }
-            guard let counterID = legacyPlan.counterByReminderID[mutation.recordID.uuid],
-                  let counterRecord = mergedRecords.first(where: { $0.id == counterID }) else {
-                throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
-            }
-            let exactCounterRecord: SyncRecord
-            switch mutation {
-            case let .save(save):
-                guard case let .knittingReminder(reminder)? =
-                    save.recordVersion.record.payload.atomicDomain?.value else {
-                    throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
-                }
-                exactCounterRecord = try replacingLegacyReminder(
-                    reminder,
-                    isDeleted: save.recordVersion.record.deletedAt.value != nil,
-                    in: counterRecord
-                )
-            case .delete:
-                exactCounterRecord = try replacingLegacyReminder(
-                    nil,
-                    reminderID: mutation.recordID.uuid,
-                    isDeleted: true,
-                    in: counterRecord
-                )
-            }
-            return try SyncMutation.save(
-                recordVersion: SyncRecordVersion(record: exactCounterRecord),
-                mutationID: mutation.mutationID
-            )
-        }
-
         return SyncMergeResult(
             records: mergedRecords,
             conflicts: conflicts.sorted(by: Self.conflictLess),
             recordsToUpload: recordsToUpload,
-            mutationsToUpload: convertedPendingMutations
+            legacyRecordIDsToDelete: legacyPlan.consumedLegacyRecordIDs,
+            mutationsToUpload: converted.mutations
         )
     }
 
@@ -502,7 +520,6 @@ public struct SyncMergeEngine: Sendable {
         }
 
         var counterByReminderID: [UUID: SyncEntityID] = [:]
-        var aggregateReminderByID: [UUID: (KnittingReminder, SyncMutationStamp)] = [:]
         for record in counterRecords {
             guard let state = record.payload.atomicDomain?.value.projectCounterState else {
                 continue
@@ -515,9 +532,6 @@ public struct SyncMergeEngine: Sendable {
                     )
                 }
                 counterByReminderID[reminder.id] = counterID
-                if let stamp = record.payload.atomicDomain?.stamp {
-                    aggregateReminderByID[reminder.id] = (reminder, stamp)
-                }
             }
         }
 
@@ -548,63 +562,90 @@ public struct SyncMergeEngine: Sendable {
             ))
         }
 
-        var pendingIntentByReminderID: [UUID: SyncMutationIntent] = [:]
+        var pendingCounterIDs: Set<SyncEntityID> = []
         for mutation in pendingMutations where mutation.recordID.kind == .knittingReminder {
             let reminderID = mutation.recordID.uuid
+            if case let .save(save) = mutation {
+                let validated = try save.validatedForJournalLoad()
+                guard case let .knittingReminder(reminder)? =
+                        validated.recordVersion.record.payload.atomicDomain?.value,
+                      reminder.id == reminderID else {
+                    throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
+                }
+                let counterID = SyncEntityID(
+                    kind: .projectCounter,
+                    uuid: reminder.counterID
+                )
+                guard counterRecords.contains(where: { $0.id == counterID }) else {
+                    throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
+                }
+                if let existing = counterByReminderID[reminderID], existing != counterID {
+                    throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
+                }
+                counterByReminderID[reminderID] = counterID
+            }
             guard let counterID = counterByReminderID[reminderID] else {
                 throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
             }
-            pendingIntentByReminderID[reminderID] = mutation.intent
-            if mutation.intent == .delete {
-                if resolutionsByCounter[counterID]?.contains(where: {
-                    $0.reminder.id == reminderID
-                }) != true, let aggregate = aggregateReminderByID[reminderID] {
-                    resolutionsByCounter[counterID, default: []].append(.init(
-                        reminder: aggregate.0,
-                        stamp: aggregate.1,
-                        isDeleted: false
-                    ))
-                }
-            }
+            pendingCounterIDs.insert(counterID)
         }
-        let pendingDeleteReminderIDs = Set(pendingIntentByReminderID.compactMap {
-            $0.value == .delete ? $0.key : nil
-        })
         return LegacyReminderMigrationPlan(
             resolutionsByCounter: resolutionsByCounter,
             counterByReminderID: counterByReminderID,
-            pendingDeleteReminderIDs: pendingDeleteReminderIDs
+            pendingCounterIDs: pendingCounterIDs,
+            consumedLegacyRecordIDs: Set(records.compactMap {
+                $0.id.kind == .knittingReminder ? $0.id : nil
+            })
         )
     }
 
     private func applyingLegacyReminderResolutions(
         _ resolutions: [LegacyReminderResolution],
-        to record: SyncRecord,
-        pendingDeleteIDs: Set<UUID>
+        to record: SyncRecord
     ) throws -> SyncRecord {
         guard case let .projectCounter(state)? = record.payload.atomicDomain?.value,
               let baseVersion = record.payload.atomicDomain else {
             throw SyncRecordValidationError.illegalAtomicDomain(record.id)
         }
-        var reminders = state.reminders
+        var migratedState = state
         var aggregateStamp = baseVersion.stamp
-        for resolution in resolutions.sorted(by: {
-            $0.reminder.id.uuidString < $1.reminder.id.uuidString
-        }) {
-            reminders.removeAll { $0.id == resolution.reminder.id }
-            if !resolution.isDeleted,
-               !pendingDeleteIDs.contains(resolution.reminder.id) {
-                reminders.append(resolution.reminder)
-            }
-            aggregateStamp = max(aggregateStamp, resolution.stamp)
+        let ordered = resolutions.sorted {
+            if $0.stamp != $1.stamp { return $0.stamp < $1.stamp }
+            return $0.reminder.id.uuidString < $1.reminder.id.uuidString
         }
-        let migratedState = SyncCounterReminderState(
-            counter: state.counter,
-            reminders: reminders,
-            preparedCommand: state.preparedCommand,
-            processedCommandIDs: state.processedCommandIDs,
-            occurrence: reminders.isEmpty ? nil : state.occurrence
-        )
+        var index = ordered.startIndex
+        while index < ordered.endIndex {
+            let groupStamp = ordered[index].stamp
+            var end = ordered.index(after: index)
+            while end < ordered.endIndex, ordered[end].stamp == groupStamp {
+                end = ordered.index(after: end)
+            }
+            let group = ordered[index..<end]
+            index = end
+            guard groupStamp >= aggregateStamp else { continue }
+
+            var reminders = migratedState.reminders
+            for resolution in group {
+                reminders.removeAll { $0.id == resolution.reminder.id }
+                if !resolution.isDeleted { reminders.append(resolution.reminder) }
+            }
+            let candidate = replacingReminderCollection(
+                in: migratedState,
+                with: reminders
+            )
+            if groupStamp == aggregateStamp {
+                guard candidate == migratedState else {
+                    let reminderID = group.first!.reminder.id
+                    throw SyncMergeError.corruptEqualStamp(
+                        entity: .init(kind: .knittingReminder, uuid: reminderID),
+                        field: "counterReminderState"
+                    )
+                }
+                continue
+            }
+            migratedState = candidate
+            aggregateStamp = groupStamp
+        }
         return SyncRecord(
             schemaVersion: record.schemaVersion,
             id: record.id,
@@ -621,35 +662,152 @@ public struct SyncMergeEngine: Sendable {
         )
     }
 
-    private func replacingLegacyReminder(
-        _ reminder: KnittingReminder?,
-        reminderID: UUID? = nil,
-        isDeleted: Bool,
-        in record: SyncRecord
-    ) throws -> SyncRecord {
-        guard case let .projectCounter(state)? = record.payload.atomicDomain?.value,
-              let version = record.payload.atomicDomain,
-              let targetID = reminder?.id ?? reminderID else {
-            throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+    private func convertingLegacyReminderMutations(
+        _ mutations: [SyncMutation],
+        records: [SyncRecord],
+        plan: LegacyReminderMigrationPlan
+    ) throws -> (records: [SyncRecord], mutations: [SyncMutation]) {
+        var rollingRecords = records
+        let indexByID = Dictionary(uniqueKeysWithValues: records.indices.map {
+            (records[$0].id, $0)
+        })
+        var converted: [SyncMutation] = []
+        converted.reserveCapacity(mutations.count)
+
+        for mutation in mutations {
+            guard mutation.recordID.kind == .knittingReminder else {
+                converted.append(mutation)
+                continue
+            }
+            guard let counterID = plan.counterByReminderID[mutation.recordID.uuid],
+                  let recordIndex = indexByID[counterID] else {
+                throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
+            }
+            let base = rollingRecords[recordIndex]
+            let reminder: KnittingReminder?
+            let isDeleted: Bool
+            let sourceStamp: SyncMutationStamp?
+            switch mutation {
+            case let .save(save):
+                let validated = try save.validatedForJournalLoad()
+                guard case let .knittingReminder(value)? =
+                        validated.recordVersion.record.payload.atomicDomain?.value,
+                      value.id == mutation.recordID.uuid,
+                      value.counterID == counterID.uuid,
+                      let atomicStamp = validated.recordVersion.record.payload.atomicDomain?.stamp
+                else {
+                    throw SyncRecordValidationError.illegalAtomicDomain(mutation.recordID)
+                }
+                reminder = value
+                isDeleted = validated.recordVersion.record.deletedAt.value != nil
+                sourceStamp = max(
+                    atomicStamp,
+                    validated.recordVersion.record.deletedAt.stamp
+                )
+            case .delete:
+                reminder = nil
+                isDeleted = true
+                sourceStamp = nil
+            }
+
+            guard case let .projectCounter(baseState)? = base.payload.atomicDomain?.value,
+                  let baseStamp = base.payload.atomicDomain?.stamp else {
+                throw SyncRecordValidationError.illegalAtomicDomain(counterID)
+            }
+            let nextState = replacingReminder(
+                reminder,
+                reminderID: mutation.recordID.uuid,
+                isDeleted: isDeleted,
+                in: baseState
+            )
+            let nextStamp = try legacyMutationStamp(
+                after: baseStamp,
+                source: sourceStamp,
+                mutationID: mutation.mutationID,
+                changesState: nextState != baseState,
+                counterID: counterID
+            )
+            let exactCounterRecord = replacingCounterReminderState(
+                nextState,
+                stamp: nextStamp,
+                in: base
+            )
+            let validatedCounter = try validator.validate(exactCounterRecord)
+            rollingRecords[recordIndex] = validatedCounter
+            converted.append(try SyncMutation.save(
+                recordVersion: SyncRecordVersion(record: validatedCounter),
+                mutationID: mutation.mutationID
+            ))
         }
-        var reminders = state.reminders.filter { $0.id != targetID }
+        return (rollingRecords, converted)
+    }
+
+    private func legacyMutationStamp(
+        after base: SyncMutationStamp,
+        source: SyncMutationStamp?,
+        mutationID: UUID,
+        changesState: Bool,
+        counterID: SyncEntityID
+    ) throws -> SyncMutationStamp {
+        if !changesState { return max(base, source ?? base) }
+        if let source, source > base { return source }
+        let (revision, overflow) = base.logicalRevision.addingReportingOverflow(1)
+        guard !overflow else {
+            throw SyncMergeError.corruptAtomicDomain(
+                entity: counterID,
+                revision: base.logicalRevision
+            )
+        }
+        return SyncMutationStamp(
+            logicalRevision: revision,
+            modifiedAt: max(base.modifiedAt, source?.modifiedAt ?? base.modifiedAt),
+            deviceID: "legacy-reminder-mutation-\(mutationID.uuidString.lowercased())"
+        )
+    }
+
+    private func replacingReminder(
+        _ reminder: KnittingReminder?,
+        reminderID: UUID,
+        isDeleted: Bool,
+        in state: SyncCounterReminderState
+    ) -> SyncCounterReminderState {
+        var reminders = state.reminders.filter { $0.id != reminderID }
         if !isDeleted, let reminder { reminders.append(reminder) }
-        let exactState = SyncCounterReminderState(
+        return replacingReminderCollection(in: state, with: reminders)
+    }
+
+    private func replacingReminderCollection(
+        in state: SyncCounterReminderState,
+        with reminders: [KnittingReminder]
+    ) -> SyncCounterReminderState {
+        let occurrence = state.occurrence.flatMap { candidate in
+            reminders.contains { $0.progress.nextOccurrenceIndex == candidate }
+                ? candidate
+                : nil
+        }
+        return SyncCounterReminderState(
             counter: state.counter,
             reminders: reminders,
             preparedCommand: state.preparedCommand,
             processedCommandIDs: state.processedCommandIDs,
-            occurrence: reminders.isEmpty ? nil : state.occurrence
+            occurrence: occurrence
         )
-        return SyncRecord(
+    }
+
+    private func replacingCounterReminderState(
+        _ state: SyncCounterReminderState,
+        stamp: SyncMutationStamp,
+        in record: SyncRecord
+    ) -> SyncRecord {
+        SyncRecord(
             schemaVersion: record.schemaVersion,
             id: record.id,
             createdAt: record.createdAt,
-            entityRevision: record.entityRevision,
+            entityRevision: stamp.logicalRevision,
             payload: .init(
                 fields: record.payload.fields,
                 deletionCascade: record.payload.deletionCascade,
-                atomicDomain: .init(value: .projectCounter(exactState), stamp: version.stamp),
+                atomicDomain: .init(value: .projectCounter(state), stamp: stamp),
                 attachment: record.payload.attachment
             ),
             relationships: record.relationships,
@@ -998,7 +1156,8 @@ private struct LegacyReminderResolution {
 private struct LegacyReminderMigrationPlan {
     let resolutionsByCounter: [SyncEntityID: [LegacyReminderResolution]]
     let counterByReminderID: [UUID: SyncEntityID]
-    let pendingDeleteReminderIDs: Set<UUID>
+    let pendingCounterIDs: Set<SyncEntityID>
+    let consumedLegacyRecordIDs: Set<SyncEntityID>
 
     var migratedCounterIDs: Set<SyncEntityID> {
         Set(resolutionsByCounter.keys)

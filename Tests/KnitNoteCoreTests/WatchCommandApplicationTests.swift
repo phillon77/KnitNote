@@ -221,7 +221,20 @@ import Testing
             expectedReminderRevision: triggered.mutationRevision
         )
         var ledger = ProcessedWatchCommandLedger()
-        ledger.record(command.id, at: date(3))
+        ledger.record(
+            command.id,
+            preparedCommand: prepared,
+            effectProof: .init(
+                counter: ProjectCounter(
+                    id: counterID,
+                    defaultOrdinal: 1,
+                    value: 1,
+                    mutationRevision: 4
+                ),
+                reminder: stopped
+            ),
+            at: date(3)
+        )
         let stamp = SyncMutationStamp(
             logicalRevision: 8,
             modifiedAt: date(8),

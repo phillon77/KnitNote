@@ -469,6 +469,310 @@ import Testing
         #expect(result.records[0].counterReminderState?.reminders.map(\.id) == [second.id])
     }
 
+    @Test func legacyPendingSaveBeforeCanonicalCounterSaveKeepsEarlierSnapshot() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 3, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let base = record(
+            state: state(counterID: counterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "base")
+        )
+        let legacyID = UUID()
+        let legacySave = try decodedLegacySaveMutation(
+            reminder: reminder,
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "legacy"),
+            mutationID: legacyID
+        )
+        let laterRecord = record(
+            state: SyncCounterReminderState(
+                counter: ProjectCounter(
+                    id: counterID, defaultOrdinal: 1,
+                    value: 7, mutationRevision: 1
+                ),
+                reminders: [reminder], preparedCommand: nil,
+                processedCommandIDs: [], occurrence: nil
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 2, deviceID: "canonical-later")
+        )
+        let canonicalID = UUID()
+        let canonicalSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: laterRecord),
+            mutationID: canonicalID
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [base], remote: [],
+            pendingLocalMutations: [legacySave, canonicalSave]
+        )
+
+        #expect(result.mutationsToUpload.map(\.mutationID) == [legacyID, canonicalID])
+        let legacySnapshot = try #require(
+            result.mutationsToUpload[0].savedRecordVersion?.record.counterReminderState
+        )
+        #expect(legacySnapshot.counter.value == 0)
+        #expect(legacySnapshot.reminders.map(\.id) == [reminder.id])
+        #expect(result.mutationsToUpload[1] == canonicalSave)
+        let visible = try #require(result.records.first { $0.id == laterRecord.id })
+        #expect(visible.counterReminderState?.counter.value == 7)
+        #expect(visible.counterReminderState?.reminders.map(\.id) == [reminder.id])
+    }
+
+    @Test func canonicalPendingSaveBeforeLegacyUsesStateAtItsJournalPosition() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 4, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let base = record(
+            state: state(counterID: counterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "base")
+        )
+        let firstRecord = record(
+            state: state(counterID: counterID, value: 3, counterRevision: 1),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "canonical-first")
+        )
+        let firstID = UUID()
+        let firstSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: firstRecord),
+            mutationID: firstID
+        )
+        let legacyID = UUID()
+        let legacySave = try decodedLegacySaveMutation(
+            reminder: reminder,
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "legacy"),
+            mutationID: legacyID
+        )
+        let lastRecord = record(
+            state: SyncCounterReminderState(
+                counter: ProjectCounter(
+                    id: counterID, defaultOrdinal: 1,
+                    value: 9, mutationRevision: 2
+                ),
+                reminders: [reminder], preparedCommand: nil,
+                processedCommandIDs: [], occurrence: nil
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 3, deviceID: "canonical-last")
+        )
+        let lastID = UUID()
+        let lastSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: lastRecord),
+            mutationID: lastID
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [base], remote: [],
+            pendingLocalMutations: [firstSave, legacySave, lastSave]
+        )
+
+        #expect(result.mutationsToUpload.map(\.mutationID) == [firstID, legacyID, lastID])
+        #expect(result.mutationsToUpload[0] == firstSave)
+        let legacySnapshot = try #require(
+            result.mutationsToUpload[1].savedRecordVersion?.record.counterReminderState
+        )
+        #expect(legacySnapshot.counter.value == 3)
+        #expect(legacySnapshot.reminders.map(\.id) == [reminder.id])
+        #expect(result.mutationsToUpload[2] == lastSave)
+        let visible = try #require(result.records.first { $0.id == lastRecord.id })
+        #expect(visible.counterReminderState?.counter.value == 9)
+    }
+
+    @Test func interleavedPendingMutationsReplayEachCounterIndependently() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let firstCounterID = UUID()
+        let secondCounterID = UUID()
+        let firstReminder = try #require(KnittingReminder(
+            id: UUID(), counterID: firstCounterID,
+            draft: .oneTime(kind: .cable, target: 2, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let secondReminder = try #require(KnittingReminder(
+            id: UUID(), counterID: secondCounterID,
+            draft: .oneTime(kind: .measure, target: 5, text: nil),
+            createdAt: Date(timeIntervalSince1970: 2)
+        ))
+        let firstBase = record(
+            state: state(counterID: firstCounterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "first-base")
+        )
+        let secondBase = record(
+            state: state(counterID: secondCounterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "second-base")
+        )
+        let firstLegacyID = UUID()
+        let firstLegacySave = try decodedLegacySaveMutation(
+            reminder: firstReminder,
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "first-legacy"),
+            mutationID: firstLegacyID
+        )
+        let secondCanonicalRecord = record(
+            state: state(counterID: secondCounterID, value: 2, counterRevision: 1),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "second-canonical")
+        )
+        let secondCanonicalID = UUID()
+        let secondCanonicalSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: secondCanonicalRecord),
+            mutationID: secondCanonicalID
+        )
+        let firstCanonicalRecord = record(
+            state: SyncCounterReminderState(
+                counter: ProjectCounter(
+                    id: firstCounterID, defaultOrdinal: 1,
+                    value: 1, mutationRevision: 1
+                ),
+                reminders: [firstReminder], preparedCommand: nil,
+                processedCommandIDs: [], occurrence: nil
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 2, deviceID: "first-canonical")
+        )
+        let firstCanonicalID = UUID()
+        let firstCanonicalSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: firstCanonicalRecord),
+            mutationID: firstCanonicalID
+        )
+        let secondLegacyID = UUID()
+        let secondLegacySave = try decodedLegacySaveMutation(
+            reminder: secondReminder,
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "second-legacy"),
+            mutationID: secondLegacyID
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [firstBase, secondBase], remote: [],
+            pendingLocalMutations: [
+                firstLegacySave,
+                secondCanonicalSave,
+                firstCanonicalSave,
+                secondLegacySave,
+            ]
+        )
+
+        #expect(result.mutationsToUpload.map(\.mutationID) == [
+            firstLegacyID,
+            secondCanonicalID,
+            firstCanonicalID,
+            secondLegacyID,
+        ])
+        let firstLegacySnapshot = try #require(
+            result.mutationsToUpload[0].savedRecordVersion?.record.counterReminderState
+        )
+        #expect(firstLegacySnapshot.counter.value == 0)
+        #expect(firstLegacySnapshot.reminders.map(\.id) == [firstReminder.id])
+        #expect(result.mutationsToUpload[1] == secondCanonicalSave)
+        #expect(result.mutationsToUpload[2] == firstCanonicalSave)
+        let secondLegacySnapshot = try #require(
+            result.mutationsToUpload[3].savedRecordVersion?.record.counterReminderState
+        )
+        #expect(secondLegacySnapshot.counter.value == 2)
+        #expect(secondLegacySnapshot.reminders.map(\.id) == [secondReminder.id])
+    }
+
+    @Test func canonicalSaveThenDeleteAdvancesRollingVisibleStateInOrder() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let counterRecordID = SyncEntityID(kind: .projectCounter, uuid: counterID)
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .changeYarn, target: 6, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let base = record(
+            state: state(counterID: counterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "base")
+        )
+        let savedRecord = record(
+            state: state(counterID: counterID, value: 1, counterRevision: 1),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "canonical-save")
+        )
+        let saveID = UUID()
+        let canonicalSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: savedRecord),
+            mutationID: saveID
+        )
+        let legacyID = UUID()
+        let legacySave = try decodedLegacySaveMutation(
+            reminder: reminder,
+            projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "legacy"),
+            mutationID: legacyID
+        )
+        let deleteID = UUID()
+        let canonicalDelete = SyncMutation.delete(
+            counterRecordID,
+            mutationID: deleteID
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [base], remote: [],
+            pendingLocalMutations: [canonicalSave, legacySave, canonicalDelete]
+        )
+
+        #expect(result.mutationsToUpload.map(\.mutationID) == [saveID, legacyID, deleteID])
+        #expect(result.mutationsToUpload.map(\.intent) == [.save, .save, .delete])
+        #expect(result.mutationsToUpload[0] == canonicalSave)
+        let legacySnapshot = try #require(
+            result.mutationsToUpload[1].savedRecordVersion?.record.counterReminderState
+        )
+        #expect(legacySnapshot.counter.value == 1)
+        #expect(legacySnapshot.reminders.map(\.id) == [reminder.id])
+        #expect(result.mutationsToUpload[2] == canonicalDelete)
+        #expect(!result.records.contains { $0.id == counterRecordID })
+    }
+
+    @Test func pendingOnlyCanonicalCounterSavesStillSurfaceAtomicConflict() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let counterRecordID = SyncEntityID(kind: .projectCounter, uuid: counterID)
+        let firstRecord = record(
+            state: state(counterID: counterID, value: 1, counterRevision: 1),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "first")
+        )
+        let secondRecord = record(
+            state: state(counterID: counterID, value: 2, counterRevision: 1),
+            projectID: projectID,
+            stamp: stamp(revision: 2, deviceID: "second")
+        )
+        let firstSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: firstRecord),
+            mutationID: UUID()
+        )
+        let secondSave = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: secondRecord),
+            mutationID: UUID()
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [], remote: [],
+            pendingLocalMutations: [firstSave, secondSave]
+        )
+
+        #expect(result.records.first?.counterReminderState?.counter.value == 2)
+        #expect(result.conflicts == [
+            .counterValues(entity: counterRecordID, revision: 1, values: [1, 2]),
+        ])
+    }
+
     @Test func pendingLegacyDeleteCannotBorrowIdentityFromLaterSave() throws {
         let projectID = SyncEntityID(kind: .project, uuid: UUID())
         let counterID = UUID()

@@ -86,9 +86,74 @@ import Testing
         #expect(try interrupted.pending() == [original])
         #expect(try FileSyncMutationJournal(url: fixture.url).pending() == [original])
     }
+
+    @Test func enqueueReconcilesCommittedBytesAfterParentSyncFailure() throws {
+        let fixture = try SyncMutationJournalFixture()
+        let recordID = SyncEntityID(
+            kind: .project,
+            uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+        )
+        let first = SyncMutation.save(
+            recordID,
+            mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000004")!
+        )
+        let second = SyncMutation.save(
+            recordID,
+            mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000005")!
+        )
+        let journal = FileSyncMutationJournal(
+            url: fixture.url,
+            synchronizeDirectory: { _ in throw SyncMutationJournalParentSyncFailure() }
+        )
+
+        #expect(throws: SyncMutationJournalParentSyncFailure.self) {
+            try journal.enqueue(first)
+        }
+        #expect(try journal.pending() == [first])
+
+        #expect(throws: SyncMutationJournalParentSyncFailure.self) {
+            try journal.enqueue(second)
+        }
+        #expect(try journal.pending() == [first, second])
+        #expect(try FileSyncMutationJournal(url: fixture.url).pending() == [first, second])
+    }
+
+    @Test func acknowledgementReconcilesCommittedBytesAfterParentSyncFailure() throws {
+        let fixture = try SyncMutationJournalFixture()
+        let recordID = SyncEntityID(
+            kind: .yarn,
+            uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
+        )
+        let originalMutationID = UUID(
+            uuidString: "10000000-0000-0000-0000-000000000006"
+        )!
+        let original = SyncMutation.delete(recordID, mutationID: originalMutationID)
+        try FileSyncMutationJournal(url: fixture.url).enqueue(original)
+
+        let journal = FileSyncMutationJournal(
+            url: fixture.url,
+            synchronizeDirectory: { _ in throw SyncMutationJournalParentSyncFailure() }
+        )
+        #expect(try journal.pending() == [original])
+        #expect(throws: SyncMutationJournalParentSyncFailure.self) {
+            try journal.acknowledge(recordID: recordID, mutationID: originalMutationID)
+        }
+        #expect(try journal.pending().isEmpty)
+
+        let replacement = SyncMutation.save(
+            recordID,
+            mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000007")!
+        )
+        #expect(throws: SyncMutationJournalParentSyncFailure.self) {
+            try journal.enqueue(replacement)
+        }
+        #expect(try journal.pending() == [replacement])
+        #expect(try FileSyncMutationJournal(url: fixture.url).pending() == [replacement])
+    }
 }
 
 private struct SyncMutationJournalWriteInterruption: Error {}
+private struct SyncMutationJournalParentSyncFailure: Error {}
 
 private final class SyncMutationJournalFixture {
     let directory: URL

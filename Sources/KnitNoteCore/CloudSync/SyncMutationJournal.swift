@@ -32,6 +32,7 @@ public protocol SyncMutationJournalProtocol: Sendable {
 
 public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchecked Sendable {
     typealias AtomicWrite = @Sendable (Data, URL) throws -> Void
+    typealias SynchronizeDirectory = @Sendable (URL) throws -> Void
 
     private let url: URL
     private let atomicWrite: AtomicWrite
@@ -39,7 +40,23 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     private var loadedMutations: [SyncMutation]?
 
     public convenience init(url: URL) {
-        self.init(url: url, atomicWrite: Self.defaultAtomicWrite)
+        self.init(url: url, synchronizeDirectory: Self.defaultSynchronizeDirectory)
+    }
+
+    convenience init(
+        url: URL,
+        synchronizeDirectory: @escaping SynchronizeDirectory
+    ) {
+        self.init(
+            url: url,
+            atomicWrite: { data, destination in
+                try Self.defaultAtomicWrite(
+                    data,
+                    to: destination,
+                    synchronizeDirectory: synchronizeDirectory
+                )
+            }
+        )
     }
 
     init(url: URL, atomicWrite: @escaping AtomicWrite) {
@@ -78,8 +95,13 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         if let loadedMutations {
             return loadedMutations
         }
+        let mutations = try readLiveMutationsLocked()
+        loadedMutations = mutations
+        return mutations
+    }
+
+    private func readLiveMutationsLocked() throws -> [SyncMutation] {
         guard FileManager.default.fileExists(atPath: url.path) else {
-            loadedMutations = []
             return []
         }
 
@@ -93,7 +115,6 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         guard envelope.version == Envelope.currentVersion else {
             throw SyncMutationJournalError.corrupt
         }
-        loadedMutations = envelope.mutations
         return envelope.mutations
     }
 
@@ -101,7 +122,17 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(Envelope(mutations: mutations))
-        try atomicWrite(data, url)
+        do {
+            try atomicWrite(data, url)
+        } catch {
+            let persistenceError = error
+            do {
+                loadedMutations = try readLiveMutationsLocked()
+            } catch {
+                loadedMutations = nil
+            }
+            throw persistenceError
+        }
     }
 
     private struct Envelope: Codable {
@@ -116,7 +147,11 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
     }
 
-    private static func defaultAtomicWrite(_ data: Data, to destination: URL) throws {
+    private static func defaultAtomicWrite(
+        _ data: Data,
+        to destination: URL,
+        synchronizeDirectory: SynchronizeDirectory
+    ) throws {
         let fileManager = FileManager.default
         let parent = destination.deletingLastPathComponent()
         try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
@@ -188,7 +223,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
     }
 
-    private static func synchronizeDirectory(_ directory: URL) throws {
+    private static func defaultSynchronizeDirectory(_ directory: URL) throws {
         let descriptor = directory.path.withCString {
             Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         }

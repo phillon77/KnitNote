@@ -18,6 +18,49 @@ import Testing
         #expect(try fixture.reopened().pending().isEmpty)
     }
 
+    @Test(.timeLimit(.minutes(3)))
+    func twoThousandSequentialAttachmentAcknowledgementsStayIncrementalAndCompact() throws {
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("sequential-cleanup-source.asset")
+        let bytes = Data("sequential cleanup bytes".utf8)
+        try bytes.write(to: source)
+        let operationCount = 2_000
+        var firstMutation: SyncMutation?
+
+        for index in 0..<operationCount {
+            let mutation = try fixture.attachmentMutation(index: index, bytes: bytes, source: source)
+            if firstMutation == nil { firstMutation = mutation }
+            try fixture.journal.enqueue(mutation)
+            try fixture.journal.acknowledge([mutation.identity])
+        }
+
+        #expect(fixture.counters.appendedFrameCount == operationCount * 3)
+        #expect(fixture.counters.fullCheckpointRewriteCount == 15)
+        #expect(fixture.counters.fullCheckpointRewriteCount < 20)
+        let expectedShardCount = (operationCount + 127) / 128
+        let proofShardCount = try fixture.proofShardURLs().count
+        #expect(proofShardCount == expectedShardCount - 1)
+
+        let restartIO = CleanupFailureController(journalURL: fixture.url)
+        let reopened = fixture.cleanupJournal(restartIO)
+        #expect(try reopened.pending().isEmpty)
+        #expect(restartIO.unlinkAttemptCount == 0)
+        #expect(restartIO.attachmentDirectorySyncCount == 0)
+
+        let original = try #require(firstMutation)
+        let segmentBeforeRetry = try Data(contentsOf: fixture.segmentURL)
+        try reopened.enqueue(original)
+        #expect(try reopened.pending().isEmpty)
+        #expect(try Data(contentsOf: fixture.segmentURL) == segmentBeforeRetry)
+        #expect(throws: SyncMutationJournalError.duplicateMutationID) {
+            try reopened.enqueue(.delete(
+                original.recordID,
+                mutationID: original.mutationID
+            ))
+        }
+        #expect(try Data(contentsOf: fixture.segmentURL) == segmentBeforeRetry)
+    }
+
     @Test func truncatedFinalFramePreservesEarlierPendingMutations() throws {
         let fixture = try SegmentedJournalFixture()
         let first = fixture.mutation(index: 1)
@@ -505,26 +548,24 @@ import Testing
         #expect(finalIO.attachmentDirectorySyncCount == 0)
     }
 
-    @Test func cleanupCheckpointFailureRetriesAbsentFilesThenDurablyStops() throws {
+    @Test func cleanupCompletionFrameFailureRetriesAbsentFilesThenDurablyStops() throws {
         let fixture = try SegmentedJournalFixture()
-        let source = fixture.directory.appendingPathComponent("checkpoint-cleanup-source.asset")
-        let bytes = Data("checkpoint cleanup bytes".utf8)
+        let source = fixture.directory.appendingPathComponent("completion-cleanup-source.asset")
+        let bytes = Data("completion cleanup bytes".utf8)
         try bytes.write(to: source)
         let mutations = try (0..<4).map {
             try fixture.attachmentMutation(index: $0, bytes: bytes, source: source)
         }
         let cleanupIO = CleanupFailureController(journalURL: fixture.url)
-        let checkpointWriter = FailOnceCleanupCheckpointWriter(
-            checkpointURL: fixture.checkpointURL
-        )
+        let completionAppender = FailOnceCleanupCompletionAppender(writeBeforeThrow: false)
         let journal = fixture.cleanupJournal(
             cleanupIO,
-            atomicWrite: checkpointWriter.atomicWrite
+            appendFrames: completionAppender.appendFrames
         )
         try journal.enqueue(mutations)
         let staged = try journal.pending().compactMap(\.attachmentSource?.fileURL)
 
-        #expect(throws: CleanupCheckpointFailure.self) {
+        #expect(throws: CleanupCompletionAppendFailure.self) {
             try journal.acknowledge(Set(mutations.map(\.identity)))
         }
         #expect(staged.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
@@ -538,19 +579,25 @@ import Testing
         #expect(finalIO.attachmentDirectorySyncCount == 0)
     }
 
-    @Test func cleanupCompletionCheckpointSurvivesInterruptedSegmentRotationWithoutReplay() throws {
-        let fixture = try SegmentedJournalFixture(failSegmentRotationAfterCheckpoint: true)
-        let source = fixture.directory.appendingPathComponent("rotation-cleanup-source.asset")
-        let bytes = Data("rotation cleanup bytes".utf8)
+    @Test func committedCleanupCompletionFrameSurvivesReportedAppendFailureWithoutReplay() throws {
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("committed-completion-source.asset")
+        let bytes = Data("committed completion bytes".utf8)
         try bytes.write(to: source)
         let mutation = try fixture.attachmentMutation(index: 1, bytes: bytes, source: source)
-        try fixture.journal.enqueue(mutation)
+        let cleanupIO = CleanupFailureController(journalURL: fixture.url)
+        let completionAppender = FailOnceCleanupCompletionAppender(writeBeforeThrow: true)
+        let journal = fixture.cleanupJournal(
+            cleanupIO,
+            appendFrames: completionAppender.appendFrames
+        )
+        try journal.enqueue(mutation)
         let staged = try #require(
-            fixture.journal.pending().first?.attachmentSource?.fileURL
+            journal.pending().first?.attachmentSource?.fileURL
         )
 
-        #expect(throws: InterruptedSegmentRotation.self) {
-            try fixture.journal.acknowledge([mutation.identity])
+        #expect(throws: CleanupCompletionAppendFailure.self) {
+            try journal.acknowledge([mutation.identity])
         }
         #expect(!FileManager.default.fileExists(atPath: staged.path))
 
@@ -558,6 +605,32 @@ import Testing
         #expect(try fixture.cleanupJournal(restartIO).pending().isEmpty)
         #expect(restartIO.unlinkAttemptCount == 0)
         #expect(restartIO.attachmentDirectorySyncCount == 0)
+    }
+
+    @Test func cleanupRetriesAfterCheckpointCommitsBeforeSegmentRotation() throws {
+        let fixture = try SegmentedJournalFixture(failSegmentRotationAfterCheckpoint: true)
+        let source = fixture.directory.appendingPathComponent("rotation-cleanup-source.asset")
+        let bytes = Data("rotation cleanup bytes".utf8)
+        try bytes.write(to: source)
+        let mutations = try (0..<128).map {
+            try fixture.attachmentMutation(index: $0, bytes: bytes, source: source)
+        }
+        try fixture.journal.enqueue(mutations)
+        let staged = try fixture.journal.pending().compactMap(\.attachmentSource?.fileURL)
+
+        #expect(throws: InterruptedSegmentRotation.self) {
+            try fixture.journal.acknowledge(Set(mutations.map(\.identity)))
+        }
+        #expect(staged.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
+
+        let retryIO = CleanupFailureController(journalURL: fixture.url)
+        #expect(try fixture.cleanupJournal(retryIO).pending().isEmpty)
+        #expect(retryIO.unlinkAttemptCount == mutations.count)
+        #expect(retryIO.attachmentDirectorySyncCount == 1)
+        let finalIO = CleanupFailureController(journalURL: fixture.url)
+        #expect(try fixture.cleanupJournal(finalIO).pending().isEmpty)
+        #expect(finalIO.unlinkAttemptCount == 0)
+        #expect(finalIO.attachmentDirectorySyncCount == 0)
     }
 
     @Test func sparseCleanupMapSurvivesUntilPendingEarlierShardAllowsFrontierAdvance() throws {
@@ -583,6 +656,75 @@ import Testing
         #expect(sparseRestartIO.attachmentDirectorySyncCount == 1)
         let finalIO = CleanupFailureController(journalURL: fixture.url)
         #expect(try fixture.cleanupJournal(finalIO).pending().isEmpty)
+        #expect(finalIO.attachmentDirectorySyncCount == 0)
+    }
+
+    @Test(.timeLimit(.minutes(3)))
+    func manyLaterCleanupShardsBehindOnePendingAttachmentStayLinear() throws {
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("linear-sparse-cleanup-source.asset")
+        let bytes = Data("linear sparse cleanup bytes".utf8)
+        try bytes.write(to: source)
+        let mutationCount = 4_096
+        let shardCount = mutationCount / 128
+        let mutations = try (0..<mutationCount).map {
+            try fixture.attachmentMutation(index: $0, bytes: bytes, source: source)
+        }
+        let counters = SyncJournalIOCounters()
+        let cleanupIO = CleanupFailureController(journalURL: fixture.url)
+        let journal = fixture.cleanupJournal(cleanupIO, counters: counters)
+
+        try journal.enqueue(mutations)
+        try journal.acknowledge(Set(mutations.dropFirst().map(\.identity)))
+
+        #expect(try fixture.proofShardURLs().count == shardCount)
+        let pending = try journal.pending()
+        #expect(pending.count == 1)
+        #expect(pending.first?.identity == mutations[0].identity)
+        #expect(cleanupIO.attachmentDirectorySyncCount == 1)
+        #expect(counters.cleanupCompletionShardUpdateCount == mutationCount - 1)
+        #expect(
+            counters.cleanupCompletionShardProbeCount
+                <= (mutationCount - 1) * 3 + shardCount
+        )
+        #expect(counters.cleanupCompletionSortCount == 1)
+
+        let restartCounters = SyncJournalIOCounters()
+        let restartIO = CleanupFailureController(journalURL: fixture.url)
+        let reopened = fixture.cleanupJournal(
+            restartIO,
+            counters: restartCounters
+        )
+        let restartedPending = try reopened.pending()
+        #expect(restartedPending.count == 1)
+        #expect(restartedPending.first?.identity == mutations[0].identity)
+        #expect(restartIO.unlinkAttemptCount == 0)
+        #expect(restartIO.attachmentDirectorySyncCount == 0)
+        #expect(restartCounters.cleanupCompletionShardUpdateCount == mutationCount - 1)
+        #expect(restartCounters.cleanupCompletionShardProbeCount <= (mutationCount - 1) * 3)
+        #expect(restartCounters.cleanupCompletionSortCount == 0)
+
+        let probesBeforeFrontierAdvance = restartCounters.cleanupCompletionShardProbeCount
+        let updatesBeforeFrontierAdvance = restartCounters.cleanupCompletionShardUpdateCount
+        try reopened.acknowledge([mutations[0].identity])
+        for index in 0..<128 {
+            let mutation = fixture.mutation(index: 1_000_000 + index)
+            try reopened.enqueue(mutation)
+            try reopened.acknowledge([mutation.identity])
+        }
+
+        #expect(restartCounters.cleanupCompletionSortCount == 1)
+        #expect(
+            restartCounters.cleanupCompletionShardUpdateCount
+                - updatesBeforeFrontierAdvance == 1
+        )
+        #expect(
+            restartCounters.cleanupCompletionShardProbeCount
+                - probesBeforeFrontierAdvance <= mutationCount + 8
+        )
+        let finalIO = CleanupFailureController(journalURL: fixture.url)
+        #expect(try fixture.cleanupJournal(finalIO).pending().isEmpty)
+        #expect(finalIO.unlinkAttemptCount == 0)
         #expect(finalIO.attachmentDirectorySyncCount == 0)
     }
 
@@ -657,7 +799,7 @@ private struct InterruptedProofShardWrite: Error {}
 private struct FileSyncFailure: Error {}
 private struct DirectorySyncFailure: Error {}
 private struct CleanupUnlinkFailure: Error {}
-private struct CleanupCheckpointFailure: Error {}
+private struct CleanupCompletionAppendFailure: Error {}
 
 private final class SegmentedJournalFixture {
     let directory: URL
@@ -720,19 +862,21 @@ private final class SegmentedJournalFixture {
 
     func cleanupJournal(
         _ cleanupIO: CleanupFailureController,
-        atomicWrite: FileSyncMutationJournal.AtomicWrite? = nil
+        atomicWrite: FileSyncMutationJournal.AtomicWrite? = nil,
+        appendFrames: @escaping FileSyncMutationJournal.AppendFrames = appendSegmentJournalData,
+        counters: SyncJournalIOCounters = SyncJournalIOCounters()
     ) -> FileSyncMutationJournal {
         FileSyncMutationJournal(
             url: url,
             atomicWrite: atomicWrite ?? { data, destination in
                 try data.write(to: destination, options: .atomic)
             },
-            appendFrames: appendSegmentJournalData,
+            appendFrames: appendFrames,
             synchronizeFile: synchronizeJournalTestFile,
             synchronizeDirectory: cleanupIO.synchronizeDirectory,
             removeStagedFile: cleanupIO.removeStagedFile,
             reader: .init(),
-            counters: SyncJournalIOCounters(),
+            counters: counters,
             coordinatorRegistry: SyncJournalURLCoordinatorRegistry()
         )
     }
@@ -1087,21 +1231,25 @@ private final class CleanupFailureController: @unchecked Sendable {
     }
 }
 
-private final class FailOnceCleanupCheckpointWriter: @unchecked Sendable {
+private final class FailOnceCleanupCompletionAppender: @unchecked Sendable {
     private let lock = NSLock()
-    private let checkpointURL: URL
-    private var shouldFail = true
+    private let writeBeforeThrow: Bool
+    private var appendAttempt = 0
 
-    init(checkpointURL: URL) { self.checkpointURL = checkpointURL }
+    init(writeBeforeThrow: Bool) { self.writeBeforeThrow = writeBeforeThrow }
 
-    func atomicWrite(_ data: Data, _ destination: URL) throws {
+    func appendFrames(_ data: Data, _ destination: URL) throws {
         let fail = lock.withLock { () -> Bool in
-            guard destination == checkpointURL, shouldFail else { return false }
-            shouldFail = false
-            return true
+            appendAttempt += 1
+            return appendAttempt == 3
         }
-        if fail { throw CleanupCheckpointFailure() }
-        try data.write(to: destination, options: .atomic)
+        if fail {
+            if writeBeforeThrow {
+                try appendSegmentJournalData(data, to: destination)
+            }
+            throw CleanupCompletionAppendFailure()
+        }
+        try appendSegmentJournalData(data, to: destination)
     }
 }
 

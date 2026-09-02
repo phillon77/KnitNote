@@ -225,6 +225,7 @@ public extension SyncMutationJournalProtocol {
 enum SyncJournalFrameKind: UInt8, Codable, Sendable {
     case enqueue = 1
     case acknowledge = 2
+    case cleanupCompletion = 3
 }
 
 struct SyncJournalFrame: Codable, Sendable {
@@ -396,6 +397,9 @@ struct SyncJournalIOCounters: Sendable {
         var appendedFrameCount = 0
         var fullCheckpointRewriteCount = 0
         var bytesRead = 0
+        var cleanupCompletionShardProbeCount = 0
+        var cleanupCompletionShardUpdateCount = 0
+        var cleanupCompletionSortCount = 0
     }
 
     private let storage = Storage()
@@ -412,6 +416,18 @@ struct SyncJournalIOCounters: Sendable {
         storage.lock.withLock { storage.bytesRead }
     }
 
+    var cleanupCompletionShardProbeCount: Int {
+        storage.lock.withLock { storage.cleanupCompletionShardProbeCount }
+    }
+
+    var cleanupCompletionShardUpdateCount: Int {
+        storage.lock.withLock { storage.cleanupCompletionShardUpdateCount }
+    }
+
+    var cleanupCompletionSortCount: Int {
+        storage.lock.withLock { storage.cleanupCompletionSortCount }
+    }
+
     fileprivate func recordAppendedFrames(_ count: Int) {
         storage.lock.withLock { storage.appendedFrameCount += count }
     }
@@ -422,6 +438,18 @@ struct SyncJournalIOCounters: Sendable {
 
     fileprivate func recordBytesRead(_ count: Int) {
         storage.lock.withLock { storage.bytesRead += count }
+    }
+
+    fileprivate func recordCleanupCompletionShardProbe() {
+        storage.lock.withLock { storage.cleanupCompletionShardProbeCount += 1 }
+    }
+
+    fileprivate func recordCleanupCompletionShardUpdate() {
+        storage.lock.withLock { storage.cleanupCompletionShardUpdateCount += 1 }
+    }
+
+    fileprivate func recordCleanupCompletionSort() {
+        storage.lock.withLock { storage.cleanupCompletionSortCount += 1 }
     }
 }
 
@@ -862,6 +890,9 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
               checkpoint.proofShardCount <= Self.maximumProofShardCount else {
             throw SyncMutationJournalError.corrupt
         }
+        let cleanupCompletion = try cleanupCompletionState(
+            from: checkpoint.cleanupCompletion
+        )
 
         var seen: [UUID: SyncMutationDuplicateProof] = [:]
         var unpersistedProofs: [SyncMutationDuplicateProof] = []
@@ -938,7 +969,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             if let cleanup = Self.cleanupIntent(for: proof),
                !Self.isCleanupCompleted(
                    proofLocations[proof.mutationID],
-                   completion: checkpoint.cleanupCompletion
+                   completion: cleanupCompletion,
+                   counters: counters
                ),
                seenCleanupIntents.insert(cleanup).inserted {
                 cleanupIntents.append(cleanup)
@@ -951,8 +983,10 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             unpersistedProofs: unpersistedProofs,
             proofLocationsByMutationID: proofLocations,
             proofsByShard: proofsByShard,
-            cleanupIntents: cleanupIntents,
-            cleanupCompletion: checkpoint.cleanupCompletion,
+            cleanupIntentsByMutationID: Dictionary(
+                uniqueKeysWithValues: cleanupIntents.map { ($0.mutationID, $0) }
+            ),
+            cleanupCompletion: cleanupCompletion,
             nextSequence: checkpoint.throughSequence + 1,
             framesSinceCheckpoint: 0,
             enqueuedOperationCount: 0,
@@ -1027,6 +1061,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             )
         }
         state.framesSinceCheckpoint = 0
+        state.cleanupCompletion.completedUnpersistedMutationIDs = []
         state.enqueuedOperationCount = 0
         state.acknowledgedOperationCount = 0
         state.validSegmentByteCount = 0
@@ -1228,6 +1263,19 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             state.proofShardCount += 1
         }
         state.unpersistedProofs = []
+        for mutationID in state.cleanupCompletion.completedUnpersistedMutationIDs {
+            guard let location = state.proofLocationsByMutationID[mutationID],
+                  let proof = state.seenByMutationID[mutationID],
+                  Self.cleanupIntent(for: proof) != nil else {
+                throw SyncMutationJournalError.corrupt
+            }
+            Self.markCleanupCompleted(
+                location,
+                completion: &state.cleanupCompletion,
+                counters: counters
+            )
+        }
+        state.cleanupCompletion.completedUnpersistedMutationIDs = []
     }
 
     private func persistCheckpointLocked(_ state: inout LoadedState) throws {
@@ -1239,7 +1287,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             pending: state.pending,
             proofShardCount: state.proofShardCount,
             cleanupIntents: [],
-            cleanupCompletion: state.cleanupCompletion
+            cleanupCompletion: try checkpointCleanupCompletion(from: state.cleanupCompletion)
         )
         try atomicWrite(try encodeCheckpoint(checkpoint), checkpointURL)
         counters.recordCheckpointRewrite()
@@ -1293,6 +1341,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 state.pending.append(mutation)
             }
             state.enqueuedOperationCount += 1
+            state.framesSinceCheckpoint += 1
         case .acknowledge:
             let identity: SyncMutationIdentity
             do {
@@ -1306,14 +1355,58 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             guard let index = state.pending.firstIndex(where: { $0.identity == identity }) else {
                 throw SyncMutationJournalError.corrupt
             }
-            if let cleanup = Self.cleanupIntent(for: state.pending[index]),
-               !state.cleanupIntents.contains(cleanup) {
-                state.cleanupIntents.append(cleanup)
+            if let cleanup = Self.cleanupIntent(for: state.pending[index]) {
+                if let existing = state.cleanupIntentsByMutationID[cleanup.mutationID] {
+                    guard existing == cleanup else {
+                        throw SyncMutationJournalError.corrupt
+                    }
+                } else {
+                    state.cleanupIntentsByMutationID[cleanup.mutationID] = cleanup
+                }
             }
             state.pending.remove(at: index)
             state.acknowledgedOperationCount += 1
+            state.framesSinceCheckpoint += 1
+        case .cleanupCompletion:
+            let cleanups: [SyncAttachmentCleanupIntent]
+            do {
+                cleanups = try JSONDecoder().decode(
+                    [SyncAttachmentCleanupIntent].self,
+                    from: frame.payload
+                )
+            } catch {
+                throw SyncMutationJournalError.corrupt
+            }
+            guard !cleanups.isEmpty else { throw SyncMutationJournalError.corrupt }
+            var seenCleanups = Set<SyncAttachmentCleanupIntent>()
+            let pendingIDs = Set(state.pending.map(\.mutationID))
+            let pendingFiles = pendingCleanupFileURLs(state.pending)
+            for cleanup in cleanups {
+                guard seenCleanups.insert(cleanup).inserted,
+                      state.cleanupIntentsByMutationID[cleanup.mutationID] == cleanup,
+                      let proof = state.seenByMutationID[cleanup.mutationID],
+                      Self.cleanupIntent(for: proof) == cleanup,
+                      !pendingIDs.contains(cleanup.mutationID),
+                      !pendingSharesCleanupFile(proof, pendingFiles: pendingFiles),
+                      !isCleanupCompleted(cleanup, in: state) else {
+                    throw SyncMutationJournalError.corrupt
+                }
+                if let location = state.proofLocationsByMutationID[cleanup.mutationID] {
+                    Self.markCleanupCompleted(
+                        location,
+                        completion: &state.cleanupCompletion,
+                        counters: counters
+                    )
+                } else {
+                    state.cleanupCompletion.completedUnpersistedMutationIDs.insert(
+                        cleanup.mutationID
+                    )
+                }
+            }
+            for cleanup in cleanups {
+                state.cleanupIntentsByMutationID.removeValue(forKey: cleanup.mutationID)
+            }
         }
-        state.framesSinceCheckpoint += 1
         state.nextSequence += 1
     }
 
@@ -1502,7 +1595,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             ).map {
                 Array(proofs[$0..<min($0 + Self.proofShardEntryLimit, proofs.count)])
             },
-            cleanupIntents: [],
+            cleanupIntentsByMutationID: [:],
             cleanupCompletion: .empty,
             nextSequence: 1,
             framesSinceCheckpoint: 0,
@@ -1706,8 +1799,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         var unpersistedProofs: [SyncMutationDuplicateProof]
         var proofLocationsByMutationID: [UUID: ProofLocation]
         var proofsByShard: [[SyncMutationDuplicateProof]]
-        var cleanupIntents: [SyncAttachmentCleanupIntent]
-        var cleanupCompletion: SyncCleanupCompletion
+        var cleanupIntentsByMutationID: [UUID: SyncAttachmentCleanupIntent]
+        var cleanupCompletion: CleanupCompletionState
         var nextSequence: UInt64
         var framesSinceCheckpoint: Int
         var enqueuedOperationCount: Int
@@ -1722,7 +1815,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             unpersistedProofs: [],
             proofLocationsByMutationID: [:],
             proofsByShard: [],
-            cleanupIntents: [],
+            cleanupIntentsByMutationID: [:],
             cleanupCompletion: .empty,
             nextSequence: 1,
             framesSinceCheckpoint: 0,
@@ -1738,44 +1831,104 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         let offset: Int
     }
 
+    private struct CleanupCompletionState {
+        var completedShardCount: Int
+        var partialShardsByIndex: [Int: Data]
+        var completedUnpersistedMutationIDs: Set<UUID>
+
+        static let empty = CleanupCompletionState(
+            completedShardCount: 0,
+            partialShardsByIndex: [:],
+            completedUnpersistedMutationIDs: []
+        )
+    }
+
     private static let cleanupCompletionByteCount = proofShardEntryLimit / 8
+
+    private func cleanupCompletionState(
+        from persisted: SyncCleanupCompletion
+    ) throws -> CleanupCompletionState {
+        var partialShardsByIndex: [Int: Data] = [:]
+        var previousShardIndex: Int?
+        for partial in persisted.partialShards {
+            guard partial.completedOffsets.count == Self.cleanupCompletionByteCount,
+                  previousShardIndex.map({ $0 < partial.shardIndex }) ?? true,
+                  partialShardsByIndex.updateValue(
+                      partial.completedOffsets,
+                      forKey: partial.shardIndex
+                  ) == nil else {
+                throw SyncMutationJournalError.corrupt
+            }
+            previousShardIndex = partial.shardIndex
+        }
+        return CleanupCompletionState(
+            completedShardCount: persisted.completedShardCount,
+            partialShardsByIndex: partialShardsByIndex,
+            completedUnpersistedMutationIDs: []
+        )
+    }
+
+    private func checkpointCleanupCompletion(
+        from completion: CleanupCompletionState
+    ) throws -> SyncCleanupCompletion {
+        guard completion.completedUnpersistedMutationIDs.isEmpty else {
+            throw SyncMutationJournalError.corrupt
+        }
+        counters.recordCleanupCompletionSort()
+        let partialShards = completion.partialShardsByIndex.keys.sorted().map {
+            SyncCleanupShardCompletion(
+                shardIndex: $0,
+                completedOffsets: completion.partialShardsByIndex[$0]!
+            )
+        }
+        return SyncCleanupCompletion(
+            completedShardCount: completion.completedShardCount,
+            partialShards: partialShards
+        )
+    }
 
     private static func isCleanupCompleted(
         _ location: ProofLocation?,
-        completion: SyncCleanupCompletion
+        completion: CleanupCompletionState,
+        counters: SyncJournalIOCounters? = nil
     ) -> Bool {
         guard let location else { return false }
         if location.shardIndex < completion.completedShardCount { return true }
-        guard let shard = completion.partialShards.first(where: {
-            $0.shardIndex == location.shardIndex
-        }), shard.completedOffsets.count == cleanupCompletionByteCount else {
+        counters?.recordCleanupCompletionShardProbe()
+        guard let completedOffsets = completion.partialShardsByIndex[location.shardIndex],
+              completedOffsets.count == cleanupCompletionByteCount else {
             return false
         }
-        let byte = shard.completedOffsets[location.offset / 8]
+        let byte = completedOffsets[location.offset / 8]
         return byte & UInt8(1 << (location.offset % 8)) != 0
+    }
+
+    private func isCleanupCompleted(
+        _ cleanup: SyncAttachmentCleanupIntent,
+        in state: LoadedState
+    ) -> Bool {
+        state.cleanupCompletion.completedUnpersistedMutationIDs.contains(cleanup.mutationID)
+            || Self.isCleanupCompleted(
+                state.proofLocationsByMutationID[cleanup.mutationID],
+                completion: state.cleanupCompletion,
+                counters: counters
+            )
     }
 
     private static func markCleanupCompleted(
         _ location: ProofLocation,
-        completion: inout SyncCleanupCompletion
+        completion: inout CleanupCompletionState,
+        counters: SyncJournalIOCounters? = nil
     ) {
         guard location.shardIndex >= completion.completedShardCount else { return }
-        let progressIndex: Int
-        if let existing = completion.partialShards.firstIndex(where: {
-            $0.shardIndex == location.shardIndex
-        }) {
-            progressIndex = existing
-        } else {
-            completion.partialShards.append(SyncCleanupShardCompletion(
-                shardIndex: location.shardIndex,
-                completedOffsets: Data(repeating: 0, count: cleanupCompletionByteCount)
-            ))
-            progressIndex = completion.partialShards.count - 1
-        }
-        var bytes = [UInt8](completion.partialShards[progressIndex].completedOffsets)
+        counters?.recordCleanupCompletionShardProbe()
+        var bytes = [UInt8](
+            completion.partialShardsByIndex[location.shardIndex]
+                ?? Data(repeating: 0, count: cleanupCompletionByteCount)
+        )
         bytes[location.offset / 8] |= UInt8(1 << (location.offset % 8))
-        completion.partialShards[progressIndex].completedOffsets = Data(bytes)
-        completion.partialShards.sort { $0.shardIndex < $1.shardIndex }
+        completion.partialShardsByIndex[location.shardIndex] = Data(bytes)
+        counters?.recordCleanupCompletionShardUpdate()
     }
 
     private func validateCleanupCompletion(in state: LoadedState) throws {
@@ -1786,33 +1939,43 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             throw SyncMutationJournalError.corrupt
         }
         let pendingIDs = Set(state.pending.map(\.mutationID))
+        let pendingFiles = pendingCleanupFileURLs(state.pending)
+        for mutationID in completion.completedUnpersistedMutationIDs {
+            guard state.proofLocationsByMutationID[mutationID] == nil,
+                  let proof = state.seenByMutationID[mutationID],
+                  Self.cleanupIntent(for: proof) != nil,
+                  !pendingIDs.contains(mutationID),
+                  !pendingSharesCleanupFile(proof, pendingFiles: pendingFiles) else {
+                throw SyncMutationJournalError.corrupt
+            }
+        }
         for shardIndex in 0..<completion.completedShardCount {
             // Frontier invariant: every attachment proof in every crossed immutable
             // shard is complete, and no crossed proof may still be pending/shared.
             for proof in state.proofsByShard[shardIndex]
             where Self.cleanupIntent(for: proof) != nil {
                 guard !pendingIDs.contains(proof.mutationID),
-                      !pendingSharesCleanupFile(proof, pending: state.pending) else {
+                      !pendingSharesCleanupFile(proof, pendingFiles: pendingFiles) else {
                     throw SyncMutationJournalError.corrupt
                 }
             }
         }
-        var previousShardIndex: Int?
-        for partial in completion.partialShards {
-            guard partial.shardIndex >= completion.completedShardCount,
-                  partial.shardIndex < state.proofShardCount,
-                  partial.completedOffsets.count == Self.cleanupCompletionByteCount,
-                  previousShardIndex.map({ $0 < partial.shardIndex }) ?? true else {
+        for (shardIndex, completedOffsets) in completion.partialShardsByIndex {
+            guard shardIndex >= completion.completedShardCount,
+                  shardIndex < state.proofShardCount,
+                  completedOffsets.count == Self.cleanupCompletionByteCount else {
                 throw SyncMutationJournalError.corrupt
             }
-            previousShardIndex = partial.shardIndex
-            let proofs = state.proofsByShard[partial.shardIndex]
+            let proofs = state.proofsByShard[shardIndex]
             for offset in 0..<(Self.cleanupCompletionByteCount * 8)
-            where partial.completedOffsets[offset / 8] & UInt8(1 << (offset % 8)) != 0 {
+            where completedOffsets[offset / 8] & UInt8(1 << (offset % 8)) != 0 {
                 guard offset < proofs.count,
                       Self.cleanupIntent(for: proofs[offset]) != nil,
                       !pendingIDs.contains(proofs[offset].mutationID),
-                      !pendingSharesCleanupFile(proofs[offset], pending: state.pending) else {
+                      !pendingSharesCleanupFile(
+                          proofs[offset],
+                          pendingFiles: pendingFiles
+                      ) else {
                     throw SyncMutationJournalError.corrupt
                 }
             }
@@ -1820,6 +1983,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func normalizeCleanupCompletion(in state: inout LoadedState) {
+        let pendingFiles = pendingCleanupFileURLs(state.pending)
         while state.cleanupCompletion.completedShardCount < state.proofShardCount {
             let shardIndex = state.cleanupCompletion.completedShardCount
             let proofs = state.proofsByShard[shardIndex]
@@ -1828,33 +1992,36 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 let location = ProofLocation(shardIndex: shardIndex, offset: offset)
                 return Self.isCleanupCompleted(
                     location,
-                    completion: state.cleanupCompletion
-                ) && !pendingSharesCleanupFile(proof, pending: state.pending)
+                    completion: state.cleanupCompletion,
+                    counters: counters
+                ) && !pendingSharesCleanupFile(proof, pendingFiles: pendingFiles)
             }
             guard canAdvance else { break }
-            state.cleanupCompletion.partialShards.removeAll {
-                $0.shardIndex == shardIndex
-            }
+            state.cleanupCompletion.partialShardsByIndex.removeValue(forKey: shardIndex)
             state.cleanupCompletion.completedShardCount += 1
         }
-        state.cleanupCompletion.partialShards.removeAll {
-            $0.shardIndex < state.cleanupCompletion.completedShardCount
-        }
-        state.cleanupCompletion.partialShards.sort { $0.shardIndex < $1.shardIndex }
+        state.cleanupCompletion.partialShardsByIndex = state.cleanupCompletion
+            .partialShardsByIndex.filter {
+                $0.key >= state.cleanupCompletion.completedShardCount
+            }
+    }
+
+    private func pendingCleanupFileURLs(_ pending: [SyncMutation]) -> Set<URL> {
+        Set(pending.compactMap {
+            $0.attachmentSource?.fileURL.standardizedFileURL
+        })
     }
 
     private func pendingSharesCleanupFile(
         _ proof: SyncMutationDuplicateProof,
-        pending: [SyncMutation]
+        pendingFiles: Set<URL>
     ) -> Bool {
         guard let cleanup = Self.cleanupIntent(for: proof) else { return false }
         let expected = cleanupFileURL(
             cleanup,
             root: attachmentsDirectory.standardizedFileURL
         )
-        return pending.contains {
-            $0.attachmentSource?.fileURL.standardizedFileURL == expected
-        }
+        return pendingFiles.contains(expected)
     }
 
     private struct JournalFingerprint: Equatable {
@@ -2103,50 +2270,60 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     private func reconcileAcknowledgedAttachmentsLocked() throws {
         guard var state = loadedState else { return }
-        guard !state.cleanupIntents.isEmpty else { return }
+        guard !state.cleanupIntentsByMutationID.isEmpty else { return }
 
-        // Shards are immutable. Publish them first, but do not reference them from a
-        // checkpoint until unlink + the single attachment-directory barrier succeeds.
-        try publishUnpersistedProofShardsLocked(&state)
-
-        var completed: [(SyncAttachmentCleanupIntent, ProofLocation)] = []
-        var retained: [SyncAttachmentCleanupIntent] = []
+        var completed: [SyncAttachmentCleanupIntent] = []
+        var retained: [UUID: SyncAttachmentCleanupIntent] = [:]
         var firstRemovalError: Error?
-        for cleanup in state.cleanupIntents {
-            guard let location = state.proofLocationsByMutationID[cleanup.mutationID] else {
+        for cleanup in state.cleanupIntentsByMutationID.values {
+            guard let proof = state.seenByMutationID[cleanup.mutationID],
+                  Self.cleanupIntent(for: proof) == cleanup else {
                 throw SyncMutationJournalError.corrupt
             }
-            if Self.isCleanupCompleted(location, completion: state.cleanupCompletion) {
+            if isCleanupCompleted(cleanup, in: state) {
                 continue
             }
             do {
                 if try removeStagedAttachmentForBatch(cleanup, remaining: state.pending) {
-                    completed.append((cleanup, location))
+                    completed.append(cleanup)
                 } else {
-                    retained.append(cleanup)
+                    retained[cleanup.mutationID] = cleanup
                 }
             } catch {
                 if firstRemovalError == nil { firstRemovalError = error }
-                retained.append(cleanup)
+                retained[cleanup.mutationID] = cleanup
             }
         }
 
         if !completed.isEmpty {
             let root = attachmentsDirectory.standardizedFileURL
             try synchronizeDirectory(try pathExists(root) ? root : root.deletingLastPathComponent())
-            for (_, location) in completed {
-                Self.markCleanupCompleted(location, completion: &state.cleanupCompletion)
-            }
-            state.cleanupIntents = retained
-            normalizeCleanupCompletion(in: &state)
-            // Completion becomes durable only here, after every successful unlink and
-            // the shared directory barrier. A failed checkpoint intentionally retries.
-            try persistCheckpointLocked(&state)
+            let durableCleanups = completed.sorted(by: Self.cleanupIntentPrecedes)
+            let frame = try makeFrame(
+                sequence: state.nextSequence,
+                kind: .cleanupCompletion,
+                value: durableCleanups
+            )
+            var candidate = state
+            try apply(frame, to: &candidate)
+            candidate.cleanupIntentsByMutationID = retained
+            // Completion is appended only after every successful/absent unlink and the
+            // shared attachment-directory barrier. A failed append intentionally retries.
+            try appendReconcilingMemoryLocked([frame], candidate: candidate)
         } else {
-            state.cleanupIntents = retained
+            state.cleanupIntentsByMutationID = retained
             loadedState = state
         }
         if let firstRemovalError { throw firstRemovalError }
+    }
+
+    private static func cleanupIntentPrecedes(
+        _ lhs: SyncAttachmentCleanupIntent,
+        _ rhs: SyncAttachmentCleanupIntent
+    ) -> Bool {
+        let left = (lhs.mutationID.uuidString, lhs.attachmentVersionID.uuidString)
+        let right = (rhs.mutationID.uuidString, rhs.attachmentVersionID.uuidString)
+        return left < right
     }
 
     private static func defaultRemoveStagedFile(_ file: URL) throws {

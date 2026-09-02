@@ -862,6 +862,72 @@ import UniformTypeIdentifiers
         }
     }
 
+    @Test func duplicateVersionOrCrossSlotLineageInAttachmentEvidenceFailsClosed() throws {
+        struct EvidenceEnvelope: Decodable {
+            let versions: [SyncAttachmentVersion]
+        }
+
+        for kind in 0..<2 {
+            let fixture = try SyncPublicationFixture()
+            let first = fixture.store(sink: RecordingSyncMutationSink())
+            let project = try #require(first.project(id: fixture.projectID))
+            try first.updateProject(
+                id: project.id,
+                name: project.name,
+                toolType: project.toolType,
+                toolSize: project.toolSize,
+                toolNotes: project.toolNotes,
+                photoChange: .replace(try makeSyncPublicationJPEG(red: 0.45))
+            )
+            let evidenceURL = fixture.liveRoot
+                .appendingPathComponent("SyncMetadata", isDirectory: true)
+                .appendingPathComponent("attachment-versions.json")
+            let original = try Data(contentsOf: evidenceURL)
+            let firstVersion = try #require(
+                JSONDecoder().decode(EvidenceEnvelope.self, from: original).versions.first
+            )
+            let otherSlot = SyncAttachmentSlot(
+                owner: firstVersion.slot.owner,
+                role: firstVersion.slot.role,
+                slotID: "secondary"
+            )
+            let secondVersion = try SyncAttachmentVersion.issuing(
+                slot: otherSlot,
+                contentSHA256: Data(repeating: 0xC3, count: 32),
+                byteCount: 1,
+                mediaType: "image/jpeg",
+                displayFilename: "secondary.jpg",
+                replacesVersionID: kind == 0 ? nil : firstVersion.versionID,
+                versionID: kind == 0 ? firstVersion.versionID : UUID()
+            )
+            var object = try #require(
+                JSONSerialization.jsonObject(with: original) as? [String: Any]
+            )
+            var versions = try #require(object["versions"] as? [Any])
+            versions.append(try JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(secondVersion)
+            ))
+            object["versions"] = versions
+            try JSONSerialization.data(withJSONObject: object).write(
+                to: evidenceURL,
+                options: .atomic
+            )
+
+            let sink = RecordingSyncMutationSink()
+            let restarted = fixture.store(sink: sink)
+
+            #expect(restarted.project(id: fixture.projectID)?.name == "Original")
+            #expect(restarted.syncPublicationError == .corruptTransaction)
+            #expect(throws: SyncPublicationError.corruptTransaction) {
+                try restarted.rename(id: fixture.projectID, to: "Blocked")
+            }
+            #expect(throws: SyncPublicationError.corruptTransaction) {
+                try restarted.repairSyncPublication()
+            }
+            #expect(sink.mutations.isEmpty)
+        }
+    }
+
     @Test func fifoPublicationTransactionIsRejectedWithoutOpeningIt() throws {
         let fixture = try SyncPublicationFixture()
         let transactionURL = SyncPublicationTransactionFile(

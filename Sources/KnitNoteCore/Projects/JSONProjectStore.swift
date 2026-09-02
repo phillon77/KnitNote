@@ -119,11 +119,22 @@ private struct SyncAttachmentPublicationEvidence: Codable {
 
     func validated() throws -> Self {
         var slots: Set<SyncAttachmentSlot> = []
+        var versionsByID: [UUID: SyncAttachmentVersion] = [:]
         for version in versions {
             _ = try version.validated()
-            guard slots.insert(version.slot).inserted else {
+            guard slots.insert(version.slot).inserted,
+                  versionsByID[version.versionID] == nil else {
                 throw SyncPublicationTransactionFileError.corrupt
             }
+            versionsByID[version.versionID] = version
+        }
+        for version in versions {
+            guard let replacesVersionID = version.replacesVersionID,
+                  let replacedVersion = versionsByID[replacesVersionID],
+                  replacedVersion.slot != version.slot else {
+                continue
+            }
+            throw SyncPublicationTransactionFileError.corrupt
         }
         return self
     }

@@ -2,6 +2,9 @@ import CryptoKit
 import Darwin
 import Foundation
 
+@_silgen_name("flock")
+private func syncJournalFlock(_ descriptor: Int32, _ operation: Int32) -> Int32
+
 public enum SyncMutationIntent: String, Codable, Equatable, Sendable {
     case save
     case delete
@@ -271,26 +274,45 @@ struct SyncJournalFrame: Codable, Sendable {
     }
 }
 
+struct SyncMutationDuplicateProof: Codable, Equatable, Sendable {
+    let mutationID: UUID
+    let recordID: SyncEntityID
+    let intent: SyncMutationIntent
+    let recordVersionSHA256: Data?
+    let attachmentContentSHA256: Data?
+    let attachmentByteCount: Int64?
+}
+
+struct SyncAttachmentCleanupIntent: Codable, Equatable, Hashable, Sendable {
+    let mutationID: UUID
+    let attachmentVersionID: UUID
+}
+
 struct SyncJournalCheckpoint: Codable, Sendable {
     let version: Int
     let throughSequence: UInt64
     let pending: [SyncMutation]
-    let history: [SyncMutation]
+    let proofShardCount: Int
+    let cleanupIntents: [SyncAttachmentCleanupIntent]
+    let legacyHistory: [SyncMutation]?
 
     private enum CodingKeys: String, CodingKey {
-        case version, throughSequence, pending, history
+        case version, throughSequence, pending, proofShardCount, cleanupIntents, history
     }
 
     init(
-        version: Int,
+        version: Int = 2,
         throughSequence: UInt64,
         pending: [SyncMutation],
-        history: [SyncMutation]? = nil
+        proofShardCount: Int = 0,
+        cleanupIntents: [SyncAttachmentCleanupIntent] = []
     ) {
         self.version = version
         self.throughSequence = throughSequence
         self.pending = pending
-        self.history = history ?? pending
+        self.proofShardCount = proofShardCount
+        self.cleanupIntents = cleanupIntents
+        legacyHistory = nil
     }
 
     init(from decoder: Decoder) throws {
@@ -298,19 +320,36 @@ struct SyncJournalCheckpoint: Codable, Sendable {
         version = try container.decode(Int.self, forKey: .version)
         throughSequence = try container.decode(UInt64.self, forKey: .throughSequence)
         pending = try container.decode([SyncMutation].self, forKey: .pending)
-        history = try container.decodeIfPresent(
+        proofShardCount = try container.decodeIfPresent(
+            Int.self,
+            forKey: .proofShardCount
+        ) ?? 0
+        cleanupIntents = try container.decodeIfPresent(
+            [SyncAttachmentCleanupIntent].self,
+            forKey: .cleanupIntents
+        ) ?? []
+        legacyHistory = try container.decodeIfPresent(
             [SyncMutation].self,
             forKey: .history
-        ) ?? pending
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(throughSequence, forKey: .throughSequence)
+        try container.encode(pending, forKey: .pending)
+        try container.encode(proofShardCount, forKey: .proofShardCount)
+        try container.encode(cleanupIntents, forKey: .cleanupIntents)
     }
 }
 
-private final class SyncJournalURLCoordinator: @unchecked Sendable {
+final class SyncJournalURLCoordinator: @unchecked Sendable {
     let lock = NSLock()
     var requiresDurabilityRepair = true
 }
 
-private final class SyncJournalURLCoordinatorRegistry: @unchecked Sendable {
+final class SyncJournalURLCoordinatorRegistry: @unchecked Sendable {
     static let shared = SyncJournalURLCoordinatorRegistry()
 
     private let lock = NSLock()
@@ -364,6 +403,8 @@ struct SyncJournalIOCounters: Sendable {
 
 public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchecked Sendable {
     public static let maximumEncodedBytes = 64 * 1_024 * 1_024
+    private static let proofShardEntryLimit = 128
+    private static let maximumProofShardCount = 1_000_000
     private static let frameTrailerMagic = Data([
         0x4b, 0x4e, 0x4a, 0x46, 0x52, 0x4d, 0x31, 0x21
     ])
@@ -388,7 +429,16 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     private var checkpointURL: URL { url.appendingPathExtension("checkpoint") }
     private var segmentURL: URL { url.appendingPathExtension("segment") }
     private var migratedURL: URL { url.appendingPathExtension("migrated") }
-    private var advisoryLockURL: URL { url.appendingPathExtension("lock") }
+
+    private func proofShardURL(_ index: Int) -> URL {
+        URL(
+            fileURLWithPath: String(
+                format: "%@.proofs.%08d",
+                url.path,
+                index
+            )
+        )
+    }
 
     private var attachmentsDirectory: URL {
         url.deletingLastPathComponent().appendingPathComponent(
@@ -518,6 +568,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     convenience init(
         url: URL,
+        coordinatorRegistry: SyncJournalURLCoordinatorRegistry = .shared,
         synchronizeFile: @escaping SynchronizeFile,
         synchronizeDirectory: @escaping SynchronizeDirectory
     ) {
@@ -541,7 +592,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             synchronizeFile: synchronizeFile,
             synchronizeDirectory: synchronizeDirectory,
             reader: .init(),
-            counters: SyncJournalIOCounters()
+            counters: SyncJournalIOCounters(),
+            coordinatorRegistry: coordinatorRegistry
         )
     }
 
@@ -574,7 +626,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         synchronizeFile: @escaping SynchronizeFile,
         synchronizeDirectory: @escaping SynchronizeDirectory,
         reader: SyncRegularFileReader,
-        counters: SyncJournalIOCounters
+        counters: SyncJournalIOCounters,
+        coordinatorRegistry: SyncJournalURLCoordinatorRegistry = .shared
     ) {
         self.url = url
         self.atomicWrite = atomicWrite
@@ -583,7 +636,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         self.synchronizeDirectory = synchronizeDirectory
         self.reader = reader
         self.counters = counters
-        self.coordinator = SyncJournalURLCoordinatorRegistry.shared.coordinator(for: url)
+        self.coordinator = coordinatorRegistry.coordinator(for: url)
     }
 
     public func enqueue(_ mutations: [SyncMutation]) throws {
@@ -593,8 +646,9 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             var frames: [SyncJournalFrame] = []
             for requested in mutations {
                 let requested = try requested.validated()
+                let requestedProof = try Self.duplicateProof(for: requested)
                 if let existing = candidate.seenByMutationID[requested.mutationID] {
-                    guard Self.hasSameImmutableIdentity(existing, requested) else {
+                    guard existing == requestedProof else {
                         throw SyncMutationJournalError.duplicateMutationID
                     }
                     continue
@@ -616,27 +670,50 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
     }
 
-    private static func hasSameImmutableIdentity(
-        _ lhs: SyncMutation,
-        _ rhs: SyncMutation
-    ) -> Bool {
-        switch (lhs, rhs) {
-        case let (.delete(left), .delete(right)):
-            return left == right
-        case let (.save(left), .save(right)):
-            guard left.mutationID == right.mutationID,
-                  left.recordVersion == right.recordVersion else { return false }
-            switch (left.attachmentSource, right.attachmentSource) {
-            case (nil, nil):
-                return true
-            case let (.some(leftSource), .some(rightSource)):
-                return leftSource.contentSHA256 == rightSource.contentSHA256
-                    && leftSource.byteCount == rightSource.byteCount
-            default:
-                return false
-            }
+    private static func duplicateProof(
+        for mutation: SyncMutation
+    ) throws -> SyncMutationDuplicateProof {
+        let recordVersionSHA256: Data?
+        if let recordVersion = mutation.savedRecordVersion {
+            let encoded = try deterministicEncoder(
+                allowLegacyReminder: true
+            ).encode(recordVersion)
+            recordVersionSHA256 = Data(SHA256.hash(data: encoded))
+        } else {
+            recordVersionSHA256 = nil
+        }
+        return SyncMutationDuplicateProof(
+            mutationID: mutation.mutationID,
+            recordID: mutation.recordID,
+            intent: mutation.intent,
+            recordVersionSHA256: recordVersionSHA256,
+            attachmentContentSHA256: mutation.attachmentSource?.contentSHA256,
+            attachmentByteCount: mutation.attachmentSource?.byteCount
+        )
+    }
+
+    private static func validateDuplicateProof(
+        _ proof: SyncMutationDuplicateProof
+    ) throws {
+        let recordVersionIsValid = proof.intent == .save
+            ? proof.recordVersionSHA256?.count == SHA256.byteCount
+            : proof.recordVersionSHA256 == nil
+        let attachmentIsValid: Bool
+        switch (proof.attachmentContentSHA256, proof.attachmentByteCount) {
+        case (nil, nil):
+            attachmentIsValid = true
+        case let (.some(digest), .some(byteCount)):
+            attachmentIsValid = digest.count == SHA256.byteCount && byteCount >= 0
         default:
-            return false
+            attachmentIsValid = false
+        }
+        let attachmentMatchesRecordKind = (proof.attachmentContentSHA256 != nil)
+            == (proof.intent == .save && proof.recordID.kind == .attachment)
+        guard recordVersionIsValid,
+              attachmentIsValid,
+              attachmentMatchesRecordKind,
+              proof.intent == .save || proof.attachmentContentSHA256 == nil else {
+            throw SyncMutationJournalError.corrupt
         }
     }
 
@@ -665,7 +742,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 frames.append(frame)
             }
             try appendReconcilingMemoryLocked(frames, candidate: candidate)
-            reconcileAcknowledgedAttachmentsLocked(candidate)
+            reconcileAcknowledgedAttachmentsLocked()
         }
     }
 
@@ -690,11 +767,12 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         _ operation: () throws -> Result
     ) throws -> Result {
         try coordinator.lock.withLock {
-            try withAdvisoryFileLock {
+            try withParentDirectoryLock {
                 let fingerprint = try journalFingerprintLocked()
                 if loadedFingerprint != fingerprint {
                     loadedState = nil
                     loadedFingerprint = nil
+                    coordinator.requiresDurabilityRepair = true
                 }
                 do {
                     let result = try operation()
@@ -711,9 +789,9 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     private func preparedStateLocked() throws -> LoadedState {
         let state = try stateLocked()
-        try repairDurabilityIfNeededLocked()
-        reconcileAcknowledgedAttachmentsLocked(state)
-        return state
+        try repairDurabilityIfNeededLocked(state)
+        reconcileAcknowledgedAttachmentsLocked()
+        return try stateLocked()
     }
 
     private func stateLocked() throws -> LoadedState {
@@ -738,41 +816,95 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func loadSegmentedStateLocked() throws -> LoadedState {
-        var checkpoint = SyncJournalCheckpoint(version: 1, throughSequence: 0, pending: [])
+        var checkpoint = SyncJournalCheckpoint(throughSequence: 0, pending: [])
         var totalBytes = 0
         if let checkpointData = try readArtifact(checkpointURL) {
             totalBytes += checkpointData.count
             checkpoint = try decodeCheckpoint(checkpointData)
         }
-        guard checkpoint.version == 1,
-              checkpoint.throughSequence < UInt64.max else {
+        guard (checkpoint.version == 1 || checkpoint.version == 2),
+              checkpoint.throughSequence < UInt64.max,
+              checkpoint.proofShardCount >= 0,
+              checkpoint.proofShardCount <= Self.maximumProofShardCount else {
             throw SyncMutationJournalError.corrupt
         }
 
-        var seen: [UUID: SyncMutation] = [:]
-        for mutation in checkpoint.history {
-            let validated = try mutation.validatedForJournalLoad()
-            guard seen[validated.mutationID] == nil else {
-                throw SyncMutationJournalError.corrupt
+        var seen: [UUID: SyncMutationDuplicateProof] = [:]
+        var unpersistedProofs: [SyncMutationDuplicateProof] = []
+        var cleanupIntents = checkpoint.cleanupIntents
+        if checkpoint.version == 1 {
+            let history = checkpoint.legacyHistory ?? checkpoint.pending
+            let pendingIDs = Set(checkpoint.pending.map(\.mutationID))
+            for mutation in history {
+                let validated = try mutation.validatedForJournalLoad()
+                let proof = try Self.duplicateProof(for: validated)
+                guard seen[proof.mutationID] == nil else {
+                    throw SyncMutationJournalError.corrupt
+                }
+                seen[proof.mutationID] = proof
+                unpersistedProofs.append(proof)
+                if !pendingIDs.contains(validated.mutationID),
+                   let cleanup = Self.cleanupIntent(for: validated) {
+                    cleanupIntents.append(cleanup)
+                }
             }
-            seen[validated.mutationID] = validated
+        } else {
+            for index in 0..<checkpoint.proofShardCount {
+                guard let shardData = try readArtifact(proofShardURL(index)) else {
+                    throw SyncMutationJournalError.corrupt
+                }
+                let shard = try decodeProofShard(shardData)
+                guard shard.index == index,
+                      !shard.proofs.isEmpty,
+                      shard.proofs.count <= Self.proofShardEntryLimit else {
+                    throw SyncMutationJournalError.corrupt
+                }
+                for proof in shard.proofs {
+                    try Self.validateDuplicateProof(proof)
+                    guard seen[proof.mutationID] == nil else {
+                        throw SyncMutationJournalError.corrupt
+                    }
+                    seen[proof.mutationID] = proof
+                }
+            }
         }
         var pending: [SyncMutation] = []
         for mutation in checkpoint.pending {
             let validated = try mutation.validatedForJournalLoad()
+            let proof = try Self.duplicateProof(for: validated)
             if let historical = seen[validated.mutationID] {
-                guard Self.hasSameImmutableIdentity(historical, validated) else {
+                guard historical == proof else {
                     throw SyncMutationJournalError.corrupt
                 }
             } else {
-                seen[validated.mutationID] = validated
+                seen[validated.mutationID] = proof
+                unpersistedProofs.append(proof)
             }
             try validatePersistedAttachmentSource(in: validated)
             pending.append(validated)
         }
+        var seenCleanupIntents = Set<SyncAttachmentCleanupIntent>()
+        for cleanup in cleanupIntents {
+            guard seenCleanupIntents.insert(cleanup).inserted,
+                  let proof = seen[cleanup.mutationID],
+                  Self.cleanupIntent(for: proof) == cleanup else {
+                throw SyncMutationJournalError.corrupt
+            }
+        }
+        let pendingIDs = Set(pending.map(\.mutationID))
+        for proof in seen.values
+        where !pendingIDs.contains(proof.mutationID) {
+            if let cleanup = Self.cleanupIntent(for: proof),
+               seenCleanupIntents.insert(cleanup).inserted {
+                cleanupIntents.append(cleanup)
+            }
+        }
         var state = LoadedState(
             pending: pending,
             seenByMutationID: seen,
+            proofShardCount: checkpoint.proofShardCount,
+            unpersistedProofs: unpersistedProofs,
+            cleanupIntents: cleanupIntents,
             nextSequence: checkpoint.throughSequence + 1,
             framesSinceCheckpoint: 0,
             enqueuedOperationCount: 0,
@@ -781,16 +913,58 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             hasPartialFinalFrame: false
         )
 
-        guard let segmentData = try readArtifact(segmentURL) else { return state }
-        totalBytes += segmentData.count
-        guard totalBytes <= Self.maximumEncodedBytes else {
-            throw SyncMutationJournalError.tooLarge
+        if let segmentData = try readArtifact(segmentURL) {
+            totalBytes += segmentData.count
+            guard totalBytes <= Self.maximumEncodedBytes else {
+                throw SyncMutationJournalError.tooLarge
+            }
+            try replaySegment(segmentData, after: checkpoint.throughSequence, into: &state)
         }
-        try replaySegment(segmentData, after: checkpoint.throughSequence, into: &state)
         for mutation in state.pending {
             try validatePersistedAttachmentSource(in: mutation)
         }
+        if checkpoint.version == 1 {
+            try replaceLegacyHistoryCheckpointLocked(&state)
+        }
         return state
+    }
+
+    private func replaceLegacyHistoryCheckpointLocked(_ state: inout LoadedState) throws {
+        var proofShardCount = 0
+        for chunkStart in stride(
+            from: 0,
+            to: state.unpersistedProofs.count,
+            by: Self.proofShardEntryLimit
+        ) {
+            let chunkEnd = min(
+                chunkStart + Self.proofShardEntryLimit,
+                state.unpersistedProofs.count
+            )
+            try atomicWrite(
+                try encodeProofShard(
+                    index: proofShardCount,
+                    proofs: Array(state.unpersistedProofs[chunkStart..<chunkEnd])
+                ),
+                proofShardURL(proofShardCount)
+            )
+            proofShardCount += 1
+        }
+        let throughSequence = state.nextSequence - 1
+        try atomicWrite(try encodeCheckpoint(SyncJournalCheckpoint(
+            throughSequence: throughSequence,
+            pending: state.pending,
+            proofShardCount: proofShardCount,
+            cleanupIntents: []
+        )), checkpointURL)
+        counters.recordCheckpointRewrite()
+        try atomicWrite(Data(), segmentURL)
+        state.proofShardCount = proofShardCount
+        state.unpersistedProofs = []
+        state.framesSinceCheckpoint = 0
+        state.enqueuedOperationCount = 0
+        state.acknowledgedOperationCount = 0
+        state.validSegmentByteCount = 0
+        state.hasPartialFinalFrame = false
     }
 
     private func replaySegment(
@@ -902,19 +1076,34 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
     }
 
-    private func repairDurabilityIfNeededLocked() throws {
+    private func repairDurabilityIfNeededLocked(_ state: LoadedState) throws {
         guard coordinator.requiresDurabilityRepair else { return }
-        guard try pathExists(segmentURL) else {
-            coordinator.requiresDurabilityRepair = false
-            return
+        var synchronizedArtifact = false
+        for index in 0..<state.proofShardCount {
+            guard try synchronizeArtifactIfPresent(proofShardURL(index)) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            synchronizedArtifact = true
         }
+        let checkpointExists = try synchronizeArtifactIfPresent(checkpointURL)
+        let segmentExists = try synchronizeArtifactIfPresent(segmentURL)
+        if synchronizedArtifact || checkpointExists || segmentExists {
+            try synchronizeDirectory(segmentURL.deletingLastPathComponent())
+        }
+        coordinator.requiresDurabilityRepair = false
+    }
 
+    private func synchronizeArtifactIfPresent(_ artifactURL: URL) throws -> Bool {
         var pathStatus = stat()
-        guard segmentURL.path.withCString({ Darwin.lstat($0, &pathStatus) }) == 0,
-              Self.isRegularFile(pathStatus) else {
+        let pathResult = artifactURL.path.withCString { Darwin.lstat($0, &pathStatus) }
+        if pathResult != 0 {
+            guard errno == ENOENT else { throw currentPOSIXError() }
+            return false
+        }
+        guard Self.isRegularFile(pathStatus) else {
             throw SyncMutationJournalError.unsafeFile
         }
-        let descriptor = segmentURL.path.withCString {
+        let descriptor = artifactURL.path.withCString {
             Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
         }
         guard descriptor >= 0 else {
@@ -931,8 +1120,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             throw SyncMutationJournalError.unsafeFile
         }
         try synchronizeFile(descriptor)
-        try synchronizeDirectory(segmentURL.deletingLastPathComponent())
-        coordinator.requiresDurabilityRepair = false
+        return true
     }
 
     private func compactIfNeededLocked() throws {
@@ -942,13 +1130,31 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             return
         }
         let throughSequence = current.nextSequence - 1
+        var proofShardCount = current.proofShardCount
+        for chunkStart in stride(
+            from: 0,
+            to: current.unpersistedProofs.count,
+            by: Self.proofShardEntryLimit
+        ) {
+            let chunkEnd = min(
+                chunkStart + Self.proofShardEntryLimit,
+                current.unpersistedProofs.count
+            )
+            guard proofShardCount < Self.maximumProofShardCount else {
+                throw SyncMutationJournalError.tooLarge
+            }
+            let proofs = Array(current.unpersistedProofs[chunkStart..<chunkEnd])
+            try atomicWrite(
+                try encodeProofShard(index: proofShardCount, proofs: proofs),
+                proofShardURL(proofShardCount)
+            )
+            proofShardCount += 1
+        }
         let checkpoint = SyncJournalCheckpoint(
-            version: 1,
             throughSequence: throughSequence,
             pending: current.pending,
-            history: current.seenByMutationID.values.sorted {
-                $0.mutationID.uuidString < $1.mutationID.uuidString
-            }
+            proofShardCount: proofShardCount,
+            cleanupIntents: []
         )
         try atomicWrite(try encodeCheckpoint(checkpoint), checkpointURL)
         counters.recordCheckpointRewrite()
@@ -956,6 +1162,9 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         loadedState = LoadedState(
             pending: current.pending,
             seenByMutationID: current.seenByMutationID,
+            proofShardCount: proofShardCount,
+            unpersistedProofs: [],
+            cleanupIntents: current.cleanupIntents,
             nextSequence: throughSequence + 1,
             framesSinceCheckpoint: 0,
             enqueuedOperationCount: 0,
@@ -994,12 +1203,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             } catch {
                 throw SyncMutationJournalError.corrupt
             }
+            let proof = try Self.duplicateProof(for: mutation)
             if let existing = state.seenByMutationID[mutation.mutationID] {
-                guard Self.hasSameImmutableIdentity(existing, mutation) else {
+                guard existing == proof else {
                     throw SyncMutationJournalError.corrupt
                 }
             } else {
-                state.seenByMutationID[mutation.mutationID] = mutation
+                state.seenByMutationID[mutation.mutationID] = proof
+                state.unpersistedProofs.append(proof)
                 state.pending.append(mutation)
             }
             state.enqueuedOperationCount += 1
@@ -1015,6 +1226,10 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             }
             guard let index = state.pending.firstIndex(where: { $0.identity == identity }) else {
                 throw SyncMutationJournalError.corrupt
+            }
+            if let cleanup = Self.cleanupIntent(for: state.pending[index]),
+               !state.cleanupIntents.contains(cleanup) {
+                state.cleanupIntents.append(cleanup)
             }
             state.pending.remove(at: index)
             state.acknowledgedOperationCount += 1
@@ -1109,6 +1324,45 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
     }
 
+    private func encodeProofShard(
+        index: Int,
+        proofs: [SyncMutationDuplicateProof]
+    ) throws -> Data {
+        guard !proofs.isEmpty,
+              proofs.count <= Self.proofShardEntryLimit else {
+            throw SyncMutationJournalError.corrupt
+        }
+        let payload = try Self.deterministicEncoder().encode(
+            ProofShardPayload(version: 1, index: index, proofs: proofs)
+        )
+        let data = try Self.deterministicEncoder().encode(ProofShardFile(
+            version: 1,
+            payload: payload,
+            checksum: Data(SHA256.hash(data: payload))
+        ))
+        guard data.count <= Self.maximumEncodedBytes else {
+            throw SyncMutationJournalError.tooLarge
+        }
+        return data
+    }
+
+    private func decodeProofShard(_ data: Data) throws -> ProofShardPayload {
+        do {
+            let file = try JSONDecoder().decode(ProofShardFile.self, from: data)
+            guard file.version == 1,
+                  file.checksum == Data(SHA256.hash(data: file.payload)) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            let payload = try JSONDecoder().decode(ProofShardPayload.self, from: file.payload)
+            guard payload.version == 1 else { throw SyncMutationJournalError.corrupt }
+            return payload
+        } catch let error as SyncMutationJournalError {
+            throw error
+        } catch {
+            throw SyncMutationJournalError.corrupt
+        }
+    }
+
     private static func deterministicEncoder(allowLegacyReminder: Bool = false) -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -1121,11 +1375,27 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     private func migrateLegacyEnvelopeLocked() throws -> LoadedState {
         guard let legacyData = try readArtifact(url) else { return .empty }
         let mutations = try decodeAndValidateLegacyEnvelope(legacyData)
+        let proofs = try mutations.map(Self.duplicateProof(for:))
+        var proofShardCount = 0
+        for chunkStart in stride(
+            from: 0,
+            to: proofs.count,
+            by: Self.proofShardEntryLimit
+        ) {
+            let chunkEnd = min(chunkStart + Self.proofShardEntryLimit, proofs.count)
+            try atomicWrite(
+                try encodeProofShard(
+                    index: proofShardCount,
+                    proofs: Array(proofs[chunkStart..<chunkEnd])
+                ),
+                proofShardURL(proofShardCount)
+            )
+            proofShardCount += 1
+        }
         let checkpoint = SyncJournalCheckpoint(
-            version: 1,
             throughSequence: 0,
             pending: mutations,
-            history: mutations
+            proofShardCount: proofShardCount
         )
         try atomicWrite(try encodeCheckpoint(checkpoint), checkpointURL)
         counters.recordCheckpointRewrite()
@@ -1134,8 +1404,11 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         return LoadedState(
             pending: mutations,
             seenByMutationID: Dictionary(
-                uniqueKeysWithValues: mutations.map { ($0.mutationID, $0) }
+                uniqueKeysWithValues: proofs.map { ($0.mutationID, $0) }
             ),
+            proofShardCount: proofShardCount,
+            unpersistedProofs: [],
+            cleanupIntents: [],
             nextSequence: 1,
             framesSinceCheckpoint: 0,
             enqueuedOperationCount: 0,
@@ -1228,10 +1501,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func journalFingerprintLocked() throws -> JournalFingerprint {
-        JournalFingerprint(
+        let proofShardCount = loadedState?.proofShardCount ?? 0
+        return JournalFingerprint(
             legacy: try artifactFingerprint(url),
             checkpoint: try artifactFingerprint(checkpointURL),
-            segment: try artifactFingerprint(segmentURL)
+            segment: try artifactFingerprint(segmentURL),
+            proofShards: try (0..<proofShardCount).map {
+                try artifactFingerprint(proofShardURL($0))
+            }
         )
     }
 
@@ -1254,83 +1531,52 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         )
     }
 
-    private func withAdvisoryFileLock<Result>(
+    private func withParentDirectoryLock<Result>(
         _ operation: () throws -> Result
     ) throws -> Result {
-        try FileManager.default.createDirectory(
-            at: advisoryLockURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        let descriptor = try openAdvisoryLockFile()
+        let parent = url.deletingLastPathComponent()
+        var pathStatus = stat()
+        var pathResult = parent.path.withCString { Darwin.lstat($0, &pathStatus) }
+        if pathResult != 0, errno == ENOENT {
+            try FileManager.default.createDirectory(
+                at: parent,
+                withIntermediateDirectories: true
+            )
+            pathResult = parent.path.withCString { Darwin.lstat($0, &pathStatus) }
+        }
+        guard pathResult == 0,
+              (pathStatus.st_mode & S_IFMT) == S_IFDIR else {
+            throw SyncMutationJournalError.unsafeFile
+        }
+        let descriptor = parent.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            if errno == ELOOP { throw SyncMutationJournalError.unsafeFile }
+            throw currentPOSIXError()
+        }
         defer { Darwin.close(descriptor) }
-        try setAdvisoryLock(descriptor, type: Int16(F_WRLCK))
-        defer { try? setAdvisoryLock(descriptor, type: Int16(F_UNLCK)) }
-        try validateLockedFileDescriptor(descriptor)
+        try setParentDirectoryLock(descriptor, operation: LOCK_EX)
+        defer { try? setParentDirectoryLock(descriptor, operation: LOCK_UN) }
+
+        var openedStatus = stat()
+        var lockedPathStatus = stat()
+        guard Darwin.fstat(descriptor, &openedStatus) == 0,
+              (openedStatus.st_mode & S_IFMT) == S_IFDIR,
+              parent.path.withCString({ Darwin.lstat($0, &lockedPathStatus) }) == 0,
+              (lockedPathStatus.st_mode & S_IFMT) == S_IFDIR,
+              openedStatus.st_dev == lockedPathStatus.st_dev,
+              openedStatus.st_ino == lockedPathStatus.st_ino,
+              pathStatus.st_dev == openedStatus.st_dev,
+              pathStatus.st_ino == openedStatus.st_ino else {
+            throw SyncMutationJournalError.unsafeFile
+        }
         return try operation()
     }
 
-    private func setAdvisoryLock(_ descriptor: Int32, type: Int16) throws {
-        var lock = flock()
-        lock.l_type = type
-        lock.l_whence = Int16(SEEK_SET)
-        lock.l_start = 0
-        lock.l_len = 0
-        while Darwin.fcntl(descriptor, F_SETLKW, &lock) != 0 {
+    private func setParentDirectoryLock(_ descriptor: Int32, operation: Int32) throws {
+        while syncJournalFlock(descriptor, operation) != 0 {
             guard errno == EINTR else { throw currentPOSIXError() }
-        }
-    }
-
-    private func openAdvisoryLockFile() throws -> Int32 {
-        for _ in 0..<4 {
-            var before = stat()
-            let beforeResult = advisoryLockURL.path.withCString {
-                Darwin.lstat($0, &before)
-            }
-            let existed = beforeResult == 0
-            if existed, !Self.isRegularFile(before) {
-                throw SyncMutationJournalError.unsafeFile
-            }
-            if !existed, errno != ENOENT { throw currentPOSIXError() }
-
-            let flags = existed
-                ? O_RDWR | O_NOFOLLOW | O_CLOEXEC
-                : O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC
-            let descriptor = advisoryLockURL.path.withCString {
-                Darwin.open($0, flags, S_IRUSR | S_IWUSR)
-            }
-            if descriptor < 0 {
-                if errno == ENOENT || errno == EEXIST { continue }
-                if errno == ELOOP { throw SyncMutationJournalError.unsafeFile }
-                throw currentPOSIXError()
-            }
-
-            var opened = stat()
-            var after = stat()
-            let valid = Darwin.fstat(descriptor, &opened) == 0
-                && Self.isRegularFile(opened)
-                && advisoryLockURL.path.withCString({ Darwin.lstat($0, &after) }) == 0
-                && Self.isRegularFile(after)
-                && opened.st_dev == after.st_dev
-                && opened.st_ino == after.st_ino
-                && (!existed || (
-                    before.st_dev == opened.st_dev && before.st_ino == opened.st_ino
-                ))
-            if valid { return descriptor }
-            Darwin.close(descriptor)
-        }
-        throw SyncMutationJournalError.unsafeFile
-    }
-
-    private func validateLockedFileDescriptor(_ descriptor: Int32) throws {
-        var opened = stat()
-        var pathStatus = stat()
-        guard Darwin.fstat(descriptor, &opened) == 0,
-              Self.isRegularFile(opened),
-              advisoryLockURL.path.withCString({ Darwin.lstat($0, &pathStatus) }) == 0,
-              Self.isRegularFile(pathStatus),
-              opened.st_dev == pathStatus.st_dev,
-              opened.st_ino == pathStatus.st_ino else {
-            throw SyncMutationJournalError.unsafeFile
         }
     }
 
@@ -1360,7 +1606,10 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     private struct LoadedState {
         var pending: [SyncMutation]
-        var seenByMutationID: [UUID: SyncMutation]
+        var seenByMutationID: [UUID: SyncMutationDuplicateProof]
+        var proofShardCount: Int
+        var unpersistedProofs: [SyncMutationDuplicateProof]
+        var cleanupIntents: [SyncAttachmentCleanupIntent]
         var nextSequence: UInt64
         var framesSinceCheckpoint: Int
         var enqueuedOperationCount: Int
@@ -1371,6 +1620,9 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         static let empty = LoadedState(
             pending: [],
             seenByMutationID: [:],
+            proofShardCount: 0,
+            unpersistedProofs: [],
+            cleanupIntents: [],
             nextSequence: 1,
             framesSinceCheckpoint: 0,
             enqueuedOperationCount: 0,
@@ -1384,6 +1636,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         let legacy: ArtifactFingerprint?
         let checkpoint: ArtifactFingerprint?
         let segment: ArtifactFingerprint?
+        let proofShards: [ArtifactFingerprint?]
     }
 
     private struct ArtifactFingerprint: Equatable {
@@ -1400,6 +1653,18 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     private struct CheckpointFile: Codable {
         let version: Int
         let checkpoint: Data
+        let checksum: Data
+    }
+
+    private struct ProofShardPayload: Codable {
+        let version: Int
+        let index: Int
+        let proofs: [SyncMutationDuplicateProof]
+    }
+
+    private struct ProofShardFile: Codable {
+        let version: Int
+        let payload: Data
         let checksum: Data
     }
 
@@ -1553,34 +1818,69 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
     }
 
+    private static func cleanupIntent(
+        for mutation: SyncMutation
+    ) -> SyncAttachmentCleanupIntent? {
+        guard mutation.attachmentSource?.isJournalStaged == true,
+              mutation.recordID.kind == .attachment else { return nil }
+        return SyncAttachmentCleanupIntent(
+            mutationID: mutation.mutationID,
+            attachmentVersionID: mutation.recordID.uuid
+        )
+    }
+
+    private static func cleanupIntent(
+        for proof: SyncMutationDuplicateProof
+    ) -> SyncAttachmentCleanupIntent? {
+        guard proof.intent == .save,
+              proof.recordID.kind == .attachment,
+              proof.attachmentContentSHA256 != nil else { return nil }
+        return SyncAttachmentCleanupIntent(
+            mutationID: proof.mutationID,
+            attachmentVersionID: proof.recordID.uuid
+        )
+    }
+
     private func removeStagedAttachmentIfUnreferenced(
-        _ mutation: SyncMutation,
+        _ cleanup: SyncAttachmentCleanupIntent,
         remaining: [SyncMutation]
-    ) {
-        guard let source = mutation.attachmentSource,
-              source.isJournalStaged,
-              !remaining.contains(where: { $0.attachmentSource?.fileURL == source.fileURL }) else {
-            return
-        }
+    ) -> Bool {
+        let filename = "\(cleanup.mutationID.uuidString)-\(cleanup.attachmentVersionID.uuidString).asset"
         let root = attachmentsDirectory.standardizedFileURL
-        let file = source.fileURL.standardizedFileURL
+        let file = root.appendingPathComponent(filename).standardizedFileURL
+        guard !remaining.contains(where: { $0.attachmentSource?.fileURL == file }) else {
+            return false
+        }
         guard file.deletingLastPathComponent().path == root.path,
               file.path.hasPrefix(root.path + "/"),
-              file.resolvingSymlinksInPath().path == file.path else { return }
+              file.resolvingSymlinksInPath().path == file.path else { return false }
         var status = stat()
-        guard file.path.withCString({ Darwin.lstat($0, &status) }) == 0,
-              Self.isRegularFile(status) else { return }
-        if file.path.withCString({ Darwin.unlink($0) }) == 0 {
-            try? synchronizeDirectory(attachmentsDirectory)
+        let pathResult = file.path.withCString { Darwin.lstat($0, &status) }
+        if pathResult != 0 {
+            guard errno == ENOENT else { return false }
+            do {
+                if try pathExists(root) { try synchronizeDirectory(root) }
+                return true
+            } catch {
+                return false
+            }
+        }
+        guard Self.isRegularFile(status),
+              file.path.withCString({ Darwin.unlink($0) }) == 0 else { return false }
+        do {
+            try synchronizeDirectory(root)
+            return true
+        } catch {
+            return false
         }
     }
 
-    private func reconcileAcknowledgedAttachmentsLocked(_ state: LoadedState) {
-        let pendingIDs = Set(state.pending.map(\.mutationID))
-        for mutation in state.seenByMutationID.values
-        where !pendingIDs.contains(mutation.mutationID) {
-            removeStagedAttachmentIfUnreferenced(mutation, remaining: state.pending)
+    private func reconcileAcknowledgedAttachmentsLocked() {
+        guard var state = loadedState else { return }
+        state.cleanupIntents.removeAll {
+            removeStagedAttachmentIfUnreferenced($0, remaining: state.pending)
         }
+        loadedState = state
     }
 
     private static func defaultAppendFrames(

@@ -244,6 +244,49 @@ import Testing
         #expect(try journal.pending().count == 1_000)
         #expect(started.duration(to: clock.now) < .seconds(3))
     }
+
+    @Test func restartFinishesStagedAttachmentCleanupAfterDurablePartialAckFailure() throws {
+        let fixture = try FinalFixJournalFixture()
+        let firstSource = fixture.directory.appendingPathComponent("first-cleanup.json")
+        let secondSource = fixture.directory.appendingPathComponent("second-cleanup.json")
+        let firstBytes = Data("first cleanup".utf8)
+        let secondBytes = Data("second cleanup".utf8)
+        try firstBytes.write(to: firstSource)
+        try secondBytes.write(to: secondSource)
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let first = try attachmentSave(
+            slot: .init(owner: owner, role: "project-photo", slotID: "first"),
+            bytes: firstBytes,
+            source: firstSource
+        )
+        let second = try attachmentSave(
+            slot: .init(owner: owner, role: "project-photo", slotID: "second"),
+            bytes: secondBytes,
+            source: secondSource
+        )
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        try journal.enqueue([first, second])
+        let pending = try journal.pending()
+        let firstStaged = try #require(pending[0].attachmentSource?.fileURL)
+        let secondStaged = try #require(pending[1].attachmentSource?.fileURL)
+        let interrupted = FileSyncMutationJournal(url: fixture.url, appendFrames: { data, url in
+            try appendFinalFixJournalData(data, to: url)
+            throw FinalFixWriteThenThrow()
+        })
+
+        #expect(throws: FinalFixWriteThenThrow.self) {
+            try interrupted.acknowledge([pending[0].identity])
+        }
+        #expect(FileManager.default.fileExists(atPath: firstStaged.path))
+        #expect(FileManager.default.fileExists(atPath: secondStaged.path))
+
+        let reopened = FileSyncMutationJournal(url: fixture.url)
+        #expect(try reopened.pending() == [pending[1]])
+        #expect(!FileManager.default.fileExists(atPath: firstStaged.path))
+        #expect(FileManager.default.fileExists(atPath: secondStaged.path))
+        try reopened.acknowledge([pending[0].identity])
+        #expect(!FileManager.default.fileExists(atPath: firstStaged.path))
+    }
 }
 
 private struct FinalFixWriteThenThrow: Error {}

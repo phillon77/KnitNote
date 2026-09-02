@@ -1087,6 +1087,32 @@ import UniformTypeIdentifiers
         }
     }
 
+    @Test(.timeLimit(.minutes(1))) func restartRejectsFifoArchiveAttachmentWithoutBlocking() throws {
+        let fixture = try SyncPublicationFixture()
+        let failing = fixture.store(sink: RecordingSyncMutationSink(shouldFail: true))
+        let project = try #require(failing.project(id: fixture.projectID))
+        try failing.updateProject(
+            id: project.id,
+            name: project.name,
+            toolType: project.toolType,
+            toolSize: project.toolSize,
+            toolNotes: project.toolNotes,
+            photoChange: .replace(try makeSyncPublicationJPEG(red: 0.6))
+        )
+        #expect(failing.syncPublicationError == .pendingRepair)
+        let archive = try fixture.archive()
+        let photoFilename = try #require(archive.projects.first?.photoFilename)
+        let photoURL = fixture.liveRoot
+            .appendingPathComponent("ProjectPhotos", isDirectory: true)
+            .appendingPathComponent(photoFilename)
+        try FileManager.default.removeItem(at: photoURL)
+        #expect(photoURL.path.withCString { Darwin.mkfifo($0, S_IRUSR | S_IWUSR) } == 0)
+
+        let restarted = fixture.store(sink: RecordingSyncMutationSink())
+
+        #expect(restarted.syncPublicationError == .corruptTransaction)
+    }
+
     @Test func oversizedPublicationTransactionIsRejectedFailClosed() throws {
         let fixture = try SyncPublicationFixture()
         let transactionURL = SyncPublicationTransactionFile(

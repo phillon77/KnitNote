@@ -399,47 +399,19 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             guard errno == ENOENT else { throw currentPOSIXError() }
             return nil
         }
-        guard Self.isRegularFile(pathStatus) else {
-            throw SyncMutationJournalError.unsafeFile
-        }
-        guard pathStatus.st_size >= 0,
-              pathStatus.st_size <= Self.maximumEncodedBytes else {
-            throw SyncMutationJournalError.tooLarge
-        }
-
-        let descriptor = url.path.withCString {
-            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        }
-        guard descriptor >= 0 else { throw currentPOSIXError() }
-        defer { Darwin.close(descriptor) }
-
-        var descriptorStatus = stat()
-        guard Darwin.fstat(descriptor, &descriptorStatus) == 0 else {
-            throw currentPOSIXError()
-        }
-        guard Self.isRegularFile(descriptorStatus),
-              descriptorStatus.st_dev == pathStatus.st_dev,
-              descriptorStatus.st_ino == pathStatus.st_ino else {
-            throw SyncMutationJournalError.unsafeFile
-        }
-        guard descriptorStatus.st_size >= 0,
-              descriptorStatus.st_size <= Self.maximumEncodedBytes else {
-            throw SyncMutationJournalError.tooLarge
-        }
-
-        var data = Data()
-        data.reserveCapacity(Int(descriptorStatus.st_size))
-        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
-        while true {
-            let count = buffer.withUnsafeMutableBytes { bytes in
-                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
-            }
-            if count < 0, errno == EINTR { continue }
-            guard count >= 0 else { throw currentPOSIXError() }
-            guard count > 0 else { return data }
-            data.append(buffer, count: count)
-            guard data.count <= Self.maximumEncodedBytes else {
+        do {
+            return try SyncRegularFileReader().read(
+                url,
+                maximumBytes: Self.maximumEncodedBytes
+            ).data
+        } catch let error as SyncRegularFileReadError {
+            switch error {
+            case .unsafeFile:
+                throw SyncMutationJournalError.unsafeFile
+            case .tooLarge:
                 throw SyncMutationJournalError.tooLarge
+            case .unavailable, .replaced, .changed, .expectationMismatch:
+                throw SyncMutationJournalError.corrupt
             }
         }
     }
@@ -521,17 +493,11 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         from source: SyncAttachmentSource,
         to destination: URL
     ) throws {
-        let sourceDescriptor = source.fileURL.path.withCString {
-            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        }
-        guard sourceDescriptor >= 0 else { throw currentPOSIXError() }
-        defer { Darwin.close(sourceDescriptor) }
-        var before = stat()
-        guard Darwin.fstat(sourceDescriptor, &before) == 0,
-              Self.isRegularFile(before),
-              before.st_size == source.byteCount else {
-            throw SyncMutationJournalError.invalidAttachment
-        }
+        let sourceData = try readVerifiedAttachment(
+            at: source.fileURL,
+            expectedByteCount: source.byteCount,
+            expectedSHA256: source.contentSHA256
+        )
 
         let temporary = attachmentsDirectory.appendingPathComponent(
             ".\(destination.lastPathComponent).\(UUID().uuidString).tmp",
@@ -544,35 +510,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             if temporaryExists { _ = temporary.path.withCString { Darwin.unlink($0) } }
         }
 
-        var hasher = SHA256()
-        var copied: Int64 = 0
-        var buffer = [UInt8](repeating: 0, count: 128 * 1_024)
-        while true {
-            let count = buffer.withUnsafeMutableBytes { bytes in
-                Darwin.read(sourceDescriptor, bytes.baseAddress, bytes.count)
-            }
-            if count < 0, errno == EINTR { continue }
-            guard count >= 0 else { throw currentPOSIXError() }
-            guard count > 0 else { break }
-            copied += Int64(count)
-            guard copied <= source.byteCount else {
-                throw SyncMutationJournalError.invalidAttachment
-            }
-            let data = Data(buffer.prefix(count))
-            hasher.update(data: data)
-            try Self.write(data, to: destinationDescriptor)
-        }
-
-        var after = stat()
-        guard Darwin.fstat(sourceDescriptor, &after) == 0,
-              before.st_dev == after.st_dev,
-              before.st_ino == after.st_ino,
-              before.st_size == after.st_size,
-              copied == source.byteCount,
-              Data(hasher.finalize()) == source.contentSHA256,
-              Darwin.fsync(destinationDescriptor) == 0 else {
-            throw SyncMutationJournalError.invalidAttachment
-        }
+        try Self.write(sourceData, to: destinationDescriptor)
+        guard Darwin.fsync(destinationDescriptor) == 0 else { throw currentPOSIXError() }
         guard temporary.path.withCString({ sourcePath in
             destination.path.withCString { destinationPath in
                 Darwin.rename(sourcePath, destinationPath)
@@ -589,33 +528,35 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         expectedByteCount: Int64,
         expectedSHA256: Data
     ) throws {
-        let descriptor = file.path.withCString {
-            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        }
-        guard descriptor >= 0 else { throw currentPOSIXError() }
-        defer { Darwin.close(descriptor) }
-        var status = stat()
-        guard Darwin.fstat(descriptor, &status) == 0,
-              Self.isRegularFile(status),
-              status.st_size == expectedByteCount else {
+        _ = try readVerifiedAttachment(
+            at: file,
+            expectedByteCount: expectedByteCount,
+            expectedSHA256: expectedSHA256
+        )
+    }
+
+    private func readVerifiedAttachment(
+        at file: URL,
+        expectedByteCount: Int64,
+        expectedSHA256: Data
+    ) throws -> Data {
+        guard expectedByteCount >= 0,
+              expectedByteCount <= Int64(Int.max) else {
             throw SyncMutationJournalError.invalidAttachment
         }
-        var hasher = SHA256()
-        var countTotal: Int64 = 0
-        var buffer = [UInt8](repeating: 0, count: 128 * 1_024)
-        while true {
-            let count = buffer.withUnsafeMutableBytes { bytes in
-                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
+        do {
+            return try SyncRegularFileReader().read(
+                file,
+                maximumBytes: Int(expectedByteCount),
+                expected: .init(byteCount: expectedByteCount, sha256: expectedSHA256)
+            ).data
+        } catch let error as SyncRegularFileReadError {
+            switch error {
+            case .unsafeFile:
+                throw SyncMutationJournalError.unsafeFile
+            case .unavailable, .tooLarge, .replaced, .changed, .expectationMismatch:
+                throw SyncMutationJournalError.invalidAttachment
             }
-            if count < 0, errno == EINTR { continue }
-            guard count >= 0 else { throw currentPOSIXError() }
-            guard count > 0 else { break }
-            countTotal += Int64(count)
-            hasher.update(data: Data(buffer.prefix(count)))
-        }
-        guard countTotal == expectedByteCount,
-              Data(hasher.finalize()) == expectedSHA256 else {
-            throw SyncMutationJournalError.invalidAttachment
         }
     }
 

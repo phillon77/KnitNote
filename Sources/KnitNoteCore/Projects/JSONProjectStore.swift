@@ -173,17 +173,35 @@ private struct SyncAttachmentPublicationEvidence: Codable {
 }
 
 private struct SyncAttachmentPublicationEvidenceFile {
+    private static let maximumEncodedBytes = FileSyncMutationJournal.maximumEncodedBytes
     let url: URL
 
     func load() throws -> SyncAttachmentPublicationEvidence {
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        var status = stat()
+        let pathResult = url.path.withCString { Darwin.lstat($0, &status) }
+        if pathResult != 0 {
+            guard errno == ENOENT else {
+                throw SyncPublicationTransactionFileError.unavailable
+            }
             return SyncAttachmentPublicationEvidence()
         }
         do {
             return try JSONDecoder().decode(
                 SyncAttachmentPublicationEvidence.self,
-                from: Data(contentsOf: url)
+                from: SyncRegularFileReader().read(
+                    url,
+                    maximumBytes: Self.maximumEncodedBytes
+                ).data
             ).validated()
+        } catch let error as SyncRegularFileReadError {
+            switch error {
+            case .unsafeFile:
+                throw SyncPublicationTransactionFileError.unsafeFile
+            case .unavailable:
+                throw SyncPublicationTransactionFileError.unavailable
+            case .tooLarge, .replaced, .changed, .expectationMismatch:
+                throw SyncPublicationTransactionFileError.corrupt
+            }
         } catch let error as SyncPublicationTransactionFileError {
             throw error
         } catch {
@@ -689,36 +707,25 @@ private struct SyncRegularFileMetadata {
 }
 
 private func syncRegularFileMetadata(at url: URL) throws -> SyncRegularFileMetadata {
-    let descriptor = url.path.withCString {
-        Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-    }
-    guard descriptor >= 0 else {
-        throw SyncPublicationTransactionFileError.unavailable
-    }
-    defer { Darwin.close(descriptor) }
-    var status = stat()
-    guard Darwin.fstat(descriptor, &status) == 0,
-          (status.st_mode & S_IFMT) == S_IFREG,
-          status.st_size >= 0 else {
-        throw SyncPublicationTransactionFileError.unsafeFile
-    }
-    var hasher = SHA256()
-    var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
-    while true {
-        let count = buffer.withUnsafeMutableBytes { bytes in
-            Darwin.read(descriptor, bytes.baseAddress, bytes.count)
-        }
-        if count < 0, errno == EINTR { continue }
-        guard count >= 0 else {
+    do {
+        let read = try SyncRegularFileReader().read(
+            url,
+            maximumBytes: 100_000_000
+        )
+        return SyncRegularFileMetadata(
+            contentSHA256: read.sha256,
+            byteCount: read.byteCount
+        )
+    } catch let error as SyncRegularFileReadError {
+        switch error {
+        case .unsafeFile:
+            throw SyncPublicationTransactionFileError.unsafeFile
+        case .unavailable:
             throw SyncPublicationTransactionFileError.unavailable
+        case .tooLarge, .replaced, .changed, .expectationMismatch:
+            throw SyncPublicationTransactionFileError.corrupt
         }
-        guard count > 0 else { break }
-        hasher.update(data: Data(buffer[0..<count]))
     }
-    return SyncRegularFileMetadata(
-        contentSHA256: Data(hasher.finalize()),
-        byteCount: Int64(status.st_size)
-    )
 }
 
 private func syncMediaType(for filename: String, fallback: String) -> String {

@@ -391,51 +391,18 @@ struct SyncPublicationTransactionFile {
             }
             return nil
         }
-        guard Self.isRegularFile(pathStatus) else {
-            throw SyncPublicationTransactionFileError.unsafeFile
-        }
-        guard pathStatus.st_size >= 0,
-              pathStatus.st_size <= Self.maximumEncodedBytes else {
-            throw SyncPublicationTransactionFileError.corrupt
-        }
-
-        let descriptor = url.path.withCString {
-            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        }
-        guard descriptor >= 0 else {
-            // Absence was already established by the first lstat. Disappearing
-            // between that check and open is an unsafe race, not an empty state.
-            throw SyncPublicationTransactionFileError.unavailable
-        }
-        defer { Darwin.close(descriptor) }
-
-        var status = stat()
-        guard Darwin.fstat(descriptor, &status) == 0 else {
-            throw SyncPublicationTransactionFileError.unavailable
-        }
-        guard Self.isRegularFile(status) else {
-            throw SyncPublicationTransactionFileError.unsafeFile
-        }
-        guard status.st_size >= 0,
-              status.st_size <= Self.maximumEncodedBytes,
-              status.st_dev == pathStatus.st_dev,
-              status.st_ino == pathStatus.st_ino else {
-            throw SyncPublicationTransactionFileError.corrupt
-        }
-
-        var data = Data()
-        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
-        while true {
-            let count = buffer.withUnsafeMutableBytes { bytes in
-                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
-            }
-            if count < 0, errno == EINTR { continue }
-            guard count >= 0 else {
+        do {
+            return try SyncRegularFileReader().read(
+                url,
+                maximumBytes: Self.maximumEncodedBytes
+            ).data
+        } catch let error as SyncRegularFileReadError {
+            switch error {
+            case .unsafeFile:
+                throw SyncPublicationTransactionFileError.unsafeFile
+            case .unavailable:
                 throw SyncPublicationTransactionFileError.unavailable
-            }
-            guard count > 0 else { return data }
-            data.append(buffer, count: count)
-            guard data.count <= Self.maximumEncodedBytes else {
+            case .tooLarge, .replaced, .changed, .expectationMismatch:
                 throw SyncPublicationTransactionFileError.corrupt
             }
         }
@@ -492,38 +459,20 @@ struct SyncPublicationTransactionFile {
             }
             return nil
         }
-        guard Self.isRegularFile(pathStatus) else {
-            throw SyncPublicationTransactionFileError.unsafeFile
-        }
-        let descriptor = fileURL.path.withCString {
-            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        }
-        guard descriptor >= 0 else {
-            throw SyncPublicationTransactionFileError.unavailable
-        }
-        defer { Darwin.close(descriptor) }
-
-        var descriptorStatus = stat()
-        guard Darwin.fstat(descriptor, &descriptorStatus) == 0,
-              Self.isRegularFile(descriptorStatus),
-              descriptorStatus.st_dev == pathStatus.st_dev,
-              descriptorStatus.st_ino == pathStatus.st_ino else {
-            throw SyncPublicationTransactionFileError.unsafeFile
-        }
-        var hasher = SHA256()
-        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
-        while true {
-            let count = buffer.withUnsafeMutableBytes { bytes in
-                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
-            }
-            if count < 0, errno == EINTR { continue }
-            guard count >= 0 else {
+        do {
+            return try SyncRegularFileReader().read(
+                fileURL,
+                maximumBytes: 100_000_000
+            ).sha256
+        } catch let error as SyncRegularFileReadError {
+            switch error {
+            case .unsafeFile:
+                throw SyncPublicationTransactionFileError.unsafeFile
+            case .unavailable:
                 throw SyncPublicationTransactionFileError.unavailable
+            case .tooLarge, .replaced, .changed, .expectationMismatch:
+                throw SyncPublicationTransactionFileError.corrupt
             }
-            guard count > 0 else {
-                return Data(hasher.finalize())
-            }
-            hasher.update(data: Data(buffer.prefix(count)))
         }
     }
 

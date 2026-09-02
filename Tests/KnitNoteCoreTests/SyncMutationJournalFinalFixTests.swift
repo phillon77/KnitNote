@@ -167,6 +167,31 @@ import Testing
         }
     }
 
+    @Test(.timeLimit(.minutes(1))) func restartRejectsFifoStagedAttachmentWithoutBlocking() throws {
+        let fixture = try FinalFixJournalFixture()
+        let source = fixture.directory.appendingPathComponent("source.json")
+        let bytes = Data("immutable staged attachment".utf8)
+        try bytes.write(to: source)
+        let mutation = try attachmentSave(
+            slot: .init(
+                owner: .init(kind: .project, uuid: UUID()),
+                role: "project-photo",
+                slotID: "primary"
+            ),
+            bytes: bytes,
+            source: source
+        )
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        try journal.enqueue(mutation)
+        let staged = try #require(journal.pending().first?.attachmentSource?.fileURL)
+        try FileManager.default.removeItem(at: staged)
+        #expect(staged.path.withCString { Darwin.mkfifo($0, S_IRUSR | S_IWUSR) } == 0)
+
+        #expect(throws: SyncMutationJournalError.unsafeFile) {
+            _ = try FileSyncMutationJournal(url: fixture.url).pending()
+        }
+    }
+
     @Test func oversizedJournalIsRejectedBeforeReadingPayload() throws {
         let fixture = try FinalFixJournalFixture()
         #expect(FileManager.default.createFile(atPath: fixture.url.path, contents: nil))

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import KnitNoteCore
@@ -87,6 +88,238 @@ import Testing
         #expect(throws: (any Error).self) {
             _ = try JSONEncoder().encode(SyncAtomicDomainValue.knittingReminder(reminder))
         }
+    }
+
+    @Test func splitLegacyRemindersUnionBeforeCounterAggregateMerge() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let first = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 3, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let secondBase = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 6, text: nil),
+            createdAt: Date(timeIntervalSince1970: 2)
+        ))
+        let second = try secondBase.applying(.trigger(through: 0))
+        let equalStamp = stamp(revision: 1, deviceID: "legacy-equal")
+        let aggregate = record(
+            state: SyncCounterReminderState(
+                counter: ProjectCounter(id: counterID, defaultOrdinal: 1),
+                reminders: [first], preparedCommand: nil,
+                processedCommandIDs: [], occurrence: nil
+            ),
+            projectID: projectID,
+            stamp: equalStamp
+        )
+        let standalone = legacyReminderRecord(reminder: second, stamp: equalStamp)
+
+        let result = try SyncMergeEngine().merge(
+            local: [aggregate], remote: [standalone], pendingLocal: []
+        )
+
+        #expect(Set(result.records[0].counterReminderState?.reminders.map(\.id) ?? [])
+            == [first.id, second.id])
+        #expect(result.records.allSatisfy { $0.id.kind != .knittingReminder })
+        #expect(result.recordsToUpload == [.init(kind: .projectCounter, uuid: counterID)])
+    }
+
+    @Test func tombstonedLegacyReminderDoesNotResurrectIntoAggregate() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let base = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .changeYarn, target: 2, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let reminder = try base.applying(.trigger(through: 0))
+        let liveStamp = stamp(revision: reminder.mutationRevision, deviceID: "live")
+        let tombstoneStamp = stamp(revision: 2, deviceID: "tombstone")
+        let aggregate = record(
+            state: SyncCounterReminderState(
+                counter: ProjectCounter(id: counterID, defaultOrdinal: 1),
+                reminders: [reminder], preparedCommand: nil,
+                processedCommandIDs: [], occurrence: nil
+            ),
+            projectID: projectID,
+            stamp: liveStamp
+        )
+        let tombstone = legacyReminderRecord(
+            reminder: reminder,
+            stamp: liveStamp,
+            deletedAt: .init(
+                value: Date(timeIntervalSince1970: 2), stamp: tombstoneStamp
+            )
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [aggregate], remote: [tombstone], pendingLocal: []
+        )
+
+        #expect(result.records[0].counterReminderState?.reminders.isEmpty == true)
+        #expect(result.records.allSatisfy { $0.id.kind != .knittingReminder })
+    }
+
+    @Test func pendingLegacyDeleteBecomesExactCounterAggregateMutation() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 2, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let aggregate = record(
+            state: SyncCounterReminderState(
+                counter: ProjectCounter(id: counterID, defaultOrdinal: 1),
+                reminders: [reminder], preparedCommand: nil,
+                processedCommandIDs: [], occurrence: nil
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "aggregate")
+        )
+        let legacy = legacyReminderRecord(
+            reminder: reminder, stamp: stamp(revision: 0, deviceID: "legacy")
+        )
+        let mutationID = UUID()
+
+        let result = try SyncMergeEngine().merge(
+            local: [aggregate], remote: [legacy],
+            pendingLocalMutations: [.delete(legacy.id, mutationID: mutationID)]
+        )
+
+        #expect(result.records[0].counterReminderState?.reminders.isEmpty == true)
+        #expect(result.mutationsToUpload.count == 1)
+        #expect(result.mutationsToUpload[0].recordID
+            == .init(kind: .projectCounter, uuid: counterID))
+        #expect(result.mutationsToUpload[0].mutationID == mutationID)
+        #expect(result.mutationsToUpload[0].savedRecordVersion?.record
+            .counterReminderState?.reminders.isEmpty == true)
+    }
+
+    @Test func pendingLegacySaveBecomesExactCounterAggregateMutation() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 5, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let zeroStamp = stamp(revision: 0, deviceID: "legacy-save")
+        let aggregate = record(
+            state: state(counterID: counterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: zeroStamp
+        )
+        let mutationID = UUID()
+        let legacySave = try decodedLegacySaveMutation(
+            reminder: reminder,
+            projectID: projectID,
+            stamp: zeroStamp,
+            mutationID: mutationID
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [aggregate], remote: [],
+            pendingLocalMutations: [legacySave]
+        )
+
+        #expect(result.records[0].counterReminderState?.reminders.map(\.id) == [reminder.id])
+        #expect(result.mutationsToUpload.count == 1)
+        let converted = try #require(result.mutationsToUpload.first)
+        #expect(converted.recordID == .init(kind: .projectCounter, uuid: counterID))
+        #expect(converted.mutationID == mutationID)
+        #expect(converted.savedRecordVersion?.record.counterReminderState?
+            .reminders.map(\.id) == [reminder.id])
+    }
+
+    @Test func pendingLegacySaveThenDeletePreservesBothExactAggregateIntents() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .measure, target: 7, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let zeroStamp = stamp(revision: 0, deviceID: "legacy-sequence")
+        let aggregate = record(
+            state: state(counterID: counterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: zeroStamp
+        )
+        let saveID = UUID()
+        let deleteID = UUID()
+        let save = try decodedLegacySaveMutation(
+            reminder: reminder,
+            projectID: projectID,
+            stamp: zeroStamp,
+            mutationID: saveID
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [aggregate], remote: [],
+            pendingLocalMutations: [
+                save,
+                .delete(
+                    .init(kind: .knittingReminder, uuid: reminder.id),
+                    mutationID: deleteID
+                ),
+            ]
+        )
+
+        #expect(result.records[0].counterReminderState?.reminders.isEmpty == true)
+        #expect(result.mutationsToUpload.map(\.mutationID) == [saveID, deleteID])
+        #expect(result.mutationsToUpload[0].savedRecordVersion?.record
+            .counterReminderState?.reminders.map(\.id) == [reminder.id])
+        #expect(result.mutationsToUpload[1].savedRecordVersion?.record
+            .counterReminderState?.reminders.isEmpty == true)
+    }
+
+    @Test func pendingLegacySaveSurvivesJournalRestartAndMigratesExactly() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "legacy-reminder-journal-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let journalURL = directory.appendingPathComponent("journal.json")
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let reminder = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .changeYarn, target: 9, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let migrationStamp = stamp(revision: 0, deviceID: "legacy-journal")
+        let mutationID = UUID()
+        let aggregate = record(
+            state: state(counterID: counterID, value: 0, counterRevision: 0),
+            projectID: projectID,
+            stamp: migrationStamp
+        )
+        let fixture = try legacySaveMutationFixture(
+            reminder: reminder,
+            projectID: projectID,
+            stamp: migrationStamp,
+            mutationID: mutationID
+        )
+        try JSONSerialization.data(withJSONObject: [
+            "version": 2,
+            "mutations": [fixture.object],
+        ], options: [.sortedKeys]).write(to: journalURL)
+
+        let pending = try FileSyncMutationJournal(url: journalURL).pending()
+        let migrated = try SyncMergeEngine().merge(
+            local: [aggregate], remote: [], pendingLocalMutations: pending
+        )
+
+        #expect(pending == [fixture.mutation])
+        #expect(migrated.records[0].counterReminderState?.reminders.map(\.id)
+            == [reminder.id])
+        #expect(migrated.mutationsToUpload.first?.recordID
+            == .init(kind: .projectCounter, uuid: counterID))
+        #expect(migrated.mutationsToUpload.first?.mutationID == mutationID)
     }
 
     @Test func processedCommandIDsEncodeInStableLexicalOrder() throws {
@@ -414,6 +647,35 @@ import Testing
         }
     }
 
+    @Test func alreadyProcessedIDCannotBypassExactOutcomeProof() {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let counterID = UUID()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: projectID.uuid, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command, expectedCounterRevision: 4, expectedCounterValue: 9
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(command.id, preparedCommand: prepared, at: Date(timeIntervalSince1970: 2))
+        let incompatible = record(
+            state: state(
+                counterID: counterID, value: 8, counterRevision: 5,
+                processedCommandIDs: [command.id]
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 6, deviceID: "incompatible")
+        )
+
+        #expect(throws: SyncMergeError.processedWatchCommandWouldRegress(command.id)) {
+            _ = try SyncMergeEngine().merge(
+                local: [incompatible], remote: [], pendingLocal: [],
+                counterReminderContext: .init(processedLedger: ledger)
+            )
+        }
+    }
+
     @Test func deferCannotProvePreparedCompleteReceipt() throws {
         let counterID = UUID()
         let base = try #require(KnittingReminder(
@@ -559,10 +821,17 @@ import Testing
             to: initial,
             processedLedger: ledger
         )
+        var replayLedger = ledger
+        replayLedger.record(
+            command.id,
+            preparedCommand: prepared,
+            effectProof: .init(counter: first.state.counter, reminder: first.state.reminder),
+            at: Date(timeIntervalSince1970: 4)
+        )
         let replay = try policy.applyingStop(
             prepared,
             to: first.state,
-            processedLedger: ledger
+            processedLedger: replayLedger
         )
         let productionMerge = try policy.merge(
             .init(value: initial, stamp: stamp(revision: 4, deviceID: "older")),
@@ -577,6 +846,47 @@ import Testing
         #expect(first.state.processedCommandIDs == [command.id])
         #expect(productionMerge.value.reminders.first?.state == .stopped)
         #expect(productionMerge.value.processedCommandIDs == [command.id])
+    }
+
+    @Test func alreadyStoppedMismatchCannotAcquireProcessedIDAsNoOp() throws {
+        let counterID = UUID()
+        let base = try #require(KnittingReminder(
+            id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 1, text: nil),
+            createdAt: Date(timeIntervalSince1970: 1)
+        ))
+        let triggered = try base.applying(.trigger(through: 1))
+        let occurrence = try #require(triggered.progress.pending.first)
+        let stopped = try triggered.applying(.stop(
+            observedRevision: triggered.mutationRevision
+        ))
+        let mismatchedOccurrenceID = UUID()
+        let command = WatchCounterCommand(
+            schemaVersion: 2, id: UUID(), projectID: UUID(), counterID: counterID,
+            operation: .stopReminder, reminderID: stopped.id,
+            occurrenceID: mismatchedOccurrenceID,
+            observedMutationRevision: triggered.mutationRevision + 9,
+            createdAt: Date(timeIntervalSince1970: 2)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command, expectedCounterRevision: 1, expectedCounterValue: 1,
+            expectedReminderID: stopped.id, expectedOccurrenceID: mismatchedOccurrenceID,
+            expectedReminderRevision: triggered.mutationRevision + 9
+        )
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(command.id, preparedCommand: prepared, at: Date(timeIntervalSince1970: 3))
+        let aggregate = state(
+            counterID: counterID, value: 1, counterRevision: 1,
+            reminder: stopped, preparedCommand: prepared
+        )
+
+        #expect(throws: SyncMergeError.processedWatchCommandWouldRegress(command.id)) {
+            _ = try SyncCounterReminderMergePolicy().applyingStop(
+                prepared, to: aggregate, processedLedger: ledger
+            )
+        }
+        #expect(!aggregate.processedCommandIDs.contains(command.id))
+        #expect(!stopped.progress.pending.contains { $0.id == occurrence.id })
     }
 }
 
@@ -619,6 +929,124 @@ private func record(
         relationships: [.init(role: "project", target: projectID)],
         deletedAt: .init(value: nil, stamp: stamp)
     )
+}
+
+private func legacyReminderRecord(
+    reminder: KnittingReminder,
+    stamp: SyncMutationStamp,
+    deletedAt: SyncFieldVersion<Date?>? = nil
+) -> SyncRecord {
+    SyncRecord(
+        schemaVersion: 1,
+        id: .init(kind: .knittingReminder, uuid: reminder.id),
+        createdAt: reminder.createdAt,
+        entityRevision: reminder.mutationRevision,
+        payload: .init(
+            fields: [:],
+            atomicDomain: .init(value: .knittingReminder(reminder), stamp: stamp)
+        ),
+        relationships: [.init(
+            role: "counter",
+            target: .init(kind: .projectCounter, uuid: reminder.counterID)
+        )],
+        deletedAt: deletedAt ?? .init(value: nil, stamp: stamp)
+    )
+}
+
+private func decodedLegacySaveMutation(
+    reminder: KnittingReminder,
+    projectID: SyncEntityID,
+    stamp: SyncMutationStamp,
+    mutationID: UUID
+) throws -> SyncMutation {
+    try legacySaveMutationFixture(
+        reminder: reminder,
+        projectID: projectID,
+        stamp: stamp,
+        mutationID: mutationID
+    ).mutation
+}
+
+private func legacySaveMutationFixture(
+    reminder: KnittingReminder,
+    projectID: SyncEntityID,
+    stamp: SyncMutationStamp,
+    mutationID: UUID
+) throws -> (mutation: SyncMutation, object: [String: Any]) {
+    let canonicalRecord = record(
+        state: state(
+            counterID: reminder.counterID,
+            value: 0,
+            counterRevision: reminder.mutationRevision
+        ),
+        projectID: projectID,
+        stamp: stamp
+    )
+    let canonicalMutation = try SyncMutation.save(
+        recordVersion: SyncRecordVersion(record: canonicalRecord),
+        mutationID: mutationID
+    )
+    var mutationObject = try #require(JSONSerialization.jsonObject(
+        with: JSONEncoder().encode(canonicalMutation)
+    ) as? [String: Any])
+    var saveCase = try #require(mutationObject["save"] as? [String: Any])
+    var saveValue = try #require(saveCase["_0"] as? [String: Any])
+    var recordVersion = try #require(saveValue["recordVersion"] as? [String: Any])
+    var legacyRecordObject = try #require(JSONSerialization.jsonObject(
+        with: JSONEncoder().encode(canonicalRecord)
+    ) as? [String: Any])
+    legacyRecordObject["id"] = try JSONSerialization.jsonObject(
+        with: JSONEncoder().encode(SyncEntityID(
+            kind: .knittingReminder,
+            uuid: reminder.id
+        ))
+    )
+    legacyRecordObject["entityRevision"] = reminder.mutationRevision
+    legacyRecordObject["relationships"] = try JSONSerialization.jsonObject(
+        with: JSONEncoder().encode([
+            SyncRelationship(role: "project", target: projectID),
+            SyncRelationship(
+                role: "counter",
+                target: .init(kind: .projectCounter, uuid: reminder.counterID)
+            ),
+        ])
+    )
+    var payload = try #require(legacyRecordObject["payload"] as? [String: Any])
+    var atomic = try #require(payload["atomicDomain"] as? [String: Any])
+    let reminderObject = try JSONSerialization.jsonObject(
+        with: JSONEncoder().encode(reminder)
+    )
+    atomic["value"] = ["knittingReminder": ["_0": reminderObject]]
+    payload["atomicDomain"] = atomic
+    legacyRecordObject["payload"] = payload
+    let identityBytes = try JSONSerialization.data(
+        withJSONObject: legacyRecordObject,
+        options: [.sortedKeys]
+    )
+    recordVersion["versionID"] = uuidFromDigest(
+        Data(SHA256.hash(data: identityBytes))
+    ).uuidString
+    recordVersion["record"] = legacyRecordObject
+    saveValue["recordVersion"] = recordVersion
+    saveCase["_0"] = saveValue
+    mutationObject["save"] = saveCase
+    let mutation = try JSONDecoder().decode(
+        SyncMutation.self,
+        from: JSONSerialization.data(withJSONObject: mutationObject)
+    )
+    return (mutation, mutationObject)
+}
+
+private func uuidFromDigest(_ digest: Data) -> UUID {
+    var bytes = Array(digest.prefix(16))
+    bytes[6] = (bytes[6] & 0x0F) | 0x50
+    bytes[8] = (bytes[8] & 0x3F) | 0x80
+    return UUID(uuid: (
+        bytes[0], bytes[1], bytes[2], bytes[3],
+        bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[8], bytes[9], bytes[10], bytes[11],
+        bytes[12], bytes[13], bytes[14], bytes[15]
+    ))
 }
 
 private func stamp(revision: UInt64, deviceID: String) -> SyncMutationStamp {

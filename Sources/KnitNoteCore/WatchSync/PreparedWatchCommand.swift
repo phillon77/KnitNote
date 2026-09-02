@@ -136,12 +136,22 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                     return .requiresFreshHandshake
                 }
                 if prepared.reminderMutationWasApplied(in: project, counterID: counter.id) {
-                    ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
+                    ledger.record(
+                        prepared.command.id,
+                        preparedCommand: prepared,
+                        effectProof: watchCommandEffectProof(for: prepared),
+                        at: now
+                    )
                 } else if !prepared.hasExpectedReminderState(in: project, counterID: counter.id) {
                     try requireFreshHandshake(ledger: &ledger, file: ledgerFile)
                     return .requiresFreshHandshake
                 } else if prepared.isAcceptedNoOp {
-                    ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
+                    ledger.record(
+                        prepared.command.id,
+                        preparedCommand: prepared,
+                        effectProof: watchCommandEffectProof(for: prepared),
+                        at: now
+                    )
                 } else {
                     _ = try withWatchSyncPublicationMetadata(
                         preparedCommand: prepared,
@@ -149,7 +159,12 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                     ) {
                         try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
                     }
-                    ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
+                    ledger.record(
+                        prepared.command.id,
+                        preparedCommand: prepared,
+                        effectProof: watchCommandEffectProof(for: prepared),
+                        at: now
+                    )
                 }
             } else {
                 _ = try withWatchSyncPublicationMetadata(
@@ -158,14 +173,24 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                 ) {
                     try applyAuthorizedWatchCommand(prepared.command, ledger: &ledger, now: now)
                 }
-                ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
+                ledger.record(
+                    prepared.command.id,
+                    preparedCommand: prepared,
+                    effectProof: watchCommandEffectProof(for: prepared),
+                    at: now
+                )
             }
         } else if
             prepared.isCounterOperation &&
             prepared.expectedCounterRevision != UInt64.max,
             counter.mutationRevision == prepared.expectedCounterRevision + 1
         {
-            ledger.record(prepared.command.id, preparedCommand: prepared, at: now)
+            ledger.record(
+                prepared.command.id,
+                preparedCommand: prepared,
+                effectProof: watchCommandEffectProof(for: prepared),
+                at: now
+            )
         } else {
             try requireFreshHandshake(ledger: &ledger, file: ledgerFile)
             return .requiresFreshHandshake
@@ -295,6 +320,9 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             command.id,
             rejection: acknowledgement.rejection,
             preparedCommand: prepared,
+            effectProof: acknowledgement.rejection == nil
+                ? watchCommandEffectProof(for: prepared)
+                : nil,
             at: now
         )
         try failureInjector(.afterProjectArchiveSave)
@@ -390,6 +418,19 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
     private func removePreparedCommand(at url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
+    }
+
+    private func watchCommandEffectProof(
+        for prepared: PreparedWatchCommand
+    ) -> ProcessedWatchCommandEffectProof? {
+        guard let project = project(id: prepared.command.projectID),
+              let counter = project.counters.first(where: {
+                  $0.id == prepared.command.counterID
+              }) else { return nil }
+        let reminder = prepared.expectedReminderID.flatMap { reminderID in
+            project.knittingReminders.first { $0.id == reminderID }
+        }
+        return ProcessedWatchCommandEffectProof(counter: counter, reminder: reminder)
     }
 }
 

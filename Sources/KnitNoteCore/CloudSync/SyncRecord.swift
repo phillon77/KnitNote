@@ -1,6 +1,15 @@
 import CryptoKit
 import Foundation
 
+extension CodingUserInfoKey {
+    /// Internal-only escape hatch for verifying and retaining already-durable
+    /// standalone reminder journal entries while they are migrated. Live
+    /// record publication never sets this key.
+    static let encodeLegacyStandaloneReminderForMigration = CodingUserInfoKey(
+        rawValue: "KnitNoteCore.encodeLegacyStandaloneReminderForMigration"
+    )!
+}
+
 public enum SyncScalar: Codable, Equatable, Sendable {
     case string(String)
     case integer(Int64)
@@ -257,13 +266,21 @@ public enum SyncAtomicDomainValue: Codable, Equatable, Sendable {
             )
             try value.encode(state, forKey: .value)
         case let .knittingReminder(reminder):
-            throw EncodingError.invalidValue(
-                reminder,
-                .init(
-                    codingPath: encoder.codingPath,
-                    debugDescription: "Standalone reminder records are decode-only legacy input"
+            guard encoder.userInfo[.encodeLegacyStandaloneReminderForMigration] as? Bool == true
+            else {
+                throw EncodingError.invalidValue(
+                    reminder,
+                    .init(
+                        codingPath: encoder.codingPath,
+                        debugDescription: "Standalone reminder records are decode-only legacy input"
+                    )
                 )
+            }
+            var value = container.nestedContainer(
+                keyedBy: AssociatedValueKey.self,
+                forKey: .knittingReminder
             )
+            try value.encode(reminder, forKey: .value)
         }
     }
 
@@ -426,9 +443,26 @@ public struct SyncRecordVersion: Codable, Equatable, Sendable {
         return self
     }
 
-    private static func identity(for record: SyncRecord) throws -> UUID {
+    func validatedForLegacyStandaloneReminderJournalMigration() throws -> Self {
+        _ = try SyncRecordValidator().validateLegacyStandaloneReminderForMigration(record)
+        guard versionID == (try Self.identity(
+            for: record,
+            allowingLegacyStandaloneReminder: true
+        )) else {
+            throw SyncRecordVersionError.corrupt
+        }
+        return self
+    }
+
+    private static func identity(
+        for record: SyncRecord,
+        allowingLegacyStandaloneReminder: Bool = false
+    ) throws -> UUID {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        if allowingLegacyStandaloneReminder {
+            encoder.userInfo[.encodeLegacyStandaloneReminderForMigration] = true
+        }
         return uuid(from: Data(SHA256.hash(data: try encoder.encode(record))))
     }
 }

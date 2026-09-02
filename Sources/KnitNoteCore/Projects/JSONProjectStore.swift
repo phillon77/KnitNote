@@ -4377,12 +4377,9 @@ final class PatternLibraryDeletionTransaction {
                 ).records
             )
         }
-        try withWatchSyncPublicationMetadata(
-            preparedCommand: preparedCommand,
-            processedLedger: processedLedger
-        ) {
-            try persist(projects: projects, yarns: yarns)
-        }
+        activePreparedWatchCommand = preparedCommand
+        activeProcessedWatchLedger = processedLedger
+        try persist(projects: projects, yarns: yarns)
     }
 
     private func persist(

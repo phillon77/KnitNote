@@ -1,22 +1,35 @@
 import Foundation
 
+public struct ProcessedWatchCommandEffectProof: Codable, Equatable, Sendable {
+    public let counter: ProjectCounter
+    public let reminder: KnittingReminder?
+
+    public init(counter: ProjectCounter, reminder: KnittingReminder? = nil) {
+        self.counter = counter
+        self.reminder = reminder
+    }
+}
+
 public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
     public struct Entry: Codable, Equatable, Sendable {
         public let id: UUID
         public let processedAt: Date
         public let rejection: WatchCommandRejection?
         public let preparedCommand: PreparedWatchCommand?
+        public let effectProof: ProcessedWatchCommandEffectProof?
 
         public init(
             id: UUID,
             processedAt: Date,
             rejection: WatchCommandRejection? = nil,
-            preparedCommand: PreparedWatchCommand? = nil
+            preparedCommand: PreparedWatchCommand? = nil,
+            effectProof: ProcessedWatchCommandEffectProof? = nil
         ) {
             self.id = id
             self.processedAt = processedAt
             self.rejection = rejection
             self.preparedCommand = preparedCommand
+            self.effectProof = effectProof
         }
     }
 
@@ -40,6 +53,7 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
         _ id: UUID,
         rejection: WatchCommandRejection? = nil,
         preparedCommand: PreparedWatchCommand? = nil,
+        effectProof: ProcessedWatchCommandEffectProof? = nil,
         at date: Date
     ) {
         entries.removeAll { $0.id == id }
@@ -47,7 +61,8 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
             id: id,
             processedAt: date,
             rejection: rejection,
-            preparedCommand: preparedCommand
+            preparedCommand: preparedCommand,
+            effectProof: effectProof
         ))
         prune(now: date)
     }

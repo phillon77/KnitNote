@@ -96,29 +96,57 @@ import UniformTypeIdentifiers
             command, ledgerURL: ledgerURL, preparedCommandURL: preparedURL,
             now: Date(timeIntervalSince1970: 11)
         )
+        let secondCommand = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 12)
+        )
+        _ = try store.applyWatchCommandDurably(
+            secondCommand, ledgerURL: ledgerURL, preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 13)
+        )
+        let processedIDs: Set<UUID> = [command.id, secondCommand.id]
 
         let states = sink.mutations.compactMap(\.savedRecordVersion?.record)
             .filter { $0.id == .init(kind: .projectCounter, uuid: counterID) }
             .compactMap(\.counterReminderState)
         #expect(states.contains { $0.preparedCommand?.command.id == command.id })
         #expect(states.last?.preparedCommand == nil)
-        #expect(states.last?.processedCommandIDs == [command.id])
+        #expect(states.last?.processedCommandIDs == processedIDs)
         let ledger = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
             url: ledgerURL
         ).load())
         #expect(ledger.entry(for: command.id)?.preparedCommand?.command == command)
+        #expect(ledger.entry(for: command.id)?.effectProof?.counter.value == 1)
+        #expect(ledger.entry(for: secondCommand.id)?.effectProof?.counter.value == 2)
 
         let restartedSink = RecordingSyncMutationSink()
         let restarted = fixture.store(sink: restartedSink)
         #expect(try restarted.recoverWatchCommandPersistence(
             ledgerURL: ledgerURL, preparedCommandURL: preparedURL,
-            now: Date(timeIntervalSince1970: 12)
+            now: Date(timeIntervalSince1970: 14)
         ) == .ready)
         let restored = restartedSink.mutations.compactMap(\.savedRecordVersion?.record)
             .last { $0.id == .init(kind: .projectCounter, uuid: counterID) }?
             .counterReminderState
-        #expect(restored?.processedCommandIDs == [command.id])
+        #expect(restored?.processedCommandIDs == processedIDs)
         #expect(restored?.preparedCommand == nil)
+
+        let counterPublicationCount = restartedSink.mutations.filter {
+            $0.recordID == .init(kind: .projectCounter, uuid: counterID)
+        }.count
+        _ = try restarted.incrementCounter(
+            projectID: fixture.projectID,
+            counterID: counterID
+        )
+        let afterOrdinaryMutation = restartedSink.mutations.compactMap(
+            \.savedRecordVersion?.record
+        ).last { $0.id == .init(kind: .projectCounter, uuid: counterID) }?
+            .counterReminderState
+        #expect(restartedSink.mutations.filter {
+            $0.recordID == .init(kind: .projectCounter, uuid: counterID)
+        }.count > counterPublicationCount)
+        #expect(afterOrdinaryMutation?.processedCommandIDs == processedIDs)
+        #expect(afterOrdinaryMutation?.counter.value == 3)
     }
 
     @Test func rebuiltLedgerUsesProjectedEntityRevisionAsItsCausalFloor() throws {

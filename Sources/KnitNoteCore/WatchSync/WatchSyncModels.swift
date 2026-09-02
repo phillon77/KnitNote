@@ -342,6 +342,10 @@ public struct WatchCounterCommand: Codable, Equatable, Identifiable, Sendable {
     private let legacyObservedMutationRevision: UInt64?
     public let createdAt: Date
     public var reminderID: UUID? { reminderPayload?.reminderID ?? legacyReminderID }
+    public var occurrenceID: UUID? { reminderPayload?.occurrenceID ?? legacyOccurrenceID }
+    public var observedMutationRevision: UInt64? {
+        reminderPayload?.observedRevision ?? legacyObservedMutationRevision
+    }
     public var observedPendingCount: Int? { legacyObservedPendingCount }
     /// Validates all wire-level schema and payload combinations before a command
     /// can cross the public module boundary.

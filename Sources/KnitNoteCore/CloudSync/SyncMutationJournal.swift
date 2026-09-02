@@ -81,6 +81,16 @@ public struct SyncSaveMutation: Codable, Equatable, Sendable {
         return self
     }
 
+    func validatedForJournalLoad() throws -> Self {
+        if recordVersion.record.id.kind == .knittingReminder {
+            _ = try recordVersion.validatedForLegacyStandaloneReminderJournalMigration()
+            _ = try attachmentSource?.validated()
+            try validateAttachmentBinding()
+            return self
+        }
+        return try validated()
+    }
+
     private func validateAttachmentBinding() throws {
         let record = recordVersion.record
         if record.id.kind == .attachment {
@@ -173,6 +183,13 @@ public enum SyncMutation: Codable, Equatable, Sendable {
     func validated() throws -> Self {
         switch self {
         case let .save(save): return .save(try save.validated())
+        case .delete: return self
+        }
+    }
+
+    func validatedForJournalLoad() throws -> Self {
+        switch self {
+        case let .save(save): return .save(try save.validatedForJournalLoad())
         case .delete: return self
         }
     }
@@ -329,7 +346,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
         var seenMutationIDs = Set<UUID>()
         return try envelope.mutations.map { mutation in
-            let validated = try mutation.validated()
+            let validated = try mutation.validatedForJournalLoad()
             guard seenMutationIDs.insert(validated.mutationID).inserted else {
                 throw SyncMutationJournalError.corrupt
             }
@@ -356,6 +373,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     private func persistLocked(_ mutations: [SyncMutation]) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        encoder.userInfo[.encodeLegacyStandaloneReminderForMigration] = true
         let data = try encoder.encode(Envelope(mutations: mutations))
         guard data.count <= Self.maximumEncodedBytes else {
             throw SyncMutationJournalError.tooLarge

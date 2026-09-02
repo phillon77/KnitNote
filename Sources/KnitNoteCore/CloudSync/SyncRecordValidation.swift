@@ -43,6 +43,37 @@ public struct SyncRecordValidator: Sendable {
         return record
     }
 
+    /// Applies the historical standalone-reminder rules only while loading an
+    /// already-durable mutation journal. Canonical validation and publication
+    /// continue to reject this record kind as a live synchronization authority.
+    @discardableResult
+    func validateLegacyStandaloneReminderForMigration(
+        _ record: SyncRecord
+    ) throws -> SyncRecord {
+        guard record.schemaVersion == currentSchemaVersion else {
+            throw SyncRecordValidationError.unsupportedSchema(record.schemaVersion)
+        }
+        try validateScalars(in: record)
+        try validateRelationships(in: record)
+        try validateRelatedDeletions(in: record)
+        try validateAttachment(in: record)
+        guard record.id.kind == .knittingReminder,
+              case let .knittingReminder(reminder)? = record.payload.atomicDomain?.value,
+              reminder.id == record.id.uuid,
+              reminder.mutationRevision == record.entityRevision,
+              record.payload.atomicDomain?.stamp.logicalRevision == record.entityRevision,
+              record.relationships.contains(where: {
+                  $0.role == "counter"
+                      && $0.target == SyncEntityID(
+                          kind: .projectCounter,
+                          uuid: reminder.counterID
+                      )
+              }) else {
+            throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+        }
+        return record
+    }
+
     /// Validates relationship ownership once all records in a merge batch are
     /// available. Missing or unrelated cascade targets are staged/rejected by
     /// callers instead of being interpreted as authority to delete them.

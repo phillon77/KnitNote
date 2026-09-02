@@ -8,6 +8,27 @@ import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct JSONProjectStoreSyncPublicationTests {
+    @Test func publicationMarkerPersistsCausalReceiptForRestartRecovery() throws {
+        let fixture = try SyncPublicationFixture()
+        let first = fixture.store(sink: RecordingSyncMutationSink(shouldFail: true))
+
+        try first.rename(id: fixture.projectID, to: "Causal")
+
+        let transaction = try #require(try SyncPublicationTransactionFile(
+            archiveURL: fixture.archiveURL
+        ).load())
+        let saved = try #require(transaction.mutations.first?.savedRecordVersion?.record)
+        let receipt = try #require(transaction.revisionReceipts.first)
+        #expect(receipt.entityID == saved.id)
+        #expect(receipt.logicalRevision == saved.entityRevision)
+        #expect(receipt.deviceID == saved.deletedAt.stamp.deviceID)
+
+        let repairSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: repairSink)
+        try restarted.repairSyncPublication()
+        #expect(repairSink.mutations == transaction.mutations)
+    }
+
     @Test func successfulMutationPublishesOnlyAfterArchiveCommit() throws {
         let fixture = try SyncPublicationFixture()
         let sink = RecordingSyncMutationSink(archiveURL: fixture.archiveURL)

@@ -83,53 +83,101 @@ struct SyncPublicationArtifactEvidence: Codable, Equatable, Sendable {
 }
 
 struct SyncPublicationTransaction: Codable, Equatable, Sendable {
-    static let currentVersion = 2
+    static let currentVersion = 3
+    private static let legacyVersion = 2
 
     let version: Int
     let expectedArchiveSHA256: Data
     let commitBoundary: SyncPublicationCommitBoundary
     let artifactEvidence: [SyncPublicationArtifactEvidence]
     let mutations: [SyncMutation]
+    let revisionReceipts: [SyncRevisionReceipt]
     let integrity: Data
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case expectedArchiveSHA256
+        case commitBoundary
+        case artifactEvidence
+        case mutations
+        case revisionReceipts
+        case integrity
+    }
 
     init(
         expectedArchiveSHA256: Data,
         mutations: [SyncMutation],
         commitBoundary: SyncPublicationCommitBoundary = .archive,
-        artifactEvidence: [SyncPublicationArtifactEvidence] = []
+        artifactEvidence: [SyncPublicationArtifactEvidence] = [],
+        revisionReceipts: [SyncRevisionReceipt] = []
     ) throws {
-        version = Self.currentVersion
+        version = revisionReceipts.isEmpty ? Self.legacyVersion : Self.currentVersion
         self.expectedArchiveSHA256 = expectedArchiveSHA256
         self.commitBoundary = commitBoundary
         self.artifactEvidence = artifactEvidence.sorted {
             $0.relativePath < $1.relativePath
         }
         self.mutations = mutations
+        self.revisionReceipts = revisionReceipts
         integrity = try Self.integrity(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
             commitBoundary: commitBoundary,
             artifactEvidence: self.artifactEvidence,
-            mutations: mutations
+            mutations: mutations,
+            revisionReceipts: revisionReceipts
         )
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        version = try values.decode(Int.self, forKey: .version)
+        expectedArchiveSHA256 = try values.decode(Data.self, forKey: .expectedArchiveSHA256)
+        commitBoundary = try values.decode(
+            SyncPublicationCommitBoundary.self,
+            forKey: .commitBoundary
+        )
+        artifactEvidence = try values.decode(
+            [SyncPublicationArtifactEvidence].self,
+            forKey: .artifactEvidence
+        )
+        mutations = try values.decode([SyncMutation].self, forKey: .mutations)
+        revisionReceipts = try values.decodeIfPresent(
+            [SyncRevisionReceipt].self,
+            forKey: .revisionReceipts
+        ) ?? []
+        integrity = try values.decode(Data.self, forKey: .integrity)
     }
 
     func validated() throws -> Self {
         let validatedEvidence = try artifactEvidence.map { try $0.validated() }
-        guard version == Self.currentVersion,
+        guard [Self.legacyVersion, Self.currentVersion].contains(version),
               expectedArchiveSHA256.count == SHA256.byteCount,
               !mutations.isEmpty,
+              version != Self.legacyVersion || revisionReceipts.isEmpty,
               artifactEvidence == artifactEvidence.sorted(by: {
                   $0.relativePath < $1.relativePath
               }),
               Set(validatedEvidence.map(\.relativePath)).count == validatedEvidence.count,
               commitBoundary != .artifacts || !artifactEvidence.isEmpty,
+              version != Self.currentVersion || (
+                  revisionReceipts.count == mutations.count
+                      && Set(revisionReceipts.map(\.mutationID)).count == revisionReceipts.count
+                      && Set(revisionReceipts.map(\.entityID)).count <= revisionReceipts.count
+                      && Set(revisionReceipts.map(\.mutationID)) == Set(mutations.map(\.mutationID))
+                      && revisionReceipts.allSatisfy { receipt in
+                          mutations.contains {
+                              $0.mutationID == receipt.mutationID && $0.recordID == receipt.entityID
+                          }
+                      }
+              ),
               integrity == (try Self.integrity(
                   version: version,
                   expectedArchiveSHA256: expectedArchiveSHA256,
                   commitBoundary: commitBoundary,
                   artifactEvidence: artifactEvidence,
-                  mutations: mutations
+                  mutations: mutations,
+                  revisionReceipts: revisionReceipts
               )) else {
             throw SyncPublicationTransactionFileError.corrupt
         }
@@ -141,21 +189,40 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         expectedArchiveSHA256: Data,
         commitBoundary: SyncPublicationCommitBoundary,
         artifactEvidence: [SyncPublicationArtifactEvidence],
-        mutations: [SyncMutation]
+        mutations: [SyncMutation],
+        revisionReceipts: [SyncRevisionReceipt]
     ) throws -> Data {
-        let payload = IntegrityPayload(
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        if version == Self.legacyVersion {
+            return Data(SHA256.hash(data: try encoder.encode(LegacyIntegrityPayload(
+                version: version,
+                expectedArchiveSHA256: expectedArchiveSHA256,
+                commitBoundary: commitBoundary,
+                artifactEvidence: artifactEvidence,
+                mutations: mutations
+            ))))
+        }
+        return Data(SHA256.hash(data: try encoder.encode(IntegrityPayload(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
             commitBoundary: commitBoundary,
             artifactEvidence: artifactEvidence,
-            mutations: mutations
-        )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return Data(SHA256.hash(data: try encoder.encode(payload)))
+            mutations: mutations,
+            revisionReceipts: revisionReceipts
+        ))))
     }
 
     private struct IntegrityPayload: Codable {
+        let version: Int
+        let expectedArchiveSHA256: Data
+        let commitBoundary: SyncPublicationCommitBoundary
+        let artifactEvidence: [SyncPublicationArtifactEvidence]
+        let mutations: [SyncMutation]
+        let revisionReceipts: [SyncRevisionReceipt]
+    }
+
+    private struct LegacyIntegrityPayload: Codable {
         let version: Int
         let expectedArchiveSHA256: Data
         let commitBoundary: SyncPublicationCommitBoundary

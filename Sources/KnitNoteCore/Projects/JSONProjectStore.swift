@@ -163,7 +163,7 @@ private struct SyncPublicationSnapshot {
             atomicDomain: SyncAtomicDomainValue? = nil
         ) throws {
             let data = try encoder.encode(value)
-            let revision = logicalRevision ?? syncRevision(for: data)
+            let revision = logicalRevision ?? 0
             let stamp = SyncMutationStamp(
                 logicalRevision: revision,
                 modifiedAt: modifiedAt,
@@ -385,12 +385,6 @@ private struct SyncPublicationSnapshot {
     }
 }
 
-private func syncRevision(for data: Data) -> UInt64 {
-    Data(SHA256.hash(data: data)).prefix(8).reduce(UInt64(0)) {
-        ($0 << 8) | UInt64($1)
-    }
-}
-
 private struct SyncProjectProjection: Encodable, Equatable {
     let id: UUID
     let name: String
@@ -530,7 +524,7 @@ private func syncAttachmentMutation(
         displayFilename: displayFilename,
         replacesVersionID: originalVersionID
     )
-    let revision = syncRevision(for: committedData)
+    let revision: UInt64 = 0
     let modifiedAt = Date.now
     let stamp = SyncMutationStamp(
         logicalRevision: revision,
@@ -1111,6 +1105,8 @@ final class PatternLibraryDeletionTransaction {
     private let archiveWrite: @Sendable (Data, URL) throws -> Void
     private let syncMutationSink: any SyncMutationSink
     private let isSyncPublicationEnabled: Bool
+    private let syncInstallationID: String?
+    private let syncRevisionLedger: SyncRevisionLedger?
     private var syncProjectionCache: SyncPublicationProjectionCache?
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
     private var activeJournalPhotoTransactions = 0
@@ -1242,10 +1238,28 @@ final class PatternLibraryDeletionTransaction {
         self.archiveWrite = archiveWrite
         self.syncMutationSink = syncMutationSink
         isSyncPublicationEnabled = !(syncMutationSink is DisabledSyncMutationSink)
+        let syncMetadataRoot = liveRoot.appendingPathComponent(
+            "SyncMetadata",
+            isDirectory: true
+        )
+        let identityStore = SyncInstallationIdentityStore(
+            url: syncMetadataRoot.appendingPathComponent("installation.json")
+        )
+        let installationID = try? identityStore.loadOrCreate()
+        syncInstallationID = installationID
+        syncRevisionLedger = installationID.map {
+            SyncRevisionLedger(
+                url: syncMetadataRoot.appendingPathComponent("revision-ledger.json"),
+                deviceID: $0
+            )
+        }
         self.authorizeMutation = authorizeMutation
         self.commitSuccessfulMutation = commitSuccessfulMutation
         self.patternFolderNameContext = patternFolderNameContext
         reconcileSyncPublicationTransactionAtStartup()
+        if isSyncPublicationEnabled, syncRevisionLedger == nil, syncPublicationError == nil {
+            syncPublicationError = .transactionUnavailable
+        }
         if let initialLoadError {
             loadError = initialLoadError
         } else if syncPublicationError != nil {
@@ -4344,15 +4358,25 @@ final class PatternLibraryDeletionTransaction {
             return
         }
 
+        let causallyStamped: (mutations: [SyncMutation], receipts: [SyncRevisionReceipt])
+        do {
+            causallyStamped = try allocateCausalRevisions(for: mutations)
+        } catch {
+            let publicationError = syncPublicationError(for: error)
+            syncPublicationError = publicationError
+            throw publicationError
+        }
+
         let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
         let expectedFingerprint = SyncPublicationTransactionFile.fingerprint(of: data)
         let transaction: SyncPublicationTransaction
         do {
             transaction = try SyncPublicationTransaction(
                 expectedArchiveSHA256: expectedFingerprint,
-                mutations: mutations,
+                mutations: causallyStamped.mutations,
                 commitBoundary: commitBoundary,
-                artifactEvidence: artifactEvidence
+                artifactEvidence: artifactEvidence,
+                revisionReceipts: causallyStamped.receipts
             )
             try transactionFile.write(transaction)
         } catch {
@@ -4427,10 +4451,58 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private var syncPublicationDeviceID: String {
-        deterministicSyncUUID(
-            kind: .deletionMarker,
-            components: ["store-device", url.standardizedFileURL.path]
-        ).uuidString
+        syncInstallationID ?? "sync-installation-unavailable"
+    }
+
+    private func allocateCausalRevisions(
+        for mutations: [SyncMutation]
+    ) throws -> (mutations: [SyncMutation], receipts: [SyncRevisionReceipt]) {
+        guard let syncRevisionLedger else {
+            throw SyncRevisionLedgerError.unavailable
+        }
+        var stamped: [SyncMutation] = []
+        var receipts: [SyncRevisionReceipt] = []
+        stamped.reserveCapacity(mutations.count)
+        receipts.reserveCapacity(mutations.count)
+        for mutation in mutations {
+            let receipt = try syncRevisionLedger.allocate(
+                for: mutation.recordID,
+                mutationID: mutation.mutationID,
+                observedRemoteRevision: 0
+            )
+            stamped.append(try applying(receipt: receipt, to: mutation))
+            receipts.append(receipt)
+        }
+        return (stamped, receipts)
+    }
+
+    private func applying(
+        receipt: SyncRevisionReceipt,
+        to mutation: SyncMutation
+    ) throws -> SyncMutation {
+        guard case let .save(save) = mutation else { return mutation }
+        var record = save.recordVersion.record
+        let stamp = SyncMutationStamp(
+            logicalRevision: receipt.logicalRevision,
+            modifiedAt: record.deletedAt.stamp.modifiedAt,
+            deviceID: receipt.deviceID
+        )
+        record.entityRevision = receipt.logicalRevision
+        record.payload.fields = record.payload.fields.mapValues {
+            .init(value: $0.value, stamp: stamp)
+        }
+        if let deletionCascade = record.payload.deletionCascade {
+            record.payload.deletionCascade = .init(value: deletionCascade.value, stamp: stamp)
+        }
+        if let atomicDomain = record.payload.atomicDomain {
+            record.payload.atomicDomain = .init(value: atomicDomain.value, stamp: stamp)
+        }
+        record.deletedAt = .init(value: record.deletedAt.value, stamp: stamp)
+        return try .save(
+            recordVersion: SyncRecordVersion(record: record),
+            attachmentSource: save.attachmentSource,
+            mutationID: save.mutationID
+        )
     }
 
     private func syncArchiveAttachmentMutations(
@@ -4469,7 +4541,7 @@ final class PatternLibraryDeletionTransaction {
             let attachment = try new.version(
                 replacesVersionID: contentVersionID == oldVersionID ? nil : oldVersionID
             )
-            let revision = syncRevision(for: attachment.contentSHA256)
+            let revision: UInt64 = 0
             let modifiedAt = Date.now
             let stamp = SyncMutationStamp(
                 logicalRevision: revision,
@@ -4808,6 +4880,9 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func ensureSyncPublicationReady() throws {
+        if isSyncPublicationEnabled, syncRevisionLedger == nil {
+            throw SyncPublicationError.transactionUnavailable
+        }
         if let syncPublicationError {
             throw syncPublicationError
         }
@@ -4824,6 +4899,9 @@ final class PatternLibraryDeletionTransaction {
             case .unavailable:
                 return .transactionUnavailable
             }
+        }
+        if error is SyncRevisionLedgerError || error is SyncInstallationIdentityError {
+            return .transactionUnavailable
         }
         return .pendingRepair
     }

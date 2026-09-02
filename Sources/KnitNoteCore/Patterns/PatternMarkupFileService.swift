@@ -22,12 +22,12 @@ public struct PatternMarkupFileService: Sendable {
 
     public func save(_ document: PatternMarkupDocument, usageID: UUID, pageIndex: Int) throws {
         let file = try usagePageURL(usageID: usageID, pageIndex: pageIndex)
-        if document.strokes.isEmpty {
+        guard let data = try encodedPageData(document) else {
             if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
             return
         }
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try JSONEncoder().encode(document).write(to: file, options: .atomic)
+        try data.write(to: file, options: .atomic)
     }
 
     /// Captures the raw bytes so an archive-write failure can restore exactly
@@ -58,6 +58,12 @@ public struct PatternMarkupFileService: Sendable {
         if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
     }
 
+    func usageMarkupPageIndices(usageID: UUID) throws -> [Int] {
+        let directory = try usageMarkupDirectory(usageID: usageID)
+        guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
+        return try validatedLegacyMarkupPages(in: directory).map(\.pageIndex)
+    }
+
     public func load(projectID: UUID, patternID: UUID, pageIndex: Int) throws -> PatternMarkupDocument {
         let file = try legacyPageURL(projectID: projectID, patternID: patternID, pageIndex: pageIndex)
         guard FileManager.default.fileExists(atPath: file.path) else { return PatternMarkupDocument() }
@@ -66,12 +72,58 @@ public struct PatternMarkupFileService: Sendable {
 
     public func save(_ document: PatternMarkupDocument, projectID: UUID, patternID: UUID, pageIndex: Int) throws {
         let file = try legacyPageURL(projectID: projectID, patternID: patternID, pageIndex: pageIndex)
-        if document.strokes.isEmpty {
+        guard let data = try encodedPageData(document) else {
             if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
             return
         }
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try JSONEncoder().encode(document).write(to: file, options: .atomic)
+        try data.write(to: file, options: .atomic)
+    }
+
+    func snapshot(
+        projectID: UUID,
+        patternID: UUID,
+        pageIndex: Int
+    ) throws -> PatternMarkupPageSnapshot {
+        let file = try legacyPageURL(
+            projectID: projectID,
+            patternID: patternID,
+            pageIndex: pageIndex
+        )
+        guard FileManager.default.fileExists(atPath: file.path) else { return .missing }
+        return .bytes(try Data(contentsOf: file))
+    }
+
+    func restore(
+        _ snapshot: PatternMarkupPageSnapshot,
+        projectID: UUID,
+        patternID: UUID,
+        pageIndex: Int
+    ) throws {
+        let file = try legacyPageURL(
+            projectID: projectID,
+            patternID: patternID,
+            pageIndex: pageIndex
+        )
+        switch snapshot {
+        case .missing:
+            if FileManager.default.fileExists(atPath: file.path) {
+                try FileManager.default.removeItem(at: file)
+            }
+        case let .bytes(data):
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: file, options: .atomic)
+        }
+    }
+
+    func encodedPageData(_ document: PatternMarkupDocument) throws -> Data? {
+        guard !document.strokes.isEmpty else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(document)
     }
 
     // The pre-library file layout remains readable only while migration and
@@ -79,6 +131,12 @@ public struct PatternMarkupFileService: Sendable {
     func deleteLegacyMarkup(projectID: UUID, patternID: UUID) throws {
         let directory = try legacyPatternDirectory(projectID: projectID, patternID: patternID)
         if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
+    }
+
+    func legacyMarkupPageIndices(projectID: UUID, patternID: UUID) throws -> [Int] {
+        let directory = try legacyPatternDirectory(projectID: projectID, patternID: patternID)
+        guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
+        return try validatedLegacyMarkupPages(in: directory).map(\.pageIndex)
     }
 
     func copyLegacyMarkup(
@@ -118,11 +176,11 @@ public struct PatternMarkupFileService: Sendable {
         return try safeDirectory(named: patternID.uuidString, under: markupDirectory)
     }
 
-    private func usagePageURL(usageID: UUID, pageIndex: Int) throws -> URL {
+    func usagePageURL(usageID: UUID, pageIndex: Int) throws -> URL {
         try safePageURL(pageIndex: pageIndex, under: usageMarkupDirectory(usageID: usageID))
     }
 
-    private func legacyPageURL(projectID: UUID, patternID: UUID, pageIndex: Int) throws -> URL {
+    func legacyPageURL(projectID: UUID, patternID: UUID, pageIndex: Int) throws -> URL {
         try safePageURL(
             pageIndex: pageIndex,
             under: legacyPatternDirectory(projectID: projectID, patternID: patternID)

@@ -99,6 +99,36 @@ private struct SyncPublicationSnapshot {
 
         for project in archive.projects {
             try add(SyncProjectProjection(project), kind: .project, id: project.id)
+            if let filename = project.photoFilename {
+                try add(
+                    SyncAttachmentProjection(
+                        ownerID: project.id,
+                        role: "project-photo",
+                        storedFilename: filename
+                    ),
+                    kind: .attachment,
+                    id: deterministicSyncAttachmentID(
+                        ownerID: project.id,
+                        role: "project-photo",
+                        identity: filename
+                    )
+                )
+            }
+            for pattern in project.patterns {
+                try add(
+                    SyncAttachmentProjection(
+                        ownerID: pattern.id,
+                        role: "legacy-pattern-source",
+                        storedFilename: pattern.storedFilename
+                    ),
+                    kind: .attachment,
+                    id: deterministicSyncAttachmentID(
+                        ownerID: pattern.id,
+                        role: "legacy-pattern-source",
+                        identity: "\(project.id.uuidString)/\(pattern.storedFilename)"
+                    )
+                )
+            }
             for counter in project.counters {
                 try add(counter, kind: .projectCounter, id: counter.id)
                 for note in counter.rowNotes {
@@ -117,11 +147,59 @@ private struct SyncPublicationSnapshot {
             }
             for entry in project.journalEntries {
                 try add(entry, kind: .journalEntry, id: entry.id)
+                for (role, filename) in [
+                    ("journal-photo", entry.photoFilename),
+                    ("journal-thumbnail", entry.thumbnailFilename),
+                ] {
+                    try add(
+                        SyncAttachmentProjection(
+                            ownerID: entry.id,
+                            role: role,
+                            storedFilename: filename
+                        ),
+                        kind: .attachment,
+                        id: deterministicSyncAttachmentID(
+                            ownerID: entry.id,
+                            role: role,
+                            identity: filename
+                        )
+                    )
+                }
             }
         }
 
         for yarn in archive.yarns {
             try add(SyncYarnProjection(yarn), kind: .yarn, id: yarn.id)
+            if let filename = yarn.photoFilename {
+                try add(
+                    SyncAttachmentProjection(
+                        ownerID: yarn.id,
+                        role: "yarn-photo",
+                        storedFilename: filename
+                    ),
+                    kind: .attachment,
+                    id: deterministicSyncAttachmentID(
+                        ownerID: yarn.id,
+                        role: "yarn-photo",
+                        identity: filename
+                    )
+                )
+            }
+            for filename in yarn.labelPhotoFilenames {
+                try add(
+                    SyncAttachmentProjection(
+                        ownerID: yarn.id,
+                        role: "yarn-label-photo",
+                        storedFilename: filename
+                    ),
+                    kind: .attachment,
+                    id: deterministicSyncAttachmentID(
+                        ownerID: yarn.id,
+                        role: "yarn-label-photo",
+                        identity: filename
+                    )
+                )
+            }
             for projectID in yarn.linkedProjectIDs {
                 let link = SyncProjectYarnLinkProjection(
                     projectID: projectID,
@@ -228,6 +306,12 @@ private struct SyncProjectYarnLinkProjection: Encodable {
     let yarnID: UUID
 }
 
+private struct SyncAttachmentProjection: Encodable {
+    let ownerID: UUID
+    let role: String
+    let storedFilename: String
+}
+
 private func syncEntityIDIsOrderedBefore(_ lhs: SyncEntityID, _ rhs: SyncEntityID) -> Bool {
     (lhs.kind.rawValue, lhs.uuid.uuidString) < (rhs.kind.rawValue, rhs.uuid.uuidString)
 }
@@ -247,6 +331,17 @@ private func deterministicSyncUUID(
         bytes[8], bytes[9], bytes[10], bytes[11],
         bytes[12], bytes[13], bytes[14], bytes[15]
     ))
+}
+
+private func deterministicSyncAttachmentID(
+    ownerID: UUID,
+    role: String,
+    identity: String
+) -> UUID {
+    deterministicSyncUUID(
+        kind: .attachment,
+        components: [ownerID.uuidString, role, identity]
+    )
 }
 
 public enum ProjectPhotoChange: Sendable {
@@ -726,6 +821,7 @@ final class PatternLibraryDeletionTransaction {
     private let authorizeMutation: MutationAuthorizer
     private let commitSuccessfulMutation: MutationSuccessCommitter
     private var patternFolderNameContext: PatternFolderNameContext?
+    private var didDeferLoadForSyncPublication = false
 
     public convenience init(
         url: URL,
@@ -852,12 +948,15 @@ final class PatternLibraryDeletionTransaction {
         self.authorizeMutation = authorizeMutation
         self.commitSuccessfulMutation = commitSuccessfulMutation
         self.patternFolderNameContext = patternFolderNameContext
+        reconcileSyncPublicationTransactionAtStartup()
         if let initialLoadError {
             loadError = initialLoadError
+        } else if syncPublicationError != nil {
+            didDeferLoadForSyncPublication = true
+            loadPendingArchiveReadOnly()
         } else {
             load()
         }
-        reconcileSyncPublicationTransactionAtStartup()
     }
 
     public static func live(
@@ -928,6 +1027,17 @@ final class PatternLibraryDeletionTransaction {
             workRoot: workRoot,
             patternFolderNameContext: patternFolderNameContext
         )
+        if shouldDeferBackupRecoveryForSyncPublication(archiveURL: archiveURL) {
+            return JSONProjectStore(
+                url: archiveURL,
+                patternFileService: PatternFileService(root: locations.assetRoot),
+                patternInboxFileService: PatternInboxFileService(root: locations.inboxRoot),
+                patternFolderNameContext: patternFolderNameContext,
+                backupService: backupService,
+                authorizeMutation: authorizeMutation,
+                commitSuccessfulMutation: commitSuccessfulMutation
+            )
+        }
         do {
             let interruptedInstallation = try backupService.recoverInterruptedReplacement()
             let store = JSONProjectStore(
@@ -967,8 +1077,31 @@ final class PatternLibraryDeletionTransaction {
             )
         }
     }
+
+    private static func shouldDeferBackupRecoveryForSyncPublication(
+        archiveURL: URL
+    ) -> Bool {
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: archiveURL)
+        do {
+            guard let transaction = try transactionFile.load() else { return false }
+            switch try transactionFile.commitStatus(of: transaction, archiveURL: archiveURL) {
+            case .committed, .corrupt:
+                return true
+            case .uncommitted:
+                try transactionFile.remove()
+                return false
+            }
+        } catch {
+            // Recovery can replace the complete live root, including the marker.
+            // Any unreadable or unsafe publication evidence therefore blocks it.
+            return true
+        }
+    }
+
     public func retryLoad() {
         guard loadError != nil else { return }
+        reconcileSyncPublicationTransactionAtStartup()
+        guard syncPublicationError == nil else { return }
         do {
             try refreshPatternStorageDependencies()
             load()
@@ -981,8 +1114,12 @@ final class PatternLibraryDeletionTransaction {
         guard !isDataOperationInProgress else {
             throw KnitNoteBackupError.operationInProgress
         }
-        try reloadFromDiskDuringDataOperation()
         reconcileSyncPublicationTransactionAtStartup()
+        if syncPublicationError != nil {
+            didDeferLoadForSyncPublication = true
+        }
+        try ensureSyncPublicationReady()
+        try reloadFromDiskDuringDataOperation()
     }
 
     public func repairSyncPublication() throws {
@@ -991,14 +1128,20 @@ final class PatternLibraryDeletionTransaction {
         do {
             guard let loaded = try transactionFile.load() else {
                 syncPublicationError = nil
+                completeDeferredLoadAfterSyncPublicationIfNeeded()
                 return
             }
             transaction = loaded
-            guard try transactionFile.liveArchiveFingerprint(archiveURL: url)
-                    == transaction.expectedArchiveSHA256 else {
+            switch try transactionFile.commitStatus(of: transaction, archiveURL: url) {
+            case .committed:
+                break
+            case .uncommitted:
                 try transactionFile.remove()
                 syncPublicationError = nil
+                completeDeferredLoadAfterSyncPublicationIfNeeded()
                 return
+            case .corrupt:
+                throw SyncPublicationTransactionFileError.corrupt
             }
         } catch {
             let publicationError = syncPublicationError(for: error)
@@ -1013,6 +1156,7 @@ final class PatternLibraryDeletionTransaction {
         do {
             try publish(transaction, transactionFile: transactionFile)
             syncPublicationError = nil
+            completeDeferredLoadAfterSyncPublicationIfNeeded()
         } catch let error as SyncPublicationError {
             syncPublicationError = error
             throw error
@@ -1054,6 +1198,7 @@ final class PatternLibraryDeletionTransaction {
 
     public func restoreBackup(_ backup: StagedKnitNoteBackup) async throws {
         try requireAccess(.restoreBackup)
+        try ensureSyncPublicationReady()
         try beginDataOperation()
         defer { isDataOperationInProgress = false }
         let service = backupService
@@ -1118,6 +1263,12 @@ final class PatternLibraryDeletionTransaction {
         }
         let removedUsages = patternUsages.filter { $0.projectID == id }
         let remainingUsages = patternUsages.filter { $0.projectID != id }
+        let markupDeleteMutations = try syncUsageMarkupDeleteMutations(
+            usageIDs: removedUsages.map(\.id)
+        ) + syncLegacyMarkupDeleteMutations(
+            projectID: id,
+            patternIDs: deletedProject.patterns.map(\.id)
+        )
         let files = try requiredPatternFileService()
         let deletion = try PatternLibraryDeletionTransaction.begin(
             root: files.root,
@@ -1131,7 +1282,8 @@ final class PatternLibraryDeletionTransaction {
             try persist(
                 projects: projects.filter { $0.id != id },
                 yarns: stagedYarns,
-                patternUsages: remainingUsages
+                patternUsages: remainingUsages,
+                additionalSyncMutations: markupDeleteMutations
             )
         } catch {
             try deletion.rollback()
@@ -1139,6 +1291,13 @@ final class PatternLibraryDeletionTransaction {
         }
         try deletion.publish()
         try deletion.commit()
+        for pattern in deletedProject.patterns {
+            try? files.delete(projectID: id, pattern: pattern)
+            try? patternMarkupFileService.deleteLegacyMarkup(
+                projectID: id,
+                patternID: pattern.id
+            )
+        }
         if let filename { try? photoService.delete(filename: filename) }
         deleteJournalPhotosIfUnreferenced(journalFilenames)
     }
@@ -2227,13 +2386,28 @@ final class PatternLibraryDeletionTransaction {
     public func deletePattern(projectID: UUID, id: UUID) throws {
         try requireAccess(.editPattern)
         try ensureArchiveAvailable()
-        guard let pattern = project(id: projectID)?.patterns.first(where: { $0.id == id }) else {
+        guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              let pattern = projects[projectIndex].patterns.first(where: { $0.id == id }) else {
             return
         }
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
-        try mutate(id: projectID) { $0.deletePattern(id: id) }
+        let markupDeleteMutations = try syncLegacyMarkupDeleteMutations(
+            projectID: projectID,
+            patternIDs: [id]
+        )
+        var staged = projects
+        staged[projectIndex].deletePattern(id: id)
+        try persist(
+            projects: staged,
+            yarns: yarns,
+            additionalSyncMutations: markupDeleteMutations
+        )
         try? requiredPatternFileService().delete(projectID: projectID, pattern: pattern)
+        try? patternMarkupFileService.deleteLegacyMarkup(
+            projectID: projectID,
+            patternID: pattern.id
+        )
     }
 
     @discardableResult
@@ -2293,6 +2467,9 @@ final class PatternLibraryDeletionTransaction {
             throw PatternLibraryMutationError.patternNotFound
         }
         let usagesToDelete = patternUsages.filter { $0.patternID == id }
+        let markupDeleteMutations = try syncUsageMarkupDeleteMutations(
+            usageIDs: usagesToDelete.map(\.id)
+        )
         let activeProjectIDs = usagesToDelete.filter(\.isActive).map(\.projectID)
             .sorted { $0.uuidString < $1.uuidString }
         guard activeProjectIDs.isEmpty else {
@@ -2319,7 +2496,8 @@ final class PatternLibraryDeletionTransaction {
                     ? patternAssets.filter { $0.id != pattern.assetID }
                     : patternAssets,
                 patterns: patterns.filter { $0.id != id },
-                patternUsages: patternUsages.filter { $0.patternID != id }
+                patternUsages: patternUsages.filter { $0.patternID != id },
+                additionalSyncMutations: markupDeleteMutations
             )
         } catch {
             try deletion.rollback()
@@ -2581,16 +2759,52 @@ final class PatternLibraryDeletionTransaction {
         try requireAccess(.editPatternReadingState)
         try validateExpectedDataGeneration(expectedDataGeneration)
         _ = try mutableUsageIndex(usageID: usageID)
+        try ensureSyncPublicationReady()
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
-        let snapshot = try patternMarkupFileService.snapshot(usageID: usageID, pageIndex: pageIndex)
-        try patternMarkupFileService.save(document, usageID: usageID, pageIndex: pageIndex)
+        let page = max(0, pageIndex)
+        let snapshot = try patternMarkupFileService.snapshot(usageID: usageID, pageIndex: page)
+        let pageURL = try patternMarkupFileService.usagePageURL(
+            usageID: usageID,
+            pageIndex: page
+        )
+        let encodedPage = try patternMarkupFileService.encodedPageData(document)
+        let attachmentID = SyncEntityID(
+            kind: .attachment,
+            uuid: deterministicSyncAttachmentID(
+                ownerID: usageID,
+                role: "usage-markup",
+                identity: String(page)
+            )
+        )
+        let mutation: SyncMutation = encodedPage == nil
+            ? .delete(attachmentID, mutationID: UUID())
+            : .save(attachmentID, mutationID: UUID())
+        let evidence = try SyncPublicationArtifactEvidence(
+            relativePath: syncArtifactRelativePath(for: pageURL),
+            expectedSHA256: encodedPage.map(SyncPublicationTransactionFile.fingerprint(of:))
+        )
+        let markupService = patternMarkupFileService
         do {
             // The archive write advances a durable shared revision for markup,
             // allowing concurrent readers to use the same optimistic lock.
-            try persist(projects: projects, yarns: yarns, patternUsages: patternUsages)
+            try persist(
+                projects: projects,
+                yarns: yarns,
+                patternUsages: patternUsages,
+                additionalSyncMutations: [mutation],
+                syncCommitBoundary: .artifacts,
+                additionalArtifactEvidence: [evidence],
+                commitArtifacts: {
+                    try markupService.save(
+                        document,
+                        usageID: usageID,
+                        pageIndex: page
+                    )
+                }
+            )
         } catch {
-            try patternMarkupFileService.restore(snapshot, usageID: usageID, pageIndex: pageIndex)
+            try patternMarkupFileService.restore(snapshot, usageID: usageID, pageIndex: page)
             throw error
         }
         return dataGeneration
@@ -2688,6 +2902,7 @@ final class PatternLibraryDeletionTransaction {
     ) throws -> UInt64 {
         try requireAccess(.editPatternReadingState)
         try ensureArchiveAvailable()
+        try ensureSyncPublicationReady()
         try validateExpectedDataGeneration(expectedDataGeneration)
         guard let project = project(id: projectID),
               project.patterns.contains(where: { $0.id == patternID }) else {
@@ -2698,12 +2913,61 @@ final class PatternLibraryDeletionTransaction {
         }
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
-        try patternMarkupFileService.save(
-            document,
+        let page = max(0, pageIndex)
+        let snapshot = try patternMarkupFileService.snapshot(
             projectID: projectID,
             patternID: patternID,
-            pageIndex: pageIndex
+            pageIndex: page
         )
+        let pageURL = try patternMarkupFileService.legacyPageURL(
+            projectID: projectID,
+            patternID: patternID,
+            pageIndex: page
+        )
+        let encodedPage = try patternMarkupFileService.encodedPageData(document)
+        let attachmentID = SyncEntityID(
+            kind: .attachment,
+            uuid: deterministicSyncAttachmentID(
+                ownerID: patternID,
+                role: "legacy-markup",
+                identity: "\(projectID.uuidString)/\(page)"
+            )
+        )
+        let mutation: SyncMutation = encodedPage == nil
+            ? .delete(attachmentID, mutationID: UUID())
+            : .save(attachmentID, mutationID: UUID())
+        let evidence = try SyncPublicationArtifactEvidence(
+            relativePath: syncArtifactRelativePath(for: pageURL),
+            expectedSHA256: encodedPage.map(SyncPublicationTransactionFile.fingerprint(of:))
+        )
+        let archiveData = try Data(contentsOf: url)
+        let markupService = patternMarkupFileService
+        do {
+            try commitArchiveAndPublish(
+                data: archiveData,
+                mutations: [mutation],
+                commitBoundary: .artifacts,
+                artifactEvidence: [evidence],
+                shouldWriteArchive: false,
+                commitArtifacts: {
+                    try markupService.save(
+                        document,
+                        projectID: projectID,
+                        patternID: patternID,
+                        pageIndex: page
+                    )
+                },
+                applyCommittedState: {}
+            )
+        } catch {
+            try patternMarkupFileService.restore(
+                snapshot,
+                projectID: projectID,
+                patternID: patternID,
+                pageIndex: page
+            )
+            throw error
+        }
         return dataGeneration
     }
     public func project(id: UUID) -> StoredProject? { projects.first { $0.id == id } }
@@ -3194,6 +3458,32 @@ final class PatternLibraryDeletionTransaction {
         }
     }
 
+    private func loadPendingArchiveReadOnly() {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            loadError = nil
+            return
+        }
+        do {
+            let archive = try archiveFromDisk()
+            projects = archive.projects.sorted { $0.updatedAt > $1.updatedAt }
+            yarns = archive.yarns.sorted { $0.updatedAt > $1.updatedAt }
+            patternFolders = archive.patternFolders
+            patternAssets = archive.patternAssets
+            patterns = archive.patterns
+            patternUsages = archive.patternUsages
+            dataGeneration &+= 1
+            loadError = nil
+        } catch {
+            loadError = .unreadableArchive
+        }
+    }
+
+    private func completeDeferredLoadAfterSyncPublicationIfNeeded() {
+        guard didDeferLoadForSyncPublication else { return }
+        didDeferLoadForSyncPublication = false
+        load()
+    }
+
     private func reloadFromDiskDuringDataOperation() throws {
         do {
             try refreshPatternStorageDependencies()
@@ -3586,7 +3876,11 @@ final class PatternLibraryDeletionTransaction {
         patternAssets stagedPatternAssets: [PatternAsset]? = nil,
         patterns stagedPatterns: [StoredPattern]? = nil,
         patternUsages stagedPatternUsages: [PatternProjectUsage]? = nil,
-        patternFolderNameContext stagedPatternFolderNameContext: PatternFolderNameContext? = nil
+        patternFolderNameContext stagedPatternFolderNameContext: PatternFolderNameContext? = nil,
+        additionalSyncMutations: [SyncMutation] = [],
+        syncCommitBoundary: SyncPublicationCommitBoundary = .archive,
+        additionalArtifactEvidence: [SyncPublicationArtifactEvidence] = [],
+        commitArtifacts: (() throws -> Void)? = nil
     ) throws {
         try ensureArchiveAvailable()
         try ensureSyncPublicationReady()
@@ -3624,7 +3918,7 @@ final class PatternLibraryDeletionTransaction {
                 patternUsages: usages
             )
             let data = try JSONEncoder().encode(committedArchive)
-            let mutations = isSyncPublicationEnabled
+            let archiveMutations = isSyncPublicationEnabled
                 ? try syncMutations(
                     from: ProjectArchive(
                         version: ProjectArchive.currentVersion,
@@ -3638,7 +3932,22 @@ final class PatternLibraryDeletionTransaction {
                     to: committedArchive
                 )
                 : []
-            try commitArchiveAndPublish(data: data, mutations: mutations) {
+            let mutations = archiveMutations + (isSyncPublicationEnabled
+                ? additionalSyncMutations
+                : [])
+            let automaticArtifactEvidence = isSyncPublicationEnabled
+                ? try syncArtifactEvidence(
+                    for: archiveMutations,
+                    committedArchive: committedArchive
+                )
+                : []
+            try commitArchiveAndPublish(
+                data: data,
+                mutations: mutations,
+                commitBoundary: syncCommitBoundary,
+                artifactEvidence: automaticArtifactEvidence + additionalArtifactEvidence,
+                commitArtifacts: commitArtifacts
+            ) {
                 projects = sortedProjects
                 yarns = sortedYarns
                 patternFolders = normalized.folders
@@ -3665,10 +3974,17 @@ final class PatternLibraryDeletionTransaction {
     private func commitArchiveAndPublish(
         data: Data,
         mutations: [SyncMutation],
+        commitBoundary: SyncPublicationCommitBoundary = .archive,
+        artifactEvidence: [SyncPublicationArtifactEvidence] = [],
+        shouldWriteArchive: Bool = true,
+        commitArtifacts: (() throws -> Void)? = nil,
         applyCommittedState: () -> Void
     ) throws {
         guard isSyncPublicationEnabled, !mutations.isEmpty else {
-            try archiveWrite(data, url)
+            if shouldWriteArchive {
+                try archiveWrite(data, url)
+            }
+            try commitArtifacts?()
             applyCommittedState()
             return
         }
@@ -3679,7 +3995,9 @@ final class PatternLibraryDeletionTransaction {
         do {
             transaction = try SyncPublicationTransaction(
                 expectedArchiveSHA256: expectedFingerprint,
-                mutations: mutations
+                mutations: mutations,
+                commitBoundary: commitBoundary,
+                artifactEvidence: artifactEvidence
             )
             try transactionFile.write(transaction)
         } catch {
@@ -3690,22 +4008,36 @@ final class PatternLibraryDeletionTransaction {
 
         var archiveWriteFailure: (any Error)?
         do {
-            try archiveWrite(data, url)
+            if shouldWriteArchive {
+                try archiveWrite(data, url)
+            }
+            try commitArtifacts?()
         } catch {
             archiveWriteFailure = error
         }
 
-        let archiveMatchesExpectedCommit: Bool
+        let commitStatus: SyncPublicationCommitStatus
         do {
-            archiveMatchesExpectedCommit = try transactionFile.liveArchiveFingerprint(
-                archiveURL: url
-            ) == expectedFingerprint
+            commitStatus = try transactionFile.commitStatus(of: transaction, archiveURL: url)
         } catch {
+            if archiveWriteFailure == nil {
+                applyCommittedState()
+                syncPublicationError = .transactionUnavailable
+                return
+            }
             syncPublicationError = .transactionUnavailable
             throw SyncPublicationError.transactionUnavailable
         }
 
-        guard archiveMatchesExpectedCommit else {
+        guard commitStatus == .committed else {
+            if commitStatus == .corrupt {
+                // The archive fingerprint proves this archive-backed mutation
+                // committed. Preserve that user state and keep the marker
+                // fail-closed instead of escaping into legacy rollback paths.
+                applyCommittedState()
+                syncPublicationError = .corruptTransaction
+                return
+            }
             do {
                 try transactionFile.remove()
             } catch {
@@ -3729,6 +4061,167 @@ final class PatternLibraryDeletionTransaction {
             // explicit error blocks every later mutation until repair succeeds.
             syncPublicationError = syncPublicationError(for: error)
         }
+    }
+
+    private func syncArtifactEvidence(
+        for mutations: [SyncMutation],
+        committedArchive: ProjectArchive
+    ) throws -> [SyncPublicationArtifactEvidence] {
+        let attachmentSaveIDs = Set(mutations.compactMap { mutation -> SyncEntityID? in
+            guard case let .save(id, _) = mutation, id.kind == .attachment else {
+                return nil
+            }
+            return id
+        })
+        guard !attachmentSaveIDs.isEmpty else { return [] }
+
+        let attachmentURLs = try syncAttachmentURLs(in: committedArchive)
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
+        return try attachmentSaveIDs.sorted(by: syncEntityIDIsOrderedBefore).map { id in
+            guard let artifactURL = attachmentURLs[id] else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            let relativePath = try syncArtifactRelativePath(for: artifactURL)
+            return try transactionFile.evidenceForExistingArtifact(
+                relativePath: relativePath,
+                archiveURL: url
+            )
+        }
+    }
+
+    private func syncUsageMarkupDeleteMutations(
+        usageIDs: [UUID]
+    ) throws -> [SyncMutation] {
+        guard isSyncPublicationEnabled else { return [] }
+        return try usageIDs.sorted { $0.uuidString < $1.uuidString }.flatMap { usageID in
+            try patternMarkupFileService.usageMarkupPageIndices(usageID: usageID).map { page in
+                .delete(
+                    SyncEntityID(
+                        kind: .attachment,
+                        uuid: deterministicSyncAttachmentID(
+                            ownerID: usageID,
+                            role: "usage-markup",
+                            identity: String(page)
+                        )
+                    ),
+                    mutationID: UUID()
+                )
+            }
+        }
+    }
+
+    private func syncLegacyMarkupDeleteMutations(
+        projectID: UUID,
+        patternIDs: [UUID]
+    ) throws -> [SyncMutation] {
+        guard isSyncPublicationEnabled else { return [] }
+        return try patternIDs.sorted { $0.uuidString < $1.uuidString }.flatMap { patternID in
+            try patternMarkupFileService.legacyMarkupPageIndices(
+                projectID: projectID,
+                patternID: patternID
+            ).map { page in
+                .delete(
+                    SyncEntityID(
+                        kind: .attachment,
+                        uuid: deterministicSyncAttachmentID(
+                            ownerID: patternID,
+                            role: "legacy-markup",
+                            identity: "\(projectID.uuidString)/\(page)"
+                        )
+                    ),
+                    mutationID: UUID()
+                )
+            }
+        }
+    }
+
+    private func syncAttachmentURLs(
+        in archive: ProjectArchive
+    ) throws -> [SyncEntityID: URL] {
+        var result: [SyncEntityID: URL] = [:]
+        for project in archive.projects {
+            if let filename = project.photoFilename {
+                result[SyncEntityID(
+                    kind: .attachment,
+                    uuid: deterministicSyncAttachmentID(
+                        ownerID: project.id,
+                        role: "project-photo",
+                        identity: filename
+                    )
+                )] = photoService.url(filename: filename)
+            }
+            for pattern in project.patterns {
+                result[SyncEntityID(
+                    kind: .attachment,
+                    uuid: deterministicSyncAttachmentID(
+                        ownerID: pattern.id,
+                        role: "legacy-pattern-source",
+                        identity: "\(project.id.uuidString)/\(pattern.storedFilename)"
+                    )
+                )] = patternURL(projectID: project.id, pattern: pattern)
+            }
+            for entry in project.journalEntries {
+                for (role, filename) in [
+                    ("journal-photo", entry.photoFilename),
+                    ("journal-thumbnail", entry.thumbnailFilename),
+                ] {
+                    guard let fileURL = journalPhotoService.url(filename: filename) else {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                    result[SyncEntityID(
+                        kind: .attachment,
+                        uuid: deterministicSyncAttachmentID(
+                            ownerID: entry.id,
+                            role: role,
+                            identity: filename
+                        )
+                    )] = fileURL
+                }
+            }
+        }
+        for yarn in archive.yarns {
+            if let filename = yarn.photoFilename {
+                result[SyncEntityID(
+                    kind: .attachment,
+                    uuid: deterministicSyncAttachmentID(
+                        ownerID: yarn.id,
+                        role: "yarn-photo",
+                        identity: filename
+                    )
+                )] = yarnPhotoService.url(filename: filename)
+            }
+            for filename in yarn.labelPhotoFilenames {
+                guard let fileURL = yarnLabelPhotoService.url(filename: filename) else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                result[SyncEntityID(
+                    kind: .attachment,
+                    uuid: deterministicSyncAttachmentID(
+                        ownerID: yarn.id,
+                        role: "yarn-label-photo",
+                        identity: filename
+                    )
+                )] = fileURL
+            }
+        }
+        if !archive.patternAssets.isEmpty {
+            let files = try requiredPatternFileService()
+            for asset in archive.patternAssets {
+                result[SyncEntityID(kind: .attachment, uuid: asset.id)] = try files.assetURL(asset)
+            }
+        }
+        return result
+    }
+
+    private func syncArtifactRelativePath(for artifactURL: URL) throws -> String {
+        let liveRoot = url.deletingLastPathComponent().standardizedFileURL
+        let artifactURL = artifactURL.standardizedFileURL
+        guard liveRoot.resolvingSymlinksInPath().path == liveRoot.path,
+              artifactURL.path.hasPrefix(liveRoot.path + "/"),
+              artifactURL.resolvingSymlinksInPath().path == artifactURL.path else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+        return String(artifactURL.path.dropFirst(liveRoot.path.count + 1))
     }
 
     private func publish(
@@ -3767,13 +4260,15 @@ final class PatternLibraryDeletionTransaction {
                 syncPublicationError = nil
                 return
             }
-            guard try transactionFile.liveArchiveFingerprint(archiveURL: url)
-                    == transaction.expectedArchiveSHA256 else {
+            switch try transactionFile.commitStatus(of: transaction, archiveURL: url) {
+            case .committed:
+                syncPublicationError = .pendingRepair
+            case .uncommitted:
                 try transactionFile.remove()
                 syncPublicationError = nil
-                return
+            case .corrupt:
+                syncPublicationError = .corruptTransaction
             }
-            syncPublicationError = .pendingRepair
         } catch {
             syncPublicationError = syncPublicationError(for: error)
         }
@@ -3836,6 +4331,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func ensureArchiveAvailable() throws {
+        try ensureSyncPublicationReady()
         guard !isDataOperationInProgress else {
             throw KnitNoteBackupError.operationInProgress
         }

@@ -35,32 +35,89 @@ public enum SyncPublicationError: Error, Equatable, Sendable {
     case sinkUnavailable
 }
 
+enum SyncPublicationCommitBoundary: String, Codable, Equatable, Sendable {
+    case archive
+    case artifacts
+}
+
+struct SyncPublicationArtifactEvidence: Codable, Equatable, Sendable {
+    let relativePath: String
+    let expectedSHA256: Data?
+
+    init(relativePath: String, expectedSHA256: Data?) throws {
+        self.relativePath = relativePath
+        self.expectedSHA256 = expectedSHA256
+        try validate()
+    }
+
+    func validated() throws -> Self {
+        try validate()
+        return self
+    }
+
+    private func validate() throws {
+        let components = relativePath.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        )
+        guard !relativePath.isEmpty,
+              !relativePath.hasPrefix("/"),
+              relativePath.utf8.count <= 1_024,
+              !components.isEmpty,
+              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+              expectedSHA256 == nil || expectedSHA256?.count == SHA256.byteCount else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+    }
+}
+
 struct SyncPublicationTransaction: Codable, Equatable, Sendable {
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     let version: Int
     let expectedArchiveSHA256: Data
+    let commitBoundary: SyncPublicationCommitBoundary
+    let artifactEvidence: [SyncPublicationArtifactEvidence]
     let mutations: [SyncMutation]
     let integrity: Data
 
-    init(expectedArchiveSHA256: Data, mutations: [SyncMutation]) throws {
+    init(
+        expectedArchiveSHA256: Data,
+        mutations: [SyncMutation],
+        commitBoundary: SyncPublicationCommitBoundary = .archive,
+        artifactEvidence: [SyncPublicationArtifactEvidence] = []
+    ) throws {
         version = Self.currentVersion
         self.expectedArchiveSHA256 = expectedArchiveSHA256
+        self.commitBoundary = commitBoundary
+        self.artifactEvidence = artifactEvidence.sorted {
+            $0.relativePath < $1.relativePath
+        }
         self.mutations = mutations
         integrity = try Self.integrity(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
+            commitBoundary: commitBoundary,
+            artifactEvidence: self.artifactEvidence,
             mutations: mutations
         )
     }
 
     func validated() throws -> Self {
+        let validatedEvidence = try artifactEvidence.map { try $0.validated() }
         guard version == Self.currentVersion,
               expectedArchiveSHA256.count == SHA256.byteCount,
               !mutations.isEmpty,
+              artifactEvidence == artifactEvidence.sorted(by: {
+                  $0.relativePath < $1.relativePath
+              }),
+              Set(validatedEvidence.map(\.relativePath)).count == validatedEvidence.count,
+              commitBoundary != .artifacts || !artifactEvidence.isEmpty,
               integrity == (try Self.integrity(
                   version: version,
                   expectedArchiveSHA256: expectedArchiveSHA256,
+                  commitBoundary: commitBoundary,
+                  artifactEvidence: artifactEvidence,
                   mutations: mutations
               )) else {
             throw SyncPublicationTransactionFileError.corrupt
@@ -69,17 +126,26 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     }
 
     func replacingMutations(_ mutations: [SyncMutation]) throws -> Self {
-        try Self(expectedArchiveSHA256: expectedArchiveSHA256, mutations: mutations)
+        try Self(
+            expectedArchiveSHA256: expectedArchiveSHA256,
+            mutations: mutations,
+            commitBoundary: commitBoundary,
+            artifactEvidence: artifactEvidence
+        )
     }
 
     private static func integrity(
         version: Int,
         expectedArchiveSHA256: Data,
+        commitBoundary: SyncPublicationCommitBoundary,
+        artifactEvidence: [SyncPublicationArtifactEvidence],
         mutations: [SyncMutation]
     ) throws -> Data {
         let payload = IntegrityPayload(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
+            commitBoundary: commitBoundary,
+            artifactEvidence: artifactEvidence,
             mutations: mutations
         )
         let encoder = JSONEncoder()
@@ -90,8 +156,16 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     private struct IntegrityPayload: Codable {
         let version: Int
         let expectedArchiveSHA256: Data
+        let commitBoundary: SyncPublicationCommitBoundary
+        let artifactEvidence: [SyncPublicationArtifactEvidence]
         let mutations: [SyncMutation]
     }
+}
+
+enum SyncPublicationCommitStatus: Equatable {
+    case committed
+    case uncommitted
+    case corrupt
 }
 
 enum SyncPublicationTransactionFileError: Error {
@@ -101,6 +175,7 @@ enum SyncPublicationTransactionFileError: Error {
 }
 
 struct SyncPublicationTransactionFile {
+    private static let maximumEncodedBytes = 1 * 1_024 * 1_024
     let url: URL
 
     init(archiveURL: URL) {
@@ -135,6 +210,9 @@ struct SyncPublicationTransactionFile {
         } catch {
             throw SyncPublicationTransactionFileError.unavailable
         }
+        guard data.count <= Self.maximumEncodedBytes else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
         try atomicWrite(data)
     }
 
@@ -161,23 +239,68 @@ struct SyncPublicationTransactionFile {
     }
 
     func liveArchiveFingerprint(archiveURL: URL) throws -> Data? {
-        guard FileManager.default.fileExists(atPath: archiveURL.path) else { return nil }
-        do {
-            return Self.fingerprint(of: try Data(contentsOf: archiveURL))
-        } catch {
+        try fingerprintOfRegularFile(at: archiveURL)
+    }
+
+    func commitStatus(
+        of transaction: SyncPublicationTransaction,
+        archiveURL: URL
+    ) throws -> SyncPublicationCommitStatus {
+        guard try liveArchiveFingerprint(archiveURL: archiveURL)
+                == transaction.expectedArchiveSHA256 else {
+            return .uncommitted
+        }
+        let artifactsMatch = try transaction.artifactEvidence.allSatisfy {
+            try artifactMatches($0, archiveURL: archiveURL)
+        }
+        if artifactsMatch {
+            return .committed
+        }
+        return transaction.commitBoundary == .archive ? .corrupt : .uncommitted
+    }
+
+    func evidenceForExistingArtifact(
+        relativePath: String,
+        archiveURL: URL
+    ) throws -> SyncPublicationArtifactEvidence {
+        let evidence = try SyncPublicationArtifactEvidence(
+            relativePath: relativePath,
+            expectedSHA256: nil
+        )
+        let fileURL = try artifactURL(for: evidence, archiveURL: archiveURL)
+        guard let fingerprint = try fingerprintOfRegularFile(at: fileURL) else {
             throw SyncPublicationTransactionFileError.unavailable
         }
+        return try SyncPublicationArtifactEvidence(
+            relativePath: relativePath,
+            expectedSHA256: fingerprint
+        )
     }
 
     private func readData() throws -> Data? {
-        let descriptor = url.path.withCString {
-            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        }
-        if descriptor < 0 {
+        var pathStatus = stat()
+        let pathResult = url.path.withCString { Darwin.lstat($0, &pathStatus) }
+        if pathResult != 0 {
             guard errno == ENOENT else {
                 throw SyncPublicationTransactionFileError.unavailable
             }
             return nil
+        }
+        guard Self.isRegularFile(pathStatus) else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+        guard pathStatus.st_size >= 0,
+              pathStatus.st_size <= Self.maximumEncodedBytes else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+
+        let descriptor = url.path.withCString {
+            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            // Absence was already established by the first lstat. Disappearing
+            // between that check and open is an unsafe race, not an empty state.
+            throw SyncPublicationTransactionFileError.unavailable
         }
         defer { Darwin.close(descriptor) }
 
@@ -187,6 +310,12 @@ struct SyncPublicationTransactionFile {
         }
         guard Self.isRegularFile(status) else {
             throw SyncPublicationTransactionFileError.unsafeFile
+        }
+        guard status.st_size >= 0,
+              status.st_size <= Self.maximumEncodedBytes,
+              status.st_dev == pathStatus.st_dev,
+              status.st_ino == pathStatus.st_ino else {
+            throw SyncPublicationTransactionFileError.corrupt
         }
 
         var data = Data()
@@ -201,6 +330,95 @@ struct SyncPublicationTransactionFile {
             }
             guard count > 0 else { return data }
             data.append(buffer, count: count)
+            guard data.count <= Self.maximumEncodedBytes else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+    }
+
+    private func artifactMatches(
+        _ evidence: SyncPublicationArtifactEvidence,
+        archiveURL: URL
+    ) throws -> Bool {
+        let fileURL = try artifactURL(for: evidence, archiveURL: archiveURL)
+        guard let expectedSHA256 = evidence.expectedSHA256 else {
+            var status = stat()
+            let result = fileURL.path.withCString { Darwin.lstat($0, &status) }
+            if result != 0 {
+                guard errno == ENOENT else {
+                    throw SyncPublicationTransactionFileError.unavailable
+                }
+                return true
+            }
+            guard Self.isRegularFile(status) else {
+                throw SyncPublicationTransactionFileError.unsafeFile
+            }
+            return false
+        }
+        return try fingerprintOfRegularFile(at: fileURL) == expectedSHA256
+    }
+
+    private func artifactURL(
+        for evidence: SyncPublicationArtifactEvidence,
+        archiveURL: URL
+    ) throws -> URL {
+        _ = try evidence.validated()
+        let root = archiveURL.deletingLastPathComponent().standardizedFileURL
+        guard root.resolvingSymlinksInPath().path == root.path else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+        let candidate = root.appendingPathComponent(
+            evidence.relativePath,
+            isDirectory: false
+        ).standardizedFileURL
+        guard candidate.path.hasPrefix(root.path + "/"),
+              candidate.resolvingSymlinksInPath().path == candidate.path else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+        return candidate
+    }
+
+    private func fingerprintOfRegularFile(at fileURL: URL) throws -> Data? {
+        var pathStatus = stat()
+        let pathResult = fileURL.path.withCString { Darwin.lstat($0, &pathStatus) }
+        if pathResult != 0 {
+            guard errno == ENOENT else {
+                throw SyncPublicationTransactionFileError.unavailable
+            }
+            return nil
+        }
+        guard Self.isRegularFile(pathStatus) else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+        let descriptor = fileURL.path.withCString {
+            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            throw SyncPublicationTransactionFileError.unavailable
+        }
+        defer { Darwin.close(descriptor) }
+
+        var descriptorStatus = stat()
+        guard Darwin.fstat(descriptor, &descriptorStatus) == 0,
+              Self.isRegularFile(descriptorStatus),
+              descriptorStatus.st_dev == pathStatus.st_dev,
+              descriptorStatus.st_ino == pathStatus.st_ino else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+        var hasher = SHA256()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count >= 0 else {
+                throw SyncPublicationTransactionFileError.unavailable
+            }
+            guard count > 0 else {
+                return Data(hasher.finalize())
+            }
+            hasher.update(data: Data(buffer.prefix(count)))
         }
     }
 

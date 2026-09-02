@@ -805,6 +805,63 @@ import UniformTypeIdentifiers
         #expect(try Data(contentsOf: transactionURL) == corruptBytes)
     }
 
+    @Test func corruptOrInvalidAttachmentIssuanceEvidenceFailsClosedWhileKeepingLocalReads() throws {
+        for kind in 0..<4 {
+            let fixture = try SyncPublicationFixture()
+            let first = fixture.store(sink: RecordingSyncMutationSink())
+            let project = try #require(first.project(id: fixture.projectID))
+            try first.updateProject(
+                id: project.id,
+                name: project.name,
+                toolType: project.toolType,
+                toolSize: project.toolSize,
+                toolNotes: project.toolNotes,
+                photoChange: .replace(try makeSyncPublicationJPEG(red: 0.35))
+            )
+            let evidenceURL = fixture.liveRoot
+                .appendingPathComponent("SyncMetadata", isDirectory: true)
+                .appendingPathComponent("attachment-versions.json")
+            let original = try Data(contentsOf: evidenceURL)
+            let object = try #require(
+                JSONSerialization.jsonObject(with: original) as? [String: Any]
+            )
+            let version = try #require(
+                (object["versions"] as? [[String: Any]])?.first
+            )
+            let corruptBytes: Data
+            switch kind {
+            case 0:
+                corruptBytes = Data("not attachment issuance evidence".utf8)
+            case 1:
+                var duplicateSlots = object
+                duplicateSlots["versions"] = [version, version]
+                corruptBytes = try JSONSerialization.data(withJSONObject: duplicateSlots)
+            case 2:
+                var invalidIdentity = object
+                var invalidIdentityVersion = version
+                invalidIdentityVersion["conflictGroupID"] = UUID().uuidString
+                invalidIdentity["versions"] = [invalidIdentityVersion]
+                corruptBytes = try JSONSerialization.data(withJSONObject: invalidIdentity)
+            default:
+                var invalidMetadata = object
+                var invalidMetadataVersion = version
+                invalidMetadataVersion["contentSHA256"] = Data([0]).base64EncodedString()
+                invalidMetadata["versions"] = [invalidMetadataVersion]
+                corruptBytes = try JSONSerialization.data(withJSONObject: invalidMetadata)
+            }
+            try corruptBytes.write(to: evidenceURL, options: .atomic)
+            let sink = RecordingSyncMutationSink()
+            let restarted = fixture.store(sink: sink)
+
+            #expect(restarted.project(id: fixture.projectID)?.name == "Original")
+            #expect(restarted.syncPublicationError == .corruptTransaction)
+            #expect(throws: SyncPublicationError.corruptTransaction) {
+                try restarted.rename(id: fixture.projectID, to: "Blocked")
+            }
+            #expect(sink.mutations.isEmpty)
+        }
+    }
+
     @Test func fifoPublicationTransactionIsRejectedWithoutOpeningIt() throws {
         let fixture = try SyncPublicationFixture()
         let transactionURL = SyncPublicationTransactionFile(

@@ -117,6 +117,17 @@ private struct SyncAttachmentPublicationEvidence: Codable {
         self.versions = versions
     }
 
+    func validated() throws -> Self {
+        var slots: Set<SyncAttachmentSlot> = []
+        for version in versions {
+            _ = try version.validated()
+            guard slots.insert(version.slot).inserted else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+        return self
+    }
+
     func versionID(for slot: SyncAttachmentSlot) -> UUID? {
         versions.first { $0.slot == slot }?.versionID
     }
@@ -157,14 +168,20 @@ private struct SyncAttachmentPublicationEvidenceFile {
         guard FileManager.default.fileExists(atPath: url.path) else {
             return SyncAttachmentPublicationEvidence()
         }
-        return try JSONDecoder().decode(
-            SyncAttachmentPublicationEvidence.self,
-            from: Data(contentsOf: url)
-        )
+        do {
+            return try JSONDecoder().decode(
+                SyncAttachmentPublicationEvidence.self,
+                from: Data(contentsOf: url)
+            ).validated()
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
     }
 
     func save(_ evidence: SyncAttachmentPublicationEvidence) throws {
-        try JSONEncoder().encode(evidence).write(to: url, options: .atomic)
+        try JSONEncoder().encode(evidence.validated()).write(to: url, options: .atomic)
     }
 }
 
@@ -1165,6 +1182,7 @@ final class PatternLibraryDeletionTransaction {
     private let syncRevisionLedger: SyncRevisionLedger?
     private let syncAttachmentPublicationEvidenceFile: SyncAttachmentPublicationEvidenceFile
     private var syncAttachmentPublicationEvidence: SyncAttachmentPublicationEvidence
+    private let syncAttachmentPublicationEvidenceLoadFailed: Bool
     private var syncProjectionCache: SyncPublicationProjectionCache?
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
     private var activeJournalPhotoTransactions = 0
@@ -1315,13 +1333,22 @@ final class PatternLibraryDeletionTransaction {
             url: syncMetadataRoot.appendingPathComponent("attachment-versions.json")
         )
         syncAttachmentPublicationEvidenceFile = attachmentEvidenceFile
-        syncAttachmentPublicationEvidence = (try? attachmentEvidenceFile.load())
-            ?? SyncAttachmentPublicationEvidence()
+        do {
+            syncAttachmentPublicationEvidence = try attachmentEvidenceFile.load()
+            syncAttachmentPublicationEvidenceLoadFailed = false
+        } catch {
+            syncAttachmentPublicationEvidence = SyncAttachmentPublicationEvidence()
+            syncAttachmentPublicationEvidenceLoadFailed = true
+        }
         self.authorizeMutation = authorizeMutation
         self.commitSuccessfulMutation = commitSuccessfulMutation
         self.patternFolderNameContext = patternFolderNameContext
         reconcileSyncPublicationTransactionAtStartup()
-        if isSyncPublicationEnabled, syncRevisionLedger == nil, syncPublicationError == nil {
+        if isSyncPublicationEnabled,
+           syncAttachmentPublicationEvidenceLoadFailed,
+           syncPublicationError == nil {
+            syncPublicationError = .corruptTransaction
+        } else if isSyncPublicationEnabled, syncRevisionLedger == nil, syncPublicationError == nil {
             syncPublicationError = .transactionUnavailable
         }
         if let initialLoadError {
@@ -1509,6 +1536,10 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func repairSyncPublication() throws {
+        guard !syncAttachmentPublicationEvidenceLoadFailed else {
+            syncPublicationError = .corruptTransaction
+            throw SyncPublicationError.corruptTransaction
+        }
         let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
         let transaction: SyncPublicationTransaction
         do {
@@ -4952,6 +4983,10 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func reconcileSyncPublicationTransactionAtStartup() {
+        guard !syncAttachmentPublicationEvidenceLoadFailed else {
+            syncPublicationError = .corruptTransaction
+            return
+        }
         let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
         do {
             guard let transaction = try transactionFile.load() else {

@@ -16,33 +16,48 @@ public final class SyncInstallationIdentityStore: @unchecked Sendable {
     }
 
     private let url: URL
+    private let beforeCreate: (() throws -> Void)?
 
     public init(url: URL) {
         self.url = url
+        beforeCreate = nil
+    }
+
+    init(url: URL, beforeCreate: @escaping () throws -> Void) {
+        self.url = url
+        self.beforeCreate = beforeCreate
     }
 
     public func loadOrCreate() throws -> String {
         Self.sharedLock.lock()
         defer { Self.sharedLock.unlock() }
 
-        switch try existingIdentity() {
-        case let .some(identity):
-            return identity
-        case .none:
-            let identity = UUID().uuidString
-            let data: Data
-            do {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.sortedKeys]
-                data = try encoder.encode(Envelope(
-                    version: Self.currentVersion,
-                    identity: identity
-                ))
-            } catch {
-                throw SyncInstallationIdentityError.corrupt
+        var didInvokeCreateHook = false
+        while true {
+            switch try existingIdentity() {
+            case let .some(identity):
+                return identity
+            case .none:
+                if !didInvokeCreateHook {
+                    try beforeCreate?()
+                    didInvokeCreateHook = true
+                }
+                let identity = UUID().uuidString
+                let data: Data
+                do {
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.sortedKeys]
+                    data = try encoder.encode(Envelope(
+                        version: Self.currentVersion,
+                        identity: identity
+                    ))
+                } catch {
+                    throw SyncInstallationIdentityError.corrupt
+                }
+                if try SyncDurableFile.createNoClobber(data, at: url) {
+                    return identity
+                }
             }
-            try SyncDurableFile.write(data, to: url)
-            return identity
         }
     }
 
@@ -162,6 +177,84 @@ enum SyncDurableFile {
         }
         shouldRemoveTemporary = false
         try synchronizeDirectory(parent)
+    }
+
+    static func createNoClobber(_ data: Data, at url: URL) throws -> Bool {
+        let parent = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let temporaryURL = parent.appendingPathComponent(
+            ".\(url.lastPathComponent).\(UUID().uuidString).tmp",
+            isDirectory: false
+        )
+        let descriptor = temporaryURL.path.withCString {
+            Darwin.open($0, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        }
+        guard descriptor >= 0 else { throw SyncDurableFileError.unavailable }
+        var shouldRemoveTemporary = true
+        defer {
+            Darwin.close(descriptor)
+            if shouldRemoveTemporary {
+                _ = temporaryURL.path.withCString(Darwin.unlink)
+            }
+        }
+        try writeAll(data, descriptor: descriptor)
+        guard Darwin.fsync(descriptor) == 0 else { throw SyncDurableFileError.unavailable }
+        let didLink = temporaryURL.path.withCString { temporaryPath in
+            url.path.withCString { destinationPath in
+                Darwin.link(temporaryPath, destinationPath)
+            }
+        }
+        if didLink != 0 {
+            guard errno == EEXIST else { throw SyncDurableFileError.unavailable }
+            return false
+        }
+        guard temporaryURL.path.withCString(Darwin.unlink) == 0 else {
+            throw SyncDurableFileError.unavailable
+        }
+        shouldRemoveTemporary = false
+        try synchronizeDirectory(parent)
+        return true
+    }
+
+    static func withExclusiveFileLock<T>(
+        for protectedURL: URL,
+        _ body: () throws -> T
+    ) throws -> T {
+        let parent = protectedURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let lockURL = parent.appendingPathComponent(
+            ".\(protectedURL.lastPathComponent).lock",
+            isDirectory: false
+        )
+        let descriptor = lockURL.path.withCString {
+            Darwin.open($0, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        }
+        guard descriptor >= 0 else { throw SyncDurableFileError.unavailable }
+        defer { Darwin.close(descriptor) }
+        var status = stat()
+        guard Darwin.fstat(descriptor, &status) == 0,
+              (status.st_mode & S_IFMT) == S_IFREG else {
+            throw SyncDurableFileError.unsafeFile
+        }
+        guard try setFileLock(descriptor, type: Int16(F_WRLCK)) else {
+            throw SyncDurableFileError.unavailable
+        }
+        defer { _ = try? setFileLock(descriptor, type: Int16(F_UNLCK)) }
+        return try body()
+    }
+
+    private static func setFileLock(_ descriptor: Int32, type: Int16) throws -> Bool {
+        var lock = flock()
+        lock.l_type = type
+        lock.l_whence = Int16(SEEK_SET)
+        lock.l_start = 0
+        lock.l_len = 0
+        while true {
+            let result = Darwin.fcntl(descriptor, F_SETLKW, &lock)
+            if result == 0 { return true }
+            if errno == EINTR { continue }
+            return false
+        }
     }
 
     private static func writeAll(_ data: Data, descriptor: Int32) throws {

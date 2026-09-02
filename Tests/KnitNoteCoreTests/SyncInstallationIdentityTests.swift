@@ -53,6 +53,21 @@ struct SyncInstallationIdentityTests {
         #expect(try Data(contentsOf: target) == bytes)
     }
 
+    @Test func competingCreationNeverClobbersTheInstalledIdentityBytes() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appending(path: "identity.json")
+        let competingBytes = Data("competing-corrupt-identity".utf8)
+        let store = SyncInstallationIdentityStore(url: url, beforeCreate: {
+            try competingBytes.write(to: url, options: .atomic)
+        })
+
+        #expect(throws: SyncInstallationIdentityError.corrupt) {
+            _ = try store.loadOrCreate()
+        }
+        #expect(try Data(contentsOf: url) == competingBytes)
+    }
+
     private func temporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(
             "sync-installation-identity-\(UUID().uuidString)",

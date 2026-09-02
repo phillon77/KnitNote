@@ -8,6 +8,40 @@ import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct JSONProjectStoreSyncPublicationTests {
+    @Test func rebuiltLedgerUsesProjectedEntityRevisionAsItsCausalFloor() throws {
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink()
+        let store = fixture.store(sink: sink)
+
+        try store.rename(id: fixture.projectID, to: "First")
+        let firstRevision = try #require(sink.mutations.last?.savedRecordVersion?.record.entityRevision)
+        try FileManager.default.removeItem(
+            at: fixture.liveRoot.appendingPathComponent("SyncMetadata/revision-ledger.json")
+        )
+        try store.rename(id: fixture.projectID, to: "Second")
+        let secondRevision = try #require(sink.mutations.last?.savedRecordVersion?.record.entityRevision)
+
+        #expect(firstRevision > 0)
+        #expect(secondRevision == firstRevision + 1)
+    }
+
+    @Test func newPublicationTransactionRejectsMissingV3Receipts() throws {
+        let fixture = try SyncPublicationFixture()
+        let first = fixture.store(sink: RecordingSyncMutationSink(shouldFail: true))
+        try first.rename(id: fixture.projectID, to: "Receipt source")
+        let transaction = try #require(try SyncPublicationTransactionFile(
+            archiveURL: fixture.archiveURL
+        ).load())
+
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            _ = try SyncPublicationTransaction(
+                expectedArchiveSHA256: transaction.expectedArchiveSHA256,
+                mutations: transaction.mutations,
+                revisionReceipts: []
+            )
+        }
+    }
+
     @Test func publicationMarkerPersistsCausalReceiptForRestartRecovery() throws {
         let fixture = try SyncPublicationFixture()
         let first = fixture.store(sink: RecordingSyncMutationSink(shouldFail: true))
@@ -633,7 +667,7 @@ import UniformTypeIdentifiers
             mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!
         )
         let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
-        try transactionFile.write(try SyncPublicationTransaction(
+        try transactionFile.write(try SyncPublicationTransaction.legacy(
             expectedArchiveSHA256: SyncPublicationTransactionFile.fingerprint(of: oldBytes),
             mutations: [mutation]
         ))
@@ -663,7 +697,7 @@ import UniformTypeIdentifiers
             mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000004")!
         )
         let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
-        try transactionFile.write(try SyncPublicationTransaction(
+        try transactionFile.write(try SyncPublicationTransaction.legacy(
             expectedArchiveSHA256: SyncPublicationTransactionFile.fingerprint(of: committedBytes),
             mutations: [mutation]
         ))
@@ -688,7 +722,7 @@ import UniformTypeIdentifiers
             mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000005")!
         )
         let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
-        try transactionFile.write(try SyncPublicationTransaction(
+        try transactionFile.write(try SyncPublicationTransaction.legacy(
             expectedArchiveSHA256: SyncPublicationTransactionFile.fingerprint(
                 of: Data("archive that never committed".utf8)
             ),
@@ -728,7 +762,7 @@ import UniformTypeIdentifiers
             mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!
         )
         try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).write(
-            try SyncPublicationTransaction(
+            try SyncPublicationTransaction.legacy(
                 expectedArchiveSHA256: SyncPublicationTransactionFile.fingerprint(of: oldBytes),
                 mutations: [mutation]
             )

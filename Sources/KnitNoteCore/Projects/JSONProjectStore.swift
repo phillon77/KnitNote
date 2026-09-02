@@ -86,6 +86,22 @@ private func syncMutations(
         })
 }
 
+private func syncRecords(
+    _ records: [SyncEntityID: SyncRecord],
+    applying mutations: [SyncMutation]
+) -> [SyncEntityID: SyncRecord] {
+    var result = records
+    for mutation in mutations {
+        switch mutation {
+        case let .save(save):
+            result[save.recordVersion.record.id] = save.recordVersion.record
+        case let .delete(delete):
+            result.removeValue(forKey: delete.recordID)
+        }
+    }
+    return result
+}
+
 private struct SyncPublicationProjectionCache {
     let archive: ProjectArchive
     let records: [SyncEntityID: SyncRecord]
@@ -4312,9 +4328,20 @@ final class PatternLibraryDeletionTransaction {
             try commitArchiveAndPublish(
                 data: data,
                 mutations: mutations,
+                observedRevisions: originalProjectionCache?.records.mapValues(\.entityRevision) ?? [:],
                 commitBoundary: syncCommitBoundary,
                 artifactEvidence: automaticArtifactEvidence + additionalArtifactEvidence,
-                commitArtifacts: commitArtifacts
+                commitArtifacts: commitArtifacts,
+                onArchiveCommitted: { publishedMutations in
+                    guard let committedProjectionCache else { return }
+                    self.syncProjectionCache = SyncPublicationProjectionCache(
+                        archive: committedArchive,
+                        records: syncRecords(
+                            committedProjectionCache.records,
+                            applying: publishedMutations
+                        )
+                    )
+                }
             ) {
                 projects = sortedProjects
                 yarns = sortedYarns
@@ -4322,7 +4349,6 @@ final class PatternLibraryDeletionTransaction {
                 patternAssets = assets
                 patterns = normalized.patterns
                 patternUsages = usages
-                syncProjectionCache = committedProjectionCache
                 if let stagedPatternFolderNameContext {
                     patternFolderNameContext = stagedPatternFolderNameContext
                 }
@@ -4343,10 +4369,12 @@ final class PatternLibraryDeletionTransaction {
     private func commitArchiveAndPublish(
         data: Data,
         mutations: [SyncMutation],
+        observedRevisions: [SyncEntityID: UInt64] = [:],
         commitBoundary: SyncPublicationCommitBoundary = .archive,
         artifactEvidence: [SyncPublicationArtifactEvidence] = [],
         shouldWriteArchive: Bool = true,
         commitArtifacts: (() throws -> Void)? = nil,
+        onArchiveCommitted: (([SyncMutation]) -> Void)? = nil,
         applyCommittedState: () -> Void
     ) throws {
         guard isSyncPublicationEnabled, !mutations.isEmpty else {
@@ -4354,13 +4382,17 @@ final class PatternLibraryDeletionTransaction {
                 try archiveWrite(data, url)
             }
             try commitArtifacts?()
+            onArchiveCommitted?(mutations)
             applyCommittedState()
             return
         }
 
         let causallyStamped: (mutations: [SyncMutation], receipts: [SyncRevisionReceipt])
         do {
-            causallyStamped = try allocateCausalRevisions(for: mutations)
+            causallyStamped = try allocateCausalRevisions(
+                for: mutations,
+                observedRevisions: observedRevisions
+            )
         } catch {
             let publicationError = syncPublicationError(for: error)
             syncPublicationError = publicationError
@@ -4430,6 +4462,7 @@ final class PatternLibraryDeletionTransaction {
             throw ProjectStoreError.persistenceFailed
         }
 
+        onArchiveCommitted?(causallyStamped.mutations)
         applyCommittedState()
         if archiveWriteFailure != nil {
             // Matching bytes prove the user state reached the destination, but
@@ -4455,7 +4488,8 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func allocateCausalRevisions(
-        for mutations: [SyncMutation]
+        for mutations: [SyncMutation],
+        observedRevisions: [SyncEntityID: UInt64]
     ) throws -> (mutations: [SyncMutation], receipts: [SyncRevisionReceipt]) {
         guard let syncRevisionLedger else {
             throw SyncRevisionLedgerError.unavailable
@@ -4468,7 +4502,10 @@ final class PatternLibraryDeletionTransaction {
             let receipt = try syncRevisionLedger.allocate(
                 for: mutation.recordID,
                 mutationID: mutation.mutationID,
-                observedRemoteRevision: 0
+                observedRemoteRevision: max(
+                    observedRevisions[mutation.recordID] ?? 0,
+                    mutation.savedRecordVersion?.record.entityRevision ?? 0
+                )
             )
             stamped.append(try applying(receipt: receipt, to: mutation))
             receipts.append(receipt)

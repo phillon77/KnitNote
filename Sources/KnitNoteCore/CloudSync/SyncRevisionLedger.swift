@@ -37,6 +37,7 @@ public protocol SyncRevisionAllocating: Sendable {
 
 public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendable {
     private static let currentVersion = 1
+    private static let sharedLock = NSLock()
 
     private struct IssuedRevision: Codable {
         let entityID: SyncEntityID
@@ -52,7 +53,6 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
 
     private let url: URL
     private let deviceID: String
-    private let lock = NSLock()
 
     public init(url: URL, deviceID: String) {
         self.url = url
@@ -64,31 +64,53 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
         mutationID: UUID,
         observedRemoteRevision: UInt64
     ) throws -> SyncRevisionReceipt {
-        lock.lock()
-        defer { lock.unlock() }
+        Self.sharedLock.lock()
+        defer { Self.sharedLock.unlock() }
 
-        var state = try load()
-        if let receipt = state.receipts.first(where: { $0.mutationID == mutationID }) {
-            guard receipt.entityID == entityID else { throw SyncRevisionLedgerError.corrupt }
-            return receipt
+        do {
+            return try SyncDurableFile.withExclusiveFileLock(for: url) {
+                var state = try load()
+                if let receipt = state.receipts.first(where: { $0.mutationID == mutationID }) {
+                    guard receipt.entityID == entityID else {
+                        throw SyncRevisionLedgerError.corrupt
+                    }
+                    return receipt
+                }
+                let lastIssued = state.issuedRevisions.first(where: {
+                    $0.entityID == entityID
+                })?.revision ?? 0
+                let floor = max(lastIssued, observedRemoteRevision)
+                guard floor < .max else { throw SyncRevisionLedgerError.revisionExhausted }
+                let receipt = SyncRevisionReceipt(
+                    entityID: entityID,
+                    mutationID: mutationID,
+                    logicalRevision: floor + 1,
+                    deviceID: deviceID
+                )
+                state.receipts.append(receipt)
+                if let index = state.issuedRevisions.firstIndex(where: {
+                    $0.entityID == entityID
+                }) {
+                    state.issuedRevisions[index] = IssuedRevision(
+                        entityID: entityID,
+                        revision: receipt.logicalRevision
+                    )
+                } else {
+                    state.issuedRevisions.append(IssuedRevision(
+                        entityID: entityID,
+                        revision: receipt.logicalRevision
+                    ))
+                }
+                try write(state)
+                return receipt
+            }
+        } catch let error as SyncDurableFileError {
+            switch error {
+            case .unsafeFile: throw SyncRevisionLedgerError.unsafeFile
+            case .corrupt: throw SyncRevisionLedgerError.corrupt
+            case .unavailable: throw SyncRevisionLedgerError.unavailable
+            }
         }
-        let lastIssued = state.issuedRevisions.first(where: { $0.entityID == entityID })?.revision ?? 0
-        let floor = max(lastIssued, observedRemoteRevision)
-        guard floor < .max else { throw SyncRevisionLedgerError.revisionExhausted }
-        let receipt = SyncRevisionReceipt(
-            entityID: entityID,
-            mutationID: mutationID,
-            logicalRevision: floor + 1,
-            deviceID: deviceID
-        )
-        state.receipts.append(receipt)
-        if let index = state.issuedRevisions.firstIndex(where: { $0.entityID == entityID }) {
-            state.issuedRevisions[index] = IssuedRevision(entityID: entityID, revision: receipt.logicalRevision)
-        } else {
-            state.issuedRevisions.append(IssuedRevision(entityID: entityID, revision: receipt.logicalRevision))
-        }
-        try write(state)
-        return receipt
     }
 
     private func load() throws -> Envelope {

@@ -109,9 +109,45 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         mutations: [SyncMutation],
         commitBoundary: SyncPublicationCommitBoundary = .archive,
         artifactEvidence: [SyncPublicationArtifactEvidence] = [],
-        revisionReceipts: [SyncRevisionReceipt] = []
+        revisionReceipts: [SyncRevisionReceipt]
     ) throws {
-        version = revisionReceipts.isEmpty ? Self.legacyVersion : Self.currentVersion
+        try self.init(
+            version: Self.currentVersion,
+            expectedArchiveSHA256: expectedArchiveSHA256,
+            mutations: mutations,
+            commitBoundary: commitBoundary,
+            artifactEvidence: artifactEvidence,
+            revisionReceipts: revisionReceipts
+        )
+        _ = try validated()
+    }
+
+    static func legacy(
+        expectedArchiveSHA256: Data,
+        mutations: [SyncMutation],
+        commitBoundary: SyncPublicationCommitBoundary = .archive,
+        artifactEvidence: [SyncPublicationArtifactEvidence] = []
+    ) throws -> Self {
+        let transaction = try Self(
+            version: Self.legacyVersion,
+            expectedArchiveSHA256: expectedArchiveSHA256,
+            mutations: mutations,
+            commitBoundary: commitBoundary,
+            artifactEvidence: artifactEvidence,
+            revisionReceipts: []
+        )
+        return try transaction.validated()
+    }
+
+    private init(
+        version: Int,
+        expectedArchiveSHA256: Data,
+        mutations: [SyncMutation],
+        commitBoundary: SyncPublicationCommitBoundary,
+        artifactEvidence: [SyncPublicationArtifactEvidence],
+        revisionReceipts: [SyncRevisionReceipt]
+    ) throws {
+        self.version = version
         self.expectedArchiveSHA256 = expectedArchiveSHA256
         self.commitBoundary = commitBoundary
         self.artifactEvidence = artifactEvidence.sorted {

@@ -1,4 +1,5 @@
 import Foundation
+import Dispatch
 import Testing
 @testable import KnitNoteCore
 
@@ -87,6 +88,47 @@ struct SyncRevisionLedgerTests {
         #expect((try? Data(contentsOf: fixture.url)) == bytesBefore)
     }
 
+    @Test func separateLedgersAtOneURLRetainBothConcurrentReceipts() throws {
+        let fixture = try RevisionLedgerFixture()
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let firstMutationID = UUID()
+        let secondMutationID = UUID()
+        let first = SyncRevisionLedger(url: fixture.url, deviceID: "installation-A")
+        let second = SyncRevisionLedger(url: fixture.url, deviceID: "installation-A")
+        let results = ConcurrentLedgerResults()
+        let group = DispatchGroup()
+
+        for (ledger, mutationID) in [(first, firstMutationID), (second, secondMutationID)] {
+            group.enter()
+            DispatchQueue.global().async {
+                defer { group.leave() }
+                do {
+                    let receipt = try ledger.allocate(
+                        for: entity,
+                        mutationID: mutationID,
+                        observedRemoteRevision: 0
+                    )
+                    results.append(receipt)
+                } catch {
+                    results.append(error)
+                }
+            }
+        }
+        group.wait()
+
+        #expect(results.errors.isEmpty)
+        #expect(Set(results.receipts.map(\.logicalRevision)).count == 2)
+        let restarted = SyncRevisionLedger(url: fixture.url, deviceID: "installation-A")
+        for receipt in results.receipts {
+            #expect(try restarted.allocate(
+                for: entity,
+                mutationID: receipt.mutationID,
+                observedRemoteRevision: .max
+            ) == receipt)
+        }
+    }
+
     private func temporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(
             "sync-revision-ledger-\(UUID().uuidString)",
@@ -94,6 +136,36 @@ struct SyncRevisionLedgerTests {
         )
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+}
+
+private final class ConcurrentLedgerResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedReceipts: [SyncRevisionReceipt] = []
+    private var storedErrors: [String] = []
+
+    var receipts: [SyncRevisionReceipt] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedReceipts
+    }
+
+    var errors: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedErrors
+    }
+
+    func append(_ receipt: SyncRevisionReceipt) {
+        lock.lock()
+        storedReceipts.append(receipt)
+        lock.unlock()
+    }
+
+    func append(_ error: any Error) {
+        lock.lock()
+        storedErrors.append(String(describing: error))
+        lock.unlock()
     }
 }
 

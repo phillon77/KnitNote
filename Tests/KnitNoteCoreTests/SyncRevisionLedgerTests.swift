@@ -142,6 +142,35 @@ struct SyncRevisionLedgerTests {
         #expect(try Data(contentsOf: fixture.url) == bytes)
     }
 
+    @Test func duplicateIssuedEntityFailsClosedWithoutReplacingItsOriginalBytes() throws {
+        let fixture = try RevisionLedgerFixture()
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let receipt = SyncRevisionReceipt(
+            entityID: entity,
+            mutationID: UUID(),
+            logicalRevision: 1,
+            deviceID: "installation-A"
+        )
+        let bytes = try encodedRevisionLedger(
+            receipts: [receipt],
+            issued: [
+                .init(entityID: entity, revision: 1),
+                .init(entityID: entity, revision: 1)
+            ]
+        )
+        try bytes.write(to: fixture.url)
+
+        #expect(throws: SyncRevisionLedgerError.corrupt) {
+            _ = try fixture.ledger.allocate(
+                for: entity,
+                mutationID: UUID(),
+                observedRemoteRevision: 0
+            )
+        }
+        #expect(try Data(contentsOf: fixture.url) == bytes)
+    }
+
     @Test func separateLedgersAtOneURLRetainBothConcurrentReceipts() throws {
         let fixture = try RevisionLedgerFixture()
         defer { fixture.remove() }

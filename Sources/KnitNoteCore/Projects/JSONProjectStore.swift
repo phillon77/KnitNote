@@ -4486,7 +4486,15 @@ final class PatternLibraryDeletionTransaction {
                         archive: committedArchive,
                         records: syncRecords(
                             publicationProjection.cache.records,
-                            applying: publishedMutations
+                            // Attachment records have an immutable versioned
+                            // identity and are owned by the manifest plus
+                            // durable issuance evidence. The archive snapshot
+                            // intentionally contains only structural records;
+                            // retaining attachment saves here would make the
+                            // next structural persist infer a false delete.
+                            applying: publishedMutations.filter {
+                                $0.recordID.kind != .attachment
+                            }
                         )
                     )
                 }
@@ -5097,14 +5105,6 @@ final class PatternLibraryDeletionTransaction {
 
     private func syncAttachmentVersionID(for slot: SyncAttachmentSlot) -> UUID? {
         syncAttachmentPublicationEvidence.versionID(for: slot)
-            ?? syncProjectionCache?.records.values.compactMap { record -> SyncRecord? in
-            guard record.id.kind == .attachment,
-                  record.deletedAt.value == nil,
-                  record.payload.attachment?.slot == slot else {
-                return nil
-            }
-            return record
-        }.max { $0.deletedAt.stamp < $1.deletedAt.stamp }?.payload.attachment?.versionID
     }
 
     private func persistAttachmentPublicationEvidence(for mutations: [SyncMutation]) throws {

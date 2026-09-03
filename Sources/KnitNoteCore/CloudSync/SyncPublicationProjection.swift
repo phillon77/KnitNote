@@ -136,6 +136,9 @@ public struct SyncPublicationProjector {
         )
         let beforeReferences = try validatedReferences(attachmentReferences(before))
         let afterReferences = try validatedReferences(attachmentReferences(after))
+        let beforeBySlot = Dictionary(uniqueKeysWithValues: beforeReferences.map {
+            ($0.slot, $0)
+        })
         let beforeSlots = Set(beforeReferences.map(\.slot))
         let afterSlots = Set(afterReferences.map(\.slot))
         let oldBySlot = Dictionary(uniqueKeysWithValues: validatedManifest.values.map {
@@ -164,7 +167,6 @@ public struct SyncPublicationProjector {
             syncAttachmentSlotIsOrderedBefore($0.slot, $1.slot)
         }) {
             let normalizedPath = reference.sourceURL.standardizedFileURL.path
-            let pathStatus = try regularFileStatus(at: reference.sourceURL)
             let oldEntry = oldBySlot[reference.slot]
             let issued = issuedBySlot[reference.slot]
 
@@ -172,11 +174,16 @@ public struct SyncPublicationProjector {
             // immutable issuance evidence.  They remain local legacy content
             // until a later mutation introduces or replaces that slot; do not
             // manufacture a new remote version merely because the manifest is
-            // being introduced.  A manifest bootstrap therefore remains
-            // incremental with respect to the archive transition.
-            guard oldEntry != nil || issued != nil || !beforeSlots.contains(reference.slot) else {
+            // being introduced. A changed reference in the same semantic slot
+            // is a real replacement, however, and must receive a fresh
+            // version without guessing a legacy predecessor.
+            if oldEntry == nil,
+               issued == nil,
+               let beforeReference = beforeBySlot[reference.slot],
+               beforeReference == reference {
                 continue
             }
+            let pathStatus = try regularFileStatus(at: reference.sourceURL)
 
             if let oldEntry, let issued,
                oldEntry.versionID == issued.versionID,

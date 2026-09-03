@@ -108,6 +108,70 @@ import Testing
             $0.uuidString < $1.uuidString
         } == versionsBefore)
     }
+
+    @Test func legacyAttachmentStaysLocalUntilReplacementThenRetainsItsIssuedHistory() throws {
+        let fixture = try LegacyAttachmentFixture()
+        defer { fixture.remove() }
+
+        let unchanged = try fixture.project(
+            before: [fixture.legacyReference],
+            after: [fixture.legacyReference],
+            manifest: [:],
+            issuedVersions: [:]
+        )
+        #expect(unchanged.mutations.isEmpty)
+        #expect(unchanged.attachmentManifest.isEmpty)
+        #expect(fixture.readerCounters.hashedFileCount == 0)
+
+        let unissuedDeletion = try fixture.project(
+            before: [fixture.legacyReference],
+            after: [],
+            manifest: [:],
+            issuedVersions: [:]
+        )
+        #expect(unissuedDeletion.mutations.isEmpty)
+        #expect(unissuedDeletion.attachmentManifest.isEmpty)
+
+        fixture.readerCounters.reset()
+        let replacement = try fixture.project(
+            before: [fixture.legacyReference],
+            after: [fixture.replacementReference],
+            manifest: [:],
+            issuedVersions: [:]
+        )
+        let saved = try #require(replacement.mutations.single?.savedRecordVersion?.record)
+        let issuedVersion = try #require(saved.payload.attachment)
+        #expect(fixture.readerCounters.hashedFileCount == 1)
+        #expect(issuedVersion.replacesVersionID == nil)
+        #expect(replacement.attachmentManifest.count == 1)
+
+        try SyncAttachmentManifestStore(url: fixture.manifestURL).commit(
+            replacement.attachmentManifest
+        )
+        let restartedManifest = try SyncAttachmentManifestStore(url: fixture.manifestURL).load()
+        fixture.readerCounters.reset()
+        let subsequent = try fixture.project(
+            before: [fixture.replacementReference],
+            after: [fixture.replacementReference],
+            manifest: restartedManifest,
+            issuedVersions: [fixture.replacementReference.slot: issuedVersion]
+        )
+        #expect(subsequent.mutations.isEmpty)
+        #expect(fixture.readerCounters.hashedFileCount == 0)
+
+        let issuedDeletion = try fixture.project(
+            before: [fixture.replacementReference],
+            after: [],
+            manifest: restartedManifest,
+            issuedVersions: [fixture.replacementReference.slot: issuedVersion]
+        )
+        #expect(issuedDeletion.mutations == [
+            .delete(
+                .init(kind: .attachment, uuid: issuedVersion.versionID),
+                mutationID: issuedDeletion.mutations[0].mutationID
+            )
+        ])
+    }
 }
 
 private final class AttachmentManifestFixture {
@@ -230,6 +294,63 @@ private final class AttachmentManifestFixture {
         }
         manifest = projection.attachmentManifest
         return projection
+    }
+}
+
+private final class LegacyAttachmentFixture {
+    let root: URL
+    let manifestURL: URL
+    let readerCounters = AttachmentReaderCounters()
+    let legacyReference: SyncAttachmentReference
+    let replacementReference: SyncAttachmentReference
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "sync-legacy-attachment-manifest-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        manifestURL = root.appendingPathComponent("attachment-manifest.json")
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let slot = SyncAttachmentSlot(owner: owner, role: "project-photo", slotID: "photo")
+        let legacyURL = root.appendingPathComponent("legacy-photo.jpg")
+        let replacementURL = root.appendingPathComponent("replacement-photo.jpg")
+        try Data("legacy-photo".utf8).write(to: legacyURL)
+        try Data("replacement-photo".utf8).write(to: replacementURL)
+        legacyReference = .init(
+            slot: slot,
+            sourceURL: legacyURL,
+            mediaType: "image/jpeg",
+            displayFilename: legacyURL.lastPathComponent
+        )
+        replacementReference = .init(
+            slot: slot,
+            sourceURL: replacementURL,
+            mediaType: "image/jpeg",
+            displayFilename: replacementURL.lastPathComponent
+        )
+    }
+
+    func remove() {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func project(
+        before: [SyncAttachmentReference],
+        after: [SyncAttachmentReference],
+        manifest: [String: SyncAttachmentManifestEntry],
+        issuedVersions: [SyncAttachmentSlot: SyncAttachmentVersion]
+    ) throws -> SyncPublicationProjection {
+        let beforeArchive = ProjectArchive(version: 1, projects: [])
+        let afterArchive = ProjectArchive(version: 2, projects: [])
+        return try SyncPublicationProjector(
+            deviceID: "legacy-manifest-fixture",
+            attachmentReferences: { archive in
+                archive.version == beforeArchive.version ? before : after
+            },
+            issuedAttachmentVersions: issuedVersions,
+            fileReader: CountingSyncRegularFileReader(counters: readerCounters)
+        ).project(before: beforeArchive, after: afterArchive, manifest: manifest)
     }
 }
 

@@ -59,3 +59,41 @@ CloudKit Phase 2 or release work.
   is compiled in the app and Watch targets. No implementer Critical/Important
   regression remains after diff review and the commands above; the independent
   review gate is intentionally still pending.
+
+## Review fix round 1/5 — attachment cache, legacy replacement, and ledger duplicates
+
+### RED evidence
+
+- `swift test --filter 'SyncAttachmentManifestTests|JSONProjectStoreSyncPublicationTests.sameStoreStructuralPersistKeepsAttachmentHeadForRestartedReplacement'`
+  — exit 1: a same-store structural rename emitted an attachment delete and
+  then blocked the later replacement; a legacy reference replacement produced
+  no attachment save.
+- `swift test --filter 'SyncRevisionLedgerTests.duplicateIssuedEntityFailsClosedWithoutReplacingItsOriginalBytes'`
+  — exit 1 with signal 5: `Dictionary(uniqueKeysWithValues:)` trapped on the
+  duplicate entity key before the corruption guard could throw.
+
+### Fix and self-review
+
+- The projection cache is structural-only: attachment mutations no longer
+  enter its record map, and attachment heads are read solely from durable
+  issuance evidence. This prevents a later archive snapshot from treating its
+  deliberately absent attachment records as deletes.
+- A legacy slot remains local only when its before and after references are
+  identical. A changed filename/media descriptor/reference is issued as a new
+  immutable attachment with no guessed predecessor; an unchanged legacy
+  deletion still emits no guessed ID. Restart coverage retains the issued head
+  and its subsequent delete.
+- Ledger decoding validates issued entity uniqueness before constructing the
+  dictionary, so duplicate persisted keys fail as `SyncRevisionLedgerError.corrupt`
+  and leave the original bytes untouched.
+- Reviewed the change boundary: no schema changes, no CloudKit transport, and
+  no changes to the deferred duplicate-projector or tautology minor findings.
+
+### GREEN evidence
+
+- `swift test --filter 'SyncAttachmentManifestTests|JSONProjectStoreSyncPublicationTests|SyncRevisionLedgerTests'`
+  — 57 tests in 3 suites, exit 0.
+- `swift test --filter 'SyncAttachmentManifestTests|JSONProjectStoreSyncPublicationTests|SyncRevisionLedgerTests|SyncMutationJournal|SyncMerge|WatchCommandApplicationTests|WatchSyncPersistenceTests|YarnLink'`
+  — 197 tests in 11 suites, exit 0.
+- `swift test --filter 'SyncRegularFileReaderTests|SyncAttachmentVersionTests'`
+  — 10 tests in 2 suites, exit 0.

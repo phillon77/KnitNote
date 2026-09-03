@@ -448,6 +448,64 @@ import UniformTypeIdentifiers
         #expect(attachmentDeletes.first?.recordID == firstAttachment.recordID)
     }
 
+    @Test func sameStoreStructuralPersistKeepsAttachmentHeadForRestartedReplacement() throws {
+        struct EvidenceEnvelope: Decodable {
+            let versions: [SyncAttachmentVersion]
+        }
+
+        let fixture = try SyncPublicationFixture()
+        let firstSink = RecordingSyncMutationSink()
+        let first = fixture.store(sink: firstSink)
+        let original = try #require(first.project(id: fixture.projectID))
+
+        try first.updateProject(
+            id: original.id,
+            name: original.name,
+            toolType: original.toolType,
+            toolSize: original.toolSize,
+            toolNotes: original.toolNotes,
+            photoChange: .replace(try makeSyncPublicationJPEG(red: 0.2))
+        )
+        let firstSave = try #require(firstSink.mutations.last { mutation in
+            mutation.recordKind == .attachment && mutation.operation == .save
+        })
+        let evidenceURL = fixture.liveRoot.appendingPathComponent(
+            "SyncMetadata/attachment-versions.json"
+        )
+        let evidenceBeforeRename = try JSONDecoder().decode(
+            EvidenceEnvelope.self,
+            from: Data(contentsOf: evidenceURL)
+        )
+        let countBeforeRename = firstSink.mutations.count
+
+        try first.rename(id: fixture.projectID, to: "Unrelated structural edit")
+        let renameMutations = Array(firstSink.mutations.dropFirst(countBeforeRename))
+        #expect(!renameMutations.contains {
+            $0.recordKind == .attachment && $0.operation == .delete
+        })
+        #expect(try JSONDecoder().decode(
+            EvidenceEnvelope.self,
+            from: Data(contentsOf: evidenceURL)
+        ).versions == evidenceBeforeRename.versions)
+
+        let replacementSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: replacementSink)
+        let withFirstPhoto = try #require(restarted.project(id: fixture.projectID))
+        try restarted.updateProject(
+            id: withFirstPhoto.id,
+            name: withFirstPhoto.name,
+            toolType: withFirstPhoto.toolType,
+            toolSize: withFirstPhoto.toolSize,
+            toolNotes: withFirstPhoto.toolNotes,
+            photoChange: .replace(try makeSyncPublicationJPEG(red: 0.8))
+        )
+        let replacement = try #require(replacementSink.mutations.last { mutation in
+            mutation.recordKind == .attachment && mutation.operation == .save
+        })
+        #expect(replacement.savedRecordVersion?.record.payload.attachment?.replacesVersionID
+            == firstSave.recordID.uuid)
+    }
+
     @Test func realJournalRetainsSaveReplaceDeleteVersionsAcrossStoreAndJournalRestarts() throws {
         let fixture = try SyncPublicationFixture()
         let journalURL = fixture.root.appendingPathComponent("sync-mutations.json")

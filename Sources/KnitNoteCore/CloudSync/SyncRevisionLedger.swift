@@ -139,6 +139,10 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
         }
         do {
             let envelope = try JSONDecoder().decode(Envelope.self, from: data)
+            guard Set(envelope.issuedRevisions.map(\.entityID)).count
+                    == envelope.issuedRevisions.count else {
+                throw SyncRevisionLedgerError.corrupt
+            }
             let greatestReceiptByEntity = Dictionary(grouping: envelope.receipts, by: \.entityID)
                 .mapValues { receipts in
                     receipts.map(\.logicalRevision).max()!
@@ -151,7 +155,6 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             guard envelope.version == Self.currentVersion,
                   envelope.deviceID == deviceID,
                   Set(envelope.receipts.map(\.mutationID)).count == envelope.receipts.count,
-                  Set(envelope.issuedRevisions.map(\.entityID)).count == envelope.issuedRevisions.count,
                   envelope.receipts.allSatisfy({ $0.deviceID == deviceID }),
                   envelope.receipts.allSatisfy({ $0.logicalRevision > 0 }),
                   envelope.issuedRevisions.allSatisfy({ $0.revision > 0 }),

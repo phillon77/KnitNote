@@ -34,6 +34,9 @@ import Testing
             replacing: try #require(second.savedRecordVersion?.record.payload.attachment?.versionID)
         )
         try journal.enqueue(third)
+        let savedRecordVersions = try [first, second, third].map {
+            try #require($0.savedRecordVersion)
+        }
 
         try FileManager.default.removeItem(at: source)
         let reopened = FileSyncMutationJournal(url: fixture.url)
@@ -41,6 +44,7 @@ import Testing
 
         #expect(pending.count == 3)
         #expect(pending.map(\.intent) == [.save, .save, .save])
+        #expect(pending.compactMap(\.savedRecordVersion) == savedRecordVersions)
         #expect(pending[0].savedRecordVersion?.versionID != pending[1].savedRecordVersion?.versionID)
         #expect(pending[1].savedRecordVersion?.record.payload.attachment?.replacesVersionID
             == pending[0].savedRecordVersion?.record.payload.attachment?.versionID)

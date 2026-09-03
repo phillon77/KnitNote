@@ -88,6 +88,60 @@ struct SyncRevisionLedgerTests {
         #expect((try? Data(contentsOf: fixture.url)) == bytesBefore)
     }
 
+    @Test func zeroRevisionReceiptAndFloorAreRejectedDuringDecode() throws {
+        let fixture = try RevisionLedgerFixture()
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let mutationID = UUID()
+        let receipt = SyncRevisionReceipt(
+            entityID: entity,
+            mutationID: mutationID,
+            logicalRevision: 0,
+            deviceID: "installation-A"
+        )
+        let bytes = try encodedRevisionLedger(
+            receipts: [receipt],
+            issued: [.init(entityID: entity, revision: 0)]
+        )
+        try bytes.write(to: fixture.url)
+
+        #expect(throws: SyncRevisionLedgerError.corrupt) {
+            _ = try fixture.ledger.allocate(
+                for: entity,
+                mutationID: mutationID,
+                observedRemoteRevision: 0
+            )
+        }
+        #expect(try Data(contentsOf: fixture.url) == bytes)
+    }
+
+    @Test func issuedFloorMustEqualTheGreatestDecodedReceiptForItsEntity() throws {
+        let fixture = try RevisionLedgerFixture()
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let mutationID = UUID()
+        let receipt = SyncRevisionReceipt(
+            entityID: entity,
+            mutationID: mutationID,
+            logicalRevision: 1,
+            deviceID: "installation-A"
+        )
+        let bytes = try encodedRevisionLedger(
+            receipts: [receipt],
+            issued: [.init(entityID: entity, revision: 2)]
+        )
+        try bytes.write(to: fixture.url)
+
+        #expect(throws: SyncRevisionLedgerError.corrupt) {
+            _ = try fixture.ledger.allocate(
+                for: entity,
+                mutationID: mutationID,
+                observedRemoteRevision: 0
+            )
+        }
+        #expect(try Data(contentsOf: fixture.url) == bytes)
+    }
+
     @Test func separateLedgersAtOneURLRetainBothConcurrentReceipts() throws {
         let fixture = try RevisionLedgerFixture()
         defer { fixture.remove() }
@@ -137,6 +191,32 @@ struct SyncRevisionLedgerTests {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
+}
+
+private struct EncodedIssuedRevision: Encodable {
+    let entityID: SyncEntityID
+    let revision: UInt64
+}
+
+private struct EncodedRevisionLedger: Encodable {
+    let version: Int
+    let deviceID: String
+    let receipts: [SyncRevisionReceipt]
+    let issuedRevisions: [EncodedIssuedRevision]
+}
+
+private func encodedRevisionLedger(
+    receipts: [SyncRevisionReceipt],
+    issued: [EncodedIssuedRevision]
+) throws -> Data {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    return try encoder.encode(EncodedRevisionLedger(
+        version: 1,
+        deviceID: "installation-A",
+        receipts: receipts,
+        issuedRevisions: issued
+    ))
 }
 
 private final class ConcurrentLedgerResults: @unchecked Sendable {

@@ -21,6 +21,14 @@ public struct SyncRegularFileExpectation: Sendable {
     }
 }
 
+public protocol SyncRegularFileReading: Sendable {
+    func read(
+        _ url: URL,
+        maximumBytes: Int,
+        expected: SyncRegularFileExpectation?
+    ) throws -> SyncRegularFileRead
+}
+
 public struct SyncRegularFileIdentity: Equatable, Sendable {
     public let device: UInt64
     public let inode: UInt64
@@ -36,6 +44,7 @@ public struct SyncRegularFileRead: Sendable {
     public let device: UInt64
     public let inode: UInt64
     public let byteCount: Int64
+    public let modificationNanoseconds: Int64
     public let sha256: Data
 
     public var identity: SyncRegularFileIdentity {
@@ -47,17 +56,19 @@ public struct SyncRegularFileRead: Sendable {
         device: UInt64,
         inode: UInt64,
         byteCount: Int64,
+        modificationNanoseconds: Int64 = 0,
         sha256: Data
     ) {
         self.data = data
         self.device = device
         self.inode = inode
         self.byteCount = byteCount
+        self.modificationNanoseconds = modificationNanoseconds
         self.sha256 = sha256
     }
 }
 
-public struct SyncRegularFileReader: Sendable {
+public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
     private let beforeOpen: (@Sendable () throws -> Void)?
     private let beforeRead: (@Sendable () throws -> Void)?
 
@@ -125,6 +136,11 @@ public struct SyncRegularFileReader: Sendable {
         guard let openedByteCount = Self.size(of: openedStatus) else {
             throw SyncRegularFileReadError.unsafeFile
         }
+        guard let openedModificationNanoseconds = Self.modificationNanoseconds(
+            of: openedStatus
+        ) else {
+            throw SyncRegularFileReadError.unsafeFile
+        }
         guard openedByteCount <= maximumByteCount else {
             throw SyncRegularFileReadError.tooLarge
         }
@@ -168,10 +184,16 @@ public struct SyncRegularFileReader: Sendable {
         guard let finalByteCount = Self.size(of: finalStatus) else {
             throw SyncRegularFileReadError.unsafeFile
         }
+        guard let finalModificationNanoseconds = Self.modificationNanoseconds(
+            of: finalStatus
+        ) else {
+            throw SyncRegularFileReadError.unsafeFile
+        }
         guard finalByteCount <= maximumByteCount else {
             throw SyncRegularFileReadError.tooLarge
         }
         guard finalByteCount == openedByteCount,
+              finalModificationNanoseconds == openedModificationNanoseconds,
               data.count == Int(openedByteCount) else {
             throw SyncRegularFileReadError.changed
         }
@@ -187,6 +209,7 @@ public struct SyncRegularFileReader: Sendable {
             device: UInt64(finalStatus.st_dev),
             inode: UInt64(finalStatus.st_ino),
             byteCount: byteCount,
+            modificationNanoseconds: finalModificationNanoseconds,
             sha256: sha256
         )
     }
@@ -198,6 +221,17 @@ public struct SyncRegularFileReader: Sendable {
     private static func size(of status: stat) -> Int64? {
         guard status.st_size >= 0 else { return nil }
         return Int64(status.st_size)
+    }
+
+    private static func modificationNanoseconds(of status: stat) -> Int64? {
+        let seconds = Int64(status.st_mtimespec.tv_sec)
+        let nanoseconds = Int64(status.st_mtimespec.tv_nsec)
+        let (scaledSeconds, didOverflowScale) = seconds.multipliedReportingOverflow(
+            by: 1_000_000_000
+        )
+        let (result, didOverflowAdd) = scaledSeconds.addingReportingOverflow(nanoseconds)
+        guard !didOverflowScale, !didOverflowAdd else { return nil }
+        return result
     }
 
     private static func identity(of status: stat) -> SyncRegularFileIdentity {

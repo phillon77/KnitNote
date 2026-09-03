@@ -1,5 +1,10 @@
 # Cross-Device Sync 1: Deterministic Core Implementation Plan
 
+> **Status (2026-09-03):** This initial Phase 1 plan is corrected by
+> `2026-09-02-cross-device-sync-core-correction.md`. That corrective plan
+> must pass its complete test, build, and independent-review gates before
+> CloudKit Phase 2 or any release work may begin.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add CloudKit-independent synchronization records, deterministic merging, a durable mutation journal, and a reliable post-commit publication boundary.

@@ -195,7 +195,8 @@ import UniformTypeIdentifiers
         let saved = try #require(transaction.mutations.first?.savedRecordVersion?.record)
         let receipt = try #require(transaction.revisionReceipts.first)
         #expect(receipt.entityID == saved.id)
-        #expect(receipt.logicalRevision == saved.entityRevision)
+        #expect(receipt.logicalRevision == 1)
+        #expect(saved.entityRevision == 1)
         #expect(receipt.deviceID == saved.deletedAt.stamp.deviceID)
 
         let repairSink = RecordingSyncMutationSink()
@@ -291,7 +292,14 @@ import UniformTypeIdentifiers
         let loadedTransaction = try SyncPublicationTransactionFile(
             archiveURL: fixture.archiveURL
         ).load()
-        let exactPendingMutations = try #require(loadedTransaction).mutations
+        let transaction = try #require(loadedTransaction)
+        let exactPendingMutations = transaction.mutations
+        let candidateManifest = try #require(transaction.candidateAttachmentManifest)
+        let manifestURL = fixture.liveRoot
+            .appendingPathComponent("SyncMetadata", isDirectory: true)
+            .appendingPathComponent("attachment-manifest.json")
+        #expect(candidateManifest.count == 1)
+        #expect(!FileManager.default.fileExists(atPath: manifestURL.path))
         let repairSink = RecordingSyncMutationSink()
         let restarted = fixture.store(sink: repairSink)
         #expect(restarted.syncPublicationError == .pendingRepair)
@@ -302,8 +310,52 @@ import UniformTypeIdentifiers
 
         #expect(repairSink.mutations == exactPendingMutations)
         #expect(restarted.syncPublicationError == nil)
+        #expect(try Set(SyncAttachmentManifestStore(url: manifestURL).load().values.map(\.versionID))
+            == Set(candidateManifest.map(\.versionID)))
         try restarted.rename(id: fixture.projectID, to: "Unblocked")
         #expect(restarted.project(id: fixture.projectID)?.name == "Unblocked")
+        #expect(restarted.syncPublicationError == nil)
+    }
+
+    @Test func manifestCommitFailureAfterJournalEnqueueKeepsCandidateForIdempotentRepair() throws {
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink()
+        let store = fixture.store(sink: sink)
+        let project = try #require(store.project(id: fixture.projectID))
+        let manifestURL = fixture.liveRoot
+            .appendingPathComponent("SyncMetadata", isDirectory: true)
+            .appendingPathComponent("attachment-manifest.json")
+        try FileManager.default.createDirectory(
+            at: manifestURL,
+            withIntermediateDirectories: true
+        )
+
+        try store.updateProject(
+            id: project.id,
+            name: project.name,
+            toolType: project.toolType,
+            toolSize: project.toolSize,
+            toolNotes: project.toolNotes,
+            photoChange: .replace(try makeSyncPublicationJPEG(red: 0.42))
+        )
+
+        #expect(!sink.mutations.isEmpty)
+        #expect(store.syncPublicationError == .pendingRepair)
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
+        let transaction = try #require(try transactionFile.load())
+        let candidateManifest = try #require(transaction.candidateAttachmentManifest)
+        #expect(candidateManifest.count == 1)
+        #expect(FileManager.default.fileExists(atPath: transactionFile.url.path))
+
+        try FileManager.default.removeItem(at: manifestURL)
+        let repairSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: repairSink)
+        try restarted.repairSyncPublication()
+
+        #expect(repairSink.mutations == transaction.mutations)
+        #expect(try Set(SyncAttachmentManifestStore(url: manifestURL).load().values.map(\.versionID))
+            == Set(candidateManifest.map(\.versionID)))
+        #expect(!FileManager.default.fileExists(atPath: transactionFile.url.path))
         #expect(restarted.syncPublicationError == nil)
     }
 
@@ -1129,6 +1181,28 @@ import UniformTypeIdentifiers
         #expect(throws: SyncPublicationError.corruptTransaction) {
             try restarted.repairSyncPublication()
         }
+    }
+
+    @Test func archiveAndAttachmentFingerprintsUseTheirSemanticByteCaps() throws {
+        let fixture = try SyncPublicationFixture()
+        let oversizedArchive = fixture.liveRoot.appendingPathComponent("oversized-archive.json")
+        let allowedAttachment = fixture.liveRoot.appendingPathComponent("allowed-attachment.bin")
+        for url in [oversizedArchive, allowedAttachment] {
+            #expect(FileManager.default.createFile(atPath: url.path, contents: nil))
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.truncate(atOffset: UInt64(KnitNoteBackupLimits.maximumArchiveBytes + 1))
+            try handle.close()
+        }
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: oversizedArchive)
+
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            _ = try transactionFile.liveArchiveFingerprint(archiveURL: oversizedArchive)
+        }
+        let evidence = try transactionFile.evidenceForExistingArtifact(
+            relativePath: allowedAttachment.lastPathComponent,
+            archiveURL: oversizedArchive
+        )
+        #expect(evidence.expectedSHA256?.count == 32)
     }
 
     @Test func partialPublicationRetainsWholeIdempotentBatchForLinearRepair() throws {

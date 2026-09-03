@@ -83,7 +83,8 @@ struct SyncPublicationArtifactEvidence: Codable, Equatable, Sendable {
 }
 
 struct SyncPublicationTransaction: Codable, Equatable, Sendable {
-    static let currentVersion = 3
+    static let currentVersion = 4
+    private static let causalReceiptVersion = 3
     private static let legacyVersion = 2
 
     let version: Int
@@ -92,6 +93,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     let artifactEvidence: [SyncPublicationArtifactEvidence]
     let mutations: [SyncMutation]
     let revisionReceipts: [SyncRevisionReceipt]
+    let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
     let integrity: Data
 
     private enum CodingKeys: String, CodingKey {
@@ -101,6 +103,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         case artifactEvidence
         case mutations
         case revisionReceipts
+        case candidateAttachmentManifest
         case integrity
     }
 
@@ -109,7 +112,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         mutations: [SyncMutation],
         commitBoundary: SyncPublicationCommitBoundary = .archive,
         artifactEvidence: [SyncPublicationArtifactEvidence] = [],
-        revisionReceipts: [SyncRevisionReceipt]
+        revisionReceipts: [SyncRevisionReceipt],
+        candidateAttachmentManifest: [SyncAttachmentManifestEntry]? = nil
     ) throws {
         try self.init(
             version: Self.currentVersion,
@@ -117,7 +121,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             mutations: mutations,
             commitBoundary: commitBoundary,
             artifactEvidence: artifactEvidence,
-            revisionReceipts: revisionReceipts
+            revisionReceipts: revisionReceipts,
+            candidateAttachmentManifest: candidateAttachmentManifest
         )
         _ = try validated()
     }
@@ -134,7 +139,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             mutations: mutations,
             commitBoundary: commitBoundary,
             artifactEvidence: artifactEvidence,
-            revisionReceipts: []
+            revisionReceipts: [],
+            candidateAttachmentManifest: nil
         )
         return try transaction.validated()
     }
@@ -145,7 +151,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         mutations: [SyncMutation],
         commitBoundary: SyncPublicationCommitBoundary,
         artifactEvidence: [SyncPublicationArtifactEvidence],
-        revisionReceipts: [SyncRevisionReceipt]
+        revisionReceipts: [SyncRevisionReceipt],
+        candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
     ) throws {
         self.version = version
         self.expectedArchiveSHA256 = expectedArchiveSHA256
@@ -155,13 +162,19 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         }
         self.mutations = mutations
         self.revisionReceipts = revisionReceipts
+        self.candidateAttachmentManifest = try candidateAttachmentManifest.map {
+            try SyncAttachmentManifestStore.orderedEntries(
+                SyncAttachmentManifestStore.dictionary(from: $0)
+            )
+        }
         integrity = try Self.integrity(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
             commitBoundary: commitBoundary,
             artifactEvidence: self.artifactEvidence,
             mutations: mutations,
-            revisionReceipts: revisionReceipts
+            revisionReceipts: revisionReceipts,
+            candidateAttachmentManifest: self.candidateAttachmentManifest
         )
     }
 
@@ -182,38 +195,50 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             [SyncRevisionReceipt].self,
             forKey: .revisionReceipts
         ) ?? []
+        candidateAttachmentManifest = try values.decodeIfPresent(
+            [SyncAttachmentManifestEntry].self,
+            forKey: .candidateAttachmentManifest
+        )
         integrity = try values.decode(Data.self, forKey: .integrity)
     }
 
     func validated() throws -> Self {
         let validatedEvidence = try artifactEvidence.map { try $0.validated() }
-        guard [Self.legacyVersion, Self.currentVersion].contains(version),
+        let validatedManifest = try candidateAttachmentManifest.map {
+            try SyncAttachmentManifestStore.orderedEntries(
+                SyncAttachmentManifestStore.dictionary(from: $0)
+            )
+        }
+        let receiptsAreComplete = revisionReceipts.count == mutations.count
+            && Set(revisionReceipts.map(\.mutationID)).count == revisionReceipts.count
+            && Set(revisionReceipts.map(\.entityID)).count <= revisionReceipts.count
+            && Set(revisionReceipts.map(\.mutationID)) == Set(mutations.map(\.mutationID))
+            && revisionReceipts.allSatisfy { receipt in
+                receipt.logicalRevision > 0 && mutations.contains {
+                    $0.mutationID == receipt.mutationID && $0.recordID == receipt.entityID
+                }
+            }
+        guard [Self.legacyVersion, Self.causalReceiptVersion, Self.currentVersion].contains(version),
               expectedArchiveSHA256.count == SHA256.byteCount,
-              !mutations.isEmpty,
+              !mutations.isEmpty || (version == Self.currentVersion && validatedManifest != nil),
               version != Self.legacyVersion || revisionReceipts.isEmpty,
+              version != Self.legacyVersion || candidateAttachmentManifest == nil,
+              version != Self.causalReceiptVersion || candidateAttachmentManifest == nil,
               artifactEvidence == artifactEvidence.sorted(by: {
                   $0.relativePath < $1.relativePath
               }),
               Set(validatedEvidence.map(\.relativePath)).count == validatedEvidence.count,
               commitBoundary != .artifacts || !artifactEvidence.isEmpty,
-              version != Self.currentVersion || (
-                  revisionReceipts.count == mutations.count
-                      && Set(revisionReceipts.map(\.mutationID)).count == revisionReceipts.count
-                      && Set(revisionReceipts.map(\.entityID)).count <= revisionReceipts.count
-                      && Set(revisionReceipts.map(\.mutationID)) == Set(mutations.map(\.mutationID))
-                      && revisionReceipts.allSatisfy { receipt in
-                          mutations.contains {
-                              $0.mutationID == receipt.mutationID && $0.recordID == receipt.entityID
-                          }
-                      }
-              ),
+              version == Self.legacyVersion || receiptsAreComplete,
+              candidateAttachmentManifest == validatedManifest,
               integrity == (try Self.integrity(
                   version: version,
                   expectedArchiveSHA256: expectedArchiveSHA256,
                   commitBoundary: commitBoundary,
                   artifactEvidence: artifactEvidence,
                   mutations: mutations,
-                  revisionReceipts: revisionReceipts
+                  revisionReceipts: revisionReceipts,
+                  candidateAttachmentManifest: candidateAttachmentManifest
               )) else {
             throw SyncPublicationTransactionFileError.corrupt
         }
@@ -226,7 +251,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         commitBoundary: SyncPublicationCommitBoundary,
         artifactEvidence: [SyncPublicationArtifactEvidence],
         mutations: [SyncMutation],
-        revisionReceipts: [SyncRevisionReceipt]
+        revisionReceipts: [SyncRevisionReceipt],
+        candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
     ) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -239,13 +265,24 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                 mutations: mutations
             ))))
         }
-        return Data(SHA256.hash(data: try encoder.encode(IntegrityPayload(
+        if version == Self.causalReceiptVersion {
+            return Data(SHA256.hash(data: try encoder.encode(IntegrityPayload(
+                version: version,
+                expectedArchiveSHA256: expectedArchiveSHA256,
+                commitBoundary: commitBoundary,
+                artifactEvidence: artifactEvidence,
+                mutations: mutations,
+                revisionReceipts: revisionReceipts
+            ))))
+        }
+        return Data(SHA256.hash(data: try encoder.encode(CurrentIntegrityPayload(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
             commitBoundary: commitBoundary,
             artifactEvidence: artifactEvidence,
             mutations: mutations,
-            revisionReceipts: revisionReceipts
+            revisionReceipts: revisionReceipts,
+            candidateAttachmentManifest: candidateAttachmentManifest
         ))))
     }
 
@@ -264,6 +301,16 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         let commitBoundary: SyncPublicationCommitBoundary
         let artifactEvidence: [SyncPublicationArtifactEvidence]
         let mutations: [SyncMutation]
+    }
+
+    private struct CurrentIntegrityPayload: Codable {
+        let version: Int
+        let expectedArchiveSHA256: Data
+        let commitBoundary: SyncPublicationCommitBoundary
+        let artifactEvidence: [SyncPublicationArtifactEvidence]
+        let mutations: [SyncMutation]
+        let revisionReceipts: [SyncRevisionReceipt]
+        let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
     }
 }
 
@@ -344,7 +391,10 @@ struct SyncPublicationTransactionFile {
     }
 
     func liveArchiveFingerprint(archiveURL: URL) throws -> Data? {
-        try fingerprintOfRegularFile(at: archiveURL)
+        try fingerprintOfRegularFile(
+            at: archiveURL,
+            maximumBytes: SyncPublicationFileLimits.maximumArchiveBytes
+        )
     }
 
     func commitStatus(
@@ -373,7 +423,10 @@ struct SyncPublicationTransactionFile {
             expectedSHA256: nil
         )
         let fileURL = try artifactURL(for: evidence, archiveURL: archiveURL)
-        guard let fingerprint = try fingerprintOfRegularFile(at: fileURL) else {
+        guard let fingerprint = try fingerprintOfRegularFile(
+            at: fileURL,
+            maximumBytes: SyncPublicationFileLimits.maximumAttachmentBytes
+        ) else {
             throw SyncPublicationTransactionFileError.unavailable
         }
         return try SyncPublicationArtifactEvidence(
@@ -427,7 +480,10 @@ struct SyncPublicationTransactionFile {
             }
             return false
         }
-        return try fingerprintOfRegularFile(at: fileURL) == expectedSHA256
+        return try fingerprintOfRegularFile(
+            at: fileURL,
+            maximumBytes: SyncPublicationFileLimits.maximumAttachmentBytes
+        ) == expectedSHA256
     }
 
     private func artifactURL(
@@ -450,7 +506,10 @@ struct SyncPublicationTransactionFile {
         return candidate
     }
 
-    private func fingerprintOfRegularFile(at fileURL: URL) throws -> Data? {
+    private func fingerprintOfRegularFile(
+        at fileURL: URL,
+        maximumBytes: Int
+    ) throws -> Data? {
         var pathStatus = stat()
         let pathResult = fileURL.path.withCString { Darwin.lstat($0, &pathStatus) }
         if pathResult != 0 {
@@ -462,7 +521,7 @@ struct SyncPublicationTransactionFile {
         do {
             return try SyncRegularFileReader().read(
                 fileURL,
-                maximumBytes: 100_000_000
+                maximumBytes: maximumBytes
             ).sha256
         } catch let error as SyncRegularFileReadError {
             switch error {

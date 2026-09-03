@@ -125,12 +125,15 @@ import Testing
         )
         let firstID = first.id
         let secondID = second.id
+        let orderedIDs = [firstID, secondID].sorted {
+            ($0.kind.rawValue, $0.uuid.uuidString) < ($1.kind.rawValue, $1.uuid.uuidString)
+        }
 
         let result = try SyncMergeEngine().merge(local: [second], remote: [first], pendingLocal: [secondID])
 
-        #expect(result.records.map(\.id) == [firstID, secondID])
+        #expect(result.records.map(\.id) == orderedIDs)
         #expect(result.conflicts == [
-            .attachmentVersions(owner: owner, role: "projectPhoto", ids: [firstID, secondID])
+            .attachmentVersions(owner: owner, role: "projectPhoto", ids: orderedIDs)
         ])
     }
 

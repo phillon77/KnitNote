@@ -244,6 +244,8 @@
 		9A4065300F7AEBA87D9E0778 /* EntitlementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */; };
 		9E7C59B1AE4F3E8DE6AA88BA /* CounterValueInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */; };
 		9EA4FA60DF752696354AF18A /* PatternListThumbnailLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98B102AE0A743E9DD32BE2F /* PatternListThumbnailLayout.swift */; };
+		C10D00000000000000000002 /* CloudRecordCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D00000000000000000001 /* CloudRecordCodecTests.swift */; };
+		C10D00000000000000000004 /* CloudRecordCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D00000000000000000003 /* CloudRecordCodec.swift */; };
 		A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */; };
 		A08F2624BA274CC9890E6FF7 /* SyncRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57C788B9ECD15B6F70599FE3 /* SyncRecord.swift */; };
 		A219C944B69238CEF6D8211A /* SyncMutationJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA77004900FEA73D4CE5CD19 /* SyncMutationJournal.swift */; };
@@ -492,6 +494,8 @@
 		2CBD75BD00755D59F3C8AF82 /* PatternMarkupToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupToolbar.swift; sourceTree = "<group>"; };
 		2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredYarn.swift; sourceTree = "<group>"; };
 		2D1B84617CFE68892DFBBD66 /* MacFormLayoutSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFormLayoutSmokeTests.swift; sourceTree = "<group>"; };
+		C10D00000000000000000001 /* CloudRecordCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordCodecTests.swift; sourceTree = "<group>"; };
+		C10D00000000000000000003 /* CloudRecordCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordCodec.swift; sourceTree = "<group>"; };
 		2D483F31D056F9F52B2EC563 /* ProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsView.swift; sourceTree = "<group>"; };
 		2DA26ED7A66F7AB3B45C0A7F /* WatchReliableSnapshotFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchReliableSnapshotFingerprint.swift; sourceTree = "<group>"; };
 		2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternStorageLocations.swift; sourceTree = "<group>"; };
@@ -895,6 +899,7 @@
 		491A1A35F59A29BF49F08ADE /* KnitNoteAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				C10D00000000000000000001 /* CloudRecordCodecTests.swift */,
 				49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */,
 				20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */,
 				6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */,
@@ -928,6 +933,14 @@
 				3E1B8BEF83041ABE98D2C550 /* StoreScreenshotRootView.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		C10D00000000000000000005 /* CloudSync */ = {
+			isa = PBXGroup;
+			children = (
+				C10D00000000000000000003 /* CloudRecordCodec.swift */,
+			);
+			path = CloudSync;
 			sourceTree = "<group>";
 		};
 		65DC28AC37D32EA9468D7BDE /* Projects */ = {
@@ -984,6 +997,7 @@
 				F5F160074737C554D783176A /* LaunchScreen.storyboard */,
 				3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */,
 				4D55FE9FD7B400E4A1009DF1 /* App */,
+				C10D00000000000000000005 /* CloudSync */,
 				B5C29EE15A136556F7B91BBE /* Calculators */,
 				D57CBA6C59E15C135F5B8E64 /* Entitlements */,
 				9EE6E3997B8A05A231ECB4D4 /* Launch */,
@@ -1524,6 +1538,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C10D00000000000000000004 /* CloudRecordCodec.swift in Sources */,
 				1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */,
 				E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */,
 				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
@@ -1871,6 +1886,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C10D00000000000000000002 /* CloudRecordCodecTests.swift in Sources */,
 				9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */,
 				75F5F44DE9FB203222A758B9 /* EditProjectDeletionActionTests.swift in Sources */,
 				A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */,

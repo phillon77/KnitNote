@@ -53,6 +53,64 @@ import Testing
         #expect(restarted.isDeleted(second.versionID))
     }
 
+    @Test func sidecarRestartRetainsCanonicalIssuedAttachmentRecord() throws {
+        // Production break caught: version-only sidecar evidence could not
+        // reproduce an issued immutable snapshot after restart.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = SyncAttachmentPublicationEvidenceFile(
+            url: root.appendingPathComponent("attachment-versions.json")
+        )
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "primary"
+        )
+        let issued = try liveMutation(version(slot: slot, bytes: Data("photo".utf8)))
+        let issuedRecord = try #require(issued.savedRecordVersion?.record)
+
+        _ = try file.applying([issued])
+        let restarted = try file.load()
+
+        #expect(restarted.record(for: slot) == issuedRecord)
+    }
+
+    @Test func legacyVersionOnlySidecarLoadsButCannotAuthorizeBareDeletion() throws {
+        // Production break caught: legacy metadata was sufficient to rebuild
+        // new record fields for a delete that carried no immutable snapshot.
+        struct LegacyEvidence: Encodable {
+            let versions: [SyncAttachmentVersion]
+            let deletedVersionIDs: [UUID] = []
+            let watchCommandProofs: [SyncProcessedWatchCommandProof] = []
+        }
+
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        let version = try version(
+            slot: .init(
+                owner: .init(kind: .project, uuid: UUID()),
+                role: "project-photo",
+                slotID: "primary"
+            ),
+            bytes: Data("legacy".utf8)
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(LegacyEvidence(versions: [version])).write(to: url)
+        let originalBytes = try Data(contentsOf: url)
+        let file = SyncAttachmentPublicationEvidenceFile(url: url)
+
+        #expect(try file.load().allVersions == [version])
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            _ = try file.applying([.delete(
+                .init(kind: .attachment, uuid: version.versionID),
+                mutationID: UUID()
+            )])
+        }
+        #expect(try Data(contentsOf: url) == originalBytes)
+    }
+
     @Test func evidenceWritePropagatesEveryDurabilityBoundaryFailure() throws {
         for boundary in SyncDurableFileWriteBoundary.allCases {
             let root = temporaryDirectory()

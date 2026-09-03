@@ -36,10 +36,15 @@ import Testing
     }
 
     @Test func deletingOneAttachmentDoesNotHashSurvivorsAndDeletesOnlyIssuedVersion() throws {
+        // Production break caught: the projector rebuilt immutable record
+        // fields when turning an issued attachment into a tombstone.
         let fixture = try AttachmentManifestFixture(realAttachmentCount: 500)
         defer { fixture.remove() }
-        try fixture.persistWithoutAttachmentChanges()
+        let issuance = try fixture.persistWithoutAttachmentChanges()
         let deletedVersionID = try #require(fixture.versionID(at: 211))
+        let issuedRecord = try #require(issuance.mutations.compactMap {
+            $0.savedRecordVersion?.record
+        }.first { $0.id.uuid == deletedVersionID })
 
         fixture.readerCounters.reset()
         let projection = try fixture.deleteAttachment(at: 211)
@@ -52,6 +57,10 @@ import Testing
         #expect(deletedAttachment.versionID == deletedVersionID)
         #expect(projection.mutations.single?.attachmentSource == nil)
         #expect(projection.attachmentManifest.count == 499)
+        #expect(
+            try SyncAttachmentImmutableSnapshot(record: tombstone).sha256
+                == SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
+        )
     }
 
     @Test func tombstonedHeadIsNeverReusedEvenWhenAStaleManifestStillMatches() throws {
@@ -204,7 +213,8 @@ import Testing
             before: [fixture.replacementReference],
             after: [fixture.replacementReference],
             manifest: restartedManifest,
-            issuedVersions: [fixture.replacementReference.slot: issuedVersion]
+            issuedVersions: [fixture.replacementReference.slot: issuedVersion],
+            issuedRecords: [fixture.replacementReference.slot: saved]
         )
         #expect(subsequent.mutations.isEmpty)
         #expect(fixture.readerCounters.hashedFileCount == 0)
@@ -213,7 +223,8 @@ import Testing
             before: [fixture.replacementReference],
             after: [],
             manifest: restartedManifest,
-            issuedVersions: [fixture.replacementReference.slot: issuedVersion]
+            issuedVersions: [fixture.replacementReference.slot: issuedVersion],
+            issuedRecords: [fixture.replacementReference.slot: saved]
         )
         let tombstone = try #require(issuedDeletion.mutations.single?.savedRecordVersion?.record)
         let deletedAttachment = try #require(tombstone.payload.attachment)
@@ -232,6 +243,7 @@ private final class AttachmentManifestFixture {
 
     private var references: [SyncAttachmentReference]
     private var issuedVersions: [SyncAttachmentSlot: SyncAttachmentVersion] = [:]
+    private var issuedRecords: [SyncAttachmentSlot: SyncRecord] = [:]
 
     init(realAttachmentCount: Int) throws {
         let fixtureRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -325,6 +337,7 @@ private final class AttachmentManifestFixture {
                 archive.version == beforeArchive.version ? before : after
             },
             issuedAttachmentVersions: issuedVersions,
+            issuedAttachmentRecords: issuedRecords,
             fileReader: CountingSyncRegularFileReader(counters: readerCounters)
         )
         let projection = try projector.project(
@@ -337,9 +350,13 @@ private final class AttachmentManifestFixture {
             case let .save(save):
                 if let attachment = save.recordVersion.record.payload.attachment {
                     issuedVersions[attachment.slot] = attachment
+                    if save.recordVersion.record.deletedAt.value == nil {
+                        issuedRecords[attachment.slot] = save.recordVersion.record
+                    }
                 }
             case let .delete(delete):
                 issuedVersions = issuedVersions.filter { $0.value.versionID != delete.recordID.uuid }
+                issuedRecords = issuedRecords.filter { $0.value.id != delete.recordID }
             }
         }
         manifest = projection.attachmentManifest
@@ -389,7 +406,8 @@ private final class LegacyAttachmentFixture {
         before: [SyncAttachmentReference],
         after: [SyncAttachmentReference],
         manifest: [String: SyncAttachmentManifestEntry],
-        issuedVersions: [SyncAttachmentSlot: SyncAttachmentVersion]
+        issuedVersions: [SyncAttachmentSlot: SyncAttachmentVersion],
+        issuedRecords: [SyncAttachmentSlot: SyncRecord] = [:]
     ) throws -> SyncPublicationProjection {
         let beforeArchive = ProjectArchive(version: 1, projects: [])
         let afterArchive = ProjectArchive(version: 2, projects: [])
@@ -399,6 +417,7 @@ private final class LegacyAttachmentFixture {
                 archive.version == beforeArchive.version ? before : after
             },
             issuedAttachmentVersions: issuedVersions,
+            issuedAttachmentRecords: issuedRecords,
             fileReader: CountingSyncRegularFileReader(counters: readerCounters)
         ).project(before: beforeArchive, after: afterArchive, manifest: manifest)
     }

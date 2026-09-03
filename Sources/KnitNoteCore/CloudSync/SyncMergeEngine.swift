@@ -802,7 +802,11 @@ public struct SyncMergeEngine: Sendable {
                             throw SyncRecordValidationError.invalidAttachment(delete.recordID)
                         }
                         if attachmentRecord.deletedAt.value == nil {
-                            let (nextRevision, overflow) = attachmentRecord.entityRevision
+                            let deletionRevision = max(
+                                attachmentRecord.entityRevision,
+                                attachmentRecord.deletedAt.stamp.logicalRevision
+                            )
+                            let (nextRevision, overflow) = deletionRevision
                                 .addingReportingOverflow(1)
                             guard !overflow else {
                                 throw SyncMergeError.corruptAttachmentVersion(
@@ -814,7 +818,6 @@ public struct SyncMergeEngine: Sendable {
                                 modifiedAt: attachmentRecord.deletedAt.stamp.modifiedAt,
                                 deviceID: "legacy-attachment-delete-\(delete.mutationID.uuidString.lowercased())"
                             )
-                            attachmentRecord.entityRevision = nextRevision
                             attachmentRecord.deletedAt = .init(
                                 value: tombstoneStamp.modifiedAt,
                                 stamp: tombstoneStamp

@@ -281,6 +281,11 @@ struct SyncJournalFrame: Codable, Sendable {
     }
 }
 
+enum SyncMutationAttachmentEvidenceState: String, Codable, Equatable, Sendable {
+    case canonicalSnapshotV2
+    case opaqueV1
+}
+
 struct SyncMutationDuplicateProof: Codable, Equatable, Sendable {
     let mutationID: UUID
     let recordID: SyncEntityID
@@ -288,10 +293,26 @@ struct SyncMutationDuplicateProof: Codable, Equatable, Sendable {
     let recordVersionSHA256: Data?
     let attachmentContentSHA256: Data?
     let attachmentByteCount: Int64?
-    /// Added compatibly to proof shard v1 so acknowledged attachment ancestry
-    /// remains available after its staged bytes and pending record are pruned.
+    let attachmentImmutableSnapshotSHA256: Data?
+    let attachmentEvidenceState: SyncMutationAttachmentEvidenceState?
     let attachmentVersion: SyncAttachmentVersion?
     let attachmentWasDeleted: Bool?
+
+    func asOpaqueV1AttachmentAuthority() -> Self {
+        guard recordID.kind == .attachment else { return self }
+        return Self(
+            mutationID: mutationID,
+            recordID: recordID,
+            intent: intent,
+            recordVersionSHA256: recordVersionSHA256,
+            attachmentContentSHA256: attachmentContentSHA256,
+            attachmentByteCount: attachmentByteCount,
+            attachmentImmutableSnapshotSHA256: nil,
+            attachmentEvidenceState: .opaqueV1,
+            attachmentVersion: nil,
+            attachmentWasDeleted: nil
+        )
+    }
 }
 
 struct SyncAttachmentCleanupIntent: Codable, Equatable, Hashable, Sendable {
@@ -786,6 +807,12 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         } else {
             recordVersionSHA256 = nil
         }
+        let attachmentRecord = mutation.savedRecordVersion?.record.payload.attachment == nil
+            ? nil
+            : mutation.savedRecordVersion?.record
+        let attachmentImmutableSnapshotSHA256 = try attachmentRecord.map {
+            try SyncAttachmentImmutableSnapshot(record: $0).sha256
+        }
         return SyncMutationDuplicateProof(
             mutationID: mutation.mutationID,
             recordID: mutation.recordID,
@@ -793,6 +820,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             recordVersionSHA256: recordVersionSHA256,
             attachmentContentSHA256: mutation.attachmentSource?.contentSHA256,
             attachmentByteCount: mutation.attachmentSource?.byteCount,
+            attachmentImmutableSnapshotSHA256: attachmentImmutableSnapshotSHA256,
+            attachmentEvidenceState: attachmentRecord == nil ? nil : .canonicalSnapshotV2,
             attachmentVersion: mutation.savedRecordVersion?.record.payload.attachment,
             attachmentWasDeleted: mutation.savedRecordVersion?.record.payload.attachment == nil
                 ? nil
@@ -815,20 +844,34 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         default:
             attachmentIsValid = false
         }
+        let isAttachmentSave = proof.intent == .save && proof.recordID.kind == .attachment
         let attachmentMatchesRecordKind: Bool
-        if let version = proof.attachmentVersion {
+        switch proof.attachmentEvidenceState {
+        case .canonicalSnapshotV2:
+            guard let version = proof.attachmentVersion,
+                  let wasDeleted = proof.attachmentWasDeleted else {
+                throw SyncMutationJournalError.corrupt
+            }
             attachmentMatchesRecordKind = proof.intent == .save
                 && proof.recordID.kind == .attachment
                 && version.versionID == proof.recordID.uuid
-                && (proof.attachmentWasDeleted == true
+                && proof.attachmentImmutableSnapshotSHA256?.count == SHA256.byteCount
+                && (wasDeleted
                     ? proof.attachmentContentSHA256 == nil
                     : proof.attachmentContentSHA256 == version.contentSHA256
                         && proof.attachmentByteCount == version.byteCount)
-        } else {
-            // Version-1 proof shards did not retain lineage metadata.
-            attachmentMatchesRecordKind = proof.attachmentWasDeleted == nil
-                && ((proof.attachmentContentSHA256 != nil)
-                    == (proof.intent == .save && proof.recordID.kind == .attachment))
+        case .opaqueV1:
+            attachmentMatchesRecordKind = proof.recordID.kind == .attachment
+                && proof.attachmentImmutableSnapshotSHA256 == nil
+                && proof.attachmentVersion == nil
+                && proof.attachmentWasDeleted == nil
+        case nil:
+            attachmentMatchesRecordKind = !isAttachmentSave
+                && proof.attachmentImmutableSnapshotSHA256 == nil
+                && proof.attachmentVersion == nil
+                && proof.attachmentWasDeleted == nil
+                && proof.attachmentContentSHA256 == nil
+                && proof.attachmentByteCount == nil
         }
         guard recordVersionIsValid,
               attachmentIsValid,
@@ -848,11 +891,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
               lhs.recordVersionSHA256 == rhs.recordVersionSHA256,
               lhs.attachmentContentSHA256 == rhs.attachmentContentSHA256,
               lhs.attachmentByteCount == rhs.attachmentByteCount else { return false }
-        guard let leftVersion = lhs.attachmentVersion,
-              let rightVersion = rhs.attachmentVersion else {
+        if lhs.attachmentEvidenceState == .opaqueV1
+            || rhs.attachmentEvidenceState == .opaqueV1 {
             return true
         }
-        return leftVersion == rightVersion
+        return lhs.attachmentEvidenceState == rhs.attachmentEvidenceState
+            && lhs.attachmentImmutableSnapshotSHA256
+                == rhs.attachmentImmutableSnapshotSHA256
+            && lhs.attachmentVersion == rhs.attachmentVersion
             && lhs.attachmentWasDeleted == rhs.attachmentWasDeleted
     }
 
@@ -860,13 +906,39 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         proofs: [SyncMutationDuplicateProof],
         failure: SyncMutationJournalError
     ) throws {
+        let opaqueVersionIDs = Set(proofs.compactMap { proof in
+            proof.attachmentEvidenceState == .opaqueV1 ? proof.recordID.uuid : nil
+        })
+        var attachmentVersionByVersionID: [UUID: SyncAttachmentVersion] = [:]
+        var canonicalDigestByVersionID: [UUID: Data] = [:]
+        for proof in proofs where proof.attachmentEvidenceState == .canonicalSnapshotV2 {
+            guard let version = proof.attachmentVersion,
+                  let digest = proof.attachmentImmutableSnapshotSHA256 else {
+                throw SyncMutationJournalError.corrupt
+            }
+            guard !opaqueVersionIDs.contains(version.versionID),
+                  version.replacesVersionID.map({ !opaqueVersionIDs.contains($0) }) ?? true else {
+                throw SyncMutationJournalError.corrupt
+            }
+            if let existing = attachmentVersionByVersionID[version.versionID],
+               existing != version {
+                throw failure
+            }
+            if let existing = canonicalDigestByVersionID[version.versionID],
+               existing != digest {
+                throw SyncMutationJournalError.corrupt
+            }
+            attachmentVersionByVersionID[version.versionID] = version
+            canonicalDigestByVersionID[version.versionID] = digest
+        }
+
         var records: [SyncRecord] = []
         let stamp = SyncMutationStamp(
             logicalRevision: 0,
             modifiedAt: .distantPast,
             deviceID: "journal-proof"
         )
-        for proof in proofs {
+        for proof in proofs where proof.attachmentEvidenceState == .canonicalSnapshotV2 {
             guard let version = proof.attachmentVersion else { continue }
             records.append(SyncRecord(
                 schemaVersion: 1,
@@ -882,7 +954,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             ))
         }
         var tombstonedVersionIDs: Set<UUID> = []
-        for proof in proofs {
+        for proof in proofs where proof.attachmentEvidenceState == .canonicalSnapshotV2 {
             guard let version = proof.attachmentVersion else { continue }
             if proof.attachmentWasDeleted == true {
                 tombstonedVersionIDs.insert(version.versionID)
@@ -1670,7 +1742,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             throw SyncMutationJournalError.corrupt
         }
         let payload = try Self.deterministicEncoder().encode(
-            ProofShardPayload(version: 1, index: index, proofs: proofs)
+            ProofShardPayload(version: 2, index: index, proofs: proofs)
         )
         let data = try Self.deterministicEncoder().encode(ProofShardFile(
             version: 1,
@@ -1690,9 +1762,18 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                   file.checksum == Data(SHA256.hash(data: file.payload)) else {
                 throw SyncMutationJournalError.corrupt
             }
-            let payload = try JSONDecoder().decode(ProofShardPayload.self, from: file.payload)
-            guard payload.version == 1 else { throw SyncMutationJournalError.corrupt }
-            return payload
+            let decoded = try JSONDecoder().decode(ProofShardPayload.self, from: file.payload)
+            guard (1...2).contains(decoded.version) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            if decoded.version == 1 {
+                return ProofShardPayload(
+                    version: decoded.version,
+                    index: decoded.index,
+                    proofs: decoded.proofs.map { $0.asOpaqueV1AttachmentAuthority() }
+                )
+            }
+            return decoded
         } catch let error as SyncMutationJournalError {
             throw error
         } catch {

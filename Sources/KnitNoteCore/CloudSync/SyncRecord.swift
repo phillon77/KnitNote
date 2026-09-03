@@ -594,6 +594,45 @@ public enum SyncRecordVersionError: Error, Equatable, Sendable {
     case corrupt
 }
 
+/// Every attachment-record field whose value is fixed when its version ID is
+/// issued. Deletion is a later overlay and deliberately does not participate.
+struct SyncAttachmentImmutableSnapshot: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let id: SyncEntityID
+    let createdAt: Date
+    let entityRevision: UInt64
+    let fields: [String: SyncFieldVersion<SyncScalar>]
+    let deletionCascade: SyncFieldVersion<[SyncEntityID]>?
+    let atomicDomain: SyncFieldVersion<SyncAtomicDomainValue>?
+    let attachment: SyncAttachmentVersion
+    let relationships: [SyncRelationship]
+
+    init(record: SyncRecord) throws {
+        guard let attachment = record.payload.attachment,
+              record.id == .init(kind: .attachment, uuid: attachment.versionID) else {
+            throw SyncRecordVersionError.corrupt
+        }
+        schemaVersion = record.schemaVersion
+        id = record.id
+        createdAt = record.createdAt
+        entityRevision = record.entityRevision
+        fields = record.payload.fields
+        deletionCascade = record.payload.deletionCascade
+        atomicDomain = record.payload.atomicDomain
+        self.attachment = attachment
+        relationships = record.relationships.sorted {
+            ($0.role, $0.target.kind.rawValue, $0.target.uuid.uuidString)
+                < ($1.role, $1.target.kind.rawValue, $1.target.uuid.uuidString)
+        }
+    }
+
+    var sha256: Data {
+        get throws {
+            Data(SHA256.hash(data: try SyncRecordVersion.deterministicEncoder().encode(self)))
+        }
+    }
+}
+
 /// Canonical immutable record snapshot bound to a save mutation.
 public struct SyncRecordVersion: Codable, Equatable, Sendable {
     public let versionID: UUID
@@ -627,12 +666,21 @@ public struct SyncRecordVersion: Codable, Equatable, Sendable {
         for record: SyncRecord,
         allowingLegacyStandaloneReminder: Bool = false
     ) throws -> UUID {
+        let encoder = deterministicEncoder(
+            allowingLegacyStandaloneReminder: allowingLegacyStandaloneReminder
+        )
+        return uuid(from: Data(SHA256.hash(data: try encoder.encode(record))))
+    }
+
+    static func deterministicEncoder(
+        allowingLegacyStandaloneReminder: Bool = false
+    ) -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         if allowingLegacyStandaloneReminder {
             encoder.userInfo[.encodeLegacyStandaloneReminderForMigration] = true
         }
-        return uuid(from: Data(SHA256.hash(data: try encoder.encode(record))))
+        return encoder
     }
 }
 

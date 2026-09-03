@@ -110,6 +110,8 @@ import Testing
     }
 
     @Test func legacyPendingAttachmentDeleteBecomesDurableTombstone() throws {
+        // Production break caught: legacy bare-delete conversion incremented
+        // the immutable attachment entity revision.
         let owner = SyncEntityID(kind: .yarn, uuid: UUID())
         let root = try attachmentRecord(
             owner: owner, slotID: "label:stable", bytes: Data("root".utf8)
@@ -133,6 +135,10 @@ import Testing
         #expect(tombstone.id == replacement.id)
         #expect(tombstone.payload.attachment == replacement.payload.attachment)
         #expect(tombstone.deletedAt.value != nil)
+        #expect(
+            try SyncAttachmentImmutableSnapshot(record: tombstone).sha256
+                == SyncAttachmentImmutableSnapshot(record: replacement).sha256
+        )
         #expect(result.resolvedAttachmentVersionIDs[root.payload.attachment!.slot] == nil)
     }
 

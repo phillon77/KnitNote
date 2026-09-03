@@ -55,6 +55,7 @@ public struct SyncPublicationProjector {
     private let reusing: SyncPublicationProjectionCache?
     private let attachmentReferences: AttachmentReferences
     private let issuedAttachmentVersions: [SyncAttachmentSlot: SyncAttachmentVersion]
+    private let issuedAttachmentRecords: [SyncAttachmentSlot: SyncRecord]
     private let deletedAttachmentVersionIDs: Set<UUID>
     private let fileReader: any SyncRegularFileReading
     private let now: () -> Date
@@ -68,6 +69,7 @@ public struct SyncPublicationProjector {
         reusing: SyncPublicationProjectionCache? = nil,
         attachmentReferences: @escaping AttachmentReferences,
         issuedAttachmentVersions: [SyncAttachmentSlot: SyncAttachmentVersion],
+        issuedAttachmentRecords: [SyncAttachmentSlot: SyncRecord] = [:],
         deletedAttachmentVersionIDs: Set<UUID> = [],
         fileReader: any SyncRegularFileReading = SyncRegularFileReader(),
         now: @escaping () -> Date = Date.init,
@@ -80,6 +82,7 @@ public struct SyncPublicationProjector {
         self.reusing = reusing
         self.attachmentReferences = attachmentReferences
         self.issuedAttachmentVersions = issuedAttachmentVersions
+        self.issuedAttachmentRecords = issuedAttachmentRecords
         self.deletedAttachmentVersionIDs = deletedAttachmentVersionIDs
         self.fileReader = fileReader
         self.now = now
@@ -162,6 +165,17 @@ public struct SyncPublicationProjector {
                 throw SyncAttachmentManifestError.corrupt
             }
             result[pair.key] = version
+        }
+        let issuedRecordBySlot = try issuedAttachmentRecords.reduce(
+            into: [SyncAttachmentSlot: SyncRecord]()
+        ) { result, pair in
+            guard relevantSlots.contains(pair.key) else { return }
+            let record = try SyncRecordValidator().validate(pair.value)
+            guard record.payload.attachment == issuedBySlot[pair.key],
+                  record.payload.attachment?.slot == pair.key else {
+                throw SyncAttachmentManifestError.corrupt
+            }
+            result[pair.key] = record
         }
 
         var changes: [SyncAttachmentManifestChange] = []
@@ -313,10 +327,12 @@ public struct SyncPublicationProjector {
             }
             // A before-archive reference without Task 2 issuance evidence is
             // legacy local content. Never invent an attachment delete for it.
-            guard let issued else { continue }
-            mutations.append(try saveMutation(
-                version: issued,
-                reference: nil,
+            guard issued != nil else { continue }
+            guard let issuedRecord = issuedRecordBySlot[slot] else {
+                throw SyncAttachmentManifestError.corrupt
+            }
+            mutations.append(try tombstoneMutation(
+                issuedRecord: issuedRecord,
                 mutationID: makeUUID(),
                 deletedAt: now()
             ))
@@ -331,9 +347,8 @@ public struct SyncPublicationProjector {
 
     private func saveMutation(
         version: SyncAttachmentVersion,
-        reference: SyncAttachmentReference?,
-        mutationID: UUID,
-        deletedAt: Date? = nil
+        reference: SyncAttachmentReference,
+        mutationID: UUID
     ) throws -> SyncMutation {
         let modifiedAt = now()
         let stamp = SyncMutationStamp(
@@ -351,17 +366,35 @@ public struct SyncPublicationProjector {
                 "slotID": .init(value: .string(version.slot.slotID), stamp: stamp)
             ], attachment: version),
             relationships: [.init(role: "owner", target: version.slot.owner)],
-            deletedAt: .init(value: deletedAt, stamp: stamp)
+            deletedAt: .init(value: nil, stamp: stamp)
         )
         return try .save(
             recordVersion: SyncRecordVersion(record: record),
-            attachmentSource: try reference.map {
-                try SyncAttachmentSource(
-                    fileURL: $0.sourceURL,
-                    contentSHA256: version.contentSHA256,
-                    byteCount: version.byteCount
-                )
-            },
+            attachmentSource: try SyncAttachmentSource(
+                fileURL: reference.sourceURL,
+                contentSHA256: version.contentSHA256,
+                byteCount: version.byteCount
+            ),
+            mutationID: mutationID
+        )
+    }
+
+    private func tombstoneMutation(
+        issuedRecord: SyncRecord,
+        mutationID: UUID,
+        deletedAt: Date
+    ) throws -> SyncMutation {
+        var tombstone = issuedRecord
+        tombstone.deletedAt = .init(
+            value: deletedAt,
+            stamp: .init(
+                logicalRevision: issuedRecord.deletedAt.stamp.logicalRevision,
+                modifiedAt: deletedAt,
+                deviceID: deviceID
+            )
+        )
+        return try .save(
+            recordVersion: SyncRecordVersion(record: tombstone),
             mutationID: mutationID
         )
     }

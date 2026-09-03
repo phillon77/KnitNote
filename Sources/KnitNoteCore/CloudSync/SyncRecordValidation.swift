@@ -27,12 +27,15 @@ struct SyncAttachmentLineage: Sendable {
 
     init(records: [SyncRecord]) throws {
         var recordsByVersionID: [UUID: SyncRecord] = [:]
+        var immutableSnapshotSHA256ByVersionID: [UUID: Data] = [:]
         for record in records {
             guard let attachment = record.payload.attachment else { continue }
-            if let existing = recordsByVersionID[attachment.versionID],
-               existing.payload.attachment != attachment {
+            let snapshotSHA256 = try SyncAttachmentImmutableSnapshot(record: record).sha256
+            if let existingSHA256 = immutableSnapshotSHA256ByVersionID[attachment.versionID],
+               existingSHA256 != snapshotSHA256 {
                 throw SyncRecordValidationError.corruptAttachmentVersion(attachment.versionID)
             }
+            immutableSnapshotSHA256ByVersionID[attachment.versionID] = snapshotSHA256
             recordsByVersionID[attachment.versionID] = record
         }
 

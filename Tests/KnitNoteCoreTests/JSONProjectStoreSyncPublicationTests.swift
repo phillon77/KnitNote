@@ -1380,6 +1380,8 @@ import UniformTypeIdentifiers
     }
 
     @Test func projectPhotoPublishesStableAttachmentSaveAndDelete() throws {
+        // Production break caught: a restarted store rebuilt the attachment
+        // record instead of cloning its durably issued immutable snapshot.
         let fixture = try SyncPublicationFixture()
         let firstSink = RecordingSyncMutationSink()
         let first = fixture.store(sink: firstSink)
@@ -1414,9 +1416,17 @@ import UniformTypeIdentifiers
         let attachmentTombstones = secondSink.mutations.filter {
             $0.isAttachmentTombstone
         }
+        let issuedRecord = try #require(firstAttachment.savedRecordVersion?.record)
+        let tombstoneRecord = try #require(
+            attachmentTombstones.first?.savedRecordVersion?.record
+        )
         #expect(attachmentTombstones.count == 1)
         #expect(attachmentTombstones.first?.recordID == firstAttachment.recordID)
         #expect(attachmentTombstones.first?.attachmentSource == nil)
+        #expect(
+            try SyncAttachmentImmutableSnapshot(record: tombstoneRecord).sha256
+                == SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
+        )
     }
 
     @Test func sameStoreStructuralPersistKeepsAttachmentHeadForRestartedReplacement() throws {
@@ -1676,6 +1686,8 @@ import UniformTypeIdentifiers
     }
 
     @Test func usageMarkupPublishesStableAttachmentSaveAndDelete() throws {
+        // Production break caught: the artifact-only adapter rebuilt the
+        // issued usage-markup attachment when publishing its tombstone.
         let fixture = try SyncPublicationFixture()
         let usageID = try fixture.installPatternUsage()
         let firstSink = RecordingSyncMutationSink()
@@ -1703,12 +1715,20 @@ import UniformTypeIdentifiers
         )
 
         let deleted = try #require(secondSink.mutations.onlyAttachment)
+        let issuedRecord = try #require(saved.savedRecordVersion?.record)
+        let tombstoneRecord = try #require(deleted.savedRecordVersion?.record)
         #expect(deleted.isAttachmentTombstone)
         #expect(deleted.recordID == saved.recordID)
+        #expect(
+            try SyncAttachmentImmutableSnapshot(record: tombstoneRecord).sha256
+                == SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
+        )
         #expect(try second.loadPatternMarkup(usageID: usageID, pageIndex: 2).strokes.isEmpty)
     }
 
     @Test func legacyMarkupPublishesStableAttachmentSaveAndDelete() throws {
+        // Production break caught: the artifact-only adapter rebuilt the
+        // issued legacy-markup attachment when publishing its tombstone.
         let fixture = try SyncPublicationFixture()
         let patternID = try fixture.installLegacyPattern()
         let firstSink = RecordingSyncMutationSink()
@@ -1742,8 +1762,14 @@ import UniformTypeIdentifiers
         )
 
         let deleted = try #require(secondSink.mutations.onlyAttachment)
+        let issuedRecord = try #require(saved.savedRecordVersion?.record)
+        let tombstoneRecord = try #require(deleted.savedRecordVersion?.record)
         #expect(deleted.isAttachmentTombstone)
         #expect(deleted.recordID == saved.recordID)
+        #expect(
+            try SyncAttachmentImmutableSnapshot(record: tombstoneRecord).sha256
+                == SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
+        )
     }
 
     @Test func usageMarkupSinkFailurePersistsAcrossRestartAndBlocksLaterFileWrites() throws {

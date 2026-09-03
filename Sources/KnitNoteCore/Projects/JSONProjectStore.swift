@@ -74,19 +74,22 @@ struct SyncAttachmentPublicationEvidence: Codable {
     private var versions: [SyncAttachmentVersion]
     private var deletedVersionIDs: Set<UUID>
     private(set) var watchCommandProofs: [SyncProcessedWatchCommandProof]
+    private var attachmentRecords: [SyncRecord]
 
     init(
         versions: [SyncAttachmentVersion] = [],
         deletedVersionIDs: Set<UUID> = [],
-        watchCommandProofs: [SyncProcessedWatchCommandProof] = []
+        watchCommandProofs: [SyncProcessedWatchCommandProof] = [],
+        attachmentRecords: [SyncRecord] = []
     ) {
         self.versions = versions
         self.deletedVersionIDs = deletedVersionIDs
         self.watchCommandProofs = watchCommandProofs
+        self.attachmentRecords = attachmentRecords
     }
 
     private enum CodingKeys: String, CodingKey {
-        case versions, deletedVersionIDs, watchCommandProofs
+        case versions, deletedVersionIDs, watchCommandProofs, attachmentRecords
     }
 
     init(from decoder: Decoder) throws {
@@ -100,6 +103,9 @@ struct SyncAttachmentPublicationEvidence: Codable {
         watchCommandProofs = try container.decodeIfPresent(
             [SyncProcessedWatchCommandProof].self, forKey: .watchCommandProofs
         ) ?? []
+        attachmentRecords = try container.decodeIfPresent(
+            [SyncRecord].self, forKey: .attachmentRecords
+        ) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -112,6 +118,10 @@ struct SyncAttachmentPublicationEvidence: Codable {
         try container.encode(
             watchCommandProofs.sorted { $0.id.uuidString < $1.id.uuidString },
             forKey: .watchCommandProofs
+        )
+        try container.encode(
+            attachmentRecords.sorted { $0.id.uuid.uuidString < $1.id.uuid.uuidString },
+            forKey: .attachmentRecords
         )
     }
 
@@ -153,6 +163,22 @@ struct SyncAttachmentPublicationEvidence: Codable {
     func validated() throws -> Self {
         var records: [SyncRecord] = []
         var seenVersionIDs: Set<UUID> = []
+        var issuedRecordByVersionID: [UUID: SyncRecord] = [:]
+        for record in attachmentRecords {
+            let validated: SyncRecord
+            do {
+                validated = try SyncRecordValidator().validate(record)
+            } catch {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            guard let attachment = validated.payload.attachment,
+                  issuedRecordByVersionID.updateValue(
+                    validated,
+                    forKey: attachment.versionID
+                  ) == nil else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
         let stamp = SyncMutationStamp(
             logicalRevision: 0,
             modifiedAt: .distantPast,
@@ -163,20 +189,33 @@ struct SyncAttachmentPublicationEvidence: Codable {
             guard seenVersionIDs.insert(version.versionID).inserted else {
                 throw SyncPublicationTransactionFileError.corrupt
             }
-            records.append(SyncRecord(
-                schemaVersion: 1,
-                id: .init(kind: .attachment, uuid: version.versionID),
-                createdAt: .distantPast,
-                entityRevision: 0,
-                payload: .init(fields: [:], attachment: version),
-                relationships: [.init(role: "owner", target: version.slot.owner)],
-                deletedAt: .init(
-                    value: deletedVersionIDs.contains(version.versionID) ? .distantPast : nil,
-                    stamp: stamp
-                )
-            ))
+            if let issuedRecord = issuedRecordByVersionID[version.versionID] {
+                guard issuedRecord.payload.attachment == version else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                records.append(issuedRecord)
+            } else {
+                // Version-only evidence is a readable legacy format, but its
+                // missing immutable record must never be reconstructed for a
+                // new tombstone.
+                records.append(SyncRecord(
+                    schemaVersion: 1,
+                    id: .init(kind: .attachment, uuid: version.versionID),
+                    createdAt: .distantPast,
+                    entityRevision: 0,
+                    payload: .init(fields: [:], attachment: version),
+                    relationships: [.init(role: "owner", target: version.slot.owner)],
+                    deletedAt: .init(
+                        value: deletedVersionIDs.contains(version.versionID)
+                            ? .distantPast
+                            : nil,
+                        stamp: stamp
+                    )
+                ))
+            }
         }
-        guard deletedVersionIDs.isSubset(of: seenVersionIDs) else {
+        guard deletedVersionIDs.isSubset(of: seenVersionIDs),
+              Set(issuedRecordByVersionID.keys).isSubset(of: seenVersionIDs) else {
             throw SyncPublicationTransactionFileError.corrupt
         }
         let lineage: SyncAttachmentLineage
@@ -208,6 +247,17 @@ struct SyncAttachmentPublicationEvidence: Codable {
         })
     }
 
+    func record(for slot: SyncAttachmentSlot) -> SyncRecord? {
+        guard let versionID = versionID(for: slot) else { return nil }
+        return attachmentRecords.first { $0.id.uuid == versionID }
+    }
+
+    func recordsBySlot() -> [SyncAttachmentSlot: SyncRecord] {
+        Dictionary(uniqueKeysWithValues: Set(versions.map(\.slot)).compactMap { slot in
+            record(for: slot).map { (slot, $0) }
+        })
+    }
+
     mutating func apply(_ mutations: [SyncMutation]) throws {
         var proofsByID = Dictionary(uniqueKeysWithValues: watchCommandProofs.map {
             ($0.id, $0)
@@ -217,10 +267,25 @@ struct SyncAttachmentPublicationEvidence: Codable {
             case let .save(save):
                 let record = save.recordVersion.record
                 if let attachment = record.payload.attachment {
+                    do {
+                        _ = try SyncRecordValidator().validate(record)
+                    } catch {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
                     if let existing = versions.first(where: {
                         $0.versionID == attachment.versionID
                     }), existing != attachment {
                         throw SyncPublicationTransactionFileError.corrupt
+                    }
+                    if let existingRecord = attachmentRecords.first(where: {
+                        $0.id.uuid == attachment.versionID
+                    }) {
+                        guard try SyncAttachmentImmutableSnapshot(record: existingRecord).sha256
+                                == SyncAttachmentImmutableSnapshot(record: record).sha256 else {
+                            throw SyncPublicationTransactionFileError.corrupt
+                        }
+                    } else {
+                        attachmentRecords.append(record)
                     }
                     if !versions.contains(where: { $0.versionID == attachment.versionID }) {
                         versions.append(attachment)
@@ -256,6 +321,8 @@ struct SyncAttachmentPublicationEvidence: Codable {
                 guard delete.recordID.kind != .attachment
                         || versions.contains(where: {
                             $0.versionID == delete.recordID.uuid
+                        }) && attachmentRecords.contains(where: {
+                            $0.id == delete.recordID
                         }) else {
                     throw SyncPublicationTransactionFileError.corrupt
                 }
@@ -807,6 +874,7 @@ private func syncAttachmentMutation(
     originalData: Data?,
     committedData: Data?,
     replacesVersion: SyncAttachmentVersion?,
+    replacesRecord: SyncRecord?,
     sourceURL: URL,
     mediaType: String,
     displayFilename: String,
@@ -817,20 +885,18 @@ private func syncAttachmentMutation(
 
     guard let committedData else {
         guard let replacesVersion else { return nil }
+        guard var record = replacesRecord,
+              record.payload.attachment == replacesVersion else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
         let modifiedAt = Date.now
-        let stamp = SyncMutationStamp(
-            logicalRevision: 0,
-            modifiedAt: modifiedAt,
-            deviceID: deviceID
-        )
-        let record = SyncRecord(
-            schemaVersion: 1,
-            id: .init(kind: .attachment, uuid: replacesVersion.versionID),
-            createdAt: modifiedAt,
-            entityRevision: 0,
-            payload: .init(fields: [:], attachment: replacesVersion),
-            relationships: [.init(role: "owner", target: owner)],
-            deletedAt: .init(value: modifiedAt, stamp: stamp)
+        record.deletedAt = .init(
+            value: modifiedAt,
+            stamp: .init(
+                logicalRevision: record.deletedAt.stamp.logicalRevision,
+                modifiedAt: modifiedAt,
+                deviceID: deviceID
+            )
         )
         return try .save(
             recordVersion: SyncRecordVersion(record: record),
@@ -3637,6 +3703,11 @@ final class PatternLibraryDeletionTransaction {
                 role: "usage-markup",
                 slotID: "page:\(page)"
             )),
+            replacesRecord: syncAttachmentPublicationEvidence.record(for: .init(
+                owner: .init(kind: .patternUsage, uuid: usageID),
+                role: "usage-markup",
+                slotID: "page:\(page)"
+            )),
             sourceURL: pageURL,
             mediaType: "application/json",
             displayFilename: "\(page).json",
@@ -3799,6 +3870,11 @@ final class PatternLibraryDeletionTransaction {
             originalData: originalPageData,
             committedData: encodedPage,
             replacesVersion: syncAttachmentPublicationEvidence.version(for: .init(
+                owner: .init(kind: .pattern, uuid: patternID),
+                role: "legacy-markup",
+                slotID: "project:\(projectID.uuidString)/page:\(page)"
+            )),
+            replacesRecord: syncAttachmentPublicationEvidence.record(for: .init(
                 owner: .init(kind: .pattern, uuid: patternID),
                 role: "legacy-markup",
                 slotID: "project:\(projectID.uuidString)/page:\(page)"
@@ -4807,6 +4883,7 @@ final class PatternLibraryDeletionTransaction {
                 try self.syncArchiveAttachmentReferences(in: archive)
             },
             issuedAttachmentVersions: syncAttachmentPublicationEvidence.versionsBySlot(),
+            issuedAttachmentRecords: syncAttachmentPublicationEvidence.recordsBySlot(),
             deletedAttachmentVersionIDs: syncAttachmentPublicationEvidence.deletedVersionIDSet
         ).project(
             before: syncProjectionCache?.archive ?? archive,
@@ -4905,6 +4982,8 @@ final class PatternLibraryDeletionTransaction {
                     },
                     issuedAttachmentVersions: syncAttachmentPublicationEvidence
                         .versionsBySlot(),
+                    issuedAttachmentRecords: syncAttachmentPublicationEvidence
+                        .recordsBySlot(),
                     deletedAttachmentVersionIDs: syncAttachmentPublicationEvidence
                         .deletedVersionIDSet
                 ).project(
@@ -5140,6 +5219,15 @@ final class PatternLibraryDeletionTransaction {
             modifiedAt: record.deletedAt.stamp.modifiedAt,
             deviceID: receipt.deviceID
         )
+        if record.payload.attachment != nil, record.deletedAt.value != nil {
+            // The receipt orders the deletion overlay; it must not mint a new
+            // immutable attachment snapshot for an already-issued version.
+            record.deletedAt = .init(value: record.deletedAt.value, stamp: stamp)
+            return try .save(
+                recordVersion: SyncRecordVersion(record: record),
+                mutationID: save.mutationID
+            )
+        }
         record.entityRevision = receipt.logicalRevision
         record.payload.fields = record.payload.fields.mapValues {
             .init(value: $0.value, stamp: stamp)
@@ -5570,22 +5658,17 @@ final class PatternLibraryDeletionTransaction {
         mutationID: UUID = UUID(),
         now: Date = .now
     ) throws -> SyncMutation {
-        guard let version = syncAttachmentPublicationEvidence.version(for: slot) else {
+        guard var record = syncAttachmentPublicationEvidence.record(for: slot),
+              record.payload.attachment?.slot == slot else {
             throw SyncPublicationTransactionFileError.corrupt
         }
-        let stamp = SyncMutationStamp(
-            logicalRevision: 0,
-            modifiedAt: now,
-            deviceID: syncPublicationDeviceID
-        )
-        let record = SyncRecord(
-            schemaVersion: 1,
-            id: .init(kind: .attachment, uuid: version.versionID),
-            createdAt: now,
-            entityRevision: 0,
-            payload: .init(fields: [:], attachment: version),
-            relationships: [.init(role: "owner", target: slot.owner)],
-            deletedAt: .init(value: now, stamp: stamp)
+        record.deletedAt = .init(
+            value: now,
+            stamp: .init(
+                logicalRevision: record.deletedAt.stamp.logicalRevision,
+                modifiedAt: now,
+                deviceID: syncPublicationDeviceID
+            )
         )
         return try .save(
             recordVersion: SyncRecordVersion(record: record),

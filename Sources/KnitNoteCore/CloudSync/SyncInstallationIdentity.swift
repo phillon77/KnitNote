@@ -102,6 +102,12 @@ enum SyncDurableFileError: Error, Equatable {
     case unavailable
 }
 
+enum SyncDurableFileWriteBoundary: CaseIterable, Equatable, Sendable {
+    case beforeFileSync
+    case beforeRename
+    case beforeDirectorySync
+}
+
 enum SyncDurableFile {
     static func readRegularFile(at url: URL) throws -> Data {
         var before = stat()
@@ -148,7 +154,11 @@ enum SyncDurableFile {
         return data
     }
 
-    static func write(_ data: Data, to url: URL) throws {
+    static func write(
+        _ data: Data,
+        to url: URL,
+        beforeBoundary: (SyncDurableFileWriteBoundary) throws -> Void = { _ in }
+    ) throws {
         let parent = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
         let temporaryURL = parent.appendingPathComponent(
@@ -167,7 +177,9 @@ enum SyncDurableFile {
             }
         }
         try writeAll(data, descriptor: descriptor)
+        try beforeBoundary(.beforeFileSync)
         guard Darwin.fsync(descriptor) == 0 else { throw SyncDurableFileError.unavailable }
+        try beforeBoundary(.beforeRename)
         guard temporaryURL.path.withCString({ temporaryPath in
             url.path.withCString { destinationPath in
                 Darwin.rename(temporaryPath, destinationPath)
@@ -176,6 +188,7 @@ enum SyncDurableFile {
             throw SyncDurableFileError.unavailable
         }
         shouldRemoveTemporary = false
+        try beforeBoundary(.beforeDirectorySync)
         try synchronizeDirectory(parent)
     }
 

@@ -4,6 +4,81 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncRevisionLedgerTests {
+    @Test func legacySingleRequestAllocatorGetsCompatibleBatchAdapter() throws {
+        let allocator: any SyncRevisionAllocating = LegacySingleRequestAllocator()
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let requests = [
+            SyncRevisionRequest(
+                entityID: entity,
+                mutationID: UUID(),
+                observedRemoteRevision: 4
+            ),
+            SyncRevisionRequest(
+                entityID: entity,
+                mutationID: UUID(),
+                observedRemoteRevision: 8
+            ),
+        ]
+
+        let receipts = try allocator.allocate(requests)
+
+        #expect(receipts.map(\.logicalRevision) == [5, 9])
+    }
+
+    @Test func batchAllocationUsesOneDurableWriteAndReturnsCausalReceipts() throws {
+        let fixture = try RevisionLedgerFixture()
+        defer { fixture.remove() }
+        let counters = SyncRevisionLedgerIOCounters()
+        let ledger = SyncRevisionLedger(
+            url: fixture.url,
+            deviceID: "installation-A",
+            counters: counters
+        )
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let requests = (0..<1_000).map { index in
+            SyncRevisionRequest(
+                entityID: entity,
+                mutationID: UUID(),
+                observedRemoteRevision: UInt64(index)
+            )
+        }
+
+        let receipts = try ledger.allocate(requests)
+
+        #expect(counters.durableWriteCount == 1)
+        #expect(receipts.map(\.logicalRevision) == Array(1...1_000).map(UInt64.init))
+        #expect(Set(receipts.map(\.mutationID)).count == requests.count)
+    }
+
+    @Test func nextBatchCompactsOldReceiptsButPreservesHeadAndRequestedRetry() throws {
+        let fixture = try RevisionLedgerFixture()
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let firstRequests = (0..<5_000).map { index in
+            SyncRevisionRequest(
+                entityID: entity,
+                mutationID: deterministicLedgerUUID(index),
+                observedRemoteRevision: UInt64(index)
+            )
+        }
+        let first = try fixture.ledger.allocate(firstRequests)
+        let retried = first[123]
+        let nextRequest = SyncRevisionRequest(
+            entityID: entity,
+            mutationID: UUID(),
+            observedRemoteRevision: first.last!.logicalRevision
+        )
+
+        let second = try fixture.ledger.allocate([
+            firstRequests[123],
+            nextRequest,
+        ])
+
+        #expect(second[0] == retried)
+        #expect(second[1].logicalRevision == first.last!.logicalRevision + 1)
+        #expect(try Data(contentsOf: fixture.url).count < 10_000)
+    }
+
     @Test func newMutationIncrementsAndRetryReusesReceipt() throws {
         let fixture = try RevisionLedgerFixture()
         defer { fixture.remove() }
@@ -220,6 +295,26 @@ struct SyncRevisionLedgerTests {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
+}
+
+private struct LegacySingleRequestAllocator: SyncRevisionAllocating {
+    func allocate(
+        for entityID: SyncEntityID,
+        mutationID: UUID,
+        observedRemoteRevision: UInt64
+    ) throws -> SyncRevisionReceipt {
+        SyncRevisionReceipt(
+            entityID: entityID,
+            mutationID: mutationID,
+            logicalRevision: observedRemoteRevision + 1,
+            deviceID: "legacy-adapter"
+        )
+    }
+}
+
+private func deterministicLedgerUUID(_ value: Int) -> UUID {
+    let suffix = String(format: "%012x", value)
+    return UUID(uuidString: "00000000-0000-4000-8000-\(suffix)")!
 }
 
 private struct EncodedIssuedRevision: Encodable {

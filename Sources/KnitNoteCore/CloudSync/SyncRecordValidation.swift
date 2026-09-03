@@ -18,6 +18,88 @@ public enum SyncRecordValidationError: Error, Equatable, Sendable {
     case invalidAttachment(SyncEntityID)
     case corruptAttachmentVersion(UUID)
     case crossSlotAttachmentReplacement(UUID)
+    case cyclicAttachmentReplacement(UUID)
+}
+
+struct SyncAttachmentLineage: Sendable {
+    let recordsByVersionID: [UUID: SyncRecord]
+    let headsBySlot: [SyncAttachmentSlot: [SyncRecord]]
+
+    init(records: [SyncRecord]) throws {
+        var recordsByVersionID: [UUID: SyncRecord] = [:]
+        for record in records {
+            guard let attachment = record.payload.attachment else { continue }
+            if let existing = recordsByVersionID[attachment.versionID],
+               existing.payload.attachment != attachment {
+                throw SyncRecordValidationError.corruptAttachmentVersion(attachment.versionID)
+            }
+            recordsByVersionID[attachment.versionID] = record
+        }
+
+        for record in recordsByVersionID.values {
+            guard let attachment = record.payload.attachment,
+                  let parentID = attachment.replacesVersionID,
+                  let parent = recordsByVersionID[parentID]?.payload.attachment else { continue }
+            guard parent.slot == attachment.slot else {
+                throw SyncRecordValidationError.crossSlotAttachmentReplacement(
+                    attachment.versionID
+                )
+            }
+        }
+
+        var completelyVisited: Set<UUID> = []
+        for start in recordsByVersionID.keys.sorted(by: Self.uuidLess) {
+            guard !completelyVisited.contains(start) else { continue }
+            var path: [UUID] = []
+            var pathOffsets: [UUID: Int] = [:]
+            var cursor: UUID? = start
+            while let id = cursor, let record = recordsByVersionID[id],
+                  let attachment = record.payload.attachment {
+                if let offset = pathOffsets[id] {
+                    let cycle = path[offset...]
+                    let canonical = cycle.min(by: Self.uuidLess) ?? id
+                    throw SyncRecordValidationError.cyclicAttachmentReplacement(canonical)
+                }
+                if completelyVisited.contains(id) { break }
+                pathOffsets[id] = path.count
+                path.append(id)
+                cursor = attachment.replacesVersionID
+            }
+            completelyVisited.formUnion(path)
+        }
+
+        let replacedIDs = Set(recordsByVersionID.values.compactMap {
+            $0.payload.attachment?.replacesVersionID
+        })
+        var headsBySlot: [SyncAttachmentSlot: [SyncRecord]] = [:]
+        for (versionID, record) in recordsByVersionID where !replacedIDs.contains(versionID) {
+            guard let slot = record.payload.attachment?.slot else { continue }
+            headsBySlot[slot, default: []].append(record)
+        }
+        self.recordsByVersionID = recordsByVersionID
+        self.headsBySlot = headsBySlot.mapValues { records in
+            records.sorted(by: Self.recordLess)
+        }
+    }
+
+    func resolvedLiveVersionIDs() -> [SyncAttachmentSlot: UUID] {
+        headsBySlot.compactMapValues { records in
+            guard let winner = records.max(by: Self.recordLess),
+                  winner.deletedAt.value == nil else { return nil }
+            return winner.id.uuid
+        }
+    }
+
+    private static func recordLess(_ lhs: SyncRecord, _ rhs: SyncRecord) -> Bool {
+        if lhs.deletedAt.stamp != rhs.deletedAt.stamp {
+            return lhs.deletedAt.stamp < rhs.deletedAt.stamp
+        }
+        return uuidLess(lhs.id.uuid, rhs.id.uuid)
+    }
+
+    private static func uuidLess(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        lhs.uuidString < rhs.uuidString
+    }
 }
 
 public struct SyncRecordValidator: Sendable {
@@ -98,22 +180,7 @@ public struct SyncRecordValidator: Sendable {
     }
 
     private func validateAttachmentVersions(in records: [SyncRecord]) throws {
-        var versions: [UUID: SyncAttachmentVersion] = [:]
-        for record in records {
-            guard let attachment = record.payload.attachment else { continue }
-            if let existing = versions[attachment.versionID], existing != attachment {
-                throw SyncRecordValidationError.corruptAttachmentVersion(attachment.versionID)
-            }
-            versions[attachment.versionID] = attachment
-        }
-        for attachment in versions.values {
-            guard let replaced = attachment.replacesVersionID,
-                  let prior = versions[replaced],
-                  prior.slot != attachment.slot else {
-                continue
-            }
-            throw SyncRecordValidationError.crossSlotAttachmentReplacement(attachment.versionID)
-        }
+        _ = try SyncAttachmentLineage(records: records)
     }
 
     private func validateScalars(in record: SyncRecord) throws {
@@ -181,6 +248,19 @@ public struct SyncRecordValidator: Sendable {
                   state.counter.mutationRevision <= record.entityRevision,
                   reminderIDs.count == state.reminders.count,
                   state.reminders.allSatisfy({ $0.counterID == state.counter.id }),
+                  Set(state.processedCommandProofs.map(\.id)).count
+                    == state.processedCommandProofs.count,
+                  Set(state.processedCommandProofs.map(\.id))
+                    .isSubset(of: state.processedCommandIDs),
+                  state.processedCommandProofs.allSatisfy({ proof in
+                      proof.counterID == state.counter.id
+                          && (try? proof.validated()) != nil
+                          && SyncCounterReminderMergePolicy().processedCommandIsProven(
+                              proof.id,
+                              in: state,
+                              context: .init()
+                          )
+                  }),
                   state.occurrence.map({ occurrence in
                       state.reminders.contains {
                           $0.progress.nextOccurrenceIndex == occurrence

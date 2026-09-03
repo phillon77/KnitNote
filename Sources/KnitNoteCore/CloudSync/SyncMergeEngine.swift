@@ -26,19 +26,25 @@ public struct SyncMergeResult: Equatable, Sendable {
     /// intent. This prevents a later current-state lookup from changing what a
     /// previously committed mutation uploads.
     public let mutationsToUpload: [SyncMutation]
+    /// The causally selected live head for every attachment slot. Ancestors
+    /// remain in `records` as immutable history and are never presented as
+    /// additional live attachments.
+    public let resolvedAttachmentVersionIDs: [SyncAttachmentSlot: UUID]
 
     public init(
         records: [SyncRecord],
         conflicts: [SyncConflict],
         recordsToUpload: Set<SyncEntityID>,
         legacyRecordIDsToDelete: Set<SyncEntityID> = [],
-        mutationsToUpload: [SyncMutation] = []
+        mutationsToUpload: [SyncMutation] = [],
+        resolvedAttachmentVersionIDs: [SyncAttachmentSlot: UUID] = [:]
     ) {
         self.records = records
         self.conflicts = conflicts
         self.recordsToUpload = recordsToUpload
         self.legacyRecordIDsToDelete = legacyRecordIDsToDelete
         self.mutationsToUpload = mutationsToUpload
+        self.resolvedAttachmentVersionIDs = resolvedAttachmentVersionIDs
     }
 }
 
@@ -64,13 +70,30 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         context: SyncCounterReminderMergeContext
     ) throws -> SyncFieldVersion<SyncCounterReminderState> {
         if lhs.stamp == rhs.stamp {
-            guard lhs.value == rhs.value else {
+            let lhsWithoutProofs = replacing(
+                lhs.value,
+                reminders: lhs.value.reminders,
+                processedCommandIDs: [],
+                processedCommandProofs: []
+            )
+            let rhsWithoutProofs = replacing(
+                rhs.value,
+                reminders: rhs.value.reminders,
+                processedCommandIDs: [],
+                processedCommandProofs: []
+            )
+            guard lhsWithoutProofs == rhsWithoutProofs else {
                 throw SyncMergeError.corruptEqualStamp(
                     entity: .init(kind: .projectCounter, uuid: lhs.value.counter.id),
                     field: "counterReminderState"
                 )
             }
-            return lhs
+            let merged = try mergingProcessedProofs(
+                winner: lhs.value,
+                older: rhs.value,
+                context: context
+            )
+            return .init(value: merged, stamp: lhs.stamp)
         }
 
         var winner = lhs.stamp < rhs.stamp ? rhs : lhs
@@ -95,22 +118,43 @@ public struct SyncCounterReminderMergePolicy: Sendable {
             winner = .init(value: outcome.state, stamp: winner.stamp)
         }
 
-        var mergedIDs = winner.value.processedCommandIDs
-        for commandID in older.value.processedCommandIDs.subtracting(mergedIDs) {
-            guard processedCommandIsProven(
-                commandID,
-                in: winner.value,
-                context: context
-            ) else {
-                throw SyncMergeError.processedWatchCommandWouldRegress(commandID)
-            }
-            mergedIDs.insert(commandID)
-        }
-        guard mergedIDs != winner.value.processedCommandIDs else { return winner }
-        return .init(
-            value: replacingProcessedIDs(in: winner.value, with: mergedIDs),
-            stamp: winner.stamp
+        let candidate = try mergingProcessedProofs(
+            winner: winner.value,
+            older: older.value,
+            context: context
         )
+        return candidate == winner.value ? winner : .init(value: candidate, stamp: winner.stamp)
+    }
+
+    private func mergingProcessedProofs(
+        winner: SyncCounterReminderState,
+        older: SyncCounterReminderState,
+        context: SyncCounterReminderMergeContext
+    ) throws -> SyncCounterReminderState {
+        let mergedIDs = winner.processedCommandIDs.union(older.processedCommandIDs)
+        var proofsByID = Dictionary(uniqueKeysWithValues: winner.processedCommandProofs.map {
+            ($0.id, $0)
+        })
+        for proof in older.processedCommandProofs {
+            if let existing = proofsByID[proof.id], existing != proof {
+                throw SyncMergeError.processedWatchCommandWouldRegress(proof.id)
+            }
+            proofsByID[proof.id] = proof
+        }
+        let candidate = replacing(
+            winner,
+            reminders: winner.reminders,
+            processedCommandIDs: mergedIDs,
+            processedCommandProofs: Array(proofsByID.values)
+        )
+        for commandID in mergedIDs where !processedCommandIsProven(
+            commandID,
+            in: candidate,
+            context: context
+        ) {
+            throw SyncMergeError.processedWatchCommandWouldRegress(commandID)
+        }
+        return candidate
     }
 
     public func applyingStop(
@@ -137,6 +181,16 @@ public struct SyncCounterReminderMergePolicy: Sendable {
             throw SyncMergeError.processedWatchCommandWouldRegress(prepared.command.id)
         }
         let processedIDs = state.processedCommandIDs.union([prepared.command.id])
+        let processedProof = try SyncProcessedWatchCommandProof(
+            id: entry.id,
+            counterID: prepared.command.counterID,
+            rejection: entry.rejection,
+            commandIdentity: entry.commandIdentity,
+            preparedCommand: entry.preparedCommand,
+            effectProof: entry.effectProof
+        )
+        var processedProofs = state.processedCommandProofs.filter { $0.id != entry.id }
+        processedProofs.append(processedProof)
         if reminder.state == .stopped {
             guard commandIsReflected(prepared, in: state),
                   effectProof.reminder == reminder else {
@@ -145,7 +199,8 @@ public struct SyncCounterReminderMergePolicy: Sendable {
             return .noOp(replacing(
                 state,
                 reminders: state.reminders,
-                processedCommandIDs: processedIDs
+                processedCommandIDs: processedIDs,
+                processedCommandProofs: processedProofs
             ))
         }
         guard reminder.mutationRevision == expectedRevision else {
@@ -170,7 +225,8 @@ public struct SyncCounterReminderMergePolicy: Sendable {
             reminders: state.reminders.map {
                 $0.id == stopped.id ? stopped : $0
             },
-            processedCommandIDs: processedIDs
+            processedCommandIDs: processedIDs,
+            processedCommandProofs: processedProofs
         ))
     }
 
@@ -291,10 +347,40 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         in state: SyncCounterReminderState,
         context: SyncCounterReminderMergeContext
     ) -> Bool {
-        guard let entry = context.processedLedger.entry(for: commandID) else {
-            return false
+        let embedded = state.processedCommandProofs.first { $0.id == commandID }
+        let ledgerProof: SyncProcessedWatchCommandProof? = context.processedLedger
+            .entry(for: commandID).flatMap { try? SyncProcessedWatchCommandProof(entry: $0) }
+        guard let proofRecord = embedded ?? ledgerProof,
+              proofRecord.counterID == state.counter.id else { return false }
+        if proofRecord.rejection != nil {
+            guard proofRecord.effectProof == nil,
+                  proofRecord.commandIdentity != nil
+                    || proofRecord.preparedCommand != nil else { return false }
+            if let identity = proofRecord.commandIdentity {
+                guard identity.id == commandID,
+                      identity.counterID == state.counter.id else { return false }
+            }
+            if let prepared = proofRecord.preparedCommand {
+                guard prepared.command.id == commandID,
+                      prepared.command.counterID == state.counter.id,
+                      proofRecord.commandIdentity == nil
+                        || proofRecord.commandIdentity
+                            == ProcessedWatchCommandIdentity(prepared.command),
+                      preparedCommandTargetsMatch(prepared) else { return false }
+            }
+            if let transient = context.preparedCommands.first(where: {
+                $0.command.id == commandID
+            }) {
+                guard transient.command.counterID == state.counter.id,
+                      proofRecord.commandIdentity == nil
+                        || proofRecord.commandIdentity
+                            == ProcessedWatchCommandIdentity(transient.command),
+                      proofRecord.preparedCommand == nil
+                        || proofRecord.preparedCommand == transient else { return false }
+            }
+            return true
         }
-        guard let prepared = entry.preparedCommand,
+        guard let prepared = proofRecord.preparedCommand,
             prepared.command.id == commandID,
             prepared.command.counterID == state.counter.id,
             preparedCommandTargetsMatch(prepared) else { return false }
@@ -303,10 +389,7 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         }), transient != prepared {
             return false
         }
-        if entry.rejection != nil {
-            return entry.effectProof == nil
-        }
-        guard let proof = entry.effectProof else { return false }
+        guard let proof = proofRecord.effectProof else { return false }
         return processedEffectProof(proof, reflects: prepared)
             && stateHasNotRegressedBelowProof(state, proof: proof)
     }
@@ -354,19 +437,26 @@ public struct SyncCounterReminderMergePolicy: Sendable {
         in state: SyncCounterReminderState,
         with ids: Set<UUID>
     ) -> SyncCounterReminderState {
-        replacing(state, reminders: state.reminders, processedCommandIDs: ids)
+        replacing(
+            state,
+            reminders: state.reminders,
+            processedCommandIDs: ids,
+            processedCommandProofs: state.processedCommandProofs
+        )
     }
 
     private func replacing(
         _ state: SyncCounterReminderState,
         reminders: [KnittingReminder],
-        processedCommandIDs: Set<UUID>
+        processedCommandIDs: Set<UUID>,
+        processedCommandProofs: [SyncProcessedWatchCommandProof]? = nil
     ) -> SyncCounterReminderState {
         SyncCounterReminderState(
             counter: state.counter,
             reminders: reminders,
             preparedCommand: state.preparedCommand,
             processedCommandIDs: processedCommandIDs,
+            processedCommandProofs: processedCommandProofs ?? state.processedCommandProofs,
             occurrence: state.occurrence
         )
     }
@@ -482,8 +572,9 @@ public struct SyncMergeEngine: Sendable {
             records: mergedRecords,
             context: counterReminderContext
         )
+        let attachmentLineage = try SyncAttachmentLineage(records: mergedRecords)
         let conflicts = atomicConflicts
-            + attachmentConflicts(in: mergedRecords)
+            + attachmentConflicts(in: attachmentLineage)
             + possibleDuplicateConflicts(in: mergedRecords)
 
         return SyncMergeResult(
@@ -491,7 +582,8 @@ public struct SyncMergeEngine: Sendable {
             conflicts: conflicts.sorted(by: Self.conflictLess),
             recordsToUpload: recordsToUpload,
             legacyRecordIDsToDelete: legacyPlan.consumedLegacyRecordIDs,
-            mutationsToUpload: converted.mutations
+            mutationsToUpload: converted.mutations,
+            resolvedAttachmentVersionIDs: attachmentLineage.resolvedLiveVersionIDs()
         )
     }
 
@@ -678,6 +770,42 @@ public struct SyncMergeEngine: Sendable {
                         counterByReminderID: &counterByReminderID
                     )
                 case let .delete(delete):
+                    if delete.recordID.kind == .attachment {
+                        guard var attachmentRecord = rollingRecords[delete.recordID],
+                              attachmentRecord.payload.attachment != nil else {
+                            // A legacy bare delete does not carry the immutable
+                            // attachment snapshot. It can only be upgraded when
+                            // that exact version is still available; guessing a
+                            // version or lineage would make retries unsafe.
+                            throw SyncRecordValidationError.invalidAttachment(delete.recordID)
+                        }
+                        if attachmentRecord.deletedAt.value == nil {
+                            let (nextRevision, overflow) = attachmentRecord.entityRevision
+                                .addingReportingOverflow(1)
+                            guard !overflow else {
+                                throw SyncMergeError.corruptAttachmentVersion(
+                                    delete.recordID.uuid
+                                )
+                            }
+                            let tombstoneStamp = SyncMutationStamp(
+                                logicalRevision: nextRevision,
+                                modifiedAt: attachmentRecord.deletedAt.stamp.modifiedAt,
+                                deviceID: "legacy-attachment-delete-\(delete.mutationID.uuidString.lowercased())"
+                            )
+                            attachmentRecord.entityRevision = nextRevision
+                            attachmentRecord.deletedAt = .init(
+                                value: tombstoneStamp.modifiedAt,
+                                stamp: tombstoneStamp
+                            )
+                        }
+                        let tombstone = try validator.validate(attachmentRecord)
+                        rollingRecords[delete.recordID] = tombstone
+                        converted.append(try .save(
+                            recordVersion: SyncRecordVersion(record: tombstone),
+                            mutationID: delete.mutationID
+                        ))
+                        continue
+                    }
                     rollingRecords.removeValue(forKey: delete.recordID)
                 }
                 converted.append(mutation)
@@ -828,6 +956,7 @@ public struct SyncMergeEngine: Sendable {
             reminders: reminders,
             preparedCommand: state.preparedCommand,
             processedCommandIDs: state.processedCommandIDs,
+            processedCommandProofs: state.processedCommandProofs,
             occurrence: occurrence
         )
     }
@@ -1038,21 +1167,15 @@ public struct SyncMergeEngine: Sendable {
         )
     }
 
-    private func attachmentConflicts(in records: [SyncRecord]) -> [SyncConflict] {
-        var groups: [AttachmentSlot: [SyncEntityID]] = [:]
-        for record in records where record.id.kind == .attachment && record.deletedAt.value == nil {
-            guard let attachment = record.payload.attachment else { continue }
-            groups[AttachmentSlot(
-                owner: attachment.slot.owner,
-                role: attachment.slot.role,
-                slotID: attachment.slot.slotID
-            ), default: []].append(record.id)
-        }
-
-        return groups.compactMap { slot, ids in
-            let sortedIDs = Self.sortedEntityIDs(Set(ids))
+    private func attachmentConflicts(in lineage: SyncAttachmentLineage) -> [SyncConflict] {
+        lineage.headsBySlot.compactMap { slot, records in
+            let sortedIDs = Self.sortedEntityIDs(Set(records.map(\.id)))
             guard sortedIDs.count > 1 else { return nil }
-            return .attachmentVersions(owner: slot.owner, role: slot.role, ids: sortedIDs)
+            return .attachmentVersions(
+                owner: slot.owner,
+                role: slot.role,
+                ids: sortedIDs
+            )
         }
     }
 
@@ -1170,12 +1293,6 @@ public struct SyncMergeEngine: Sendable {
             return "3|\(ids.map { "\($0.kind.rawValue):\($0.uuid.uuidString)" }.joined(separator: ","))"
         }
     }
-}
-
-private struct AttachmentSlot: Hashable {
-    let owner: SyncEntityID
-    let role: String
-    let slotID: String
 }
 
 private struct LegacyReminderCandidate {

@@ -70,77 +70,197 @@ public struct ProjectArchive: Codable, Sendable {
 /// Durable local evidence of the active issued version for each attachment
 /// slot. The archive deliberately retains user content only, so this sidecar
 /// keeps a restart from minting an ID or guessing a replacement lineage.
-private struct SyncAttachmentPublicationEvidence: Codable {
+struct SyncAttachmentPublicationEvidence: Codable {
     private var versions: [SyncAttachmentVersion]
+    private var deletedVersionIDs: Set<UUID>
+    private(set) var watchCommandProofs: [SyncProcessedWatchCommandProof]
 
-    init(versions: [SyncAttachmentVersion] = []) {
+    init(
+        versions: [SyncAttachmentVersion] = [],
+        deletedVersionIDs: Set<UUID> = [],
+        watchCommandProofs: [SyncProcessedWatchCommandProof] = []
+    ) {
         self.versions = versions
+        self.deletedVersionIDs = deletedVersionIDs
+        self.watchCommandProofs = watchCommandProofs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case versions, deletedVersionIDs, watchCommandProofs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        versions = try container.decodeIfPresent(
+            [SyncAttachmentVersion].self, forKey: .versions
+        ) ?? []
+        deletedVersionIDs = Set(try container.decodeIfPresent(
+            [UUID].self, forKey: .deletedVersionIDs
+        ) ?? [])
+        watchCommandProofs = try container.decodeIfPresent(
+            [SyncProcessedWatchCommandProof].self, forKey: .watchCommandProofs
+        ) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(versions, forKey: .versions)
+        try container.encode(
+            deletedVersionIDs.sorted { $0.uuidString < $1.uuidString },
+            forKey: .deletedVersionIDs
+        )
+        try container.encode(
+            watchCommandProofs.sorted { $0.id.uuidString < $1.id.uuidString },
+            forKey: .watchCommandProofs
+        )
+    }
+
+    var allVersions: [SyncAttachmentVersion] { versions }
+    var deletedVersionIDSet: Set<UUID> { deletedVersionIDs }
+
+    func isDeleted(_ versionID: UUID) -> Bool {
+        deletedVersionIDs.contains(versionID)
     }
 
     func validated() throws -> Self {
-        var slots: Set<SyncAttachmentSlot> = []
-        var versionsByID: [UUID: SyncAttachmentVersion] = [:]
+        var records: [SyncRecord] = []
+        var seenVersionIDs: Set<UUID> = []
+        let stamp = SyncMutationStamp(
+            logicalRevision: 0,
+            modifiedAt: .distantPast,
+            deviceID: "publication-evidence"
+        )
         for version in versions {
             _ = try version.validated()
-            guard slots.insert(version.slot).inserted,
-                  versionsByID[version.versionID] == nil else {
+            guard seenVersionIDs.insert(version.versionID).inserted else {
                 throw SyncPublicationTransactionFileError.corrupt
             }
-            versionsByID[version.versionID] = version
+            records.append(SyncRecord(
+                schemaVersion: 1,
+                id: .init(kind: .attachment, uuid: version.versionID),
+                createdAt: .distantPast,
+                entityRevision: 0,
+                payload: .init(fields: [:], attachment: version),
+                relationships: [.init(role: "owner", target: version.slot.owner)],
+                deletedAt: .init(
+                    value: deletedVersionIDs.contains(version.versionID) ? .distantPast : nil,
+                    stamp: stamp
+                )
+            ))
         }
-        for version in versions {
-            guard let replacesVersionID = version.replacesVersionID,
-                  let replacedVersion = versionsByID[replacesVersionID],
-                  replacedVersion.slot != version.slot else {
-                continue
-            }
+        guard deletedVersionIDs.isSubset(of: seenVersionIDs) else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        let lineage: SyncAttachmentLineage
+        do {
+            lineage = try SyncAttachmentLineage(records: records)
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        guard lineage.headsBySlot.values.allSatisfy({ $0.count == 1 }),
+              Set(watchCommandProofs.map(\.id)).count == watchCommandProofs.count,
+              watchCommandProofs.allSatisfy({ (try? $0.validated()) != nil }) else {
             throw SyncPublicationTransactionFileError.corrupt
         }
         return self
     }
 
+    func version(for slot: SyncAttachmentSlot) -> SyncAttachmentVersion? {
+        let replaced = Set(versions.compactMap(\.replacesVersionID))
+        return versions.first { $0.slot == slot && !replaced.contains($0.versionID) }
+    }
+
     func versionID(for slot: SyncAttachmentSlot) -> UUID? {
-        versions.first { $0.slot == slot }?.versionID
+        version(for: slot)?.versionID
     }
 
     func versionsBySlot() -> [SyncAttachmentSlot: SyncAttachmentVersion] {
-        Dictionary(uniqueKeysWithValues: versions.map { ($0.slot, $0) })
+        Dictionary(uniqueKeysWithValues: Set(versions.map(\.slot)).compactMap { slot in
+            version(for: slot).map { (slot, $0) }
+        })
     }
 
-    mutating func apply(_ mutations: [SyncMutation]) {
+    mutating func apply(_ mutations: [SyncMutation]) throws {
+        var proofsByID = Dictionary(uniqueKeysWithValues: watchCommandProofs.map {
+            ($0.id, $0)
+        })
         for mutation in mutations {
             switch mutation {
             case let .save(save):
-                guard let attachment = save.recordVersion.record.payload.attachment else {
-                    continue
+                let record = save.recordVersion.record
+                if let attachment = record.payload.attachment {
+                    if let existing = versions.first(where: {
+                        $0.versionID == attachment.versionID
+                    }), existing != attachment {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                    if !versions.contains(where: { $0.versionID == attachment.versionID }) {
+                        versions.append(attachment)
+                    }
+                    if record.deletedAt.value == nil {
+                        guard !deletedVersionIDs.contains(attachment.versionID) else {
+                            // Restoring a slot always issues a child version.
+                            // Reusing a tombstoned immutable version would let a
+                            // stale publication resurrect deleted bytes.
+                            throw SyncPublicationTransactionFileError.corrupt
+                        }
+                    } else {
+                        deletedVersionIDs.insert(attachment.versionID)
+                    }
                 }
-                versions.removeAll { $0.slot == attachment.slot }
-                versions.append(attachment)
+                if case let .projectCounter(state)? = record.payload.atomicDomain?.value {
+                    for proof in state.processedCommandProofs {
+                        if let existing = proofsByID[proof.id], existing != proof {
+                            throw SyncPublicationTransactionFileError.corrupt
+                        }
+                        proofsByID[proof.id] = proof
+                    }
+                }
             case let .delete(delete):
-                versions.removeAll { $0.versionID == delete.recordID.uuid }
+                guard delete.recordID.kind != .attachment
+                        || versions.contains(where: {
+                            $0.versionID == delete.recordID.uuid
+                        }) else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                if delete.recordID.kind == .attachment {
+                    deletedVersionIDs.insert(delete.recordID.uuid)
+                }
             }
         }
-        versions.sort {
-            (
-                $0.slot.owner.kind.rawValue,
-                $0.slot.owner.uuid.uuidString,
-                $0.slot.role,
-                $0.slot.slotID
-            ) < (
-                $1.slot.owner.kind.rawValue,
-                $1.slot.owner.uuid.uuidString,
-                $1.slot.role,
-                $1.slot.slotID
-            )
-        }
+        watchCommandProofs = proofsByID.values.sorted { $0.id.uuidString < $1.id.uuidString }
+        _ = try validated()
     }
 }
 
-private struct SyncAttachmentPublicationEvidenceFile {
+struct SyncAttachmentPublicationEvidenceFile {
     private static let maximumEncodedBytes = FileSyncMutationJournal.maximumEncodedBytes
     let url: URL
+    let beforeDurabilityBoundary: (SyncDurableFileWriteBoundary) throws -> Void
+
+    init(
+        url: URL,
+        beforeDurabilityBoundary: @escaping (SyncDurableFileWriteBoundary) throws -> Void = { _ in }
+    ) {
+        self.url = url
+        self.beforeDurabilityBoundary = beforeDurabilityBoundary
+    }
 
     func load() throws -> SyncAttachmentPublicationEvidence {
+        do {
+            return try SyncDurableFile.withExclusiveFileLock(for: url) {
+                try loadUnlocked()
+            }
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch let error as SyncDurableFileError {
+            throw mapDurableFileError(error)
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+    }
+
+    private func loadUnlocked() throws -> SyncAttachmentPublicationEvidence {
         var status = stat()
         let pathResult = url.path.withCString { Darwin.lstat($0, &status) }
         if pathResult != 0 {
@@ -174,10 +294,66 @@ private struct SyncAttachmentPublicationEvidenceFile {
     }
 
     func save(_ evidence: SyncAttachmentPublicationEvidence) throws {
-        try JSONEncoder().encode(evidence.validated()).write(to: url, options: .atomic)
+        do {
+            try SyncDurableFile.withExclusiveFileLock(for: url) {
+                try writeUnlocked(evidence)
+            }
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch let error as SyncDurableFileError {
+            throw mapDurableFileError(error)
+        }
+    }
+
+    /// Applies publication evidence as one read/validate/write transaction.
+    /// This prevents two independently loaded stores from replacing each
+    /// other's acknowledged lineage or Watch proof with a stale snapshot.
+    func applying(
+        _ mutations: [SyncMutation]
+    ) throws -> SyncAttachmentPublicationEvidence {
+        do {
+            return try SyncDurableFile.withExclusiveFileLock(for: url) {
+                var evidence = try loadUnlocked()
+                try evidence.apply(mutations)
+                try writeUnlocked(evidence)
+                return evidence
+            }
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch let error as SyncDurableFileError {
+            throw mapDurableFileError(error)
+        }
+    }
+
+    private func writeUnlocked(_ evidence: SyncAttachmentPublicationEvidence) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(evidence.validated())
+        guard data.count <= Self.maximumEncodedBytes else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        try SyncDurableFile.write(
+            data,
+            to: url,
+            beforeBoundary: beforeDurabilityBoundary
+        )
+    }
+
+    private func mapDurableFileError(
+        _ error: SyncDurableFileError
+    ) -> SyncPublicationTransactionFileError {
+        switch error {
+        case .unsafeFile: .unsafeFile
+        case .corrupt: .corrupt
+        case .unavailable: .unavailable
+        }
     }
 }
 
+// Compatibility reference for the pre-extraction structural projector. It is
+// deliberately excluded from compilation; SyncCanonicalPublicationSnapshot in
+// CloudSync/SyncPublicationProjection.swift is the sole runtime authority.
+#if false
 private struct SyncPublicationSnapshot {
     var records: [SyncEntityID: SyncRecord] = [:]
 
@@ -527,6 +703,7 @@ private struct SyncYarnProjection: Encodable, Equatable {
     let recommendedNeedleMM: YarnMetricRange?
     let recommendedHookMM: YarnMetricRange?
     let labelPhotoFilenames: [String]
+    let labelPhotoSlotIDs: [UUID]
     let remainingBalls: Decimal?
     let remainingGrams: Decimal?
     let storageLocation: String?
@@ -548,6 +725,7 @@ private struct SyncYarnProjection: Encodable, Equatable {
         recommendedNeedleMM = yarn.recommendedNeedleMM
         recommendedHookMM = yarn.recommendedHookMM
         labelPhotoFilenames = yarn.labelPhotoFilenames
+        labelPhotoSlotIDs = yarn.labelPhotoSlotIDs
         remainingBalls = yarn.remainingBalls
         remainingGrams = yarn.remainingGrams
         storageLocation = yarn.storageLocation
@@ -581,14 +759,18 @@ private func deterministicSyncUUID(
         bytes[12], bytes[13], bytes[14], bytes[15]
     ))
 }
+#endif
 
+// Artifact-only markup commits do not pass through an archive projection. This
+// is their single compatibility boundary; all archive-backed attachments use
+// SyncPublicationProjector and its incremental manifest authority above.
 private func syncAttachmentMutation(
     owner: SyncEntityID,
     role: String,
     slotID: String,
     originalData: Data?,
     committedData: Data?,
-    replacesVersionID: UUID?,
+    replacesVersion: SyncAttachmentVersion?,
     sourceURL: URL,
     mediaType: String,
     displayFilename: String,
@@ -598,9 +780,24 @@ private func syncAttachmentMutation(
     let slot = SyncAttachmentSlot(owner: owner, role: role, slotID: slotID)
 
     guard let committedData else {
-        guard let replacesVersionID else { return nil }
-        return .delete(
-            SyncEntityID(kind: .attachment, uuid: replacesVersionID),
+        guard let replacesVersion else { return nil }
+        let modifiedAt = Date.now
+        let stamp = SyncMutationStamp(
+            logicalRevision: 0,
+            modifiedAt: modifiedAt,
+            deviceID: deviceID
+        )
+        let record = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .attachment, uuid: replacesVersion.versionID),
+            createdAt: modifiedAt,
+            entityRevision: 0,
+            payload: .init(fields: [:], attachment: replacesVersion),
+            relationships: [.init(role: "owner", target: owner)],
+            deletedAt: .init(value: modifiedAt, stamp: stamp)
+        )
+        return try .save(
+            recordVersion: SyncRecordVersion(record: record),
             mutationID: UUID()
         )
     }
@@ -612,7 +809,7 @@ private func syncAttachmentMutation(
         byteCount: Int64(committedData.count),
         mediaType: mediaType,
         displayFilename: displayFilename,
-        replacesVersionID: replacesVersionID
+        replacesVersionID: replacesVersion?.versionID
     )
     let revision: UInt64 = 0
     let modifiedAt = Date.now
@@ -648,6 +845,9 @@ private func syncAttachmentMutation(
     )
 }
 
+// Disabled compatibility reference for the former full-content attachment
+// projector. The manifest-backed projector is the only runtime implementation.
+#if false
 private struct SyncAttachmentProjection: Equatable {
     let slot: SyncAttachmentSlot
     let sourceURL: URL
@@ -691,6 +891,7 @@ private func syncRegularFileMetadata(at url: URL) throws -> SyncRegularFileMetad
         }
     }
 }
+#endif
 
 private func syncMediaType(for filename: String, fallback: String) -> String {
     switch URL(fileURLWithPath: filename).pathExtension.lowercased() {
@@ -2071,7 +2272,12 @@ final class PatternLibraryDeletionTransaction {
         }
         guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
               command.hasValidPayload else {
-            ledger.record(command.id, rejection: .unsupportedSchema, at: now)
+            ledger.record(
+                command.id,
+                rejection: .unsupportedSchema,
+                command: command,
+                at: now
+            )
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: .unsupportedSchema,
@@ -2106,7 +2312,12 @@ final class PatternLibraryDeletionTransaction {
         }
         guard command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
               command.hasValidPayload else {
-            ledger.record(command.id, rejection: .unsupportedSchema, at: now)
+            ledger.record(
+                command.id,
+                rejection: .unsupportedSchema,
+                command: command,
+                at: now
+            )
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: .unsupportedSchema,
@@ -2118,7 +2329,12 @@ final class PatternLibraryDeletionTransaction {
             try requireWatchEntitlement(entitlement, now: now)
         } catch ProjectStoreError.accessRestricted {
             try ensureArchiveAvailable()
-            ledger.record(command.id, rejection: .entitlementRequired, at: now)
+            ledger.record(
+                command.id,
+                rejection: .entitlementRequired,
+                command: command,
+                at: now
+            )
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: .entitlementRequired,
@@ -2155,8 +2371,14 @@ final class PatternLibraryDeletionTransaction {
         var ledger = try ledgerFile.load() ?? ProcessedWatchCommandLedger()
         let effectiveRejection = command.schemaVersion == WatchCounterCommand.currentSchemaVersion
             && command.hasValidPayload ? rejection : .unsupportedSchema
-        ledger.record(command.id, rejection: effectiveRejection, at: now)
+        ledger.record(
+            command.id,
+            rejection: effectiveRejection,
+            command: command,
+            at: now
+        )
         try ledgerFile.save(ledger)
+        try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
         return try watchAcknowledgement(
             for: command.id,
             rejection: effectiveRejection,
@@ -2171,6 +2393,15 @@ final class PatternLibraryDeletionTransaction {
         ledgerURL: URL,
         now: Date
     ) throws -> WatchCommandAcknowledgement? {
+        // A ledger receipt may have become durable immediately before its
+        // aggregate publication was interrupted. Repair that publication
+        // before returning the duplicate acknowledgement, so the Watch never
+        // observes completion while transferable exactly-once proof is still
+        // stranded only in the prunable local ledger.
+        if syncPublicationError == .pendingRepair {
+            try repairSyncPublication()
+        }
+        try ensureSyncPublicationReady()
         try ensureArchiveAvailable()
         let ledgerFile = AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
         var ledger = try loadLedgerRecoveringCorruption(from: ledgerFile)
@@ -2255,7 +2486,12 @@ final class PatternLibraryDeletionTransaction {
         }
 
         if let rejection {
-            ledger.record(command.id, rejection: rejection, at: now)
+            ledger.record(
+                command.id,
+                rejection: rejection,
+                command: command,
+                at: now
+            )
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: rejection,
@@ -2309,7 +2545,12 @@ final class PatternLibraryDeletionTransaction {
             }
         } catch let error as KnittingReminderMutationError {
             let rejection = watchRejection(for: error)
-            ledger.record(command.id, rejection: rejection, at: now)
+            ledger.record(
+                command.id,
+                rejection: rejection,
+                command: command,
+                at: now
+            )
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: rejection,
@@ -3222,7 +3463,7 @@ final class PatternLibraryDeletionTransaction {
             slotID: "page:\(page)",
             originalData: originalPageData,
             committedData: encodedPage,
-            replacesVersionID: syncAttachmentVersionID(for: .init(
+            replacesVersion: syncAttachmentPublicationEvidence.version(for: .init(
                 owner: .init(kind: .patternUsage, uuid: usageID),
                 role: "usage-markup",
                 slotID: "page:\(page)"
@@ -3388,7 +3629,7 @@ final class PatternLibraryDeletionTransaction {
             slotID: "project:\(projectID.uuidString)/page:\(page)",
             originalData: originalPageData,
             committedData: encodedPage,
-            replacesVersionID: syncAttachmentVersionID(for: .init(
+            replacesVersion: syncAttachmentPublicationEvidence.version(for: .init(
                 owner: .init(kind: .pattern, uuid: patternID),
                 role: "legacy-markup",
                 slotID: "project:\(projectID.uuidString)/page:\(page)"
@@ -4366,7 +4607,7 @@ final class PatternLibraryDeletionTransaction {
             )
             syncProjectionCache = SyncPublicationProjectionCache(
                 archive: archive,
-                records: try SyncPublicationSnapshot(
+                records: try SyncCanonicalPublicationSnapshot(
                     archive: archive,
                     deviceID: syncPublicationDeviceID,
                     preparedWatchCommand: activePreparedWatchCommand,
@@ -4443,12 +4684,15 @@ final class PatternLibraryDeletionTransaction {
                     deviceID: syncPublicationDeviceID,
                     preparedWatchCommand: activePreparedWatchCommand,
                     processedWatchLedger: activeProcessedWatchLedger,
+                    processedWatchProofs: syncAttachmentPublicationEvidence.watchCommandProofs,
                     reusing: syncProjectionCache,
                     attachmentReferences: { archive in
                         try self.syncArchiveAttachmentReferences(in: archive)
                     },
                     issuedAttachmentVersions: syncAttachmentPublicationEvidence
-                        .versionsBySlot()
+                        .versionsBySlot(),
+                    deletedAttachmentVersionIDs: syncAttachmentPublicationEvidence
+                        .deletedVersionIDSet
                 ).project(
                     before: originalArchive,
                     after: committedArchive,
@@ -4655,21 +4899,18 @@ final class PatternLibraryDeletionTransaction {
         guard let syncRevisionLedger else {
             throw SyncRevisionLedgerError.unavailable
         }
-        var stamped: [SyncMutation] = []
-        var receipts: [SyncRevisionReceipt] = []
-        stamped.reserveCapacity(mutations.count)
-        receipts.reserveCapacity(mutations.count)
-        for mutation in mutations {
-            let receipt = try syncRevisionLedger.allocate(
-                for: mutation.recordID,
+        let receipts = try syncRevisionLedger.allocate(mutations.map { mutation in
+            SyncRevisionRequest(
+                entityID: mutation.recordID,
                 mutationID: mutation.mutationID,
                 observedRemoteRevision: max(
                     observedRevisions[mutation.recordID] ?? 0,
                     mutation.savedRecordVersion?.record.entityRevision ?? 0
                 )
             )
-            stamped.append(try applying(receipt: receipt, to: mutation))
-            receipts.append(receipt)
+        })
+        let stamped = try zip(receipts, mutations).map {
+            try applying(receipt: $0.0, to: $0.1)
         }
         return (stamped, receipts)
     }
@@ -4780,14 +5021,14 @@ final class PatternLibraryDeletionTransaction {
                     fallbackMediaType: "image/jpeg"
                 )
             }
-            for (index, filename) in yarn.labelPhotoFilenames.enumerated() {
+            for (filename, slotID) in zip(yarn.labelPhotoFilenames, yarn.labelPhotoSlotIDs) {
                 guard let sourceURL = yarnLabelPhotoService.url(filename: filename) else {
                     throw SyncPublicationTransactionFileError.corrupt
                 }
                 add(
                     owner: owner,
                     role: "yarn-label-photo",
-                    slotID: "label:\(index)",
+                    slotID: "label:\(slotID.uuidString.lowercased())",
                     sourceURL: sourceURL,
                     displayFilename: filename,
                     fallbackMediaType: "image/jpeg"
@@ -4816,6 +5057,10 @@ final class PatternLibraryDeletionTransaction {
         return result
     }
 
+    // Compatibility reference only. This full-hash-on-every-save path is
+    // excluded so SyncPublicationProjector + SyncAttachmentManifestStore is
+    // the sole active attachment projection authority.
+#if false
     private func syncArchiveAttachmentMutations(
         from original: ProjectArchive,
         to committed: ProjectArchive
@@ -4977,14 +5222,14 @@ final class PatternLibraryDeletionTransaction {
                     fallbackMediaType: "image/jpeg"
                 )
             }
-            for (index, filename) in yarn.labelPhotoFilenames.enumerated() {
+            for (filename, slotID) in zip(yarn.labelPhotoFilenames, yarn.labelPhotoSlotIDs) {
                 guard let sourceURL = yarnLabelPhotoService.url(filename: filename) else {
                     throw SyncPublicationTransactionFileError.corrupt
                 }
                 try add(
                     owner: owner,
                     role: "yarn-label-photo",
-                    slotID: "label:\(index)",
+                    slotID: "label:\(slotID.uuidString.lowercased())",
                     sourceURL: sourceURL,
                     displayFilename: filename,
                     fallbackMediaType: "image/jpeg"
@@ -5030,12 +5275,15 @@ final class PatternLibraryDeletionTransaction {
         )
     }
 
+#endif
+
     private func syncArtifactEvidence(
         for mutations: [SyncMutation],
         attachments: [SyncAttachmentSlot: SyncPublicationAttachmentProjection]
     ) throws -> [SyncPublicationArtifactEvidence] {
         let attachmentSaves = mutations.compactMap { mutation -> SyncAttachmentVersion? in
-            mutation.savedRecordVersion?.record.payload.attachment
+            guard mutation.attachmentSource != nil else { return nil }
+            return mutation.savedRecordVersion?.record.payload.attachment
         }
         guard !attachmentSaves.isEmpty else { return [] }
         return try attachmentSaves.sorted {
@@ -5063,17 +5311,15 @@ final class PatternLibraryDeletionTransaction {
         guard isSyncPublicationEnabled else { return [] }
         return try usageIDs.sorted { $0.uuidString < $1.uuidString }.flatMap { usageID in
             try patternMarkupFileService.usageMarkupPageIndices(usageID: usageID).compactMap { page in
-                guard let versionID = syncAttachmentVersionID(for: .init(
+                let slot = SyncAttachmentSlot(
                     owner: .init(kind: .patternUsage, uuid: usageID),
                     role: "usage-markup",
                     slotID: "page:\(page)"
-                )) else {
+                )
+                guard syncAttachmentVersionID(for: slot) != nil else {
                     return nil
                 }
-                return SyncMutation.delete(
-                    SyncEntityID(kind: .attachment, uuid: versionID),
-                    mutationID: UUID()
-                )
+                return try syncAttachmentTombstoneMutation(for: slot)
             }
         }
     }
@@ -5088,17 +5334,15 @@ final class PatternLibraryDeletionTransaction {
                 projectID: projectID,
                 patternID: patternID
             ).compactMap { page in
-                guard let versionID = syncAttachmentVersionID(for: .init(
+                let slot = SyncAttachmentSlot(
                     owner: .init(kind: .pattern, uuid: patternID),
                     role: "legacy-markup",
                     slotID: "project:\(projectID.uuidString)/page:\(page)"
-                )) else {
+                )
+                guard syncAttachmentVersionID(for: slot) != nil else {
                     return nil
                 }
-                return SyncMutation.delete(
-                    SyncEntityID(kind: .attachment, uuid: versionID),
-                    mutationID: UUID()
-                )
+                return try syncAttachmentTombstoneMutation(for: slot)
             }
         }
     }
@@ -5107,11 +5351,37 @@ final class PatternLibraryDeletionTransaction {
         syncAttachmentPublicationEvidence.versionID(for: slot)
     }
 
+    private func syncAttachmentTombstoneMutation(
+        for slot: SyncAttachmentSlot,
+        mutationID: UUID = UUID(),
+        now: Date = .now
+    ) throws -> SyncMutation {
+        guard let version = syncAttachmentPublicationEvidence.version(for: slot) else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        let stamp = SyncMutationStamp(
+            logicalRevision: 0,
+            modifiedAt: now,
+            deviceID: syncPublicationDeviceID
+        )
+        let record = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .attachment, uuid: version.versionID),
+            createdAt: now,
+            entityRevision: 0,
+            payload: .init(fields: [:], attachment: version),
+            relationships: [.init(role: "owner", target: slot.owner)],
+            deletedAt: .init(value: now, stamp: stamp)
+        )
+        return try .save(
+            recordVersion: SyncRecordVersion(record: record),
+            mutationID: mutationID
+        )
+    }
+
     private func persistAttachmentPublicationEvidence(for mutations: [SyncMutation]) throws {
-        var updated = syncAttachmentPublicationEvidence
-        updated.apply(mutations)
-        try syncAttachmentPublicationEvidenceFile.save(updated)
-        syncAttachmentPublicationEvidence = updated
+        syncAttachmentPublicationEvidence = try syncAttachmentPublicationEvidenceFile
+            .applying(mutations)
     }
 
     private func syncArtifactRelativePath(for artifactURL: URL) throws -> String {

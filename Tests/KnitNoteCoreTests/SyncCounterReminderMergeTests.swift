@@ -876,6 +876,84 @@ import Testing
         #expect(encodedIDs == ids.map(\.uuidString).sorted())
     }
 
+    @Test func embeddedProcessedProofMergesOnFreshDeviceWithEmptyLocalLedger() throws {
+        let counterID = UUID()
+        let projectID = UUID()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command,
+            expectedCounterRevision: 0,
+            expectedCounterValue: 0
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: nil,
+            preparedCommand: prepared,
+            effectProof: .init(counter: ProjectCounter(
+                id: counterID, defaultOrdinal: 1, value: 1, mutationRevision: 1
+            ))
+        )
+        let older = state(counterID: counterID, value: 0, counterRevision: 0)
+        let newer = state(
+            counterID: counterID,
+            value: 1,
+            counterRevision: 1,
+            processedCommandIDs: [command.id],
+            processedCommandProofs: [proof]
+        )
+
+        let merged = try SyncCounterReminderMergePolicy().merge(
+            .init(value: older, stamp: stamp(revision: 0, deviceID: "first")),
+            .init(value: newer, stamp: stamp(revision: 1, deviceID: "second")),
+            context: .init()
+        )
+
+        #expect(merged.value.processedCommandIDs == [command.id])
+        #expect(merged.value.processedCommandProofs == [proof])
+        #expect(try JSONDecoder().decode(
+            SyncCounterReminderState.self,
+            from: JSONEncoder().encode(merged.value)
+        ).processedCommandProofs == [proof])
+    }
+
+    @Test func recordValidationRejectsEmbeddedAcceptedProofWithWrongEffect() throws {
+        let counterID = UUID()
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: projectID.uuid, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command, expectedCounterRevision: 0, expectedCounterValue: 0
+        )
+        let invalidProof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: nil,
+            preparedCommand: prepared,
+            effectProof: .init(counter: ProjectCounter(
+                id: counterID, defaultOrdinal: 1, value: 99, mutationRevision: 1
+            ))
+        )
+        let aggregate = record(
+            state: state(
+                counterID: counterID,
+                value: 1,
+                counterRevision: 1,
+                processedCommandIDs: [command.id],
+                processedCommandProofs: [invalidProof]
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "device")
+        )
+
+        #expect(throws: SyncRecordValidationError.illegalAtomicDomain(aggregate.id)) {
+            _ = try SyncRecordValidator().validate(aggregate)
+        }
+    }
+
     @Test func divergentEqualStampAtomicStatesAlwaysThrowForEveryPermutation() throws {
         let projectID = SyncEntityID(kind: .project, uuid: UUID())
         let counterID = UUID()
@@ -1592,6 +1670,124 @@ import Testing
         }
     }
 
+    @Test func equalStampLegacyAggregateAcceptsAdditiveTransferableProof() throws {
+        let counterID = UUID()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command, expectedCounterRevision: 0, expectedCounterValue: 0
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: nil,
+            preparedCommand: prepared,
+            effectProof: .init(counter: ProjectCounter(
+                id: counterID, defaultOrdinal: 1, value: 1, mutationRevision: 1
+            ))
+        )
+        let legacy = state(
+            counterID: counterID, value: 1, counterRevision: 1,
+            processedCommandIDs: [command.id]
+        )
+        let upgraded = state(
+            counterID: counterID, value: 1, counterRevision: 1,
+            processedCommandIDs: [command.id], processedCommandProofs: [proof]
+        )
+        let sameStamp = stamp(revision: 1, deviceID: "same")
+
+        let merged = try SyncCounterReminderMergePolicy().merge(
+            .init(value: legacy, stamp: sameStamp),
+            .init(value: upgraded, stamp: sameStamp),
+            context: .init()
+        )
+
+        #expect(merged.value.processedCommandProofs == [proof])
+    }
+
+    @Test func equalStampAggregatesMonotonicallyUnionTransferredProcessedCommand() throws {
+        let counterID = UUID()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let prepared = PreparedWatchCommand(
+            command: command, expectedCounterRevision: 0, expectedCounterValue: 0
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: nil,
+            preparedCommand: prepared,
+            effectProof: .init(counter: ProjectCounter(
+                id: counterID, defaultOrdinal: 1, value: 1, mutationRevision: 1
+            ))
+        )
+        let withoutProcessedCommand = state(
+            counterID: counterID, value: 1, counterRevision: 1
+        )
+        let withProcessedCommand = state(
+            counterID: counterID, value: 1, counterRevision: 1,
+            processedCommandIDs: [command.id], processedCommandProofs: [proof]
+        )
+        let sameStamp = stamp(revision: 1, deviceID: "same")
+
+        let merged = try SyncCounterReminderMergePolicy().merge(
+            .init(value: withoutProcessedCommand, stamp: sameStamp),
+            .init(value: withProcessedCommand, stamp: sameStamp),
+            context: .init()
+        )
+
+        #expect(merged.value.processedCommandIDs == [command.id])
+        #expect(merged.value.processedCommandProofs == [proof])
+    }
+
+    @Test func embeddedRejectionProofMergesWithoutLocalLedger() throws {
+        let counterID = UUID()
+        let commandID = UUID()
+        let command = WatchCounterCommand(
+            id: commandID,
+            projectID: UUID(),
+            counterID: counterID,
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: commandID,
+            counterID: counterID,
+            rejection: .entitlementRequired,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil
+        )
+        let older = state(counterID: counterID, value: 0, counterRevision: 0)
+        let newer = state(
+            counterID: counterID, value: 0, counterRevision: 0,
+            processedCommandIDs: [commandID], processedCommandProofs: [proof]
+        )
+
+        let merged = try SyncCounterReminderMergePolicy().merge(
+            .init(value: older, stamp: stamp(revision: 1, deviceID: "older")),
+            .init(value: newer, stamp: stamp(revision: 2, deviceID: "newer")),
+            context: .init()
+        )
+
+        #expect(merged.value.processedCommandIDs == [commandID])
+        #expect(merged.value.processedCommandProofs == [proof])
+    }
+
+    @Test func rejectionProofWithoutCommandIdentityIsRejected() {
+        #expect(throws: SyncRecordVersionError.corrupt) {
+            _ = try SyncProcessedWatchCommandProof(
+                id: UUID(),
+                counterID: UUID(),
+                rejection: .entitlementRequired,
+                preparedCommand: nil,
+                effectProof: nil
+            )
+        }
+    }
+
     @Test func alreadyStoppedMismatchCannotAcquireProcessedIDAsNoOp() throws {
         let counterID = UUID()
         let base = try #require(KnittingReminder(
@@ -1640,7 +1836,8 @@ private func state(
     counterRevision: UInt64,
     reminder: KnittingReminder? = nil,
     preparedCommand: PreparedWatchCommand? = nil,
-    processedCommandIDs: Set<UUID> = []
+    processedCommandIDs: Set<UUID> = [],
+    processedCommandProofs: [SyncProcessedWatchCommandProof] = []
 ) -> SyncCounterReminderState {
     SyncCounterReminderState(
         counter: ProjectCounter(
@@ -1652,6 +1849,7 @@ private func state(
         reminder: reminder,
         preparedCommand: preparedCommand,
         processedCommandIDs: processedCommandIDs,
+        processedCommandProofs: processedCommandProofs,
         occurrence: reminder?.progress.nextOccurrenceIndex
     )
 }

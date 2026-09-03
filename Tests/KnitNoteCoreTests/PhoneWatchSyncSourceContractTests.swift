@@ -171,8 +171,10 @@ import Testing
         #expect(!store.contains("legacyOccurrenceIDForCompatibility"))
         #expect(!project.contains("completeLegacyWatchVisibleReminder"))
         #expect(!project.contains("stopLegacyWatchVisibleReminder"))
-        #expect(store.contains("ledger.record(command.id, rejection: .unsupportedSchema"))
-        #expect(persistence.contains("ledger.record(prepared.command.id, rejection: .unsupportedSchema"))
+        #expect(store.contains("rejection: .unsupportedSchema,\n                command: command"))
+        #expect(persistence.contains(
+            "rejection: .unsupportedSchema,\n                command: prepared.command"
+        ))
     }
 
     @Test func startupSeparatesOneTimeSetupFromRetryableActivation() throws {

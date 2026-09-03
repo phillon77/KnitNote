@@ -18,6 +18,57 @@ import Testing
         #expect(try fixture.reopened().pending().isEmpty)
     }
 
+    @Test func steadyStateFingerprintMetadataReadsAreIndependentOfProofShardCount() throws {
+        let fixture = try SegmentedJournalFixture()
+        for index in 0..<2_000 {
+            let mutation = fixture.mutation(index: index)
+            try fixture.journal.enqueue(mutation)
+            try fixture.journal.acknowledge([mutation.identity])
+        }
+        let before = fixture.counters.metadataReadCount
+
+        for _ in 0..<100 { _ = try fixture.journal.pending() }
+
+        #expect(fixture.counters.metadataReadCount - before <= 700)
+    }
+
+    @Test func checkpointBindsImmutableProofShardsWithAggregateRoot() throws {
+        let fixture = try SegmentedJournalFixture()
+        for index in 0..<130 {
+            let mutation = fixture.mutation(index: index)
+            try fixture.journal.enqueue(mutation)
+            try fixture.journal.acknowledge([mutation.identity])
+        }
+        let shards = try fixture.proofShardURLs()
+        #expect(!shards.isEmpty)
+
+        let expanded = try fixture.expandedPersistedProofEvidence(proofURLs: shards)
+        #expect(expanded.range(of: Data("\"proofShardRoot\"".utf8)) != nil)
+    }
+
+    @Test func acknowledgedAttachmentTombstoneRejectsLaterLiveVersionReuse() throws {
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("resurrection.asset")
+        let bytes = Data("no resurrection".utf8)
+        try bytes.write(to: source)
+        let live = try fixture.attachmentMutation(index: 4_001, bytes: bytes, source: source)
+        try fixture.journal.enqueue(live)
+        try fixture.journal.acknowledge([live.identity])
+        let tombstone = try fixture.attachmentTombstone(for: live)
+        try fixture.journal.enqueue(tombstone)
+        try fixture.journal.acknowledge([tombstone.identity])
+        let staleLive = try SyncMutation.save(
+            recordVersion: try #require(live.savedRecordVersion),
+            attachmentSource: try #require(live.attachmentSource),
+            mutationID: UUID()
+        )
+
+        #expect(throws: SyncMutationJournalError.invalidAttachment) {
+            try fixture.journal.enqueue(staleLive)
+        }
+        #expect(try fixture.journal.pending().isEmpty)
+    }
+
     @Test(.timeLimit(.minutes(3)))
     func twoThousandSequentialAttachmentAcknowledgementsStayIncrementalAndCompact() throws {
         let fixture = try SegmentedJournalFixture()
@@ -791,6 +842,108 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: fixture.checkpointURL.path))
         #expect(!FileManager.default.fileExists(atPath: fixture.segmentURL.path))
     }
+
+    @Test func legacyAttachmentCycleLeavesOriginalBytesAndLayoutUntouched() throws {
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("cycle.asset")
+        let bytes = Data("cycle".utf8)
+        try bytes.write(to: source)
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "primary"
+        )
+        let firstID = UUID()
+        let secondID = UUID()
+        let mutations = [
+            try fixture.attachmentMutation(
+                slot: slot, versionID: firstID, replacing: secondID,
+                bytes: bytes, source: source, mutationID: UUID()
+            ),
+            try fixture.attachmentMutation(
+                slot: slot, versionID: secondID, replacing: firstID,
+                bytes: bytes, source: source, mutationID: UUID()
+            ),
+        ]
+        let legacyBytes = try fixture.legacyEnvelope(mutations)
+        try legacyBytes.write(to: fixture.url)
+        let inventoryBefore = try fixture.directoryInventory()
+
+        #expect(throws: SyncMutationJournalError.corrupt) {
+            _ = try fixture.journal.pending()
+        }
+
+        #expect(try Data(contentsOf: fixture.url) == legacyBytes)
+        #expect(try fixture.directoryInventory() == inventoryBefore)
+    }
+
+    @Test func enqueueRejectsDivergentDuplicateAttachmentVersionAndCrossSlotLineage() throws {
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("lineage.asset")
+        let firstBytes = Data("first".utf8)
+        let secondBytes = Data("second".utf8)
+        try firstBytes.write(to: source)
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let firstSlot = SyncAttachmentSlot(owner: owner, role: "project-photo", slotID: "first")
+        let secondSlot = SyncAttachmentSlot(owner: owner, role: "project-photo", slotID: "second")
+        let versionID = UUID()
+        let first = try fixture.attachmentMutation(
+            slot: firstSlot, versionID: versionID, replacing: nil,
+            bytes: firstBytes, source: source, mutationID: UUID()
+        )
+        try secondBytes.write(to: source, options: .atomic)
+        let divergent = try fixture.attachmentMutation(
+            slot: firstSlot, versionID: versionID, replacing: nil,
+            bytes: secondBytes, source: source, mutationID: UUID()
+        )
+
+        #expect(throws: SyncMutationJournalError.invalidAttachment) {
+            try fixture.journal.enqueue([first, divergent])
+        }
+        #expect(try fixture.journal.pending().isEmpty)
+
+        try firstBytes.write(to: source, options: .atomic)
+        let crossSlot = try fixture.attachmentMutation(
+            slot: secondSlot, versionID: UUID(), replacing: versionID,
+            bytes: firstBytes, source: source, mutationID: UUID()
+        )
+        #expect(throws: SyncMutationJournalError.invalidAttachment) {
+            try fixture.journal.enqueue([first, crossSlot])
+        }
+        #expect(try fixture.journal.pending().isEmpty)
+    }
+
+    @Test func acknowledgedAttachmentProofRetainsLineageForLaterReplacement() throws {
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("history.asset")
+        let bytes = Data("history".utf8)
+        try bytes.write(to: source)
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "primary"
+        )
+        let firstID = UUID()
+        let first = try fixture.attachmentMutation(
+            slot: slot, versionID: firstID, replacing: nil,
+            bytes: bytes, source: source, mutationID: UUID()
+        )
+        try fixture.journal.enqueue(first)
+        try fixture.journal.acknowledge([first.identity])
+        for index in 0..<128 {
+            let mutation = fixture.mutation(index: 50_000 + index)
+            try fixture.journal.enqueue(mutation)
+            try fixture.journal.acknowledge([mutation.identity])
+        }
+        let replacement = try fixture.attachmentMutation(
+            slot: slot, versionID: UUID(), replacing: firstID,
+            bytes: bytes, source: source, mutationID: UUID()
+        )
+
+        try fixture.reopened().enqueue(replacement)
+
+        #expect(try fixture.reopened().pending().map(\.mutationID) == [replacement.mutationID])
+    }
 }
 
 private struct InterruptedCheckpointWrite: Error {}
@@ -943,6 +1096,67 @@ private final class SegmentedJournalFixture {
                 byteCount: Int64(bytes.count)
             ),
             mutationID: deterministicUUID(index + 100_001)
+        )
+    }
+
+    func attachmentTombstone(for live: SyncMutation) throws -> SyncMutation {
+        var record = try #require(live.savedRecordVersion?.record)
+        let (revision, overflow) = record.entityRevision.addingReportingOverflow(1)
+        precondition(!overflow)
+        let stamp = SyncMutationStamp(
+            logicalRevision: revision,
+            modifiedAt: Date(timeIntervalSince1970: 2),
+            deviceID: "segmented-proof-test"
+        )
+        record.entityRevision = revision
+        record.deletedAt = .init(value: stamp.modifiedAt, stamp: stamp)
+        return try .save(
+            recordVersion: SyncRecordVersion(record: record),
+            mutationID: UUID()
+        )
+    }
+
+    func attachmentMutation(
+        slot: SyncAttachmentSlot,
+        versionID: UUID,
+        replacing: UUID?,
+        bytes: Data,
+        source: URL,
+        mutationID: UUID
+    ) throws -> SyncMutation {
+        let digest = Data(SHA256.hash(data: bytes))
+        let attachment = try SyncAttachmentVersion(
+            slot: slot,
+            versionID: versionID,
+            conflictGroupID: try SyncAttachmentVersion.conflictGroupID(for: slot),
+            contentSHA256: digest,
+            byteCount: Int64(bytes.count),
+            mediaType: "application/octet-stream",
+            displayFilename: "lineage.asset",
+            replacesVersionID: replacing
+        )
+        let stamp = SyncMutationStamp(
+            logicalRevision: 1,
+            modifiedAt: Date(timeIntervalSince1970: 1),
+            deviceID: "segmented-lineage-test"
+        )
+        let record = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .attachment, uuid: versionID),
+            createdAt: Date(timeIntervalSince1970: 0),
+            entityRevision: 1,
+            payload: .init(fields: [:], attachment: attachment),
+            relationships: [.init(role: "owner", target: slot.owner)],
+            deletedAt: .init(value: nil, stamp: stamp)
+        )
+        return try .save(
+            recordVersion: SyncRecordVersion(record: record),
+            attachmentSource: SyncAttachmentSource(
+                fileURL: source,
+                contentSHA256: digest,
+                byteCount: Int64(bytes.count)
+            ),
+            mutationID: mutationID
         )
     }
 

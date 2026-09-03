@@ -211,7 +211,12 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         }
         let receiptsAreComplete = revisionReceipts.count == mutations.count
             && Set(revisionReceipts.map(\.mutationID)).count == revisionReceipts.count
-            && Set(revisionReceipts.map(\.entityID)).count <= revisionReceipts.count
+            && Set(revisionReceipts.map(\.deviceID)).count <= 1
+            && revisionReceipts.allSatisfy { !$0.deviceID.isEmpty }
+            // One canonical mutation per entity is the publication contract;
+            // accepting two receipts for one entity would make replay order an
+            // undeclared second merge authority.
+            && Set(revisionReceipts.map(\.entityID)).count == revisionReceipts.count
             && Set(revisionReceipts.map(\.mutationID)) == Set(mutations.map(\.mutationID))
             && revisionReceipts.allSatisfy { receipt in
                 receipt.logicalRevision > 0 && mutations.contains {

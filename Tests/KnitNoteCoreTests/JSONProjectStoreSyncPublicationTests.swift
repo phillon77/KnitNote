@@ -112,12 +112,17 @@ import UniformTypeIdentifiers
         #expect(states.contains { $0.preparedCommand?.command.id == command.id })
         #expect(states.last?.preparedCommand == nil)
         #expect(states.last?.processedCommandIDs == processedIDs)
+        #expect(Set(states.last?.processedCommandProofs.map(\.id) ?? []) == processedIDs)
         let ledger = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
             url: ledgerURL
         ).load())
         #expect(ledger.entry(for: command.id)?.preparedCommand?.command == command)
         #expect(ledger.entry(for: command.id)?.effectProof?.counter.value == 1)
         #expect(ledger.entry(for: secondCommand.id)?.effectProof?.counter.value == 2)
+
+        // The synchronized aggregate sidecar, rather than this prunable local
+        // ledger, must remain sufficient to republish exactly-once evidence.
+        try FileManager.default.removeItem(at: ledgerURL)
 
         let restartedSink = RecordingSyncMutationSink()
         let restarted = fixture.store(sink: restartedSink)
@@ -129,6 +134,7 @@ import UniformTypeIdentifiers
             .last { $0.id == .init(kind: .projectCounter, uuid: counterID) }?
             .counterReminderState
         #expect(restored?.processedCommandIDs == processedIDs)
+        #expect(Set(restored?.processedCommandProofs.map(\.id) ?? []) == processedIDs)
         #expect(restored?.preparedCommand == nil)
 
         let counterPublicationCount = restartedSink.mutations.filter {
@@ -147,6 +153,105 @@ import UniformTypeIdentifiers
         }.count > counterPublicationCount)
         #expect(afterOrdinaryMutation?.processedCommandIDs == processedIDs)
         #expect(afterOrdinaryMutation?.counter.value == 3)
+    }
+
+    @Test func durableWatchRejectionPublishesTransferableProofAndSurvivesLedgerDeletion() throws {
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink()
+        let store = fixture.store(sink: sink)
+        let counterID = try #require(store.project(id: fixture.projectID)?.counters.first?.id)
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 20)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+
+        let acknowledgement = try store.acknowledgeRejectedWatchCommandDurably(
+            command,
+            rejection: .entitlementRequired,
+            entitlement: .trial(
+                startedAt: Date(timeIntervalSince1970: 1),
+                expiresAt: Date(timeIntervalSince1970: 2)
+            ),
+            ledgerURL: ledgerURL,
+            now: Date(timeIntervalSince1970: 21)
+        )
+
+        #expect(acknowledgement.rejection == .entitlementRequired)
+        let ledger = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: ledgerURL
+        ).load())
+        #expect(ledger.entry(for: command.id)?.commandIdentity == .init(command))
+        let published = try #require(sink.mutations.compactMap(
+            \.savedRecordVersion?.record
+        ).last { $0.id == .init(kind: .projectCounter, uuid: counterID) }?
+            .counterReminderState)
+        let proof = try #require(published.processedCommandProofs.first {
+            $0.id == command.id
+        })
+        #expect(proof.commandIdentity == .init(command))
+        #expect(proof.rejection == .entitlementRequired)
+        #expect(proof.effectProof == nil)
+
+        try FileManager.default.removeItem(at: ledgerURL)
+        let restartedSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: restartedSink)
+        _ = try restarted.incrementCounter(
+            projectID: fixture.projectID,
+            counterID: counterID
+        )
+        let republished = try #require(restartedSink.mutations.compactMap(
+            \.savedRecordVersion?.record
+        ).last { $0.id == .init(kind: .projectCounter, uuid: counterID) }?
+            .counterReminderState)
+        #expect(republished.processedCommandIDs.contains(command.id))
+        #expect(republished.processedCommandProofs.first {
+            $0.id == command.id
+        }?.commandIdentity == .init(command))
+    }
+
+    @Test func duplicateRejectedWatchCommandRepairsInterruptedProofPublication() throws {
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink(failureAtAttempt: 1)
+        let store = fixture.store(sink: sink)
+        let counterID = try #require(store.project(id: fixture.projectID)?.counters.first?.id)
+        let command = WatchCounterCommand(
+            schemaVersion: WatchCounterCommand.currentSchemaVersion + 1,
+            id: UUID(),
+            projectID: fixture.projectID,
+            counterID: counterID,
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 30)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+
+        let first = try store.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 31)
+        )
+        #expect(first.rejection == .unsupportedSchema)
+        #expect(store.syncPublicationError == .pendingRepair)
+        #expect(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: ledgerURL
+        ).load()?.entry(for: command.id)?.commandIdentity == .init(command))
+
+        let duplicate = try store.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 32)
+        )
+
+        #expect(duplicate.rejection == .unsupportedSchema)
+        #expect(sink.mutations.count == 2)
+        let repaired = try #require(sink.mutations.last?.savedRecordVersion?.record
+            .counterReminderState)
+        #expect(repaired.processedCommandProofs.first {
+            $0.id == command.id
+        }?.commandIdentity == .init(command))
     }
 
     @Test func rebuiltLedgerUsesProjectedEntityRevisionAsItsCausalFloor() throws {
@@ -179,6 +284,37 @@ import UniformTypeIdentifiers
                 expectedArchiveSHA256: transaction.expectedArchiveSHA256,
                 mutations: transaction.mutations,
                 revisionReceipts: []
+            )
+        }
+    }
+
+    @Test func publicationTransactionRejectsTwoMutationsForOneEntity() throws {
+        let fixture = try SyncPublicationFixture()
+        let first = fixture.store(sink: RecordingSyncMutationSink(shouldFail: true))
+        try first.rename(id: fixture.projectID, to: "Receipt source")
+        let transaction = try #require(try SyncPublicationTransactionFile(
+            archiveURL: fixture.archiveURL
+        ).load())
+        let originalMutation = try #require(transaction.mutations.first)
+        let originalSave = try #require(originalMutation.savedRecordVersion)
+        let originalReceipt = try #require(transaction.revisionReceipts.first)
+        let secondID = UUID()
+        let duplicateEntityMutation = try SyncMutation.save(
+            recordVersion: originalSave,
+            mutationID: secondID
+        )
+        let secondReceipt = SyncRevisionReceipt(
+            entityID: originalReceipt.entityID,
+            mutationID: secondID,
+            logicalRevision: originalReceipt.logicalRevision + 1,
+            deviceID: originalReceipt.deviceID
+        )
+
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            _ = try SyncPublicationTransaction(
+                expectedArchiveSHA256: transaction.expectedArchiveSHA256,
+                mutations: [originalMutation, duplicateEntityMutation],
+                revisionReceipts: [originalReceipt, secondReceipt]
             )
         }
     }
@@ -441,11 +577,12 @@ import UniformTypeIdentifiers
             photoChange: .remove
         )
 
-        let attachmentDeletes = secondSink.mutations.filter {
-            $0.recordKind == .attachment && $0.operation == .delete
+        let attachmentTombstones = secondSink.mutations.filter {
+            $0.isAttachmentTombstone
         }
-        #expect(attachmentDeletes.count == 1)
-        #expect(attachmentDeletes.first?.recordID == firstAttachment.recordID)
+        #expect(attachmentTombstones.count == 1)
+        #expect(attachmentTombstones.first?.recordID == firstAttachment.recordID)
+        #expect(attachmentTombstones.first?.attachmentSource == nil)
     }
 
     @Test func sameStoreStructuralPersistKeepsAttachmentHeadForRestartedReplacement() throws {
@@ -579,10 +716,10 @@ import UniformTypeIdentifiers
         #expect(restartedPending.contains(firstSave))
         #expect(restartedPending.contains(replacement))
         #expect(restartedPending.contains {
-            $0.intent == .delete && $0.recordID == replacement.recordID
+            $0.isAttachmentTombstone && $0.recordID == replacement.recordID
         })
         #expect(!restartedPending.contains {
-            $0.intent == .delete && $0.recordID == firstSave.recordID
+            $0.isAttachmentTombstone && $0.recordID == firstSave.recordID
         })
         #expect(try Data(contentsOf: firstSource.fileURL) == firstCommittedBytes)
 
@@ -621,9 +758,60 @@ import UniformTypeIdentifiers
         )
 
         let deletedAttachmentIDs = Set(secondSink.mutations.compactMap {
-            $0.recordKind == .attachment && $0.operation == .delete ? $0.recordID : nil
+            $0.isAttachmentTombstone ? $0.recordID : nil
         })
         #expect(deletedAttachmentIDs == savedAttachmentIDs)
+    }
+
+    @Test func removingFirstYarnLabelKeepsSecondSlotAndIssuedVersion() throws {
+        let fixture = try SyncPublicationFixture()
+        let firstSink = RecordingSyncMutationSink()
+        let first = fixture.store(sink: firstSink)
+        let yarn = try #require(first.yarn(id: fixture.yarnID))
+        try first.updateYarn(
+            yarn,
+            photoChange: .unchanged,
+            labelPhotoChange: .replace(
+                first: try makeSyncPublicationJPEG(red: 0.3),
+                second: try makeSyncPublicationJPEG(red: 0.7)
+            )
+        )
+        let committed = try #require(first.yarn(id: fixture.yarnID))
+        let firstSlotID = committed.labelPhotoSlotIDs[0]
+        let secondSlotID = committed.labelPhotoSlotIDs[1]
+        let versionsBySlot: [String: SyncAttachmentVersion] = Dictionary(
+            uniqueKeysWithValues: firstSink.mutations.compactMap {
+                guard let version = $0.savedRecordVersion?.record.payload.attachment,
+                      version.slot.role == "yarn-label-photo" else { return nil }
+                return (version.slot.slotID, version)
+            }
+        )
+        let firstVersion = try #require(
+            versionsBySlot["label:\(firstSlotID.uuidString.lowercased())"]
+        )
+        let secondVersion = try #require(
+            versionsBySlot["label:\(secondSlotID.uuidString.lowercased())"]
+        )
+
+        let secondSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: secondSink)
+        let restartedYarn = try #require(restarted.yarn(id: fixture.yarnID))
+        try restarted.updateYarn(
+            restartedYarn,
+            photoChange: .unchanged,
+            labelPhotoChange: .retainExisting([restartedYarn.labelPhotoFilenames[1]])
+        )
+
+        let attachmentMutations = secondSink.mutations.filter {
+            $0.recordKind == .attachment
+        }
+        #expect(attachmentMutations.count == 1)
+        #expect(attachmentMutations[0].isAttachmentTombstone)
+        #expect(attachmentMutations[0].recordID.uuid == firstVersion.versionID)
+        #expect(!attachmentMutations.contains {
+            $0.recordID.uuid == secondVersion.versionID
+        })
+        #expect(restarted.yarn(id: fixture.yarnID)?.labelPhotoSlotIDs == [secondSlotID])
     }
 
     @Test func journalPhotoPairPublishesStableAttachmentSavesAndDeletes() async throws {
@@ -648,7 +836,7 @@ import UniformTypeIdentifiers
         try second.deleteJournalEntry(projectID: fixture.projectID, entryID: entry.id)
 
         let deletedAttachmentIDs = Set(secondSink.mutations.compactMap {
-            $0.recordKind == .attachment && $0.operation == .delete ? $0.recordID : nil
+            $0.isAttachmentTombstone ? $0.recordID : nil
         })
         #expect(deletedAttachmentIDs == savedAttachmentIDs)
     }
@@ -681,7 +869,7 @@ import UniformTypeIdentifiers
         )
 
         let deleted = try #require(secondSink.mutations.onlyAttachment)
-        #expect(deleted.operation == .delete)
+        #expect(deleted.isAttachmentTombstone)
         #expect(deleted.recordID == saved.recordID)
         #expect(try second.loadPatternMarkup(usageID: usageID, pageIndex: 2).strokes.isEmpty)
     }
@@ -720,7 +908,7 @@ import UniformTypeIdentifiers
         )
 
         let deleted = try #require(secondSink.mutations.onlyAttachment)
-        #expect(deleted.operation == .delete)
+        #expect(deleted.isAttachmentTombstone)
         #expect(deleted.recordID == saved.recordID)
     }
 
@@ -841,7 +1029,7 @@ import UniformTypeIdentifiers
         try deleting.delete(id: fixture.projectID)
 
         #expect(deletionSink.mutations.contains {
-            $0.operation == .delete && $0.recordID == markupID
+            $0.isAttachmentTombstone && $0.recordID == markupID
         })
         #expect(!FileManager.default.fileExists(
             atPath: fixture.usageMarkupURL(usageID: usageID, pageIndex: 8).path
@@ -867,7 +1055,7 @@ import UniformTypeIdentifiers
         try deleting.deletePattern(projectID: fixture.projectID, id: patternID)
 
         let attachmentDeletes = deletionSink.mutations.filter {
-            $0.operation == .delete && $0.recordKind == .attachment
+            $0.isAttachmentTombstone
         }
         #expect(attachmentDeletes.count == 1)
         #expect(attachmentDeletes.contains { $0.recordID == markupID })
@@ -1486,6 +1674,12 @@ private extension SyncMutation {
         case .save: .save
         case .delete: .delete
         }
+    }
+
+    var isAttachmentTombstone: Bool {
+        recordKind == .attachment
+            && savedRecordVersion?.record.deletedAt.value != nil
+            && attachmentSource == nil
     }
 
 }

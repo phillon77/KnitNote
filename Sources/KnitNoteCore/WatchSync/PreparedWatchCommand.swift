@@ -115,9 +115,15 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
         }
         guard prepared.command.schemaVersion == WatchCounterCommand.currentSchemaVersion,
               prepared.command.hasValidPayload else {
-            ledger.record(prepared.command.id, rejection: .unsupportedSchema, at: now)
+            ledger.record(
+                prepared.command.id,
+                rejection: .unsupportedSchema,
+                command: prepared.command,
+                at: now
+            )
             try ledgerFile.save(ledger)
             try removePreparedCommand(at: preparedCommandURL)
+            try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
             return .ready
         }
         guard
@@ -225,8 +231,14 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             guard !ledger.requiresFreshHandshake else {
                 throw WatchCommandPersistenceError.requiresFreshHandshake
             }
-            ledger.record(command.id, rejection: .unsupportedSchema, at: now)
+            ledger.record(
+                command.id,
+                rejection: .unsupportedSchema,
+                command: command,
+                at: now
+            )
             try ledgerFile.save(ledger)
+            try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
             return try watchAcknowledgement(
                 for: command.id,
                 rejection: .unsupportedSchema,
@@ -272,6 +284,9 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                 now: now
             )
             try ledgerFile.save(ledger)
+            if acknowledgement.rejection != nil {
+                try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
+            }
             return acknowledgement
         }
 
@@ -284,6 +299,9 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                 now: now
             )
             try ledgerFile.save(ledger)
+            if acknowledgement.rejection != nil {
+                try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
+            }
             return acknowledgement
         }
 

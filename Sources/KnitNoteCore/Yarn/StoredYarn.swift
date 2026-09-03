@@ -140,6 +140,9 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
     public private(set) var recommendedNeedleMM: YarnMetricRange?
     public private(set) var recommendedHookMM: YarnMetricRange?
     public private(set) var labelPhotoFilenames: [String]
+    /// Stable semantic identities paired by index with `labelPhotoFilenames`.
+    /// Unlike array positions, these survive removal of an earlier label.
+    public private(set) var labelPhotoSlotIDs: [UUID]
     public private(set) var remainingBalls: Decimal?
     public private(set) var remainingGrams: Decimal?
     public private(set) var storageLocation: String?
@@ -163,6 +166,7 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         case recommendedNeedleMM
         case recommendedHookMM
         case labelPhotoFilenames
+        case labelPhotoSlotIDs
         case remainingBalls
         case remainingGrams
         case storageLocation
@@ -190,6 +194,7 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         recommendedNeedleMM = nil
         recommendedHookMM = nil
         labelPhotoFilenames = []
+        labelPhotoSlotIDs = []
         remainingBalls = nil
         remainingGrams = nil
         storageLocation = nil
@@ -233,6 +238,10 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
             [String].self,
             forKey: .labelPhotoFilenames
         ) ?? []
+        labelPhotoSlotIDs = try values.decodeIfPresent(
+            [UUID].self,
+            forKey: .labelPhotoSlotIDs
+        ) ?? labelPhotoFilenames.compactMap(Self.legacyLabelPhotoSlotID)
         remainingBalls = try values.decodeIfPresent(Decimal.self, forKey: .remainingBalls)
         remainingGrams = try values.decodeIfPresent(Decimal.self, forKey: .remainingGrams)
 
@@ -269,6 +278,14 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
                 forKey: .labelPhotoFilenames,
                 in: values,
                 debugDescription: "Yarn label photos must be managed files owned by this yarn."
+            )
+        }
+        guard labelPhotoSlotIDs.count == labelPhotoFilenames.count,
+              Set(labelPhotoSlotIDs).count == labelPhotoSlotIDs.count else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .labelPhotoSlotIDs,
+                in: values,
+                debugDescription: "Yarn label photo slot identities must be complete and unique."
             )
         }
 
@@ -367,6 +384,26 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
             throw YarnValidationError.invalidLabelPhotoFilenames
         }
         guard labelPhotoFilenames != filenames else { return }
+        let existingByFilename = Dictionary(
+            uniqueKeysWithValues: zip(labelPhotoFilenames, labelPhotoSlotIDs).map { ($0, $1) }
+        )
+        let existingByOrdinal: [Character: UUID] = Dictionary(
+            uniqueKeysWithValues: zip(labelPhotoFilenames, labelPhotoSlotIDs).compactMap {
+                guard let ordinal = Self.labelPhotoOrdinal($0.0) else { return nil }
+                return (ordinal, $0.1)
+            }
+        )
+        var used: Set<UUID> = []
+        labelPhotoSlotIDs = filenames.map { filename in
+            let candidate = existingByFilename[filename]
+                ?? Self.labelPhotoOrdinal(filename).flatMap { existingByOrdinal[$0] }
+                ?? Self.legacyLabelPhotoSlotID(filename)
+                ?? UUID()
+            if used.insert(candidate).inserted { return candidate }
+            let fresh = UUID()
+            used.insert(fresh)
+            return fresh
+        }
         labelPhotoFilenames = filenames
         updatedAt = now
     }
@@ -400,6 +437,24 @@ public struct StoredYarn: Codable, Equatable, Identifiable, Sendable {
         let ordinal = remainder[..<separator]
         let imageID = remainder[remainder.index(after: separator)...]
         return (ordinal == "1" || ordinal == "2") && UUID(uuidString: String(imageID)) != nil
+    }
+
+    private static func labelPhotoOrdinal(_ filename: String) -> Character? {
+        guard filename.hasSuffix(".jpg") else { return nil }
+        let stem = filename.dropLast(4)
+        guard let marker = stem.range(of: "-label-") else { return nil }
+        return stem[marker.upperBound...].first
+    }
+
+    private static func legacyLabelPhotoSlotID(_ filename: String) -> UUID? {
+        guard filename.hasSuffix(".jpg") else { return nil }
+        let stem = filename.dropLast(4)
+        guard let marker = stem.range(of: "-label-") else { return nil }
+        let suffix = stem[marker.upperBound...]
+        guard suffix.count > 2,
+              (suffix.first == "1" || suffix.first == "2"),
+              suffix[suffix.index(after: suffix.startIndex)] == "-" else { return nil }
+        return UUID(uuidString: String(suffix.dropFirst(2)))
     }
 
     private static func areValidLabelPhotoFilenames(_ filenames: [String], yarnID: UUID) -> Bool {

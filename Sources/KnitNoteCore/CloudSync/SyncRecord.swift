@@ -80,11 +80,84 @@ public struct SyncRecordPayload: Codable, Equatable, Sendable {
 /// The complete state for one counter-owned synchronization domain. A smart
 /// reminders and Watch exactly-once metadata travel with their counter so a
 /// merge can never assemble a state that did not exist on either device.
+public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
+    public let id: UUID
+    public let counterID: UUID
+    public let rejection: WatchCommandRejection?
+    public let commandIdentity: ProcessedWatchCommandIdentity?
+    public let preparedCommand: PreparedWatchCommand?
+    public let effectProof: ProcessedWatchCommandEffectProof?
+
+    public init(
+        id: UUID,
+        counterID: UUID? = nil,
+        rejection: WatchCommandRejection?,
+        commandIdentity: ProcessedWatchCommandIdentity? = nil,
+        preparedCommand: PreparedWatchCommand?,
+        effectProof: ProcessedWatchCommandEffectProof?
+    ) throws {
+        guard let resolvedCounterID = counterID
+                ?? commandIdentity?.counterID
+                ?? preparedCommand?.command.counterID
+                ?? effectProof?.counter.id else {
+            throw SyncRecordVersionError.corrupt
+        }
+        self.id = id
+        self.counterID = resolvedCounterID
+        self.rejection = rejection
+        self.commandIdentity = commandIdentity
+            ?? preparedCommand.map { ProcessedWatchCommandIdentity($0.command) }
+        self.preparedCommand = preparedCommand
+        self.effectProof = effectProof
+        _ = try validated()
+    }
+
+    init?(entry: ProcessedWatchCommandLedger.Entry) throws {
+        guard let counterID = entry.commandIdentity?.counterID
+                ?? entry.preparedCommand?.command.counterID
+                ?? entry.effectProof?.counter.id else { return nil }
+        try self.init(
+            id: entry.id,
+            counterID: counterID,
+            rejection: entry.rejection,
+            commandIdentity: entry.commandIdentity,
+            preparedCommand: entry.preparedCommand,
+            effectProof: entry.effectProof
+        )
+    }
+
+    func validated() throws -> Self {
+        guard (commandIdentity == nil || commandIdentity?.id == id),
+              (commandIdentity == nil || commandIdentity?.counterID == counterID),
+              (preparedCommand == nil || preparedCommand?.command.id == id),
+              (preparedCommand == nil || preparedCommand?.command.counterID == counterID),
+              (commandIdentity == nil || preparedCommand == nil
+                  || commandIdentity == preparedCommand.map {
+                      ProcessedWatchCommandIdentity($0.command)
+                  }),
+              (effectProof == nil || effectProof?.counter.id == counterID) else {
+            throw SyncRecordVersionError.corrupt
+        }
+        if rejection == nil {
+            guard preparedCommand != nil, effectProof != nil else {
+                throw SyncRecordVersionError.corrupt
+            }
+        } else {
+            guard effectProof == nil,
+                  commandIdentity != nil || preparedCommand != nil else {
+                throw SyncRecordVersionError.corrupt
+            }
+        }
+        return self
+    }
+}
+
 public struct SyncCounterReminderState: Codable, Equatable, Sendable {
     public let counter: ProjectCounter
     public let reminders: [KnittingReminder]
     public let preparedCommand: PreparedWatchCommand?
     public let processedCommandIDs: Set<UUID>
+    public let processedCommandProofs: [SyncProcessedWatchCommandProof]
     public let occurrence: Int?
 
     /// Source-compatible convenience for callers which are already scoped to
@@ -97,12 +170,16 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
         reminders: [KnittingReminder],
         preparedCommand: PreparedWatchCommand?,
         processedCommandIDs: Set<UUID>,
+        processedCommandProofs: [SyncProcessedWatchCommandProof] = [],
         occurrence: Int?
     ) {
         self.counter = counter
         self.reminders = reminders.sorted { $0.id.uuidString < $1.id.uuidString }
         self.preparedCommand = preparedCommand
         self.processedCommandIDs = processedCommandIDs
+        self.processedCommandProofs = processedCommandProofs.sorted {
+            $0.id.uuidString < $1.id.uuidString
+        }
         self.occurrence = occurrence
     }
 
@@ -111,6 +188,7 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
         reminder: KnittingReminder?,
         preparedCommand: PreparedWatchCommand?,
         processedCommandIDs: Set<UUID>,
+        processedCommandProofs: [SyncProcessedWatchCommandProof] = [],
         occurrence: Int?
     ) {
         self.init(
@@ -118,6 +196,7 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
             reminders: reminder.map { [$0] } ?? [],
             preparedCommand: preparedCommand,
             processedCommandIDs: processedCommandIDs,
+            processedCommandProofs: processedCommandProofs,
             occurrence: occurrence
         )
     }
@@ -128,6 +207,7 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
         case reminder
         case preparedCommand
         case processedCommandIDs
+        case processedCommandProofs
         case occurrence
     }
 
@@ -160,6 +240,27 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
                 debugDescription: "Duplicate processed Watch command ID"
             )
         }
+        processedCommandProofs = try container.decodeIfPresent(
+            [SyncProcessedWatchCommandProof].self,
+            forKey: .processedCommandProofs
+        ) ?? []
+        guard Set(processedCommandProofs.map(\.id)).count == processedCommandProofs.count,
+              Set(processedCommandProofs.map(\.id)).isSubset(of: processedCommandIDs) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .processedCommandProofs,
+                in: container,
+                debugDescription: "Processed Watch proofs must be unique and named by the ID set"
+            )
+        }
+        do {
+            for proof in processedCommandProofs { _ = try proof.validated() }
+        } catch {
+            throw DecodingError.dataCorruptedError(
+                forKey: .processedCommandProofs,
+                in: container,
+                debugDescription: "Invalid processed Watch command proof"
+            )
+        }
         occurrence = try container.decodeIfPresent(Int.self, forKey: .occurrence)
     }
 
@@ -171,6 +272,10 @@ public struct SyncCounterReminderState: Codable, Equatable, Sendable {
         try container.encode(
             processedCommandIDs.sorted { $0.uuidString < $1.uuidString },
             forKey: .processedCommandIDs
+        )
+        try container.encode(
+            processedCommandProofs.sorted { $0.id.uuidString < $1.id.uuidString },
+            forKey: .processedCommandProofs
         )
         try container.encodeIfPresent(occurrence, forKey: .occurrence)
     }

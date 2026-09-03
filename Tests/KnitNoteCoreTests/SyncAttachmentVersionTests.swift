@@ -90,6 +90,33 @@ import Testing
         }
     }
 
+    @Test func batchValidationRejectsAttachmentReplacementCycles() throws {
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "cover"
+        )
+        let firstID = UUID()
+        let secondID = UUID()
+        let first = try attachmentRecord(
+            slot: slot,
+            versionID: firstID,
+            content: Data(repeating: 0xA1, count: 32),
+            replacesVersionID: secondID
+        )
+        let second = try attachmentRecord(
+            slot: slot,
+            versionID: secondID,
+            content: Data(repeating: 0xB2, count: 32),
+            replacesVersionID: firstID
+        )
+
+        let expectedCycleID = [firstID, secondID].min { $0.uuidString < $1.uuidString }!
+        #expect(throws: SyncRecordValidationError.cyclicAttachmentReplacement(expectedCycleID)) {
+            _ = try SyncRecordValidator().validate([first, second])
+        }
+    }
+
     private func attachmentRecord(
         slot: SyncAttachmentSlot,
         versionID: UUID,

@@ -26,6 +26,7 @@ import Testing
         #expect(yarn.recommendedNeedleMM == nil)
         #expect(yarn.recommendedHookMM == nil)
         #expect(yarn.labelPhotoFilenames.isEmpty)
+        #expect(yarn.labelPhotoSlotIDs.isEmpty)
     }
 
     @Test func metricRangeRejectsNegativeOrDescendingValues() {
@@ -78,6 +79,8 @@ import Testing
 
         try yarn.setLabelPhotoFilenames([first, second])
         #expect(yarn.labelPhotoFilenames == [first, second])
+        #expect(yarn.labelPhotoSlotIDs.count == 2)
+        #expect(Set(yarn.labelPhotoSlotIDs).count == 2)
 
         #expect(throws: YarnValidationError.invalidLabelPhotoFilenames) {
             try yarn.setLabelPhotoFilenames([first, second, first])
@@ -85,5 +88,36 @@ import Testing
         #expect(throws: YarnValidationError.invalidLabelPhotoFilenames) {
             try yarn.setLabelPhotoFilenames(["../outside.jpg"])
         }
+    }
+
+    @Test func removingFirstLabelPreservesSecondLabelsStableSlotIdentity() throws {
+        var yarn = try StoredYarn(name: "Merino")
+        let first = "\(yarn.id.uuidString)-label-1-\(UUID().uuidString).jpg"
+        let second = "\(yarn.id.uuidString)-label-2-\(UUID().uuidString).jpg"
+        try yarn.setLabelPhotoFilenames([first, second])
+        let retainedSlot = yarn.labelPhotoSlotIDs[1]
+
+        try yarn.setLabelPhotoFilenames([second])
+
+        #expect(yarn.labelPhotoFilenames == [second])
+        #expect(yarn.labelPhotoSlotIDs == [retainedSlot])
+    }
+
+    @Test func legacyLabelPhotosDeriveStableSlotsAcrossRepeatedDecode() throws {
+        var yarn = try StoredYarn(name: "Legacy")
+        let first = "\(yarn.id.uuidString)-label-1-\(UUID().uuidString).jpg"
+        let second = "\(yarn.id.uuidString)-label-2-\(UUID().uuidString).jpg"
+        try yarn.setLabelPhotoFilenames([first, second])
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(yarn)) as? [String: Any]
+        )
+        object.removeValue(forKey: "labelPhotoSlotIDs")
+        let legacyBytes = try JSONSerialization.data(withJSONObject: object)
+
+        let firstDecode = try JSONDecoder().decode(StoredYarn.self, from: legacyBytes)
+        let secondDecode = try JSONDecoder().decode(StoredYarn.self, from: legacyBytes)
+
+        #expect(firstDecode.labelPhotoSlotIDs == secondDecode.labelPhotoSlotIDs)
+        #expect(firstDecode.labelPhotoSlotIDs.count == 2)
     }
 }

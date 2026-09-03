@@ -51,9 +51,11 @@ public struct SyncPublicationProjector {
     private let deviceID: String
     private let preparedWatchCommand: PreparedWatchCommand?
     private let processedWatchLedger: ProcessedWatchCommandLedger
+    private let processedWatchProofs: [SyncProcessedWatchCommandProof]
     private let reusing: SyncPublicationProjectionCache?
     private let attachmentReferences: AttachmentReferences
     private let issuedAttachmentVersions: [SyncAttachmentSlot: SyncAttachmentVersion]
+    private let deletedAttachmentVersionIDs: Set<UUID>
     private let fileReader: any SyncRegularFileReading
     private let now: () -> Date
     private let makeUUID: () -> UUID
@@ -62,9 +64,11 @@ public struct SyncPublicationProjector {
         deviceID: String,
         preparedWatchCommand: PreparedWatchCommand? = nil,
         processedWatchLedger: ProcessedWatchCommandLedger = .init(),
+        processedWatchProofs: [SyncProcessedWatchCommandProof] = [],
         reusing: SyncPublicationProjectionCache? = nil,
         attachmentReferences: @escaping AttachmentReferences,
         issuedAttachmentVersions: [SyncAttachmentSlot: SyncAttachmentVersion],
+        deletedAttachmentVersionIDs: Set<UUID> = [],
         fileReader: any SyncRegularFileReading = SyncRegularFileReader(),
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init
@@ -72,9 +76,11 @@ public struct SyncPublicationProjector {
         self.deviceID = deviceID
         self.preparedWatchCommand = preparedWatchCommand
         self.processedWatchLedger = processedWatchLedger
+        self.processedWatchProofs = processedWatchProofs
         self.reusing = reusing
         self.attachmentReferences = attachmentReferences
         self.issuedAttachmentVersions = issuedAttachmentVersions
+        self.deletedAttachmentVersionIDs = deletedAttachmentVersionIDs
         self.fileReader = fileReader
         self.now = now
         self.makeUUID = makeUUID
@@ -89,22 +95,24 @@ public struct SyncPublicationProjector {
         if let reusing {
             originalRecords = reusing.records
         } else {
-            originalRecords = try SyncPublicationSnapshot(
+            originalRecords = try SyncCanonicalPublicationSnapshot(
                 archive: before,
                 deviceID: deviceID,
                 preparedWatchCommand: preparedWatchCommand,
-                processedWatchLedger: processedWatchLedger
+                processedWatchLedger: processedWatchLedger,
+                processedWatchProofs: processedWatchProofs
             ).records
         }
         let originalCache = SyncPublicationProjectionCache(
             archive: before,
             records: originalRecords
         )
-        let committedRecords = try SyncPublicationSnapshot(
+        let committedRecords = try SyncCanonicalPublicationSnapshot(
             archive: after,
             deviceID: deviceID,
             preparedWatchCommand: preparedWatchCommand,
             processedWatchLedger: processedWatchLedger,
+            processedWatchProofs: processedWatchProofs,
             reusing: originalCache
         ).records
         let attachmentProjection = try projectAttachments(
@@ -186,6 +194,7 @@ public struct SyncPublicationProjector {
             let pathStatus = try regularFileStatus(at: reference.sourceURL)
 
             if let oldEntry, let issued,
+               !deletedAttachmentVersionIDs.contains(issued.versionID),
                oldEntry.versionID == issued.versionID,
                oldEntry.contentSHA256 == issued.contentSHA256,
                oldEntry.byteCount == issued.byteCount,
@@ -228,7 +237,7 @@ public struct SyncPublicationProjector {
             }
 
             let keepsIssuedVersion: Bool
-            if let issued {
+            if let issued, !deletedAttachmentVersionIDs.contains(issued.versionID) {
                 let bytesMatch = issued.byteCount == read.byteCount
                     && issued.contentSHA256 == read.sha256
                 if let oldEntry {
@@ -305,9 +314,11 @@ public struct SyncPublicationProjector {
             // A before-archive reference without Task 2 issuance evidence is
             // legacy local content. Never invent an attachment delete for it.
             guard let issued else { continue }
-            mutations.append(.delete(
-                .init(kind: .attachment, uuid: issued.versionID),
-                mutationID: makeUUID()
+            mutations.append(try saveMutation(
+                version: issued,
+                reference: nil,
+                mutationID: makeUUID(),
+                deletedAt: now()
             ))
         }
 
@@ -320,8 +331,9 @@ public struct SyncPublicationProjector {
 
     private func saveMutation(
         version: SyncAttachmentVersion,
-        reference: SyncAttachmentReference,
-        mutationID: UUID
+        reference: SyncAttachmentReference?,
+        mutationID: UUID,
+        deletedAt: Date? = nil
     ) throws -> SyncMutation {
         let modifiedAt = now()
         let stamp = SyncMutationStamp(
@@ -339,15 +351,17 @@ public struct SyncPublicationProjector {
                 "slotID": .init(value: .string(version.slot.slotID), stamp: stamp)
             ], attachment: version),
             relationships: [.init(role: "owner", target: version.slot.owner)],
-            deletedAt: .init(value: nil, stamp: stamp)
+            deletedAt: .init(value: deletedAt, stamp: stamp)
         )
         return try .save(
             recordVersion: SyncRecordVersion(record: record),
-            attachmentSource: SyncAttachmentSource(
-                fileURL: reference.sourceURL,
-                contentSHA256: version.contentSHA256,
-                byteCount: version.byteCount
-            ),
+            attachmentSource: try reference.map {
+                try SyncAttachmentSource(
+                    fileURL: $0.sourceURL,
+                    contentSHA256: version.contentSHA256,
+                    byteCount: version.byteCount
+                )
+            },
             mutationID: mutationID
         )
     }
@@ -470,7 +484,7 @@ func syncAttachmentSlotIsOrderedBefore(
     )
 }
 
-private struct SyncPublicationSnapshot {
+struct SyncCanonicalPublicationSnapshot {
     var records: [SyncEntityID: SyncRecord] = [:]
 
     init(
@@ -478,6 +492,7 @@ private struct SyncPublicationSnapshot {
         deviceID: String,
         preparedWatchCommand: PreparedWatchCommand? = nil,
         processedWatchLedger: ProcessedWatchCommandLedger = .init(),
+        processedWatchProofs: [SyncProcessedWatchCommandProof] = [],
         reusing cache: SyncPublicationProjectionCache? = nil
     ) throws {
         let encoder = JSONEncoder()
@@ -601,9 +616,6 @@ private struct SyncPublicationSnapshot {
                 let prepared = preparedWatchCommand.flatMap {
                     $0.command.counterID == counter.id ? $0 : nil
                 }
-                let processedIDs = Set(processedWatchLedger.entries.compactMap { entry in
-                    entry.preparedCommand?.command.counterID == counter.id ? entry.id : nil
-                })
                 let cachedState: SyncCounterReminderState?
                 if case let .projectCounter(state)? =
                     cache?.records[counterID]?.payload.atomicDomain?.value {
@@ -611,12 +623,27 @@ private struct SyncPublicationSnapshot {
                 } else {
                     cachedState = nil
                 }
+                var proofsByID: [UUID: SyncProcessedWatchCommandProof] = [:]
+                for proof in processedWatchProofs
+                    + (cachedState?.processedCommandProofs ?? [])
+                    + processedWatchLedger.entries.compactMap({ try? .init(entry: $0) })
+                where proof.counterID == counter.id {
+                    if let existing = proofsByID[proof.id], existing != proof {
+                        throw SyncRecordVersionError.corrupt
+                    }
+                    proofsByID[proof.id] = proof
+                }
+                let processedProofs = proofsByID.values.sorted {
+                    $0.id.uuidString < $1.id.uuidString
+                }
+                let processedIDs = Set(processedProofs.map(\.id))
                 if !reuse(
                     counterID,
                     when: previousCounters[counter.id] == counter
                         && previousRemindersByCounter[counter.id] == reminders
                         && cachedState?.preparedCommand == prepared
                         && cachedState?.processedCommandIDs == processedIDs
+                        && cachedState?.processedCommandProofs == processedProofs
                 ) {
                     let aggregateRevision = max(
                         counter.mutationRevision,
@@ -640,6 +667,7 @@ private struct SyncPublicationSnapshot {
                             reminders: reminders,
                             preparedCommand: prepared,
                             processedCommandIDs: processedIDs,
+                            processedCommandProofs: processedProofs,
                             occurrence: prepared.flatMap { command in
                                 reminders.first { $0.id == command.expectedReminderID }?
                                     .progress.nextOccurrenceIndex
@@ -819,6 +847,7 @@ private struct SyncYarnProjection: Encodable, Equatable {
     let recommendedNeedleMM: YarnMetricRange?
     let recommendedHookMM: YarnMetricRange?
     let labelPhotoFilenames: [String]
+    let labelPhotoSlotIDs: [UUID]
     let remainingBalls: Decimal?
     let remainingGrams: Decimal?
     let storageLocation: String?
@@ -840,6 +869,7 @@ private struct SyncYarnProjection: Encodable, Equatable {
         recommendedNeedleMM = yarn.recommendedNeedleMM
         recommendedHookMM = yarn.recommendedHookMM
         labelPhotoFilenames = yarn.labelPhotoFilenames
+        labelPhotoSlotIDs = yarn.labelPhotoSlotIDs
         remainingBalls = yarn.remainingBalls
         remainingGrams = yarn.remainingGrams
         storageLocation = yarn.storageLocation

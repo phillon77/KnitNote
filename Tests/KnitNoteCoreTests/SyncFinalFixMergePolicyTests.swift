@@ -33,7 +33,7 @@ import Testing
         }
     }
 
-    @Test func distinctAttachmentSlotsDoNotConflictButDivergentVersionsOfOneSlotDo() throws {
+    @Test func distinctAttachmentSlotsAndSequentialVersionsDoNotConflict() throws {
         let owner = SyncEntityID(kind: .yarn, uuid: UUID())
         let firstLabel = try attachmentRecord(owner: owner, slotID: "label:0", bytes: Data("front".utf8))
         let secondLabel = try attachmentRecord(owner: owner, slotID: "label:1", bytes: Data("back".utf8))
@@ -51,18 +51,89 @@ import Testing
             bytes: Data("replacement".utf8),
             replaces: firstLabel.id.uuid
         )
-        let divergent = try SyncMergeEngine().merge(
+        let sequential = try SyncMergeEngine().merge(
             local: [firstLabel],
             remote: [replacement],
             pendingLocal: []
         )
-        #expect(divergent.conflicts == [
+        #expect(sequential.conflicts.isEmpty)
+        #expect(sequential.resolvedAttachmentVersionIDs[firstLabel.payload.attachment!.slot]
+            == replacement.id.uuid)
+    }
+
+    @Test func concurrentAttachmentHeadsSurfaceConflictAndResolveByCausalStamp() throws {
+        let owner = SyncEntityID(kind: .yarn, uuid: UUID())
+        let root = try attachmentRecord(
+            owner: owner, slotID: "label:stable", bytes: Data("root".utf8)
+        )
+        let olderFork = try attachmentRecord(
+            owner: owner, slotID: "label:stable", bytes: Data("older".utf8),
+            replaces: root.id.uuid, revision: 2, modifiedAt: 2, deviceID: "older"
+        )
+        let newerFork = try attachmentRecord(
+            owner: owner, slotID: "label:stable", bytes: Data("newer".utf8),
+            replaces: root.id.uuid, revision: 3, modifiedAt: 3, deviceID: "newer"
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [root, olderFork], remote: [newerFork], pendingLocal: []
+        )
+
+        #expect(result.conflicts == [
             .attachmentVersions(
                 owner: owner,
                 role: "yarn-label-photo",
-                ids: [firstLabel.id, replacement.id].sorted(by: entityLess)
+                ids: [olderFork.id, newerFork.id].sorted(by: entityLess)
             )
         ])
+        #expect(result.resolvedAttachmentVersionIDs[root.payload.attachment!.slot]
+            == newerFork.id.uuid)
+    }
+
+    @Test func deletingLatestAttachmentHeadDoesNotResurrectItsAncestor() throws {
+        let owner = SyncEntityID(kind: .yarn, uuid: UUID())
+        let root = try attachmentRecord(
+            owner: owner, slotID: "label:stable", bytes: Data("root".utf8)
+        )
+        let replacement = try attachmentRecord(
+            owner: owner, slotID: "label:stable", bytes: Data("replacement".utf8),
+            replaces: root.id.uuid, revision: 2, modifiedAt: 2, deviceID: "replacement",
+            deleted: true
+        )
+
+        let result = try SyncMergeEngine().merge(
+            local: [root], remote: [replacement], pendingLocal: []
+        )
+
+        #expect(result.conflicts.isEmpty)
+        #expect(result.resolvedAttachmentVersionIDs[root.payload.attachment!.slot] == nil)
+    }
+
+    @Test func legacyPendingAttachmentDeleteBecomesDurableTombstone() throws {
+        let owner = SyncEntityID(kind: .yarn, uuid: UUID())
+        let root = try attachmentRecord(
+            owner: owner, slotID: "label:stable", bytes: Data("root".utf8)
+        )
+        let replacement = try attachmentRecord(
+            owner: owner, slotID: "label:stable", bytes: Data("replacement".utf8),
+            replaces: root.id.uuid, revision: 2, modifiedAt: 2, deviceID: "replacement"
+        )
+        let mutationID = UUID()
+
+        let result = try SyncMergeEngine().merge(
+            local: [root, replacement],
+            remote: [],
+            pendingLocalMutations: [.delete(replacement.id, mutationID: mutationID)]
+        )
+
+        let uploaded = try #require(result.mutationsToUpload.first)
+        let tombstone = try #require(uploaded.savedRecordVersion?.record)
+        #expect(result.mutationsToUpload.count == 1)
+        #expect(uploaded.mutationID == mutationID)
+        #expect(tombstone.id == replacement.id)
+        #expect(tombstone.payload.attachment == replacement.payload.attachment)
+        #expect(tombstone.deletedAt.value != nil)
+        #expect(result.resolvedAttachmentVersionIDs[root.payload.attachment!.slot] == nil)
     }
 
     @Test func atomicCounterMergeRejectsStaleRevisionEvenWhenItsClockIsNewer() throws {
@@ -377,7 +448,11 @@ private func attachmentRecord(
     owner: SyncEntityID,
     slotID: String,
     bytes: Data,
-    replaces: UUID? = nil
+    replaces: UUID? = nil,
+    revision: UInt64? = nil,
+    modifiedAt: TimeInterval? = nil,
+    deviceID: String = "fixture",
+    deleted: Bool = false
 ) throws -> SyncRecord {
     let slot = SyncAttachmentSlot(owner: owner, role: "yarn-label-photo", slotID: slotID)
     let attachment = try SyncAttachmentVersion.issuing(
@@ -388,7 +463,12 @@ private func attachmentRecord(
         displayFilename: "label.jpg",
         replacesVersionID: replaces
     )
-    let recordStamp = stamp(revision: UInt64(bytes.count), device: "fixture")
+    let resolvedRevision = revision ?? UInt64(bytes.count)
+    let recordStamp = SyncMutationStamp(
+        logicalRevision: resolvedRevision,
+        modifiedAt: Date(timeIntervalSince1970: modifiedAt ?? TimeInterval(resolvedRevision)),
+        deviceID: deviceID
+    )
     return SyncRecord(
         schemaVersion: 1,
         id: .init(kind: .attachment, uuid: attachment.versionID),
@@ -396,7 +476,10 @@ private func attachmentRecord(
         entityRevision: recordStamp.logicalRevision,
         payload: .init(fields: [:], attachment: attachment),
         relationships: [.init(role: "owner", target: owner)],
-        deletedAt: .init(value: nil, stamp: recordStamp)
+        deletedAt: .init(
+            value: deleted ? Date(timeIntervalSince1970: modifiedAt ?? 1) : nil,
+            stamp: recordStamp
+        )
     )
 }
 

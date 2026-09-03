@@ -10,11 +10,42 @@ public struct ProcessedWatchCommandEffectProof: Codable, Equatable, Sendable {
     }
 }
 
+/// A schema-independent identity for a processed Watch command. Keeping the
+/// operation as its wire string and copying only bounded scalar fields lets an
+/// app retain and transfer rejection evidence even when it cannot decode the
+/// command's full schema.
+public struct ProcessedWatchCommandIdentity: Codable, Equatable, Sendable {
+    public let id: UUID
+    public let projectID: UUID
+    public let counterID: UUID
+    public let schemaVersion: Int
+    public let operation: String
+    public let reminderID: UUID?
+    public let occurrenceID: UUID?
+    public let observedMutationRevision: UInt64?
+    public let observedPendingCount: Int?
+    public let createdAt: Date
+
+    public init(_ command: WatchCounterCommand) {
+        id = command.id
+        projectID = command.projectID
+        counterID = command.counterID
+        schemaVersion = command.schemaVersion
+        operation = command.operation.rawValue
+        reminderID = command.reminderID
+        occurrenceID = command.occurrenceID
+        observedMutationRevision = command.observedMutationRevision
+        observedPendingCount = command.observedPendingCount
+        createdAt = command.createdAt
+    }
+}
+
 public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
     public struct Entry: Codable, Equatable, Sendable {
         public let id: UUID
         public let processedAt: Date
         public let rejection: WatchCommandRejection?
+        public let commandIdentity: ProcessedWatchCommandIdentity?
         public let preparedCommand: PreparedWatchCommand?
         public let effectProof: ProcessedWatchCommandEffectProof?
 
@@ -22,12 +53,16 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
             id: UUID,
             processedAt: Date,
             rejection: WatchCommandRejection? = nil,
+            command: WatchCounterCommand? = nil,
             preparedCommand: PreparedWatchCommand? = nil,
             effectProof: ProcessedWatchCommandEffectProof? = nil
         ) {
             self.id = id
             self.processedAt = processedAt
             self.rejection = rejection
+            commandIdentity = (command ?? preparedCommand?.command).map(
+                ProcessedWatchCommandIdentity.init
+            )
             self.preparedCommand = preparedCommand
             self.effectProof = effectProof
         }
@@ -52,6 +87,7 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
     public mutating func record(
         _ id: UUID,
         rejection: WatchCommandRejection? = nil,
+        command: WatchCounterCommand? = nil,
         preparedCommand: PreparedWatchCommand? = nil,
         effectProof: ProcessedWatchCommandEffectProof? = nil,
         at date: Date
@@ -61,6 +97,7 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
             id: id,
             processedAt: date,
             rejection: rejection,
+            command: command,
             preparedCommand: preparedCommand,
             effectProof: effectProof
         ))

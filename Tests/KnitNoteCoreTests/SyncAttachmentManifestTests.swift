@@ -45,10 +45,60 @@ import Testing
         let projection = try fixture.deleteAttachment(at: 211)
 
         #expect(fixture.readerCounters.hashedFileCount == 0)
-        #expect(projection.mutations == [
-            .delete(.init(kind: .attachment, uuid: deletedVersionID), mutationID: projection.mutations[0].mutationID)
-        ])
+        let tombstone = try #require(projection.mutations.single?.savedRecordVersion?.record)
+        let deletedAttachment = try #require(tombstone.payload.attachment)
+        #expect(tombstone.id == .init(kind: .attachment, uuid: deletedVersionID))
+        #expect(tombstone.deletedAt.value != nil)
+        #expect(deletedAttachment.versionID == deletedVersionID)
+        #expect(projection.mutations.single?.attachmentSource == nil)
         #expect(projection.attachmentManifest.count == 499)
+    }
+
+    @Test func tombstonedHeadIsNeverReusedEvenWhenAStaleManifestStillMatches() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "sync-deleted-head-stale-manifest-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceURL = root.appendingPathComponent("photo.jpg")
+        try Data("attachment".utf8).write(to: sourceURL)
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "primary"
+        )
+        let reference = SyncAttachmentReference(
+            slot: slot,
+            sourceURL: sourceURL,
+            mediaType: "image/jpeg",
+            displayFilename: "photo.jpg"
+        )
+        let before = ProjectArchive(version: 1, projects: [])
+        let after = ProjectArchive(version: 2, projects: [])
+        let first = try SyncPublicationProjector(
+            deviceID: "device",
+            attachmentReferences: { $0.version == 1 ? [] : [reference] },
+            issuedAttachmentVersions: [:]
+        ).project(before: before, after: after, manifest: [:])
+        let issued = try #require(
+            first.mutations.single?.savedRecordVersion?.record.payload.attachment
+        )
+        let restoredVersionID = UUID()
+
+        let restored = try SyncPublicationProjector(
+            deviceID: "device",
+            attachmentReferences: { $0.version == 1 ? [] : [reference] },
+            issuedAttachmentVersions: [slot: issued],
+            deletedAttachmentVersionIDs: [issued.versionID],
+            makeUUID: { restoredVersionID }
+        ).project(before: before, after: after, manifest: first.attachmentManifest)
+
+        let replacement = try #require(
+            restored.mutations.single?.savedRecordVersion?.record.payload.attachment
+        )
+        #expect(replacement.versionID == restoredVersionID)
+        #expect(replacement.replacesVersionID == issued.versionID)
     }
 
     @Test func inodeReplacementWithIdenticalPathSizeAndMtimeRehashesAndIssuesNewVersion() throws {
@@ -165,12 +215,12 @@ import Testing
             manifest: restartedManifest,
             issuedVersions: [fixture.replacementReference.slot: issuedVersion]
         )
-        #expect(issuedDeletion.mutations == [
-            .delete(
-                .init(kind: .attachment, uuid: issuedVersion.versionID),
-                mutationID: issuedDeletion.mutations[0].mutationID
-            )
-        ])
+        let tombstone = try #require(issuedDeletion.mutations.single?.savedRecordVersion?.record)
+        let deletedAttachment = try #require(tombstone.payload.attachment)
+        #expect(tombstone.id == .init(kind: .attachment, uuid: issuedVersion.versionID))
+        #expect(tombstone.deletedAt.value != nil)
+        #expect(deletedAttachment == issuedVersion)
+        #expect(issuedDeletion.mutations.single?.attachmentSource == nil)
     }
 }
 

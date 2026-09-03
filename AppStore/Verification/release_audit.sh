@@ -785,8 +785,8 @@ verify_declared_localizations "Main source" "$MAIN_INFO_PLIST"
 verify_declared_localizations "Watch source" "$WATCH_INFO_PLIST"
 verify_declared_localizations "Share source" "$SHARE_INFO_PLIST"
 
-EXPECTED_VERSION="1.6.0"
-EXPECTED_BUILD="12"
+EXPECTED_VERSION="1.7.0"
+EXPECTED_BUILD="13"
 for target in KnitNote KnitNoteWatch KnitNoteShare; do
   version="$(jq -er --arg target "$target" \
     '.targets[$target].settings.MARKETING_VERSION // .targets[$target].settings.base.MARKETING_VERSION' "$SPEC_JSON")"

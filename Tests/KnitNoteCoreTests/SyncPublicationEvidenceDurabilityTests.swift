@@ -71,6 +71,48 @@ import Testing
         }
     }
 
+    @Test func orphanProofEvidenceRenameFailurePreservesPriorAuthority() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        let firstCommand = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let secondCommand = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 2)
+        )
+        let firstMutation = try orphanProofMutation(
+            command: firstCommand,
+            rejection: .projectMissing,
+            processedAt: Date(timeIntervalSince1970: 3)
+        )
+        let secondMutation = try orphanProofMutation(
+            command: secondCommand,
+            rejection: .counterMissing,
+            processedAt: Date(timeIntervalSince1970: 4)
+        )
+        _ = try SyncAttachmentPublicationEvidenceFile(url: url)
+            .applying([firstMutation])
+        let failingWriter = SyncAttachmentPublicationEvidenceFile(
+            url: url,
+            beforeDurabilityBoundary: { boundary in
+                if boundary == .beforeRename { throw InjectedEvidenceFailure() }
+            }
+        )
+
+        #expect(throws: InjectedEvidenceFailure.self) {
+            _ = try failingWriter.applying([secondMutation])
+        }
+
+        let restarted = try SyncAttachmentPublicationEvidenceFile(url: url).load()
+        #expect(restarted.watchCommandProofs.map(\.id) == [firstCommand.id])
+        #expect(try restarted.watchCommandProof(for: firstCommand)?.rejection
+            == .projectMissing)
+        #expect(try restarted.watchCommandProof(for: secondCommand) == nil)
+    }
+
     @Test func separatelyLoadedEvidenceWritersMergeUnderTheExclusiveLock() throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -192,6 +234,52 @@ import Testing
                 contentSHA256: version.contentSHA256,
                 byteCount: version.byteCount
             ),
+            mutationID: UUID()
+        )
+    }
+
+    private func orphanProofMutation(
+        command: WatchCounterCommand,
+        rejection: WatchCommandRejection,
+        processedAt: Date
+    ) throws -> SyncMutation {
+        let processingStamp = SyncMutationStamp(
+            logicalRevision: 0,
+            modifiedAt: processedAt,
+            deviceID: "evidence-test"
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: rejection,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil,
+            processingStamp: processingStamp
+        )
+        let recordStamp = SyncMutationStamp(
+            logicalRevision: 1,
+            modifiedAt: processedAt,
+            deviceID: "evidence-test"
+        )
+        let record = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .watchCommandProof, uuid: command.id),
+            createdAt: command.createdAt,
+            entityRevision: recordStamp.logicalRevision,
+            payload: .init(
+                fields: [:],
+                atomicDomain: .init(
+                    value: .orphanWatchCommandProof(
+                        try SyncOrphanWatchCommandProof(proof: proof)
+                    ),
+                    stamp: recordStamp
+                )
+            ),
+            relationships: [],
+            deletedAt: .init(value: nil, stamp: recordStamp)
+        )
+        return try .save(
+            recordVersion: SyncRecordVersion(record: record),
             mutationID: UUID()
         )
     }

@@ -108,6 +108,16 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             return .ready
         }
 
+        if let proof = try durableWatchCommandProof(
+            for: prepared.command
+        ) {
+            try ensureMissingTargetWatchProofPublication(for: proof.rejection)
+            try cacheWatchCommandProof(proof, for: prepared.command, in: &ledger)
+            try ledgerFile.save(ledger)
+            try removePreparedCommand(at: preparedCommandURL)
+            return .ready
+        }
+
         if ledger.contains(prepared.command.id) {
             try removePreparedCommand(at: preparedCommandURL)
             try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
@@ -119,6 +129,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                 prepared.command.id,
                 rejection: .unsupportedSchema,
                 command: prepared.command,
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
             try ledgerFile.save(ledger)
@@ -146,6 +157,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                         prepared.command.id,
                         preparedCommand: prepared,
                         effectProof: watchCommandEffectProof(for: prepared),
+                        processingStamp: watchCommandProcessingStamp(at: now),
                         at: now
                     )
                 } else if !prepared.hasExpectedReminderState(in: project, counterID: counter.id) {
@@ -156,6 +168,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                         prepared.command.id,
                         preparedCommand: prepared,
                         effectProof: watchCommandEffectProof(for: prepared),
+                        processingStamp: watchCommandProcessingStamp(at: now),
                         at: now
                     )
                 } else {
@@ -169,6 +182,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                         prepared.command.id,
                         preparedCommand: prepared,
                         effectProof: watchCommandEffectProof(for: prepared),
+                        processingStamp: watchCommandProcessingStamp(at: now),
                         at: now
                     )
                 }
@@ -183,6 +197,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                     prepared.command.id,
                     preparedCommand: prepared,
                     effectProof: watchCommandEffectProof(for: prepared),
+                    processingStamp: watchCommandProcessingStamp(at: now),
                     at: now
                 )
             }
@@ -195,6 +210,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                 prepared.command.id,
                 preparedCommand: prepared,
                 effectProof: watchCommandEffectProof(for: prepared),
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
         } else {
@@ -235,6 +251,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
                 command.id,
                 rejection: .unsupportedSchema,
                 command: command,
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
             try ledgerFile.save(ledger)
@@ -286,6 +303,9 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             try ledgerFile.save(ledger)
             if acknowledgement.rejection != nil {
                 try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
+                try ensureMissingTargetWatchProofPublication(
+                    for: acknowledgement.rejection
+                )
             }
             return acknowledgement
         }
@@ -301,6 +321,9 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             try ledgerFile.save(ledger)
             if acknowledgement.rejection != nil {
                 try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
+                try ensureMissingTargetWatchProofPublication(
+                    for: acknowledgement.rejection
+                )
             }
             return acknowledgement
         }
@@ -341,6 +364,7 @@ public enum WatchCommandPersistenceBoundary: CaseIterable, Equatable, Sendable {
             effectProof: acknowledgement.rejection == nil
                 ? watchCommandEffectProof(for: prepared)
                 : nil,
+            processingStamp: watchCommandProcessingStamp(at: now),
             at: now
         )
         try failureInjector(.afterProjectArchiveSave)

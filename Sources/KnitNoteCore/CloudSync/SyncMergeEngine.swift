@@ -568,6 +568,7 @@ public struct SyncMergeEngine: Sendable {
         )
         mergedRecords = try validator.validate(converted.records)
         recordsToUpload.formUnion(converted.mutations.map(\.recordID))
+        try validateWatchCommandProofConsistency(in: mergedRecords)
         try validateCounterReminderContext(
             records: mergedRecords,
             context: counterReminderContext
@@ -585,6 +586,27 @@ public struct SyncMergeEngine: Sendable {
             mutationsToUpload: converted.mutations,
             resolvedAttachmentVersionIDs: attachmentLineage.resolvedLiveVersionIDs()
         )
+    }
+
+    private func validateWatchCommandProofConsistency(in records: [SyncRecord]) throws {
+        var proofsByID: [UUID: SyncProcessedWatchCommandProof] = [:]
+        for record in records {
+            let proofs: [SyncProcessedWatchCommandProof]
+            switch record.payload.atomicDomain?.value {
+            case let .projectCounter(state):
+                proofs = state.processedCommandProofs
+            case let .orphanWatchCommandProof(orphan):
+                proofs = [orphan.proof]
+            case .knittingReminder, nil:
+                proofs = []
+            }
+            for proof in proofs {
+                if let existing = proofsByID[proof.id], existing != proof {
+                    throw SyncMergeError.processedWatchCommandWouldRegress(proof.id)
+                }
+                proofsByID[proof.id] = proof
+            }
+        }
     }
 
     private func legacyReminderMigrationPlan(

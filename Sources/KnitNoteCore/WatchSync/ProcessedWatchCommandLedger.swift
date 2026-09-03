@@ -48,6 +48,7 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
         public let commandIdentity: ProcessedWatchCommandIdentity?
         public let preparedCommand: PreparedWatchCommand?
         public let effectProof: ProcessedWatchCommandEffectProof?
+        public let processingStamp: SyncMutationStamp?
 
         public init(
             id: UUID,
@@ -55,7 +56,8 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
             rejection: WatchCommandRejection? = nil,
             command: WatchCounterCommand? = nil,
             preparedCommand: PreparedWatchCommand? = nil,
-            effectProof: ProcessedWatchCommandEffectProof? = nil
+            effectProof: ProcessedWatchCommandEffectProof? = nil,
+            processingStamp: SyncMutationStamp? = nil
         ) {
             self.id = id
             self.processedAt = processedAt
@@ -65,6 +67,7 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
             )
             self.preparedCommand = preparedCommand
             self.effectProof = effectProof
+            self.processingStamp = processingStamp
         }
     }
 
@@ -90,6 +93,7 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
         command: WatchCounterCommand? = nil,
         preparedCommand: PreparedWatchCommand? = nil,
         effectProof: ProcessedWatchCommandEffectProof? = nil,
+        processingStamp: SyncMutationStamp? = nil,
         at date: Date
     ) {
         entries.removeAll { $0.id == id }
@@ -99,7 +103,8 @@ public struct ProcessedWatchCommandLedger: Codable, Equatable, Sendable {
             rejection: rejection,
             command: command,
             preparedCommand: preparedCommand,
-            effectProof: effectProof
+            effectProof: effectProof,
+            processingStamp: processingStamp
         ))
         prune(now: date)
     }

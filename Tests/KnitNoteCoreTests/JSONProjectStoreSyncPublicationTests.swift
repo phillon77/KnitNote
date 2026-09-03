@@ -226,7 +226,12 @@ import UniformTypeIdentifiers
             rejection: .projectMissing,
             commandIdentity: .init(command),
             preparedCommand: nil,
-            effectProof: nil
+            effectProof: nil,
+            processingStamp: .init(
+                logicalRevision: 0,
+                modifiedAt: Date(timeIntervalSince1970: 41),
+                deviceID: "orphan-proof-test"
+            )
         )
         let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
         let projector = SyncPublicationProjector(
@@ -263,7 +268,12 @@ import UniformTypeIdentifiers
             rejection: .counterMissing,
             commandIdentity: .init(command),
             preparedCommand: nil,
-            effectProof: nil
+            effectProof: nil,
+            processingStamp: .init(
+                logicalRevision: 0,
+                modifiedAt: Date(timeIntervalSince1970: 44),
+                deviceID: "orphan-proof-test"
+            )
         )
         let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
         let projector = SyncPublicationProjector(
@@ -280,6 +290,428 @@ import UniformTypeIdentifiers
         #expect(published.payload.atomicDomain?.value == .orphanWatchCommandProof(
             try SyncOrphanWatchCommandProof(proof: proof)
         ))
+    }
+
+    @Test func orphanProofReusesOriginatingProcessingStampAcrossProjectors() throws {
+        // Production break caught: rebuilding an orphan record with the current
+        // projector device rewrites immutable provenance after transfer.
+        let command = WatchCounterCommand(
+            id: UUID(),
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 44)
+        )
+        let processedAt = Date(timeIntervalSince1970: 45)
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(
+            command.id,
+            rejection: .projectMissing,
+            command: command,
+            at: processedAt
+        )
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
+        let originProjection = try SyncPublicationProjector(
+            deviceID: "originating-device",
+            processedWatchLedger: ledger,
+            reusing: .init(archive: archive, records: [:]),
+            attachmentReferences: { _ in [] },
+            issuedAttachmentVersions: [:]
+        ).project(before: archive, after: archive, manifest: [:])
+        let originRecord = try #require(originProjection.mutations
+            .compactMap(\.savedRecordVersion?.record)
+            .first { $0.id == .init(kind: .watchCommandProof, uuid: command.id) })
+        guard case let .orphanWatchCommandProof(originAuthority)? =
+                originRecord.payload.atomicDomain?.value else {
+            Issue.record("Missing originating orphan proof")
+            return
+        }
+
+        let freshProjection = try SyncPublicationProjector(
+            deviceID: "fresh-device",
+            processedWatchProofs: [originAuthority.proof],
+            reusing: .init(archive: archive, records: [:]),
+            attachmentReferences: { _ in [] },
+            issuedAttachmentVersions: [:]
+        ).project(before: archive, after: archive, manifest: [:])
+        let freshRecord = try #require(freshProjection.mutations
+            .compactMap(\.savedRecordVersion?.record)
+            .first { $0.id == originRecord.id })
+
+        #expect(originRecord.payload.atomicDomain?.stamp.modifiedAt == processedAt)
+        #expect(originRecord.payload.atomicDomain?.stamp.deviceID == "originating-device")
+        #expect(freshRecord.payload.atomicDomain?.stamp == originRecord.payload.atomicDomain?.stamp)
+    }
+
+    @Test func unchangedOrphanAuthorityReusesItsCausallyStampedCacheRecord() throws {
+        // Production break caught: regenerating a canonical revision-zero
+        // orphan over a causally stamped cache republishes unchanged metadata.
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 45)
+        )
+        let proof = try makeOrphanWatchProof(
+            command: command,
+            rejection: .projectMissing,
+            processedAt: Date(timeIntervalSince1970: 46),
+            deviceID: "originating-device"
+        )
+        let publicationStamp = SyncMutationStamp(
+            logicalRevision: 7,
+            modifiedAt: Date(timeIntervalSince1970: 46),
+            deviceID: "publishing-device"
+        )
+        let recordID = SyncEntityID(kind: .watchCommandProof, uuid: command.id)
+        let cachedRecord = SyncRecord(
+            schemaVersion: 1,
+            id: recordID,
+            createdAt: command.createdAt,
+            entityRevision: publicationStamp.logicalRevision,
+            payload: .init(
+                fields: [:],
+                atomicDomain: .init(
+                    value: .orphanWatchCommandProof(
+                        try SyncOrphanWatchCommandProof(proof: proof)
+                    ),
+                    stamp: publicationStamp
+                )
+            ),
+            relationships: [],
+            deletedAt: .init(value: nil, stamp: publicationStamp)
+        )
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
+
+        let projected = try SyncPublicationProjector(
+            deviceID: "fresh-device",
+            processedWatchProofs: [proof],
+            reusing: .init(archive: archive, records: [recordID: cachedRecord]),
+            attachmentReferences: { _ in [] },
+            issuedAttachmentVersions: [:]
+        ).project(before: archive, after: archive, manifest: [:])
+
+        #expect(projected.mutations.isEmpty)
+        #expect(projected.cache.records[recordID] == cachedRecord)
+    }
+
+    @Test func standaloneOrphanProofRemainsWhenItsCounterReappears() throws {
+        // Production break caught: treating a reappeared counter as the new
+        // owner deletes the standalone missing-target authority.
+        let projectID = UUID()
+        let counterID = UUID()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 46)
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: .counterMissing,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil,
+            processingStamp: .init(
+                logicalRevision: 0,
+                modifiedAt: Date(timeIntervalSince1970: 47),
+                deviceID: "originating-device"
+            )
+        )
+        let project = try StoredProject(
+            id: projectID,
+            name: "Reappeared",
+            counters: [ProjectCounter(id: counterID, defaultOrdinal: 1)]
+        )
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [project]
+        )
+        let projection = try SyncPublicationProjector(
+            deviceID: "fresh-device",
+            processedWatchProofs: [proof],
+            reusing: .init(archive: archive, records: [:]),
+            attachmentReferences: { _ in [] },
+            issuedAttachmentVersions: [:]
+        ).project(before: archive, after: archive, manifest: [:])
+        let saved = projection.mutations.compactMap(\.savedRecordVersion?.record)
+
+        let orphan = try #require(saved.first {
+            $0.id == .init(kind: .watchCommandProof, uuid: command.id)
+        })
+        let aggregate = try #require(saved.first {
+            $0.id == .init(kind: .projectCounter, uuid: counterID)
+        }?.counterReminderState)
+        #expect(orphan.payload.atomicDomain?.value == .orphanWatchCommandProof(
+            try SyncOrphanWatchCommandProof(proof: proof)
+        ))
+        #expect(aggregate.processedCommandProofs == [proof])
+    }
+
+    @Test func nonDurableWatchEvaluationHonorsFreshDeviceOrphanAuthority() throws {
+        // Production break caught: the in-memory Watch entry point consults only
+        // the prunable ledger and can execute after a durable orphan proof moves
+        // to a fresh device where the target now exists.
+        let fixture = try SyncPublicationFixture()
+        let archive = try fixture.archive()
+        let counterID = try #require(archive.projects.first?.counters.first?.id)
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 48)
+        )
+        let proof = try makeOrphanWatchProof(
+            command: command,
+            rejection: .counterMissing,
+            processedAt: Date(timeIntervalSince1970: 49),
+            deviceID: "originating-device"
+        )
+        try installOrphanWatchProof(proof, in: fixture.liveRoot)
+        let store = fixture.store(sink: RecordingSyncMutationSink())
+        var ledger = ProcessedWatchCommandLedger()
+
+        let acknowledgement = try store.applyWatchCommand(
+            command,
+            ledger: &ledger,
+            now: Date(timeIntervalSince1970: 50)
+        )
+
+        #expect(acknowledgement.rejection == .counterMissing)
+        #expect(store.project(id: fixture.projectID)?.counters.first?.value == 0)
+        #expect(ledger.entry(for: command.id)?.commandIdentity == .init(command))
+    }
+
+    @Test func alreadyLoadedStoreReloadsDurableOrphanAuthorityBeforeEvaluation() throws {
+        // Production break caught: another synchronized writer can publish an
+        // orphan after this store starts; a startup-only snapshot is stale.
+        let fixture = try SyncPublicationFixture()
+        let store = fixture.store(sink: RecordingSyncMutationSink())
+        let counterID = try #require(store.project(id: fixture.projectID)?.counters.first?.id)
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 50)
+        )
+        let proof = try makeOrphanWatchProof(
+            command: command,
+            rejection: .counterMissing,
+            processedAt: Date(timeIntervalSince1970: 51),
+            deviceID: "originating-device"
+        )
+        try installOrphanWatchProof(proof, in: fixture.liveRoot)
+        var ledger = ProcessedWatchCommandLedger()
+
+        let acknowledgement = try store.applyWatchCommand(
+            command,
+            ledger: &ledger,
+            now: Date(timeIntervalSince1970: 52)
+        )
+
+        #expect(acknowledgement.rejection == .counterMissing)
+        #expect(store.project(id: fixture.projectID)?.counters.first?.value == 0)
+        #expect(ledger.entry(for: command.id)?.processingStamp == proof.processingStamp)
+    }
+
+    @Test func everyWatchEntryPointRejectsOrphanIdentityOrOutcomeDivergence() throws {
+        let fixture = try SyncPublicationFixture()
+        let counterID = try #require(try fixture.archive().projects.first?.counters.first?.id)
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 50)
+        )
+        let proof = try makeOrphanWatchProof(
+            command: command,
+            rejection: .counterMissing,
+            processedAt: Date(timeIntervalSince1970: 51),
+            deviceID: "originating-device"
+        )
+        try installOrphanWatchProof(proof, in: fixture.liveRoot)
+        let store = fixture.store(sink: RecordingSyncMutationSink())
+        let divergentIdentity = WatchCounterCommand(
+            id: command.id,
+            projectID: command.projectID,
+            counterID: UUID(),
+            operation: command.operation,
+            createdAt: command.createdAt
+        )
+        var emptyLedger = ProcessedWatchCommandLedger()
+
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            _ = try store.applyWatchCommand(divergentIdentity, ledger: &emptyLedger)
+        }
+
+        var divergentLedger = ProcessedWatchCommandLedger()
+        divergentLedger.record(
+            command.id,
+            rejection: .projectMissing,
+            command: command,
+            processingStamp: proof.processingStamp,
+            at: try #require(proof.processingStamp?.modifiedAt)
+        )
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            _ = try store.applyWatchCommand(
+                command,
+                entitlement: .permanentlyUnlocked,
+                ledger: &divergentLedger
+            )
+        }
+        #expect(store.project(id: fixture.projectID)?.counters.first?.value == 0)
+    }
+
+    @Test func preparedCommandRecoveryConsultsOrphanAuthorityBeforeEvaluation() throws {
+        // Production break caught: recovery is also a Watch evaluation path;
+        // transferred authority must win over a locally prepared command.
+        let fixture = try SyncPublicationFixture()
+        let counter = try #require(try fixture.archive().projects.first?.counters.first)
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: counter.id,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 50)
+        )
+        let proof = try makeOrphanWatchProof(
+            command: command,
+            rejection: .counterMissing,
+            processedAt: Date(timeIntervalSince1970: 51),
+            deviceID: "originating-device"
+        )
+        try installOrphanWatchProof(proof, in: fixture.liveRoot)
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+        try AtomicWatchSyncFile<PreparedWatchCommand>(url: preparedURL).save(
+            PreparedWatchCommand(
+                command: command,
+                expectedCounterRevision: counter.mutationRevision,
+                expectedCounterValue: counter.value
+            )
+        )
+        let store = fixture.store(sink: RecordingSyncMutationSink())
+
+        let recovery = try store.recoverWatchCommandPersistence(
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 52)
+        )
+
+        #expect(recovery == .ready)
+        #expect(store.project(id: fixture.projectID)?.counters.first?.value == 0)
+        #expect(try AtomicWatchSyncFile<PreparedWatchCommand>(url: preparedURL).load() == nil)
+        let cached = try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+            .load()?.entry(for: command.id)
+        #expect(cached?.rejection == .counterMissing)
+        #expect(cached?.processingStamp == proof.processingStamp)
+    }
+
+    @Test func missingProjectAuthoritySurvivesLedgerDeletionRestartAndProjectReappearance() throws {
+        let fixture = try SyncPublicationFixture()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 51)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+        let source = fixture.store(sink: RecordingSyncMutationSink())
+
+        let first = try source.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 52)
+        )
+        #expect(first.rejection == .projectMissing)
+        let originatingEntry = try #require(
+            try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+                .load()?.entry(for: command.id)
+        )
+        let originatingProof = try #require(
+            try SyncAttachmentPublicationEvidenceFile(
+                url: fixture.liveRoot
+                    .appendingPathComponent("SyncMetadata", isDirectory: true)
+                    .appendingPathComponent("attachment-versions.json")
+            ).load().watchCommandProof(for: command)
+        )
+        #expect(originatingEntry.processingStamp == originatingProof.processingStamp)
+        #expect(originatingEntry.processingStamp?.modifiedAt
+            == Date(timeIntervalSince1970: 52))
+        try FileManager.default.removeItem(at: ledgerURL)
+        let reappeared = try StoredProject(
+            id: command.projectID,
+            name: "Reappeared",
+            counters: [ProjectCounter(id: command.counterID, defaultOrdinal: 1)]
+        )
+        let existing = try fixture.archive()
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [reappeared],
+            yarns: existing.yarns
+        )).write(to: fixture.archiveURL, options: .atomic)
+
+        let restarted = fixture.store(sink: RecordingSyncMutationSink())
+        let replay = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 53)
+        )
+
+        #expect(replay.rejection == .projectMissing)
+        #expect(restarted.project(id: command.projectID)?.counters.first?.value == 0)
+        let repaired = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: ledgerURL
+        ).load()?.entry(for: command.id))
+        #expect(repaired.commandIdentity == .init(command))
+        #expect(repaired.rejection == .projectMissing)
+        #expect(repaired.processingStamp?.modifiedAt == Date(timeIntervalSince1970: 52))
+    }
+
+    @Test func missingCounterAuthoritySurvivesPruningRestartAndCounterReappearance() throws {
+        let fixture = try SyncPublicationFixture()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 54)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+        let source = fixture.store(sink: RecordingSyncMutationSink())
+
+        let first = try source.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 55)
+        )
+        #expect(first.rejection == .counterMissing)
+        var pruned = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: ledgerURL
+        ).load())
+        for index in 0..<1_001 {
+            pruned.record(
+                UUID(),
+                at: Date(timeIntervalSince1970: 200 * 86_400 + TimeInterval(index))
+            )
+        }
+        try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL).save(pruned)
+        #expect(pruned.entry(for: command.id) == nil)
+        let reappeared = try StoredProject(
+            id: fixture.projectID,
+            name: "Counter reappeared",
+            counters: [ProjectCounter(id: command.counterID, defaultOrdinal: 1)]
+        )
+        let existing = try fixture.archive()
+        try JSONEncoder().encode(ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [reappeared],
+            yarns: existing.yarns
+        )).write(to: fixture.archiveURL, options: .atomic)
+
+        let restarted = fixture.store(sink: RecordingSyncMutationSink())
+        let replay = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 201 * 86_400)
+        )
+
+        #expect(replay.rejection == .counterMissing)
+        #expect(restarted.project(id: fixture.projectID)?.counters.first?.value == 0)
+        let repaired = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: ledgerURL
+        ).load()?.entry(for: command.id))
+        #expect(repaired.commandIdentity == .init(command))
+        #expect(repaired.rejection == .counterMissing)
+        #expect(repaired.processingStamp?.modifiedAt == Date(timeIntervalSince1970: 55))
     }
 
     @Test func rejectedWatchMetadataPublicationDoesNotRewriteTheArchive() throws {
@@ -306,6 +738,22 @@ import UniformTypeIdentifiers
         )
 
         #expect(acknowledgement.rejection == .unsupportedSchema)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+
+        let missingTarget = WatchCounterCommand(
+            id: UUID(),
+            projectID: fixture.projectID,
+            counterID: UUID(),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 43)
+        )
+        let missingAcknowledgement = try store.applyWatchCommandDurably(
+            missingTarget,
+            ledgerURL: WatchSyncPaths.processedLedger(in: fixture.liveRoot),
+            preparedCommandURL: WatchSyncPaths.preparedCommand(in: fixture.liveRoot),
+            now: Date(timeIntervalSince1970: 44)
+        )
+        #expect(missingAcknowledgement.rejection == .counterMissing)
         #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
     }
 
@@ -351,6 +799,200 @@ import UniformTypeIdentifiers
         #expect(repaired.processedCommandProofs.first {
             $0.id == command.id
         }?.commandIdentity == .init(command))
+    }
+
+    @Test func duplicateMissingTargetRepublishesAfterInitialMarkerCreationFailure() throws {
+        // Production break caught: the ledger is saved before marker creation;
+        // a retry must publish the missing proof instead of trusting that cache.
+        let fixture = try SyncPublicationFixture()
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 56)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+        let markerURL = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).url
+        let first = fixture.store(sink: RecordingSyncMutationSink())
+        try FileManager.default.createDirectory(at: markerURL, withIntermediateDirectories: true)
+
+        #expect(throws: SyncPublicationError.self) {
+            _ = try first.applyWatchCommandDurably(
+                command,
+                ledgerURL: ledgerURL,
+                preparedCommandURL: preparedURL,
+                now: Date(timeIntervalSince1970: 57)
+            )
+        }
+        #expect(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(
+            url: ledgerURL
+        ).load()?.entry(for: command.id)?.rejection == .counterMissing)
+        try FileManager.default.removeItem(at: markerURL)
+
+        let repairedSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: repairedSink)
+        let replay = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 58)
+        )
+
+        #expect(replay.rejection == .counterMissing)
+        let published = try #require(repairedSink.mutations
+            .compactMap(\.savedRecordVersion?.record)
+            .first { $0.id == .init(kind: .watchCommandProof, uuid: command.id) })
+        #expect(published.payload.atomicDomain?.value == .orphanWatchCommandProof(
+            try SyncOrphanWatchCommandProof(
+                proof: try #require(
+                    SyncAttachmentPublicationEvidenceFile(
+                        url: fixture.liveRoot
+                            .appendingPathComponent("SyncMetadata", isDirectory: true)
+                            .appendingPathComponent("attachment-versions.json")
+                    ).load().watchCommandProofs.first { $0.id == command.id }
+                )
+            )
+        ))
+    }
+
+    @Test func missingTargetEvidenceWriteFailureRepairsBeforeAcknowledgement() throws {
+        // Production break caught: publishing to the journal before durable
+        // evidence can expose a proof that a restart cannot yet recognize.
+        let fixture = try SyncPublicationFixture()
+        let sink = RecordingSyncMutationSink()
+        let store = fixture.store(
+            sink: sink,
+            evidenceBoundary: { boundary in
+                if boundary == .beforeRename {
+                    throw SyncPublicationInjectedFailure()
+                }
+            }
+        )
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 59)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+        let evidenceURL = fixture.liveRoot
+            .appendingPathComponent("SyncMetadata", isDirectory: true)
+            .appendingPathComponent("attachment-versions.json")
+        #expect(throws: SyncPublicationError.pendingRepair) {
+            _ = try store.applyWatchCommandDurably(
+                command,
+                ledgerURL: ledgerURL,
+                preparedCommandURL: preparedURL,
+                now: Date(timeIntervalSince1970: 60)
+            )
+        }
+        #expect(sink.mutations.isEmpty)
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
+        let pending = try #require(try transactionFile.load())
+
+        let repairedSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: repairedSink)
+        let replay = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 61)
+        )
+
+        #expect(replay.rejection == .counterMissing)
+        #expect(restarted.project(id: fixture.projectID)?.counters.first?.value == 0)
+        #expect(repairedSink.mutations == pending.mutations)
+        #expect(try SyncAttachmentPublicationEvidenceFile(url: evidenceURL)
+            .load().watchCommandProof(for: command)?.rejection == .counterMissing)
+    }
+
+    @Test func missingTargetJournalEnqueueFailureRepairsBeforeAcknowledgement() throws {
+        // Production break caught: a missing-target acknowledgement must wait
+        // for the durable evidence and replayable journal enqueue to complete.
+        let fixture = try SyncPublicationFixture()
+        let store = fixture.store(sink: RejectingSyncMutationSink())
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 62)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+        let evidenceURL = fixture.liveRoot
+            .appendingPathComponent("SyncMetadata", isDirectory: true)
+            .appendingPathComponent("attachment-versions.json")
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
+
+        #expect(throws: SyncPublicationError.pendingRepair) {
+            _ = try store.applyWatchCommandDurably(
+                command,
+                ledgerURL: ledgerURL,
+                preparedCommandURL: preparedURL,
+                now: Date(timeIntervalSince1970: 63)
+            )
+        }
+        let proofBeforeRepair = try SyncAttachmentPublicationEvidenceFile(url: evidenceURL)
+            .load().watchCommandProof(for: command)
+        #expect(proofBeforeRepair?.rejection == .projectMissing)
+        #expect(proofBeforeRepair?.processingStamp?.modifiedAt
+            == Date(timeIntervalSince1970: 63))
+        let pending = try #require(try transactionFile.load())
+
+        let repairedSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: repairedSink)
+        let replay = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 64)
+        )
+
+        #expect(replay.rejection == .projectMissing)
+        #expect(repairedSink.mutations == pending.mutations)
+        #expect(try transactionFile.load() == nil)
+    }
+
+    @Test func missingTargetMarkerRemovalFailureRepairsOneJournalMutation() throws {
+        // Production break caught: marker removal is part of the success
+        // boundary; a restart must replay the same mutation idempotently.
+        let fixture = try SyncPublicationFixture()
+        let journal = FileSyncMutationJournal(
+            url: fixture.root.appendingPathComponent("watch-proof-journal.json")
+        )
+        let sink = MarkerRemovalFailingJournalSink(
+            journal: journal,
+            markerParent: fixture.liveRoot
+        )
+        defer { _ = Darwin.chmod(fixture.liveRoot.path, S_IRWXU) }
+        let store = fixture.store(sink: sink)
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: fixture.projectID, counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 65)
+        )
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        let preparedURL = WatchSyncPaths.preparedCommand(in: fixture.liveRoot)
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
+
+        #expect(throws: SyncPublicationError.pendingRepair) {
+            _ = try store.applyWatchCommandDurably(
+                command,
+                ledgerURL: ledgerURL,
+                preparedCommandURL: preparedURL,
+                now: Date(timeIntervalSince1970: 66)
+            )
+        }
+        #expect(Darwin.chmod(fixture.liveRoot.path, S_IRWXU) == 0)
+        let pending = try #require(try transactionFile.load())
+        #expect(try journal.pending() == pending.mutations)
+
+        let restarted = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        let replay = try restarted.applyWatchCommandDurably(
+            command,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: preparedURL,
+            now: Date(timeIntervalSince1970: 67)
+        )
+
+        #expect(replay.rejection == .counterMissing)
+        #expect(try journal.pending() == pending.mutations)
+        #expect(try transactionFile.load() == nil)
     }
 
     @Test func rebuiltLedgerUsesProjectedEntityRevisionAsItsCausalFloor() throws {
@@ -1684,6 +2326,90 @@ import UniformTypeIdentifiers
 
 private struct SyncPublicationInjectedFailure: Error {}
 
+private struct RejectingSyncMutationSink: SyncMutationSink {
+    func publish(_ mutation: SyncMutation) throws {
+        throw SyncPublicationInjectedFailure()
+    }
+
+    func publish(_ mutations: [SyncMutation]) throws {
+        throw SyncPublicationInjectedFailure()
+    }
+}
+
+private final class MarkerRemovalFailingJournalSink: SyncMutationSink, @unchecked Sendable {
+    private let journal: FileSyncMutationJournal
+    private let markerParent: URL
+
+    init(journal: FileSyncMutationJournal, markerParent: URL) {
+        self.journal = journal
+        self.markerParent = markerParent
+    }
+
+    func publish(_ mutation: SyncMutation) throws {
+        try publish([mutation])
+    }
+
+    func publish(_ mutations: [SyncMutation]) throws {
+        try journal.enqueue(mutations)
+        guard Darwin.chmod(markerParent.path, S_IRUSR | S_IXUSR) == 0 else {
+            throw SyncPublicationInjectedFailure()
+        }
+    }
+}
+
+private func makeOrphanWatchProof(
+    command: WatchCounterCommand,
+    rejection: WatchCommandRejection,
+    processedAt: Date,
+    deviceID: String
+) throws -> SyncProcessedWatchCommandProof {
+    try SyncProcessedWatchCommandProof(
+        id: command.id,
+        rejection: rejection,
+        commandIdentity: .init(command),
+        preparedCommand: nil,
+        effectProof: nil,
+        processingStamp: .init(
+            logicalRevision: 0,
+            modifiedAt: processedAt,
+            deviceID: deviceID
+        )
+    )
+}
+
+private func installOrphanWatchProof(
+    _ proof: SyncProcessedWatchCommandProof,
+    in liveRoot: URL
+) throws {
+    let orphan = try SyncOrphanWatchCommandProof(proof: proof)
+    let stamp = SyncMutationStamp(
+        logicalRevision: 1,
+        modifiedAt: proof.processingStamp?.modifiedAt ?? .distantPast,
+        deviceID: proof.processingStamp?.deviceID ?? "invalid-orphan-proof"
+    )
+    let record = SyncRecord(
+        schemaVersion: 1,
+        id: .init(kind: .watchCommandProof, uuid: proof.id),
+        createdAt: proof.commandIdentity?.createdAt ?? stamp.modifiedAt,
+        entityRevision: stamp.logicalRevision,
+        payload: .init(
+            fields: [:],
+            atomicDomain: .init(value: .orphanWatchCommandProof(orphan), stamp: stamp)
+        ),
+        relationships: [],
+        deletedAt: .init(value: nil, stamp: stamp)
+    )
+    let mutation = try SyncMutation.save(
+        recordVersion: SyncRecordVersion(record: record),
+        mutationID: UUID()
+    )
+    _ = try SyncAttachmentPublicationEvidenceFile(
+        url: liveRoot
+            .appendingPathComponent("SyncMetadata", isDirectory: true)
+            .appendingPathComponent("attachment-versions.json")
+    ).applying([mutation])
+}
+
 private func syncPerformanceUUID(_ value: Int) -> UUID {
     UUID(uuidString: String(
         format: "00000000-0000-0000-0000-%012x",
@@ -1829,7 +2555,8 @@ private extension Array where Element == SyncMutation {
         sink: any SyncMutationSink,
         archiveWrite: @escaping @Sendable (Data, URL) throws -> Void = {
             try $0.write(to: $1, options: .atomic)
-        }
+        },
+        evidenceBoundary: @escaping (SyncDurableFileWriteBoundary) throws -> Void = { _ in }
     ) -> JSONProjectStore {
         JSONProjectStore(
             url: archiveURL,
@@ -1838,6 +2565,7 @@ private extension Array where Element == SyncMutation {
                 workRoot: root.appendingPathComponent("BackupWork", isDirectory: true)
             ),
             archiveWrite: archiveWrite,
+            syncAttachmentEvidenceBeforeDurabilityBoundary: evidenceBoundary,
             syncMutationSink: sink
         )
     }

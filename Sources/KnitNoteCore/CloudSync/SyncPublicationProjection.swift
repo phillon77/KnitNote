@@ -472,20 +472,20 @@ func orphanWatchProofRecords(
     archive: ProjectArchive,
     deviceID: String
 ) throws -> [SyncEntityID: SyncRecord] {
-    let extantCounterIDs = Set(archive.projects.flatMap(\.counters).map(\.id))
+    _ = archive
+    _ = deviceID
     var records: [SyncEntityID: SyncRecord] = [:]
     for proof in proofs {
         let orphan = try SyncOrphanWatchCommandProof(proof: proof)
-        guard !extantCounterIDs.contains(orphan.proof.counterID) else { continue }
+        // Once published, an orphan proof remains the immutable missing-target
+        // authority even if a project or counter later reappears.
         guard let identity = orphan.proof.commandIdentity else {
             throw SyncRecordVersionError.corrupt
         }
+        guard let stamp = orphan.proof.processingStamp else {
+            throw SyncRecordVersionError.corrupt
+        }
         let recordID = SyncEntityID(kind: .watchCommandProof, uuid: orphan.proof.id)
-        let stamp = SyncMutationStamp(
-            logicalRevision: 0,
-            modifiedAt: identity.createdAt,
-            deviceID: deviceID
-        )
         let record = SyncRecord(
             schemaVersion: 1,
             id: recordID,
@@ -587,6 +587,12 @@ struct SyncCanonicalPublicationSnapshot {
             (cache?.archive.patterns ?? []).map { ($0.id, $0) })
         let previousUsages = Dictionary(uniqueKeysWithValues:
             (cache?.archive.patternUsages ?? []).map { ($0.id, $0) })
+        let ledgerProofs = try processedWatchLedger.entries.compactMap {
+            try SyncProcessedWatchCommandProof(
+                entry: $0,
+                processingDeviceID: deviceID
+            )
+        }
 
         func add<Value: Encodable>(
             _ value: Value,
@@ -665,7 +671,7 @@ struct SyncCanonicalPublicationSnapshot {
                 var proofsByID: [UUID: SyncProcessedWatchCommandProof] = [:]
                 for proof in processedWatchProofs
                     + (cachedState?.processedCommandProofs ?? [])
-                    + processedWatchLedger.entries.compactMap({ try? .init(entry: $0) })
+                    + ledgerProofs
                 where proof.counterID == counter.id {
                     if let existing = proofsByID[proof.id], existing != proof {
                         throw SyncRecordVersionError.corrupt
@@ -763,7 +769,7 @@ struct SyncCanonicalPublicationSnapshot {
             return orphan.proof
         }
         let missingTargetProofs = (processedWatchProofs
-            + processedWatchLedger.entries.compactMap({ try? .init(entry: $0) })
+            + ledgerProofs
             + retainedOrphanProofs
         ).filter {
             $0.rejection == .projectMissing || $0.rejection == .counterMissing
@@ -776,7 +782,18 @@ struct SyncCanonicalPublicationSnapshot {
             if let existing = records[recordID], existing != record {
                 throw SyncRecordVersionError.corrupt
             }
-            records[recordID] = record
+            if let cached = cache?.records[recordID],
+               cached.deletedAt.value == nil,
+               case let .orphanWatchCommandProof(cachedOrphan)? =
+                    cached.payload.atomicDomain?.value,
+               case let .orphanWatchCommandProof(projectedOrphan)? =
+                    record.payload.atomicDomain?.value,
+               cachedOrphan.proof == projectedOrphan.proof {
+                _ = try SyncRecordVersion(record: cached)
+                records[recordID] = cached
+            } else {
+                records[recordID] = record
+            }
         }
 
         for yarn in archive.yarns {

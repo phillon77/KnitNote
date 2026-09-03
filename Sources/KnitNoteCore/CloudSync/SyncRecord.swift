@@ -87,6 +87,7 @@ public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
     public let commandIdentity: ProcessedWatchCommandIdentity?
     public let preparedCommand: PreparedWatchCommand?
     public let effectProof: ProcessedWatchCommandEffectProof?
+    public let processingStamp: SyncMutationStamp?
 
     public init(
         id: UUID,
@@ -94,7 +95,8 @@ public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
         rejection: WatchCommandRejection?,
         commandIdentity: ProcessedWatchCommandIdentity? = nil,
         preparedCommand: PreparedWatchCommand?,
-        effectProof: ProcessedWatchCommandEffectProof?
+        effectProof: ProcessedWatchCommandEffectProof?,
+        processingStamp: SyncMutationStamp? = nil
     ) throws {
         guard let resolvedCounterID = counterID
                 ?? commandIdentity?.counterID
@@ -109,20 +111,32 @@ public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
             ?? preparedCommand.map { ProcessedWatchCommandIdentity($0.command) }
         self.preparedCommand = preparedCommand
         self.effectProof = effectProof
+        self.processingStamp = processingStamp
         _ = try validated()
     }
 
-    init?(entry: ProcessedWatchCommandLedger.Entry) throws {
+    init?(
+        entry: ProcessedWatchCommandLedger.Entry,
+        processingDeviceID: String? = nil
+    ) throws {
         guard let counterID = entry.commandIdentity?.counterID
                 ?? entry.preparedCommand?.command.counterID
                 ?? entry.effectProof?.counter.id else { return nil }
+        let processingStamp = entry.processingStamp ?? processingDeviceID.map {
+            SyncMutationStamp(
+                logicalRevision: 0,
+                modifiedAt: entry.processedAt,
+                deviceID: $0
+            )
+        }
         try self.init(
             id: entry.id,
             counterID: counterID,
             rejection: entry.rejection,
             commandIdentity: entry.commandIdentity,
             preparedCommand: entry.preparedCommand,
-            effectProof: entry.effectProof
+            effectProof: entry.effectProof,
+            processingStamp: processingStamp
         )
     }
 
@@ -135,7 +149,11 @@ public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
                   || commandIdentity == preparedCommand.map {
                       ProcessedWatchCommandIdentity($0.command)
                   }),
-              (effectProof == nil || effectProof?.counter.id == counterID) else {
+              (effectProof == nil || effectProof?.counter.id == counterID),
+              (processingStamp == nil || (
+                  processingStamp?.logicalRevision == 0
+                      && processingStamp?.deviceID.isEmpty == false
+              )) else {
             throw SyncRecordVersionError.corrupt
         }
         if rejection == nil {
@@ -145,6 +163,11 @@ public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
         } else {
             guard effectProof == nil,
                   commandIdentity != nil || preparedCommand != nil else {
+                throw SyncRecordVersionError.corrupt
+            }
+        }
+        if rejection == .projectMissing || rejection == .counterMissing {
+            guard processingStamp != nil else {
                 throw SyncRecordVersionError.corrupt
             }
         }
@@ -162,7 +185,8 @@ public struct SyncOrphanWatchCommandProof: Codable, Equatable, Sendable {
         guard proof.rejection == .projectMissing || proof.rejection == .counterMissing,
               proof.commandIdentity != nil,
               proof.preparedCommand == nil,
-              proof.effectProof == nil else {
+              proof.effectProof == nil,
+              proof.processingStamp != nil else {
             throw SyncRecordVersionError.corrupt
         }
         self.proof = try proof.validated()

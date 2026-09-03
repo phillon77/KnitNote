@@ -1776,6 +1776,130 @@ import Testing
         #expect(merged.value.processedCommandProofs == [proof])
     }
 
+    @Test func orphanAndEmbeddedProofDivergenceFailsClosedGlobally() throws {
+        // Production break caught: per-record validation alone permits an orphan
+        // and a counter aggregate to claim different outcomes for one command ID.
+        let counterID = UUID()
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: projectID.uuid, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let embedded = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: .counterMissing,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil,
+            processingStamp: stamp(revision: 0, deviceID: "embedded-processing")
+        )
+        let orphan = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: .projectMissing,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil,
+            processingStamp: stamp(revision: 0, deviceID: "orphan-processing")
+        )
+        let aggregate = record(
+            state: state(
+                counterID: counterID,
+                value: 0,
+                counterRevision: 0,
+                processedCommandIDs: [command.id],
+                processedCommandProofs: [embedded]
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "aggregate")
+        )
+        let orphanStamp = stamp(revision: 1, deviceID: "orphan")
+        let orphanRecord = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .watchCommandProof, uuid: command.id),
+            createdAt: command.createdAt,
+            entityRevision: orphanStamp.logicalRevision,
+            payload: .init(
+                fields: [:],
+                atomicDomain: .init(
+                    value: .orphanWatchCommandProof(
+                        try SyncOrphanWatchCommandProof(proof: orphan)
+                    ),
+                    stamp: orphanStamp
+                )
+            ),
+            relationships: [],
+            deletedAt: .init(value: nil, stamp: orphanStamp)
+        )
+
+        #expect(throws: SyncMergeError.processedWatchCommandWouldRegress(command.id)) {
+            _ = try SyncMergeEngine().merge(
+                local: [aggregate],
+                remote: [orphanRecord],
+                pendingLocal: []
+            )
+        }
+    }
+
+    @Test func freshDeviceMergeRetainsOrphanBeforeAndAfterCounterReappearance() throws {
+        let counterID = UUID()
+        let projectID = SyncEntityID(kind: .project, uuid: UUID())
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: projectID.uuid, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 4)
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: .counterMissing,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil,
+            processingStamp: stamp(revision: 0, deviceID: "originating-device")
+        )
+        let orphanStamp = stamp(revision: 1, deviceID: "publishing-device")
+        let orphanRecord = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .watchCommandProof, uuid: command.id),
+            createdAt: command.createdAt,
+            entityRevision: orphanStamp.logicalRevision,
+            payload: .init(
+                fields: [:],
+                atomicDomain: .init(
+                    value: .orphanWatchCommandProof(
+                        try SyncOrphanWatchCommandProof(proof: proof)
+                    ),
+                    stamp: orphanStamp
+                )
+            ),
+            relationships: [],
+            deletedAt: .init(value: nil, stamp: orphanStamp)
+        )
+
+        let fresh = try SyncMergeEngine().merge(
+            local: [], remote: [orphanRecord], pendingLocal: []
+        )
+        #expect(fresh.records == [orphanRecord])
+
+        let aggregate = record(
+            state: state(
+                counterID: counterID,
+                value: 0,
+                counterRevision: 0,
+                processedCommandIDs: [command.id],
+                processedCommandProofs: [proof]
+            ),
+            projectID: projectID,
+            stamp: stamp(revision: 1, deviceID: "reappeared-device")
+        )
+        let reappeared = try SyncMergeEngine().merge(
+            local: [aggregate], remote: fresh.records, pendingLocal: []
+        )
+
+        #expect(Set(reappeared.records.map(\.id)) == [aggregate.id, orphanRecord.id])
+        #expect(reappeared.records.first { $0.id == aggregate.id }?
+            .counterReminderState?.processedCommandProofs == [proof])
+        #expect(reappeared.records.first { $0.id == orphanRecord.id } == orphanRecord)
+    }
+
     @Test func rejectionProofWithoutCommandIdentityIsRejected() {
         #expect(throws: SyncRecordVersionError.corrupt) {
             _ = try SyncProcessedWatchCommandProof(

@@ -118,6 +118,34 @@ struct SyncAttachmentPublicationEvidence: Codable {
     var allVersions: [SyncAttachmentVersion] { versions }
     var deletedVersionIDSet: Set<UUID> { deletedVersionIDs }
 
+    func watchCommandProof(
+        for command: WatchCounterCommand
+    ) throws -> SyncProcessedWatchCommandProof? {
+        guard let proof = watchCommandProofs.first(where: { $0.id == command.id }) else {
+            return nil
+        }
+        guard try proof.validated().commandIdentity == ProcessedWatchCommandIdentity(command),
+              proof.commandIdentity != nil else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        return proof
+    }
+
+    func orphanWatchCommandProof(
+        for command: WatchCounterCommand
+    ) throws -> SyncProcessedWatchCommandProof? {
+        guard let proof = try watchCommandProof(for: command),
+              proof.rejection == .projectMissing || proof.rejection == .counterMissing else {
+            return nil
+        }
+        do {
+            _ = try SyncOrphanWatchCommandProof(proof: proof)
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        return proof
+    }
+
     func isDeleted(_ versionID: UUID) -> Bool {
         deletedVersionIDs.contains(versionID)
     }
@@ -1466,6 +1494,9 @@ final class PatternLibraryDeletionTransaction {
         archiveWrite: @escaping @Sendable (Data, URL) throws -> Void = {
             try $0.write(to: $1, options: .atomic)
         },
+        syncAttachmentEvidenceBeforeDurabilityBoundary: @escaping (
+            SyncDurableFileWriteBoundary
+        ) throws -> Void = { _ in },
         syncMutationSink: any SyncMutationSink = DisabledSyncMutationSink(),
         authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
         commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
@@ -1545,7 +1576,8 @@ final class PatternLibraryDeletionTransaction {
             syncRevisionLedger = nil
         }
         let attachmentEvidenceFile = SyncAttachmentPublicationEvidenceFile(
-            url: syncMetadataRoot.appendingPathComponent("attachment-versions.json")
+            url: syncMetadataRoot.appendingPathComponent("attachment-versions.json"),
+            beforeDurabilityBoundary: syncAttachmentEvidenceBeforeDurabilityBoundary
         )
         syncAttachmentPublicationEvidenceFile = attachmentEvidenceFile
         let attachmentManifestStore = SyncAttachmentManifestStore(
@@ -2270,6 +2302,17 @@ final class PatternLibraryDeletionTransaction {
     ) throws -> WatchCommandAcknowledgement {
         try ensureSyncPublicationReady()
         try ensureArchiveAvailable()
+        if let proof = try durableOrphanWatchCommandProof(
+            for: command
+        ) {
+            try cacheWatchCommandProof(proof, for: command, in: &ledger)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: proof.rejection,
+                entitlement: .permanentlyUnlocked,
+                now: now
+            )
+        }
         if let processed = ledger.entry(for: command.id) {
             return try watchAcknowledgement(
                 for: command.id,
@@ -2284,6 +2327,7 @@ final class PatternLibraryDeletionTransaction {
                 command.id,
                 rejection: .unsupportedSchema,
                 command: command,
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
             return try watchAcknowledgement(
@@ -2310,6 +2354,17 @@ final class PatternLibraryDeletionTransaction {
     ) throws -> WatchCommandAcknowledgement {
         try ensureSyncPublicationReady()
         try ensureArchiveAvailable()
+        if let proof = try durableOrphanWatchCommandProof(
+            for: command
+        ) {
+            try cacheWatchCommandProof(proof, for: command, in: &ledger)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: proof.rejection,
+                entitlement: entitlement,
+                now: now
+            )
+        }
         if let processed = ledger.entry(for: command.id) {
             return try watchAcknowledgement(
                 for: command.id,
@@ -2324,6 +2379,7 @@ final class PatternLibraryDeletionTransaction {
                 command.id,
                 rejection: .unsupportedSchema,
                 command: command,
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
             return try watchAcknowledgement(
@@ -2341,6 +2397,7 @@ final class PatternLibraryDeletionTransaction {
                 command.id,
                 rejection: .entitlementRequired,
                 command: command,
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
             return try watchAcknowledgement(
@@ -2383,10 +2440,12 @@ final class PatternLibraryDeletionTransaction {
             command.id,
             rejection: effectiveRejection,
             command: command,
+            processingStamp: watchCommandProcessingStamp(at: now),
             at: now
         )
         try ledgerFile.save(ledger)
         try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
+        try ensureMissingTargetWatchProofPublication(for: effectiveRejection)
         return try watchAcknowledgement(
             for: command.id,
             rejection: effectiveRejection,
@@ -2416,11 +2475,36 @@ final class PatternLibraryDeletionTransaction {
         guard !ledger.requiresFreshHandshake else {
             throw WatchCommandPersistenceError.requiresFreshHandshake
         }
+        let durableProof = try durableWatchCommandProof(for: command)
+        if let proof = durableProof {
+            try cacheWatchCommandProof(proof, for: command, in: &ledger)
+            try ledgerFile.save(ledger)
+            return try watchAcknowledgement(
+                for: command.id,
+                rejection: proof.rejection,
+                entitlement: entitlement,
+                now: now
+            )
+        }
         guard let processed = ledger.entry(for: command.id) else { return nil }
         guard FileManager.default.fileExists(atPath: url.path) else {
             ledger.markRequiresFreshHandshake()
             try ledgerFile.save(ledger)
             throw WatchCommandPersistenceError.requiresFreshHandshake
+        }
+        if isSyncPublicationEnabled, let ledgerProof = try SyncProcessedWatchCommandProof(
+            entry: processed,
+            processingDeviceID: syncPublicationDeviceID
+        ) {
+            guard ledgerProof.commandIdentity == ProcessedWatchCommandIdentity(command) else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            try publishWatchSyncMetadata(preparedCommand: nil, processedLedger: ledger)
+            try ensureSyncPublicationReady()
+            guard try syncAttachmentPublicationEvidence.watchCommandProof(for: command)
+                    == ledgerProof else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
         }
         return try watchAcknowledgement(
             for: command.id,
@@ -2428,6 +2512,81 @@ final class PatternLibraryDeletionTransaction {
             entitlement: entitlement,
             now: now
         )
+    }
+
+    func cacheWatchCommandProof(
+        _ proof: SyncProcessedWatchCommandProof,
+        for command: WatchCounterCommand,
+        in ledger: inout ProcessedWatchCommandLedger
+    ) throws {
+        guard proof.commandIdentity == ProcessedWatchCommandIdentity(command) else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        if let entry = ledger.entry(for: command.id),
+           let existing = try SyncProcessedWatchCommandProof(
+                entry: entry,
+                processingDeviceID: proof.processingStamp?.deviceID
+           ),
+           existing != proof {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        ledger.record(
+            command.id,
+            rejection: proof.rejection,
+            command: command,
+            preparedCommand: proof.preparedCommand,
+            effectProof: proof.effectProof,
+            processingStamp: proof.processingStamp,
+            at: proof.processingStamp?.modifiedAt ?? nowForLegacyWatchProof(proof)
+        )
+    }
+
+    func durableWatchCommandProof(
+        for command: WatchCounterCommand
+    ) throws -> SyncProcessedWatchCommandProof? {
+        try refreshSyncAttachmentPublicationEvidence().watchCommandProof(for: command)
+    }
+
+    func durableOrphanWatchCommandProof(
+        for command: WatchCounterCommand
+    ) throws -> SyncProcessedWatchCommandProof? {
+        try refreshSyncAttachmentPublicationEvidence().orphanWatchCommandProof(
+            for: command
+        )
+    }
+
+    private func refreshSyncAttachmentPublicationEvidence() throws
+        -> SyncAttachmentPublicationEvidence {
+        guard isSyncPublicationEnabled else {
+            return syncAttachmentPublicationEvidence
+        }
+        let durableEvidence = try syncAttachmentPublicationEvidenceFile.load()
+        syncAttachmentPublicationEvidence = durableEvidence
+        return durableEvidence
+    }
+
+    private func nowForLegacyWatchProof(_ proof: SyncProcessedWatchCommandProof) -> Date {
+        proof.commandIdentity?.createdAt ?? .distantPast
+    }
+
+    func watchCommandProcessingStamp(at date: Date) -> SyncMutationStamp? {
+        guard isSyncPublicationEnabled else { return nil }
+        return SyncMutationStamp(
+            logicalRevision: 0,
+            modifiedAt: date,
+            deviceID: syncPublicationDeviceID
+        )
+    }
+
+    func ensureMissingTargetWatchProofPublication(
+        for rejection: WatchCommandRejection?
+    ) throws {
+        switch rejection {
+        case .projectMissing, .counterMissing:
+            try ensureSyncPublicationReady()
+        default:
+            break
+        }
     }
 
     func requireWatchEntitlement(_ entitlement: EntitlementSnapshot, now: Date) throws {
@@ -2498,6 +2657,7 @@ final class PatternLibraryDeletionTransaction {
                 command.id,
                 rejection: rejection,
                 command: command,
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
             return try watchAcknowledgement(
@@ -2557,6 +2717,7 @@ final class PatternLibraryDeletionTransaction {
                 command.id,
                 rejection: rejection,
                 command: command,
+                processingStamp: watchCommandProcessingStamp(at: now),
                 at: now
             )
             return try watchAcknowledgement(
@@ -5457,18 +5618,22 @@ final class PatternLibraryDeletionTransaction {
         }
         do {
             if !transaction.mutations.isEmpty {
-                try syncMutationSink.publish(transaction.mutations)
+                try persistAttachmentPublicationEvidence(for: transaction.mutations)
             }
         } catch {
-            // Retain the whole transaction. Mutation identity is idempotent, so
-            // retrying an accepted prefix is safe and avoids O(n²) suffix
-            // rewrites on the main actor.
             throw SyncPublicationError.pendingRepair
         }
         do {
             if !transaction.mutations.isEmpty {
-                try persistAttachmentPublicationEvidence(for: transaction.mutations)
+                try syncMutationSink.publish(transaction.mutations)
             }
+        } catch {
+            // The marker covers both the already-durable local authorities and
+            // the idempotent journal batch. Retain the whole transaction so a
+            // restart retries the exact mutation identities.
+            throw SyncPublicationError.pendingRepair
+        }
+        do {
             if let candidate = transaction.candidateAttachmentManifest {
                 let manifest = try SyncAttachmentManifestStore.dictionary(from: candidate)
                 try syncAttachmentManifestStore.commit(manifest)

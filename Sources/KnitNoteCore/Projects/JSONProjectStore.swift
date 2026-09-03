@@ -5700,6 +5700,19 @@ final class PatternLibraryDeletionTransaction {
             throw SyncPublicationError.sinkUnavailable
         }
         do {
+            if !transaction.revisionReceipts.isEmpty {
+                guard let syncRevisionLedger else {
+                    throw SyncRevisionLedgerError.unavailable
+                }
+                // The publication marker deliberately duplicates the bounded
+                // receipt batch. Restore that long-term immutable authority
+                // before any journal replay can make the publication durable.
+                try syncRevisionLedger.restore(transaction.revisionReceipts)
+            }
+        } catch {
+            throw syncPublicationError(for: error)
+        }
+        do {
             if !transaction.mutations.isEmpty {
                 try persistAttachmentPublicationEvidence(for: transaction.mutations)
             }
@@ -5775,7 +5788,13 @@ final class PatternLibraryDeletionTransaction {
                 return .transactionUnavailable
             }
         }
-        if error is SyncRevisionLedgerError || error is SyncInstallationIdentityError {
+        if let error = error as? SyncRevisionLedgerError {
+            switch error {
+            case .corrupt, .unsafeFile: return .corruptTransaction
+            case .revisionExhausted, .unavailable: return .transactionUnavailable
+            }
+        }
+        if error is SyncInstallationIdentityError {
             return .transactionUnavailable
         }
         if let error = error as? SyncAttachmentManifestError {

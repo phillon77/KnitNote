@@ -1175,6 +1175,84 @@ import UniformTypeIdentifiers
         #expect(repairSink.mutations == transaction.mutations)
     }
 
+    @Test func publicationRepairReconstructsMissingImmutableReceiptAuthority() throws {
+        // Production break caught: replaying only the mutation from the
+        // publication marker can remove the last duplicate of a receipt and
+        // let a later retry mint a different logical revision.
+        let fixture = try SyncPublicationFixture()
+        let first = fixture.store(sink: RecordingSyncMutationSink(shouldFail: true))
+        try first.rename(id: fixture.projectID, to: "Receipt recovery")
+        let transaction = try #require(try SyncPublicationTransactionFile(
+            archiveURL: fixture.archiveURL
+        ).load())
+        let receipt = try #require(transaction.revisionReceipts.first)
+        let ledgerURL = fixture.liveRoot.appendingPathComponent(
+            "SyncMetadata/revision-ledger.json"
+        )
+        let receiptsRoot = ledgerURL.deletingPathExtension()
+            .appendingPathExtension("receipts")
+        let hex = receipt.mutationID.uuidString.lowercased()
+        let receiptURL = receiptsRoot
+            .appendingPathComponent(String(hex.prefix(2)), isDirectory: true)
+            .appendingPathComponent("\(hex).json")
+        try FileManager.default.removeItem(at: receiptURL)
+
+        let repairSink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: repairSink)
+        try restarted.repairSyncPublication()
+
+        #expect(repairSink.mutations == transaction.mutations)
+        let restored = try JSONDecoder().decode(
+            SyncRevisionReceipt.self,
+            from: Data(contentsOf: receiptURL)
+        )
+        #expect(restored == receipt)
+        let retried = try SyncRevisionLedger(
+            url: ledgerURL,
+            deviceID: receipt.deviceID
+        ).allocate(
+            for: receipt.entityID,
+            mutationID: receipt.mutationID,
+            observedRemoteRevision: 9_999
+        )
+        #expect(retried == receipt)
+    }
+
+    @Test func publicationRepairFailsClosedOnDivergentImmutableReceipt() throws {
+        // Production break caught: a receipt-file conflict is corruption, not
+        // transient ledger unavailability, and no journal replay may proceed.
+        let fixture = try SyncPublicationFixture()
+        let first = fixture.store(sink: RecordingSyncMutationSink(shouldFail: true))
+        try first.rename(id: fixture.projectID, to: "Divergent receipt")
+        let transactionFile = SyncPublicationTransactionFile(archiveURL: fixture.archiveURL)
+        let transaction = try #require(try transactionFile.load())
+        let receipt = try #require(transaction.revisionReceipts.first)
+        let ledgerURL = fixture.liveRoot.appendingPathComponent(
+            "SyncMetadata/revision-ledger.json"
+        )
+        let hex = receipt.mutationID.uuidString.lowercased()
+        let receiptURL = ledgerURL.deletingPathExtension()
+            .appendingPathExtension("receipts")
+            .appendingPathComponent(String(hex.prefix(2)), isDirectory: true)
+            .appendingPathComponent("\(hex).json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(SyncRevisionReceipt(
+            entityID: receipt.entityID,
+            mutationID: receipt.mutationID,
+            logicalRevision: receipt.logicalRevision + 1,
+            deviceID: receipt.deviceID
+        )).write(to: receiptURL)
+        let sink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: sink)
+
+        #expect(throws: SyncPublicationError.corruptTransaction) {
+            try restarted.repairSyncPublication()
+        }
+        #expect(sink.mutations.isEmpty)
+        #expect(try transactionFile.load() == transaction)
+    }
+
     @Test func successfulMutationPublishesOnlyAfterArchiveCommit() throws {
         let fixture = try SyncPublicationFixture()
         let sink = RecordingSyncMutationSink(archiveURL: fixture.archiveURL)

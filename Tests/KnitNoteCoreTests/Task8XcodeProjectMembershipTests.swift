@@ -8,6 +8,7 @@ import Testing
         )
         let required = Set([
             "SyncIdentity.swift",
+            "SyncDurableFile.swift",
             "SyncMergeEngine.swift",
             "SyncMutationJournal.swift",
             "SyncMutationPublishing.swift",

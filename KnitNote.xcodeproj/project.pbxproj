@@ -247,6 +247,7 @@
 		A01871BB75779A55555851AA /* CreateProjectPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */; };
 		A08F2624BA274CC9890E6FF7 /* SyncRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57C788B9ECD15B6F70599FE3 /* SyncRecord.swift */; };
 		A219C944B69238CEF6D8211A /* SyncMutationJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA77004900FEA73D4CE5CD19 /* SyncMutationJournal.swift */; };
+		A441A8053F7C78CB562C3097 /* SyncDurableFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6035C578ADF8D6DF0D15AE0 /* SyncDurableFile.swift */; };
 		A4B18C855C5E8E2E9A5F1421 /* FeatureAccessPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560C63535489050C1E0E523E /* FeatureAccessPolicy.swift */; };
 		A4FC998617515EDEE746AAD5 /* ProjectCountersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD713272CA7A3E0E81C4850 /* ProjectCountersView.swift */; };
 		A5BE1A19B9C35CAB890C30BD /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
@@ -355,6 +356,7 @@
 		EE6869FC24221AE2FE3CBCC4 /* PatternFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97FF35EE94B14299E3D2C90 /* PatternFolder.swift */; };
 		EF31140DEB82432B1F5253DA /* SyncMergeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2AF74C2A54A14E81EF3B331 /* SyncMergeEngine.swift */; };
 		EFCF881CA8E318B938F4E3B7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3018E335F9D5E4EBFA1B6FAA /* PrivacyInfo.xcprivacy */; };
+		F0C99FC2E78C63911B6B2F44 /* SyncDurableFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6035C578ADF8D6DF0D15AE0 /* SyncDurableFile.swift */; };
 		F16BCF526385BF9617E0E3D3 /* EvenStitchAdjustmentInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */; };
 		F17FCF8C62EDA80B6FA6304F /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		F1A9E3015D8D2FE61E35D6E8 /* StoredPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8478CDB6B5F7EE9D9EDA6FBB /* StoredPattern.swift */; };
@@ -685,6 +687,7 @@
 		E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntry.swift; sourceTree = "<group>"; };
 		E465B08D730079FCDD3CC5C4 /* LegacyPaidVersionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPaidVersionPolicy.swift; sourceTree = "<group>"; };
 		E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternProjectUsage.swift; sourceTree = "<group>"; };
+		E6035C578ADF8D6DF0D15AE0 /* SyncDurableFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDurableFile.swift; sourceTree = "<group>"; };
 		E97FF35EE94B14299E3D2C90 /* PatternFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternFolder.swift; sourceTree = "<group>"; };
 		E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		E9F9AB70EA6020F2BECF5EFD /* KnitNoteBackupDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupDocument.swift; sourceTree = "<group>"; };
@@ -1236,6 +1239,7 @@
 			isa = PBXGroup;
 			children = (
 				C7566DB749ED0266182EB98E /* SyncAttachmentManifest.swift */,
+				E6035C578ADF8D6DF0D15AE0 /* SyncDurableFile.swift */,
 				CCF071059A4592DF3DE45298 /* SyncIdentity.swift */,
 				C47915CA0A7676EA5E2C3506 /* SyncInstallationIdentity.swift */,
 				B2AF74C2A54A14E81EF3B331 /* SyncMergeEngine.swift */,
@@ -1691,6 +1695,7 @@
 				941A6C75385E9861EA992A1B /* StoredYarn.swift in Sources */,
 				ED645E3C980D71D1881F3121 /* SupportedLocalization.swift in Sources */,
 				49E45F95BB394303717BB4B3 /* SyncAttachmentManifest.swift in Sources */,
+				A441A8053F7C78CB562C3097 /* SyncDurableFile.swift in Sources */,
 				1D28BB1075FD3EF601E66DF2 /* SyncIdentity.swift in Sources */,
 				880327C5303F7FA5CEA3E6C4 /* SyncInstallationIdentity.swift in Sources */,
 				FDD9D15543FD46A91CC4A625 /* SyncMergeEngine.swift in Sources */,
@@ -1822,6 +1827,7 @@
 				50FD51A80636056A79BEEF1C /* StoredYarn.swift in Sources */,
 				45127A7B3326589F3A7F3F3E /* SupportedLocalization.swift in Sources */,
 				D0C02B1C8F8B3BCBE9F3E624 /* SyncAttachmentManifest.swift in Sources */,
+				F0C99FC2E78C63911B6B2F44 /* SyncDurableFile.swift in Sources */,
 				6660B1A3F9304B8FB8F8DF5D /* SyncIdentity.swift in Sources */,
 				B9445BF82C5D2A7E901E84A2 /* SyncInstallationIdentity.swift in Sources */,
 				EF31140DEB82432B1F5253DA /* SyncMergeEngine.swift in Sources */,

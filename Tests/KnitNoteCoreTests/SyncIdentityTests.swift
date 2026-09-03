@@ -33,7 +33,8 @@ import Testing
     }
 
     @Test func entityKindsContainAllSyncEntities() {
-        #expect(SyncEntityKind.allCases.count == 12)
+        #expect(SyncEntityKind.allCases.count == 13)
         #expect(SyncEntityKind(rawValue: "deletionMarker") == .deletionMarker)
+        #expect(SyncEntityKind(rawValue: "watchCommandProof") == .watchCommandProof)
     }
 }

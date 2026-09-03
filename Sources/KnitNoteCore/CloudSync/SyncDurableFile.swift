@@ -97,7 +97,11 @@ enum SyncDurableFile {
         try synchronizeDirectory(parent)
     }
 
-    static func createNoClobber(_ data: Data, at url: URL) throws -> Bool {
+    static func createNoClobber(
+        _ data: Data,
+        at url: URL,
+        afterRename: () throws -> Void = {}
+    ) throws -> Bool {
         let parent = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
         let temporaryURL = parent.appendingPathComponent(
@@ -133,6 +137,7 @@ enum SyncDurableFile {
             return false
         }
         shouldRemoveTemporary = false
+        try afterRename()
         try synchronizeDirectory(parent)
         return true
     }

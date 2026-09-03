@@ -182,3 +182,79 @@ Result: exit 0, no whitespace errors before report creation.
 - The process test compiles a tiny executable from the real production source, then runs four independent processes. This adds about two seconds to the ledger suite but directly validates the cross-process file lock rather than inferring it from two objects in one process.
 - Receipt authority is permanent by design; disk usage grows linearly with unique mutation IDs. This is the accepted tradeoff in the approved specification.
 - No CloudKit transport, version/build change, release, push, or submission work was performed.
+
+## Fix round 1: migration/replay preflight and bounded durability
+
+Date: 2026-09-04
+
+Review range: `af2962efb6c9bbdaca67401125773f97f1b9707c..4fcd59f99d7d96a79aa264444f31e76d43b0b880`
+
+### Review findings closed
+
+1. Migration replay now reconstructs its canonical legacy projection from the validated, digest-matching v1 bytes. Every v1 receipt must appear byte-equivalently in the marker, folded current-batch receipts must be above the corresponding legacy head, and the full sorted target-head array must equal the exact maxima. If migration has already installed v2 heads, replay requires exact marker/head equality and every marker receipt to exist canonically before doing any synchronization or removal.
+2. Replay computes and validates all head transitions, encoded head/receipt limits, receipt destinations, and root/shard path types before writing a marker, creating a directory, installing a receipt, or replacing heads. A later divergent destination or stale target head therefore leaves no partial receipt layout.
+3. Receipt-root and shard creation now expose a crash boundary immediately after `mkdir` and before parent `fsync`. Recovery revalidates existing directories and synchronizes the ledger parent, receipt root, and shard metadata path before heads can advance. Coverage crashes after both the root and shard creations.
+4. Heads/v1, transaction markers, and immutable receipts now use `SyncRegularFileReader` with their semantic 16 MiB/16 MiB/64 KiB caps. FIFO paths fail without blocking, oversized declared sizes fail before open/payload read, and descriptor replacement races map to the typed unsafe-file boundary. The standalone process fixture compiles the reader with the ledger.
+5. The first unseen allocation against v1 is folded into the migration marker and one final v2 heads write. Crash/restart coverage at each legacy/current receipt rename reuses the exact allocated revision and advances the next revision once.
+6. `SyncDurableFile.createNoClobber` now invokes the ledger receipt boundary immediately after successful `RENAME_EXCL` and before shard-directory synchronization. Each injected receipt boundary verifies the installed name is visible while heads are still absent, then verifies exact receipt reuse after restart.
+
+### Marker ruling applied
+
+The abandoned allocation-marker semantic-tamper test was removed. With the approved allocation marker containing proposed receipts/heads but no persisted request floors or authentication, a consistently changed allocation receipt/head pair is indistinguishable from a legitimate higher observed floor. The corrected tests target the review finding's provable boundary: a migration marker is anchored to digest-matching v1 bytes, and migration re-entry after v2 heads installation requires exact receipts and heads.
+
+### RED evidence
+
+1. Inherited review regressions:
+
+   `swift test --scratch-path /tmp/KnitNoteResidualTask3 --filter 'SyncRevisionLedgerTests'`
+
+   Result: exit 1; 26 tests ran with 9 issues. Canonical migration-marker tampering was accepted and replaced v1; a later divergent migration receipt left the earlier receipt installed; migration plus the current allocation wrote heads twice; and restart did not re-sync both directory parents after a post-`mkdir` crash. The batch also contained the abandoned allocation-marker semantic-tamper test; it failed but was later removed under the ruling above because its claimed distinction is not encoded by the approved format.
+
+2. Bounded reader adoption:
+
+   `swift test --scratch-path /tmp/KnitNoteResidualTask3 --filter 'SyncRevisionLedgerTests.oversizedLedgerArtifactsAreRejectedBeforeOpenOrPayloadRead|SyncRevisionLedgerTests.ledgerArtifactReplacementRacesFailClosedWithTypedError'`
+
+   Result: exit 1 at compile time with two expected `extra argument 'fileReader' in call` diagnostics. The ledger had no injectable bounded-reader boundary.
+
+3. Rename-before-directory-sync injection:
+
+   `swift test --scratch-path /tmp/KnitNoteResidualTask3 --filter 'SyncRevisionLedgerTests.noClobberRenameBoundaryRunsAfterInstallAndBeforeReturn'`
+
+   Result: exit 1 at compile time with the expected `extra argument 'afterRename' in call` diagnostic. `createNoClobber` did not expose the post-`RENAME_EXCL`, pre-directory-`fsync` boundary.
+
+4. Complete encoded-size preflight:
+
+   `swift test --scratch-path /tmp/KnitNoteResidualTask3 --filter 'SyncRevisionLedgerTests.migrationPreflightsReceiptEncodingLimitBeforeCreatingLayout'`
+
+   Result: exit 1; 1 test ran with 2 issues because the transaction marker and receipts root were created before the oversized receipt was rejected.
+
+5. Corrected migration-v2 and head-preflight regression mutation:
+
+   `swift test --scratch-path /tmp/KnitNoteResidualTask3 --filter 'SyncRevisionLedgerTests.migrationV2ReentryRequiresExactMarkerHeads|SyncRevisionLedgerTests.migrationV2ReentryRequiresEveryExactMarkerReceipt|SyncRevisionLedgerTests.replayPreflightsHeadConflictsBeforeInstallingAnyReceipt'`
+
+   Result against a temporary detached worktree with only the exact-match/head-order guards deliberately removed: exit 1; 3 tests ran with 8 issues. The mutated replay raised a committed migration head, installed an altered migration receipt, installed an allocation receipt before detecting the stale target, rewrote heads, and removed the marker. The temporary worktree was then removed; the production worktree was never regressed.
+
+### GREEN evidence
+
+Focused Task 3 and publication command:
+
+`swift test --scratch-path /tmp/KnitNoteResidualTask3 --filter 'SyncRevisionLedgerTests|JSONProjectStoreSyncPublicationTests|SyncInstallationIdentityTests|SyncPublicationTransactionTests'`
+
+Result: exit 0; 104 tests passed, 0 failures, across 3 matching suites. This checkout still has no separately named `SyncPublicationTransactionTests` suite; those contracts remain in `JSONProjectStoreSyncPublicationTests`.
+
+Adjacent bounded-reader and Xcode-membership command:
+
+`swift test --scratch-path /tmp/KnitNoteResidualTask3 --filter 'Task8XcodeProjectMembershipTests|SyncRegularFileReaderTests'`
+
+Result: exit 0; 10 tests passed, 0 failures, across 2 suites.
+
+`git diff --check`
+
+Result: exit 0 with no whitespace errors before this report section was appended.
+
+### Self-review and remaining boundaries
+
+- Allocation-marker contents are not authenticated and do not persist observed floors; the fix intentionally does not claim that a consistently rewritten allocation receipt/head pair can be detected. Migration has the v1 digest and exact installed-v2 state needed for the stronger checks.
+- Migration permits only exact legacy receipts plus folded current-batch receipts whose revisions are above the legacy head; target heads must be the exact sorted maxima of that complete marker set.
+- Hot-path allocation still performs direct mutation-ID receipt lookups and no receipt-directory enumeration. The additional full-destination preflight is O(current marker batch); v1 migration remains O(v1 receipt count) once.
+- No full suite or platform build was run; Task 4 owns those gates. No CloudKit transport, version/build, archive, push, release, or submission work was performed.

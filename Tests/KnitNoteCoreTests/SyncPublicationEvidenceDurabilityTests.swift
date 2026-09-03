@@ -179,10 +179,18 @@ import Testing
         let destination = root.appendingPathComponent("authority.json")
         let payload = Data("immutable-authority".utf8)
         var directorySyncAttempts = 0
+        var retryDirectoryWasClean = false
         let boundary: (SyncDurableFileWriteBoundary) throws -> Void = { reached in
             guard reached == .beforeDirectorySync else { return }
             directorySyncAttempts += 1
             if directorySyncAttempts == 1 { throw InjectedEvidenceFailure() }
+            let entries = try FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: nil
+            )
+            retryDirectoryWasClean = entries.allSatisfy {
+                !$0.lastPathComponent.hasSuffix(".tmp")
+            }
         }
 
         #expect(throws: InjectedEvidenceFailure.self) {
@@ -200,6 +208,7 @@ import Testing
             beforeBoundary: boundary
         ) == false)
         #expect(directorySyncAttempts == 2)
+        #expect(retryDirectoryWasClean)
     }
 
     @Test func watchProofRetryResynchronizesExistingImmutableParentBeforeCompletion() throws {

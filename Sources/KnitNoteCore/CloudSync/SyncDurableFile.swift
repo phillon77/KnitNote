@@ -136,6 +136,10 @@ enum SyncDurableFile {
         }
         if didRename != 0 {
             guard errno == EEXIST else { throw SyncDurableFileError.unavailable }
+            guard temporaryURL.path.withCString(Darwin.unlink) == 0 else {
+                throw SyncDurableFileError.unavailable
+            }
+            shouldRemoveTemporary = false
             try synchronizeParentDirectory(of: url, beforeBoundary: beforeBoundary)
             return false
         }

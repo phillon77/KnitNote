@@ -1130,6 +1130,10 @@ struct SyncAttachmentPublicationEvidenceFile {
             guard try authoritiesMatch(existing, authority) else {
                 throw SyncPublicationTransactionFileError.corrupt
             }
+            try SyncDurableFile.synchronizeParentDirectory(
+                of: destination,
+                beforeBoundary: beforeDurabilityBoundary
+            )
             return
         }
         try ensureImmutableDirectories(
@@ -1164,6 +1168,10 @@ struct SyncAttachmentPublicationEvidenceFile {
             guard try tombstonesMatch(existing, tombstone) else {
                 throw SyncPublicationTransactionFileError.corrupt
             }
+            try SyncDurableFile.synchronizeParentDirectory(
+                of: destination,
+                beforeBoundary: beforeDurabilityBoundary
+            )
             return
         }
         try ensureImmutableDirectories(
@@ -1195,6 +1203,10 @@ struct SyncAttachmentPublicationEvidenceFile {
             guard existing == proof else {
                 throw SyncPublicationTransactionFileError.corrupt
             }
+            try SyncDurableFile.synchronizeParentDirectory(
+                of: destination,
+                beforeBoundary: beforeDurabilityBoundary
+            )
             return
         }
         try ensureImmutableDirectories(

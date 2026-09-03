@@ -171,6 +171,112 @@ import Testing
         #expect(try restarted.watchCommandProof(for: secondCommand) == nil)
     }
 
+    @Test func noClobberRetryResynchronizesParentAfterPostRenameFailure() throws {
+        // Production break caught: a retry that observed EEXIST returned
+        // without making the already-renamed destination name directory-durable.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let destination = root.appendingPathComponent("authority.json")
+        let payload = Data("immutable-authority".utf8)
+        var directorySyncAttempts = 0
+        let boundary: (SyncDurableFileWriteBoundary) throws -> Void = { reached in
+            guard reached == .beforeDirectorySync else { return }
+            directorySyncAttempts += 1
+            if directorySyncAttempts == 1 { throw InjectedEvidenceFailure() }
+        }
+
+        #expect(throws: InjectedEvidenceFailure.self) {
+            _ = try SyncDurableFile.createNoClobber(
+                payload,
+                at: destination,
+                beforeBoundary: boundary
+            )
+        }
+        #expect(try Data(contentsOf: destination) == payload)
+
+        #expect(try SyncDurableFile.createNoClobber(
+            payload,
+            at: destination,
+            beforeBoundary: boundary
+        ) == false)
+        #expect(directorySyncAttempts == 2)
+    }
+
+    @Test func watchProofRetryResynchronizesExistingImmutableParentBeforeCompletion() throws {
+        // Production break caught: the evidence-file preflight found the proof
+        // created by the interrupted attempt and returned success without
+        // repairing the proof shard's parent directory durability.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        try SyncAttachmentPublicationEvidenceFile(url: url)
+            .save(SyncAttachmentPublicationEvidence())
+        let command = WatchCounterCommand(
+            id: UUID(), projectID: UUID(), counterID: UUID(),
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let mutation = try orphanProofMutation(
+            command: command,
+            rejection: .projectMissing,
+            processedAt: Date(timeIntervalSince1970: 2)
+        )
+        var directorySyncAttempts = 0
+        let writer = SyncAttachmentPublicationEvidenceFile(
+            url: url,
+            beforeDurabilityBoundary: { reached in
+                guard reached == .beforeDirectorySync else { return }
+                directorySyncAttempts += 1
+                if directorySyncAttempts == 1 { throw InjectedEvidenceFailure() }
+            }
+        )
+
+        #expect(throws: InjectedEvidenceFailure.self) {
+            _ = try writer.applying([mutation])
+        }
+        _ = try writer.applying([mutation])
+
+        #expect(directorySyncAttempts == 2)
+        #expect(try SyncAttachmentPublicationEvidenceFile(url: url)
+            .watchCommandProof(for: command)?.id == command.id)
+    }
+
+    @Test func attachmentAuthorityRetryRepairsParentBeforeCommittingHead() throws {
+        // Production break caught: an existing immutable attachment authority
+        // skipped parent repair and advanced the mutable head immediately.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        try SyncAttachmentPublicationEvidenceFile(url: url)
+            .save(SyncAttachmentPublicationEvidence())
+        let attachment = try version(
+            slot: .init(
+                owner: .init(kind: .project, uuid: UUID()),
+                role: "project-photo",
+                slotID: "parent-repair"
+            ),
+            bytes: Data("parent-repair".utf8)
+        )
+        let mutation = try liveMutation(attachment)
+        var directorySyncAttempts = 0
+        let writer = SyncAttachmentPublicationEvidenceFile(
+            url: url,
+            beforeDurabilityBoundary: { reached in
+                guard reached == .beforeDirectorySync else { return }
+                directorySyncAttempts += 1
+                if directorySyncAttempts == 1 { throw InjectedEvidenceFailure() }
+            }
+        )
+
+        #expect(throws: InjectedEvidenceFailure.self) {
+            _ = try writer.applying([mutation])
+        }
+        _ = try writer.applying([mutation])
+
+        #expect(directorySyncAttempts == 3)
+        #expect(try SyncAttachmentPublicationEvidenceFile(url: url)
+            .load().allVersions == [attachment])
+    }
+
     @Test func highHistoryWatchProofWriteDoesNotRewriteAttachmentHeadFile() throws {
         // Production break caught: every new orphan proof re-encoded the
         // monolithic attachment/proof sidecar, making write work proportional

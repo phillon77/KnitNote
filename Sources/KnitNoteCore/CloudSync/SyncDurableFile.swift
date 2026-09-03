@@ -93,8 +93,7 @@ enum SyncDurableFile {
             throw SyncDurableFileError.unavailable
         }
         shouldRemoveTemporary = false
-        try beforeBoundary(.beforeDirectorySync)
-        try synchronizeDirectory(parent)
+        try synchronizeParentDirectory(of: url, beforeBoundary: beforeBoundary)
     }
 
     static func createNoClobber(
@@ -137,13 +136,21 @@ enum SyncDurableFile {
         }
         if didRename != 0 {
             guard errno == EEXIST else { throw SyncDurableFileError.unavailable }
+            try synchronizeParentDirectory(of: url, beforeBoundary: beforeBoundary)
             return false
         }
         shouldRemoveTemporary = false
         try afterRename()
-        try beforeBoundary(.beforeDirectorySync)
-        try synchronizeDirectory(parent)
+        try synchronizeParentDirectory(of: url, beforeBoundary: beforeBoundary)
         return true
+    }
+
+    static func synchronizeParentDirectory(
+        of url: URL,
+        beforeBoundary: (SyncDurableFileWriteBoundary) throws -> Void = { _ in }
+    ) throws {
+        try beforeBoundary(.beforeDirectorySync)
+        try synchronizeDirectory(url.deletingLastPathComponent())
     }
 
     static func removeRegularFile(at url: URL) throws {

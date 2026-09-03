@@ -70,18 +70,21 @@ public struct ProjectArchive: Codable, Sendable {
 /// Durable local evidence of the active issued version for each attachment
 /// slot. The archive deliberately retains user content only, so this sidecar
 /// keeps a restart from minting an ID or guessing a replacement lineage.
-struct SyncAttachmentPublicationEvidence: Codable {
-    private var versions: [SyncAttachmentVersion]
-    private var deletedVersionIDs: Set<UUID>
+struct SyncAttachmentPublicationEvidence: Codable, Equatable {
+    fileprivate var storageVersion: Int
+    fileprivate var versions: [SyncAttachmentVersion]
+    fileprivate var deletedVersionIDs: Set<UUID>
     private(set) var watchCommandProofs: [SyncProcessedWatchCommandProof]
-    private var attachmentRecords: [SyncRecord]
+    fileprivate var attachmentRecords: [SyncRecord]
 
     init(
         versions: [SyncAttachmentVersion] = [],
         deletedVersionIDs: Set<UUID> = [],
         watchCommandProofs: [SyncProcessedWatchCommandProof] = [],
-        attachmentRecords: [SyncRecord] = []
+        attachmentRecords: [SyncRecord] = [],
+        storageVersion: Int = 2
     ) {
+        self.storageVersion = storageVersion
         self.versions = versions
         self.deletedVersionIDs = deletedVersionIDs
         self.watchCommandProofs = watchCommandProofs
@@ -89,11 +92,12 @@ struct SyncAttachmentPublicationEvidence: Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case versions, deletedVersionIDs, watchCommandProofs, attachmentRecords
+        case storageVersion, versions, deletedVersionIDs, watchCommandProofs, attachmentRecords
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        storageVersion = try container.decodeIfPresent(Int.self, forKey: .storageVersion) ?? 1
         versions = try container.decodeIfPresent(
             [SyncAttachmentVersion].self, forKey: .versions
         ) ?? []
@@ -110,6 +114,7 @@ struct SyncAttachmentPublicationEvidence: Codable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(storageVersion, forKey: .storageVersion)
         try container.encode(versions, forKey: .versions)
         try container.encode(
             deletedVersionIDs.sorted { $0.uuidString < $1.uuidString },
@@ -161,6 +166,9 @@ struct SyncAttachmentPublicationEvidence: Codable {
     }
 
     func validated() throws -> Self {
+        guard storageVersion == 1 || storageVersion == 2 else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
         var records: [SyncRecord] = []
         var seenVersionIDs: Set<UUID> = []
         var issuedRecordByVersionID: [UUID: SyncRecord] = [:]
@@ -334,104 +342,558 @@ struct SyncAttachmentPublicationEvidence: Codable {
         watchCommandProofs = proofsByID.values.sorted { $0.id.uuidString < $1.id.uuidString }
         _ = try validated()
     }
+
+    fileprivate mutating func retainWatchCommandProof(
+        _ proof: SyncProcessedWatchCommandProof
+    ) throws {
+        _ = try proof.validated()
+        if let existing = watchCommandProofs.first(where: { $0.id == proof.id }) {
+            guard existing == proof else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            return
+        }
+        watchCommandProofs.append(proof)
+        watchCommandProofs.sort { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    fileprivate func merged(
+        with other: SyncAttachmentPublicationEvidence
+    ) throws -> SyncAttachmentPublicationEvidence {
+        var versionByID = Dictionary(uniqueKeysWithValues: versions.map {
+            ($0.versionID, $0)
+        })
+        for version in other.versions {
+            if let existing = versionByID[version.versionID], existing != version {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            versionByID[version.versionID] = version
+        }
+
+        var recordByID = Dictionary(uniqueKeysWithValues: attachmentRecords.map {
+            ($0.id.uuid, $0)
+        })
+        for record in other.attachmentRecords {
+            if let existing = recordByID[record.id.uuid] {
+                guard try SyncAttachmentImmutableSnapshot(record: existing).sha256
+                        == SyncAttachmentImmutableSnapshot(record: record).sha256 else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+            } else {
+                recordByID[record.id.uuid] = record
+            }
+        }
+
+        var proofByID = Dictionary(uniqueKeysWithValues: watchCommandProofs.map {
+            ($0.id, $0)
+        })
+        for proof in other.watchCommandProofs {
+            if let existing = proofByID[proof.id], existing != proof {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            proofByID[proof.id] = proof
+        }
+
+        return try SyncAttachmentPublicationEvidence(
+            versions: Array(versionByID.values),
+            deletedVersionIDs: deletedVersionIDs.union(other.deletedVersionIDs),
+            watchCommandProofs: Array(proofByID.values),
+            attachmentRecords: Array(recordByID.values),
+            storageVersion: 2
+        ).canonicalized().validated()
+    }
+
+    fileprivate func compactedToActiveHeads() throws -> SyncAttachmentPublicationEvidence {
+        let validated = try validated()
+        let replacedVersionIDs = Set(validated.versions.compactMap(\.replacesVersionID))
+        let heads = validated.versions.filter {
+            !replacedVersionIDs.contains($0.versionID)
+        }
+        let headIDs = Set(heads.map(\.versionID))
+        return try SyncAttachmentPublicationEvidence(
+            versions: heads,
+            deletedVersionIDs: validated.deletedVersionIDs.intersection(headIDs),
+            watchCommandProofs: [],
+            attachmentRecords: validated.attachmentRecords.filter {
+                headIDs.contains($0.id.uuid)
+            },
+            storageVersion: 2
+        ).canonicalized().validated()
+    }
+
+    fileprivate func canonicalized() -> SyncAttachmentPublicationEvidence {
+        let versionByID = Dictionary(uniqueKeysWithValues: versions.map {
+            ($0.versionID, $0)
+        })
+        func depth(of version: SyncAttachmentVersion) -> Int {
+            var depth = 0
+            var cursor = version.replacesVersionID
+            var visited: Set<UUID> = []
+            while let id = cursor,
+                  visited.insert(id).inserted,
+                  let parent = versionByID[id] {
+                depth += 1
+                cursor = parent.replacesVersionID
+            }
+            return depth
+        }
+        return SyncAttachmentPublicationEvidence(
+            versions: versions.sorted {
+                if $0.slot != $1.slot {
+                    return syncAttachmentSlotIsOrderedBefore($0.slot, $1.slot)
+                }
+                let lhsDepth = depth(of: $0)
+                let rhsDepth = depth(of: $1)
+                if lhsDepth != rhsDepth { return lhsDepth < rhsDepth }
+                return $0.versionID.uuidString < $1.versionID.uuidString
+            },
+            deletedVersionIDs: deletedVersionIDs,
+            watchCommandProofs: watchCommandProofs.sorted {
+                $0.id.uuidString < $1.id.uuidString
+            },
+            attachmentRecords: attachmentRecords.sorted {
+                $0.id.uuid.uuidString < $1.id.uuid.uuidString
+            },
+            storageVersion: storageVersion
+        )
+    }
+}
+
+struct SyncPublicationEvidenceIOCountSnapshot: Equatable, Sendable {
+    var headReads: Int
+    var headWrites: Int
+    var watchProofLookups: Int
+    var watchProofWrites: Int
+    var watchProofDirectoryEnumerations: Int
+    var attachmentAuthorityLookups: Int
+    var attachmentAuthorityWrites: Int
+    var attachmentAuthorityDirectoryEnumerations: Int
+}
+
+final class SyncPublicationEvidenceIOCounters: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values = SyncPublicationEvidenceIOCountSnapshot(
+        headReads: 0,
+        headWrites: 0,
+        watchProofLookups: 0,
+        watchProofWrites: 0,
+        watchProofDirectoryEnumerations: 0,
+        attachmentAuthorityLookups: 0,
+        attachmentAuthorityWrites: 0,
+        attachmentAuthorityDirectoryEnumerations: 0
+    )
+
+    var snapshot: SyncPublicationEvidenceIOCountSnapshot {
+        lock.withLock { values }
+    }
+
+    func reset() {
+        lock.withLock {
+            values = SyncPublicationEvidenceIOCountSnapshot(
+                headReads: 0,
+                headWrites: 0,
+                watchProofLookups: 0,
+                watchProofWrites: 0,
+                watchProofDirectoryEnumerations: 0,
+                attachmentAuthorityLookups: 0,
+                attachmentAuthorityWrites: 0,
+                attachmentAuthorityDirectoryEnumerations: 0
+            )
+        }
+    }
+
+    fileprivate func recordHeadRead() { update(\.headReads) }
+    fileprivate func recordHeadWrite() { update(\.headWrites) }
+    fileprivate func recordWatchProofLookup() { update(\.watchProofLookups) }
+    fileprivate func recordWatchProofWrite() { update(\.watchProofWrites) }
+    fileprivate func recordWatchProofDirectoryEnumeration() {
+        update(\.watchProofDirectoryEnumerations)
+    }
+    fileprivate func recordAttachmentAuthorityLookup() {
+        update(\.attachmentAuthorityLookups)
+    }
+    fileprivate func recordAttachmentAuthorityWrite() {
+        update(\.attachmentAuthorityWrites)
+    }
+    fileprivate func recordAttachmentAuthorityDirectoryEnumeration() {
+        update(\.attachmentAuthorityDirectoryEnumerations)
+    }
+
+    private func update(_ keyPath: WritableKeyPath<SyncPublicationEvidenceIOCountSnapshot, Int>) {
+        lock.withLock { values[keyPath: keyPath] += 1 }
+    }
+}
+
+private struct SyncStoredAttachmentVersionAuthority: Codable {
+    let storageVersion: Int
+    let version: SyncAttachmentVersion
+    let record: SyncRecord?
+
+    init(version: SyncAttachmentVersion, record: SyncRecord?) {
+        storageVersion = 1
+        self.version = version
+        self.record = record
+    }
+
+    func validated() throws -> Self {
+        guard storageVersion == 1 else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        do {
+            _ = try version.validated()
+            if let record {
+                _ = try SyncRecordValidator().validate(record)
+                guard record.payload.attachment == version else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+            }
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        return self
+    }
+}
+
+private struct SyncStoredAttachmentTombstoneAuthority: Codable {
+    let storageVersion: Int
+    let versionID: UUID
+    let record: SyncRecord?
+
+    init(versionID: UUID, record: SyncRecord?) {
+        storageVersion = 1
+        self.versionID = versionID
+        self.record = record
+    }
+
+    func validated() throws -> Self {
+        guard storageVersion == 1 else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        if let record {
+            do {
+                _ = try SyncRecordValidator().validate(record)
+                guard record.id == .init(kind: .attachment, uuid: versionID),
+                      record.payload.attachment?.versionID == versionID,
+                      record.deletedAt.value != nil else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+            } catch let error as SyncPublicationTransactionFileError {
+                throw error
+            } catch {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+        return self
+    }
+}
+
+private struct SyncStoredWatchCommandProof: Codable {
+    let storageVersion: Int
+    let proof: SyncProcessedWatchCommandProof
+
+    init(proof: SyncProcessedWatchCommandProof) {
+        storageVersion = 1
+        self.proof = proof
+    }
+
+    func validated() throws -> Self {
+        guard storageVersion == 1 else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        do {
+            _ = try proof.validated()
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        return self
+    }
 }
 
 struct SyncAttachmentPublicationEvidenceFile {
     private static let maximumEncodedBytes = FileSyncMutationJournal.maximumEncodedBytes
+    private static let maximumAuthorityBytes = 16 * 1_024 * 1_024
+    private static let maximumWatchProofBytes = 1 * 1_024 * 1_024
+
     let url: URL
     let beforeDurabilityBoundary: (SyncDurableFileWriteBoundary) throws -> Void
+    let reader: any SyncRegularFileReading
+    let counters: SyncPublicationEvidenceIOCounters
 
     init(
         url: URL,
-        beforeDurabilityBoundary: @escaping (SyncDurableFileWriteBoundary) throws -> Void = { _ in }
+        beforeDurabilityBoundary: @escaping (SyncDurableFileWriteBoundary) throws -> Void = { _ in },
+        reader: any SyncRegularFileReading = SyncRegularFileReader(),
+        counters: SyncPublicationEvidenceIOCounters = SyncPublicationEvidenceIOCounters()
     ) {
         self.url = url
         self.beforeDurabilityBoundary = beforeDurabilityBoundary
+        self.reader = reader
+        self.counters = counters
     }
 
     func load() throws -> SyncAttachmentPublicationEvidence {
-        do {
-            return try SyncDurableFile.withExclusiveFileLock(for: url) {
-                try loadUnlocked()
+        try mappedOperation {
+            try SyncDurableFile.withExclusiveFileLock(for: url) {
+                let head = try loadHeadForReadUnlocked()
+                var authorityByVersionID: [UUID: SyncStoredAttachmentVersionAuthority] = [:]
+                var historicalDeletedVersionIDs: Set<UUID> = []
+                for authorityURL in try immutableFileURLs(
+                    in: attachmentAuthoritiesRootURL,
+                    countingWatchProofs: false
+                ) {
+                    let authority = try readAttachmentAuthority(at: authorityURL)
+                    guard authorityByVersionID.updateValue(
+                        authority,
+                        forKey: authority.version.versionID
+                    ) == nil else {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                }
+                var tombstoneByVersionID: [UUID: SyncStoredAttachmentTombstoneAuthority] = [:]
+                for tombstoneURL in try immutableFileURLs(
+                    in: attachmentTombstonesRootURL,
+                    countingWatchProofs: false
+                ) {
+                    let tombstone = try readAttachmentTombstone(at: tombstoneURL)
+                    guard tombstoneByVersionID.updateValue(
+                        tombstone,
+                        forKey: tombstone.versionID
+                    ) == nil else {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                }
+                var historicalRecords: [SyncRecord] = []
+                for authority in authorityByVersionID.values {
+                    if let tombstone = tombstoneByVersionID[authority.version.versionID] {
+                        historicalDeletedVersionIDs.insert(authority.version.versionID)
+                        if let tombstoneRecord = tombstone.record {
+                            guard let issuedRecord = authority.record,
+                                  try SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
+                                    == SyncAttachmentImmutableSnapshot(record: tombstoneRecord)
+                                        .sha256 else {
+                                throw SyncPublicationTransactionFileError.corrupt
+                            }
+                            historicalRecords.append(tombstoneRecord)
+                        } else if let record = authority.record {
+                            historicalRecords.append(record)
+                        }
+                    } else if let record = authority.record {
+                        historicalRecords.append(record)
+                        if record.deletedAt.value != nil {
+                            throw SyncPublicationTransactionFileError.corrupt
+                        }
+                    }
+                }
+                guard tombstoneByVersionID.keys.allSatisfy({
+                    authorityByVersionID[$0] != nil
+                }) else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                let history = SyncAttachmentPublicationEvidence(
+                    versions: authorityByVersionID.values.map(\.version),
+                    deletedVersionIDs: historicalDeletedVersionIDs,
+                    attachmentRecords: historicalRecords,
+                    storageVersion: 2
+                )
+                var complete = try head.merged(with: history)
+                for proofURL in try immutableFileURLs(
+                    in: watchProofsRootURL,
+                    countingWatchProofs: true
+                ) {
+                    try complete.retainWatchCommandProof(readWatchProof(at: proofURL))
+                }
+                return try complete.canonicalized().validated()
             }
-        } catch let error as SyncPublicationTransactionFileError {
-            throw error
-        } catch let error as SyncDurableFileError {
-            throw mapDurableFileError(error)
-        } catch {
-            throw SyncPublicationTransactionFileError.corrupt
         }
     }
 
-    private func loadUnlocked() throws -> SyncAttachmentPublicationEvidence {
-        var status = stat()
-        let pathResult = url.path.withCString { Darwin.lstat($0, &status) }
-        if pathResult != 0 {
-            guard errno == ENOENT else {
-                throw SyncPublicationTransactionFileError.unavailable
+    func watchCommandProof(
+        for command: WatchCounterCommand
+    ) throws -> SyncProcessedWatchCommandProof? {
+        try mappedOperation {
+            try SyncDurableFile.withExclusiveFileLock(for: url) {
+                let head = try loadHeadForReadUnlocked()
+                if let proof = try head.watchCommandProof(for: command) {
+                    return proof
+                }
+                guard let proof = try loadWatchProof(command.id, countLookup: true) else {
+                    return nil
+                }
+                guard proof.commandIdentity == ProcessedWatchCommandIdentity(command),
+                      proof.commandIdentity != nil else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                return proof
             }
-            return SyncAttachmentPublicationEvidence()
-        }
-        do {
-            return try JSONDecoder().decode(
-                SyncAttachmentPublicationEvidence.self,
-                from: SyncRegularFileReader().read(
-                    url,
-                    maximumBytes: Self.maximumEncodedBytes
-                ).data
-            ).validated()
-        } catch let error as SyncRegularFileReadError {
-            switch error {
-            case .unsafeFile:
-                throw SyncPublicationTransactionFileError.unsafeFile
-            case .unavailable:
-                throw SyncPublicationTransactionFileError.unavailable
-            case .tooLarge, .replaced, .changed, .expectationMismatch:
-                throw SyncPublicationTransactionFileError.corrupt
-            }
-        } catch let error as SyncPublicationTransactionFileError {
-            throw error
-        } catch {
-            throw SyncPublicationTransactionFileError.corrupt
         }
     }
 
     func save(_ evidence: SyncAttachmentPublicationEvidence) throws {
-        do {
+        try mappedOperation {
             try SyncDurableFile.withExclusiveFileLock(for: url) {
-                try writeUnlocked(evidence)
+                let validated = try evidence.canonicalized().validated()
+                let authorities = attachmentAuthorities(in: validated)
+                let tombstones = attachmentTombstones(in: validated)
+                try preflight(
+                    authorities: authorities,
+                    tombstones: tombstones,
+                    proofs: validated.watchCommandProofs
+                )
+                for authority in authorities { try install(authority) }
+                for tombstone in tombstones { try install(tombstone) }
+                for proof in validated.watchCommandProofs { try install(proof) }
+                try writeHeadUnlocked(validated.compactedToActiveHeads())
             }
-        } catch let error as SyncPublicationTransactionFileError {
-            throw error
-        } catch let error as SyncDurableFileError {
-            throw mapDurableFileError(error)
         }
     }
 
-    /// Applies publication evidence as one read/validate/write transaction.
-    /// This prevents two independently loaded stores from replacing each
-    /// other's acknowledged lineage or Watch proof with a stale snapshot.
+    /// Applies one bounded publication batch. Immutable Watch proofs and
+    /// attachment-version authorities are addressed directly by UUID; only
+    /// active attachment heads may rewrite the compact sidecar.
     func applying(
-        _ mutations: [SyncMutation]
+        _ mutations: [SyncMutation],
+        retaining retainedEvidence: SyncAttachmentPublicationEvidence? = nil
     ) throws -> SyncAttachmentPublicationEvidence {
-        do {
-            return try SyncDurableFile.withExclusiveFileLock(for: url) {
-                var evidence = try loadUnlocked()
-                try evidence.apply(mutations)
-                try writeUnlocked(evidence)
-                return evidence
+        try mappedOperation {
+            try SyncDurableFile.withExclusiveFileLock(for: url) {
+                let head = try loadHeadForReadUnlocked()
+                let priorCompactHead = try head.compactedToActiveHeads()
+                var candidate = try (retainedEvidence ?? head).merged(with: head)
+                var referencedAuthorities: [SyncStoredAttachmentVersionAuthority] = []
+                var referencedTombstones: [SyncStoredAttachmentTombstoneAuthority] = []
+
+                for versionID in attachmentVersionIDsReferenced(by: mutations) {
+                    let authority = try loadAttachmentAuthority(
+                        versionID,
+                        countLookup: true
+                    )
+                    let tombstone = try loadAttachmentTombstone(
+                        versionID,
+                        countLookup: true
+                    )
+                    guard tombstone == nil || authority != nil else {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                    if let authority {
+                        referencedAuthorities.append(authority)
+                        if let tombstone { referencedTombstones.append(tombstone) }
+                        candidate = try candidate.merged(with: evidence(
+                            for: authority,
+                            tombstone: tombstone
+                        ))
+                    }
+                }
+                let batchProofs = try watchProofs(in: mutations)
+                for proof in batchProofs {
+                    if let existing = try loadWatchProof(proof.id, countLookup: true) {
+                        try candidate.retainWatchCommandProof(existing)
+                    }
+                }
+
+                try candidate.apply(mutations)
+                candidate = try candidate.canonicalized().validated()
+                let compactHead = try candidate.compactedToActiveHeads()
+                let authorities = try mergedAuthorities(
+                    mergedAuthorities(
+                        attachmentAuthorities(in: head), referencedAuthorities
+                    ),
+                    attachmentAuthorities(in: mutations)
+                )
+                let tombstones = try mergedTombstones(
+                    mergedTombstones(
+                        attachmentTombstones(in: head), referencedTombstones
+                    ),
+                    attachmentTombstones(in: mutations)
+                )
+                let allProofs = try mergedProofs(head.watchCommandProofs, batchProofs)
+                try preflight(
+                    authorities: authorities,
+                    tombstones: tombstones,
+                    proofs: allProofs
+                )
+                for authority in authorities { try install(authority) }
+                for tombstone in tombstones { try install(tombstone) }
+                for proof in allProofs { try install(proof) }
+                if head.storageVersion != 2
+                    || !head.watchCommandProofs.isEmpty
+                    || head.canonicalized() != priorCompactHead
+                    || compactHead != priorCompactHead {
+                    try writeHeadUnlocked(compactHead)
+                }
+                return candidate
             }
-        } catch let error as SyncPublicationTransactionFileError {
-            throw error
-        } catch let error as SyncDurableFileError {
-            throw mapDurableFileError(error)
         }
     }
 
-    private func writeUnlocked(_ evidence: SyncAttachmentPublicationEvidence) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(evidence.validated())
+    private var attachmentAuthoritiesRootURL: URL {
+        url.deletingPathExtension().appendingPathExtension("attachment-records")
+    }
+
+    private var attachmentTombstonesRootURL: URL {
+        url.deletingPathExtension().appendingPathExtension("attachment-tombstones")
+    }
+
+    private var watchProofsRootURL: URL {
+        url.deletingPathExtension().appendingPathExtension("watch-proofs")
+    }
+
+    private func loadHeadForReadUnlocked() throws -> SyncAttachmentPublicationEvidence {
+        let stored = try loadHeadUnlocked()
+        let compact = try stored.compactedToActiveHeads()
+        let isCurrentCompactHead = stored.storageVersion == 2
+            && stored.watchCommandProofs.isEmpty
+            && stored.canonicalized() == compact
+        if isCurrentCompactHead {
+            for authority in attachmentAuthorities(in: compact) {
+                guard let existing = try loadAttachmentAuthority(
+                    authority.version.versionID,
+                    countLookup: true
+                ), try authoritiesMatch(existing, authority) else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                let tombstone = try loadAttachmentTombstone(
+                    authority.version.versionID,
+                    countLookup: true
+                )
+                if compact.isDeleted(authority.version.versionID) {
+                    guard let tombstone,
+                          try tombstoneMatchesAuthority(tombstone, existing) else {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                } else if tombstone != nil {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+            }
+        }
+        return stored
+    }
+
+    private func loadHeadUnlocked() throws -> SyncAttachmentPublicationEvidence {
+        guard try pathExists(url) else { return SyncAttachmentPublicationEvidence() }
+        counters.recordHeadRead()
+        do {
+            return try JSONDecoder().decode(
+                SyncAttachmentPublicationEvidence.self,
+                from: reader.read(
+                    url,
+                    maximumBytes: Self.maximumEncodedBytes,
+                    expected: nil
+                ).data
+            ).validated()
+        } catch let error as SyncRegularFileReadError {
+            throw mapRegularFileError(error)
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+    }
+
+    private func writeHeadUnlocked(_ evidence: SyncAttachmentPublicationEvidence) throws {
+        let canonical = try evidence.compactedToActiveHeads()
+        let data = try deterministicEncoder().encode(canonical)
         guard data.count <= Self.maximumEncodedBytes else {
             throw SyncPublicationTransactionFileError.corrupt
         }
@@ -440,6 +902,608 @@ struct SyncAttachmentPublicationEvidenceFile {
             to: url,
             beforeBoundary: beforeDurabilityBoundary
         )
+        counters.recordHeadWrite()
+    }
+
+    private func attachmentAuthorities(
+        in evidence: SyncAttachmentPublicationEvidence
+    ) -> [SyncStoredAttachmentVersionAuthority] {
+        let records = Dictionary(uniqueKeysWithValues: evidence.attachmentRecords.map {
+            ($0.id.uuid, $0)
+        })
+        return evidence.versions.map {
+            SyncStoredAttachmentVersionAuthority(
+                version: $0,
+                record: records[$0.versionID]
+            )
+        }
+    }
+
+    private func attachmentAuthorities(
+        in mutations: [SyncMutation]
+    ) -> [SyncStoredAttachmentVersionAuthority] {
+        var byID: [UUID: SyncStoredAttachmentVersionAuthority] = [:]
+        for mutation in mutations {
+            guard let record = mutation.savedRecordVersion?.record,
+                  let version = record.payload.attachment else { continue }
+            let authority = SyncStoredAttachmentVersionAuthority(
+                version: version,
+                record: record
+            )
+            if let existing = byID[version.versionID],
+               (try? authoritiesMatch(existing, authority)) != true {
+                // Collective candidate validation reports the typed failure
+                // before this list is persisted.
+                continue
+            }
+            byID[version.versionID] = authority
+        }
+        return byID.values.sorted {
+            $0.version.versionID.uuidString < $1.version.versionID.uuidString
+        }
+    }
+
+    private func mergedAuthorities(
+        _ lhs: [SyncStoredAttachmentVersionAuthority],
+        _ rhs: [SyncStoredAttachmentVersionAuthority]
+    ) throws -> [SyncStoredAttachmentVersionAuthority] {
+        var byID = Dictionary(uniqueKeysWithValues: lhs.map {
+            ($0.version.versionID, $0)
+        })
+        for authority in rhs {
+            if let existing = byID[authority.version.versionID],
+               try !authoritiesMatch(existing, authority) {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            byID[authority.version.versionID] = authority
+        }
+        return byID.values.sorted {
+            $0.version.versionID.uuidString < $1.version.versionID.uuidString
+        }
+    }
+
+    private func attachmentTombstones(
+        in evidence: SyncAttachmentPublicationEvidence
+    ) -> [SyncStoredAttachmentTombstoneAuthority] {
+        let records = Dictionary(uniqueKeysWithValues: evidence.attachmentRecords.map {
+            ($0.id.uuid, $0)
+        })
+        return evidence.deletedVersionIDs.map {
+            SyncStoredAttachmentTombstoneAuthority(
+                versionID: $0,
+                record: records[$0].flatMap { $0.deletedAt.value == nil ? nil : $0 }
+            )
+        }.sorted { $0.versionID.uuidString < $1.versionID.uuidString }
+    }
+
+    private func attachmentTombstones(
+        in mutations: [SyncMutation]
+    ) -> [SyncStoredAttachmentTombstoneAuthority] {
+        var byID: [UUID: SyncStoredAttachmentTombstoneAuthority] = [:]
+        for mutation in mutations where mutation.recordID.kind == .attachment {
+            if let record = mutation.savedRecordVersion?.record,
+               let version = record.payload.attachment,
+               record.deletedAt.value != nil {
+                byID[version.versionID] = SyncStoredAttachmentTombstoneAuthority(
+                    versionID: version.versionID,
+                    record: record
+                )
+            } else if mutation.savedRecordVersion == nil {
+                byID[mutation.recordID.uuid] = SyncStoredAttachmentTombstoneAuthority(
+                    versionID: mutation.recordID.uuid,
+                    record: nil
+                )
+            }
+        }
+        return byID.values.sorted { $0.versionID.uuidString < $1.versionID.uuidString }
+    }
+
+    private func mergedTombstones(
+        _ lhs: [SyncStoredAttachmentTombstoneAuthority],
+        _ rhs: [SyncStoredAttachmentTombstoneAuthority]
+    ) throws -> [SyncStoredAttachmentTombstoneAuthority] {
+        var byID = Dictionary(uniqueKeysWithValues: lhs.map { ($0.versionID, $0) })
+        for tombstone in rhs {
+            if let existing = byID[tombstone.versionID] {
+                guard try tombstonesMatch(existing, tombstone) else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+            } else {
+                byID[tombstone.versionID] = tombstone
+            }
+        }
+        return byID.values.sorted { $0.versionID.uuidString < $1.versionID.uuidString }
+    }
+
+    private func mergedProofs(
+        _ lhs: [SyncProcessedWatchCommandProof],
+        _ rhs: [SyncProcessedWatchCommandProof]
+    ) throws -> [SyncProcessedWatchCommandProof] {
+        var byID = Dictionary(uniqueKeysWithValues: lhs.map { ($0.id, $0) })
+        for proof in rhs {
+            if let existing = byID[proof.id], existing != proof {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            byID[proof.id] = proof
+        }
+        return byID.values.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    private func attachmentVersionIDsReferenced(
+        by mutations: [SyncMutation]
+    ) -> [UUID] {
+        var ids: Set<UUID> = []
+        for mutation in mutations where mutation.recordID.kind == .attachment {
+            ids.insert(mutation.recordID.uuid)
+            if let predecessor = mutation.savedRecordVersion?.record.payload.attachment?
+                .replacesVersionID {
+                ids.insert(predecessor)
+            }
+        }
+        return ids.sorted { $0.uuidString < $1.uuidString }
+    }
+
+    private func watchProofs(
+        in mutations: [SyncMutation]
+    ) throws -> [SyncProcessedWatchCommandProof] {
+        var byID: [UUID: SyncProcessedWatchCommandProof] = [:]
+        for record in mutations.compactMap(\.savedRecordVersion?.record) {
+            let proofs: [SyncProcessedWatchCommandProof]
+            switch record.payload.atomicDomain?.value {
+            case let .projectCounter(state):
+                proofs = state.processedCommandProofs
+            case let .orphanWatchCommandProof(orphan):
+                proofs = [orphan.proof]
+            case .knittingReminder, nil:
+                proofs = []
+            }
+            for proof in proofs {
+                do { _ = try proof.validated() } catch {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                if let existing = byID[proof.id], existing != proof {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                byID[proof.id] = proof
+            }
+        }
+        return byID.values.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    private func preflight(
+        authorities: [SyncStoredAttachmentVersionAuthority],
+        tombstones: [SyncStoredAttachmentTombstoneAuthority],
+        proofs: [SyncProcessedWatchCommandProof]
+    ) throws {
+        for authority in authorities {
+            _ = try authority.validated()
+            guard try deterministicEncoder().encode(authority).count
+                    <= Self.maximumAuthorityBytes else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            if let existing = try loadAttachmentAuthority(
+                authority.version.versionID,
+                countLookup: true
+            ), try !authoritiesMatch(existing, authority) {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+        let authorityByID = Dictionary(uniqueKeysWithValues: authorities.map {
+            ($0.version.versionID, $0)
+        })
+        for tombstone in tombstones {
+            _ = try tombstone.validated()
+            guard let authority = authorityByID[tombstone.versionID],
+                  try tombstoneMatchesAuthority(tombstone, authority),
+                  try deterministicEncoder().encode(tombstone).count
+                    <= Self.maximumAuthorityBytes else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            if let existing = try loadAttachmentTombstone(
+                tombstone.versionID,
+                countLookup: true
+            ), try !tombstonesMatch(existing, tombstone) {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+        for proof in proofs {
+            let stored = try SyncStoredWatchCommandProof(proof: proof).validated()
+            guard try deterministicEncoder().encode(stored).count
+                    <= Self.maximumWatchProofBytes else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            if let existing = try loadWatchProof(proof.id, countLookup: true),
+               existing != proof {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+    }
+
+    private func install(_ authority: SyncStoredAttachmentVersionAuthority) throws {
+        let authority = try authority.validated()
+        let destination = attachmentAuthorityURL(authority.version.versionID)
+        let data = try deterministicEncoder().encode(authority)
+        if let existing = try loadAttachmentAuthority(
+            authority.version.versionID,
+            countLookup: false
+        ) {
+            guard try authoritiesMatch(existing, authority) else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            return
+        }
+        try ensureImmutableDirectories(
+            for: destination,
+            root: attachmentAuthoritiesRootURL
+        )
+        let created = try SyncDurableFile.createNoClobber(
+            data,
+            at: destination,
+            beforeBoundary: beforeDurabilityBoundary
+        )
+        if created {
+            counters.recordAttachmentAuthorityWrite()
+        } else {
+            guard let existing = try loadAttachmentAuthority(
+                authority.version.versionID,
+                countLookup: false
+            ), try authoritiesMatch(existing, authority) else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+    }
+
+    private func install(_ tombstone: SyncStoredAttachmentTombstoneAuthority) throws {
+        let tombstone = try tombstone.validated()
+        let destination = attachmentTombstoneURL(tombstone.versionID)
+        let data = try deterministicEncoder().encode(tombstone)
+        if let existing = try loadAttachmentTombstone(
+            tombstone.versionID,
+            countLookup: false
+        ) {
+            guard try tombstonesMatch(existing, tombstone) else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            return
+        }
+        try ensureImmutableDirectories(
+            for: destination,
+            root: attachmentTombstonesRootURL
+        )
+        let created = try SyncDurableFile.createNoClobber(
+            data,
+            at: destination,
+            beforeBoundary: beforeDurabilityBoundary
+        )
+        if created {
+            counters.recordAttachmentAuthorityWrite()
+        } else {
+            guard let existing = try loadAttachmentTombstone(
+                tombstone.versionID,
+                countLookup: false
+            ), try tombstonesMatch(existing, tombstone) else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+    }
+
+    private func install(_ proof: SyncProcessedWatchCommandProof) throws {
+        let stored = try SyncStoredWatchCommandProof(proof: proof).validated()
+        let destination = watchProofURL(proof.id)
+        let data = try deterministicEncoder().encode(stored)
+        if let existing = try loadWatchProof(proof.id, countLookup: false) {
+            guard existing == proof else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            return
+        }
+        try ensureImmutableDirectories(
+            for: destination,
+            root: watchProofsRootURL
+        )
+        let created = try SyncDurableFile.createNoClobber(
+            data,
+            at: destination,
+            beforeBoundary: beforeDurabilityBoundary
+        )
+        if created {
+            counters.recordWatchProofWrite()
+        } else {
+            guard try loadWatchProof(proof.id, countLookup: false) == proof else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+    }
+
+    private func loadAttachmentAuthority(
+        _ versionID: UUID,
+        countLookup: Bool
+    ) throws -> SyncStoredAttachmentVersionAuthority? {
+        if countLookup { counters.recordAttachmentAuthorityLookup() }
+        let destination = attachmentAuthorityURL(versionID)
+        guard try pathExists(destination) else { return nil }
+        return try readAttachmentAuthority(at: destination)
+    }
+
+    private func readAttachmentAuthority(
+        at authorityURL: URL
+    ) throws -> SyncStoredAttachmentVersionAuthority {
+        do {
+            let authority = try JSONDecoder().decode(
+                SyncStoredAttachmentVersionAuthority.self,
+                from: reader.read(
+                    authorityURL,
+                    maximumBytes: Self.maximumAuthorityBytes,
+                    expected: nil
+                ).data
+            ).validated()
+            guard authorityURL.standardizedFileURL
+                    == attachmentAuthorityURL(authority.version.versionID)
+                        .standardizedFileURL else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            return authority
+        } catch let error as SyncRegularFileReadError {
+            throw mapRegularFileError(error)
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+    }
+
+    private func loadAttachmentTombstone(
+        _ versionID: UUID,
+        countLookup: Bool
+    ) throws -> SyncStoredAttachmentTombstoneAuthority? {
+        if countLookup { counters.recordAttachmentAuthorityLookup() }
+        let destination = attachmentTombstoneURL(versionID)
+        guard try pathExists(destination) else { return nil }
+        return try readAttachmentTombstone(at: destination)
+    }
+
+    private func readAttachmentTombstone(
+        at tombstoneURL: URL
+    ) throws -> SyncStoredAttachmentTombstoneAuthority {
+        do {
+            let tombstone = try JSONDecoder().decode(
+                SyncStoredAttachmentTombstoneAuthority.self,
+                from: reader.read(
+                    tombstoneURL,
+                    maximumBytes: Self.maximumAuthorityBytes,
+                    expected: nil
+                ).data
+            ).validated()
+            guard tombstoneURL.standardizedFileURL
+                    == attachmentTombstoneURL(tombstone.versionID).standardizedFileURL else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            return tombstone
+        } catch let error as SyncRegularFileReadError {
+            throw mapRegularFileError(error)
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+    }
+
+    private func loadWatchProof(
+        _ commandID: UUID,
+        countLookup: Bool
+    ) throws -> SyncProcessedWatchCommandProof? {
+        if countLookup { counters.recordWatchProofLookup() }
+        let destination = watchProofURL(commandID)
+        guard try pathExists(destination) else { return nil }
+        return try readWatchProof(at: destination)
+    }
+
+    private func readWatchProof(at proofURL: URL) throws -> SyncProcessedWatchCommandProof {
+        do {
+            let proof = try JSONDecoder().decode(
+                SyncStoredWatchCommandProof.self,
+                from: reader.read(
+                    proofURL,
+                    maximumBytes: Self.maximumWatchProofBytes,
+                    expected: nil
+                ).data
+            ).validated().proof
+            guard proofURL.standardizedFileURL
+                    == watchProofURL(proof.id).standardizedFileURL else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+            return proof
+        } catch let error as SyncRegularFileReadError {
+            throw mapRegularFileError(error)
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+    }
+
+    private func authoritiesMatch(
+        _ lhs: SyncStoredAttachmentVersionAuthority,
+        _ rhs: SyncStoredAttachmentVersionAuthority
+    ) throws -> Bool {
+        guard lhs.version == rhs.version else { return false }
+        switch (lhs.record, rhs.record) {
+        case (nil, nil):
+            return true
+        case let (.some(left), .some(right)):
+            return try SyncAttachmentImmutableSnapshot(record: left).sha256
+                == SyncAttachmentImmutableSnapshot(record: right).sha256
+        case (.none, .some), (.some, .none):
+            return false
+        }
+    }
+
+    private func tombstonesMatch(
+        _ lhs: SyncStoredAttachmentTombstoneAuthority,
+        _ rhs: SyncStoredAttachmentTombstoneAuthority
+    ) throws -> Bool {
+        guard lhs.versionID == rhs.versionID else { return false }
+        switch (lhs.record, rhs.record) {
+        case let (.some(left), .some(right)):
+            return try SyncAttachmentImmutableSnapshot(record: left).sha256
+                == SyncAttachmentImmutableSnapshot(record: right).sha256
+        case (.none, _), (_, .none):
+            return true
+        }
+    }
+
+    private func tombstoneMatchesAuthority(
+        _ tombstone: SyncStoredAttachmentTombstoneAuthority,
+        _ authority: SyncStoredAttachmentVersionAuthority
+    ) throws -> Bool {
+        guard tombstone.versionID == authority.version.versionID else { return false }
+        guard let tombstoneRecord = tombstone.record else { return true }
+        guard let issuedRecord = authority.record else { return false }
+        return try SyncAttachmentImmutableSnapshot(record: tombstoneRecord).sha256
+            == SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
+    }
+
+    private func evidence(
+        for authority: SyncStoredAttachmentVersionAuthority,
+        tombstone: SyncStoredAttachmentTombstoneAuthority?
+    ) -> SyncAttachmentPublicationEvidence {
+        let record = tombstone?.record ?? authority.record
+        return SyncAttachmentPublicationEvidence(
+            versions: [authority.version],
+            deletedVersionIDs: tombstone == nil ? [] : [authority.version.versionID],
+            attachmentRecords: record.map { [$0] } ?? []
+        )
+    }
+
+    private func attachmentAuthorityURL(_ versionID: UUID) -> URL {
+        immutableURL(for: versionID, root: attachmentAuthoritiesRootURL)
+    }
+
+    private func attachmentTombstoneURL(_ versionID: UUID) -> URL {
+        immutableURL(for: versionID, root: attachmentTombstonesRootURL)
+    }
+
+    private func watchProofURL(_ commandID: UUID) -> URL {
+        immutableURL(for: commandID, root: watchProofsRootURL)
+    }
+
+    private func immutableURL(for id: UUID, root: URL) -> URL {
+        let name = id.uuidString.lowercased()
+        return root
+            .appendingPathComponent(String(name.prefix(2)), isDirectory: true)
+            .appendingPathComponent("\(name).json", isDirectory: false)
+    }
+
+    private func immutableFileURLs(
+        in root: URL,
+        countingWatchProofs: Bool
+    ) throws -> [URL] {
+        guard try pathExists(root) else { return [] }
+        if countingWatchProofs {
+            counters.recordWatchProofDirectoryEnumeration()
+        } else {
+            counters.recordAttachmentAuthorityDirectoryEnumeration()
+        }
+        try validateDirectory(root)
+        var files: [URL] = []
+        for shard in try FileManager.default.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: nil
+        ).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            guard !shard.lastPathComponent.hasPrefix(".") else { continue }
+            try validateDirectory(shard)
+            for file in try FileManager.default.contentsOfDirectory(
+                at: shard,
+                includingPropertiesForKeys: nil
+            ).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+                guard file.pathExtension == "json",
+                      !file.lastPathComponent.hasPrefix(".") else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                files.append(file)
+            }
+        }
+        return files
+    }
+
+    private func ensureImmutableDirectories(for destination: URL, root: URL) throws {
+        try ensureDirectory(root)
+        try ensureDirectory(destination.deletingLastPathComponent())
+    }
+
+    private func ensureDirectory(_ directory: URL) throws {
+        var status = stat()
+        let result = directory.path.withCString { Darwin.lstat($0, &status) }
+        if result != 0 {
+            guard errno == ENOENT else {
+                throw SyncPublicationTransactionFileError.unavailable
+            }
+            do {
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: false
+                )
+                try SyncDurableFile.synchronizeDirectory(
+                    directory.deletingLastPathComponent()
+                )
+            } catch let error as SyncDurableFileError {
+                throw mapDurableFileError(error)
+            } catch {
+                throw SyncPublicationTransactionFileError.unavailable
+            }
+            guard directory.path.withCString({ Darwin.lstat($0, &status) }) == 0 else {
+                throw SyncPublicationTransactionFileError.unavailable
+            }
+        }
+        guard (status.st_mode & S_IFMT) == S_IFDIR else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+    }
+
+    private func validateDirectory(_ directory: URL) throws {
+        var status = stat()
+        guard directory.path.withCString({ Darwin.lstat($0, &status) }) == 0,
+              (status.st_mode & S_IFMT) == S_IFDIR else {
+            throw SyncPublicationTransactionFileError.unsafeFile
+        }
+    }
+
+    private func pathExists(_ path: URL) throws -> Bool {
+        var status = stat()
+        let result = path.path.withCString { Darwin.lstat($0, &status) }
+        if result == 0 { return true }
+        guard errno == ENOENT else {
+            throw SyncPublicationTransactionFileError.unavailable
+        }
+        return false
+    }
+
+    private func deterministicEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }
+
+    private func mappedOperation<T>(_ body: () throws -> T) throws -> T {
+        do {
+            return try body()
+        } catch let error as SyncPublicationTransactionFileError {
+            throw error
+        } catch let error as SyncDurableFileError {
+            throw mapDurableFileError(error)
+        } catch {
+            throw error
+        }
+    }
+
+    private func mapRegularFileError(
+        _ error: SyncRegularFileReadError
+    ) -> SyncPublicationTransactionFileError {
+        switch error {
+        case .unsafeFile: .unsafeFile
+        case .unavailable: .unavailable
+        case .tooLarge, .replaced, .changed, .expectationMismatch: .corrupt
+        }
     }
 
     private func mapDurableFileError(
@@ -2610,25 +3674,29 @@ final class PatternLibraryDeletionTransaction {
     func durableWatchCommandProof(
         for command: WatchCounterCommand
     ) throws -> SyncProcessedWatchCommandProof? {
-        try refreshSyncAttachmentPublicationEvidence().watchCommandProof(for: command)
+        guard isSyncPublicationEnabled else {
+            return try syncAttachmentPublicationEvidence.watchCommandProof(for: command)
+        }
+        let proof = try syncAttachmentPublicationEvidenceFile.watchCommandProof(for: command)
+        if let proof {
+            try syncAttachmentPublicationEvidence.retainWatchCommandProof(proof)
+        }
+        return proof
     }
 
     func durableOrphanWatchCommandProof(
         for command: WatchCounterCommand
     ) throws -> SyncProcessedWatchCommandProof? {
-        try refreshSyncAttachmentPublicationEvidence().orphanWatchCommandProof(
-            for: command
-        )
-    }
-
-    private func refreshSyncAttachmentPublicationEvidence() throws
-        -> SyncAttachmentPublicationEvidence {
-        guard isSyncPublicationEnabled else {
-            return syncAttachmentPublicationEvidence
+        guard let proof = try durableWatchCommandProof(for: command),
+              proof.rejection == .projectMissing || proof.rejection == .counterMissing else {
+            return nil
         }
-        let durableEvidence = try syncAttachmentPublicationEvidenceFile.load()
-        syncAttachmentPublicationEvidence = durableEvidence
-        return durableEvidence
+        do {
+            _ = try SyncOrphanWatchCommandProof(proof: proof)
+        } catch {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        return proof
     }
 
     private func nowForLegacyWatchProof(_ proof: SyncProcessedWatchCommandProof) -> Date {
@@ -5678,7 +6746,7 @@ final class PatternLibraryDeletionTransaction {
 
     private func persistAttachmentPublicationEvidence(for mutations: [SyncMutation]) throws {
         syncAttachmentPublicationEvidence = try syncAttachmentPublicationEvidenceFile
-            .applying(mutations)
+            .applying(mutations, retaining: syncAttachmentPublicationEvidence)
     }
 
     private func syncArtifactRelativePath(for artifactURL: URL) throws -> String {

@@ -109,6 +109,172 @@ import Testing
         #expect(result.resolvedAttachmentVersionIDs[root.payload.attachment!.slot] == nil)
     }
 
+    @Test func mergeRejectsEveryImmutableAttachmentSnapshotDivergence() throws {
+        // Production break caught: generic field-wise merge synthesized one
+        // attachment record before lineage validation, erasing differences in
+        // immutable record fields that share one attachment version ID.
+        let owner = SyncEntityID(kind: .yarn, uuid: UUID())
+        let original = try attachmentRecord(
+            owner: owner,
+            slotID: "label:immutable",
+            bytes: Data("immutable".utf8),
+            revision: 1,
+            modifiedAt: 1,
+            deviceID: "original"
+        )
+
+        let changedCreatedAt = SyncRecord(
+            schemaVersion: original.schemaVersion,
+            id: original.id,
+            createdAt: Date(timeIntervalSince1970: 99),
+            entityRevision: original.entityRevision,
+            payload: original.payload,
+            relationships: original.relationships,
+            deletedAt: original.deletedAt
+        )
+        var changedEntityRevision = original
+        changedEntityRevision.entityRevision = 2
+        var changedField = original
+        changedField.payload.fields["caption"] = .init(
+            value: .string("different"),
+            stamp: stamp(revision: 2, device: "field")
+        )
+
+        let otherOwner = SyncEntityID(kind: .yarn, uuid: UUID())
+        let otherSlot = SyncAttachmentSlot(
+            owner: otherOwner,
+            role: "yarn-label-photo",
+            slotID: "label:immutable"
+        )
+        let originalAttachment = try #require(original.payload.attachment)
+        var changedRelationship = original
+        changedRelationship.payload.attachment = try SyncAttachmentVersion(
+            slot: otherSlot,
+            versionID: originalAttachment.versionID,
+            conflictGroupID: SyncAttachmentVersion.conflictGroupID(for: otherSlot),
+            contentSHA256: originalAttachment.contentSHA256,
+            byteCount: originalAttachment.byteCount,
+            mediaType: originalAttachment.mediaType,
+            displayFilename: originalAttachment.displayFilename,
+            replacesVersionID: originalAttachment.replacesVersionID
+        )
+        changedRelationship.relationships = [.init(role: "owner", target: otherOwner)]
+
+        for divergent in [
+            changedCreatedAt,
+            changedEntityRevision,
+            changedField,
+            changedRelationship,
+        ] {
+            #expect(throws: SyncMergeError.corruptAttachmentVersion(original.id.uuid)) {
+                try SyncMergeEngine().merge(
+                    local: [original],
+                    remote: [divergent],
+                    pendingLocal: []
+                )
+            }
+        }
+    }
+
+    @Test func pendingAttachmentSaveCannotEraseRemoteSnapshotDivergence() throws {
+        // Production break caught: replaying a pending save used the same
+        // synthesizing merge and could overwrite immutable remote evidence.
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let remote = try attachmentRecord(
+            owner: owner,
+            slotID: "photo:pending",
+            bytes: Data("pending".utf8),
+            revision: 1,
+            modifiedAt: 1,
+            deviceID: "remote"
+        )
+        var divergentPending = remote
+        divergentPending.entityRevision = 2
+        divergentPending.payload.fields["caption"] = .init(
+            value: .string("pending divergence"),
+            stamp: stamp(revision: 2, device: "pending")
+        )
+        let attachment = try #require(divergentPending.payload.attachment)
+        let pending = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: divergentPending),
+            attachmentSource: SyncAttachmentSource(
+                fileURL: URL(fileURLWithPath: "/tmp/pending-attachment-fixture"),
+                contentSHA256: attachment.contentSHA256,
+                byteCount: attachment.byteCount
+            ),
+            mutationID: UUID()
+        )
+
+        #expect(throws: SyncMergeError.corruptAttachmentVersion(remote.id.uuid)) {
+            try SyncMergeEngine().merge(
+                local: [],
+                remote: [remote],
+                pendingLocalMutations: [pending]
+            )
+        }
+    }
+
+    @Test func attachmentMergeRejectsLiveOverlayAfterTombstone() throws {
+        // Production break caught: newest-field selection let a later-stamped
+        // live overlay resurrect an attachment after deletion authority existed.
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let issued = try attachmentRecord(
+            owner: owner,
+            slotID: "photo:tombstone",
+            bytes: Data("tombstone".utf8),
+            revision: 1,
+            modifiedAt: 1,
+            deviceID: "issued"
+        )
+        var tombstone = issued
+        tombstone.deletedAt = .init(
+            value: Date(timeIntervalSince1970: 2),
+            stamp: stamp(revision: 2, device: "delete")
+        )
+        var laterLive = issued
+        laterLive.deletedAt = .init(
+            value: nil,
+            stamp: stamp(revision: 3, device: "restore")
+        )
+
+        #expect(throws: SyncMergeError.corruptAttachmentVersion(issued.id.uuid)) {
+            try SyncMergeEngine().merge(
+                local: [tombstone],
+                remote: [laterLive],
+                pendingLocal: []
+            )
+        }
+    }
+
+    @Test func attachmentMergeRejectsSameStampLiveAndTombstoneInEitherOrder() throws {
+        // Equal-stamp divergence must remain corrupt regardless of which
+        // transport contributes the live or tombstoned overlay first.
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let live = try attachmentRecord(
+            owner: owner,
+            slotID: "photo:equal-stamp",
+            bytes: Data("equal-stamp".utf8),
+            revision: 1,
+            modifiedAt: 1,
+            deviceID: "issued"
+        )
+        var tombstone = live
+        tombstone.deletedAt = .init(
+            value: Date(timeIntervalSince1970: 1),
+            stamp: live.deletedAt.stamp
+        )
+
+        for records in [[live, tombstone], [tombstone, live]] {
+            #expect(throws: SyncMergeError.corruptAttachmentVersion(live.id.uuid)) {
+                try SyncMergeEngine().merge(
+                    local: [records[0]],
+                    remote: [records[1]],
+                    pendingLocal: []
+                )
+            }
+        }
+    }
+
     @Test func legacyPendingAttachmentDeleteBecomesDurableTombstone() throws {
         // Production break caught: legacy bare-delete conversion incremented
         // the immutable attachment entity revision.

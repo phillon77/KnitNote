@@ -813,6 +813,17 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         let attachmentImmutableSnapshotSHA256 = try attachmentRecord.map {
             try SyncAttachmentImmutableSnapshot(record: $0).sha256
         }
+        let attachmentEvidenceState: SyncMutationAttachmentEvidenceState? = if attachmentRecord != nil {
+            .canonicalSnapshotV2
+        } else if mutation.recordID.kind == .attachment {
+            // A bare delete names a version without carrying the immutable
+            // snapshot. Reserve that version as opaque authority regardless
+            // of whether it came from a legacy envelope, checkpoint, segment,
+            // or a newly enqueued mutation.
+            .opaqueV1
+        } else {
+            nil
+        }
         return SyncMutationDuplicateProof(
             mutationID: mutation.mutationID,
             recordID: mutation.recordID,
@@ -821,7 +832,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             attachmentContentSHA256: mutation.attachmentSource?.contentSHA256,
             attachmentByteCount: mutation.attachmentSource?.byteCount,
             attachmentImmutableSnapshotSHA256: attachmentImmutableSnapshotSHA256,
-            attachmentEvidenceState: attachmentRecord == nil ? nil : .canonicalSnapshotV2,
+            attachmentEvidenceState: attachmentEvidenceState,
             attachmentVersion: mutation.savedRecordVersion?.record.payload.attachment,
             attachmentWasDeleted: mutation.savedRecordVersion?.record.payload.attachment == nil
                 ? nil

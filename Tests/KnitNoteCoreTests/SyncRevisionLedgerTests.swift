@@ -110,6 +110,215 @@ struct SyncRevisionLedgerTests {
         #expect(second.logicalRevision > first.logicalRevision)
     }
 
+    @Test func committedReceiptRejectsValidJSONLogicalRevisionCorruption() throws {
+        // A canonical JSON edit that remains structurally valid must not become
+        // a stronger immutable receipt authority after restart.
+        let fixture = try RevisionLedgerFixture(installationID: "installation-A")
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let mutationID = UUID()
+        _ = try fixture.ledger.allocate(
+            for: entity,
+            mutationID: mutationID,
+            observedRemoteRevision: 0
+        )
+        let receiptURL = fixture.receiptURL(for: mutationID)
+        var stored = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: receiptURL)
+        ) as? [String: Any])
+        stored["logicalRevision"] = 2
+        let corrupted = try JSONSerialization.data(
+            withJSONObject: stored,
+            options: [.sortedKeys]
+        )
+        try corrupted.write(to: receiptURL)
+
+        let restarted = SyncRevisionLedger(url: fixture.url, deviceID: "installation-A")
+        #expect(throws: SyncRevisionLedgerError.corrupt) {
+            _ = try restarted.allocate(
+                for: entity,
+                mutationID: mutationID,
+                observedRemoteRevision: 0
+            )
+        }
+        #expect(try Data(contentsOf: receiptURL) == corrupted)
+    }
+
+    @Test func crashMarkerRejectsValidJSONRevisionCorruptionBeforeReplay() throws {
+        // Altering both receipt and target head used to preserve every semantic
+        // invariant while changing the replayed authority.
+        let fixture = try RevisionLedgerFixture(installationID: "installation-A")
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let mutationID = UUID()
+        let crashing = SyncRevisionLedger(
+            url: fixture.url,
+            deviceID: "installation-A",
+            counters: SyncRevisionLedgerIOCounters(),
+            afterDurabilityBoundary: { boundary in
+                if boundary == .afterMarkerSync { throw RevisionLedgerInjectedFailure() }
+            }
+        )
+        #expect(throws: RevisionLedgerInjectedFailure.self) {
+            _ = try crashing.allocate(
+                for: entity,
+                mutationID: mutationID,
+                observedRemoteRevision: 0
+            )
+        }
+        var marker = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: fixture.transactionURL)
+        ) as? [String: Any])
+        var receipts = try #require(marker["newReceipts"] as? [[String: Any]])
+        receipts[0]["logicalRevision"] = 2
+        marker["newReceipts"] = receipts
+        var heads = try #require(marker["targetEntityHeads"] as? [[String: Any]])
+        heads[0]["revision"] = 2
+        marker["targetEntityHeads"] = heads
+        let corrupted = try JSONSerialization.data(
+            withJSONObject: marker,
+            options: [.sortedKeys]
+        )
+        try corrupted.write(to: fixture.transactionURL)
+
+        let restarted = SyncRevisionLedger(url: fixture.url, deviceID: "installation-A")
+        #expect(throws: SyncRevisionLedgerError.corrupt) {
+            _ = try restarted.allocate(
+                for: entity,
+                mutationID: mutationID,
+                observedRemoteRevision: 0
+            )
+        }
+        #expect(try Data(contentsOf: fixture.transactionURL) == corrupted)
+        #expect(FileManager.default.fileExists(
+            atPath: fixture.receiptURL(for: mutationID).path
+        ) == false)
+    }
+
+    @Test func compactHeadsRejectValidJSONRevisionCorruption() throws {
+        let fixture = try RevisionLedgerFixture(installationID: "installation-A")
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        _ = try fixture.ledger.allocate(
+            for: entity,
+            mutationID: UUID(),
+            observedRemoteRevision: 0
+        )
+        var heads = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: fixture.url)
+        ) as? [String: Any])
+        var issued = try #require(heads["issuedRevisions"] as? [[String: Any]])
+        issued[0]["revision"] = 2
+        heads["issuedRevisions"] = issued
+        let corrupted = try JSONSerialization.data(
+            withJSONObject: heads,
+            options: [.sortedKeys]
+        )
+        try corrupted.write(to: fixture.url)
+
+        let restarted = SyncRevisionLedger(url: fixture.url, deviceID: "installation-A")
+        #expect(throws: SyncRevisionLedgerError.corrupt) {
+            _ = try restarted.allocate(
+                for: entity,
+                mutationID: UUID(),
+                observedRemoteRevision: 0
+            )
+        }
+        #expect(try Data(contentsOf: fixture.url) == corrupted)
+    }
+
+    @Test func legacyUnchecksummedV2HeadsAndReceiptRemainReadable() throws {
+        let fixture = try RevisionLedgerFixture(installationID: "installation-A")
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let mutationID = UUID()
+        let receipt = try fixture.ledger.allocate(
+            for: entity,
+            mutationID: mutationID,
+            observedRemoteRevision: 0
+        )
+        var rawHeads = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: fixture.url)
+        ) as? [String: Any])
+        rawHeads.removeValue(forKey: "integrityVersion")
+        rawHeads.removeValue(forKey: "checksum")
+        try JSONSerialization.data(
+            withJSONObject: rawHeads,
+            options: [.sortedKeys]
+        ).write(to: fixture.url)
+        let receiptURL = fixture.receiptURL(for: mutationID)
+        var rawReceipt = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: receiptURL)
+        ) as? [String: Any])
+        rawReceipt.removeValue(forKey: "integrityVersion")
+        rawReceipt.removeValue(forKey: "checksum")
+        let rawReceiptBytes = try JSONSerialization.data(
+            withJSONObject: rawReceipt,
+            options: [.sortedKeys]
+        )
+        try rawReceiptBytes.write(to: receiptURL)
+        let counters = SyncRevisionLedgerIOCounters()
+        let restarted = SyncRevisionLedger(
+            url: fixture.url,
+            deviceID: "installation-A",
+            counters: counters
+        )
+
+        #expect(try restarted.allocate(
+            for: entity,
+            mutationID: mutationID,
+            observedRemoteRevision: 999
+        ) == receipt)
+        #expect(counters.headLedgerDurableWriteCount == 1)
+        #expect(try Data(contentsOf: receiptURL) == rawReceiptBytes)
+        let migratedHeads = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: fixture.url)
+        ) as? [String: Any])
+        #expect(migratedHeads["integrityVersion"] as? Int == 1)
+        #expect(migratedHeads["checksum"] as? String != nil)
+    }
+
+    @Test func legacyUnchecksummedCrashMarkerStillReplays() throws {
+        let fixture = try RevisionLedgerFixture(installationID: "installation-A")
+        defer { fixture.remove() }
+        let entity = SyncEntityID(kind: .project, uuid: UUID())
+        let mutationID = UUID()
+        let crashing = SyncRevisionLedger(
+            url: fixture.url,
+            deviceID: "installation-A",
+            counters: SyncRevisionLedgerIOCounters(),
+            afterDurabilityBoundary: { boundary in
+                if boundary == .afterMarkerSync { throw RevisionLedgerInjectedFailure() }
+            }
+        )
+        #expect(throws: RevisionLedgerInjectedFailure.self) {
+            _ = try crashing.allocate(
+                for: entity,
+                mutationID: mutationID,
+                observedRemoteRevision: 0
+            )
+        }
+        var rawMarker = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: fixture.transactionURL)
+        ) as? [String: Any])
+        rawMarker.removeValue(forKey: "integrityVersion")
+        rawMarker.removeValue(forKey: "checksum")
+        try JSONSerialization.data(
+            withJSONObject: rawMarker,
+            options: [.sortedKeys]
+        ).write(to: fixture.transactionURL)
+
+        let restarted = SyncRevisionLedger(url: fixture.url, deviceID: "installation-A")
+        let recovered = try restarted.allocate(
+            for: entity,
+            mutationID: mutationID,
+            observedRemoteRevision: 999
+        )
+
+        #expect(recovered.logicalRevision == 1)
+        #expect(FileManager.default.fileExists(atPath: fixture.transactionURL.path) == false)
+    }
+
     @Test func historicalRetrySurvivesUnrelatedCompactionAndRestart() throws {
         // Contract boundary from the approved design: an unrelated B/C batch
         // and restart must not make A depend on transient in-envelope history.
@@ -896,8 +1105,12 @@ struct SyncRevisionLedgerTests {
         #expect(migrated["version"] as? Int == 2)
         #expect(migrated["receipts"] == nil)
         for receipt in receipts {
-            #expect(try Data(contentsOf: fixture.receiptURL(for: receipt.mutationID))
-                == encodedReceipt(receipt))
+            let stored = try #require(JSONSerialization.jsonObject(
+                with: Data(contentsOf: fixture.receiptURL(for: receipt.mutationID))
+            ) as? [String: Any])
+            #expect(stored["integrityVersion"] as? Int == 1)
+            #expect(stored["checksum"] as? String != nil)
+            #expect(stored["logicalRevision"] as? Int == Int(receipt.logicalRevision))
         }
         #expect(FileManager.default.fileExists(atPath: fixture.transactionURL.path) == false)
     }

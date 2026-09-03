@@ -1027,6 +1027,9 @@ public struct SyncMergeEngine: Sendable {
         precondition(!records.isEmpty)
         let first = records[0]
         precondition(records.allSatisfy { $0.id == first.id })
+        if first.id.kind == .attachment {
+            return try mergeAttachmentRecords(records)
+        }
         let fieldNames = Set(records.flatMap { $0.payload.fields.keys }).sorted()
         var fields: [String: SyncFieldVersion<SyncScalar>] = [:]
 
@@ -1078,6 +1081,48 @@ public struct SyncMergeEngine: Sendable {
             relationships: Self.sortedRelationships(records.flatMap(\.relationships)),
             deletedAt: deletedAt
         )
+        return try validator.validate(merged)
+    }
+
+    private func mergeAttachmentRecords(_ records: [SyncRecord]) throws -> SyncRecord {
+        let first = records[0]
+        guard let attachment = first.payload.attachment else {
+            throw SyncMergeError.corruptAttachmentVersion(first.id.uuid)
+        }
+        let immutableSHA256: Data
+        do {
+            immutableSHA256 = try SyncAttachmentImmutableSnapshot(record: first).sha256
+            for candidate in records.dropFirst() {
+                guard try SyncAttachmentImmutableSnapshot(record: candidate).sha256
+                    == immutableSHA256 else {
+                    throw SyncMergeError.corruptAttachmentVersion(attachment.versionID)
+                }
+            }
+        } catch let error as SyncMergeError {
+            throw error
+        } catch {
+            throw SyncMergeError.corruptAttachmentVersion(attachment.versionID)
+        }
+
+        var overlayByStamp: [SyncMutationStamp: Date?] = [:]
+        for candidate in records {
+            let overlay = candidate.deletedAt
+            if let existing = overlayByStamp[overlay.stamp], existing != overlay.value {
+                throw SyncMergeError.corruptAttachmentVersion(attachment.versionID)
+            }
+            overlayByStamp[overlay.stamp] = overlay.value
+        }
+        if let firstTombstoneStamp = records.compactMap({ candidate in
+            candidate.deletedAt.value == nil ? nil : candidate.deletedAt.stamp
+        }).min(), records.contains(where: { candidate in
+            candidate.deletedAt.value == nil && candidate.deletedAt.stamp > firstTombstoneStamp
+        }) {
+            throw SyncMergeError.corruptAttachmentVersion(attachment.versionID)
+        }
+
+        var merged = first
+        merged.deletedAt = records.map(\.deletedAt).max { $0.stamp < $1.stamp }
+            ?? first.deletedAt
         return try validator.validate(merged)
     }
 

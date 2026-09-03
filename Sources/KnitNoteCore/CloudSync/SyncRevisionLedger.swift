@@ -117,6 +117,10 @@ public extension SyncRevisionAllocating {
 public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendable {
     private static let headsVersion = 2
     private static let markerVersion = 1
+    private static let integrityVersion = 1
+    private static let receiptIntegrityDomain = "knitnote.sync-revision.receipt"
+    private static let headsIntegrityDomain = "knitnote.sync-revision.heads"
+    private static let markerIntegrityDomain = "knitnote.sync-revision.marker"
     private static let maximumHeadsBytes = 16 * 1_024 * 1_024
     private static let maximumMarkerBytes = 16 * 1_024 * 1_024
     private static let maximumReceiptBytes = 64 * 1_024
@@ -154,10 +158,115 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
         let sourceLegacyLedgerSHA256: Data?
     }
 
+    private struct IntegrityPresenceProbe: Decodable {
+        let hasIntegrityVersion: Bool
+        let hasChecksum: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case integrityVersion, checksum
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            hasIntegrityVersion = container.contains(.integrityVersion)
+            hasChecksum = container.contains(.checksum)
+        }
+    }
+
+    private struct IntegrityChecksumMaterial<Payload: Encodable>: Encodable {
+        let integrityVersion: Int
+        let domain: String
+        let payload: Payload
+    }
+
+    private struct StoredReceiptEnvelope: Codable {
+        let integrityVersion: Int
+        let entityID: SyncEntityID
+        let mutationID: UUID
+        let logicalRevision: UInt64
+        let deviceID: String
+        let checksum: Data
+
+        init(receipt: SyncRevisionReceipt, checksum: Data) {
+            integrityVersion = SyncRevisionLedger.integrityVersion
+            entityID = receipt.entityID
+            mutationID = receipt.mutationID
+            logicalRevision = receipt.logicalRevision
+            deviceID = receipt.deviceID
+            self.checksum = checksum
+        }
+
+        var receipt: SyncRevisionReceipt {
+            SyncRevisionReceipt(
+                entityID: entityID,
+                mutationID: mutationID,
+                logicalRevision: logicalRevision,
+                deviceID: deviceID
+            )
+        }
+    }
+
+    private struct StoredHeadsEnvelope: Codable {
+        let integrityVersion: Int
+        let version: Int
+        let deviceID: String
+        let issuedRevisions: [IssuedRevision]
+        let checksum: Data
+
+        init(heads: HeadsEnvelope, checksum: Data) {
+            integrityVersion = SyncRevisionLedger.integrityVersion
+            version = heads.version
+            deviceID = heads.deviceID
+            issuedRevisions = heads.issuedRevisions
+            self.checksum = checksum
+        }
+
+        var heads: HeadsEnvelope {
+            HeadsEnvelope(
+                version: version,
+                deviceID: deviceID,
+                issuedRevisions: issuedRevisions
+            )
+        }
+    }
+
+    private struct StoredMarkerEnvelope: Codable {
+        let integrityVersion: Int
+        let version: Int
+        let purpose: MarkerPurpose
+        let deviceID: String
+        let newReceipts: [SyncRevisionReceipt]
+        let targetEntityHeads: [IssuedRevision]
+        let sourceLegacyLedgerSHA256: Data?
+        let checksum: Data
+
+        init(marker: TransactionMarker, checksum: Data) {
+            integrityVersion = SyncRevisionLedger.integrityVersion
+            version = marker.version
+            purpose = marker.purpose
+            deviceID = marker.deviceID
+            newReceipts = marker.newReceipts
+            targetEntityHeads = marker.targetEntityHeads
+            sourceLegacyLedgerSHA256 = marker.sourceLegacyLedgerSHA256
+            self.checksum = checksum
+        }
+
+        var marker: TransactionMarker {
+            TransactionMarker(
+                version: version,
+                purpose: purpose,
+                deviceID: deviceID,
+                newReceipts: newReceipts,
+                targetEntityHeads: targetEntityHeads,
+                sourceLegacyLedgerSHA256: sourceLegacyLedgerSHA256
+            )
+        }
+    }
+
     private enum StoredLedger {
         case missing
         case legacy(LegacyEnvelope, Data)
-        case heads(HeadsEnvelope)
+        case heads(HeadsEnvelope, integrityBound: Bool)
     }
 
     private let url: URL
@@ -229,8 +338,12 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
                         issuedRevisions: []
                     )
                 )
-            case let .heads(heads):
-                return try allocate(requests, from: heads)
+            case let .heads(heads, integrityBound):
+                return try allocate(
+                    requests,
+                    from: heads,
+                    requiresIntegrityMigration: !integrityBound
+                )
             case let .legacy(legacy, sourceBytes):
                 return try allocateMigrating(
                     requests,
@@ -243,7 +356,8 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
 
     private func allocate(
         _ requests: [SyncRevisionRequest],
-        from heads: HeadsEnvelope
+        from heads: HeadsEnvelope,
+        requiresIntegrityMigration: Bool = false
     ) throws -> [SyncRevisionReceipt] {
         var headByEntity = Dictionary(uniqueKeysWithValues: heads.issuedRevisions.map {
             ($0.entityID, $0.revision)
@@ -287,6 +401,11 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             }
         )
         guard !newReceipts.isEmpty || !touchedEntities.isEmpty else {
+            if requiresIntegrityMigration {
+                try writeHeads(heads)
+                counters.recordHeadLedgerDurableWrite()
+                try afterDurabilityBoundary(.afterHeadLedgerSync)
+            }
             return result
         }
         let marker = try validatedMarker(TransactionMarker(
@@ -299,7 +418,7 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             }),
             sourceLegacyLedgerSHA256: nil
         ))
-        try preflightReplay(marker, current: .heads(heads))
+        try preflightReplay(marker, current: .heads(heads, integrityBound: true))
         try writeMarker(marker)
         try replay(marker)
         return result
@@ -415,7 +534,7 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
                 }),
                 sourceLegacyLedgerSHA256: nil
             ))
-            try preflightReplay(marker, current: .heads(heads))
+            try preflightReplay(marker, current: .heads(heads, integrityBound: true))
             try writeMarker(marker)
             try replay(marker)
         }
@@ -463,11 +582,16 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
                 deviceID: deviceID,
                 issuedRevisions: []
             )
-        case let .heads(heads):
+        case let .heads(heads, true):
+            return heads
+        case let .heads(heads, false):
+            try writeHeads(heads)
+            counters.recordHeadLedgerDurableWrite()
+            try afterDurabilityBoundary(.afterHeadLedgerSync)
             return heads
         case let .legacy(legacy, bytes):
             try migrate(legacy, sourceBytes: bytes)
-            guard case let .heads(heads) = try storedLedger() else {
+            guard case let .heads(heads, true) = try storedLedger() else {
                 throw SyncRevisionLedgerError.corrupt
             }
             return heads
@@ -487,9 +611,23 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
         }
         do {
             if version == Self.headsVersion {
-                return .heads(try validatedHeads(
-                    JSONDecoder().decode(HeadsEnvelope.self, from: data)
-                ))
+                let integrity = try JSONDecoder().decode(
+                    IntegrityPresenceProbe.self,
+                    from: data
+                )
+                if integrity.hasIntegrityVersion || integrity.hasChecksum {
+                    guard integrity.hasIntegrityVersion, integrity.hasChecksum else {
+                        throw SyncRevisionLedgerError.corrupt
+                    }
+                    return .heads(
+                        try decodedStoredHeads(data),
+                        integrityBound: true
+                    )
+                }
+                return .heads(
+                    try validatedHeads(JSONDecoder().decode(HeadsEnvelope.self, from: data)),
+                    integrityBound: false
+                )
             }
             if version == 1 {
                 return .legacy(try validatedLegacy(
@@ -516,6 +654,40 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             throw SyncRevisionLedgerError.corrupt
         }
         return envelope
+    }
+
+    private func decodedStoredHeads(_ data: Data) throws -> HeadsEnvelope {
+        let stored = try JSONDecoder().decode(StoredHeadsEnvelope.self, from: data)
+        let heads = try validatedHeads(stored.heads)
+        guard stored.integrityVersion == Self.integrityVersion,
+              stored.checksum.count == SHA256.byteCount,
+              stored.checksum == (try canonicalChecksum(
+                for: heads,
+                domain: Self.headsIntegrityDomain,
+                integrityVersion: stored.integrityVersion
+              )) else {
+            throw SyncRevisionLedgerError.corrupt
+        }
+        return heads
+    }
+
+    private func encodedStoredHeads(_ heads: HeadsEnvelope) throws -> Data {
+        let heads = try validatedHeads(heads)
+        return try encode(StoredHeadsEnvelope(
+            heads: heads,
+            checksum: canonicalChecksum(
+                for: heads,
+                domain: Self.headsIntegrityDomain
+            )
+        ))
+    }
+
+    private func writeHeads(_ heads: HeadsEnvelope) throws {
+        let data = try encodedStoredHeads(heads)
+        guard data.count <= Self.maximumHeadsBytes else {
+            throw SyncRevisionLedgerError.corrupt
+        }
+        try durableWrite(data, to: url)
     }
 
     private func validatedLegacy(_ envelope: LegacyEnvelope) throws -> LegacyEnvelope {
@@ -568,10 +740,30 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             maximumBytes: Self.maximumMarkerBytes
         ) else { return nil }
         do {
-            return try validatedMarker(JSONDecoder().decode(
-                TransactionMarker.self,
+            let integrity = try JSONDecoder().decode(
+                IntegrityPresenceProbe.self,
                 from: data
-            ))
+            )
+            if integrity.hasIntegrityVersion || integrity.hasChecksum {
+                guard integrity.hasIntegrityVersion, integrity.hasChecksum else {
+                    throw SyncRevisionLedgerError.corrupt
+                }
+                let stored = try JSONDecoder().decode(StoredMarkerEnvelope.self, from: data)
+                let marker = try validatedMarker(stored.marker)
+                guard stored.integrityVersion == Self.integrityVersion,
+                      stored.checksum.count == SHA256.byteCount,
+                      stored.checksum == (try canonicalChecksum(
+                        for: marker,
+                        domain: Self.markerIntegrityDomain,
+                        integrityVersion: stored.integrityVersion
+                      )) else {
+                    throw SyncRevisionLedgerError.corrupt
+                }
+                return marker
+            }
+            return try validatedMarker(
+                JSONDecoder().decode(TransactionMarker.self, from: data)
+            )
         } catch let error as SyncRevisionLedgerError {
             throw error
         } catch {
@@ -611,7 +803,14 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
     }
 
     private func writeMarker(_ marker: TransactionMarker) throws {
-        let data = try encode(marker)
+        let marker = try validatedMarker(marker)
+        let data = try encode(StoredMarkerEnvelope(
+            marker: marker,
+            checksum: canonicalChecksum(
+                for: marker,
+                domain: Self.markerIntegrityDomain
+            )
+        ))
         guard data.count <= Self.maximumMarkerBytes else {
             throw SyncRevisionLedgerError.corrupt
         }
@@ -639,7 +838,7 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             }
             plan = try allocationReplayPlan(marker, currentHeads: [])
             requireExistingReceipts = false
-        case let .heads(heads):
+        case let .heads(heads, _):
             if marker.purpose == .migration {
                 guard heads.issuedRevisions == marker.targetEntityHeads else {
                     throw SyncRevisionLedgerError.corrupt
@@ -672,7 +871,7 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             )
             requireExistingReceipts = false
         }
-        guard try encode(plan.heads).count <= Self.maximumHeadsBytes else {
+        guard try encodedStoredHeads(plan.heads).count <= Self.maximumHeadsBytes else {
             throw SyncRevisionLedgerError.corrupt
         }
         try preflightReceiptDestinations(
@@ -753,11 +952,7 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             try install(receipt, index: index)
         }
         if !plan.headsAlreadyCommitted {
-            let data = try encode(plan.heads)
-            guard data.count <= Self.maximumHeadsBytes else {
-                throw SyncRevisionLedgerError.corrupt
-            }
-            try durableWrite(data, to: url)
+            try writeHeads(plan.heads)
             counters.recordHeadLedgerDurableWrite()
             try afterDurabilityBoundary(.afterHeadLedgerSync)
         }
@@ -780,10 +975,34 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             maximumBytes: Self.maximumReceiptBytes
         ) else { return nil }
         do {
-            let receipt = try JSONDecoder().decode(SyncRevisionReceipt.self, from: data)
+            let integrity = try JSONDecoder().decode(
+                IntegrityPresenceProbe.self,
+                from: data
+            )
+            let receipt: SyncRevisionReceipt
+            if integrity.hasIntegrityVersion || integrity.hasChecksum {
+                guard integrity.hasIntegrityVersion, integrity.hasChecksum else {
+                    throw SyncRevisionLedgerError.corrupt
+                }
+                let stored = try JSONDecoder().decode(StoredReceiptEnvelope.self, from: data)
+                receipt = stored.receipt
+                guard stored.integrityVersion == Self.integrityVersion,
+                      stored.checksum.count == SHA256.byteCount,
+                      stored.checksum == (try canonicalChecksum(
+                        for: receipt,
+                        domain: Self.receiptIntegrityDomain,
+                        integrityVersion: stored.integrityVersion
+                      )) else {
+                    throw SyncRevisionLedgerError.corrupt
+                }
+            } else {
+                receipt = try JSONDecoder().decode(SyncRevisionReceipt.self, from: data)
+                guard data == (try encode(receipt)) else {
+                    throw SyncRevisionLedgerError.corrupt
+                }
+            }
             try validate(receipt)
-            guard receipt.mutationID == mutationID,
-                  data == (try encode(receipt)) else {
+            guard receipt.mutationID == mutationID else {
                 throw SyncRevisionLedgerError.corrupt
             }
             return receipt
@@ -800,7 +1019,7 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
     ) throws {
         guard !receipts.isEmpty else { return }
         for receipt in receipts {
-            guard try encode(receipt).count <= Self.maximumReceiptBytes else {
+            guard try encodedStoredReceipt(receipt).count <= Self.maximumReceiptBytes else {
                 throw SyncRevisionLedgerError.corrupt
             }
         }
@@ -847,7 +1066,7 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
 
     private func install(_ receipt: SyncRevisionReceipt, index: Int) throws {
         try validate(receipt)
-        let data = try encode(receipt)
+        let data = try encodedStoredReceipt(receipt)
         guard data.count <= Self.maximumReceiptBytes else {
             throw SyncRevisionLedgerError.corrupt
         }
@@ -862,10 +1081,10 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
             ) {
                 return
             }
-            guard try regularFileDataIfPresent(
-                at: fileURL,
-                maximumBytes: Self.maximumReceiptBytes
-            ) == data else {
+            guard try self.receipt(
+                for: receipt.mutationID,
+                countLookup: false
+            ) == receipt else {
                 throw SyncRevisionLedgerError.corrupt
             }
             // A previous attempt may have installed the name and failed before
@@ -953,6 +1172,32 @@ public final class SyncRevisionLedger: SyncRevisionAllocating, @unchecked Sendab
         } catch let error as SyncDurableFileError {
             throw map(error)
         }
+    }
+
+    private func encodedStoredReceipt(_ receipt: SyncRevisionReceipt) throws -> Data {
+        try validate(receipt)
+        return try encode(StoredReceiptEnvelope(
+            receipt: receipt,
+            checksum: canonicalChecksum(
+                for: receipt,
+                domain: Self.receiptIntegrityDomain
+            )
+        ))
+    }
+
+    private func canonicalChecksum<Payload: Encodable>(
+        for payload: Payload,
+        domain: String,
+        integrityVersion: Int = SyncRevisionLedger.integrityVersion
+    ) throws -> Data {
+        guard integrityVersion == Self.integrityVersion else {
+            throw SyncRevisionLedgerError.corrupt
+        }
+        return Data(SHA256.hash(data: try encode(IntegrityChecksumMaterial(
+            integrityVersion: integrityVersion,
+            domain: domain,
+            payload: payload
+        ))))
     }
 
     private func encode<T: Encodable>(_ value: T) throws -> Data {

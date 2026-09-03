@@ -1108,6 +1108,64 @@ import Testing
         #expect(try fixture.directoryInventory() == inventoryBefore)
     }
 
+    @Test(arguments: bareDeleteAuthorityCases())
+    fileprivate func bareAttachmentDeleteFromEveryLayoutReservesOpaqueAuthorityWithoutWriting(
+        _ matrixCase: BareDeleteAuthorityCase
+    ) throws {
+        // Production break caught: duplicateProof emitted no attachment
+        // evidence for bare deletes rebuilt from v1 checkpoints, legacy
+        // envelopes, or current segment replay, so their version IDs could be
+        // reused or referenced as predecessors.
+        let fixture = try SegmentedJournalFixture()
+        let source = fixture.directory.appendingPathComponent("bare-delete.asset")
+        let bytes = Data("bare delete authority".utf8)
+        try bytes.write(to: source)
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "bare-delete"
+        )
+        let reservedVersionID = UUID()
+        let bareDelete = SyncMutation.delete(
+            .init(kind: .attachment, uuid: reservedVersionID),
+            mutationID: UUID()
+        )
+
+        switch matrixCase.layout {
+        case .v1Checkpoint:
+            try fixture.installV1CheckpointHistory([bareDelete])
+        case .legacyEnvelope:
+            try fixture.legacyEnvelope([bareDelete]).write(to: fixture.url)
+        case .segmentReplay:
+            try fixture.journal.enqueue(bareDelete)
+        }
+
+        let journal = fixture.reopened()
+        _ = try journal.pending()
+        if matrixCase.layout != .v1Checkpoint {
+            try journal.acknowledge([bareDelete.identity])
+        }
+        let reopened = fixture.reopened()
+        #expect(try reopened.pending().isEmpty)
+
+        let artifactsBefore = try fixture.persistentJournalArtifactBytes()
+        let inventoryBefore = try fixture.directoryInventory()
+        let attempted = try fixture.attachmentMutation(
+            slot: slot,
+            versionID: matrixCase.attempt == .reuse ? reservedVersionID : UUID(),
+            replacing: matrixCase.attempt == .predecessor ? reservedVersionID : nil,
+            bytes: bytes,
+            source: source,
+            mutationID: UUID()
+        )
+
+        #expect(throws: SyncMutationJournalError.corrupt) {
+            try reopened.enqueue(attempted)
+        }
+        #expect(try fixture.persistentJournalArtifactBytes() == artifactsBefore)
+        #expect(try fixture.directoryInventory() == inventoryBefore)
+    }
+
     private func assertAcknowledgedAttachmentSnapshotDivergenceIsRejected(
         _ transform: (SyncRecord) -> SyncRecord
     ) throws {
@@ -1171,6 +1229,27 @@ private func opaqueV1AttachmentAuthorityCases() -> [OpaqueV1AttachmentAuthorityC
     OpaqueV1AttachmentAuthority.allCases.flatMap { authority in
         OpaqueV1AttachmentAttempt.allCases.map { attempt in
             OpaqueV1AttachmentAuthorityCase(authority: authority, attempt: attempt)
+        }
+    }
+}
+
+private enum BareDeleteAuthorityLayout: String, CaseIterable, Sendable {
+    case v1Checkpoint
+    case legacyEnvelope
+    case segmentReplay
+}
+
+private struct BareDeleteAuthorityCase: Sendable, CustomTestStringConvertible {
+    let layout: BareDeleteAuthorityLayout
+    let attempt: OpaqueV1AttachmentAttempt
+
+    var testDescription: String { "\(layout.rawValue)-\(attempt.rawValue)" }
+}
+
+private func bareDeleteAuthorityCases() -> [BareDeleteAuthorityCase] {
+    BareDeleteAuthorityLayout.allCases.flatMap { layout in
+        OpaqueV1AttachmentAttempt.allCases.map { attempt in
+            BareDeleteAuthorityCase(layout: layout, attempt: attempt)
         }
     }
 }
@@ -1475,6 +1554,31 @@ private final class SegmentedJournalFixture {
         try checkpointData.write(to: checkpointURL)
         try Data().write(to: segmentURL)
         try Data(#"{"version":2,"mutations":[]}"#.utf8).write(to: migratedURL)
+    }
+
+    func installV1CheckpointHistory(_ history: [SyncMutation]) throws {
+        struct LegacyCheckpoint: Encodable {
+            let version = 1
+            let throughSequence: UInt64 = 0
+            let pending: [SyncMutation] = []
+            let history: [SyncMutation]
+        }
+        struct LegacyCheckpointFile: Encodable {
+            let version = 1
+            let checkpoint: Data
+            let checksum: Data
+        }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.userInfo[.encodeLegacyStandaloneReminderForMigration] = true
+        let payload = try encoder.encode(LegacyCheckpoint(history: history))
+        let file = try encoder.encode(LegacyCheckpointFile(
+            checkpoint: payload,
+            checksum: Data(SHA256.hash(data: payload))
+        ))
+        try file.write(to: checkpointURL)
+        try Data().write(to: segmentURL)
     }
 
     func persistentJournalArtifactBytes() throws -> [String: Data] {

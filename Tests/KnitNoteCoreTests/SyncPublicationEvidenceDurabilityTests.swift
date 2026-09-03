@@ -171,6 +171,124 @@ import Testing
         #expect(try restarted.watchCommandProof(for: secondCommand) == nil)
     }
 
+    @Test func highHistoryWatchProofWriteDoesNotRewriteAttachmentHeadFile() throws {
+        // Production break caught: every new orphan proof re-encoded the
+        // monolithic attachment/proof sidecar, making write work proportional
+        // to all prior Watch proof history.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        let counters = SyncPublicationEvidenceIOCounters()
+        let file = SyncAttachmentPublicationEvidenceFile(url: url, counters: counters)
+        try file.save(SyncAttachmentPublicationEvidence())
+
+        let history = try (0..<1_024).map { index in
+            let command = WatchCounterCommand(
+                id: performanceUUID(index),
+                projectID: performanceUUID(index + 2_000),
+                counterID: performanceUUID(index + 4_000),
+                operation: .increment,
+                createdAt: Date(timeIntervalSince1970: TimeInterval(index + 1))
+            )
+            return try orphanProofMutation(
+                command: command,
+                rejection: .projectMissing,
+                processedAt: Date(timeIntervalSince1970: TimeInterval(index + 10_000))
+            )
+        }
+        _ = try file.applying(history)
+        let headBytesBefore = try Data(contentsOf: url)
+
+        let historicalCommand = WatchCounterCommand(
+            id: performanceUUID(777),
+            projectID: performanceUUID(2_777),
+            counterID: performanceUUID(4_777),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 778)
+        )
+        counters.reset()
+        #expect(try file.watchCommandProof(for: historicalCommand)?.id
+            == historicalCommand.id)
+        #expect(counters.snapshot == SyncPublicationEvidenceIOCountSnapshot(
+            headReads: 1,
+            headWrites: 0,
+            watchProofLookups: 1,
+            watchProofWrites: 0,
+            watchProofDirectoryEnumerations: 0,
+            attachmentAuthorityLookups: 0,
+            attachmentAuthorityWrites: 0,
+            attachmentAuthorityDirectoryEnumerations: 0
+        ))
+
+        let nextCommand = WatchCounterCommand(
+            id: performanceUUID(10_000),
+            projectID: performanceUUID(10_001),
+            counterID: performanceUUID(10_002),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 20_000)
+        )
+        counters.reset()
+        _ = try file.applying([try orphanProofMutation(
+            command: nextCommand,
+            rejection: .counterMissing,
+            processedAt: Date(timeIntervalSince1970: 20_001)
+        )])
+
+        #expect(try Data(contentsOf: url) == headBytesBefore)
+        #expect(counters.snapshot == SyncPublicationEvidenceIOCountSnapshot(
+            headReads: 1,
+            headWrites: 0,
+            watchProofLookups: 2,
+            watchProofWrites: 1,
+            watchProofDirectoryEnumerations: 0,
+            attachmentAuthorityLookups: 0,
+            attachmentAuthorityWrites: 0,
+            attachmentAuthorityDirectoryEnumerations: 0
+        ))
+    }
+
+    @Test func attachmentHeadFileRetainsOnlyBoundedActiveHeads() throws {
+        // Production break caught: the mutable sidecar retained and rewrote
+        // every full historical attachment record instead of moving immutable
+        // versions to per-version authority files.
+        struct EvidenceEnvelope: Decodable {
+            let versions: [SyncAttachmentVersion]
+            let attachmentRecords: [SyncRecord]
+        }
+
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        let file = SyncAttachmentPublicationEvidenceFile(url: url)
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "bounded-head"
+        )
+        var predecessor: UUID?
+        var mutations: [SyncMutation] = []
+        for index in 0..<128 {
+            let attachment = try version(
+                slot: slot,
+                bytes: Data("version-\(index)".utf8),
+                replacing: predecessor
+            )
+            mutations.append(try liveMutation(attachment))
+            predecessor = attachment.versionID
+        }
+
+        _ = try file.applying(mutations)
+
+        let persisted = try JSONDecoder().decode(
+            EvidenceEnvelope.self,
+            from: Data(contentsOf: url)
+        )
+        #expect(persisted.versions.count == 1)
+        #expect(persisted.attachmentRecords.count == 1)
+        #expect(persisted.versions.first?.versionID == predecessor)
+        #expect(try file.load().allVersions.count == 128)
+    }
+
     @Test func separatelyLoadedEvidenceWritersMergeUnderTheExclusiveLock() throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -219,6 +337,37 @@ import Testing
         #expect(try file.load().isDeleted(version.versionID))
     }
 
+    @Test func tombstonedAncestorRemainsReservedAfterChildAndRestart() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = SyncAttachmentPublicationEvidenceFile(
+            url: root.appendingPathComponent("attachment-versions.json")
+        )
+        let slot = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo",
+            slotID: "replacement-after-delete"
+        )
+        let first = try version(slot: slot, bytes: Data("first".utf8))
+        let child = try version(
+            slot: slot,
+            bytes: Data("child".utf8),
+            replacing: first.versionID
+        )
+        _ = try file.applying([try liveMutation(first)])
+        _ = try file.applying([try tombstoneMutation(first)])
+        _ = try file.applying([try liveMutation(child)])
+
+        let restartedFile = SyncAttachmentPublicationEvidenceFile(url: file.url)
+        let restarted = try restartedFile.load()
+        #expect(restarted.isDeleted(first.versionID))
+        let bytesBefore = try Data(contentsOf: file.url)
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            _ = try restartedFile.applying([try liveMutation(first)])
+        }
+        #expect(try Data(contentsOf: file.url) == bytesBefore)
+    }
+
     @Test func legacyBareAttachmentDeleteRequiresExactIssuedEvidence() throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -232,6 +381,32 @@ import Testing
                 mutationID: UUID()
             )])
         }
+    }
+
+    @Test func authorizedBareAttachmentDeleteInstallsRestartSafeTombstone() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = SyncAttachmentPublicationEvidenceFile(
+            url: root.appendingPathComponent("attachment-versions.json")
+        )
+        let issued = try version(
+            slot: .init(
+                owner: .init(kind: .project, uuid: UUID()),
+                role: "project-photo",
+                slotID: "bare-delete"
+            ),
+            bytes: Data("bare-delete".utf8)
+        )
+        _ = try file.applying([try liveMutation(issued)])
+
+        _ = try file.applying([.delete(
+            .init(kind: .attachment, uuid: issued.versionID),
+            mutationID: UUID()
+        )])
+
+        let restarted = try SyncAttachmentPublicationEvidenceFile(url: file.url).load()
+        #expect(restarted.isDeleted(issued.versionID))
+        #expect(restarted.record(for: issued.slot)?.payload.attachment == issued)
     }
 
     private func version(
@@ -349,6 +524,13 @@ import Testing
         )
         try! FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    private func performanceUUID(_ value: Int) -> UUID {
+        UUID(uuidString: String(
+            format: "00000000-0000-0000-0000-%012x",
+            value + 1
+        ))!
     }
 }
 

@@ -100,6 +100,7 @@ enum SyncDurableFile {
     static func createNoClobber(
         _ data: Data,
         at url: URL,
+        beforeBoundary: (SyncDurableFileWriteBoundary) throws -> Void = { _ in },
         afterRename: () throws -> Void = {}
     ) throws -> Bool {
         let parent = url.deletingLastPathComponent()
@@ -120,7 +121,9 @@ enum SyncDurableFile {
             }
         }
         try writeAll(data, descriptor: descriptor)
+        try beforeBoundary(.beforeFileSync)
         guard Darwin.fsync(descriptor) == 0 else { throw SyncDurableFileError.unavailable }
+        try beforeBoundary(.beforeRename)
         let didRename = temporaryURL.path.withCString { temporaryPath in
             url.path.withCString { destinationPath in
                 Darwin.renameatx_np(
@@ -138,6 +141,7 @@ enum SyncDurableFile {
         }
         shouldRemoveTemporary = false
         try afterRename()
+        try beforeBoundary(.beforeDirectorySync)
         try synchronizeDirectory(parent)
         return true
     }

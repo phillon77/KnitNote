@@ -122,13 +122,16 @@ public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
         guard let counterID = entry.commandIdentity?.counterID
                 ?? entry.preparedCommand?.command.counterID
                 ?? entry.effectProof?.counter.id else { return nil }
-        let processingStamp = entry.processingStamp ?? processingDeviceID.map {
-            SyncMutationStamp(
-                logicalRevision: 0,
-                modifiedAt: entry.processedAt,
-                deviceID: $0
-            )
-        }
+        let needsLegacyMissingTargetStamp = entry.rejection == .projectMissing
+            || entry.rejection == .counterMissing
+        let processingStamp = entry.processingStamp
+            ?? (needsLegacyMissingTargetStamp ? processingDeviceID.map {
+                SyncMutationStamp(
+                    logicalRevision: 0,
+                    modifiedAt: entry.processedAt,
+                    deviceID: $0
+                )
+            } : nil)
         try self.init(
             id: entry.id,
             counterID: counterID,

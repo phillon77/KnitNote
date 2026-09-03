@@ -109,3 +109,44 @@ Result: exit 0; `Test run with 201 tests in 6 suites passed` (0 failures). No fu
 - Reviewed the complete production and test diff against base Task commit `dc80b4f`, including the proof schema, projection cache reuse, merge validation, every Watch entry point, and the marker/evidence/journal ordering.
 - Compatibility remains intentional: legacy non-orphan proofs may decode without `processingStamp`; standalone missing-target proof authorities require it.
 - CloudKit transport, release version/build, push, archive, and App Store submission remain outside Task 1.
+
+## Fix round 2: legacy non-orphan proof compatibility
+
+### Root cause and fix
+
+`SyncProcessedWatchCommandProof.init(entry:processingDeviceID:)` synthesized a stamp for every legacy ledger entry whenever projection supplied a device ID. A normal legacy `.unsupportedSchema` (or accepted) proof therefore became stamped on the ledger side while the identical durable evidence proof remained unstamped. `SyncCanonicalPublicationSnapshot` correctly treats differing proofs for one command ID as corruption, so the next Watch metadata publication failed.
+
+The fallback stamp is now synthesized only for legacy `.projectMissing` / `.counterMissing` ledger entries, because those are the only proofs that must become standalone orphan authorities. Accepted and other rejection proofs remain unstamped unless an atomic migration updates both durable representations. Persisted modern stamps continue to be reused unchanged.
+
+### Exact RED evidence
+
+The regression writes a real processed-ledger file and attachment-evidence file whose JSON contains the same `.unsupportedSchema` proof and no `processingStamp`, constructs a restarted store, then processes a new missing-counter command to force publication:
+
+```sh
+swift test --scratch-path /tmp/KnitNoteResidualTask1 --filter 'legacyNonMissingProofWithoutProcessingStampSurvivesRestartedPublication|missingTargetProofStillRequiresImmutableProcessingStamp'
+```
+
+RED result: exit 1. `legacyNonMissingProofWithoutProcessingStampSurvivesRestartedPublication` failed with caught `.corrupt`; `missingTargetProofStillRequiresImmutableProcessingStamp` passed. Console summary: `Test run with 2 tests in 1 suite failed ... with 1 issue.` This isolated the compatibility collision while confirming that relaxing the missing-target invariant was not an acceptable fix.
+
+### Exact GREEN evidence
+
+The same command after the one-branch conversion fix exited 0:
+
+```text
+Test run with 2 tests in 1 suite passed ...
+```
+
+Required Task 1 focused gate:
+
+```sh
+swift test --scratch-path /tmp/KnitNoteResidualTask1 --filter 'WatchCommandApplicationTests|WatchSyncPersistenceTests|JSONProjectStoreSyncPublicationTests|SyncCounterReminderMergeTests|SyncPublicationEvidenceDurabilityTests|PhoneWatchSyncSourceContractTests'
+```
+
+GREEN result: exit 0; `Test run with 203 tests in 6 suites passed` (0 failures).
+
+### Round 2 self-review
+
+- Production scope is one conditional conversion in `SyncRecord.swift`; no eager or partial durable migration was added.
+- The restart test asserts both legacy files truly omit `processingStamp`, the republished non-missing proof stays nil in the counter aggregate and evidence, and the new orphan proof has a non-nil immutable stamp.
+- A separate invariant test proves constructing a missing-target proof without a processing stamp still throws `SyncRecordVersionError.corrupt`.
+- `git diff --check` passed; no full suite was run, per the focused-suite instruction.

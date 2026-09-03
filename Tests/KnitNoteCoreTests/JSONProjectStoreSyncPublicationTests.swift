@@ -393,6 +393,99 @@ import UniformTypeIdentifiers
         #expect(projected.cache.records[recordID] == cachedRecord)
     }
 
+    @Test func legacyNonMissingProofWithoutProcessingStampSurvivesRestartedPublication() throws {
+        // Production break caught: synthesizing a processing stamp for every
+        // legacy ledger proof makes it diverge from the identical unstamped
+        // non-missing proof in durable evidence and blocks the next publication.
+        let fixture = try SyncPublicationFixture()
+        let counter = try #require(try fixture.archive().projects.first?.counters.first)
+        let legacyCommand = WatchCounterCommand(
+            schemaVersion: 2,
+            id: UUID(),
+            projectID: fixture.projectID,
+            counterID: counter.id,
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 45)
+        )
+        let legacyProof = try SyncProcessedWatchCommandProof(
+            id: legacyCommand.id,
+            rejection: .unsupportedSchema,
+            commandIdentity: .init(legacyCommand),
+            preparedCommand: nil,
+            effectProof: nil
+        )
+        #expect(legacyProof.processingStamp == nil)
+
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.liveRoot)
+        var legacyLedger = ProcessedWatchCommandLedger()
+        legacyLedger.record(
+            legacyCommand.id,
+            rejection: .unsupportedSchema,
+            command: legacyCommand,
+            at: Date(timeIntervalSince1970: 46)
+        )
+        try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: ledgerURL)
+            .save(legacyLedger)
+        let evidenceURL = fixture.liveRoot
+            .appendingPathComponent("SyncMetadata", isDirectory: true)
+            .appendingPathComponent("attachment-versions.json")
+        try SyncAttachmentPublicationEvidenceFile(url: evidenceURL).save(.init(
+            watchCommandProofs: [legacyProof]
+        ))
+        #expect(try String(decoding: Data(contentsOf: ledgerURL), as: UTF8.self)
+            .contains("processingStamp") == false)
+        #expect(try String(decoding: Data(contentsOf: evidenceURL), as: UTF8.self)
+            .contains("processingStamp") == false)
+
+        let sink = RecordingSyncMutationSink()
+        let restarted = fixture.store(sink: sink)
+        let missingTargetCommand = WatchCounterCommand(
+            id: UUID(),
+            projectID: fixture.projectID,
+            counterID: UUID(),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 47)
+        )
+        let acknowledgement = try restarted.applyWatchCommandDurably(
+            missingTargetCommand,
+            ledgerURL: ledgerURL,
+            preparedCommandURL: WatchSyncPaths.preparedCommand(in: fixture.liveRoot),
+            now: Date(timeIntervalSince1970: 48)
+        )
+
+        #expect(acknowledgement.rejection == .counterMissing)
+        let aggregate = try #require(sink.mutations.compactMap(\.savedRecordVersion?.record)
+            .first { $0.id == .init(kind: .projectCounter, uuid: counter.id) }?
+            .counterReminderState)
+        #expect(aggregate.processedCommandProofs.first {
+            $0.id == legacyCommand.id
+        }?.processingStamp == nil)
+        let durableEvidence = try SyncAttachmentPublicationEvidenceFile(url: evidenceURL).load()
+        #expect(try durableEvidence.watchCommandProof(for: legacyCommand)?.processingStamp == nil)
+        #expect(try durableEvidence.watchCommandProof(for: missingTargetCommand)?
+            .processingStamp != nil)
+    }
+
+    @Test func missingTargetProofStillRequiresImmutableProcessingStamp() {
+        let command = WatchCounterCommand(
+            id: UUID(),
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 49)
+        )
+
+        #expect(throws: SyncRecordVersionError.corrupt) {
+            _ = try SyncProcessedWatchCommandProof(
+                id: command.id,
+                rejection: .counterMissing,
+                commandIdentity: .init(command),
+                preparedCommand: nil,
+                effectProof: nil
+            )
+        }
+    }
+
     @Test func standaloneOrphanProofRemainsWhenItsCounterReappears() throws {
         // Production break caught: treating a reappeared counter as the new
         // owner deletes the standalone missing-target authority.

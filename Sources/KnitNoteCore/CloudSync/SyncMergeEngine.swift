@@ -1075,6 +1075,20 @@ public struct SyncMergeEngine: Sendable {
             return .init(value: .projectCounter(merged.value), stamp: merged.stamp)
         }
 
+        let orphanProofVersions = versions.compactMap {
+            version -> SyncFieldVersion<SyncOrphanWatchCommandProof>? in
+            guard case let .orphanWatchCommandProof(proof) = version.value else { return nil }
+            return .init(value: proof, stamp: version.stamp)
+        }
+        if orphanProofVersions.count == versions.count {
+            guard let first = orphanProofVersions.first,
+                  orphanProofVersions.allSatisfy({ $0.value == first.value }) else {
+                throw SyncMergeError.corruptEqualStamp(entity: entity, field: "orphanWatchCommandProof")
+            }
+            let newest = orphanProofVersions.max { $0.stamp < $1.stamp } ?? first
+            return .init(value: .orphanWatchCommandProof(newest.value), stamp: newest.stamp)
+        }
+
         let legacyReminderVersions = versions.filter {
             if case .knittingReminder = $0.value { return true }
             return false

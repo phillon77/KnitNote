@@ -210,6 +210,105 @@ import UniformTypeIdentifiers
         }?.commandIdentity == .init(command))
     }
 
+    @Test func missingProjectWatchRejectionPublishesAStandaloneProof() throws {
+        // Production break caught: a projector that only walks extant counters
+        // drops a durable project-missing rejection, leaving a fresh device
+        // unable to validate the exact acknowledgement after ledger pruning.
+        let command = WatchCounterCommand(
+            id: UUID(),
+            projectID: UUID(),
+            counterID: UUID(),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 40)
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: .projectMissing,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil
+        )
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
+        let projector = SyncPublicationProjector(
+            deviceID: "orphan-proof-test",
+            processedWatchProofs: [proof],
+            reusing: .init(archive: archive, records: [:]),
+            attachmentReferences: { _ in [] },
+            issuedAttachmentVersions: [:]
+        )
+
+        let projected = try projector.project(before: archive, after: archive, manifest: [:])
+
+        let published = try #require(projected.mutations.compactMap(\.savedRecordVersion?.record)
+            .first { $0.id == .init(kind: .watchCommandProof, uuid: command.id) })
+        #expect(published.payload.atomicDomain?.value == .orphanWatchCommandProof(
+            try SyncOrphanWatchCommandProof(proof: proof)
+        ))
+    }
+
+    @Test func missingCounterWatchRejectionPublishesAStandaloneProof() throws {
+        // Production break caught: a counter-missing acknowledgement otherwise
+        // remains only in the prunable ledger because no counter aggregate
+        // exists to carry it.
+        let projectID = UUID()
+        let command = WatchCounterCommand(
+            id: UUID(),
+            projectID: projectID,
+            counterID: UUID(),
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 43)
+        )
+        let proof = try SyncProcessedWatchCommandProof(
+            id: command.id,
+            rejection: .counterMissing,
+            commandIdentity: .init(command),
+            preparedCommand: nil,
+            effectProof: nil
+        )
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
+        let projector = SyncPublicationProjector(
+            deviceID: "orphan-proof-test",
+            processedWatchProofs: [proof],
+            reusing: .init(archive: archive, records: [:]),
+            attachmentReferences: { _ in [] },
+            issuedAttachmentVersions: [:]
+        )
+
+        let projected = try projector.project(before: archive, after: archive, manifest: [:])
+        let published = try #require(projected.mutations.compactMap(\.savedRecordVersion?.record)
+            .first { $0.id == .init(kind: .watchCommandProof, uuid: command.id) })
+        #expect(published.payload.atomicDomain?.value == .orphanWatchCommandProof(
+            try SyncOrphanWatchCommandProof(proof: proof)
+        ))
+    }
+
+    @Test func rejectedWatchMetadataPublicationDoesNotRewriteTheArchive() throws {
+        // Production break caught: publishing proof-only Watch metadata through
+        // the archive persistence path rewrites unchanged user archive bytes.
+        let fixture = try SyncPublicationFixture()
+        let store = fixture.store(sink: RecordingSyncMutationSink())
+        let counterID = try #require(store.project(id: fixture.projectID)?.counters.first?.id)
+        let command = WatchCounterCommand(
+            schemaVersion: WatchCounterCommand.currentSchemaVersion + 1,
+            id: UUID(),
+            projectID: fixture.projectID,
+            counterID: counterID,
+            operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 41)
+        )
+        let archiveBefore = try Data(contentsOf: fixture.archiveURL)
+
+        let acknowledgement = try store.applyWatchCommandDurably(
+            command,
+            ledgerURL: WatchSyncPaths.processedLedger(in: fixture.liveRoot),
+            preparedCommandURL: WatchSyncPaths.preparedCommand(in: fixture.liveRoot),
+            now: Date(timeIntervalSince1970: 42)
+        )
+
+        #expect(acknowledgement.rejection == .unsupportedSchema)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archiveBefore)
+    }
+
     @Test func duplicateRejectedWatchCommandRepairsInterruptedProofPublication() throws {
         let fixture = try SyncPublicationFixture()
         let sink = RecordingSyncMutationSink(failureAtAttempt: 1)

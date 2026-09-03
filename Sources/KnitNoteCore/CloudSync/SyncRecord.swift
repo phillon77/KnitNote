@@ -152,6 +152,23 @@ public struct SyncProcessedWatchCommandProof: Codable, Equatable, Sendable {
     }
 }
 
+/// Immutable, standalone authority for a Watch rejection whose target no
+/// longer exists in the project archive. Accepted effects and rejections that
+/// belong to a live counter remain owned by `SyncCounterReminderState`.
+public struct SyncOrphanWatchCommandProof: Codable, Equatable, Sendable {
+    public let proof: SyncProcessedWatchCommandProof
+
+    public init(proof: SyncProcessedWatchCommandProof) throws {
+        guard proof.rejection == .projectMissing || proof.rejection == .counterMissing,
+              proof.commandIdentity != nil,
+              proof.preparedCommand == nil,
+              proof.effectProof == nil else {
+            throw SyncRecordVersionError.corrupt
+        }
+        self.proof = try proof.validated()
+    }
+}
+
 public struct SyncCounterReminderState: Codable, Equatable, Sendable {
     public let counter: ProjectCounter
     public let reminders: [KnittingReminder]
@@ -308,10 +325,12 @@ public enum SyncReminderStopOutcome: Equatable, Sendable {
 public enum SyncAtomicDomainValue: Codable, Equatable, Sendable {
     case projectCounter(SyncCounterReminderState)
     case knittingReminder(KnittingReminder)
+    case orphanWatchCommandProof(SyncOrphanWatchCommandProof)
 
     private enum CodingKeys: String, CodingKey {
         case projectCounter
         case knittingReminder
+        case orphanWatchCommandProof
     }
 
     private enum AssociatedValueKey: String, CodingKey {
@@ -353,6 +372,17 @@ public enum SyncAtomicDomainValue: Codable, Equatable, Sendable {
             ))
             return
         }
+        if container.contains(.orphanWatchCommandProof) {
+            let value = try container.nestedContainer(
+                keyedBy: AssociatedValueKey.self,
+                forKey: .orphanWatchCommandProof
+            )
+            self = .orphanWatchCommandProof(try value.decode(
+                SyncOrphanWatchCommandProof.self,
+                forKey: .value
+            ))
+            return
+        }
         throw DecodingError.dataCorrupted(
             .init(
                 codingPath: decoder.codingPath,
@@ -386,6 +416,12 @@ public enum SyncAtomicDomainValue: Codable, Equatable, Sendable {
                 forKey: .knittingReminder
             )
             try value.encode(reminder, forKey: .value)
+        case let .orphanWatchCommandProof(proof):
+            var value = container.nestedContainer(
+                keyedBy: AssociatedValueKey.self,
+                forKey: .orphanWatchCommandProof
+            )
+            try value.encode(proof, forKey: .value)
         }
     }
 
@@ -393,6 +429,7 @@ public enum SyncAtomicDomainValue: Codable, Equatable, Sendable {
         switch self {
         case let .projectCounter(state): state.counter.mutationRevision
         case let .knittingReminder(reminder): reminder.mutationRevision
+        case .orphanWatchCommandProof: 0
         }
     }
 }

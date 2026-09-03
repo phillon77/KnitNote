@@ -3,6 +3,7 @@ import Foundation
 public enum SyncEntityKind: String, Codable, CaseIterable, Sendable {
     case project, projectCounter, rowNote, knittingReminder, journalEntry
     case yarn, projectYarnLink, patternFolder, pattern, patternUsage, attachment, deletionMarker
+    case watchCommandProof
 }
 
 public struct SyncEntityID: Hashable, Codable, Sendable {

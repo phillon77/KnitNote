@@ -216,6 +216,14 @@ struct SyncAttachmentPublicationEvidence: Codable {
                         proofsByID[proof.id] = proof
                     }
                 }
+                if case let .orphanWatchCommandProof(orphan)? =
+                    record.payload.atomicDomain?.value {
+                    let proof = orphan.proof
+                    if let existing = proofsByID[proof.id], existing != proof {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                    proofsByID[proof.id] = proof
+                }
             case let .delete(delete):
                 guard delete.recordID.kind != .attachment
                         || versions.contains(where: {
@@ -4617,7 +4625,52 @@ final class PatternLibraryDeletionTransaction {
         }
         activePreparedWatchCommand = preparedCommand
         activeProcessedWatchLedger = processedLedger
-        try persist(projects: projects, yarns: yarns)
+        guard isSyncPublicationEnabled else { return }
+
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: projects,
+            yarns: yarns,
+            patternFolders: patternFolders,
+            patternAssets: patternAssets,
+            patterns: patterns,
+            patternUsages: patternUsages
+        )
+        let projection = try SyncPublicationProjector(
+            deviceID: syncPublicationDeviceID,
+            preparedWatchCommand: activePreparedWatchCommand,
+            processedWatchLedger: activeProcessedWatchLedger,
+            processedWatchProofs: syncAttachmentPublicationEvidence.watchCommandProofs,
+            reusing: syncProjectionCache,
+            attachmentReferences: { archive in
+                try self.syncArchiveAttachmentReferences(in: archive)
+            },
+            issuedAttachmentVersions: syncAttachmentPublicationEvidence.versionsBySlot(),
+            deletedAttachmentVersionIDs: syncAttachmentPublicationEvidence.deletedVersionIDSet
+        ).project(
+            before: syncProjectionCache?.archive ?? archive,
+            after: archive,
+            manifest: syncAttachmentManifest
+        )
+        let archiveBytes = try Data(contentsOf: url)
+        try commitArchiveAndPublish(
+            data: archiveBytes,
+            mutations: projection.mutations,
+            observedRevisions: projection.observedRevisions,
+            shouldWriteArchive: false,
+            onArchiveCommitted: { publishedMutations in
+                self.syncProjectionCache = SyncPublicationProjectionCache(
+                    archive: archive,
+                    records: syncRecords(
+                        projection.cache.records,
+                        applying: publishedMutations.filter {
+                            $0.recordID.kind != .attachment
+                        }
+                    )
+                )
+            },
+            applyCommittedState: {}
+        )
     }
 
     private func persist(

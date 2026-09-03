@@ -467,6 +467,45 @@ func syncRecords(
     return result
 }
 
+func orphanWatchProofRecords(
+    proofs: [SyncProcessedWatchCommandProof],
+    archive: ProjectArchive,
+    deviceID: String
+) throws -> [SyncEntityID: SyncRecord] {
+    let extantCounterIDs = Set(archive.projects.flatMap(\.counters).map(\.id))
+    var records: [SyncEntityID: SyncRecord] = [:]
+    for proof in proofs {
+        let orphan = try SyncOrphanWatchCommandProof(proof: proof)
+        guard !extantCounterIDs.contains(orphan.proof.counterID) else { continue }
+        guard let identity = orphan.proof.commandIdentity else {
+            throw SyncRecordVersionError.corrupt
+        }
+        let recordID = SyncEntityID(kind: .watchCommandProof, uuid: orphan.proof.id)
+        let stamp = SyncMutationStamp(
+            logicalRevision: 0,
+            modifiedAt: identity.createdAt,
+            deviceID: deviceID
+        )
+        let record = SyncRecord(
+            schemaVersion: 1,
+            id: recordID,
+            createdAt: identity.createdAt,
+            entityRevision: 0,
+            payload: .init(
+                fields: [:],
+                atomicDomain: .init(value: .orphanWatchCommandProof(orphan), stamp: stamp)
+            ),
+            relationships: [],
+            deletedAt: .init(value: nil, stamp: stamp)
+        )
+        if let existing = records[recordID], existing != record {
+            throw SyncRecordVersionError.corrupt
+        }
+        records[recordID] = record
+    }
+    return records
+}
+
 func syncAttachmentSlotIsOrderedBefore(
     _ lhs: SyncAttachmentSlot,
     _ rhs: SyncAttachmentSlot
@@ -714,6 +753,30 @@ struct SyncCanonicalPublicationSnapshot {
                     )]
                 )
             }
+        }
+
+        let cachedRecords = cache.map { Array($0.records.values) } ?? []
+        let retainedOrphanProofs: [SyncProcessedWatchCommandProof] = cachedRecords.compactMap {
+            record -> SyncProcessedWatchCommandProof? in
+            guard case let .orphanWatchCommandProof(orphan)? =
+                record.payload.atomicDomain?.value else { return nil }
+            return orphan.proof
+        }
+        let missingTargetProofs = (processedWatchProofs
+            + processedWatchLedger.entries.compactMap({ try? .init(entry: $0) })
+            + retainedOrphanProofs
+        ).filter {
+            $0.rejection == .projectMissing || $0.rejection == .counterMissing
+        }
+        for (recordID, record) in try orphanWatchProofRecords(
+            proofs: missingTargetProofs,
+            archive: archive,
+            deviceID: deviceID
+        ) {
+            if let existing = records[recordID], existing != record {
+                throw SyncRecordVersionError.corrupt
+            }
+            records[recordID] = record
         }
 
         for yarn in archive.yarns {

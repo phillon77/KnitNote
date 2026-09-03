@@ -276,9 +276,15 @@ public struct SyncRecordValidator: Sendable {
             }
         case (.knittingReminder, .knittingReminder):
             throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+        case let (.watchCommandProof, .orphanWatchCommandProof(orphan)):
+            guard record.id.uuid == orphan.proof.id,
+                  record.payload.atomicDomain?.stamp.logicalRevision == record.entityRevision,
+                  (try? SyncOrphanWatchCommandProof(proof: orphan.proof)) == orphan else {
+                throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+            }
         case (.projectCounter, nil), (.knittingReminder, nil):
             throw SyncRecordValidationError.missingAtomicDomain(record.id)
-        case (.projectCounter, _), (.knittingReminder, _):
+        case (.projectCounter, _), (.knittingReminder, _), (.watchCommandProof, _):
             throw SyncRecordValidationError.illegalAtomicDomain(record.id)
         case (_, nil):
             break

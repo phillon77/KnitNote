@@ -1050,74 +1050,52 @@ import Testing
         }
     }
 
-    @Test func opaqueV1AttachmentAuthorityRejectsReuseAndPredecessorWithoutWriting() throws {
-        // Production break caught: a weak v1 proof could be treated as proven
-        // lineage and let later data reuse or descend from its version ID.
-        for referencesOpaqueAsParent in [false, true] {
-            let fixture = try SegmentedJournalFixture()
-            let source = fixture.directory.appendingPathComponent("opaque-history.asset")
-            let bytes = Data("opaque history".utf8)
-            try bytes.write(to: source)
-            let slot = SyncAttachmentSlot(
-                owner: .init(kind: .project, uuid: UUID()),
-                role: "project-photo",
-                slotID: "opaque"
-            )
-            let opaqueVersionID = UUID()
-            let historical = try fixture.attachmentMutation(
-                slot: slot,
-                versionID: opaqueVersionID,
-                replacing: nil,
-                bytes: bytes,
-                source: source,
-                mutationID: UUID()
-            )
-            try fixture.installOpaqueV1AcknowledgedProof(for: historical)
-            let journal = fixture.reopened()
-
-            #expect(try journal.pending().isEmpty)
-            let artifactsBefore = try fixture.persistentJournalArtifactBytes()
-            let attempted = try fixture.attachmentMutation(
-                slot: slot,
-                versionID: referencesOpaqueAsParent ? UUID() : opaqueVersionID,
-                replacing: referencesOpaqueAsParent ? opaqueVersionID : nil,
-                bytes: bytes,
-                source: source,
-                mutationID: UUID()
-            )
-
-            #expect(throws: SyncMutationJournalError.corrupt) {
-                try journal.enqueue(attempted)
-            }
-            #expect(try fixture.persistentJournalArtifactBytes() == artifactsBefore)
-        }
-    }
-
-    @Test func opaqueV1BareAttachmentDeleteRejectsVersionReuseWithoutWriting() throws {
-        // Production break caught: a v1 bare attachment delete still names a
-        // historical version ID and must remain opaque reuse authority.
+    @Test(arguments: opaqueV1AttachmentAuthorityCases())
+    fileprivate func opaqueV1AttachmentAuthorityRejectsEveryReuseAndPredecessorWithoutWriting(
+        _ matrixCase: OpaqueV1AttachmentAuthorityCase
+    ) throws {
+        // Production break caught: weakening any v1 save, saved tombstone, or
+        // bare-delete branch could let its reserved version ID be reused or
+        // referenced as a predecessor and mutate the original journal layout.
         let fixture = try SegmentedJournalFixture()
-        let source = fixture.directory.appendingPathComponent("opaque-delete.asset")
-        let bytes = Data("opaque delete".utf8)
+        let source = fixture.directory.appendingPathComponent("opaque-history.asset")
+        let bytes = Data("opaque history".utf8)
         try bytes.write(to: source)
         let slot = SyncAttachmentSlot(
             owner: .init(kind: .project, uuid: UUID()),
             role: "project-photo",
-            slotID: "opaque-delete"
+            slotID: "opaque"
         )
         let opaqueVersionID = UUID()
-        let historical = SyncMutation.delete(
-            .init(kind: .attachment, uuid: opaqueVersionID),
-            mutationID: UUID()
-        )
-        try fixture.installOpaqueV1AcknowledgedProof(for: historical)
-        let journal = fixture.reopened()
-        #expect(try journal.pending().isEmpty)
-        let artifactsBefore = try fixture.persistentJournalArtifactBytes()
-        let attempted = try fixture.attachmentMutation(
+        let live = try fixture.attachmentMutation(
             slot: slot,
             versionID: opaqueVersionID,
             replacing: nil,
+            bytes: bytes,
+            source: source,
+            mutationID: UUID()
+        )
+        let historical: SyncMutation = switch matrixCase.authority {
+        case .liveSave:
+            live
+        case .savedTombstone:
+            try fixture.attachmentTombstone(for: live)
+        case .bareDelete:
+            .delete(
+                .init(kind: .attachment, uuid: opaqueVersionID),
+                mutationID: UUID()
+            )
+        }
+        try fixture.installOpaqueV1AcknowledgedProof(for: historical)
+        let journal = fixture.reopened()
+
+        #expect(try journal.pending().isEmpty)
+        let artifactsBefore = try fixture.persistentJournalArtifactBytes()
+        let inventoryBefore = try fixture.directoryInventory()
+        let attempted = try fixture.attachmentMutation(
+            slot: slot,
+            versionID: matrixCase.attempt == .reuse ? opaqueVersionID : UUID(),
+            replacing: matrixCase.attempt == .predecessor ? opaqueVersionID : nil,
             bytes: bytes,
             source: source,
             mutationID: UUID()
@@ -1127,6 +1105,7 @@ import Testing
             try journal.enqueue(attempted)
         }
         #expect(try fixture.persistentJournalArtifactBytes() == artifactsBefore)
+        #expect(try fixture.directoryInventory() == inventoryBefore)
     }
 
     private func assertAcknowledgedAttachmentSnapshotDivergenceIsRejected(
@@ -1167,6 +1146,32 @@ import Testing
             try fixture.journal.enqueue(divergent)
         }
         #expect(try fixture.persistentJournalArtifactBytes() == artifactsBefore)
+    }
+}
+
+private enum OpaqueV1AttachmentAuthority: String, CaseIterable, Sendable {
+    case liveSave
+    case savedTombstone
+    case bareDelete
+}
+
+private enum OpaqueV1AttachmentAttempt: String, CaseIterable, Sendable {
+    case reuse
+    case predecessor
+}
+
+private struct OpaqueV1AttachmentAuthorityCase: Sendable, CustomTestStringConvertible {
+    let authority: OpaqueV1AttachmentAuthority
+    let attempt: OpaqueV1AttachmentAttempt
+
+    var testDescription: String { "\(authority.rawValue)-\(attempt.rawValue)" }
+}
+
+private func opaqueV1AttachmentAuthorityCases() -> [OpaqueV1AttachmentAuthorityCase] {
+    OpaqueV1AttachmentAuthority.allCases.flatMap { authority in
+        OpaqueV1AttachmentAttempt.allCases.map { attempt in
+            OpaqueV1AttachmentAuthorityCase(authority: authority, attempt: attempt)
+        }
     }
 }
 

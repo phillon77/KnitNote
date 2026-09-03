@@ -215,3 +215,49 @@ intact while the shared projection/store evidence was extended.
   seconds inside the final 150-second journal gate on this machine.
 - No full-suite, CloudKit transport, release version/build, push, archive, or App
   Store action was performed; Task 4 owns the full-suite/release gate.
+
+## Fix round 1: complete v1 authority matrix
+
+The review finding was a test-evidence gap, not a production defect. The former
+coverage exercised a v1 live save for reuse/predecessor and a v1 bare delete for
+reuse only. It is now one six-case matrix crossing all three valid v1 attachment
+authority forms (`liveSave`, `savedTombstone`, `bareDelete`) with both forbidden
+attempts (`reuse`, `predecessor`). Each case requires typed `.corrupt`, compares
+the checkpoint, proof shard, segment, and migrated-marker data byte for byte, and
+compares the complete directory inventory before and after rejection.
+
+The first focused attempt did not reach a behavioral RED: Swift rejected the
+parameterized test because its method visibility exceeded its private argument
+type. It exited 1 with no tests run; declaring the test `fileprivate` corrected
+the fixture declaration before behavior was evaluated.
+
+To verify that the added rows catch the named production break, a temporary,
+uncommitted mutation limited opaque reservations to v1 authorities carrying a
+content digest. This models the regression where saved tombstones and bare
+deletes stop reserving their historical version ID:
+
+```sh
+swift test --scratch-path /tmp/KnitNoteResidualTask2 --filter 'opaqueV1AttachmentAuthorityRejectsEveryReuseAndPredecessorWithoutWriting'
+```
+
+Mutation-control RED: exit 1; 1 parameterized test in 1 suite failed with 12
+issues. Precisely the four newly required rows failed: saved-tombstone reuse,
+saved-tombstone predecessor, bare-delete reuse, and bare-delete predecessor.
+Each showed the missing typed error plus changed artifact bytes and directory
+layout. The live-save rows remained passing. This was deliberate test
+sensitivity evidence, not a defect in the committed production implementation.
+
+The temporary mutation was fully reverted. GREEN with the identical command:
+exit 0; 1 parameterized test with 6 cases in 1 suite passed in 0.026 seconds.
+No production file remains changed in this fix round.
+
+Final Task 2 journal gate after restoring production:
+
+```sh
+swift test --scratch-path /tmp/KnitNoteResidualTask2 --filter 'SyncAttachmentVersionTests|SyncMutationJournalTests|SyncMutationJournalSegmentTests|SyncMutationJournalFinalFixTests|SyncFinalFixMergePolicyTests'
+```
+
+Result: exit 0; 84 tests in 5 suites passed in 144.168 seconds. The Swift Testing
+summary counts the six argument rows as one parameterized test; its detailed
+output separately confirms all 6 cases. No Task 1 production or Watch path was
+touched, so the earlier 213-test adjacency result remains applicable.

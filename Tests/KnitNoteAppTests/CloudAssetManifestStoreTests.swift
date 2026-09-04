@@ -169,6 +169,42 @@ import Testing
         }
     }
 
+    @Test(arguments: [100_000_001, Int64.max])
+    func oversizedUploadByteCountsFailOnCommitAndCanonicalLoad(_ byteCount: Int64) throws {
+        let commitFixture = try ManifestFixture()
+        let oversized = try commitFixture.upload(
+            mutation: 1,
+            version: 1,
+            byteCount: byteCount
+        )
+        #expect(throws: CloudAssetManifestStoreError.corruptManifest) {
+            try commitFixture.withLock {
+                try commitFixture.manifests.commitUploads([oversized], in: $0)
+            }
+        }
+
+        let loadFixture = try ManifestFixture()
+        try loadFixture.withLock {
+            try loadFixture.manifests.commitUploads(
+                [try loadFixture.upload(mutation: 1, version: 1)],
+                in: $0
+            )
+        }
+        let canonicalCorruption = try loadFixture.rewriteUploadPayload { payload in
+            var entries = payload["entries"] as! [[String: Any]]
+            var entry = entries[0]
+            var version = entry["version"] as! [String: Any]
+            version["byteCount"] = NSNumber(value: byteCount)
+            entry["version"] = version
+            entries[0] = entry
+            payload["entries"] = entries
+        }
+        try canonicalCorruption.write(to: loadFixture.uploadManifestURL)
+        #expect(throws: CloudAssetManifestStoreError.corruptManifest) {
+            try loadFixture.withLock { try loadFixture.manifests.loadUploads(in: $0) }
+        }
+    }
+
     @Test func missingAuthorityRequiresNoFinalOwnedFiles() throws {
         let empty = try ManifestFixture()
         #expect(try empty.withLock { try empty.manifests.loadUploads(in: $0) }.isEmpty)
@@ -224,6 +260,51 @@ import Testing
         try #require(Darwin.chmod(fixture.accountURL.path, S_IRWXU) == 0)
         #expect(try fixture.withLock { try fixture.manifests.loadUploads(in: $0) } == [original])
     }
+
+    @Test func postRenameDirectorySyncFailureRollsBackPriorManifest() throws {
+        let fault = AtomicReplaceFault()
+        let fixture = try ManifestFixture(beforeAtomicReplacementDirectorySync: {
+            if fault.consumeFailure() { throw InjectedManifestFailure() }
+        })
+        let original = try fixture.upload(mutation: 1, version: 1)
+        let replacement = try fixture.upload(mutation: 2, version: 2)
+        try fixture.withLock { try fixture.manifests.commitUploads([original], in: $0) }
+        let originalBytes = try Data(contentsOf: fixture.uploadManifestURL)
+        fault.arm()
+
+        #expect(throws: CloudAssetManifestStoreError.unavailable) {
+            try fixture.withLock {
+                try fixture.manifests.commitUploads([replacement], in: $0)
+            }
+        }
+
+        #expect(try Data(contentsOf: fixture.uploadManifestURL) == originalBytes)
+        #expect(try fixture.withLock { try fixture.manifests.loadUploads(in: $0) } == [original])
+        let accountNames = try FileManager.default.contentsOfDirectory(atPath: fixture.accountURL.path)
+        #expect(accountNames.filter { $0.hasPrefix(".tmp-") || $0.hasPrefix(".backup-") }.isEmpty)
+    }
+
+    @Test func postRenameDirectorySyncFailureRestoresMissingAuthority() throws {
+        let fault = AtomicReplaceFault()
+        let fixture = try ManifestFixture(beforeAtomicReplacementDirectorySync: {
+            if fault.consumeFailure() { throw InjectedManifestFailure() }
+        })
+        fault.arm()
+
+        #expect(throws: CloudAssetManifestStoreError.unavailable) {
+            try fixture.withLock {
+                try fixture.manifests.commitUploads(
+                    [try fixture.upload(mutation: 1, version: 1)],
+                    in: $0
+                )
+            }
+        }
+
+        #expect(!FileManager.default.fileExists(atPath: fixture.uploadManifestURL.path))
+        #expect(try fixture.withLock { try fixture.manifests.loadUploads(in: $0) }.isEmpty)
+        let accountNames = try FileManager.default.contentsOfDirectory(atPath: fixture.accountURL.path)
+        #expect(accountNames.filter { $0.hasPrefix(".tmp-") || $0.hasPrefix(".backup-") }.isEmpty)
+    }
 }
 
 private final class ManifestFixture {
@@ -232,13 +313,16 @@ private final class ManifestFixture {
     let fileStore: CloudAssetAccountFileStore
     let manifests: CloudAssetManifestStore
 
-    init() throws {
+    init(
+        beforeAtomicReplacementDirectorySync: @escaping @Sendable () throws -> Void = {}
+    ) throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "cloud-asset-manifest-\(UUID().uuidString)", isDirectory: true
         )
         fileStore = try CloudAssetAccountFileStore(
             rootURL: root,
-            accountIdentifier: accountIdentifier
+            accountIdentifier: accountIdentifier,
+            beforeAtomicReplacementDirectorySync: beforeAtomicReplacementDirectorySync
         )
         manifests = CloudAssetManifestStore(fileStore: fileStore)
         try fileStore.withAccountLock { _ in }
@@ -265,21 +349,25 @@ private final class ManifestFixture {
         UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", suffix))!
     }
 
-    func version(_ suffix: Int) throws -> SyncAttachmentVersion {
+    func version(_ suffix: Int, byteCount: Int64? = nil) throws -> SyncAttachmentVersion {
         let bytes = Data("payload-\(suffix)".utf8)
         return try SyncAttachmentVersion.issuing(
             slot: .init(owner: .init(kind: .project, uuid: uuid(900)), role: "project-photo", slotID: "cover"),
             contentSHA256: Data(SHA256.hash(data: bytes)),
-            byteCount: Int64(bytes.count),
+            byteCount: byteCount ?? Int64(bytes.count),
             mediaType: "image/jpeg",
             displayFilename: "cover.jpg",
             versionID: uuid(100 + suffix)
         )
     }
 
-    func upload(mutation: Int, version: Int) throws -> CloudAssetUploadReference {
+    func upload(
+        mutation: Int,
+        version: Int,
+        byteCount: Int64? = nil
+    ) throws -> CloudAssetUploadReference {
         let mutationID = uuid(mutation)
-        let attachment = try self.version(version)
+        let attachment = try self.version(version, byteCount: byteCount)
         return CloudAssetUploadReference(
             mutationID: mutationID,
             version: attachment,
@@ -321,5 +409,22 @@ private final class ManifestFixture {
             "payload": canonicalPayload.base64EncodedString(),
         ]
         return try JSONSerialization.data(withJSONObject: rewritten, options: [.sortedKeys])
+    }
+}
+
+private struct InjectedManifestFailure: Error {}
+
+private final class AtomicReplaceFault: @unchecked Sendable {
+    private let lock = NSLock()
+    private var armed = false
+
+    func arm() { lock.withLock { armed = true } }
+
+    func consumeFailure() -> Bool {
+        lock.withLock {
+            guard armed else { return false }
+            armed = false
+            return true
+        }
     }
 }

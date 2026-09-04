@@ -37,6 +37,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     private let expectedLockOwnerID: uid_t
     private let beforeProcessLockAttempt: (@Sendable () -> Void)?
     private let afterLockDescriptorClose: (@Sendable () -> Void)?
+    private let beforeAtomicReplacementDirectorySync: @Sendable () throws -> Void
     private let directoryEntryReader: DirectoryEntryReader
     private let activeDescriptorsLock = NSLock()
     private var activeDescriptors: Set<Int32> = []
@@ -50,6 +51,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         expectedLockOwnerID: uid_t = Darwin.geteuid(),
         beforeProcessLockAttempt: (@Sendable () -> Void)? = nil,
         afterLockDescriptorClose: (@Sendable () -> Void)? = nil,
+        beforeAtomicReplacementDirectorySync: @escaping @Sendable () throws -> Void = {},
         directoryEntryReader: @escaping DirectoryEntryReader = Darwin.readdir
     ) throws {
         guard !accountIdentifier.isEmpty else { throw CloudAssetFileStoreError.invalidAccount }
@@ -62,6 +64,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         self.expectedLockOwnerID = expectedLockOwnerID
         self.beforeProcessLockAttempt = beforeProcessLockAttempt
         self.afterLockDescriptorClose = afterLockDescriptorClose
+        self.beforeAtomicReplacementDirectorySync = beforeAtomicReplacementDirectorySync
         self.directoryEntryReader = directoryEntryReader
     }
 
@@ -219,7 +222,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         try requireActive(directory)
         try Self.validateName(name)
         try validatePayload(data)
-        try validateExistingDestinationIfPresent(named: name, in: directory)
+        let priorIdentity = try destinationIdentityIfPresent(named: name, in: directory)
         let temporary = ".tmp-\(UUID().uuidString.lowercased())"
         let descriptor = try createTemporary(named: temporary, in: directory)
         defer { Darwin.close(descriptor) }
@@ -229,14 +232,124 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         }
         try Self.writeAll(data, descriptor: descriptor)
         guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetFileStoreError.unavailable }
-        let identity = try ownedIdentity(descriptor)
-        try validatePath(named: temporary, in: directory, equals: identity)
-        let result = temporary.withCString { source in
-            name.withCString { destination in Darwin.renameat(directory, source, directory, destination) }
+        let replacementIdentity = try ownedIdentity(descriptor)
+        try validatePath(named: temporary, in: directory, equals: replacementIdentity)
+
+        if let priorIdentity {
+            let exchanged = temporary.withCString { replacement in
+                name.withCString { prior in
+                    Darwin.renameatx_np(
+                        directory, replacement, directory, prior, UInt32(RENAME_SWAP)
+                    )
+                }
+            }
+            guard exchanged == 0 else { throw CloudAssetFileStoreError.unavailable }
+            do {
+                try validatePath(named: name, in: directory, equals: replacementIdentity)
+                try validatePath(named: temporary, in: directory, equals: priorIdentity)
+                try beforeAtomicReplacementDirectorySync()
+                try synchronize(directory)
+            } catch {
+                // After the exchange, `temporary` names the prior authority.
+                // Disable generic cleanup before rollback so a rollback failure
+                // preserves that inode for diagnosis/recovery.
+                removeTemporary = false
+                try rollbackExchange(
+                    temporary: temporary,
+                    destination: name,
+                    priorIdentity: priorIdentity,
+                    replacementIdentity: replacementIdentity,
+                    directory: directory
+                )
+                throw error
+            }
+
+            // The replacement is durable at this point. Removing the exchanged
+            // prior inode is cleanup, not part of publishing the new authority.
+            guard temporary.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0 else {
+                removeTemporary = false
+                try rollbackExchange(
+                    temporary: temporary,
+                    destination: name,
+                    priorIdentity: priorIdentity,
+                    replacementIdentity: replacementIdentity,
+                    directory: directory
+                )
+                throw CloudAssetFileStoreError.unavailable
+            }
+            removeTemporary = false
+            try? synchronize(directory)
+            return
         }
-        guard result == 0 else { throw CloudAssetFileStoreError.unavailable }
-        removeTemporary = false
-        try validatePath(named: name, in: directory, equals: identity)
+
+        let published = temporary.withCString { source in
+            name.withCString { destination in
+                Darwin.renameatx_np(
+                    directory, source, directory, destination, UInt32(RENAME_EXCL)
+                )
+            }
+        }
+        guard published == 0 else { throw CloudAssetFileStoreError.unavailable }
+        do {
+            try validatePath(named: name, in: directory, equals: replacementIdentity)
+            try beforeAtomicReplacementDirectorySync()
+            try synchronize(directory)
+            removeTemporary = false
+        } catch {
+            removeTemporary = false
+            try rollbackInitialPublication(
+                temporary: temporary,
+                destination: name,
+                replacementIdentity: replacementIdentity,
+                directory: directory
+            )
+            throw error
+        }
+    }
+
+    private func rollbackExchange(
+        temporary: String,
+        destination: String,
+        priorIdentity: Identity,
+        replacementIdentity: Identity,
+        directory: Int32
+    ) throws {
+        let exchanged = temporary.withCString { prior in
+            destination.withCString { replacement in
+                Darwin.renameatx_np(
+                    directory, prior, directory, replacement, UInt32(RENAME_SWAP)
+                )
+            }
+        }
+        guard exchanged == 0 else { throw CloudAssetFileStoreError.unavailable }
+        try validatePath(named: destination, in: directory, equals: priorIdentity)
+        try validatePath(named: temporary, in: directory, equals: replacementIdentity)
+        try synchronize(directory)
+        guard temporary.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0 else {
+            throw CloudAssetFileStoreError.unavailable
+        }
+        try synchronize(directory)
+    }
+
+    private func rollbackInitialPublication(
+        temporary: String,
+        destination: String,
+        replacementIdentity: Identity,
+        directory: Int32
+    ) throws {
+        let movedBack = destination.withCString { published in
+            temporary.withCString { temporaryName in
+                Darwin.renameatx_np(
+                    directory, published, directory, temporaryName, UInt32(RENAME_EXCL)
+                )
+            }
+        }
+        guard movedBack == 0 else { throw CloudAssetFileStoreError.unavailable }
+        try validatePath(named: temporary, in: directory, equals: replacementIdentity)
+        try synchronize(directory)
+        guard temporary.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0 else {
+            throw CloudAssetFileStoreError.unavailable
+        }
         try synchronize(directory)
     }
 
@@ -564,10 +677,6 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
               Self.isOwnedRegularFile(status, ownerID: expectedOwnerID),
               identity == Identity(device: status.st_dev, inode: status.st_ino)
         else { throw CloudAssetFileStoreError.unsafeFile }
-    }
-
-    private func validateExistingDestinationIfPresent(named name: String, in directory: Int32) throws {
-        _ = try destinationIdentityIfPresent(named: name, in: directory)
     }
 
     private func destinationIdentityIfPresent(named name: String, in directory: Int32) throws

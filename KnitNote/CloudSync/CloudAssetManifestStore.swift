@@ -209,7 +209,8 @@ final class CloudAssetManifestStore {
             let validated: SyncAttachmentVersion
             do { validated = try reference.version.validated() }
             catch { throw CloudAssetManifestStoreError.corruptManifest }
-            guard mutations.insert(reference.mutationID).inserted,
+            guard validated.byteCount <= Int64(SyncPublicationFileLimits.maximumAttachmentBytes),
+                  mutations.insert(reference.mutationID).inserted,
                   filenames.insert(reference.relativeFilename).inserted
             else { throw CloudAssetManifestStoreError.corruptManifest }
             guard Self.isUploadFilename(reference.relativeFilename) else {

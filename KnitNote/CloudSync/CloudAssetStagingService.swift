@@ -3,6 +3,9 @@ import CryptoKit
 import Darwin
 import Foundation
 
+@_silgen_name("flock")
+private func cloudAssetFlock(_ descriptor: Int32, _ operation: Int32) -> Int32
+
 enum CloudAssetStagingError: Error, Equatable {
     case invalidAccount
     case invalidMetadata
@@ -22,6 +25,8 @@ enum CloudAssetStagingBoundary: Sendable {
     case manifestBeforeFileSync
     case manifestBeforeRename
     case manifestAfterIdentityCheck(destination: URL)
+    case manifestAfterSwap(destination: URL, displaced: URL)
+    case manifestAfterFinalIdentityCheck(destination: URL, displaced: URL)
     case manifestBeforeDirectorySync
     case downloadBeforeFileSync
     case downloadBeforeRename(destination: URL)
@@ -29,8 +34,12 @@ enum CloudAssetStagingBoundary: Sendable {
     case quarantineBeforeFileSync
     case quarantineBeforeRename
     case quarantineBeforeDirectorySync
+    case quarantineMismatchBeforeRead(source: URL)
     case cleanupAfterIdentityCheck(candidate: URL)
     case cleanupAfterMove
+    case cleanupBeforeUnlink(candidate: URL)
+    case cleanupAfterFinalIdentityCheck(candidate: URL)
+    case coordinationAfterLock(lock: URL)
     case acknowledgementAfterManifest
 
     func sameKind(as other: CloudAssetStagingBoundary?) -> Bool {
@@ -42,6 +51,8 @@ enum CloudAssetStagingBoundary: Sendable {
             (.manifestBeforeFileSync, .manifestBeforeFileSync),
             (.manifestBeforeRename, .manifestBeforeRename),
             (.manifestAfterIdentityCheck, .manifestAfterIdentityCheck),
+            (.manifestAfterSwap, .manifestAfterSwap),
+            (.manifestAfterFinalIdentityCheck, .manifestAfterFinalIdentityCheck),
             (.manifestBeforeDirectorySync, .manifestBeforeDirectorySync),
             (.downloadBeforeFileSync, .downloadBeforeFileSync),
             (.downloadBeforeRename, .downloadBeforeRename),
@@ -49,8 +60,12 @@ enum CloudAssetStagingBoundary: Sendable {
             (.quarantineBeforeFileSync, .quarantineBeforeFileSync),
             (.quarantineBeforeRename, .quarantineBeforeRename),
             (.quarantineBeforeDirectorySync, .quarantineBeforeDirectorySync),
+            (.quarantineMismatchBeforeRead, .quarantineMismatchBeforeRead),
             (.cleanupAfterIdentityCheck, .cleanupAfterIdentityCheck),
             (.cleanupAfterMove, .cleanupAfterMove),
+            (.cleanupBeforeUnlink, .cleanupBeforeUnlink),
+            (.cleanupAfterFinalIdentityCheck, .cleanupAfterFinalIdentityCheck),
+            (.coordinationAfterLock, .coordinationAfterLock),
             (.acknowledgementAfterManifest, .acknowledgementAfterManifest):
             true
         default:
@@ -84,16 +99,19 @@ final class CloudAssetStagingService: @unchecked Sendable {
     let uploadsRootURL: URL
     let installedRootURL: URL
     let quarantineRootURL: URL
+    private let retiredRootURL: URL
 
     private let rootURL: URL
     private let accountToken: String
     private let maximumAssetBytes: Int
+    private let externalReader: any SyncRegularFileReading
     private let beforeBoundary: BeforeBoundary
 
     init(
         rootURL: URL,
         accountIdentifier: String,
         maximumAssetBytes: Int = CloudAssetStagingService.defaultMaximumAssetBytes,
+        externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
         beforeBoundary: @escaping BeforeBoundary = { _ in }
     ) throws {
         guard rootURL.isFileURL,
@@ -104,6 +122,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         guard maximumAssetBytes >= 0 else { throw CloudAssetStagingError.tooLarge }
         self.rootURL = rootURL.standardizedFileURL
         self.maximumAssetBytes = maximumAssetBytes
+        self.externalReader = externalReader
         self.beforeBoundary = beforeBoundary
         accountToken = Self.hex(Data(SHA256.hash(data: Data(accountIdentifier.utf8))))
         accountRootURL = self.rootURL
@@ -112,6 +131,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         uploadsRootURL = accountRootURL.appendingPathComponent("Uploads", isDirectory: true)
         installedRootURL = accountRootURL.appendingPathComponent("Installed", isDirectory: true)
         quarantineRootURL = accountRootURL.appendingPathComponent("Quarantine", isDirectory: true)
+        retiredRootURL = accountRootURL.appendingPathComponent("Retired", isDirectory: true)
         try withDirectories { _ in }
     }
 
@@ -148,8 +168,29 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 )
                 return existing
             }
+            if let intentIndex = manifest.cleanupIntents.firstIndex(where: {
+                $0.mutationID == mutationID
+            }) {
+                guard referencesMatch(manifest.cleanupIntents[intentIndex], result) else {
+                    throw CloudAssetStagingError.immutableIdentityMismatch
+                }
+                try restoreOrCreateStagedFile(
+                    sourceRead.data,
+                    named: fileName,
+                    version: version,
+                    directories: directories
+                )
+                manifest.cleanupIntents.remove(at: intentIndex)
+                manifest.references.append(result)
+                try writeManifest(
+                    manifest,
+                    accountDescriptor: directories.account,
+                    retiredDescriptor: directories.retired
+                )
+                return result
+            }
             guard
-                manifest.references.allSatisfy({ reference in
+                (manifest.references + manifest.cleanupIntents).allSatisfy({ reference in
                     reference.version.versionID != version.versionID || reference.version == version
                 })
             else {
@@ -164,6 +205,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 sourceRead.data,
                 named: fileName,
                 directoryDescriptor: directories.uploads,
+                retiredDescriptor: directories.retired,
                 fileSyncBoundary: .uploadBeforeFileSync,
                 renameBoundary: .uploadBeforeRename,
                 directorySyncBoundary: .uploadBeforeDirectorySync,
@@ -171,7 +213,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 expectedSHA256: version.contentSHA256
             )
             manifest.references.append(result)
-            try writeManifest(manifest, accountDescriptor: directories.account)
+            try writeManifest(
+                manifest,
+                accountDescriptor: directories.account,
+                retiredDescriptor: directories.retired
+            )
             return result
         }
     }
@@ -219,7 +265,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
             }
             manifest.references.remove(at: index)
             manifest.cleanupIntents.append(reference)
-            try writeManifest(manifest, accountDescriptor: directories.account)
+            try writeManifest(
+                manifest,
+                accountDescriptor: directories.account,
+                retiredDescriptor: directories.retired
+            )
             try beforeBoundary(.acknowledgementAfterManifest)
             guard
                 !manifest.references.contains(where: {
@@ -227,18 +277,27 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 })
             else {
                 manifest.cleanupIntents.removeAll { referencesMatch($0, reference) }
-                try writeManifest(manifest, accountDescriptor: directories.account)
+                try writeManifest(
+                    manifest,
+                    accountDescriptor: directories.account,
+                    retiredDescriptor: directories.retired
+                )
                 return
             }
             try removeRegularFile(
                 named: fileName,
                 from: directories.uploads,
+                retiredDescriptor: directories.retired,
                 candidateURL: uploadsRootURL.appendingPathComponent(fileName),
                 expectedByteCount: version.byteCount,
                 expectedSHA256: version.contentSHA256
             )
             manifest.cleanupIntents.removeAll { referencesMatch($0, reference) }
-            try writeManifest(manifest, accountDescriptor: directories.account)
+            try writeManifest(
+                manifest,
+                accountDescriptor: directories.account,
+                retiredDescriptor: directories.retired
+            )
         }
     }
 
@@ -274,6 +333,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 read.data,
                 named: fileName,
                 directoryDescriptor: directories.installed,
+                retiredDescriptor: directories.retired,
                 fileSyncBoundary: .downloadBeforeFileSync,
                 renameBoundary: .downloadBeforeRename(destination: destination),
                 directorySyncBoundary: .downloadBeforeDirectorySync,
@@ -298,6 +358,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
     func reconcile() throws {
         try coordinated { directories in
             var manifest = try loadManifest(directories: directories)
+            try recoverRetiredFiles(manifest: manifest, directories: directories)
             let referenced = Set(manifest.references.map { $0.stagedFileURL.lastPathComponent })
             for reference in manifest.references {
                 try verifyFile(
@@ -320,6 +381,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
                     try removeRegularFile(
                         named: cleanupResidue,
                         from: directories.uploads,
+                        retiredDescriptor: directories.retired,
+                        retirementLogicalName: name,
                         expectedByteCount: intent.version.byteCount,
                         expectedSHA256: intent.version.contentSHA256
                     )
@@ -327,6 +390,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 try removeRegularFile(
                     named: name,
                     from: directories.uploads,
+                    retiredDescriptor: directories.retired,
                     candidateURL: uploadsRootURL.appendingPathComponent(name),
                     expectedByteCount: intent.version.byteCount,
                     expectedSHA256: intent.version.contentSHA256
@@ -334,14 +398,24 @@ final class CloudAssetStagingService: @unchecked Sendable {
             }
             if !manifest.cleanupIntents.isEmpty {
                 manifest.cleanupIntents.removeAll()
-                try writeManifest(manifest, accountDescriptor: directories.account)
+                try writeManifest(
+                    manifest,
+                    accountDescriptor: directories.account,
+                    retiredDescriptor: directories.retired
+                )
             }
             var removedUpload = false
             for name in try directoryEntryNames(directories.uploads)
             where name != "." && name != ".." {
                 if name.hasSuffix(".tmp") {
+                    guard isGeneratedTemporaryName(name, domain: .immutableAsset) else {
+                        throw CloudAssetStagingError.unsafeFile
+                    }
                     try removeRegularFile(
-                        named: name, from: directories.uploads, synchronize: false)
+                        named: name,
+                        from: directories.uploads,
+                        retiredDescriptor: directories.retired
+                    )
                     removedUpload = true
                 } else if name.hasSuffix(".asset") && !referenced.contains(name) {
                     throw CloudAssetStagingError.corruptManifest
@@ -355,7 +429,14 @@ final class CloudAssetStagingService: @unchecked Sendable {
             var removedInstall = false
             for name in try directoryEntryNames(directories.installed)
             where name.hasSuffix(".tmp") {
-                try removeRegularFile(named: name, from: directories.installed, synchronize: false)
+                guard isGeneratedTemporaryName(name, domain: .immutableAsset) else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
+                try removeRegularFile(
+                    named: name,
+                    from: directories.installed,
+                    retiredDescriptor: directories.retired
+                )
                 removedInstall = true
             }
             if removedInstall, Darwin.fsync(directories.installed) != 0 {
@@ -363,11 +444,14 @@ final class CloudAssetStagingService: @unchecked Sendable {
             }
             var removedManifestTemporary = false
             for name in try directoryEntryNames(directories.account)
-            where name.hasPrefix(".\(Self.manifestName).") && name.hasSuffix(".tmp") {
+            where name.hasSuffix(".tmp") {
+                guard isGeneratedTemporaryName(name, domain: .manifest) else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
                 try removeRegularFile(
                     named: name,
                     from: directories.account,
-                    synchronize: false
+                    retiredDescriptor: directories.retired
                 )
                 removedManifestTemporary = true
             }
@@ -377,15 +461,31 @@ final class CloudAssetStagingService: @unchecked Sendable {
             var removedQuarantineTemporary = false
             for name in try directoryEntryNames(directories.quarantine)
             where name.hasSuffix(".tmp") {
+                guard isGeneratedTemporaryName(name, domain: .quarantineAsset) else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
                 try removeRegularFile(
                     named: name,
                     from: directories.quarantine,
-                    synchronize: false
+                    retiredDescriptor: directories.retired
                 )
                 removedQuarantineTemporary = true
             }
             if removedQuarantineTemporary, Darwin.fsync(directories.quarantine) != 0 {
                 throw CloudAssetStagingError.unavailable
+            }
+            let emptySHA256 = Data(SHA256.hash(data: Data()))
+            for name in try directoryEntryNames(directories.retired)
+            where name != "." && name != ".." {
+                guard isRetirementTombstone(name) else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
+                try verifyFile(
+                    named: name,
+                    in: directories.retired,
+                    expectedByteCount: 0,
+                    expectedSHA256: emptySHA256
+                )
             }
         }
     }
@@ -400,6 +500,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                         data,
                         named: name,
                         directoryDescriptor: directories.quarantine,
+                        retiredDescriptor: directories.retired,
                         fileSyncBoundary: .quarantineBeforeFileSync,
                         renameBoundary: .quarantineBeforeRename,
                         directorySyncBoundary: .quarantineBeforeDirectorySync
@@ -424,7 +525,25 @@ final class CloudAssetStagingService: @unchecked Sendable {
             throw CloudAssetStagingError.unsafeFile
         }
         if status.st_size <= expectedByteCount {
-            _ = try quarantine(sourceURL)
+            try beforeBoundary(.quarantineMismatchBeforeRead(source: sourceURL))
+            let declaredBound: Int
+            if expectedByteCount >= Int64(maximumAssetBytes) {
+                declaredBound = maximumAssetBytes
+            } else {
+                declaredBound = Int(expectedByteCount) + 1
+            }
+            do {
+                let read = try readExternal(
+                    sourceURL,
+                    maximumBytes: declaredBound,
+                    expectedByteCount: expectedByteCount
+                )
+                _ = try quarantine(read.data)
+            } catch CloudAssetStagingError.contentMismatch,
+                CloudAssetStagingError.tooLarge
+            {
+                _ = try quarantine(Data())
+            }
         } else {
             // The descriptor reader already rejected this size before allocating
             // or reading. Retain a bounded marker without rereading attacker-sized
@@ -437,12 +556,20 @@ final class CloudAssetStagingService: @unchecked Sendable {
         Self.processLock.lock()
         defer { Self.processLock.unlock() }
         return try withDirectories { directories in
+            try Self.setDirectoryLock(directories.account, operation: LOCK_EX)
+            defer { try? Self.setDirectoryLock(directories.account, operation: LOCK_UN) }
             let lockDescriptor = try Self.openOrCreateLock(in: directories.account)
             defer { Darwin.close(lockDescriptor) }
             try Self.setLock(lockDescriptor, type: Int16(F_WRLCK))
             defer { try? Self.setLock(lockDescriptor, type: Int16(F_UNLCK)) }
             try Self.validateLock(lockDescriptor, in: directories.account)
-            return try body(directories)
+            try beforeBoundary(.coordinationAfterLock(
+                lock: accountRootURL.appendingPathComponent(Self.lockName)
+            ))
+            try Self.validateLock(lockDescriptor, in: directories.account)
+            let result = try body(directories)
+            try Self.validateLock(lockDescriptor, in: directories.account)
+            return result
         }
     }
 
@@ -498,13 +625,14 @@ final class CloudAssetStagingService: @unchecked Sendable {
 
     private func readExternal(
         _ url: URL,
+        maximumBytes: Int? = nil,
         expectedByteCount: Int64? = nil,
         expectedSHA256: Data? = nil
     ) throws -> SyncRegularFileRead {
         do {
-            return try SyncRegularFileReader().read(
+            return try externalReader.read(
                 url,
-                maximumBytes: maximumAssetBytes,
+                maximumBytes: maximumBytes ?? maximumAssetBytes,
                 expected: .init(byteCount: expectedByteCount, sha256: expectedSHA256)
             )
         } catch let error as SyncRegularFileReadError {
@@ -557,6 +685,10 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
         defer { Darwin.close(descriptor) }
         let data = try readDescriptor(descriptor, maximumBytes: Self.maximumManifestBytes).data
+        return try decodeManifest(data)
+    }
+
+    private func decodeManifest(_ data: Data) throws -> Manifest {
         let stored: StoredManifest
         do {
             stored = try JSONDecoder().decode(StoredManifest.self, from: data)
@@ -571,8 +703,16 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 manifest,
                 integrityVersion: stored.integrityVersion
             )),
-            canonicalStored == data,
-            manifest.version == Self.manifestVersion,
+            canonicalStored == data
+        else {
+            throw CloudAssetStagingError.corruptManifest
+        }
+        try validateManifest(manifest)
+        return manifest
+    }
+
+    private func validateManifest(_ manifest: Manifest) throws {
+        guard manifest.version == Self.manifestVersion,
             manifest.references == sorted(manifest.references),
             manifest.cleanupIntents == sorted(manifest.cleanupIntents)
         else {
@@ -605,13 +745,17 @@ final class CloudAssetStagingService: @unchecked Sendable {
         ) else {
             throw CloudAssetStagingError.corruptManifest
         }
-        return manifest
     }
 
-    private func writeManifest(_ manifest: Manifest, accountDescriptor: Int32) throws {
+    private func writeManifest(
+        _ manifest: Manifest,
+        accountDescriptor: Int32,
+        retiredDescriptor: Int32
+    ) throws {
         var normalized = manifest
         normalized.references = sorted(normalized.references)
         normalized.cleanupIntents = sorted(normalized.cleanupIntents)
+        try validateManifest(normalized)
         let data: Data
         do {
             let checksum = try manifestChecksum(normalized)
@@ -632,17 +776,25 @@ final class CloudAssetStagingService: @unchecked Sendable {
             Darwin.openat(
                 accountDescriptor,
                 $0,
-                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
                 S_IRUSR | S_IWUSR
             )
         }
         guard descriptor >= 0 else { throw CloudAssetStagingError.unavailable }
+        let stagedIdentity = try Self.fileIdentity(of: descriptor)
         var removeTemporary = true
         defer {
-            Darwin.close(descriptor)
             if removeTemporary {
-                _ = temporaryName.withCString { Darwin.unlinkat(accountDescriptor, $0, 0) }
+                try? retireBoundFile(
+                    named: temporaryName,
+                    logicalName: Self.manifestName,
+                    from: accountDescriptor,
+                    descriptor: descriptor,
+                    expectedIdentity: stagedIdentity,
+                    retiredDescriptor: retiredDescriptor
+                )
             }
+            Darwin.close(descriptor)
         }
         try Self.writeAll(data, descriptor: descriptor)
         try beforeBoundary(.manifestBeforeFileSync)
@@ -668,8 +820,81 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 }
             }
             guard result == 0 else { throw CloudAssetStagingError.unavailable }
-            guard try destinationIdentity(named: temporaryName, in: accountDescriptor) == original
-            else {
+            var displacedDescriptor: Int32 = -1
+            var capturedRetirementName: String?
+            defer {
+                if displacedDescriptor >= 0 { Darwin.close(displacedDescriptor) }
+            }
+            do {
+                try beforeBoundary(.manifestAfterSwap(
+                    destination: accountRootURL.appendingPathComponent(Self.manifestName),
+                    displaced: accountRootURL.appendingPathComponent(temporaryName)
+                ))
+                guard
+                    try destinationIdentity(
+                        named: Self.manifestName,
+                        in: accountDescriptor
+                    ) == stagedIdentity,
+                    try destinationIdentity(
+                        named: temporaryName,
+                        in: accountDescriptor
+                    ) == original
+                else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
+                displacedDescriptor = temporaryName.withCString {
+                    Darwin.openat(
+                        accountDescriptor,
+                        $0,
+                        O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
+                    )
+                }
+                guard displacedDescriptor >= 0,
+                    try Self.fileIdentity(of: displacedDescriptor) == original
+                else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
+                try beforeBoundary(.manifestAfterFinalIdentityCheck(
+                    destination: accountRootURL.appendingPathComponent(Self.manifestName),
+                    displaced: accountRootURL.appendingPathComponent(temporaryName)
+                ))
+                let retirementName = try captureBoundFile(
+                    named: temporaryName,
+                    logicalName: Self.manifestName,
+                    from: accountDescriptor,
+                    descriptor: displacedDescriptor,
+                    expectedIdentity: original,
+                    retiredDescriptor: retiredDescriptor,
+                    synchronize: false
+                )
+                capturedRetirementName = retirementName
+                try beforeBoundary(.manifestBeforeDirectorySync)
+                guard try destinationIdentity(
+                    named: Self.manifestName,
+                    in: accountDescriptor
+                    ) == stagedIdentity,
+                    try destinationIdentity(
+                        named: retirementName,
+                        in: retiredDescriptor
+                    ) == original
+                else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
+                guard Darwin.fsync(accountDescriptor) == 0,
+                    Darwin.fsync(retiredDescriptor) == 0
+                else {
+                    throw CloudAssetStagingError.unavailable
+                }
+                removeTemporary = false
+            } catch let operationError {
+                if let capturedRetirementName {
+                    try restoreCapturedFile(
+                        named: capturedRetirementName,
+                        to: temporaryName,
+                        directory: accountDescriptor,
+                        retiredDescriptor: retiredDescriptor
+                    )
+                }
                 let rollback = temporaryName.withCString { temporary in
                     Self.manifestName.withCString { destination in
                         Darwin.renameatx_np(
@@ -682,13 +907,34 @@ final class CloudAssetStagingService: @unchecked Sendable {
                     }
                 }
                 guard rollback == 0 else { throw CloudAssetStagingError.unavailable }
-                throw CloudAssetStagingError.unsafeFile
+                do {
+                    try retireBoundFile(
+                        named: temporaryName,
+                        logicalName: Self.manifestName,
+                        from: accountDescriptor,
+                        descriptor: descriptor,
+                        expectedIdentity: stagedIdentity,
+                        retiredDescriptor: retiredDescriptor
+                    )
+                    removeTemporary = false
+                } catch {
+                    throw error
+                }
+                guard Darwin.fsync(accountDescriptor) == 0 else {
+                    throw CloudAssetStagingError.unavailable
+                }
+                throw operationError
             }
-            guard temporaryName.withCString({ Darwin.unlinkat(accountDescriptor, $0, 0) }) == 0
-            else {
-                throw CloudAssetStagingError.unavailable
+            if let capturedRetirementName {
+                // Publication is committed. A crash or cleanup failure here is
+                // resumed from the checksummed manifest during reconciliation.
+                try? finishRetiredFile(
+                    named: capturedRetirementName,
+                    descriptor: displacedDescriptor,
+                    expectedIdentity: original,
+                    retiredDescriptor: retiredDescriptor
+                )
             }
-            removeTemporary = false
         } else {
             let result = temporaryName.withCString { temporary in
                 Self.manifestName.withCString { destination in
@@ -705,10 +951,21 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 guard errno == EEXIST else { throw CloudAssetStagingError.unavailable }
                 throw CloudAssetStagingError.unsafeFile
             }
+            // With no prior authority to restore, the published candidate is
+            // recoverable crash state. A returning hook is followed by an
+            // inode check so substitution can never report success.
             removeTemporary = false
+            try beforeBoundary(.manifestBeforeDirectorySync)
+            guard try destinationIdentity(
+                named: Self.manifestName,
+                in: accountDescriptor
+            ) == stagedIdentity else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            guard Darwin.fsync(accountDescriptor) == 0 else {
+                throw CloudAssetStagingError.unavailable
+            }
         }
-        try beforeBoundary(.manifestBeforeDirectorySync)
-        guard Darwin.fsync(accountDescriptor) == 0 else { throw CloudAssetStagingError.unavailable }
     }
 
     private func manifestChecksum(
@@ -754,10 +1011,147 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
     }
 
+    private func restoreOrCreateStagedFile(
+        _ data: Data,
+        named name: String,
+        version: SyncAttachmentVersion,
+        directories: OpenDirectories
+    ) throws {
+        let matchingResidues = try directoryEntryNames(directories.uploads).filter {
+            $0.hasPrefix(".\(name).") && $0.hasSuffix(".cleanup")
+        }
+        guard matchingResidues.allSatisfy({ isCleanupTombstone($0, for: name) }),
+            matchingResidues.count <= 1
+        else {
+            throw CloudAssetStagingError.corruptManifest
+        }
+        if try destinationIdentity(named: name, in: directories.uploads) != nil {
+            guard matchingResidues.isEmpty else {
+                throw CloudAssetStagingError.corruptManifest
+            }
+            try verifyFile(
+                named: name,
+                in: directories.uploads,
+                expectedByteCount: version.byteCount,
+                expectedSHA256: version.contentSHA256
+            )
+            return
+        }
+        if let residue = matchingResidues.first {
+            try verifyFile(
+                named: residue,
+                in: directories.uploads,
+                expectedByteCount: version.byteCount,
+                expectedSHA256: version.contentSHA256
+            )
+            let result = residue.withCString { source in
+                name.withCString { destination in
+                    Darwin.renameatx_np(
+                        directories.uploads,
+                        source,
+                        directories.uploads,
+                        destination,
+                        UInt32(RENAME_EXCL)
+                    )
+                }
+            }
+            guard result == 0, Darwin.fsync(directories.uploads) == 0 else {
+                throw CloudAssetStagingError.unavailable
+            }
+            try verifyFile(
+                named: name,
+                in: directories.uploads,
+                expectedByteCount: version.byteCount,
+                expectedSHA256: version.contentSHA256
+            )
+            return
+        }
+        try createImmutableFile(
+            data,
+            named: name,
+            directoryDescriptor: directories.uploads,
+            retiredDescriptor: directories.retired,
+            fileSyncBoundary: .uploadBeforeFileSync,
+            renameBoundary: .uploadBeforeRename,
+            directorySyncBoundary: .uploadBeforeDirectorySync,
+            expectedByteCount: version.byteCount,
+            expectedSHA256: version.contentSHA256
+        )
+    }
+
+    private func isCleanupTombstone(_ candidate: String, for name: String) -> Bool {
+        let prefix = ".\(name)."
+        let suffix = ".cleanup"
+        guard candidate.hasPrefix(prefix), candidate.hasSuffix(suffix) else { return false }
+        let start = candidate.index(candidate.startIndex, offsetBy: prefix.count)
+        let end = candidate.index(candidate.endIndex, offsetBy: -suffix.count)
+        let token = String(candidate[start ..< end])
+        guard let uuid = UUID(uuidString: token) else { return false }
+        return token == uuid.uuidString.lowercased()
+    }
+
+    private enum TemporaryDomain {
+        case immutableAsset
+        case manifest
+        case quarantineAsset
+    }
+
+    private func isGeneratedTemporaryName(
+        _ candidate: String,
+        domain: TemporaryDomain
+    ) -> Bool {
+        guard candidate.hasPrefix("."), candidate.hasSuffix(".tmp") else { return false }
+        let bodyStart = candidate.index(after: candidate.startIndex)
+        let bodyEnd = candidate.index(candidate.endIndex, offsetBy: -4)
+        let body = String(candidate[bodyStart ..< bodyEnd])
+        guard let separator = body.lastIndex(of: ".") else { return false }
+        let finalName = String(body[..<separator])
+        let token = String(body[body.index(after: separator)...])
+        guard let temporaryID = UUID(uuidString: token), token == temporaryID.uuidString else {
+            return false
+        }
+        switch domain {
+        case .immutableAsset:
+            return isImmutableAssetName(finalName)
+        case .manifest:
+            return finalName == Self.manifestName
+        case .quarantineAsset:
+            return isQuarantineAssetName(finalName)
+        }
+    }
+
+    private func isImmutableAssetName(_ candidate: String) -> Bool {
+        let expectedCount = 36 + 1 + SHA256.byteCount * 2 + ".asset".count
+        guard candidate.count == expectedCount else { return false }
+        let uuidEnd = candidate.index(candidate.startIndex, offsetBy: 36)
+        let uuidText = String(candidate[..<uuidEnd])
+        guard let versionID = UUID(uuidString: uuidText),
+            uuidText == versionID.uuidString.lowercased(),
+            candidate[uuidEnd] == "-",
+            candidate.hasSuffix(".asset")
+        else {
+            return false
+        }
+        let digestStart = candidate.index(after: uuidEnd)
+        let digestEnd = candidate.index(candidate.endIndex, offsetBy: -".asset".count)
+        let digest = candidate[digestStart ..< digestEnd]
+        return digest.count == SHA256.byteCount * 2
+            && digest.allSatisfy { ("0" ... "9").contains($0) || ("a" ... "f").contains($0) }
+    }
+
+    private func isQuarantineAssetName(_ candidate: String) -> Bool {
+        guard candidate.hasSuffix(".asset") else { return false }
+        let end = candidate.index(candidate.endIndex, offsetBy: -".asset".count)
+        let uuidText = String(candidate[..<end])
+        guard let identifier = UUID(uuidString: uuidText) else { return false }
+        return uuidText == identifier.uuidString.lowercased()
+    }
+
     private func createImmutableFile(
         _ data: Data,
         named name: String,
         directoryDescriptor: Int32,
+        retiredDescriptor: Int32,
         fileSyncBoundary: CloudAssetStagingBoundary,
         renameBoundary: CloudAssetStagingBoundary,
         directorySyncBoundary: CloudAssetStagingBoundary,
@@ -778,6 +1172,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 data,
                 named: name,
                 directoryDescriptor: directoryDescriptor,
+                retiredDescriptor: retiredDescriptor,
                 fileSyncBoundary: fileSyncBoundary,
                 renameBoundary: renameBoundary,
                 directorySyncBoundary: directorySyncBoundary
@@ -796,6 +1191,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         _ data: Data,
         named name: String,
         directoryDescriptor: Int32,
+        retiredDescriptor: Int32,
         fileSyncBoundary: CloudAssetStagingBoundary,
         renameBoundary: CloudAssetStagingBoundary,
         directorySyncBoundary: CloudAssetStagingBoundary
@@ -805,41 +1201,66 @@ final class CloudAssetStagingService: @unchecked Sendable {
             Darwin.openat(
                 directoryDescriptor,
                 $0,
-                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
                 S_IRUSR | S_IWUSR
             )
         }
         guard descriptor >= 0 else { throw CloudAssetStagingError.unavailable }
+        let temporaryIdentity = try Self.fileIdentity(of: descriptor)
         var removeTemporary = true
-        defer {
-            Darwin.close(descriptor)
+        var temporaryPathName = temporaryName
+        defer { Darwin.close(descriptor) }
+        do {
+            try Self.writeAll(data, descriptor: descriptor)
+            try beforeBoundary(fileSyncBoundary)
+            guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetStagingError.unavailable }
+            try beforeBoundary(renameBoundary)
+            let result = temporaryName.withCString { temporary in
+                name.withCString { destination in
+                    Darwin.renameatx_np(
+                        directoryDescriptor,
+                        temporary,
+                        directoryDescriptor,
+                        destination,
+                        UInt32(RENAME_EXCL)
+                    )
+                }
+            }
+            if result != 0 {
+                guard errno == EEXIST else { throw CloudAssetStagingError.unavailable }
+                throw CloudAssetStagingError.immutableIdentityMismatch
+            }
+            temporaryPathName = name
+            // A completed no-clobber rename is recoverable published state.
+            // Boundary failures model a process crash and must leave it for
+            // manifest/installed reconciliation; identity failures still fail
+            // closed without deleting either pathname occupant.
+            removeTemporary = false
+            try beforeBoundary(directorySyncBoundary)
+            guard try destinationIdentity(named: name, in: directoryDescriptor)
+                == temporaryIdentity
+            else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            guard Darwin.fsync(directoryDescriptor) == 0 else {
+                throw CloudAssetStagingError.unavailable
+            }
+        } catch let operationError {
             if removeTemporary {
-                _ = temporaryName.withCString { Darwin.unlinkat(directoryDescriptor, $0, 0) }
+                do {
+                    try retireBoundFile(
+                        named: temporaryPathName,
+                        logicalName: name,
+                        from: directoryDescriptor,
+                        descriptor: descriptor,
+                        expectedIdentity: temporaryIdentity,
+                        retiredDescriptor: retiredDescriptor
+                    )
+                } catch {
+                    throw error
+                }
             }
-        }
-        try Self.writeAll(data, descriptor: descriptor)
-        try beforeBoundary(fileSyncBoundary)
-        guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetStagingError.unavailable }
-        try beforeBoundary(renameBoundary)
-        let result = temporaryName.withCString { temporary in
-            name.withCString { destination in
-                Darwin.renameatx_np(
-                    directoryDescriptor,
-                    temporary,
-                    directoryDescriptor,
-                    destination,
-                    UInt32(RENAME_EXCL)
-                )
-            }
-        }
-        if result != 0 {
-            guard errno == EEXIST else { throw CloudAssetStagingError.unavailable }
-            throw CloudAssetStagingError.immutableIdentityMismatch
-        }
-        removeTemporary = false
-        try beforeBoundary(directorySyncBoundary)
-        guard Darwin.fsync(directoryDescriptor) == 0 else {
-            throw CloudAssetStagingError.unavailable
+            throw operationError
         }
     }
 
@@ -939,6 +1360,18 @@ final class CloudAssetStagingService: @unchecked Sendable {
         )
     }
 
+    private func readDescriptorPreservingOffset(
+        _ descriptor: Int32,
+        maximumBytes: Int
+    ) throws -> DescriptorRead {
+        let originalOffset = Darwin.lseek(descriptor, 0, SEEK_CUR)
+        guard originalOffset >= 0, Darwin.lseek(descriptor, 0, SEEK_SET) == 0 else {
+            throw CloudAssetStagingError.unavailable
+        }
+        defer { _ = Darwin.lseek(descriptor, originalOffset, SEEK_SET) }
+        return try readDescriptor(descriptor, maximumBytes: maximumBytes)
+    }
+
     private struct DescriptorRead {
         let data: Data
         let byteCount: Int64
@@ -952,8 +1385,10 @@ final class CloudAssetStagingService: @unchecked Sendable {
         let uploads: Int32
         let installed: Int32
         let quarantine: Int32
+        let retired: Int32
 
         func close() {
+            Darwin.close(retired)
             Darwin.close(quarantine)
             Darwin.close(installed)
             Darwin.close(uploads)
@@ -975,9 +1410,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
         var uploads: Int32 = -1
         var installed: Int32 = -1
         var quarantine: Int32 = -1
+        var retired: Int32 = -1
         var transferredOwnership = false
         defer {
             if !transferredOwnership {
+                if retired >= 0 { Darwin.close(retired) }
                 if quarantine >= 0 { Darwin.close(quarantine) }
                 if installed >= 0 { Darwin.close(installed) }
                 if uploads >= 0 { Darwin.close(uploads) }
@@ -991,13 +1428,15 @@ final class CloudAssetStagingService: @unchecked Sendable {
         uploads = try Self.openOrCreateDirectory(named: "Uploads", in: account)
         installed = try Self.openOrCreateDirectory(named: "Installed", in: account)
         quarantine = try Self.openOrCreateDirectory(named: "Quarantine", in: account)
+        retired = try Self.openOrCreateDirectory(named: "Retired", in: account)
         let directories = OpenDirectories(
             root: root,
             accounts: accounts,
             account: account,
             uploads: uploads,
             installed: installed,
-            quarantine: quarantine
+            quarantine: quarantine,
+            retired: retired
         )
         transferredOwnership = true
         defer { directories.close() }
@@ -1118,6 +1557,24 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
     }
 
+    private static func setDirectoryLock(_ descriptor: Int32, operation: Int32) throws {
+        while true {
+            if cloudAssetFlock(descriptor, operation) == 0 { return }
+            if errno == EINTR { continue }
+            throw CloudAssetStagingError.unavailable
+        }
+    }
+
+    private static func fileIdentity(of descriptor: Int32) throws -> FileIdentity {
+        var status = stat()
+        guard Darwin.fstat(descriptor, &status) == 0,
+            (status.st_mode & S_IFMT) == S_IFREG
+        else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+        return FileIdentity(device: status.st_dev, inode: status.st_ino)
+    }
+
     private func destinationIdentity(named name: String, in directory: Int32) throws
         -> FileIdentity?
     {
@@ -1140,10 +1597,311 @@ final class CloudAssetStagingService: @unchecked Sendable {
         let inode: ino_t
     }
 
+    private func retirementToken(for logicalName: String) -> String {
+        Self.hex(Data(SHA256.hash(data: Data(logicalName.utf8))))
+    }
+
+    private enum RetirementKind: String {
+        case asset
+        case manifest
+        case quarantine
+    }
+
+    private struct RetirementMetadata {
+        let kind: RetirementKind
+        let logicalToken: String
+        let byteCount: Int64
+        let contentSHA256: String
+    }
+
+    private func retirementKind(for logicalName: String) throws -> RetirementKind {
+        if logicalName == Self.manifestName
+            || isGeneratedTemporaryName(logicalName, domain: .manifest)
+        {
+            return .manifest
+        }
+        if isImmutableAssetName(logicalName)
+            || isGeneratedTemporaryName(logicalName, domain: .immutableAsset)
+            || logicalName.hasSuffix(".cleanup")
+        {
+            return .asset
+        }
+        if isQuarantineAssetName(logicalName)
+            || isGeneratedTemporaryName(logicalName, domain: .quarantineAsset)
+        {
+            return .quarantine
+        }
+        throw CloudAssetStagingError.unsafeFile
+    }
+
+    private func isRetirementTombstone(_ candidate: String, for logicalName: String? = nil)
+        -> Bool
+    {
+        guard let metadata = retirementMetadata(from: candidate) else { return false }
+        return logicalName.map { metadata.logicalToken == retirementToken(for: $0) } ?? true
+    }
+
+    private func retirementMetadata(from candidate: String) -> RetirementMetadata? {
+        let suffix = ".retired"
+        guard candidate.hasSuffix(suffix) else { return nil }
+        let body = candidate.dropLast(suffix.count)
+        let fields = body.split(separator: ".", omittingEmptySubsequences: false)
+        guard fields.count == 5,
+            let kind = RetirementKind(rawValue: String(fields[0])),
+            Self.isLowercaseHex(fields[1]),
+            fields[1].count == SHA256.byteCount * 2,
+            let byteCount = Int64(fields[2]),
+            byteCount >= 0,
+            String(byteCount) == fields[2],
+            Self.isLowercaseHex(fields[3]),
+            fields[3].count == SHA256.byteCount * 2,
+            let identifier = UUID(uuidString: String(fields[4])),
+            fields[4] == Substring(identifier.uuidString.lowercased())
+        else {
+            return nil
+        }
+        return RetirementMetadata(
+            kind: kind,
+            logicalToken: String(fields[1]),
+            byteCount: byteCount,
+            contentSHA256: String(fields[3])
+        )
+    }
+
+    private func recoverRetiredFiles(
+        manifest: Manifest,
+        directories: OpenDirectories
+    ) throws {
+        let correlatedReferences = manifest.references + manifest.cleanupIntents
+        for name in try directoryEntryNames(directories.retired)
+        where name != "." && name != ".." {
+            guard let metadata = retirementMetadata(from: name) else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            let descriptor = name.withCString {
+                Darwin.openat(
+                    directories.retired,
+                    $0,
+                    O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
+                )
+            }
+            guard descriptor >= 0 else { throw CloudAssetStagingError.unsafeFile }
+            defer { Darwin.close(descriptor) }
+            let identity = try Self.fileIdentity(of: descriptor)
+            var status = stat()
+            guard Darwin.fstat(descriptor, &status) == 0,
+                status.st_nlink == 1,
+                status.st_size >= 0
+            else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            if status.st_size == 0 { continue }
+            let maximumBytes = max(maximumAssetBytes, Self.maximumManifestBytes)
+            guard metadata.byteCount <= Int64(maximumBytes) else {
+                throw CloudAssetStagingError.tooLarge
+            }
+            let read = try readDescriptor(
+                descriptor,
+                maximumBytes: maximumBytes,
+                expectedByteCount: metadata.byteCount
+            )
+            guard Self.hex(read.sha256) == metadata.contentSHA256 else {
+                throw CloudAssetStagingError.contentMismatch
+            }
+            switch metadata.kind {
+            case .manifest:
+                guard metadata.logicalToken == retirementToken(for: Self.manifestName) else {
+                    throw CloudAssetStagingError.contentMismatch
+                }
+                _ = try decodeManifest(read.data)
+            case .asset:
+                if let reference = try correlatedReferences.first(where: {
+                    metadata.logicalToken == retirementToken(
+                        for: try immutableFileName(for: $0.version)
+                    )
+                }) {
+                    guard read.byteCount == reference.version.byteCount,
+                        read.sha256 == reference.version.contentSHA256
+                    else {
+                        throw CloudAssetStagingError.contentMismatch
+                    }
+                }
+            case .quarantine:
+                break
+            }
+            try finishRetiredFile(
+                named: name,
+                descriptor: descriptor,
+                expectedIdentity: identity,
+                retiredDescriptor: directories.retired
+            )
+        }
+    }
+
+    /// Atomically removes a pathname from an active directory, proves the
+    /// moved entry is still the descriptor-bound inode, then retires only that
+    /// inode's payload. The canonical zero-byte tombstone is retained because
+    /// Darwin has no unlink-by-descriptor primitive.
+    private func retireBoundFile(
+        named name: String,
+        logicalName: String,
+        from directory: Int32,
+        descriptor: Int32,
+        expectedIdentity: FileIdentity,
+        retiredDescriptor: Int32,
+        synchronize: Bool = true
+    ) throws {
+        let retirementName = try captureBoundFile(
+            named: name,
+            logicalName: logicalName,
+            from: directory,
+            descriptor: descriptor,
+            expectedIdentity: expectedIdentity,
+            retiredDescriptor: retiredDescriptor,
+            synchronize: synchronize
+        )
+        try finishRetiredFile(
+            named: retirementName,
+            descriptor: descriptor,
+            expectedIdentity: expectedIdentity,
+            retiredDescriptor: retiredDescriptor
+        )
+    }
+
+    private func captureBoundFile(
+        named name: String,
+        logicalName: String,
+        from directory: Int32,
+        descriptor: Int32,
+        expectedIdentity: FileIdentity,
+        retiredDescriptor: Int32,
+        synchronize: Bool = true
+    ) throws -> String {
+        let fingerprint = try readDescriptorPreservingOffset(
+            descriptor,
+            maximumBytes: max(maximumAssetBytes, Self.maximumManifestBytes)
+        )
+        let kind = try retirementKind(for: logicalName)
+        let retirementName = [
+            kind.rawValue,
+            retirementToken(for: logicalName),
+            String(fingerprint.byteCount),
+            Self.hex(fingerprint.sha256),
+            UUID().uuidString.lowercased(),
+        ].joined(separator: ".") + ".retired"
+        let moveResult = name.withCString { source in
+            retirementName.withCString { destination in
+                Darwin.renameatx_np(
+                    directory,
+                    source,
+                    retiredDescriptor,
+                    destination,
+                    UInt32(RENAME_EXCL)
+                )
+            }
+        }
+        guard moveResult == 0 else { throw CloudAssetStagingError.unavailable }
+
+        var capturedExpectedInode = false
+        do {
+            guard try destinationIdentity(named: retirementName, in: retiredDescriptor)
+                == expectedIdentity,
+                try Self.fileIdentity(of: descriptor) == expectedIdentity
+            else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            var status = stat()
+            guard Darwin.fstat(descriptor, &status) == 0,
+                (status.st_mode & S_IFMT) == S_IFREG,
+                status.st_nlink == 1
+            else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            if synchronize {
+                guard Darwin.fsync(directory) == 0,
+                    Darwin.fsync(retiredDescriptor) == 0
+                else {
+                    throw CloudAssetStagingError.unavailable
+                }
+            }
+            capturedExpectedInode = true
+            return retirementName
+        } catch {
+            if !capturedExpectedInode {
+                _ = retirementName.withCString { source in
+                    name.withCString { destination in
+                        Darwin.renameatx_np(
+                            retiredDescriptor,
+                            source,
+                            directory,
+                            destination,
+                            UInt32(RENAME_EXCL)
+                        )
+                    }
+                }
+            }
+            throw error
+        }
+    }
+
+    private func finishRetiredFile(
+        named name: String,
+        descriptor: Int32,
+        expectedIdentity: FileIdentity,
+        retiredDescriptor: Int32
+    ) throws {
+        var status = stat()
+        guard try destinationIdentity(named: name, in: retiredDescriptor) == expectedIdentity,
+            try Self.fileIdentity(of: descriptor) == expectedIdentity,
+            Darwin.fstat(descriptor, &status) == 0,
+            (status.st_mode & S_IFMT) == S_IFREG,
+            status.st_nlink == 1
+        else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+        guard Darwin.ftruncate(descriptor, 0) == 0,
+            Darwin.fsync(descriptor) == 0,
+            Darwin.fstat(descriptor, &status) == 0,
+            (status.st_mode & S_IFMT) == S_IFREG,
+            status.st_size == 0,
+            status.st_nlink == 1,
+            try destinationIdentity(named: name, in: retiredDescriptor) == expectedIdentity,
+            Darwin.fsync(retiredDescriptor) == 0
+        else {
+            throw CloudAssetStagingError.unavailable
+        }
+    }
+
+    private func restoreCapturedFile(
+        named retirementName: String,
+        to name: String,
+        directory: Int32,
+        retiredDescriptor: Int32
+    ) throws {
+        let result = retirementName.withCString { source in
+            name.withCString { destination in
+                Darwin.renameatx_np(
+                    retiredDescriptor,
+                    source,
+                    directory,
+                    destination,
+                    UInt32(RENAME_EXCL)
+                )
+            }
+        }
+        guard result == 0,
+            Darwin.fsync(retiredDescriptor) == 0,
+            Darwin.fsync(directory) == 0
+        else {
+            throw CloudAssetStagingError.unavailable
+        }
+    }
+
     private func removeRegularFile(
         named name: String,
         from directory: Int32,
-        synchronize: Bool = true,
+        retiredDescriptor: Int32,
+        retirementLogicalName: String? = nil,
         candidateURL: URL? = nil,
         expectedByteCount: Int64? = nil,
         expectedSHA256: Data? = nil
@@ -1166,58 +1924,80 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
         guard moveResult == 0 else { throw CloudAssetStagingError.unavailable }
         try beforeBoundary(.cleanupAfterMove)
-        guard try destinationIdentity(named: tombstoneName, in: directory) == original else {
-            let rollback = tombstoneName.withCString { tombstone in
-                name.withCString { candidate in
-                    Darwin.renameatx_np(
-                        directory,
-                        tombstone,
-                        directory,
-                        candidate,
-                        UInt32(RENAME_EXCL)
-                    )
-                }
-            }
-            guard rollback == 0 else { throw CloudAssetStagingError.unavailable }
+        let descriptor = tombstoneName.withCString {
+            Darwin.openat(directory, $0, O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            try rollbackCleanupTombstone(tombstoneName, to: name, in: directory)
             throw CloudAssetStagingError.unsafeFile
         }
+        defer { Darwin.close(descriptor) }
         do {
-            if let expectedByteCount, let expectedSHA256 {
-                try verifyFile(
-                    named: tombstoneName,
-                    in: directory,
-                    expectedByteCount: expectedByteCount,
-                    expectedSHA256: expectedSHA256
-                )
-            }
-            guard try destinationIdentity(named: tombstoneName, in: directory) == original else {
+            guard try Self.fileIdentity(of: descriptor) == original else {
                 throw CloudAssetStagingError.unsafeFile
             }
-        } catch {
-            let rollback = tombstoneName.withCString { tombstone in
-                name.withCString { candidate in
-                    Darwin.renameatx_np(
-                        directory,
-                        tombstone,
-                        directory,
-                        candidate,
-                        UInt32(RENAME_EXCL)
-                    )
+            if let expectedByteCount, let expectedSHA256 {
+                let read = try readDescriptor(
+                    descriptor,
+                    maximumBytes: maximumAssetBytes,
+                    expectedByteCount: expectedByteCount,
+                )
+                guard read.byteCount == expectedByteCount, read.sha256 == expectedSHA256 else {
+                    throw CloudAssetStagingError.contentMismatch
                 }
             }
-            guard rollback == 0 else { throw CloudAssetStagingError.unavailable }
+        } catch {
+            try rollbackCleanupTombstone(tombstoneName, to: name, in: directory)
             throw error
         }
-        let unlinkResult = tombstoneName.withCString { Darwin.unlinkat(directory, $0, 0) }
-        guard unlinkResult == 0 else { throw CloudAssetStagingError.unavailable }
-        if synchronize, Darwin.fsync(directory) != 0 {
-            throw CloudAssetStagingError.unavailable
+        if let candidateURL {
+            let tombstoneURL = candidateURL.deletingLastPathComponent()
+                .appendingPathComponent(tombstoneName)
+            try beforeBoundary(.cleanupBeforeUnlink(candidate: tombstoneURL))
         }
+        guard try destinationIdentity(named: tombstoneName, in: directory) == original else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+        if let candidateURL {
+            let tombstoneURL = candidateURL.deletingLastPathComponent()
+                .appendingPathComponent(tombstoneName)
+            try beforeBoundary(.cleanupAfterFinalIdentityCheck(candidate: tombstoneURL))
+        }
+        try retireBoundFile(
+            named: tombstoneName,
+            logicalName: retirementLogicalName ?? name,
+            from: directory,
+            descriptor: descriptor,
+            expectedIdentity: original,
+            retiredDescriptor: retiredDescriptor
+        )
+    }
+
+    private func rollbackCleanupTombstone(
+        _ tombstoneName: String,
+        to candidateName: String,
+        in directory: Int32
+    ) throws {
+        let rollback = tombstoneName.withCString { tombstone in
+            candidateName.withCString { candidate in
+                Darwin.renameatx_np(
+                    directory,
+                    tombstone,
+                    directory,
+                    candidate,
+                    UInt32(RENAME_EXCL)
+                )
+            }
+        }
+        guard rollback == 0 else { throw CloudAssetStagingError.unavailable }
     }
 
     private func directoryEntryNames(_ descriptor: Int32) throws -> [String] {
         let duplicate = Darwin.dup(descriptor)
-        guard duplicate >= 0, let stream = Darwin.fdopendir(duplicate) else {
+        guard duplicate >= 0,
+            Darwin.lseek(duplicate, 0, SEEK_SET) >= 0,
+            let stream = Darwin.fdopendir(duplicate)
+        else {
             if duplicate >= 0 { Darwin.close(duplicate) }
             throw CloudAssetStagingError.unavailable
         }
@@ -1252,6 +2032,10 @@ final class CloudAssetStagingService: @unchecked Sendable {
 
     private static func hex(_ data: Data) -> String {
         data.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func isLowercaseHex(_ value: Substring) -> Bool {
+        value.allSatisfy { ("0" ... "9").contains($0) || ("a" ... "f").contains($0) }
     }
 
     private static func map(_ error: SyncRegularFileReadError) -> CloudAssetStagingError {

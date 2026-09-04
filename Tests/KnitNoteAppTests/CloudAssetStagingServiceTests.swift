@@ -964,6 +964,45 @@ import Testing
         #expect(try Data(contentsOf: first.stagedFileURL) == firstBytes)
     }
 
+    @Test func manifestContentChangedAfterLoadFailsPublicationCASWithoutTruncatingReplacement()
+        throws
+    {
+        let fixture = try Fixture()
+        let firstBytes = Data("manifest authority loaded before mutation".utf8)
+        let first = try fixture.service.stageUpload(
+            source: fixture.source(firstBytes),
+            version: fixture.version(for: firstBytes),
+            mutationID: fixedUUID(127)
+        )
+        let manifestURL = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        let replacementBytes = Data("same inode but different manifest generation".utf8)
+        let controller = BoundaryController { boundary in
+            guard case .manifestAfterLoad(let destination) = boundary else { return }
+            let handle = try FileHandle(forWritingTo: destination)
+            try handle.truncate(atOffset: 0)
+            try handle.write(contentsOf: replacementBytes)
+            try handle.synchronize()
+            try handle.close()
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let secondBytes = Data("must not publish from stale loaded manifest".utf8)
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            _ = try service.stageUpload(
+                source: fixture.source(secondBytes, named: "load-cas.asset"),
+                version: fixture.version(for: secondBytes),
+                mutationID: fixedUUID(128)
+            )
+        }
+        #expect(try Data(contentsOf: manifestURL) == replacementBytes)
+        #expect(try Data(contentsOf: first.stagedFileURL) == firstBytes)
+    }
+
     @Test func manifestDestinationSubstitutionAfterSwapRestoresPriorManifest() throws {
         let fixture = try Fixture()
         let firstBytes = Data("prior manifest upload".utf8)
@@ -1025,17 +1064,33 @@ import Testing
             beforeBoundary: controller.visit
         )
         let bytes = Data("first manifest candidate upload".utf8)
+        let version = try fixture.version(for: bytes)
 
         #expect(throws: CloudAssetStagingError.unsafeFile) {
             _ = try service.stageUpload(
                 source: fixture.source(bytes),
-                version: fixture.version(for: bytes),
+                version: version,
                 mutationID: fixedUUID(120)
             )
         }
-        let manifest = service.accountRootURL.appendingPathComponent("upload-references.json")
-        #expect(try Data(contentsOf: manifest) == replacementBytes)
         #expect(FileManager.default.fileExists(atPath: savedCandidate.path))
+        let preservedReplacement = try FileManager.default.contentsOfDirectory(
+            at: service.accountRootURL,
+            includingPropertiesForKeys: nil
+        ).first(where: { (try? Data(contentsOf: $0)) == replacementBytes })
+        #expect(preservedReplacement != nil)
+
+        let recovered = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        _ = try recovered.stageUpload(
+            source: fixture.source(bytes, named: "retry-first-manifest.asset"),
+            version: version,
+            mutationID: fixedUUID(120)
+        )
+        try recovered.reconcile()
+        #expect(try Data(contentsOf: preservedReplacement!) == replacementBytes)
     }
 
     @Test func immutableDestinationSubstitutionBeforeDirectorySyncCannotSucceed() throws {
@@ -1099,19 +1154,34 @@ import Testing
             beforeBoundary: controller.visit
         )
         let secondBytes = Data("candidate must not remain published".utf8)
+        let secondVersion = try fixture.version(for: secondBytes)
 
         #expect(throws: CloudAssetStagingError.unsafeFile) {
             _ = try service.stageUpload(
                 source: fixture.source(secondBytes, named: "final-check-candidate.asset"),
-                version: fixture.version(for: secondBytes),
+                version: secondVersion,
                 mutationID: fixedUUID(115)
             )
         }
         #expect(try Data(contentsOf: savedPriorManifest) == priorManifest)
-        #expect(try Data(contentsOf: manifestURL) == replacementBytes)
-        #expect(throws: CloudAssetStagingError.corruptManifest) {
-            try service.reconcile()
-        }
+        #expect(try Data(contentsOf: manifestURL) == priorManifest)
+        let preservedReplacement = try FileManager.default.contentsOfDirectory(
+            at: service.accountRootURL,
+            includingPropertiesForKeys: nil
+        ).first(where: { (try? Data(contentsOf: $0)) == replacementBytes })
+        #expect(preservedReplacement != nil)
+
+        let recovered = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        _ = try recovered.stageUpload(
+            source: fixture.source(secondBytes, named: "retry-final-check.asset"),
+            version: secondVersion,
+            mutationID: fixedUUID(115)
+        )
+        try recovered.reconcile()
+        #expect(try Data(contentsOf: preservedReplacement!) == replacementBytes)
     }
 
     @Test func manifestSubstitutionAtCommitBoundaryRollsBackPublishedCandidate() throws {
@@ -1178,21 +1248,37 @@ import Testing
             beforeBoundary: controller.visit
         )
         let secondBytes = Data("manifest that must roll back".utf8)
+        let secondVersion = try fixture.version(for: secondBytes)
 
         #expect(throws: CloudAssetStagingError.unsafeFile) {
             _ = try service.stageUpload(
                 source: fixture.source(secondBytes, named: "displaced-nonregular.asset"),
-                version: fixture.version(for: secondBytes),
+                version: secondVersion,
                 mutationID: fixedUUID(111)
             )
         }
         #expect(try Data(contentsOf: savedPriorManifest) == priorManifest)
-        var status = stat()
-        #expect(manifestURL.path.withCString { Darwin.lstat($0, &status) } == 0)
-        #expect((status.st_mode & S_IFMT) == S_IFIFO)
-        #expect(throws: CloudAssetStagingError.unsafeFile) {
-            try service.reconcile()
+        #expect(try Data(contentsOf: manifestURL) == priorManifest)
+        let preservedFIFO = try FileManager.default.contentsOfDirectory(
+            at: service.accountRootURL,
+            includingPropertiesForKeys: nil
+        ).contains { candidate in
+            var status = stat()
+            return candidate.path.withCString { Darwin.lstat($0, &status) } == 0
+                && (status.st_mode & S_IFMT) == S_IFIFO
         }
+        #expect(preservedFIFO)
+
+        let recovered = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        _ = try recovered.stageUpload(
+            source: fixture.source(secondBytes, named: "retry-displaced-nonregular.asset"),
+            version: secondVersion,
+            mutationID: fixedUUID(111)
+        )
+        try recovered.reconcile()
     }
 
     @Test func cleanupSubstitutionAfterIdentityCheckIsMovedBackWithoutUnlinking() throws {
@@ -1386,6 +1472,94 @@ import Testing
         #expect(try Data(contentsOf: forged) == forgedBytes)
     }
 
+    @Test(.timeLimit(.minutes(2)))
+    func sustainedUploadRetirementKeepsRetiredInodesAndRestartScanBounded() throws {
+        let fixture = try Fixture()
+        let retired = fixture.service.accountRootURL.appendingPathComponent(
+            "Retired",
+            isDirectory: true
+        )
+
+        for index in 0 ..< 2_048 {
+            let bytes = Data("bounded-retirement-\(index)".utf8)
+            let upload = try fixture.service.stageUpload(
+                source: fixture.source(bytes, named: "bounded-\(index).asset"),
+                version: fixture.version(for: bytes),
+                mutationID: UUID()
+            )
+            try fixture.service.acknowledgeUpload(upload)
+        }
+
+        let tombstones = try fixture.regularFiles(in: retired)
+        #expect(tombstones.count <= 3)
+        #expect(try tombstones.allSatisfy { try Data(contentsOf: $0).isEmpty })
+
+        let restarted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        try restarted.reconcile()
+        #expect(try fixture.regularFiles(in: retired).count <= 3)
+        #expect(try fixture.regularFiles(in: restarted.uploadsRootURL).isEmpty)
+    }
+
+    @Test func restartCompactsLegacyZeroRetirementMarkersToOnePerKind() throws {
+        let fixture = try Fixture()
+        let retired = fixture.service.accountRootURL.appendingPathComponent("Retired")
+        let token = String(repeating: "a", count: 64)
+        let emptyHash = Data(SHA256.hash(data: Data()))
+            .map { String(format: "%02x", $0) }.joined()
+        for _ in 0 ..< 1_024 {
+            let marker = retired.appendingPathComponent(
+                "asset.\(token).0.\(emptyHash).\(UUID().uuidString.lowercased()).retired"
+            )
+            #expect(FileManager.default.createFile(atPath: marker.path, contents: Data()))
+        }
+
+        let restarted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        try restarted.reconcile()
+
+        let remaining = try fixture.regularFiles(in: retired)
+        #expect(remaining.count == 1)
+        #expect(try Data(contentsOf: remaining[0]).isEmpty)
+    }
+
+    @Test func malformedCleanupNamePreservesBytesAndDurableAcknowledgementIntent() throws {
+        let fixture = try Fixture()
+        let bytes = Data("cleanup grammar authority".utf8)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(129)
+        )
+        let controller = BoundaryController(failOnceAt: .acknowledgementAfterManifest)
+        let interrupted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        #expect(throws: BoundaryFailure.interrupted) {
+            try interrupted.acknowledgeUpload(upload)
+        }
+        let manifestURL = interrupted.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        let intentManifest = try Data(contentsOf: manifestURL)
+        let malformed = interrupted.uploadsRootURL.appendingPathComponent(
+            ".\(upload.stagedFileURL.lastPathComponent).not-a-canonical-uuid.cleanup"
+        )
+        try bytes.write(to: malformed)
+
+        #expect(throws: CloudAssetStagingError.corruptManifest) {
+            try interrupted.reconcile()
+        }
+        #expect(try Data(contentsOf: malformed) == bytes)
+        #expect(try Data(contentsOf: upload.stagedFileURL) == bytes)
+        #expect(try Data(contentsOf: manifestURL) == intentManifest)
+    }
+
     @Test func restartCompletesCorrelatedRetirementInterruptedBeforeTruncation() throws {
         let fixture = try Fixture()
         let bytes = Data("correlated live retirement bytes".utf8)
@@ -1481,6 +1655,41 @@ import Testing
         #expect(try Data(contentsOf: source.fileURL) == bytes)
         #expect(FileManager.default.fileExists(atPath: displacedLock.path))
         #expect(try Data(contentsOf: lockURL) == replacementBytes)
+    }
+
+    @Test func accountDirectoryReplacementBeforeReturnFailsClosedOnLockedTree() throws {
+        let fixture = try Fixture()
+        let displacedAccount = fixture.sources.appendingPathComponent("displaced-account")
+        let controller = BoundaryController { boundary in
+            guard case .coordinationBeforeReturn(let account) = boundary else { return }
+            try FileManager.default.moveItem(at: account, to: displacedAccount)
+            try FileManager.default.createDirectory(at: account, withIntermediateDirectories: true)
+            for child in ["Uploads", "Installed", "Quarantine", "Retired"] {
+                try FileManager.default.createDirectory(
+                    at: account.appendingPathComponent(child),
+                    withIntermediateDirectories: false
+                )
+            }
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let bytes = Data("must remain bound to displaced locked account".utf8)
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            _ = try service.stageUpload(
+                source: fixture.source(bytes),
+                version: fixture.version(for: bytes),
+                mutationID: fixedUUID(130)
+            )
+        }
+        #expect(try fixture.regularFiles(in: service.uploadsRootURL).isEmpty)
+        let displacedUploads = displacedAccount.appendingPathComponent("Uploads")
+        #expect(try fixture.regularFiles(in: displacedUploads).contains {
+            (try? Data(contentsOf: $0)) == bytes
+        })
     }
 
     @Test func quarantineUsesUniqueOwnedNamesAndNeverOverwritesDiagnostics() throws {

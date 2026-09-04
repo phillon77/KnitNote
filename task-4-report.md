@@ -1,64 +1,64 @@
-# Task 4 Report — Pattern Lifecycle and Reader Mutations
+# Task 4 Report — Immutable Asset Staging Filesystem Authority
+
+## Scope
+
+This review fix is based on `cbfe663466a45534d63b33e6481bf402e41b225f` and changes only the local immutable-asset staging service and its app tests. It does not add or exercise live CloudKit transport, change a version/build, push a branch, submit a build, or claim physical-device acceptance.
 
 ## RED
 
-Added `PatternLibraryStoreTests` and converted markup file tests to the usage-ID API. The first focused run failed because the required lifecycle and usage-owned markup interfaces did not exist. The failures named missing `linkPattern`, `unlinkPattern`, `deletePatternPermanently`, usage-based reader mutation APIs, and `PatternMarkupFileService` usage-ID APIs.
+- Manifest publication tests initially did not compile because there was no deterministic boundary after manifest load and no boundary before a coordinated operation returned.
+- The legacy-retirement stress test left all 1,024 zero-byte retirement markers in place after restart reconciliation, proving the retired directory and each later scan were unbounded.
+- The first-manifest post-publication substitution test left injected bytes at the authoritative manifest path. A retry therefore started from a knowingly corrupt authority instead of a recoverable canonical manifest.
+- The new cleanup test supplied a prefix/suffix-matching but noncanonical UUID tombstone while durable acknowledgement intent existed. The old suffix-only discovery path accepted that namespace instead of rejecting it before clearing intent.
 
 ## GREEN
 
-- Implemented one stable usage per `(patternID, projectID)`, including inactive usage reactivation with preserved ID, sort order, reading state, page notes, and markup.
-- Added usage-owned reader state, page-note, and markup writes; inactive and completed-project usages reject writes.
-- Made unlink idempotent and non-destructive.
-- Made project deletion remove every active/inactive usage and its usage markup while preserving library patterns and assets.
-- Added permanent-delete protection for active links, removal of inactive usages/markup, shared-asset retention, and staged file deletion with archive-persistence rollback.
-- Kept the pre-library markup calls only as compatibility paths for the existing Task 2/3 callers; all new Task 4 paths are keyed by usage ID.
+### Bounded retirement authority
 
-## Deletion-recovery review fix
+- Retirement reuses at most one verified zero-byte marker per retirement kind (`asset`, `manifest`, and `quarantine`). The active pathname is moved over that verified slot atomically while the service holds the verified account-directory and advisory locks; the descriptor-bound payload is then truncated and synchronized.
+- Restart reconciliation validates and compacts legacy zero-byte markers to one per kind, then future operations scan only the bounded live retirement set.
+- A sustained regression performs 2,048 stage/ack cycles with repeated manifest publication/replacement and verifies no more than three retirement entries (and therefore no more than three reachable retirement inodes) before and after restart. A separate restart regression begins with 1,024 legacy markers and verifies one survivor.
 
-- Replaced the in-memory deletion staging with a durable, checksummed transaction journal. Each journal records its UUID, phase, exact canonical relative paths, staging names, and usage/asset metadata.
-- Startup recovery runs before archive validation. If the archive still references a journal item it restores staged files; otherwise it finalizes the deletion. Invalid or unsafe artifacts make the archive unreadable and keep mutations blocked.
-- Journal and markup roots are physically validated, symlinked roots are rejected, and no-op deletions write no journal.
-- Added fresh-store tests for pre-publication rollback and post-publication cleanup of both project and permanent-pattern deletion, plus two-project state/markup isolation, persistence rollback, relink persistence, inactive-write rejection, malformed journals, no-op staging, and symlink safety.
+### Manifest publication CAS and recovery
 
-## Second review fix
+- Loading a manifest now records its inode, byte count, SHA-256, and canonical bytes. Every publication revalidates that authority before staging, immediately before publication, and after the testable identity boundary.
+- A displaced manifest is opened without following links and must still match the loaded inode and content version before it can be retired.
+- Failed post-swap publication moves the candidate and any substituted entries to distinct `.preserved` names, then durably reinstalls the exact previously loaded canonical bytes. Nothing at a substituted pathname is truncated.
+- For the first manifest, a synchronized canonical candidate is durably reinstalled after a post-publication substitution. The failing call still reports the authority violation; an exact-version retry can recover idempotently.
 
-- Closed the completed-project bypass in the project-scoped legacy reader APIs. Store writes now throw `PatternLibraryMutationError.projectCompleted`; direct `StoredProject` legacy state and note mutations remain no-ops, matching their existing non-throwing contract.
-- Centralized physical path validation in `PatternMarkupFileService`. Usage and legacy read/save/delete paths, legacy-copy routing, and deletion transactions all reject symlinked or non-canonical roots, subdirectories, and existing page files.
-- Added regression coverage for all completed legacy reader writes (state, highlight, note, markup), exact archive/markup byte preservation after a fresh reopen, active-project writes, direct model no-op behavior, and usage/legacy symlink targets remaining untouched.
+### Account-tree binding
 
-## Final markup-copy review fix
+- The root pathname and every descriptor-resolved parent/child edge (`Accounts`, account token, `Uploads`, `Installed`, `Quarantine`, and `Retired`) are identity-checked after opening, after locking, and immediately before a coordinated result returns.
+- Renaming/replacing the account directory at the return boundary makes the call fail closed. The regression verifies bytes exist only in the displaced locked tree and no URL for the replacement tree is returned.
 
-- Replaced recursive legacy markup directory copying with a whitelist copier. Only canonical, non-symlink, regular `0.json`, `1.json`, and later numeric page files are accepted; unexpected files, directories, and symlinks reject migration with `PatternMarkupFileError.unsafePath`.
-- Each approved source page is revalidated and written atomically to a validated usage-owned destination page. This leaves no path that follows a legacy page or nested-directory symlink.
-- Added multi-page copy coverage, unexpected-file rejection, and on-disk migration regressions for page-file and nested symlinks. Both prove the legacy archive/tree and external target stay unchanged and no `UsageMarkup` installation occurs.
+### Exact cleanup grammar
+
+- Cleanup recovery accepts only `.<exact immutable asset name>.<lowercase canonical UUID>.cleanup`.
+- A malformed matching entry makes reconciliation fail closed; both matching byte copies and the checksummed cleanup intent remain unchanged.
+
+### Cleanup
+
+- Removed the unused `retiredRootURL` stored property.
+- Replaced the prior unrelated, stale Task 4 report with this bounded statement of the current asset-staging work.
 
 ## Files
 
-- `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`
-- `Sources/KnitNoteCore/Projects/StoredProject.swift`
-- `Sources/KnitNoteCore/Patterns/PatternMarkupFileService.swift`
-- `Tests/KnitNoteCoreTests/PatternDocumentTests.swift`
-- `Tests/KnitNoteCoreTests/PatternLibraryStoreTests.swift`
-- `Tests/KnitNoteCoreTests/PatternMarkupFileServiceTests.swift`
+- `KnitNote/CloudSync/CloudAssetStagingService.swift`
+- `Tests/KnitNoteAppTests/CloudAssetStagingServiceTests.swift`
 - `task-4-report.md`
 
-## Tests
+## Verification
 
-- RED: `swift test --filter 'PatternLibraryStoreTests|PatternMarkupFileServiceTests'` — failed as expected for missing Task 4 APIs.
-- Original GREEN focused: same command — 11 tests passed.
-- Review-fix RED: the new empty staged-transaction test failed with `.unreadableArchive`, proving a no-op journal would block startup.
-- Review-fix focused: same command — 23 tests passed.
-- Full regression: `swift test` — 627 tests in 44 suites passed.
-- `git diff --check` — passed.
-- Second review RED: the focused legacy reader and markup tests failed as expected: completed project-scoped writes changed archive/markup data and symlinked roots were followed.
-- Second review focused: `swift test --filter 'PatternDocumentTests|PatternMarkupFileServiceTests|PatternLibraryStoreTests'` — 46 tests passed.
-- Second review full regression: `swift test` — 632 tests in 44 suites passed.
-- Second review final diff check: `git diff --check` — passed.
-- Final markup-copy RED: page-file and nested legacy markup symlink migrations completed and modified the archive, proving recursive copying was unsafe.
-- Final markup-copy focused: `swift test --filter 'PatternMarkupFileServiceTests|PatternLibraryMigrationTests'` — 31 tests passed.
-- Final markup-copy full regression: `swift test` — 636 tests in 44 suites passed.
-- Final markup-copy final diff check: `git diff --check` — passed.
+- Focused app staging and descriptor-reader tests: 50/50 passed on macOS.
+- Relevant Core attachment, backup, pattern, and yarn-photo slice: 163 tests in 4 suites passed.
+- Full Core regression: 2,047 tests in 155 suites passed.
+- Generic iOS build with code signing disabled: passed.
+- `git diff --check`: passed before final verification and will be rerun immediately before commit.
+- Static search finds no remaining `retiredRootURL` or `restoreCapturedFile` references.
 
-## Concerns
+The first in-sandbox `swift test` attempt could not initialize SwiftPM's nested sandbox. The same command was rerun outside that sandbox with isolated module and scratch caches; both relevant and full Core suites passed. Pre-existing warnings in unrelated Core tests remain unchanged.
 
-Reader UI routing is intentionally untouched for Task 6. The deprecated-layout markup methods remain temporarily to keep the pre-existing Task 2/3 reader and migration paths compiling; the new Task 4 store and markup APIs do not use them.
+## Remaining boundaries
+
+- `.preserved` artifacts are intentional evidence/recovery material for adversarial namespace substitution and are not automatically deleted. They can grow only when a publication is actively displaced or substituted, not during normal staging, acknowledgement, manifest replacement, or restart reconciliation.
+- These are deterministic local filesystem and generic-build checks. Live CloudKit development-container integration, network behavior, and physical-device acceptance were not run in this correction pass.

@@ -32,7 +32,45 @@ import Testing
         #expect(mac["com.apple.developer.icloud-services"] as? [String] == ["CloudKit"])
         #expect(ios["aps-environment"] as? String == "development")
         #expect(mac["com.apple.developer.aps-environment"] as? String == "development")
+        #expect(Set(ios.keys) == Set([
+            "com.apple.security.application-groups",
+            "com.apple.developer.icloud-container-identifiers",
+            "com.apple.developer.icloud-services",
+            "aps-environment",
+        ]))
+        #expect(Set(mac.keys) == Set([
+            "com.apple.security.app-sandbox",
+            "com.apple.security.files.user-selected.read-write",
+            "com.apple.security.network.client",
+            "com.apple.developer.icloud-container-identifiers",
+            "com.apple.developer.icloud-services",
+            "com.apple.developer.aps-environment",
+        ]))
         #expect(project.contains("UIBackgroundModes:\n          - remote-notification"))
+    }
+
+    @Test func generatedTargetsResolveOnlyCanonicalEntitlementFiles() throws {
+        let project = try source("KnitNote.xcodeproj/project.pbxproj")
+        let appExpected = [
+            "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": "KnitNote/KnitNote-iOS.entitlements",
+            "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": "KnitNote/KnitNote-iOS.entitlements",
+            "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": "KnitNote/KnitNote-macOS.entitlements",
+        ]
+        let shareExpected = [
+            "CODE_SIGN_ENTITLEMENTS": "KnitNoteShare/KnitNoteShare.entitlements",
+        ]
+
+        for configuration in ["Debug", "Release"] {
+            #expect(try entitlementSettings(target: "KnitNote", configuration: configuration, project: project) == appExpected)
+            #expect(try entitlementSettings(target: "KnitNoteShare", configuration: configuration, project: project) == shareExpected)
+            #expect(try entitlementSettings(target: "KnitNoteWatch", configuration: configuration, project: project).isEmpty)
+        }
+
+        #expect(Set(appExpected.values).union(shareExpected.values) == Set([
+            "KnitNote/KnitNote-iOS.entitlements",
+            "KnitNote/KnitNote-macOS.entitlements",
+            "KnitNoteShare/KnitNoteShare.entitlements",
+        ]))
     }
 
     @Test func watchAndShareConfigurationsContainNoCloudKitOrPushCapability() throws {
@@ -58,7 +96,11 @@ import Testing
                 #expect(!source.contains(forbidden))
             }
         }
-        #expect(!FileManager.default.fileExists(atPath: root.appending(path: "KnitNoteWatch/KnitNoteWatch.entitlements").path))
+        let watchEntitlementFiles = try FileManager.default.contentsOfDirectory(
+            at: root.appending(path: "KnitNoteWatch"),
+            includingPropertiesForKeys: nil
+        ).filter { $0.pathExtension == "entitlements" }
+        #expect(watchEntitlementFiles.isEmpty)
         let share = try entitlements("KnitNoteShare/KnitNoteShare.entitlements")
         #expect(share.count == 1)
         #expect(
@@ -85,6 +127,42 @@ import Testing
             PropertyListSerialization.propertyList(from: data, options: [], format: nil)
                 as? [String: Any]
         )
+    }
+
+    private func entitlementSettings(
+        target: String,
+        configuration: String,
+        project: String
+    ) throws -> [String: String] {
+        let listMarker = #"/* Build configuration list for PBXNativeTarget "\#(target)" */ = {"#
+        let listStart = try #require(project.range(of: listMarker))
+        let listEnd = try #require(project.range(
+            of: "\n\t\t};",
+            range: listStart.upperBound..<project.endIndex
+        ))
+        let list = project[listStart.lowerBound..<listEnd.upperBound]
+        let line = try #require(list.split(separator: "\n").first { $0.contains("/* \(configuration) */") })
+        let identifier = try #require(line.split(whereSeparator: { $0.isWhitespace }).first)
+        let marker = "\t\t\(identifier) /* \(configuration) */ = {"
+        let start = try #require(project.range(of: marker))
+        let end = try #require(project.range(
+            of: "\n\t\t};",
+            range: start.upperBound..<project.endIndex
+        ))
+        let section = String(project[start.lowerBound..<end.upperBound])
+        let expression = try NSRegularExpression(
+            pattern: #"(?m)^\s*"?(CODE_SIGN_ENTITLEMENTS(?:\[sdk=[^]]+\])?)"?\s*=\s*"?([^";]+)"?;\s*$"#
+        )
+        return try expression.matches(
+            in: section,
+            range: NSRange(section.startIndex..., in: section)
+        ).reduce(into: [:]) { result, match in
+            let keyRange = try #require(Range(match.range(at: 1), in: section))
+            let valueRange = try #require(Range(match.range(at: 2), in: section))
+            let key = String(section[keyRange])
+            try #require(result[key] == nil)
+            result[key] = String(section[valueRange]).trimmingCharacters(in: .whitespaces)
+        }
     }
 
     private func source(_ relativePath: String) throws -> String {

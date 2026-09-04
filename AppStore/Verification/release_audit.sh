@@ -154,7 +154,6 @@ verify_mac_security_entitlements() {
         and (."com.apple.developer.icloud-container-environment" == "Production")
         and (."com.apple.developer.aps-environment" == "production")
         and ((keys - [
-          "application-identifier",
           "com.apple.application-identifier",
           "com.apple.developer.team-identifier",
           "get-task-allow",
@@ -184,7 +183,6 @@ verify_signed_product_cloud_entitlements() {
           and has("com.apple.developer.aps-environment") == false
           and ((keys - [
             "application-identifier",
-            "com.apple.application-identifier",
             "com.apple.developer.team-identifier",
             "get-task-allow",
             "com.apple.security.application-groups",
@@ -199,23 +197,105 @@ verify_signed_product_cloud_entitlements() {
     macOS)
       verify_mac_security_entitlements "macOS signed" "$plist" signed
       ;;
-    Watch|Share)
+    Watch)
       "$PLUTIL" -convert json -o - "$plist" \
         | jq -e '
-          . as $entitlements | ([
-            "com.apple.developer.icloud-container-identifiers",
-            "com.apple.developer.icloud-services",
-            "com.apple.developer.icloud-container-environment",
-            "aps-environment",
-            "com.apple.developer.aps-environment"
-          ] | all(. as $key | $entitlements | has($key) == false))
+          (keys | sort) == ([
+            "application-identifier",
+            "com.apple.developer.team-identifier",
+            "get-task-allow"
+          ] | sort)
+        ' >/dev/null \
+        || fail "$label signed entitlements do not match the CloudKit-free contract"
+      ;;
+    Share)
+      "$PLUTIL" -convert json -o - "$plist" \
+        | jq -e '
+          (keys | sort) == ([
+            "application-identifier",
+            "com.apple.developer.team-identifier",
+            "get-task-allow",
+            "com.apple.security.application-groups"
+          ] | sort)
         ' >/dev/null \
         || fail "$label signed entitlements do not match the CloudKit-free contract"
       ;;
   esac
 }
 
+verify_generated_entitlement_bindings() {
+  python3 - "$PROJECT_FILE" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+expected = {
+    "KnitNote": {
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": "KnitNote/KnitNote-iOS.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": "KnitNote/KnitNote-iOS.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": "KnitNote/KnitNote-macOS.entitlements",
+    },
+    "KnitNoteWatch": {},
+    "KnitNoteShare": {
+        "CODE_SIGN_ENTITLEMENTS": "KnitNoteShare/KnitNoteShare.entitlements",
+    },
+}
+labels = {"KnitNote": "iOS/macOS", "KnitNoteWatch": "Watch", "KnitNoteShare": "Share"}
+
+def configuration_section(owner, configuration):
+    marker = f'/* Build configuration list for {owner} */ = {{'
+    start = text.find(marker)
+    if start < 0:
+        return None
+    end = text.find("\n\t\t};", start)
+    if end < 0:
+        return None
+    listing = text[start:end]
+    match = re.search(rf'^\s*([A-F0-9]+) /\* {re.escape(configuration)} \*/,?$', listing, re.MULTILINE)
+    if match is None:
+        return None
+    config_marker = f'\t\t{match.group(1)} /* {configuration} */ = {{'
+    config_start = text.find(config_marker)
+    if config_start < 0:
+        return None
+    config_end = text.find("\n\t\t};", config_start)
+    if config_end < 0:
+        return None
+    return text[config_start:config_end]
+
+setting_pattern = re.compile(
+    r'^\s*"?(CODE_SIGN_ENTITLEMENTS(?:\[sdk=[^]]+\])?)"?\s*=\s*"?([^";]+)"?;\s*$',
+    re.MULTILINE,
+)
+for configuration in ("Debug", "Release"):
+    section = configuration_section('PBXProject "KnitNote"', configuration)
+    if section is None:
+        raise SystemExit("release audit: project CODE_SIGN_ENTITLEMENTS configuration is missing")
+    if setting_pattern.findall(section):
+        raise SystemExit("release audit: project CODE_SIGN_ENTITLEMENTS must not be inherited")
+
+for target, wanted in expected.items():
+    for configuration in ("Debug", "Release"):
+        section = configuration_section(f'PBXNativeTarget "{target}"', configuration)
+        if section is None:
+            raise SystemExit(f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS configuration is missing")
+        pairs = setting_pattern.findall(section)
+        actual = {}
+        for key, value in pairs:
+            if key in actual:
+                raise SystemExit(f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS has duplicate assignments")
+            actual[key] = value.strip()
+        if actual != wanted:
+            raise SystemExit(
+                f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS does not match canonical paths"
+            )
+PY
+}
+
 verify_source_product_cloud_entitlements() {
+  verify_generated_entitlement_bindings
   "$PLUTIL" -convert json -o - "$IOS_ENTITLEMENTS" \
     | jq -e '. == {
       "com.apple.security.application-groups": ["group.com.phillon.KnitNote"],
@@ -231,7 +311,7 @@ verify_source_product_cloud_entitlements() {
     }' >/dev/null \
     || fail "source Share entitlements do not match the exact App Group-only contract"
 
-  [[ ! -e KnitNoteWatch/KnitNoteWatch.entitlements ]] \
+  [[ -z "$(find KnitNoteWatch -type f -name '*.entitlements' -print -quit)" ]] \
     || fail "source Watch must not have an entitlement file"
   for plist in "$WATCH_INFO_PLIST" "$SHARE_INFO_PLIST"; do
     "$PLUTIL" -convert json -o - "$plist" \
@@ -299,7 +379,7 @@ verify_signing_identity() {
     || { rm -f "$cert_prefix"* "$profile_json" "$signed_json"; fail "$label signing certificate extraction failed"; }
   "$SECURITY" cms -D -i "$profile" >"$profile_json" \
     || { rm -f "$cert_prefix"* "$profile_json" "$signed_json"; fail "$label provisioning profile decode failed"; }
-  python3 - "$profile_json" "$EXPECTED_TEAM" "$bundle_id" "$expected_group" <<'PY' \
+  python3 - "$profile_json" "$EXPECTED_TEAM" "$bundle_id" "$expected_group" "$label" <<'PY' \
     || { rm -f "$cert_prefix"* "$profile_json" "$signed_json"; fail "$label provisioning profile is expired or is not App Store distribution for $EXPECTED_TEAM"; }
 import plistlib
 import datetime
@@ -307,9 +387,11 @@ from pathlib import Path
 import sys
 
 profile = plistlib.loads(Path(sys.argv[1]).read_bytes())
-team, bundle, group = sys.argv[2:]
+team, bundle, group, label = sys.argv[2:]
 entitlements = profile.get("Entitlements", {})
-identifier = entitlements.get("application-identifier", entitlements.get("com.apple.application-identifier"))
+identifier_key = "com.apple.application-identifier" if label == "macOS" else "application-identifier"
+alternate_identifier_key = "application-identifier" if label == "macOS" else "com.apple.application-identifier"
+identifier = entitlements.get(identifier_key)
 groups = entitlements.get("com.apple.security.application-groups", [])
 expiration = profile.get("ExpirationDate")
 if isinstance(expiration, datetime.datetime) and expiration.tzinfo is None:
@@ -318,6 +400,7 @@ valid = (
     profile.get("TeamIdentifier") == [team]
     and entitlements.get("get-task-allow", False) is False
     and identifier == f"{team}.{bundle}"
+    and alternate_identifier_key not in entitlements
     and groups == ([group] if group else [])
     and "ProvisionedDevices" not in profile
     and "ProvisionsAllDevices" not in profile
@@ -340,7 +423,7 @@ PY
   "$CODESIGN" -d --entitlements :- "$bundle" 2>/dev/null \
     | "$PLUTIL" -convert binary1 -o "$signed_json" -- - \
     || { rm -f "$cert_prefix"* "$profile_json" "$signed_json"; fail "$label signed entitlement decode failed"; }
-  python3 - "$profile_json" "$signed_json" "$EXPECTED_TEAM" "$bundle_id" "$expected_group" <<'PY' \
+  python3 - "$profile_json" "$signed_json" "$EXPECTED_TEAM" "$bundle_id" "$expected_group" "$label" <<'PY' \
     || { rm -f "$cert_prefix"* "$profile_json" "$signed_json"; fail "$label signed entitlements do not match its provisioning profile"; }
 import plistlib
 from pathlib import Path
@@ -348,14 +431,16 @@ import sys
 
 profile = plistlib.loads(Path(sys.argv[1]).read_bytes()).get("Entitlements", {})
 signed = plistlib.loads(Path(sys.argv[2]).read_bytes())
-team, bundle, group = sys.argv[3:]
-def app_id(value):
-    return value.get("application-identifier", value.get("com.apple.application-identifier"))
+team, bundle, group, label = sys.argv[3:]
+signed_key = "com.apple.application-identifier" if label == "macOS" else "application-identifier"
+alternate_signed_key = "application-identifier" if label == "macOS" else "com.apple.application-identifier"
 expected_id = f"{team}.{bundle}"
 expected_groups = [group] if group else []
 valid = (
-    app_id(profile) == expected_id
-    and app_id(signed) == expected_id
+    profile.get(signed_key) == expected_id
+    and alternate_signed_key not in profile
+    and signed.get(signed_key) == expected_id
+    and alternate_signed_key not in signed
     and signed.get("com.apple.developer.team-identifier") == team
     and signed.get("get-task-allow", False) is False
     and profile.get("com.apple.security.application-groups", []) == expected_groups

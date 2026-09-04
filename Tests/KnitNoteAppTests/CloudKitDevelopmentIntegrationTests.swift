@@ -89,6 +89,79 @@ private enum CloudKitDevelopmentProbe {
 }
 
 @Suite struct CloudKitDevelopmentIntegrationTests {
+    private enum ProbeError: Error, Equatable { case create, record, cleanup }
+
+    @Test func successfulProbeCleansUpTheExactZoneOnce() async throws {
+        let chosen = uniqueProbeZoneID()
+        let recorder = ProbeCleanupRecorder()
+
+        try await CloudKitDevelopmentProbe.run(
+            zoneID: chosen,
+            createZone: {},
+            exerciseRecord: {},
+            deleteZone: { await recorder.append($0) }
+        )
+
+        #expect(await recorder.values == [chosen])
+    }
+
+    @Test func recordFailureCleansUpOnceAndPreservesThePrimaryFailure() async {
+        let chosen = uniqueProbeZoneID()
+        let recorder = ProbeCleanupRecorder()
+        do {
+            try await CloudKitDevelopmentProbe.run(
+                zoneID: chosen,
+                createZone: {},
+                exerciseRecord: { throw ProbeError.record },
+                deleteZone: { await recorder.append($0) }
+            )
+            Issue.record("Expected record failure")
+        } catch {
+            #expect(error as? ProbeError == .record)
+        }
+        #expect(await recorder.values == [chosen])
+    }
+
+    @Test func cleanupFailureAfterSuccessfulRecordIsReportedWithoutRetry() async {
+        let chosen = uniqueProbeZoneID()
+        let recorder = ProbeCleanupRecorder()
+        do {
+            try await CloudKitDevelopmentProbe.run(
+                zoneID: chosen,
+                createZone: {},
+                exerciseRecord: {},
+                deleteZone: {
+                    await recorder.append($0)
+                    throw ProbeError.cleanup
+                }
+            )
+            Issue.record("Expected cleanup failure")
+        } catch {
+            #expect(error as? ProbeError == .cleanup)
+        }
+        #expect(await recorder.values == [chosen])
+    }
+
+    @Test func recordFailureRemainsPrimaryWhenExactCleanupAlsoFails() async {
+        let chosen = uniqueProbeZoneID()
+        let recorder = ProbeCleanupRecorder()
+        do {
+            try await CloudKitDevelopmentProbe.run(
+                zoneID: chosen,
+                createZone: {},
+                exerciseRecord: { throw ProbeError.record },
+                deleteZone: {
+                    await recorder.append($0)
+                    throw ProbeError.cleanup
+                }
+            )
+            Issue.record("Expected record failure")
+        } catch {
+            #expect(error as? ProbeError == .record)
+        }
+        #expect(await recorder.values == [chosen])
+    }
+
     @Test func ambiguousCreateFailureStillDeletesOnlyTheExactChosenZone() async {
         let chosen = CKRecordZone.ID(
             zoneName: "KnitNoteDevelopmentIntegration-\(UUID().uuidString)",
@@ -193,6 +266,13 @@ private enum CloudKitDevelopmentProbe {
             }
         )
     }
+}
+
+private func uniqueProbeZoneID() -> CKRecordZone.ID {
+    CKRecordZone.ID(
+        zoneName: "KnitNoteDevelopmentIntegration-\(UUID().uuidString)",
+        ownerName: CKCurrentUserDefaultName
+    )
 }
 
 private actor ProbeCleanupRecorder {

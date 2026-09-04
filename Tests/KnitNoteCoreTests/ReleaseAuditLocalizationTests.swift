@@ -11,8 +11,12 @@ extension ProjectArchive {
 struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
     enum Product: String, Sendable { case iOS, macOS, watch, share }
     enum Kind: String, Sendable {
-        case missing, wrong, extra
-        case extraContainer, extraServices, extraEnvironment, extraIOSAPS, extraMacAPS
+        case missingContainer, wrongContainer, extraContainer
+        case missingServices, wrongServices, extraServices
+        case missingEnvironment, wrongEnvironment, extraEnvironment
+        case missingAPS, wrongAPS, extraAPS
+        case conflictingIdentifierAlias
+        case extraIOSAPS, extraMacAPS
     }
 
     let product: Product
@@ -23,22 +27,44 @@ struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
 
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
     @Test(arguments: [
-        SignedCloudEntitlementMutation(product: .iOS, kind: .missing),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .wrong),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .extra),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .missing),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .wrong),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .extra),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .missingContainer),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongContainer),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .extraContainer),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .missingServices),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongServices),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .extraServices),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .missingEnvironment),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongEnvironment),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .extraEnvironment),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .missingAPS),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongAPS),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .extraAPS),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .conflictingIdentifierAlias),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .missingContainer),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongContainer),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .extraContainer),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .missingServices),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongServices),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .extraServices),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .missingEnvironment),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongEnvironment),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .extraEnvironment),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .missingAPS),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongAPS),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .extraAPS),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .conflictingIdentifierAlias),
         SignedCloudEntitlementMutation(product: .watch, kind: .extraContainer),
         SignedCloudEntitlementMutation(product: .watch, kind: .extraServices),
         SignedCloudEntitlementMutation(product: .watch, kind: .extraEnvironment),
         SignedCloudEntitlementMutation(product: .watch, kind: .extraIOSAPS),
         SignedCloudEntitlementMutation(product: .watch, kind: .extraMacAPS),
+        SignedCloudEntitlementMutation(product: .watch, kind: .conflictingIdentifierAlias),
         SignedCloudEntitlementMutation(product: .share, kind: .extraContainer),
         SignedCloudEntitlementMutation(product: .share, kind: .extraServices),
         SignedCloudEntitlementMutation(product: .share, kind: .extraEnvironment),
         SignedCloudEntitlementMutation(product: .share, kind: .extraIOSAPS),
         SignedCloudEntitlementMutation(product: .share, kind: .extraMacAPS),
+        SignedCloudEntitlementMutation(product: .share, kind: .conflictingIdentifierAlias),
     ])
     func archiveAuditRejectsMissingWrongOrExtraCloudEntitlements(
         mutation: SignedCloudEntitlementMutation
@@ -53,6 +79,69 @@ struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
 
         #expect(result.status != 0)
         #expect(result.output.contains("signed entitlements do not match"))
+    }
+
+    @Test(arguments: [
+        ("KnitNote/KnitNote-iOS.entitlements", "KnitNote/KnitNote-iOS-CloudKit-APS.entitlements", "iOS/macOS"),
+        ("KnitNote/KnitNote-macOS.entitlements", "KnitNote/KnitNote-macOS-CloudKit-APS.entitlements", "iOS/macOS"),
+        ("KnitNoteShare/KnitNoteShare.entitlements", "KnitNoteShare/KnitNoteShare-APS.entitlements", "Share"),
+    ])
+    func staticAuditRejectsAlternateEntitlementBindingEvenWhenItsNameLooksRelevant(
+        canonical: String,
+        alternate: String,
+        product: String
+    ) throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let mutated = try #require(source.replacingFirstOccurrence(of: canonical, with: alternate))
+        let result = try runStaticAudit(projectFileSource: mutated)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source \(product) CODE_SIGN_ENTITLEMENTS"))
+    }
+
+    @Test func staticAuditRejectsAnyWatchEntitlementBinding() throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let release = try #require(generatedBuildConfiguration(
+            in: source,
+            owner: #"PBXNativeTarget "KnitNoteWatch""#,
+            configuration: "Release"
+        ))
+        let mutatedRelease = release.replacingOccurrences(
+            of: "buildSettings = {",
+            with: "buildSettings = {\n\t\t\t\tCODE_SIGN_ENTITLEMENTS = KnitNoteWatch/CloudKit-APS.entitlements;"
+        )
+        let mutated = source.replacingOccurrences(of: release, with: mutatedRelease)
+        let result = try runStaticAudit(projectFileSource: mutated)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source Watch CODE_SIGN_ENTITLEMENTS"))
+    }
+
+    @Test func staticAuditRejectsInheritedProjectEntitlementBinding() throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let release = try #require(generatedBuildConfiguration(
+            in: source,
+            owner: #"PBXProject "KnitNote""#,
+            configuration: "Release"
+        ))
+        let mutatedRelease = release.replacingOccurrences(
+            of: "buildSettings = {",
+            with: "buildSettings = {\n\t\t\t\tCODE_SIGN_ENTITLEMENTS = Project/Innocuous.entitlements;"
+        )
+        let mutated = source.replacingOccurrences(of: release, with: mutatedRelease)
+        let result = try runStaticAudit(projectFileSource: mutated)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("project CODE_SIGN_ENTITLEMENTS"))
     }
 
     @Test func staticAuditAcceptsCanonicalProjectArchiveSchemaSource() throws {
@@ -1916,6 +2005,23 @@ private func runStaticAudit(projectArchiveSchemaSource sourceText: String) throw
     )
 }
 
+private func runStaticAudit(projectFileSource sourceText: String) throws -> AuditResult {
+    let temporaryRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("knitnote-entitlement-project-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: temporaryRoot) }
+    try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+    let source = temporaryRoot.appendingPathComponent("project.pbxproj")
+    try sourceText.write(to: source, atomically: true, encoding: .utf8)
+    return try runReleaseAudit(environment: ["KNITNOTE_PROJECT_FILE": source.path])
+}
+
+private extension String {
+    func replacingFirstOccurrence(of target: String, with replacement: String) -> String? {
+        guard let range = range(of: target) else { return nil }
+        return replacingCharacters(in: range, with: replacement)
+    }
+}
+
 private func runReleaseAudit(
     archives: URL? = nil,
     arguments: [String]? = nil,
@@ -2129,20 +2235,69 @@ private func signedCloudEntitlements(
     }
 
     let kind = applies ? mutation?.kind : nil
-    let containers = kind == .extra
-        ? "<string>iCloud.com.phillon.KnitNote</string><string>iCloud.com.phillon.Unexpected</string>"
-        : "<string>iCloud.com.phillon.KnitNote</string>"
-    let services = kind == .missing
-        ? ""
-        : "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>"
+    let containers: String
+    switch kind {
+    case .missingContainer:
+        containers = ""
+    case .wrongContainer:
+        containers = "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.Wrong</string></array>"
+    case .extraContainer:
+        containers = "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string><string>iCloud.com.phillon.Unexpected</string></array>"
+    default:
+        containers = "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string></array>"
+    }
+    let services: String
+    switch kind {
+    case .missingServices:
+        services = ""
+    case .wrongServices:
+        services = "<key>com.apple.developer.icloud-services</key><array><string>CloudDocuments</string></array>"
+    case .extraServices:
+        services = "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string><string>CloudDocuments</string></array>"
+    default:
+        services = "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>"
+    }
+    let environment: String
+    switch kind {
+    case .missingEnvironment:
+        environment = ""
+    case .wrongEnvironment:
+        environment = "<key>com.apple.developer.icloud-container-environment</key><string>Development</string>"
+    case .extraEnvironment:
+        environment = "<key>com.apple.developer.icloud-container-environment</key><array><string>Production</string><string>Development</string></array>"
+    default:
+        environment = "<key>com.apple.developer.icloud-container-environment</key><string>Production</string>"
+    }
     let apsKey = product == .iOS ? "aps-environment" : "com.apple.developer.aps-environment"
-    let apsValue = kind == .wrong ? "development" : "production"
+    let aps: String
+    switch kind {
+    case .missingAPS:
+        aps = ""
+    case .wrongAPS:
+        aps = "<key>\(apsKey)</key><string>development</string>"
+    case .extraAPS:
+        let alternate = product == .iOS ? "com.apple.developer.aps-environment" : "aps-environment"
+        aps = "<key>\(apsKey)</key><string>production</string><key>\(alternate)</key><string>production</string>"
+    default:
+        aps = "<key>\(apsKey)</key><string>production</string>"
+    }
     return """
-    <key>com.apple.developer.icloud-container-identifiers</key><array>\(containers)</array>
+    \(containers)
     \(services)
-    <key>com.apple.developer.icloud-container-environment</key><string>Production</string>
-    <key>\(apsKey)</key><string>\(apsValue)</string>
+    \(environment)
+    \(aps)
     """
+}
+
+private func conflictingSignedIdentifierAlias(
+    for product: SignedCloudEntitlementMutation.Product,
+    mutation: SignedCloudEntitlementMutation?
+) -> String {
+    guard mutation?.product == product, mutation?.kind == .conflictingIdentifierAlias else {
+        return ""
+    }
+    let key = product == .macOS ? "application-identifier" : "com.apple.application-identifier"
+    return "<key>\(key)</key><string>9CFPAUL5N5.\(product == .watch ? "com.phillon.KnitNote.watch" : product == .share ? "com.phillon.KnitNote.share" : "com.phillon.KnitNote")</string>"
 }
 
 private func makeArchiveFixture(
@@ -2347,8 +2502,11 @@ private func makeArchiveFixture(
         let profile = item.name == "macOS"
             ? item.bundle.appendingPathComponent("Contents/embedded.provisionprofile")
             : item.bundle.appendingPathComponent("embedded.mobileprovision")
+        let profileIdentifierKey = item.name == "macOS"
+            ? "com.apple.application-identifier"
+            : "application-identifier"
         var profileEntitlements: [String: Any] = [
-            "application-identifier": profileIdentifierOverride ?? "9CFPAUL5N5.\(item.identifier)",
+            profileIdentifierKey: profileIdentifierOverride ?? "9CFPAUL5N5.\(item.identifier)",
         ]
         if item.name == "macOS" {
             if let macProfileGetTaskAllow {
@@ -2461,6 +2619,10 @@ private func makeArchiveFixture(
     let watchCloudEntitlements = signedCloudEntitlements(for: .watch, mutation: signedCloudEntitlementMutation)
     let shareCloudEntitlements = signedCloudEntitlements(for: .share, mutation: signedCloudEntitlementMutation)
     let macCloudEntitlements = signedCloudEntitlements(for: .macOS, mutation: signedCloudEntitlementMutation)
+    let iOSIdentifierAlias = conflictingSignedIdentifierAlias(for: .iOS, mutation: signedCloudEntitlementMutation)
+    let watchIdentifierAlias = conflictingSignedIdentifierAlias(for: .watch, mutation: signedCloudEntitlementMutation)
+    let shareIdentifierAlias = conflictingSignedIdentifierAlias(for: .share, mutation: signedCloudEntitlementMutation)
+    let macIdentifierAlias = conflictingSignedIdentifierAlias(for: .macOS, mutation: signedCloudEntitlementMutation)
     let macSecurityEntitlements = [
         "com.apple.security.app-sandbox",
         "com.apple.security.files.user-selected.read-write",
@@ -2488,14 +2650,14 @@ private func makeArchiveFixture(
       exit 64
     elif [ "${1:-}" = "-d" ]; then
       case "${4:-${3:-}}" in
-        *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; group='\(watchCloudEntitlements)' ;;
-        *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(shareCloudEntitlements)' ;;
-        *macOS*|*/mac/*) bundle='com.phillon.KnitNote'; group='\(macSecurityEntitlements)' ;;
-        *) bundle='com.phillon.KnitNote'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(iOSCloudEntitlements)' ;;
+        *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; identity_key='application-identifier'; group='\(watchCloudEntitlements)\(watchIdentifierAlias)' ;;
+        *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; identity_key='application-identifier'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(shareCloudEntitlements)\(shareIdentifierAlias)' ;;
+        *macOS*|*/mac/*) bundle='com.phillon.KnitNote'; identity_key='com.apple.application-identifier'; group='\(macSecurityEntitlements)\(macIdentifierAlias)' ;;
+        *) bundle='com.phillon.KnitNote'; identity_key='application-identifier'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(iOSCloudEntitlements)\(iOSIdentifierAlias)' ;;
       esac
       signed_id='\(fixtureSignedIdentifier)'
       [ -n "$signed_id" ] || signed_id="9CFPAUL5N5.$bundle"
-      printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>application-identifier</key><string>'"$signed_id"'</string><key>com.apple.developer.team-identifier</key><string>9CFPAUL5N5</string><key>get-task-allow</key><false/>'"$group"'</dict></plist>'
+      printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>'"$identity_key"'</key><string>'"$signed_id"'</string><key>com.apple.developer.team-identifier</key><string>9CFPAUL5N5</string><key>get-task-allow</key><false/>'"$group"'</dict></plist>'
     fi
     exit 0
     """.write(to: codesign, atomically: true, encoding: .utf8)

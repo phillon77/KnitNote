@@ -71,16 +71,18 @@ import Testing
         #expect(try Data(contentsOf: fixture.quarantineURL(entry)) == received)
     }
 
-    @Test func oversizedAndReadTimeGrowthUseOnlyOneOverrunByteWithoutQuarantine() throws {
+    @Test func oversizedAndReadTimeGrowthBecomeBoundedSizeDiagnostics() throws {
         let fixture = try DownloadFixture()
         let expected = Data("safe".utf8)
         let version = try fixture.version(bytes: expected, id: 4)
         let oversized = try fixture.source(bytes: Data("safe+".utf8), name: "oversized.asset")
 
-        #expect(throws: CloudAssetStagingError.tooLarge) {
+        #expect(throws: CloudAssetStagingError.contentMismatch) {
             _ = try fixture.service.installDownload(version: version, sourceURL: oversized)
         }
-        #expect(try fixture.quarantineEntries().isEmpty)
+        let oversizedEntry = try #require(fixture.quarantineEntries().first)
+        #expect(oversizedEntry.reason == .byteCountMismatch)
+        #expect(try Data(contentsOf: fixture.quarantineURL(oversizedEntry)) == expected)
 
         let growingURL = try fixture.source(bytes: expected, name: "growing.asset")
         let counters = SyncRegularFileReaderIOCounters()
@@ -94,11 +96,15 @@ import Testing
             ioCounters: counters
         )
         let service = try fixture.makeService(externalReader: growingReader)
-        #expect(throws: CloudAssetStagingError.tooLarge) {
+        #expect(throws: CloudAssetStagingError.contentMismatch) {
             _ = try service.installDownload(version: version, sourceURL: growingURL)
         }
         #expect(counters.bytesRead == expected.count + 1)
-        #expect(try fixture.quarantineEntries().isEmpty)
+        let entries = try fixture.quarantineEntries()
+        #expect(entries.count == 2)
+        let growthEntry = try #require(entries.last)
+        #expect(growthEntry.reason == .byteCountMismatch)
+        #expect(try Data(contentsOf: fixture.quarantineURL(growthEntry)) == expected)
     }
 
     @Test(arguments: ["symlink", "hardlink", "fifo"])
@@ -141,9 +147,119 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: interrupted.installedRootURL.path)
             .contains(where: { $0.hasPrefix(".tmp-") }))
 
-        _ = try fixture.makeService()
+        let restarted = try fixture.makeService()
         #expect(try FileManager.default.contentsOfDirectory(atPath: interrupted.installedRootURL.path)
             .allSatisfy { !$0.hasPrefix(".tmp-") })
+        let installed = try restarted.installDownload(version: version, sourceURL: source)
+        #expect(try Data(contentsOf: installed) == bytes)
+    }
+
+    @Test func corruptAuthoritiesDoNotBlockIndependentWorkflowsAfterRestart() throws {
+        let quarantineCorrupt = try DownloadFixture(account: "corrupt-quarantine")
+        let mismatch = Data("wrong".utf8)
+        let mismatchVersion = try quarantineCorrupt.version(
+            bytes: Data("RIGHT".utf8), id: 7
+        )
+        try quarantineCorrupt.service.quarantine(
+            version: mismatchVersion,
+            sourceURL: try quarantineCorrupt.source(bytes: mismatch, name: "diagnostic.asset"),
+            reason: .contentHashMismatch
+        )
+        try Data("{}".utf8).write(to: quarantineCorrupt.quarantineManifestURL)
+        let uploadBytes = Data("upload survives quarantine corruption".utf8)
+        let uploadVersion = try quarantineCorrupt.version(bytes: uploadBytes, id: 8)
+        let uploadSource = try quarantineCorrupt.attachmentSource(
+            bytes: uploadBytes, name: "upload.asset"
+        )
+        let mutation = quarantineCorrupt.uuid(801)
+        let uploadRestart = try quarantineCorrupt.makeService()
+        try uploadRestart.stageUpload(
+            version: uploadVersion,
+            source: uploadSource,
+            mutationID: mutation
+        )
+        _ = try uploadRestart.assetForUpload(
+            versionID: uploadVersion.versionID,
+            mutationID: mutation
+        )
+        try uploadRestart.reconcile()
+        try uploadRestart.acknowledgeUpload(
+            versionID: uploadVersion.versionID,
+            mutationID: mutation
+        )
+
+        let uploadCorrupt = try DownloadFixture(account: "corrupt-upload")
+        let installedBytes = Data("install survives upload corruption".utf8)
+        let installedVersion = try uploadCorrupt.version(bytes: installedBytes, id: 9)
+        let pendingMutation = uploadCorrupt.uuid(901)
+        try uploadCorrupt.service.stageUpload(
+            version: installedVersion,
+            source: try uploadCorrupt.attachmentSource(
+                bytes: installedBytes, name: "pending.asset"
+            ),
+            mutationID: pendingMutation
+        )
+        try Data("{}".utf8).write(to: uploadCorrupt.uploadManifestURL)
+        let installRestart = try uploadCorrupt.makeService()
+        let installed = try installRestart.installDownload(
+            version: installedVersion,
+            sourceURL: try uploadCorrupt.source(bytes: installedBytes, name: "download.asset")
+        )
+        #expect(try Data(contentsOf: installed) == installedBytes)
+    }
+
+    @Test func installedBindingRejectsEveryImmutableMetadataDivergence() throws {
+        let fixture = try DownloadFixture()
+        let bytes = Data("same immutable bytes".utf8)
+        let version = try fixture.version(bytes: bytes, id: 40)
+        let source = try fixture.source(bytes: bytes, name: "binding.asset")
+        let installed = try fixture.service.installDownload(version: version, sourceURL: source)
+
+        let differentOwner = SyncAttachmentSlot(
+            owner: .init(kind: .project, uuid: fixture.uuid(777)),
+            role: version.slot.role,
+            slotID: version.slot.slotID
+        )
+        let differentRole = SyncAttachmentSlot(
+            owner: version.slot.owner,
+            role: "other-role",
+            slotID: version.slot.slotID
+        )
+        let differentSlotID = SyncAttachmentSlot(
+            owner: version.slot.owner,
+            role: version.slot.role,
+            slotID: "other-slot"
+        )
+        let divergences = [
+            try fixture.rebuild(version, slot: differentOwner),
+            try fixture.rebuild(version, slot: differentRole),
+            try fixture.rebuild(version, slot: differentSlotID),
+            try fixture.rebuild(version, mediaType: "image/jpeg"),
+            try fixture.rebuild(version, displayFilename: "other.bin"),
+            try fixture.rebuild(version, replacesVersionID: fixture.uuid(778)),
+        ]
+        for divergent in divergences {
+            #expect(throws: CloudAssetStagingError.immutableIdentityMismatch) {
+                _ = try fixture.service.installDownload(version: divergent, sourceURL: source)
+            }
+            #expect(try Data(contentsOf: installed) == bytes)
+        }
+    }
+
+    @Test(arguments: ["missing", "corrupt"])
+    func missingOrCorruptInstalledBindingFailsClosedWithoutClobber(_ mode: String) throws {
+        let fixture = try DownloadFixture(account: "binding-\(mode)")
+        let bytes = Data("bound bytes".utf8)
+        let version = try fixture.version(bytes: bytes, id: 41)
+        let source = try fixture.source(bytes: bytes, name: "bound.asset")
+        let installed = try fixture.service.installDownload(version: version, sourceURL: source)
+        try fixture.mutateInstalledBinding(at: installed, mode: mode)
+
+        let restarted = try fixture.makeService()
+        #expect(throws: CloudAssetStagingError.immutableIdentityMismatch) {
+            _ = try restarted.installDownload(version: version, sourceURL: source)
+        }
+        #expect(try Data(contentsOf: installed) == bytes)
     }
 
     @Test func quarantineEvictsOldestByCountAndBytesDeterministically() throws {
@@ -227,6 +343,38 @@ import Testing
         ))
         try other.reconcile()
         #expect(try Data(contentsOf: installed) == bytes)
+
+        let mutation = fixture.uuid(3001)
+        try fixture.service.stageUpload(
+            version: version,
+            source: try fixture.attachmentSource(bytes: bytes, name: "upload-source.asset"),
+            mutationID: mutation
+        )
+        let upload = try #require(fixture.service.assetForUpload(
+            versionID: version.versionID,
+            mutationID: mutation
+        ).fileURL)
+        let badVersion = try fixture.version(bytes: Data("ISOLATED".utf8), id: 31)
+        try fixture.service.quarantine(
+            version: badVersion,
+            sourceURL: source,
+            reason: .contentHashMismatch
+        )
+        let quarantine = fixture.quarantineURL(try #require(fixture.quarantineEntries().first))
+        let foreignFiles = [upload, installed, quarantine]
+        let foreignSources = foreignFiles + foreignFiles.map(fixture.alias)
+        for foreign in foreignSources {
+            #expect(throws: CloudAssetStagingError.unsafeFile) {
+                _ = try other.installDownload(version: version, sourceURL: foreign)
+            }
+            #expect(throws: CloudAssetStagingError.unsafeFile) {
+                try other.quarantine(
+                    version: badVersion,
+                    sourceURL: foreign,
+                    reason: .contentHashMismatch
+                )
+            }
+        }
     }
 }
 
@@ -284,6 +432,15 @@ private final class DownloadFixture {
         return url
     }
 
+    func attachmentSource(bytes: Data, name: String) throws -> SyncAttachmentSource {
+        let url = try source(bytes: bytes, name: name)
+        return try SyncAttachmentSource(
+            fileURL: url,
+            contentSHA256: Data(SHA256.hash(data: bytes)),
+            byteCount: Int64(bytes.count)
+        )
+    }
+
     func version(
         bytes: Data,
         id: Int,
@@ -307,6 +464,62 @@ private final class DownloadFixture {
         service.installedRootURL.appendingPathComponent(
             "\(versionID.uuidString.lowercased()).asset"
         )
+    }
+
+    var uploadManifestURL: URL {
+        service.accountRootURL.appendingPathComponent("manifest.json")
+    }
+
+    var quarantineManifestURL: URL {
+        service.quarantineRootURL.appendingPathComponent("manifest.json")
+    }
+
+    func rebuild(
+        _ version: SyncAttachmentVersion,
+        slot: SyncAttachmentSlot? = nil,
+        mediaType: String? = nil,
+        displayFilename: String? = nil,
+        replacesVersionID: UUID? = nil
+    ) throws -> SyncAttachmentVersion {
+        let selectedSlot = slot ?? version.slot
+        return try SyncAttachmentVersion(
+            slot: selectedSlot,
+            versionID: version.versionID,
+            conflictGroupID: try SyncAttachmentVersion.conflictGroupID(for: selectedSlot),
+            contentSHA256: version.contentSHA256,
+            byteCount: version.byteCount,
+            mediaType: mediaType ?? version.mediaType,
+            displayFilename: displayFilename ?? version.displayFilename,
+            replacesVersionID: replacesVersionID ?? version.replacesVersionID
+        )
+    }
+
+    func mutateInstalledBinding(at url: URL, mode: String) throws {
+        let name = "com.phillon.KnitNote.cloud-asset-version-binding.v1"
+        if mode == "missing" {
+            try #require(url.path.withCString { path in
+                name.withCString { Darwin.removexattr(path, $0, 0) }
+            } == 0)
+        } else {
+            let bytes = Data(repeating: 0xa5, count: 32)
+            try #require(bytes.withUnsafeBytes { raw in
+                url.path.withCString { path in
+                    name.withCString { attribute in
+                        Darwin.setxattr(path, attribute, raw.baseAddress, raw.count, 0, 0)
+                    }
+                }
+            } == 0)
+        }
+    }
+
+    func alias(of url: URL) -> URL {
+        url.deletingLastPathComponent()
+            .appendingPathComponent("..", isDirectory: true)
+            .appendingPathComponent(
+                url.deletingLastPathComponent().lastPathComponent,
+                isDirectory: true
+            )
+            .appendingPathComponent(url.lastPathComponent)
     }
 
     func quarantineEntries() throws -> [CloudAssetQuarantineReference] {

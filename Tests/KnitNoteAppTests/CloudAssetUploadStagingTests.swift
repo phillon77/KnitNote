@@ -123,7 +123,10 @@ private protocol Task4CloudAssetBoundaryCompileSeam: CloudAssetStagingBoundary {
                 try Data("{}".utf8).write(to: fixture.uploadManifestURL)
             }
 
-            #expect(throws: CloudAssetStagingError.corruptManifest) { _ = try fixture.makeService() }
+            let restarted = try fixture.makeService()
+            #expect(throws: CloudAssetStagingError.corruptManifest) {
+                try restarted.reconcile()
+            }
             #expect(try Data(contentsOf: url) == bytes)
         }
     }

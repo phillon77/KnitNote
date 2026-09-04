@@ -27,6 +27,28 @@ public protocol SyncRegularFileReading: Sendable {
         maximumBytes: Int,
         expected: SyncRegularFileExpectation?
     ) throws -> SyncRegularFileRead
+    func observe(
+        _ url: URL,
+        declaredByteCount: Int64,
+        maximumBytes: Int
+    ) throws -> SyncRegularFileObservation
+}
+
+public extension SyncRegularFileReading {
+    func observe(
+        _ url: URL,
+        declaredByteCount: Int64,
+        maximumBytes: Int
+    ) throws -> SyncRegularFileObservation {
+        let read = try read(url, maximumBytes: maximumBytes, expected: nil)
+        return SyncRegularFileObservation(
+            data: read.data,
+            device: read.device,
+            inode: read.inode,
+            sha256: read.sha256,
+            hasSizeMismatch: read.byteCount != declaredByteCount
+        )
+    }
 }
 
 public struct SyncRegularFileIdentity: Equatable, Sendable {
@@ -65,6 +87,31 @@ public struct SyncRegularFileRead: Sendable {
         self.byteCount = byteCount
         self.modificationNanoseconds = modificationNanoseconds
         self.sha256 = sha256
+    }
+}
+
+/// A descriptor-bound diagnostic observation. `data` never contains the
+/// overrun probe byte, so callers can retain at most `declaredByteCount` bytes
+/// while `hasSizeMismatch` still records a larger or changing source.
+public struct SyncRegularFileObservation: Sendable {
+    public let data: Data
+    public let device: UInt64
+    public let inode: UInt64
+    public let sha256: Data
+    public let hasSizeMismatch: Bool
+
+    public init(
+        data: Data,
+        device: UInt64,
+        inode: UInt64,
+        sha256: Data,
+        hasSizeMismatch: Bool
+    ) {
+        self.data = data
+        self.device = device
+        self.inode = inode
+        self.sha256 = sha256
+        self.hasSizeMismatch = hasSizeMismatch
     }
 }
 
@@ -247,6 +294,102 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
             byteCount: byteCount,
             modificationNanoseconds: finalModificationNanoseconds,
             sha256: sha256
+        )
+    }
+
+    public func observe(
+        _ url: URL,
+        declaredByteCount: Int64,
+        maximumBytes: Int
+    ) throws -> SyncRegularFileObservation {
+        guard declaredByteCount >= 0,
+              declaredByteCount <= Int64(maximumBytes),
+              maximumBytes >= 0
+        else { throw SyncRegularFileReadError.tooLarge }
+
+        var pathStatus = stat()
+        guard url.path.withCString({ Darwin.lstat($0, &pathStatus) }) == 0 else {
+            throw SyncRegularFileReadError.unavailable
+        }
+        guard Self.isSafeRegularFile(pathStatus), Self.size(of: pathStatus) != nil else {
+            throw SyncRegularFileReadError.unsafeFile
+        }
+        do { try beforeOpen?() }
+        catch let error as SyncRegularFileReadError { throw error }
+        catch { throw SyncRegularFileReadError.unavailable }
+
+        let descriptor = url.path.withCString {
+            Darwin.open($0, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            if errno == ELOOP { throw SyncRegularFileReadError.unsafeFile }
+            throw SyncRegularFileReadError.unavailable
+        }
+        defer { Darwin.close(descriptor) }
+
+        var openedStatus = stat()
+        guard Darwin.fstat(descriptor, &openedStatus) == 0 else {
+            throw SyncRegularFileReadError.unavailable
+        }
+        guard Self.isSafeRegularFile(openedStatus),
+              Self.identity(of: openedStatus) == Self.identity(of: pathStatus),
+              let openedByteCount = Self.size(of: openedStatus),
+              let openedModificationNanoseconds = Self.modificationNanoseconds(of: openedStatus)
+        else { throw SyncRegularFileReadError.unsafeFile }
+
+        do { try beforeRead?() }
+        catch let error as SyncRegularFileReadError { throw error }
+        catch { throw SyncRegularFileReadError.unavailable }
+
+        let readLimit = Int(declaredByteCount)
+        var data = Data()
+        data.reserveCapacity(Int(min(openedByteCount, declaredByteCount)))
+        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+        var hasOverrun = false
+        while true {
+            let remaining = readLimit - data.count
+            let requestedCount = remaining >= buffer.count ? buffer.count : remaining + 1
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, requestedCount)
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count >= 0 else { throw SyncRegularFileReadError.unavailable }
+            guard count > 0 else { break }
+            ioCounters?.record(bytesRead: count)
+            if count > remaining {
+                if remaining > 0 { data.append(buffer, count: remaining) }
+                hasOverrun = true
+                break
+            }
+            data.append(buffer, count: count)
+        }
+
+        var finalStatus = stat()
+        guard Darwin.fstat(descriptor, &finalStatus) == 0 else {
+            throw SyncRegularFileReadError.unavailable
+        }
+        guard Self.isSafeRegularFile(finalStatus),
+              Self.identity(of: finalStatus) == Self.identity(of: openedStatus),
+              let finalByteCount = Self.size(of: finalStatus),
+              let finalModificationNanoseconds = Self.modificationNanoseconds(of: finalStatus)
+        else { throw SyncRegularFileReadError.unsafeFile }
+
+        let hasSizeMismatch = hasOverrun
+            || openedByteCount != declaredByteCount
+            || finalByteCount != declaredByteCount
+            || data.count != readLimit
+        if !hasSizeMismatch {
+            guard finalModificationNanoseconds == openedModificationNanoseconds else {
+                throw SyncRegularFileReadError.changed
+            }
+        }
+        let digest = Data(SHA256.hash(data: data))
+        return SyncRegularFileObservation(
+            data: data,
+            device: UInt64(finalStatus.st_dev),
+            inode: UInt64(finalStatus.st_ino),
+            sha256: digest,
+            hasSizeMismatch: hasSizeMismatch
         )
     }
 

@@ -109,6 +109,25 @@ import Testing
         #expect(counters.bytesRead == 5)
     }
 
+    @Test func boundedObservationAtMaximumRetainsOnlyDeclaredBytesAndOneProbe() throws {
+        let fixture = try SyncRegularFileReaderFixture()
+        let file = fixture.url(named: "observation-at-cap.bin")
+        let declared = Data("safe".utf8)
+        try (declared + Data([0x41])).write(to: file)
+        let counters = SyncRegularFileReaderIOCounters()
+
+        let observation = try SyncRegularFileReader(ioCounters: counters).observe(
+            file,
+            declaredByteCount: Int64(declared.count),
+            maximumBytes: declared.count
+        )
+
+        #expect(observation.hasSizeMismatch)
+        #expect(observation.data == declared)
+        #expect(observation.sha256 == Data(SHA256.hash(data: declared)))
+        #expect(counters.bytesRead == declared.count + 1)
+    }
+
     @Test func integerMaximumCapDoesNotOverflowTheOverrunProbe() throws {
         let fixture = try SyncRegularFileReaderFixture()
         let file = fixture.url(named: "empty-at-integer-cap.bin")

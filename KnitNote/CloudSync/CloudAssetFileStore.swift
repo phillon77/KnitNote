@@ -18,6 +18,11 @@ struct CloudAssetAccountDirectories {
     let quarantine: Int32
 }
 
+struct CloudAssetOwnedFileBinding: Equatable, Sendable {
+    let name: String
+    let value: Data
+}
+
 enum CloudAssetAtomicReplacementBoundary: Hashable, Sendable {
     case replacementTemporaryBeforeRename
     case replacementBeforeDirectorySync
@@ -151,16 +156,18 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     /// a mismatch without reopening the external pathname for quarantine.
     func readExternalObserved(
         _ url: URL,
-        maximumByteCount: Int
-    ) throws -> SyncRegularFileRead {
-        guard maximumByteCount >= 0, maximumByteCount <= maximumAssetBytes else {
+        declaredByteCount: Int64
+    ) throws -> SyncRegularFileObservation {
+        guard declaredByteCount >= 0,
+              declaredByteCount <= Int64(maximumAssetBytes)
+        else {
             throw CloudAssetFileStoreError.tooLarge
         }
         do {
-            return try externalReader.read(
+            return try externalReader.observe(
                 url,
-                maximumBytes: maximumByteCount,
-                expected: nil
+                declaredByteCount: declaredByteCount,
+                maximumBytes: maximumAssetBytes
             )
         } catch let error as SyncRegularFileReadError {
             throw Self.map(error)
@@ -171,7 +178,8 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         named name: String,
         in directory: Int32,
         expectedByteCount: Int64,
-        expectedSHA256: Data
+        expectedSHA256: Data,
+        expectedBinding: CloudAssetOwnedFileBinding? = nil
     ) throws -> Data {
         try requireActive(directory)
         try Self.validateName(name)
@@ -192,6 +200,9 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
             expectedByteCount: expectedByteCount,
             expectedSHA256: expectedSHA256
         )
+        if let expectedBinding {
+            try validateExtendedAttribute(expectedBinding, descriptor: descriptor)
+        }
         try validateOwnedFile(descriptor, named: name, in: directory)
         return data
     }
@@ -228,6 +239,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         _ data: Data,
         named name: String,
         in directory: Int32,
+        binding: CloudAssetOwnedFileBinding? = nil,
         afterTemporaryFileSync: @Sendable () throws -> Void = {}
     ) throws {
         try requireActive(directory)
@@ -244,6 +256,9 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
             if removeTemporary { _ = temporary.withCString { Darwin.unlinkat(directory, $0, 0) } }
         }
         try Self.writeAll(data, descriptor: descriptor)
+        if let binding {
+            try writeExtendedAttribute(binding, descriptor: descriptor)
+        }
         guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetFileStoreError.unavailable }
         let identity = try ownedIdentity(descriptor)
         try validatePath(named: temporary, in: directory, equals: identity)
@@ -1155,6 +1170,61 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         guard !name.isEmpty, name != ".", name != "..",
               !name.contains("/"), !name.utf8.contains(0)
         else { throw CloudAssetFileStoreError.unsafeFile }
+    }
+
+    private func writeExtendedAttribute(
+        _ binding: CloudAssetOwnedFileBinding,
+        descriptor: Int32
+    ) throws {
+        guard !binding.name.isEmpty,
+              !binding.name.contains("/"),
+              binding.value.count == SHA256.byteCount
+        else { throw CloudAssetFileStoreError.unsafeFile }
+        let result = binding.value.withUnsafeBytes { bytes in
+            binding.name.withCString { name in
+                Darwin.fsetxattr(
+                    descriptor,
+                    name,
+                    bytes.baseAddress,
+                    bytes.count,
+                    0,
+                    0
+                )
+            }
+        }
+        guard result == 0 else { throw CloudAssetFileStoreError.unavailable }
+    }
+
+    private func validateExtendedAttribute(
+        _ binding: CloudAssetOwnedFileBinding,
+        descriptor: Int32
+    ) throws {
+        guard !binding.name.isEmpty,
+              !binding.name.contains("/"),
+              binding.value.count == SHA256.byteCount
+        else { throw CloudAssetFileStoreError.unsafeFile }
+        let size = binding.name.withCString {
+            Darwin.fgetxattr(descriptor, $0, nil, 0, 0, 0)
+        }
+        guard size == binding.value.count else {
+            throw CloudAssetFileStoreError.contentMismatch
+        }
+        var observed = Data(count: binding.value.count)
+        let read = observed.withUnsafeMutableBytes { bytes in
+            binding.name.withCString { name in
+                Darwin.fgetxattr(
+                    descriptor,
+                    name,
+                    bytes.baseAddress,
+                    bytes.count,
+                    0,
+                    0
+                )
+            }
+        }
+        guard read == binding.value.count, observed == binding.value else {
+            throw CloudAssetFileStoreError.contentMismatch
+        }
     }
 
     private static func writeAll(_ data: Data, descriptor: Int32) throws {

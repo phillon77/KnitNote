@@ -43,6 +43,7 @@
 		145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */; };
 		145FDC1819659C291A7C6444 /* KnittingReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AAD0A29D258CA3911989FE /* KnittingReminder.swift */; };
 		14ABB638BD7CA26E8324B2FA /* PatternAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */; };
+		15197003C9CF7A37A5D6C0B6 /* CloudRecordSystemFieldsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74311719DB8969B5A448F0B7 /* CloudRecordSystemFieldsStore.swift */; };
 		177F84CEB17FB82408AFB584 /* PatternLibraryCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A8350D138C3B97EB1AC2660 /* PatternLibraryCollectionView.swift */; };
 		18E4747ED4FD05E6224D19BF /* MacSettingsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2030C12FCD78F1AB9FB063E5 /* MacSettingsLayout.swift */; };
 		1A56068D290B7469F89B1A3B /* PatternCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */; };
@@ -586,6 +587,7 @@
 		70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPhotoView.swift; sourceTree = "<group>"; };
 		7196E582FEE02DFFFE5770E1 /* AppStoreUpdateLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreUpdateLookup.swift; sourceTree = "<group>"; };
 		72200A671E5D5C5B6A0E39D2 /* YarnPhotoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoView.swift; sourceTree = "<group>"; };
+		74311719DB8969B5A448F0B7 /* CloudRecordSystemFieldsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordSystemFieldsStore.swift; sourceTree = "<group>"; };
 		75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectView.swift; sourceTree = "<group>"; };
 		78EB5EC9272ED894A6EBF35B /* CreateProjectPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProjectPresentation.swift; sourceTree = "<group>"; };
 		79F646048FCFBE6FDC2AF932 /* StoreScreenshotFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreScreenshotFixtures.swift; sourceTree = "<group>"; };
@@ -887,6 +889,7 @@
 			isa = PBXGroup;
 			children = (
 				932195DE8057B24F95F8171C /* CloudRecordCodec.swift */,
+				74311719DB8969B5A448F0B7 /* CloudRecordSystemFieldsStore.swift */,
 				D63EEDC87D1700429BC81348 /* CloudSyncEngineStateStore.swift */,
 				25946A1F60CBFECA99D463F3 /* CloudSyncEngineTransport.swift */,
 			);
@@ -1568,6 +1571,7 @@
 				57736CDDC618972A5516C3AF /* ChooseProjectYarnsView.swift in Sources */,
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
 				DC489CE9A9732D5FBC3ECB64 /* CloudRecordCodec.swift in Sources */,
+				15197003C9CF7A37A5D6C0B6 /* CloudRecordSystemFieldsStore.swift in Sources */,
 				0AE7EF17BCE4C8F24B393223 /* CloudSyncEngineStateStore.swift in Sources */,
 				314F5050E15AE32A54527F3A /* CloudSyncEngineTransport.swift in Sources */,
 				BCA209B015AA3F4D86B281EF /* CounterManagerView.swift in Sources */,

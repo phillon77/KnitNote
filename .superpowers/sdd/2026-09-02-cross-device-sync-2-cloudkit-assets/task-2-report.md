@@ -121,3 +121,141 @@ Result: exit 0 with no diagnostics.
 
 - The full Swift package suite has the unrelated load-sensitive share-inbox timing failure described above. It is independently green and was already present in the Task 1 report at the task base. Focused Task 2 tests and both target compilation paths are green.
 - Live CloudKit network behavior, container writes, schema creation, and account transitions were intentionally not exercised because they are outside this task and would violate deterministic-test and no-development-write constraints.
+
+---
+
+## Fix round 1/5 — 2026-09-04
+
+### Amended status
+
+`DONE_WITH_CONCERNS`: all four Critical and five Important review findings are addressed. The amended focused macOS suite passes 29/29 and the required generic iOS build passes. Per the fix-round instruction, the full package suite was not rerun because every amended production/test file remains app-target-only; the original Task 2 package evidence and its isolated pre-existing timing concern remain recorded above.
+
+### Review findings addressed
+
+- Fetched record callbacks now carry an explicit batch UUID. State serializations that arrive after a fetched callback remain deferred behind every unacknowledged batch that preceded them; acknowledgements may arrive out of order, but only the newest serialization whose required batches are all acknowledged is atomically persisted. Ending the event stream synchronously invalidates the generation and detaches the engine before cancellation, without persisting held state.
+- Restored CKSyncEngine record changes are not send-authoritative. Batching remains disabled until journal replay is explicitly finished and the custom zone is ready, and every save/delete is filtered against the exact current journal queue head. Finishing replay issues one zone-scoped CKSyncEngine send so an earlier gated automatic request is deterministically retriggered.
+- Every save batch record carries `syncMutationID` and a fresh `syncAttemptID`; returned saves and failed saves must match both the active attempt and queue head before changing durable state or acknowledging the mutation. Delete success is bound to the active delete attempt and holds successor batching until CKSyncEngine's `didSendChanges` cycle boundary, preventing duplicate delete callbacks from consuming a successor. Save→save and save→delete→save duplicate callback regressions are covered.
+- Account reset now bumps the generation and detaches the engine, queue, attempts, deferred inbound checkpoints, replay gate, and zone readiness before the cancellation await. Every engine suspension point rechecks generation, delegate entry is engine-identity gated, and a failed serialized-state clear permanently blocks restart for that transport instance.
+- CKRecord system fields are durably stored per account and configured zone. Outbound saves rebuild from the stored system-field record before replacing application fields; fetched, saved, and server-conflict records advance the stored base, while fetched or sent deletions remove it before delivery/acknowledgement.
+- The driver now models pending database changes. Start queues `.saveZone` for only the configured custom zone, database callbacks publish zone-ready/zone-deleted lifecycle events, record sending is zone-gated, and automatic/manual fetch and send options are limited to that zone.
+- Permanent mutation failures publish the exact queue-head mutation ID and require explicit retirement or replacement. Retirement removes stale CKSyncEngine pending state; retryable failures leave the journal head intact for CKSyncEngine-managed retry. `accountTemporarilyUnavailable` maps to retryable in direct and callback paths.
+- Both serialized engine state and CKRecord system fields use the shared descriptor-relative atomic file primitive: a held `O_DIRECTORY | O_NOFOLLOW` parent descriptor, `openat`/`fstatat`, same-directory temporary creation, file `fsync`, `renameat`, and parent-directory `fsync`. Destination symlinks, rename-boundary swaps, and parent-path swaps are covered with real filesystem tests.
+
+### Strict TDD evidence
+
+All commands below ran from the linked Task 2 worktree and used isolated DerivedData under `/tmp`.
+
+#### Inbound acknowledgement and termination
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-InboundRED -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 65 (expected RED). The compiler reported the missing identified `.fetched(batchID:records:deleted:)` case and missing `acknowledgeFetchedBatch` API.
+
+The same focused command with `-derivedDataPath /tmp/KnitNoteTask2Fix1-InboundGREEN` exited 0 after implementing deferred serialization and stream-termination invalidation.
+
+#### Journal binding, zone lifecycle, and scoped batching
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-ReplayZoneRED -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 65 (expected RED) with missing replay-finish/zone-lifecycle APIs and fetch-scope support. The first GREEN run correctly exposed that the old 250-record test supplied unbound changes; after binding those changes to journal mutations, `/tmp/KnitNoteTask2Fix1-ReplayZoneGREEN2` exited 0.
+
+#### Attempt identity, failed-head resolution, and retry mapping
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-AttemptFailureRED -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 65 (expected RED) because attempt identity and failed-head resolution did not exist. Compile/test iterations at `AttemptFailureGREEN` through `AttemptFailureGREEN3` exposed the new zone-ready event ordering and the need for one-shot attempts. `/tmp/KnitNoteTask2Fix1-AttemptFailureGREEN4` exited 0 after the tests and implementation reflected the real lifecycle.
+
+#### Descriptor-relative stores and durable system fields
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-StoresRED -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 65 (expected RED) with the system-field store/initializer absent. The first GREEN compile identified the required `@Sendable` synchronized durability recorder; `/tmp/KnitNoteTask2Fix1-StoresGREEN2` then exited 0. Added saved/conflict/delete round-trip and system-field symlink characterization tests passed in `/tmp/KnitNoteTask2Fix1-SystemTransitionsRED` (the behaviors were already implemented by that RED/GREEN slice).
+
+#### Synchronous account invalidation and suspended operations
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-GenerationRED -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 65 (expected RED) with missing `staleOperation` and `accountResetIncomplete` transitions. `/tmp/KnitNoteTask2Fix1-GenerationGREEN` exited 0 after generation checks, pre-await detachment, and restart blocking were implemented.
+
+The controllably suspending batch-materialization regression first failed at compile time in `/tmp/KnitNoteTask2Fix1-BatchRaceRED` because the `recordMaterializer` seam did not exist. After adding the seam, the first GREEN compile caught a Swift 6 concurrent mutable capture; converting it to an immutable snapshot produced exit 0 at `/tmp/KnitNoteTask2Fix1-BatchRaceGREEN3`.
+
+#### Additional self-review RED/GREEN slices
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-ReplayKickRED3 -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 65 with exactly `finishingJournalReplayTriggersOneConfiguredZoneSend()` failing. A zone-scoped send kick was added; the consolidated `/tmp/KnitNoteTask2Fix1-ReplayKickGREEN` suite exited 0.
+
+`/tmp/KnitNoteTask2Fix1-FetchedDeleteRED` exited 65 with exactly `fetchedDeletionRemovesDurableSystemFieldsBeforeDelivery()` failing. Removing stored fields on fetched deletion made the next consolidated suite green.
+
+`/tmp/KnitNoteTask2Fix1-FailedRetireRED` exited 65 with exactly `retiringFailedHeadRemovesItsEnginePendingChange()` failing. Removing the obsolete engine pending change during explicit retirement made the next consolidated suite green.
+
+### Final focused macOS verification
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-FocusedFinal2 -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 0. `xcresulttool` summary for `/tmp/KnitNoteTask2Fix1-FocusedFinal2/Logs/Test/Test-KnitNote-2026.09.04_09-19-20-+0800.xcresult`:
+
+```json
+{"passedTests":29,"failedTests":0,"totalTestCount":29,"result":"Passed"}
+```
+
+### Generic iOS verification
+
+The sandboxed command below exited 65 because Xcode could not read any installed `watchsimulator` runtime while compiling the embedded Watch target:
+
+```sh
+xcodebuild build -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-iOSFinal CODE_SIGNING_ALLOWED=NO
+```
+
+The identical build was rerun with approved host access and a fresh isolated path:
+
+```sh
+xcodebuild build -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNoteTask2Fix1-iOSFinal2OutsideSandbox CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 0 with no diagnostics.
+
+### Static checks
+
+- `git diff --check` — exit 0, no output.
+- `plutil -lint KnitNote.xcodeproj/project.pbxproj` — exit 0, `KnitNote.xcodeproj/project.pbxproj: OK`.
+- `rg -n '^import CloudKit' Sources/KnitNoteCore` — exit 1 with no matches, as required.
+- Project membership contains one Sources-phase entry for each app-only CloudSync file and no Watch Sources-phase entry.
+- Branch/base before the fix commit: `docs/cross-device-sync-design` at `c79de1f03fa635e3d48c02be703ac5b2c6a7c8f9`.
+
+### Fix-round files
+
+- `KnitNote/CloudSync/CloudSyncEngineTransport.swift`
+- `KnitNote/CloudSync/CloudSyncEngineStateStore.swift`
+- `KnitNote/CloudSync/CloudRecordSystemFieldsStore.swift` (new)
+- `Tests/KnitNoteAppTests/CloudSyncEngineTransportTests.swift`
+- `KnitNote.xcodeproj/project.pbxproj`
+- `.superpowers/sdd/2026-09-02-cross-device-sync-2-cloudkit-assets/task-2-report.md`
+
+### Fix-round self-review
+
+- Rechecked all nine review findings against the amended implementation and deterministic tests. Journal ownership remains outside this type; only the serialized CKSyncEngine accelerator state is cleared on account change.
+- State serialization cannot advance past an unacknowledged fetched batch. Every outgoing record/delete is an exact current queue head, and save acknowledgements consume a one-shot mutation/attempt identity.
+- The account generation is checked after every driver/materializer await. Live delegate callbacks are rejected unless their `CKSyncEngine` object identity is still attached.
+- Durable system-field writes/removals occur before matching delivery/acknowledgement, and callback identity is validated before a returned save may overwrite the stored base.
+- No entitlement, container write, schema deployment, lifecycle/UI wiring, Core-package CloudKit import, or Watch membership was added.
+
+### Fix-round concerns
+
+- Live CloudKit networking remains intentionally unexercised. The deterministic driver and real CloudKit value types cover adapter behavior without writing to a development container.
+- CKSyncEngine delete-success callbacks expose a record ID rather than caller fields. The adapter therefore binds deletion to the one active delete attempt and delays any successor batch until the documented `didSendChanges` cycle boundary; the save→delete→save duplicate-callback regression proves the successor is not consumed.
+- The full Swift package suite was intentionally not rerun in this fix round under the explicit app-target-only ruling. Its original 2,044-test evidence and unrelated isolated share-inbox timing concern remain above.

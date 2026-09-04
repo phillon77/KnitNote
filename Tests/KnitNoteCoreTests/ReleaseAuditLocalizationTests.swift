@@ -83,7 +83,225 @@ struct BaseConfigurationMutation: Sendable, CustomTestStringConvertible {
     var testDescription: String { "\(owner)-\(configuration)-\(keySyntax.rawValue)" }
 }
 
+struct PBXGraphMutation: Sendable, CustomTestStringConvertible {
+    enum Kind: String, Sendable {
+        case rootClass
+        case targetClass
+        case targetProductName
+        case duplicateTarget
+        case configurationListClass
+        case configurationClass
+        case danglingConfigurationList
+        case danglingConfiguration
+        case danglingTarget
+    }
+
+    let owner: String
+    let configuration: String?
+    let kind: Kind
+
+    static let all: [Self] = {
+        let owners = [
+            #"PBXProject "KnitNote""#,
+            #"PBXNativeTarget "KnitNote""#,
+            #"PBXNativeTarget "KnitNoteWatch""#,
+            #"PBXNativeTarget "KnitNoteShare""#,
+        ]
+        var result = [Self(owner: owners[0], configuration: nil, kind: .rootClass)]
+        for owner in owners.dropFirst() {
+            result.append(Self(owner: owner, configuration: nil, kind: .targetClass))
+            result.append(Self(owner: owner, configuration: nil, kind: .targetProductName))
+            result.append(Self(owner: owner, configuration: nil, kind: .duplicateTarget))
+        }
+        for owner in owners {
+            result.append(Self(owner: owner, configuration: nil, kind: .configurationListClass))
+            result.append(Self(owner: owner, configuration: nil, kind: .danglingConfigurationList))
+            for configuration in ["Debug", "Release"] {
+                result.append(Self(owner: owner, configuration: configuration, kind: .configurationClass))
+                result.append(Self(owner: owner, configuration: configuration, kind: .danglingConfiguration))
+            }
+        }
+        result.append(Self(owner: owners[0], configuration: nil, kind: .danglingTarget))
+        return result
+    }()
+
+    var testDescription: String {
+        "\(kind.rawValue)-\(owner)-\(configuration ?? "all")"
+    }
+}
+
+struct PBXDuplicateSettingMutation: Sendable, CustomTestStringConvertible {
+    enum Syntax: String, CaseIterable, Sendable {
+        case unquoted, quoted, escaped
+
+        func spelling(_ key: String) -> String {
+            switch self {
+            case .unquoted: return key
+            case .quoted: return "\"\(key)\""
+            case .escaped:
+                let index = key.index(before: key.endIndex)
+                let scalar = key[index].unicodeScalars.first!.value
+                return "\"\(key[..<index])\\U\(String(format: "%04X", scalar))\""
+            }
+        }
+    }
+
+    enum Order: String, CaseIterable, Sendable { case evilFirst, evilLast }
+
+    let product: String
+    let owner: String
+    let configuration: String
+    let key: String
+    let canonicalValue: String
+    let evilValue: String
+    let syntax: Syntax
+    let order: Order
+
+    static let all: [Self] = {
+        let products = [
+            ("iOS", #"PBXNativeTarget "KnitNote""#, "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]", "KnitNote/KnitNote-iOS.entitlements"),
+            ("macOS", #"PBXNativeTarget "KnitNote""#, "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]", "KnitNote/KnitNote-macOS.entitlements"),
+            ("Watch", #"PBXNativeTarget "KnitNoteWatch""#, "INFOPLIST_FILE", "KnitNoteWatch/Info.plist"),
+            ("Share", #"PBXNativeTarget "KnitNoteShare""#, "CODE_SIGN_ENTITLEMENTS", "KnitNoteShare/KnitNoteShare.entitlements"),
+            ("iOS-Info", #"PBXNativeTarget "KnitNote""#, "INFOPLIST_FILE", "KnitNote/Info.plist"),
+            ("macOS-Info", #"PBXNativeTarget "KnitNote""#, "INFOPLIST_FILE", "KnitNote/Info.plist"),
+            ("Watch-Info", #"PBXNativeTarget "KnitNoteWatch""#, "INFOPLIST_FILE", "KnitNoteWatch/Info.plist"),
+            ("Share-Info", #"PBXNativeTarget "KnitNoteShare""#, "INFOPLIST_FILE", "KnitNoteShare/Info.plist"),
+        ]
+        return products.flatMap { product, owner, key, canonical in
+            ["Debug", "Release"].flatMap { configuration in
+                let syntaxes = key.contains("[")
+                    ? Syntax.allCases.filter { $0 != .unquoted }
+                    : Syntax.allCases
+                return syntaxes.flatMap { syntax in
+                    Order.allCases.map { order in
+                        Self(
+                            product: product,
+                            owner: owner,
+                            configuration: configuration,
+                            key: key,
+                            canonicalValue: canonical,
+                            evilValue: "Evil/Injected.plist",
+                            syntax: syntax,
+                            order: order
+                        )
+                    }
+                }
+            }
+        }
+    }()
+
+    var testDescription: String {
+        "\(product)-\(configuration)-\(key)-\(syntax.rawValue)-\(order.rawValue)"
+    }
+}
+
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test(arguments: PBXGraphMutation.all)
+    func staticAuditRejectsUntypedAmbiguousOrDanglingPBXGraph(
+        mutation: PBXGraphMutation
+    ) throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let mutated = try mutatePBXGraph(source, mutation: mutation)
+        let result = try runStaticAudit(projectFileSource: mutated)
+
+        #expect(result.status != 0)
+        let expected: String = switch mutation.kind {
+        case .rootClass: "generated project object graph is invalid"
+        case .targetClass: "target graph is invalid"
+        case .targetProductName: "target product mapping is invalid"
+        case .duplicateTarget: "target is ambiguous"
+        case .configurationListClass, .configurationClass,
+             .danglingConfigurationList, .danglingConfiguration:
+            "configuration is missing"
+        case .danglingTarget: "generated project target graph is invalid"
+        }
+        #expect(result.output.contains(expected), Comment(rawValue: result.output))
+    }
+
+    @Test(arguments: PBXDuplicateSettingMutation.all)
+    func staticAuditRejectsLexicallyDuplicateRelevantBuildSettings(
+        mutation: PBXDuplicateSettingMutation
+    ) throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let mutated = try #require(generatedProjectByDuplicatingBuildSetting(
+            source,
+            mutation: mutation
+        ))
+        let result = try runStaticAudit(projectFileSource: mutated)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("duplicate"), Comment(rawValue: result.output))
+    }
+
+    @Test(arguments: BaseConfigurationMutation.all)
+    func staticAuditRejectsLexicallyDuplicateBaseConfigurationReferences(
+        mutation: BaseConfigurationMutation
+    ) throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let original = try #require(generatedBuildConfiguration(
+            in: source,
+            owner: mutation.owner,
+            configuration: mutation.configuration
+        ))
+        let insertion = try #require(original.range(of: "isa = XCBuildConfiguration;"))
+        var changed = original
+        let first = "\n\t\t\tbaseConfigurationReference = AAAAAAAAAAAAAAAAAAAAAAAA /* First.xcconfig */;"
+        let second = "\n\t\t\t\"baseConfigurationReferenc\\U0065\" = BBBBBBBBBBBBBBBBBBBBBBBB /* Second.xcconfig */;"
+        changed.insert(contentsOf: first + second, at: insertion.upperBound)
+        let result = try runStaticAudit(
+            projectFileSource: source.replacingOccurrences(of: original, with: changed)
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("duplicate"), Comment(rawValue: result.output))
+    }
+
+    @Test func staticAuditScopesDuplicateDetectionAndIgnoresCommentStringAndUnreferencedDecoys() throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let configuration = try #require(generatedBuildConfiguration(
+            in: source,
+            owner: #"PBXProject "KnitNote""#,
+            configuration: "Debug"
+        ))
+        let insertion = try #require(configuration.range(of: "buildSettings = {\n"))
+        var changedConfiguration = configuration
+        changedConfiguration.insert(
+            contentsOf: "\t\t\t\t/* CODE_SIGN_ENTITLEMENTS = Evil/Comment.entitlements; */\n"
+                + "\t\t\t\tPBX_DUPLICATE_DECOY = \"INFOPLIST_FILE = Evil/String.plist;\";\n",
+            at: insertion.upperBound
+        )
+        var mutated = source.replacingOccurrences(of: configuration, with: changedConfiguration)
+        let sectionEnd = try #require(mutated.range(of: "/* End XCBuildConfiguration section */"))
+        mutated.insert(contentsOf: """
+
+		D00D00000000000000000001 /* Unreferenced */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Evil/First.plist;
+				"INFOPLIST_FIL\\U0045" = Evil/Second.plist;
+			};
+			name = Decoy;
+		};
+
+""", at: sectionEnd.lowerBound)
+
+        let result = try runStaticAudit(projectFileSource: mutated)
+        #expect(result.status == 0, Comment(rawValue: result.output))
+    }
+
     @Test(arguments: ProductIdentifierMutation.all)
     func archiveAuditRejectsEachProfileAndSignedIdentifierAliasAmbiguity(
         mutation: ProductIdentifierMutation
@@ -2005,6 +2223,149 @@ private func generatedBuildConfiguration(
         return nil
     }
     return String(project[configurationStart.lowerBound..<configurationEnd.upperBound])
+}
+
+private func generatedConfigurationList(in project: String, owner: String) -> String? {
+    let marker = "/* Build configuration list for \(owner) */ = {"
+    guard let start = project.range(of: marker),
+          let end = project.range(of: "\n\t\t};", range: start.upperBound..<project.endIndex) else {
+        return nil
+    }
+    return String(project[start.lowerBound..<end.upperBound])
+}
+
+private func generatedOwnerObject(in project: String, owner: String) -> String? {
+    if owner.hasPrefix("PBXProject") {
+        guard let start = project.range(of: "/* Project object */ = {"),
+              let end = project.range(of: "\n\t\t};", range: start.upperBound..<project.endIndex) else {
+            return nil
+        }
+        return String(project[start.lowerBound..<end.upperBound])
+    }
+    let name = owner
+        .replacingOccurrences(of: #"PBXNativeTarget ""#, with: "")
+        .replacingOccurrences(of: #"""#, with: "")
+    let marker = "/* \(name) */ = {\n\t\t\tisa = PBXNativeTarget;"
+    guard let start = project.range(of: marker),
+          let lineStart = project[..<start.lowerBound].lastIndex(of: "\n"),
+          let end = project.range(of: "\n\t\t};", range: start.upperBound..<project.endIndex) else {
+        return nil
+    }
+    return String(project[project.index(after: lineStart)..<end.upperBound])
+}
+
+private func mutatePBXGraph(_ project: String, mutation: PBXGraphMutation) throws -> String {
+    switch mutation.kind {
+    case .rootClass:
+        let object = try #require(generatedOwnerObject(in: project, owner: mutation.owner))
+        let changed = try #require(object.replacingFirstOccurrence(
+            of: "isa = PBXProject;",
+            with: "isa = PBXGroup;"
+        ))
+        return project.replacingOccurrences(of: object, with: changed)
+    case .targetClass:
+        let object = try #require(generatedOwnerObject(in: project, owner: mutation.owner))
+        let changed = try #require(object.replacingFirstOccurrence(
+            of: "isa = PBXNativeTarget;",
+            with: "isa = PBXAggregateTarget;"
+        ))
+        return project.replacingOccurrences(of: object, with: changed)
+    case .targetProductName:
+        let object = try #require(generatedOwnerObject(in: project, owner: mutation.owner))
+        let changed = try #require(object.replacingFirstOccurrence(
+            of: "productName = ",
+            with: "productName = Decoy-"
+        ))
+        return project.replacingOccurrences(of: object, with: changed)
+    case .duplicateTarget:
+        let object = try #require(generatedOwnerObject(in: project, owner: mutation.owner))
+        let firstIdentifier = try #require(object.split(whereSeparator: { $0.isWhitespace }).first)
+        let decoyIdentifier = "D00D\(String(firstIdentifier).dropFirst(4))"
+        let clone = object.replacingOccurrences(of: String(firstIdentifier), with: decoyIdentifier)
+        let sectionEnd = try #require(project.range(of: "/* End PBXNativeTarget section */"))
+        var changed = project
+        changed.insert(contentsOf: clone + "\n", at: sectionEnd.lowerBound)
+        let root = try #require(generatedOwnerObject(in: changed, owner: #"PBXProject "KnitNote""#))
+        let targets = try #require(root.range(of: "targets = (\n"))
+        var changedRoot = root
+        changedRoot.insert(contentsOf: "\t\t\t\t\(decoyIdentifier) /* decoy */,\n", at: targets.upperBound)
+        return changed.replacingOccurrences(of: root, with: changedRoot)
+    case .configurationListClass:
+        let list = try #require(generatedConfigurationList(in: project, owner: mutation.owner))
+        let changed = try #require(list.replacingFirstOccurrence(
+            of: "isa = XCConfigurationList;",
+            with: "isa = PBXGroup;"
+        ))
+        return project.replacingOccurrences(of: list, with: changed)
+    case .configurationClass:
+        let configurationName = try #require(mutation.configuration)
+        let configuration = try #require(generatedBuildConfiguration(
+            in: project,
+            owner: mutation.owner,
+            configuration: configurationName
+        ))
+        let changed = try #require(configuration.replacingFirstOccurrence(
+            of: "isa = XCBuildConfiguration;",
+            with: "isa = PBXGroup;"
+        ))
+        return project.replacingOccurrences(of: configuration, with: changed)
+    case .danglingConfigurationList:
+        let object = try #require(generatedOwnerObject(in: project, owner: mutation.owner))
+        let expression = try NSRegularExpression(pattern: #"buildConfigurationList = [A-F0-9]+"#)
+        let range = NSRange(object.startIndex..<object.endIndex, in: object)
+        let changed = expression.stringByReplacingMatches(
+            in: object,
+            range: range,
+            withTemplate: "buildConfigurationList = DEADBEEFDEADBEEFDEADBEEF"
+        )
+        return project.replacingOccurrences(of: object, with: changed)
+    case .danglingConfiguration:
+        let list = try #require(generatedConfigurationList(in: project, owner: mutation.owner))
+        let configuration = try #require(mutation.configuration)
+        let expression = try NSRegularExpression(pattern: #"[A-F0-9]+ /\* "# + configuration + #" \*/"#)
+        let range = NSRange(list.startIndex..<list.endIndex, in: list)
+        let changed = expression.stringByReplacingMatches(
+            in: list,
+            range: range,
+            withTemplate: "DEADBEEFDEADBEEFDEADBEEF /* \(configuration) */"
+        )
+        return project.replacingOccurrences(of: list, with: changed)
+    case .danglingTarget:
+        let root = try #require(generatedOwnerObject(in: project, owner: mutation.owner))
+        let targets = try #require(root.range(of: "targets = (\n"))
+        var changed = root
+        changed.insert(contentsOf: "\t\t\t\tDEADBEEFDEADBEEFDEADBEEF /* missing */,\n", at: targets.upperBound)
+        return project.replacingOccurrences(of: root, with: changed)
+    }
+}
+
+private func generatedProjectByDuplicatingBuildSetting(
+    _ project: String,
+    mutation: PBXDuplicateSettingMutation
+) -> String? {
+    guard let original = generatedBuildConfiguration(
+        in: project,
+        owner: mutation.owner,
+        configuration: mutation.configuration
+    ) else {
+        return nil
+    }
+    let lines = original.split(separator: "\n", omittingEmptySubsequences: false)
+    guard let canonicalLine = lines.first(where: {
+        $0.contains(mutation.key) && $0.contains(mutation.canonicalValue)
+    }) else {
+        return nil
+    }
+    let evilLine = "\t\t\t\t\(mutation.syntax.spelling(mutation.key)) = \(mutation.evilValue);"
+    let replacement: String
+    switch mutation.order {
+    case .evilFirst:
+        replacement = evilLine + "\n" + canonicalLine
+    case .evilLast:
+        replacement = String(canonicalLine) + "\n" + evilLine
+    }
+    let changed = original.replacingOccurrences(of: String(canonicalLine), with: replacement)
+    return project.replacingOccurrences(of: original, with: changed)
 }
 
 private func generatedProjectByAddingBuildSetting(

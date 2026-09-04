@@ -224,10 +224,169 @@ verify_signed_product_cloud_entitlements() {
 }
 
 verify_generated_entitlement_bindings() {
-  python3 - "$PROJECT_FILE" "$PLUTIL" <<'PY'
-import json
-import subprocess
+  python3 - "$PROJECT_FILE" <<'PY'
 import sys
+from pathlib import Path
+
+class OpenStepError(Exception):
+    pass
+
+class OpenStepDictionary:
+    def __init__(self, entries):
+        self.entries = entries
+
+class OpenStepScanner:
+    punctuation = set("{}()=;,")
+
+    def __init__(self, source):
+        self.source = source
+        self.index = 0
+
+    def error(self, message):
+        raise OpenStepError(f"{message} at byte {self.index}")
+
+    def skip_ignored(self):
+        while self.index < len(self.source):
+            if self.source[self.index].isspace():
+                self.index += 1
+            elif self.source.startswith("//", self.index):
+                newline = self.source.find("\n", self.index + 2)
+                self.index = len(self.source) if newline < 0 else newline + 1
+            elif self.source.startswith("/*", self.index):
+                end = self.source.find("*/", self.index + 2)
+                if end < 0:
+                    self.error("unterminated comment")
+                self.index = end + 2
+            else:
+                return
+
+    def token(self):
+        self.skip_ignored()
+        if self.index >= len(self.source):
+            return ("eof", "")
+        character = self.source[self.index]
+        if character in self.punctuation:
+            self.index += 1
+            return (character, character)
+        if character == '"':
+            return ("scalar", self.quoted())
+        start = self.index
+        while self.index < len(self.source):
+            character = self.source[self.index]
+            if character.isspace() or character in self.punctuation or character == '"':
+                break
+            if self.source.startswith("//", self.index) or self.source.startswith("/*", self.index):
+                break
+            self.index += 1
+        if self.index == start:
+            self.error("unexpected character")
+        return ("scalar", self.source[start:self.index])
+
+    def quoted(self):
+        self.index += 1
+        result = []
+        simple = {
+            'a': '\a', 'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r',
+            't': '\t', 'v': '\v', '\\': '\\', '"': '"', "'": "'",
+        }
+        while self.index < len(self.source):
+            character = self.source[self.index]
+            self.index += 1
+            if character == '"':
+                return "".join(result)
+            if character != '\\':
+                result.append(character)
+                continue
+            if self.index >= len(self.source):
+                self.error("unterminated escape")
+            escape = self.source[self.index]
+            self.index += 1
+            if escape in simple:
+                result.append(simple[escape])
+            elif escape in ('U', 'u'):
+                digits = self.source[self.index:self.index + 4]
+                if len(digits) != 4 or any(c not in "0123456789abcdefABCDEF" for c in digits):
+                    self.error("invalid Unicode escape")
+                result.append(chr(int(digits, 16)))
+                self.index += 4
+            elif escape in "01234567":
+                digits = escape
+                while len(digits) < 3 and self.index < len(self.source) and self.source[self.index] in "01234567":
+                    digits += self.source[self.index]
+                    self.index += 1
+                result.append(chr(int(digits, 8)))
+            elif escape == '\n':
+                pass
+            else:
+                self.error("unsupported escape")
+        self.error("unterminated quoted string")
+
+class OpenStepParser:
+    def __init__(self, source):
+        self.scanner = OpenStepScanner(source)
+        self.lookahead = self.scanner.token()
+
+    def take(self, kind):
+        if self.lookahead[0] != kind:
+            raise OpenStepError(f"expected {kind}, found {self.lookahead[0]}")
+        value = self.lookahead[1]
+        self.lookahead = self.scanner.token()
+        return value
+
+    def parse(self):
+        value = self.value()
+        self.take("eof")
+        return value
+
+    def value(self):
+        if self.lookahead[0] == "{":
+            return self.dictionary()
+        if self.lookahead[0] == "(":
+            return self.array()
+        return self.take("scalar")
+
+    def dictionary(self):
+        self.take("{")
+        entries = []
+        while self.lookahead[0] != "}":
+            key = self.take("scalar")
+            self.take("=")
+            entries.append((key, self.value()))
+            self.take(";")
+        self.take("}")
+        return OpenStepDictionary(entries)
+
+    def array(self):
+        self.take("(")
+        values = []
+        while self.lookahead[0] != ")":
+            values.append(self.value())
+            if self.lookahead[0] == ",":
+                self.take(",")
+            elif self.lookahead[0] != ")":
+                raise OpenStepError("expected comma or closing parenthesis")
+        self.take(")")
+        return values
+
+def dictionary(value, error):
+    if not isinstance(value, OpenStepDictionary):
+        raise SystemExit(error)
+    result = {}
+    for key, item in value.entries:
+        if key in result:
+            raise SystemExit(f"release audit: duplicate OpenStep key {key!r} in {error}")
+        result[key] = item
+    return result
+
+def scalar(value, error):
+    if not isinstance(value, str):
+        raise SystemExit(error)
+    return value
+
+def array(value, error):
+    if not isinstance(value, list):
+        raise SystemExit(error)
+    return value
 
 expected = {
     "KnitNote": {
@@ -246,45 +405,54 @@ expected_info = {
     "KnitNoteShare": {"INFOPLIST_FILE": "KnitNoteShare/Info.plist"},
 }
 labels = {"KnitNote": "iOS/macOS", "KnitNoteWatch": "Watch", "KnitNoteShare": "Share"}
+products = {
+    "KnitNote": ("KnitNote", "com.apple.product-type.application", "KnitNote.app"),
+    "KnitNoteWatch": ("KnitNoteWatch", "com.apple.product-type.application", "KnitNoteWatch.app"),
+    "KnitNoteShare": ("KnitNoteShare", "com.apple.product-type.app-extension", "KnitNoteShare.appex"),
+}
 
-conversion = subprocess.run(
-    [sys.argv[2], "-convert", "json", "-o", "-", sys.argv[1]],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    check=False,
-)
-if conversion.returncode != 0:
-    raise SystemExit("release audit: generated project is not a valid OpenStep property list")
 try:
-    project = json.loads(conversion.stdout)
-    objects = project["objects"]
-    root = objects[project["rootObject"]]
-except (KeyError, TypeError, ValueError):
-    raise SystemExit("release audit: generated project object graph is invalid")
+    parsed = OpenStepParser(Path(sys.argv[1]).read_text(encoding="utf-8")).parse()
+    project = dictionary(parsed, "generated project root dictionary")
+    objects = dictionary(project["objects"], "generated project objects dictionary")
+    root_reference = scalar(project["rootObject"], "release audit: generated project rootObject is invalid")
+except (KeyError, OSError, UnicodeError, OpenStepError) as error:
+    raise SystemExit(f"release audit: generated project is not a valid OpenStep property list: {error}")
 
 def referenced_object(reference, error):
+    reference = scalar(reference, error)
     try:
         value = objects[reference]
-    except (KeyError, TypeError):
+    except KeyError:
         raise SystemExit(error)
-    if not isinstance(value, dict):
-        raise SystemExit(error)
-    return value
+    return dictionary(value, error)
+
+root = referenced_object(root_reference, "release audit: generated project object graph is invalid")
+if root.get("isa") != "PBXProject":
+    raise SystemExit("release audit: generated project object graph is invalid")
 
 def configurations(owner, error):
-    listing = referenced_object(owner.get("buildConfigurationList"), error)
-    references = listing.get("buildConfigurations")
-    if not isinstance(references, list):
+    try:
+        listing = referenced_object(owner["buildConfigurationList"], error)
+        references = array(listing["buildConfigurations"], error)
+    except KeyError:
+        raise SystemExit(error)
+    if listing.get("isa") != "XCConfigurationList":
         raise SystemExit(error)
     result = {}
     for reference in references:
         configuration = referenced_object(reference, error)
-        name = configuration.get("name")
+        if configuration.get("isa") != "XCBuildConfiguration":
+            raise SystemExit(error)
+        try:
+            name = scalar(configuration["name"], error)
+        except KeyError:
+            raise SystemExit(error)
         if name in result:
             raise SystemExit(error)
         result[name] = configuration
     required = {"Debug", "Release"}
-    if not required.issubset(result):
+    if set(result) != required:
         raise SystemExit(error)
     return {name: result[name] for name in required}
 
@@ -292,19 +460,35 @@ project_error = "release audit: project CODE_SIGN_ENTITLEMENTS configuration is 
 for configuration in configurations(root, project_error).values():
     if "baseConfigurationReference" in configuration:
         raise SystemExit("release audit: relevant project baseConfigurationReference is forbidden")
-    settings = configuration.get("buildSettings")
-    if not isinstance(settings, dict):
+    try:
+        settings = dictionary(configuration["buildSettings"], project_error)
+    except KeyError:
         raise SystemExit(project_error)
     if any(key.startswith("CODE_SIGN_ENTITLEMENTS") for key in settings):
         raise SystemExit("release audit: project CODE_SIGN_ENTITLEMENTS must not be inherited")
 
 targets = {}
-for reference in root.get("targets", []):
+try:
+    target_references = array(root["targets"], "release audit: generated project target graph is invalid")
+except KeyError:
+    raise SystemExit("release audit: generated project target graph is invalid")
+for reference in target_references:
     target = referenced_object(reference, "release audit: generated project target graph is invalid")
     name = target.get("name")
     if name in expected:
+        if target.get("isa") != "PBXNativeTarget":
+            raise SystemExit(f"release audit: source {labels[name]} target graph is invalid")
         if name in targets:
             raise SystemExit(f"release audit: source {labels[name]} target is ambiguous")
+        product_name, product_type, product_path = products[name]
+        if target.get("productName") != product_name or target.get("productType") != product_type:
+            raise SystemExit(f"release audit: source {labels[name]} target product mapping is invalid")
+        try:
+            product = referenced_object(target["productReference"], f"release audit: source {labels[name]} target product mapping is invalid")
+        except KeyError:
+            raise SystemExit(f"release audit: source {labels[name]} target product mapping is invalid")
+        if product.get("isa") != "PBXFileReference" or product.get("path") != product_path:
+            raise SystemExit(f"release audit: source {labels[name]} target product mapping is invalid")
         targets[name] = target
 if set(targets) != set(expected):
     raise SystemExit("release audit: relevant generated project target is missing")
@@ -316,8 +500,9 @@ for target_name, wanted in expected.items():
             raise SystemExit(
                 f"release audit: source {labels[target_name]} baseConfigurationReference is forbidden"
             )
-        settings = configuration.get("buildSettings")
-        if not isinstance(settings, dict):
+        try:
+            settings = dictionary(configuration["buildSettings"], error)
+        except KeyError:
             raise SystemExit(error)
         actual = {
             key: value.strip() if isinstance(value, str) else value

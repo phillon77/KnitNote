@@ -38,6 +38,30 @@ import Testing
         #expect(try fixture.withLock { try fixture.manifests.loadUploads(in: $0) } == [upload])
     }
 
+    @Test func manifestsAreBoundToStableAccountToken() throws {
+        let source = try ManifestFixture(accountIdentifier: "account-a")
+        let destination = try ManifestFixture(accountIdentifier: "account-b")
+        try source.withLock {
+            try source.manifests.commitUploads(
+                [try source.upload(mutation: 1, version: 1)],
+                in: $0
+            )
+            try source.manifests.commitQuarantine([source.quarantine(1, bytes: 1)], in: $0)
+        }
+
+        try Data(contentsOf: source.uploadManifestURL).write(to: destination.uploadManifestURL)
+        #expect(throws: CloudAssetManifestStoreError.corruptManifest) {
+            try destination.withLock { try destination.manifests.loadUploads(in: $0) }
+        }
+        try FileManager.default.removeItem(at: destination.uploadManifestURL)
+
+        try Data(contentsOf: source.quarantineManifestURL)
+            .write(to: destination.quarantineManifestURL)
+        #expect(throws: CloudAssetManifestStoreError.corruptManifest) {
+            try destination.withLock { try destination.manifests.loadQuarantine(in: $0) }
+        }
+    }
+
     @Test func checksumBitFlipFailsClosed() throws {
         let fixture = try ManifestFixture()
         try fixture.withLock {
@@ -261,6 +285,30 @@ import Testing
         #expect(try fixture.withLock { try fixture.manifests.loadUploads(in: $0) } == [original])
     }
 
+    @Test func completeEnvelopeLimitRejectsBeforeReplacingPriorManifest() throws {
+        let fixture = try ManifestFixture()
+        let original = try fixture.upload(mutation: 1, version: 1)
+        try fixture.withLock { try fixture.manifests.commitUploads([original], in: $0) }
+        let originalBytes = try Data(contentsOf: fixture.uploadManifestURL)
+        let tinyLimitStore = CloudAssetManifestStore(
+            fileStore: fixture.fileStore,
+            maximumManifestBytes: 1
+        )
+
+        #expect(throws: CloudAssetManifestStoreError.corruptManifest) {
+            try fixture.withLock {
+                try tinyLimitStore.commitUploads(
+                    [try fixture.upload(mutation: 2, version: 2)],
+                    in: $0
+                )
+            }
+        }
+
+        #expect(try Data(contentsOf: fixture.uploadManifestURL) == originalBytes)
+        #expect(try fixture.withLock { try fixture.manifests.loadUploads(in: $0) } == [original])
+        #expect(try fixture.transactionArtifacts().isEmpty)
+    }
+
     @Test func postRenameDirectorySyncFailureRollsBackPriorManifest() throws {
         let fault = AtomicReplaceFault()
         let fixture = try ManifestFixture(beforeAtomicReplacementDirectorySync: {
@@ -359,30 +407,112 @@ import Testing
         try fixture.withLock { try fixture.manifests.commitUploads([original], in: $0) }
 
         for _ in 0..<20 {
-            faults.arm(.replacementBeforeDirectorySync)
+            faults.arm(.replacementTemporaryBeforeRename)
             faults.arm(.rollbackBeforeMutation)
             #expect(throws: CloudAssetManifestStoreError.unavailable) {
                 try fixture.withLock { try fixture.manifests.commitUploads([replacement], in: $0) }
             }
-            #expect(try fixture.transactionArtifacts().count <= 1)
+            try fixture.seedRecordedReplacementTemporary()
+            #expect(try fixture.transactionArtifacts().count <= 2)
             #expect(try fixture.loadUploadsAfterRestart() == [original])
             #expect(try fixture.transactionArtifacts().isEmpty)
+        }
+    }
+
+
+    @Test func recoveryFsyncsRemovedTempsBeforeRemovingDurableMarker() throws {
+        let faults = AtomicReplacementFaults()
+        let fixture = try ManifestFixture(atomicReplacementFault: faults.check)
+        let original = try fixture.upload(mutation: 1, version: 1)
+        let replacement = try fixture.upload(mutation: 2, version: 2)
+        try fixture.withLock { try fixture.manifests.commitUploads([original], in: $0) }
+        faults.arm(.replacementTemporaryBeforeRename)
+        faults.arm(.rollbackBeforeMutation)
+        #expect(throws: CloudAssetManifestStoreError.unavailable) {
+            try fixture.withLock { try fixture.manifests.commitUploads([replacement], in: $0) }
+        }
+        try fixture.seedRecordedReplacementTemporary()
+        #expect(try fixture.transactionArtifacts().count == 2)
+
+        faults.arm(.recoveryTemporaryCleanupBeforeDirectorySync)
+        #expect(throws: CloudAssetManifestStoreError.unavailable) {
+            try fixture.withLock { try fixture.manifests.loadUploads(in: $0) }
+        }
+        #expect(try fixture.transactionArtifacts().count == 1)
+
+        #expect(try fixture.loadUploadsAfterRestart() == [original])
+        #expect(try fixture.transactionArtifacts().isEmpty)
+    }
+
+    @Test func preparedTransactionMarkersAreBoundToAccountToken() throws {
+        for authority in ["upload", "quarantine"] {
+            let faults = AtomicReplacementFaults()
+            let source = try ManifestFixture(
+                accountIdentifier: "marker-account-a-\(authority)",
+                atomicReplacementFault: faults.check
+            )
+            let destination = try ManifestFixture(
+                accountIdentifier: "marker-account-b-\(authority)"
+            )
+            if authority == "upload" {
+                try source.withLock {
+                    try source.manifests.commitUploads(
+                        [try source.upload(mutation: 1, version: 1)], in: $0
+                    )
+                }
+                faults.arm(.replacementBeforeDirectorySync)
+                faults.arm(.rollbackBeforeMutation)
+                #expect(throws: CloudAssetManifestStoreError.unavailable) {
+                    try source.withLock {
+                        try source.manifests.commitUploads(
+                            [try source.upload(mutation: 2, version: 2)], in: $0
+                        )
+                    }
+                }
+                try Data(contentsOf: source.uploadTransactionMarkerURL)
+                    .write(to: destination.uploadTransactionMarkerURL)
+                #expect(throws: CloudAssetManifestStoreError.corruptManifest) {
+                    try destination.withLock { try destination.manifests.loadUploads(in: $0) }
+                }
+            } else {
+                try source.withLock {
+                    try source.manifests.commitQuarantine(
+                        [source.quarantine(1, bytes: 1)], in: $0
+                    )
+                }
+                faults.arm(.replacementBeforeDirectorySync)
+                faults.arm(.rollbackBeforeMutation)
+                #expect(throws: CloudAssetManifestStoreError.unavailable) {
+                    try source.withLock {
+                        try source.manifests.commitQuarantine(
+                            [source.quarantine(2, bytes: 1)], in: $0
+                        )
+                    }
+                }
+                try Data(contentsOf: source.quarantineTransactionMarkerURL)
+                    .write(to: destination.quarantineTransactionMarkerURL)
+                #expect(throws: CloudAssetManifestStoreError.corruptManifest) {
+                    try destination.withLock { try destination.manifests.loadQuarantine(in: $0) }
+                }
+            }
         }
     }
 }
 
 private final class ManifestFixture {
     let root: URL
-    let accountIdentifier = "manifest-account"
+    let accountIdentifier: String
     let fileStore: CloudAssetAccountFileStore
     let manifests: CloudAssetManifestStore
 
     init(
+        accountIdentifier: String = "manifest-account",
         beforeAtomicReplacementDirectorySync: @escaping @Sendable () throws -> Void = {},
         atomicReplacementFault: @escaping @Sendable (
             CloudAssetAtomicReplacementBoundary
         ) throws -> Void = { _ in }
     ) throws {
+        self.accountIdentifier = accountIdentifier
         root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "cloud-asset-manifest-\(UUID().uuidString)", isDirectory: true
         )
@@ -407,6 +537,14 @@ private final class ManifestFixture {
     var uploadManifestURL: URL { accountURL.appendingPathComponent("manifest.json") }
     var quarantineManifestURL: URL {
         accountURL.appendingPathComponent("Quarantine/manifest.json")
+    }
+
+    var uploadTransactionMarkerURL: URL {
+        accountURL.appendingPathComponent(".manifest.json.replace-transaction")
+    }
+
+    var quarantineTransactionMarkerURL: URL {
+        accountURL.appendingPathComponent("Quarantine/.manifest.json.replace-transaction")
     }
 
     func withLock<T>(_ body: (CloudAssetAccountDirectories) throws -> T) throws -> T {
@@ -494,6 +632,20 @@ private final class ManifestFixture {
         try FileManager.default.contentsOfDirectory(atPath: accountURL.path).filter {
             $0.hasPrefix(".tmp-") || $0.contains("replace-transaction")
         }
+    }
+
+    func seedRecordedReplacementTemporary() throws {
+        let envelope = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: uploadTransactionMarkerURL))
+                as? [String: Any]
+        )
+        let payloadString = try #require(envelope["payload"] as? String)
+        let payloadData = try #require(Data(base64Encoded: payloadString))
+        let payload = try #require(
+            JSONSerialization.jsonObject(with: payloadData) as? [String: Any]
+        )
+        let name = try #require(payload["replacementTemporary"] as? String)
+        try Data("crash-residue".utf8).write(to: accountURL.appendingPathComponent(name))
     }
 }
 

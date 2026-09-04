@@ -19,9 +19,11 @@ struct CloudAssetAccountDirectories {
 }
 
 enum CloudAssetAtomicReplacementBoundary: Hashable, Sendable {
+    case replacementTemporaryBeforeRename
     case replacementBeforeDirectorySync
     case rollbackBeforeMutation
     case rollbackBeforeDirectorySync
+    case recoveryTemporaryCleanupBeforeDirectorySync
     case transactionCleanupBeforeUnlink
     case transactionCleanupBeforeDirectorySync
 }
@@ -52,6 +54,8 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     private let directoryEntryReader: DirectoryEntryReader
     private let activeDescriptorsLock = NSLock()
     private var activeDescriptors: Set<Int32> = []
+
+    var stableAccountBinding: String { accountToken }
 
     init(
         rootURL: URL,
@@ -261,6 +265,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         }
         let transaction = AtomicReplacementTransaction(
             schemaVersion: 1,
+            accountBinding: stableAccountBinding,
             destination: name,
             replacementTemporary: ".tmp-\(UUID().uuidString.lowercased())",
             priorData: priorData,
@@ -283,7 +288,8 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
                 temporary: transaction.replacementTemporary,
                 destination: name,
                 destinationExisted: priorData != nil,
-                directory: directory
+                directory: directory,
+                injectBeforeRename: true
             )
             try beforeAtomicReplacementDirectorySync()
             try atomicReplacementFault(.replacementBeforeDirectorySync)
@@ -343,12 +349,13 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
             markerData: markerData,
             in: directory,
             transactionDomain: transactionDomain,
-            injectFaults: false
+            injectFaults: true
         )
     }
 
     private struct AtomicReplacementTransaction: Codable, Equatable {
         let schemaVersion: Int
+        let accountBinding: String
         let destination: String
         let replacementTemporary: String
         let priorData: Data?
@@ -415,6 +422,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
             )
             guard try Self.canonicalEncoder().encode(transaction) == envelope.payload,
                   transaction.schemaVersion == 1,
+                  transaction.accountBinding == stableAccountBinding,
                   transaction.destination == expectedDestination,
                   transaction.replacementByteCount >= 0,
                   transaction.replacementByteCount <= Int64(maximumAssetBytes),
@@ -469,7 +477,8 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         temporary: String,
         destination: String,
         destinationExisted: Bool,
-        directory: Int32
+        directory: Int32,
+        injectBeforeRename: Bool = false
     ) throws {
         if try removeIfPresent(named: temporary, in: directory) {
             try synchronize(directory)
@@ -484,6 +493,9 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetFileStoreError.unavailable }
         let identity = try ownedIdentity(descriptor)
         try validatePath(named: temporary, in: directory, equals: identity)
+        if injectBeforeRename {
+            try atomicReplacementFault(.replacementTemporaryBeforeRename)
+        }
         let renamed = temporary.withCString { source in
             destination.withCString { target in
                 destinationExisted
@@ -537,6 +549,13 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         try synchronize(directory)
         _ = try removeIfPresent(named: transaction.replacementTemporary, in: directory)
         _ = try removeIfPresent(named: recoveryTemporaryName(for: transaction.destination), in: directory)
+        if injectFaults {
+            try atomicReplacementFault(.recoveryTemporaryCleanupBeforeDirectorySync)
+        }
+        // Make removal of every recorded/support temporary durable while the
+        // prepared marker still exists. A crash before the next phase can
+        // therefore replay recovery without losing its authority record.
+        try synchronize(directory)
         try cleanupTransactionMarker(
             named: transaction.destination,
             in: directory,

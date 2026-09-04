@@ -36,14 +36,19 @@ final class CloudAssetManifestStore {
     private static let quarantineManifestName = "manifest.json"
     private static let uploadDomain = "knitnote.cloud-asset.upload-manifest.v1"
     private static let quarantineDomain = "knitnote.cloud-asset.quarantine-manifest.v1"
-    private static let maximumManifestBytes = 16 * 1_024 * 1_024
+    private static let defaultMaximumManifestBytes = 16 * 1_024 * 1_024
     private static let maximumQuarantineEntries = 4
     private static let maximumQuarantineBytes: Int64 = 400_000_000
 
     private let fileStore: CloudAssetAccountFileStore
+    private let maximumManifestBytes: Int
 
-    init(fileStore: CloudAssetAccountFileStore) {
+    init(
+        fileStore: CloudAssetAccountFileStore,
+        maximumManifestBytes: Int = CloudAssetManifestStore.defaultMaximumManifestBytes
+    ) {
         self.fileStore = fileStore
+        self.maximumManifestBytes = max(0, maximumManifestBytes)
     }
 
     func loadUploads(in directories: CloudAssetAccountDirectories) throws
@@ -55,7 +60,11 @@ final class CloudAssetManifestStore {
             finalDirectory: directories.uploads,
             domain: Self.uploadDomain,
             isFinalName: Self.isUploadFilename,
-            empty: UploadPayload(schemaVersion: Self.schemaVersion, entries: [])
+            empty: UploadPayload(
+                schemaVersion: Self.schemaVersion,
+                accountBinding: fileStore.stableAccountBinding,
+                entries: []
+            )
         )
         try validate(payload)
         return payload.entries
@@ -67,6 +76,7 @@ final class CloudAssetManifestStore {
     ) throws {
         let payload = UploadPayload(
             schemaVersion: Self.schemaVersion,
+            accountBinding: fileStore.stableAccountBinding,
             entries: Self.sortedUploads(references)
         )
         try validate(payload)
@@ -87,7 +97,11 @@ final class CloudAssetManifestStore {
             finalDirectory: directories.quarantine,
             domain: Self.quarantineDomain,
             isFinalName: Self.isQuarantineFilename,
-            empty: QuarantinePayload(schemaVersion: Self.schemaVersion, entries: [])
+            empty: QuarantinePayload(
+                schemaVersion: Self.schemaVersion,
+                accountBinding: fileStore.stableAccountBinding,
+                entries: []
+            )
         )
         try validate(payload)
         return payload.entries
@@ -99,6 +113,7 @@ final class CloudAssetManifestStore {
     ) throws {
         let payload = QuarantinePayload(
             schemaVersion: Self.schemaVersion,
+            accountBinding: fileStore.stableAccountBinding,
             entries: Self.sortedQuarantine(references)
         )
         try validate(payload)
@@ -118,11 +133,13 @@ final class CloudAssetManifestStore {
 
     private struct UploadPayload: Codable, Equatable {
         let schemaVersion: Int
+        let accountBinding: String
         let entries: [CloudAssetUploadReference]
     }
 
     private struct QuarantinePayload: Codable, Equatable {
         let schemaVersion: Int
+        let accountBinding: String
         let entries: [CloudAssetQuarantineReference]
     }
 
@@ -159,7 +176,7 @@ final class CloudAssetManifestStore {
             data = try fileStore.readOwned(
                 named: name,
                 in: directory,
-                maximumByteCount: Self.maximumManifestBytes
+                maximumByteCount: maximumManifestBytes
             )
         } catch { throw map(error) }
         do {
@@ -194,8 +211,12 @@ final class CloudAssetManifestStore {
                 checksum: Self.checksum(domain: domain, payload: payloadData),
                 payload: payloadData
             )
+            let envelopeData = try encoder().encode(envelope)
+            guard envelopeData.count <= maximumManifestBytes else {
+                throw CloudAssetManifestStoreError.corruptManifest
+            }
             try fileStore.replaceAtomically(
-                try encoder().encode(envelope),
+                envelopeData,
                 named: name,
                 in: directory,
                 transactionDomain: "\(domain).transaction"
@@ -209,6 +230,7 @@ final class CloudAssetManifestStore {
 
     private func validate(_ payload: UploadPayload) throws {
         guard payload.schemaVersion == Self.schemaVersion,
+              payload.accountBinding == fileStore.stableAccountBinding,
               payload.entries == Self.sortedUploads(payload.entries)
         else { throw CloudAssetManifestStoreError.corruptManifest }
         var mutations: Set<UUID> = []
@@ -233,6 +255,7 @@ final class CloudAssetManifestStore {
 
     private func validate(_ payload: QuarantinePayload) throws {
         guard payload.schemaVersion == Self.schemaVersion,
+              payload.accountBinding == fileStore.stableAccountBinding,
               payload.entries == Self.sortedQuarantine(payload.entries)
         else { throw CloudAssetManifestStoreError.corruptManifest }
         guard payload.entries.count <= Self.maximumQuarantineEntries else {

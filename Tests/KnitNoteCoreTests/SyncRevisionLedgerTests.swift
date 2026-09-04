@@ -1621,6 +1621,21 @@ private struct TrapBeforeOpenSyncRegularFileReader: SyncRegularFileReading {
             : SyncRegularFileReader()
         return try reader.read(url, maximumBytes: maximumBytes, expected: expected)
     }
+
+    func observe(
+        _ url: URL,
+        declaredByteCount: Int64,
+        maximumBytes: Int
+    ) throws -> SyncRegularFileObservation {
+        let reader = url == targetURL
+            ? SyncRegularFileReader(beforeOpen: { throw RevisionLedgerInjectedFailure() })
+            : SyncRegularFileReader()
+        return try reader.observe(
+            url,
+            declaredByteCount: declaredByteCount,
+            maximumBytes: maximumBytes
+        )
+    }
 }
 
 private struct ReplacingSyncRegularFileReader: SyncRegularFileReading {
@@ -1639,6 +1654,24 @@ private struct ReplacingSyncRegularFileReader: SyncRegularFileReading {
             })
             : SyncRegularFileReader()
         return try reader.read(url, maximumBytes: maximumBytes, expected: expected)
+    }
+
+    func observe(
+        _ url: URL,
+        declaredByteCount: Int64,
+        maximumBytes: Int
+    ) throws -> SyncRegularFileObservation {
+        let reader = url == targetURL
+            ? SyncRegularFileReader(beforeOpen: {
+                try FileManager.default.removeItem(at: targetURL)
+                try replacementData.write(to: targetURL)
+            })
+            : SyncRegularFileReader()
+        return try reader.observe(
+            url,
+            declaredByteCount: declaredByteCount,
+            maximumBytes: maximumBytes
+        )
     }
 }
 

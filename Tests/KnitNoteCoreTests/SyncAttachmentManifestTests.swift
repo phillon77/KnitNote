@@ -455,6 +455,19 @@ private struct CountingSyncRegularFileReader: SyncRegularFileReading {
             expected: expected
         )
     }
+
+    func observe(
+        _ url: URL,
+        declaredByteCount: Int64,
+        maximumBytes: Int
+    ) throws -> SyncRegularFileObservation {
+        counters.increment()
+        return try SyncRegularFileReader().observe(
+            url,
+            declaredByteCount: declaredByteCount,
+            maximumBytes: maximumBytes
+        )
+    }
 }
 
 private extension Array {

@@ -107,6 +107,39 @@ import Testing
         #expect(try Data(contentsOf: fixture.quarantineURL(growthEntry)) == expected)
     }
 
+    @Test func alternateReaderReceivesOnlyDeclaredPlusOneAndRetainsDeclaredBytes() throws {
+        let fixture = try DownloadFixture(account: "alternate-reader-contract")
+        let declared = Data("safe".utf8)
+        let version = try fixture.version(bytes: declared, id: 42)
+        let source = try fixture.source(bytes: Data("ignored by probe".utf8), name: "probe.asset")
+        let reader = AlternateObservationProbeReader(retained: declared)
+        let service = try fixture.makeService(externalReader: reader)
+
+        #expect(throws: CloudAssetStagingError.contentMismatch) {
+            _ = try service.installDownload(version: version, sourceURL: source)
+        }
+        #expect(CloudAssetStagingService.defaultMaximumAssetBytes == 100_000_000)
+        #expect(reader.readCallCount == 0)
+        #expect(reader.observeCallCount == 1)
+        #expect(reader.maximumBytes == declared.count + 1)
+
+        let entry = try #require(fixture.quarantineEntries().first)
+        #expect(entry.reason == .byteCountMismatch)
+        #expect(entry.byteCount == Int64(declared.count))
+        #expect(try Data(contentsOf: fixture.quarantineURL(entry)) == declared)
+
+        let overRetaining = AlternateObservationProbeReader(
+            retained: declared + Data([0x41])
+        )
+        let rejectingService = try fixture.makeService(externalReader: overRetaining)
+        #expect(throws: CloudAssetStagingError.tooLarge) {
+            _ = try rejectingService.installDownload(version: version, sourceURL: source)
+        }
+        #expect(overRetaining.readCallCount == 0)
+        #expect(overRetaining.maximumBytes == declared.count + 1)
+        #expect(try fixture.quarantineEntries().count == 1)
+    }
+
     @Test(arguments: ["symlink", "hardlink", "fifo"])
     func unsafeSourcesFailWithoutQuarantine(_ kind: String) throws {
         let fixture = try DownloadFixture()
@@ -379,6 +412,51 @@ import Testing
 }
 
 private enum DownloadInterruption: Error { case crash }
+
+private final class AlternateObservationProbeReader: SyncRegularFileReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private let retained: Data
+    private var recordedMaximumBytes: Int?
+    private var recordedReadCallCount = 0
+    private var recordedObserveCallCount = 0
+
+    init(retained: Data) {
+        self.retained = retained
+    }
+
+    var maximumBytes: Int? { lock.withLock { recordedMaximumBytes } }
+    var readCallCount: Int { lock.withLock { recordedReadCallCount } }
+    var observeCallCount: Int { lock.withLock { recordedObserveCallCount } }
+
+    func read(
+        _ url: URL,
+        maximumBytes: Int,
+        expected: SyncRegularFileExpectation?
+    ) throws -> SyncRegularFileRead {
+        lock.withLock {
+            recordedReadCallCount += 1
+        }
+        throw SyncRegularFileReadError.unavailable
+    }
+
+    func observe(
+        _ url: URL,
+        declaredByteCount: Int64,
+        maximumBytes: Int
+    ) throws -> SyncRegularFileObservation {
+        lock.withLock {
+            recordedMaximumBytes = maximumBytes
+            recordedObserveCallCount += 1
+        }
+        return SyncRegularFileObservation(
+            data: retained,
+            device: 1,
+            inode: 1,
+            sha256: Data(SHA256.hash(data: retained)),
+            hasSizeMismatch: true
+        )
+    }
+}
 
 private final class DownloadFixture {
     let root: URL

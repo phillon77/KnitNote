@@ -119,13 +119,27 @@ import Testing
         let observation = try SyncRegularFileReader(ioCounters: counters).observe(
             file,
             declaredByteCount: Int64(declared.count),
-            maximumBytes: declared.count
+            maximumBytes: declared.count + 1
         )
 
         #expect(observation.hasSizeMismatch)
         #expect(observation.data == declared)
         #expect(observation.sha256 == Data(SHA256.hash(data: declared)))
         #expect(counters.bytesRead == declared.count + 1)
+    }
+
+    @Test func observationRejectsAnyBudgetOtherThanDeclaredPlusOne() throws {
+        let fixture = try SyncRegularFileReaderFixture()
+        let file = fixture.url(named: "observation-wrong-budget.bin")
+        try Data("safe".utf8).write(to: file)
+
+        #expect(throws: SyncRegularFileReadError.tooLarge) {
+            _ = try SyncRegularFileReader().observe(
+                file,
+                declaredByteCount: 4,
+                maximumBytes: 100_000_000
+            )
+        }
     }
 
     @Test func integerMaximumCapDoesNotOverflowTheOverrunProbe() throws {

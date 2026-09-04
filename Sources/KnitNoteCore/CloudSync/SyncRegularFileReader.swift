@@ -27,28 +27,15 @@ public protocol SyncRegularFileReading: Sendable {
         maximumBytes: Int,
         expected: SyncRegularFileExpectation?
     ) throws -> SyncRegularFileRead
+    /// Reads at most `maximumBytes`, which must be exactly one greater than
+    /// `declaredByteCount`, and retains at most the declared number of bytes.
+    /// There is intentionally no default: every conformer must implement the
+    /// bounded diagnostic read rather than falling back to a wider `read`.
     func observe(
         _ url: URL,
         declaredByteCount: Int64,
         maximumBytes: Int
     ) throws -> SyncRegularFileObservation
-}
-
-public extension SyncRegularFileReading {
-    func observe(
-        _ url: URL,
-        declaredByteCount: Int64,
-        maximumBytes: Int
-    ) throws -> SyncRegularFileObservation {
-        let read = try read(url, maximumBytes: maximumBytes, expected: nil)
-        return SyncRegularFileObservation(
-            data: read.data,
-            device: read.device,
-            inode: read.inode,
-            sha256: read.sha256,
-            hasSizeMismatch: read.byteCount != declaredByteCount
-        )
-    }
 }
 
 public struct SyncRegularFileIdentity: Equatable, Sendable {
@@ -303,8 +290,11 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
         maximumBytes: Int
     ) throws -> SyncRegularFileObservation {
         guard declaredByteCount >= 0,
-              declaredByteCount <= Int64(maximumBytes),
-              maximumBytes >= 0
+              let retainedByteLimit = Int(exactly: declaredByteCount)
+        else { throw SyncRegularFileReadError.tooLarge }
+        let (requiredReadLimit, didOverflow) = retainedByteLimit.addingReportingOverflow(1)
+        guard !didOverflow,
+              maximumBytes == requiredReadLimit
         else { throw SyncRegularFileReadError.tooLarge }
 
         var pathStatus = stat()
@@ -341,7 +331,7 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
         catch let error as SyncRegularFileReadError { throw error }
         catch { throw SyncRegularFileReadError.unavailable }
 
-        let readLimit = Int(declaredByteCount)
+        let readLimit = retainedByteLimit
         var data = Data()
         data.reserveCapacity(Int(min(openedByteCount, declaredByteCount)))
         var buffer = [UInt8](repeating: 0, count: 64 * 1_024)

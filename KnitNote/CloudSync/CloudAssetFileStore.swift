@@ -163,12 +163,24 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         else {
             throw CloudAssetFileStoreError.tooLarge
         }
+        guard let retainedByteLimit = Int(exactly: declaredByteCount) else {
+            throw CloudAssetFileStoreError.tooLarge
+        }
+        let (maximumReadBytes, didOverflow) = retainedByteLimit.addingReportingOverflow(1)
+        guard !didOverflow else { throw CloudAssetFileStoreError.tooLarge }
         do {
-            return try externalReader.observe(
+            let observed = try externalReader.observe(
                 url,
                 declaredByteCount: declaredByteCount,
-                maximumBytes: maximumAssetBytes
+                maximumBytes: maximumReadBytes
             )
+            guard observed.data.count <= retainedByteLimit else {
+                throw CloudAssetFileStoreError.tooLarge
+            }
+            guard observed.sha256 == Data(SHA256.hash(data: observed.data)),
+                  observed.hasSizeMismatch || observed.data.count == retainedByteLimit
+            else { throw CloudAssetFileStoreError.unsafeFile }
+            return observed
         } catch let error as SyncRegularFileReadError {
             throw Self.map(error)
         }

@@ -35,6 +35,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     private let externalReader: any SyncRegularFileReading
     private let beforeReturn: (@Sendable () throws -> Void)?
     private let expectedLockOwnerID: uid_t
+    private let beforeLockDescriptorClose: (@Sendable () -> Void)?
     private let directoryEntryReader: DirectoryEntryReader
     private let activeDescriptorsLock = NSLock()
     private var activeDescriptors: Set<Int32> = []
@@ -46,6 +47,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
         beforeReturn: (@Sendable () throws -> Void)? = nil,
         expectedLockOwnerID: uid_t = Darwin.geteuid(),
+        beforeLockDescriptorClose: (@Sendable () -> Void)? = nil,
         directoryEntryReader: @escaping DirectoryEntryReader = Darwin.readdir
     ) throws {
         guard !accountIdentifier.isEmpty else { throw CloudAssetFileStoreError.invalidAccount }
@@ -56,6 +58,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         self.externalReader = externalReader
         self.beforeReturn = beforeReturn
         self.expectedLockOwnerID = expectedLockOwnerID
+        self.beforeLockDescriptorClose = beforeLockDescriptorClose
         self.directoryEntryReader = directoryEntryReader
     }
 
@@ -63,7 +66,10 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         let tree = try openTree()
         defer { tree.close() }
         let lockDescriptor = try openOrCreateLock(in: tree.account)
-        defer { Darwin.close(lockDescriptor) }
+        var lockDescriptorIsOpen = true
+        defer {
+            if lockDescriptorIsOpen { Darwin.close(lockDescriptor) }
+        }
         try validateTree(tree)
         try validateLock(lockDescriptor, in: tree.account)
         let lockIdentity = try ownedIdentity(
@@ -73,12 +79,14 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         let processLock = Self.retainProcessLock(for: lockIdentity)
         processLock.lock.lock()
         defer {
+            beforeLockDescriptorClose?()
+            Darwin.close(lockDescriptor)
+            lockDescriptorIsOpen = false
             processLock.lock.unlock()
             Self.releaseProcessLock(processLock, for: lockIdentity)
         }
 
         try Self.setLock(lockDescriptor, type: Int16(F_WRLCK))
-        defer { try? Self.setLock(lockDescriptor, type: Int16(F_UNLCK)) }
         try validateTree(tree)
         try validateLock(lockDescriptor, in: tree.account)
 

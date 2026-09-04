@@ -114,6 +114,80 @@ import Testing
         #expect(secondFinished.wait(timeout: .now() + 2) == .success)
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func closingPriorDescriptorCannotDropWaitersKernelLock() throws {
+        let fixture = try CloudAssetFileStoreFixture()
+        let account = "three-party-lock"
+        try fixture.store(account: account).withAccountLock { _ in }
+        let aBeforeClose = DispatchSemaphore(value: 0)
+        let allowAClose = DispatchSemaphore(value: 0)
+        let aFinished = DispatchSemaphore(value: 0)
+        let bEntered = DispatchSemaphore(value: 0)
+        let releaseB = DispatchSemaphore(value: 0)
+        let bFinished = DispatchSemaphore(value: 0)
+        defer {
+            allowAClose.signal()
+            releaseB.signal()
+        }
+        let holderA = try fixture.store(
+            account: account,
+            beforeLockDescriptorClose: {
+                aBeforeClose.signal()
+                allowAClose.wait()
+            }
+        )
+        let waiterB = try fixture.store(account: account)
+
+        DispatchQueue.global().async {
+            defer { aFinished.signal() }
+            try? holderA.withAccountLock { _ in }
+        }
+        try #require(aBeforeClose.wait(timeout: .now() + 2) == .success)
+        DispatchQueue.global().async {
+            defer { bFinished.signal() }
+            try? waiterB.withAccountLock { _ in
+                bEntered.signal()
+                releaseB.wait()
+            }
+        }
+
+        let bEnteredBeforeAClose = bEntered.wait(timeout: .now() + 0.2)
+        #expect(bEnteredBeforeAClose == .timedOut)
+        allowAClose.signal()
+        try #require(aFinished.wait(timeout: .now() + 2) == .success)
+        if bEnteredBeforeAClose == .timedOut {
+            try #require(bEntered.wait(timeout: .now() + 2) == .success)
+        }
+
+        let lockURL = fixture.accountURL(account).appendingPathComponent(".lock")
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = [
+            "-c",
+            """
+            import fcntl, sys
+            handle = open(sys.argv[1], "r+b", buffering=0)
+            sys.stdout.write("READY")
+            sys.stdout.flush()
+            try:
+                fcntl.lockf(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                sys.exit(2)
+            sys.exit(0)
+            """,
+            lockURL.path,
+        ]
+        process.standardOutput = output
+        try process.run()
+        #expect(output.fileHandleForReading.readData(ofLength: 5) == Data("READY".utf8))
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 2)
+
+        releaseB.signal()
+        #expect(bFinished.wait(timeout: .now() + 2) == .success)
+    }
+
     @Test func nestedServiceRootIsCreatedBelowTrustedTempContainer() throws {
         let container = FileManager.default.temporaryDirectory.appendingPathComponent(
             "cloud-asset-nested-root-\(UUID().uuidString)",
@@ -384,6 +458,7 @@ private final class CloudAssetFileStoreFixture {
         externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
         beforeReturn: (@Sendable () throws -> Void)? = nil,
         expectedLockOwnerID: uid_t = Darwin.geteuid(),
+        beforeLockDescriptorClose: (@Sendable () -> Void)? = nil,
         directoryEntryReader: @escaping (
             UnsafeMutablePointer<DIR>?
         ) -> UnsafeMutablePointer<dirent>? = Darwin.readdir
@@ -395,6 +470,7 @@ private final class CloudAssetFileStoreFixture {
             externalReader: externalReader,
             beforeReturn: beforeReturn,
             expectedLockOwnerID: expectedLockOwnerID,
+            beforeLockDescriptorClose: beforeLockDescriptorClose,
             directoryEntryReader: directoryEntryReader
         )
     }

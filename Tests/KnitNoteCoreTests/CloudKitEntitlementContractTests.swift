@@ -35,10 +35,16 @@ import Testing
         #expect(project.contains("UIBackgroundModes:\n          - remote-notification"))
     }
 
-    @Test func watchConfigurationContainsNoCloudKitOrPushCapability() throws {
+    @Test func watchAndShareConfigurationsContainNoCloudKitOrPushCapability() throws {
         let project = try source("project.yml")
         let watchInfo = try source("KnitNoteWatch/Info.plist")
-        let watchSection = try targetSection(named: "KnitNoteWatch", in: project)
+        let shareInfo = try source("KnitNoteShare/Info.plist")
+        let sectionsAndInfo = [
+            try targetSection(named: "KnitNoteWatch", in: project),
+            try targetSection(named: "KnitNoteShare", in: project),
+            watchInfo,
+            shareInfo,
+        ]
 
         for forbidden in [
             "KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER",
@@ -48,10 +54,17 @@ import Testing
             "aps-environment",
             "remote-notification",
         ] {
-            #expect(!watchSection.contains(forbidden))
-            #expect(!watchInfo.contains(forbidden))
+            for source in sectionsAndInfo {
+                #expect(!source.contains(forbidden))
+            }
         }
         #expect(!FileManager.default.fileExists(atPath: root.appending(path: "KnitNoteWatch/KnitNoteWatch.entitlements").path))
+        let share = try entitlements("KnitNoteShare/KnitNoteShare.entitlements")
+        #expect(share.count == 1)
+        #expect(
+            share["com.apple.security.application-groups"] as? [String]
+                == ["group.com.phillon.KnitNote"]
+        )
     }
 
     private func targetSection(named name: String, in project: String) throws -> String {

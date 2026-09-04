@@ -70,7 +70,56 @@ private enum CloudKitDevelopmentGate {
     }
 }
 
+private enum CloudKitDevelopmentProbe {
+    static func run(
+        zoneID: CKRecordZone.ID,
+        createZone: () async throws -> Void,
+        exerciseRecord: () async throws -> Void,
+        deleteZone: (CKRecordZone.ID) async throws -> Void
+    ) async throws {
+        do {
+            try await createZone()
+            try await exerciseRecord()
+        } catch {
+            _ = try? await deleteZone(zoneID)
+            throw error
+        }
+        try await deleteZone(zoneID)
+    }
+}
+
 @Suite struct CloudKitDevelopmentIntegrationTests {
+    @Test func ambiguousCreateFailureStillDeletesOnlyTheExactChosenZone() async {
+        let chosen = CKRecordZone.ID(
+            zoneName: "KnitNoteDevelopmentIntegration-\(UUID().uuidString)",
+            ownerName: CKCurrentUserDefaultName
+        )
+        let defaultZone = CKRecordZone.default().zoneID
+        let recorder = ProbeCleanupRecorder()
+
+        do {
+            try await CloudKitDevelopmentProbe.run(
+                zoneID: chosen,
+                createZone: {
+                    throw CKError(.networkFailure)
+                },
+                exerciseRecord: {
+                    Issue.record("record work must not run after ambiguous create failure")
+                },
+                deleteZone: { zoneID in
+                    await recorder.append(zoneID)
+                }
+            )
+            Issue.record("Expected the ambiguous create failure")
+        } catch {
+            #expect((error as? CKError)?.code == .networkFailure)
+        }
+
+        let deleted = await recorder.values
+        #expect(deleted == [chosen])
+        #expect(!deleted.contains(defaultZone))
+    }
+
     @Test func productionMarkerIsRejectedBeforeContainerAccess() async {
         do {
             _ = try await CloudKitDevelopmentGate.evaluate(
@@ -119,12 +168,12 @@ private enum CloudKitDevelopmentGate {
             zoneName: "KnitNoteDevelopmentIntegration-\(suffix)",
             ownerName: CKCurrentUserDefaultName
         )
-        var zoneWasCreated = false
-
-        do {
-            _ = try await database.save(CKRecordZone(zoneID: zoneID))
-            zoneWasCreated = true
-
+        try await CloudKitDevelopmentProbe.run(
+            zoneID: zoneID,
+            createZone: {
+                _ = try await database.save(CKRecordZone(zoneID: zoneID))
+            },
+            exerciseRecord: {
             let recordID = CKRecord.ID(recordName: "probe-\(suffix)", zoneID: zoneID)
             let record = CKRecord(recordType: "KnitNoteDevelopmentIntegrationProbe", recordID: recordID)
             record["sequence"] = 1 as NSNumber
@@ -138,14 +187,18 @@ private enum CloudKitDevelopmentGate {
             _ = try await database.save(fetched)
             let updated = try await database.record(for: recordID)
             #expect((updated["sequence"] as? NSNumber)?.intValue == 2)
-
-            _ = try await database.deleteRecordZone(withID: zoneID)
-            zoneWasCreated = false
-        } catch {
-            if zoneWasCreated {
-                _ = try? await database.deleteRecordZone(withID: zoneID)
+            },
+            deleteZone: { exactZoneID in
+                _ = try await database.deleteRecordZone(withID: exactZoneID)
             }
-            throw error
-        }
+        )
+    }
+}
+
+private actor ProbeCleanupRecorder {
+    private(set) var values: [CKRecordZone.ID] = []
+
+    func append(_ value: CKRecordZone.ID) {
+        values.append(value)
     }
 }

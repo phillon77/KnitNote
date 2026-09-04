@@ -18,7 +18,9 @@ INFO_PLIST_CATALOG="KnitNote/Localization/InfoPlist.xcstrings"
 MAIN_INFO_PLIST="KnitNote/Info.plist"
 WATCH_INFO_PLIST="KnitNoteWatch/Info.plist"
 SHARE_INFO_PLIST="KnitNoteShare/Info.plist"
+IOS_ENTITLEMENTS="KnitNote/KnitNote-iOS.entitlements"
 MAC_ENTITLEMENTS="KnitNote/KnitNote-macOS.entitlements"
+SHARE_ENTITLEMENTS="KnitNoteShare/KnitNoteShare.entitlements"
 PROJECT_ARCHIVE_SCHEMA_SOURCE="Sources/KnitNoteCore/Projects/ProjectArchiveSchema.swift"
 PROJECT_SCAN_ROOT="$ROOT"
 NETWORK_SCAN_ROOT="$ROOT"
@@ -169,6 +171,90 @@ verify_mac_security_entitlements() {
     || fail "$label entitlements do not match the production security contract"
 }
 
+verify_signed_product_cloud_entitlements() {
+  local label="$1" plist="$2"
+  case "$label" in
+    iOS)
+      "$PLUTIL" -convert json -o - "$plist" \
+        | jq -e '
+          ."com.apple.developer.icloud-container-identifiers" == ["iCloud.com.phillon.KnitNote"]
+          and ."com.apple.developer.icloud-services" == ["CloudKit"]
+          and ."com.apple.developer.icloud-container-environment" == "Production"
+          and ."aps-environment" == "production"
+          and has("com.apple.developer.aps-environment") == false
+          and ((keys - [
+            "application-identifier",
+            "com.apple.application-identifier",
+            "com.apple.developer.team-identifier",
+            "get-task-allow",
+            "com.apple.security.application-groups",
+            "com.apple.developer.icloud-container-identifiers",
+            "com.apple.developer.icloud-services",
+            "com.apple.developer.icloud-container-environment",
+            "aps-environment"
+          ]) | length == 0)
+        ' >/dev/null \
+        || fail "$label signed entitlements do not match the exact CloudKit and APS contract"
+      ;;
+    macOS)
+      verify_mac_security_entitlements "macOS signed" "$plist" signed
+      ;;
+    Watch|Share)
+      "$PLUTIL" -convert json -o - "$plist" \
+        | jq -e '
+          . as $entitlements | ([
+            "com.apple.developer.icloud-container-identifiers",
+            "com.apple.developer.icloud-services",
+            "com.apple.developer.icloud-container-environment",
+            "aps-environment",
+            "com.apple.developer.aps-environment"
+          ] | all(. as $key | $entitlements | has($key) == false))
+        ' >/dev/null \
+        || fail "$label signed entitlements do not match the CloudKit-free contract"
+      ;;
+  esac
+}
+
+verify_source_product_cloud_entitlements() {
+  "$PLUTIL" -convert json -o - "$IOS_ENTITLEMENTS" \
+    | jq -e '. == {
+      "com.apple.security.application-groups": ["group.com.phillon.KnitNote"],
+      "com.apple.developer.icloud-container-identifiers": ["$(KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER)"],
+      "com.apple.developer.icloud-services": ["CloudKit"],
+      "aps-environment": "development"
+    }' >/dev/null \
+    || fail "source iOS entitlements do not match the exact CloudKit, APS, and App Group contract"
+
+  "$PLUTIL" -convert json -o - "$SHARE_ENTITLEMENTS" \
+    | jq -e '. == {
+      "com.apple.security.application-groups": ["group.com.phillon.KnitNote"]
+    }' >/dev/null \
+    || fail "source Share entitlements do not match the exact App Group-only contract"
+
+  [[ ! -e KnitNoteWatch/KnitNoteWatch.entitlements ]] \
+    || fail "source Watch must not have an entitlement file"
+  for plist in "$WATCH_INFO_PLIST" "$SHARE_INFO_PLIST"; do
+    "$PLUTIL" -convert json -o - "$plist" \
+      | jq -e '
+        has("com.apple.developer.icloud-container-identifiers") == false
+        and has("com.apple.developer.icloud-services") == false
+        and has("com.apple.developer.icloud-container-environment") == false
+        and has("aps-environment") == false
+        and has("com.apple.developer.aps-environment") == false
+        and ((.UIBackgroundModes // []) | index("remote-notification") == null)
+      ' >/dev/null \
+      || fail "$plist contains a forbidden CloudKit or remote-notification configuration"
+  done
+
+  jq -e '
+    [.targets.KnitNoteWatch, .targets.KnitNoteShare]
+    | tostring
+    | test("CloudKit|icloud-container|aps-environment|remote-notification|KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER")
+    | not
+  ' "$SPEC_JSON" >/dev/null \
+    || fail "source Watch or Share target configuration contains CloudKit or remote-notification capability"
+}
+
 verify_signed_app_group() {
   local bundle="$1"
   "$CODESIGN" -d --entitlements :- "$bundle" 2>/dev/null \
@@ -277,9 +363,7 @@ valid = (
 )
 raise SystemExit(0 if valid else 1)
 PY
-  if [[ "$label" == "macOS" ]]; then
-    verify_mac_security_entitlements "macOS signed" "$signed_json" signed
-  fi
+  verify_signed_product_cloud_entitlements "$label" "$signed_json"
   rm -f "$cert_prefix"* "$profile_json" "$signed_json"
 }
 
@@ -816,15 +900,7 @@ verify_project_archive_schema
   Sources/KnitNoteCore/Backup/KnitNoteBackupManifest.swift \
   || fail "backup manifest format is not 2"
 
-for entitlements in \
-  KnitNote/KnitNote-iOS.entitlements \
-  KnitNoteShare/KnitNoteShare.entitlements; do
-  "$PLUTIL" -convert json -o - "$entitlements" \
-    | jq -e '."com.apple.security.application-groups"
-      == ["group.com.phillon.KnitNote"]' >/dev/null \
-    || fail "$entitlements does not contain only the production App Group"
-done
-
+verify_source_product_cloud_entitlements
 verify_mac_security_entitlements "source Mac" "$MAC_ENTITLEMENTS" source
 
 for manifest in \

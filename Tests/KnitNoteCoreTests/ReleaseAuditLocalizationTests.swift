@@ -8,7 +8,53 @@ extension ProjectArchive {
 
 """
 
+struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
+    enum Product: String, Sendable { case iOS, macOS, watch, share }
+    enum Kind: String, Sendable {
+        case missing, wrong, extra
+        case extraContainer, extraServices, extraEnvironment, extraIOSAPS, extraMacAPS
+    }
+
+    let product: Product
+    let kind: Kind
+
+    var testDescription: String { "\(product.rawValue)-\(kind.rawValue)" }
+}
+
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test(arguments: [
+        SignedCloudEntitlementMutation(product: .iOS, kind: .missing),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .wrong),
+        SignedCloudEntitlementMutation(product: .iOS, kind: .extra),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .missing),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .wrong),
+        SignedCloudEntitlementMutation(product: .macOS, kind: .extra),
+        SignedCloudEntitlementMutation(product: .watch, kind: .extraContainer),
+        SignedCloudEntitlementMutation(product: .watch, kind: .extraServices),
+        SignedCloudEntitlementMutation(product: .watch, kind: .extraEnvironment),
+        SignedCloudEntitlementMutation(product: .watch, kind: .extraIOSAPS),
+        SignedCloudEntitlementMutation(product: .watch, kind: .extraMacAPS),
+        SignedCloudEntitlementMutation(product: .share, kind: .extraContainer),
+        SignedCloudEntitlementMutation(product: .share, kind: .extraServices),
+        SignedCloudEntitlementMutation(product: .share, kind: .extraEnvironment),
+        SignedCloudEntitlementMutation(product: .share, kind: .extraIOSAPS),
+        SignedCloudEntitlementMutation(product: .share, kind: .extraMacAPS),
+    ])
+    func archiveAuditRejectsMissingWrongOrExtraCloudEntitlements(
+        mutation: SignedCloudEntitlementMutation
+    ) throws {
+        let fixture = try makeArchiveFixture(signedCloudEntitlementMutation: mutation)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("signed entitlements do not match"))
+    }
+
     @Test func staticAuditAcceptsCanonicalProjectArchiveSchemaSource() throws {
         let result = try runStaticAudit(
             projectArchiveSchemaSource: canonicalProjectArchiveSchemaSource
@@ -2059,6 +2105,46 @@ private func runCreatorFixture(raceDestination: Bool, cleanupFailure: Bool = fal
     )
 }
 
+private func signedCloudEntitlements(
+    for product: SignedCloudEntitlementMutation.Product,
+    mutation: SignedCloudEntitlementMutation?
+) -> String {
+    let applies = mutation?.product == product
+    if product == .watch || product == .share {
+        guard applies else { return "" }
+        switch mutation?.kind {
+        case .extraContainer:
+            return "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string></array>"
+        case .extraServices:
+            return "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>"
+        case .extraEnvironment:
+            return "<key>com.apple.developer.icloud-container-environment</key><string>Production</string>"
+        case .extraIOSAPS:
+            return "<key>aps-environment</key><string>production</string>"
+        case .extraMacAPS:
+            return "<key>com.apple.developer.aps-environment</key><string>production</string>"
+        default:
+            return ""
+        }
+    }
+
+    let kind = applies ? mutation?.kind : nil
+    let containers = kind == .extra
+        ? "<string>iCloud.com.phillon.KnitNote</string><string>iCloud.com.phillon.Unexpected</string>"
+        : "<string>iCloud.com.phillon.KnitNote</string>"
+    let services = kind == .missing
+        ? ""
+        : "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>"
+    let apsKey = product == .iOS ? "aps-environment" : "com.apple.developer.aps-environment"
+    let apsValue = kind == .wrong ? "development" : "production"
+    return """
+    <key>com.apple.developer.icloud-container-identifiers</key><array>\(containers)</array>
+    \(services)
+    <key>com.apple.developer.icloud-container-environment</key><string>Production</string>
+    <key>\(apsKey)</key><string>\(apsValue)</string>
+    """
+}
+
 private func makeArchiveFixture(
     omittingDirectory: (target: String, locale: String)? = nil,
     extraDirectory: (target: String, locale: String)? = nil,
@@ -2091,6 +2177,7 @@ private func makeArchiveFixture(
     missingMacSignedEntitlement: String? = nil,
     changedMacSignedEntitlement: String? = nil,
     extraMacSignedEntitlement: String? = nil,
+    signedCloudEntitlementMutation: SignedCloudEntitlementMutation? = nil,
     mutateDistributionAfterProvenance: String? = nil,
     removeDistributionAfterProvenance: String? = nil,
     extractionFailure: String? = nil,
@@ -2370,6 +2457,10 @@ private func makeArchiveFixture(
     let codesign = fakeBin.appendingPathComponent("codesign")
     let shouldFailCodesign = codesignFailure ? "yes" : "no"
     let fixtureSignedIdentifier = signedIdentifierOverride ?? ""
+    let iOSCloudEntitlements = signedCloudEntitlements(for: .iOS, mutation: signedCloudEntitlementMutation)
+    let watchCloudEntitlements = signedCloudEntitlements(for: .watch, mutation: signedCloudEntitlementMutation)
+    let shareCloudEntitlements = signedCloudEntitlements(for: .share, mutation: signedCloudEntitlementMutation)
+    let macCloudEntitlements = signedCloudEntitlements(for: .macOS, mutation: signedCloudEntitlementMutation)
     let macSecurityEntitlements = [
         "com.apple.security.app-sandbox",
         "com.apple.security.files.user-selected.read-write",
@@ -2378,12 +2469,8 @@ private func makeArchiveFixture(
         guard missingMacSignedEntitlement != key else { return "" }
         let value = changedMacSignedEntitlement == key ? "<false/>" : "<true/>"
         return "<key>\(key)</key>\(value)"
-    }.joined() + """
-    <key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string></array>
-    <key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>
-    <key>com.apple.developer.icloud-container-environment</key><string>Production</string>
-    <key>com.apple.developer.aps-environment</key><string>production</string>
-    """ + (extraMacSignedEntitlement.map { "<key>\($0)</key><true/>" } ?? "")
+    }.joined() + macCloudEntitlements
+        + (extraMacSignedEntitlement.map { "<key>\($0)</key><true/>" } ?? "")
     try """
     #!/bin/sh
     case "$*" in
@@ -2401,10 +2488,10 @@ private func makeArchiveFixture(
       exit 64
     elif [ "${1:-}" = "-d" ]; then
       case "${4:-${3:-}}" in
-        *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; group='' ;;
-        *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
+        *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; group='\(watchCloudEntitlements)' ;;
+        *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(shareCloudEntitlements)' ;;
         *macOS*|*/mac/*) bundle='com.phillon.KnitNote'; group='\(macSecurityEntitlements)' ;;
-        *) bundle='com.phillon.KnitNote'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>' ;;
+        *) bundle='com.phillon.KnitNote'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(iOSCloudEntitlements)' ;;
       esac
       signed_id='\(fixtureSignedIdentifier)'
       [ -n "$signed_id" ] || signed_id="9CFPAUL5N5.$bundle"

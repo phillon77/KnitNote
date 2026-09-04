@@ -35,7 +35,8 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     private let externalReader: any SyncRegularFileReading
     private let beforeReturn: (@Sendable () throws -> Void)?
     private let expectedLockOwnerID: uid_t
-    private let beforeLockDescriptorClose: (@Sendable () -> Void)?
+    private let beforeProcessLockAttempt: (@Sendable () -> Void)?
+    private let afterLockDescriptorClose: (@Sendable () -> Void)?
     private let directoryEntryReader: DirectoryEntryReader
     private let activeDescriptorsLock = NSLock()
     private var activeDescriptors: Set<Int32> = []
@@ -47,7 +48,8 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
         beforeReturn: (@Sendable () throws -> Void)? = nil,
         expectedLockOwnerID: uid_t = Darwin.geteuid(),
-        beforeLockDescriptorClose: (@Sendable () -> Void)? = nil,
+        beforeProcessLockAttempt: (@Sendable () -> Void)? = nil,
+        afterLockDescriptorClose: (@Sendable () -> Void)? = nil,
         directoryEntryReader: @escaping DirectoryEntryReader = Darwin.readdir
     ) throws {
         guard !accountIdentifier.isEmpty else { throw CloudAssetFileStoreError.invalidAccount }
@@ -58,33 +60,31 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         self.externalReader = externalReader
         self.beforeReturn = beforeReturn
         self.expectedLockOwnerID = expectedLockOwnerID
-        self.beforeLockDescriptorClose = beforeLockDescriptorClose
+        self.beforeProcessLockAttempt = beforeProcessLockAttempt
+        self.afterLockDescriptorClose = afterLockDescriptorClose
         self.directoryEntryReader = directoryEntryReader
     }
 
     func withAccountLock<T>(_ body: (CloudAssetAccountDirectories) throws -> T) throws -> T {
         let tree = try openTree()
         defer { tree.close() }
-        let lockDescriptor = try openOrCreateLock(in: tree.account)
-        var lockDescriptorIsOpen = true
+        try validateTree(tree)
+        let accountIdentity = try Self.directoryIdentity(tree.account)
+        let processLock = Self.retainProcessLock(for: accountIdentity)
+        beforeProcessLockAttempt?()
+        processLock.lock.lock()
         defer {
-            if lockDescriptorIsOpen { Darwin.close(lockDescriptor) }
+            processLock.lock.unlock()
+            Self.releaseProcessLock(processLock, for: accountIdentity)
+        }
+
+        let lockDescriptor = try openOrCreateLock(in: tree.account)
+        defer {
+            Darwin.close(lockDescriptor)
+            afterLockDescriptorClose?()
         }
         try validateTree(tree)
         try validateLock(lockDescriptor, in: tree.account)
-        let lockIdentity = try ownedIdentity(
-            lockDescriptor,
-            expectedOwnerID: expectedLockOwnerID
-        )
-        let processLock = Self.retainProcessLock(for: lockIdentity)
-        processLock.lock.lock()
-        defer {
-            beforeLockDescriptorClose?()
-            Darwin.close(lockDescriptor)
-            lockDescriptorIsOpen = false
-            processLock.lock.unlock()
-            Self.releaseProcessLock(processLock, for: lockIdentity)
-        }
 
         try Self.setLock(lockDescriptor, type: Int16(F_WRLCK))
         try validateTree(tree)

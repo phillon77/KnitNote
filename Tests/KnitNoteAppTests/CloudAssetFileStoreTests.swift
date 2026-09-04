@@ -119,45 +119,45 @@ import Testing
         let fixture = try CloudAssetFileStoreFixture()
         let account = "three-party-lock"
         try fixture.store(account: account).withAccountLock { _ in }
-        let aBeforeClose = DispatchSemaphore(value: 0)
-        let allowAClose = DispatchSemaphore(value: 0)
+        let holderEntered = DispatchSemaphore(value: 0)
+        let waiterReady = DispatchSemaphore(value: 0)
         let aFinished = DispatchSemaphore(value: 0)
         let bEntered = DispatchSemaphore(value: 0)
         let releaseB = DispatchSemaphore(value: 0)
         let bFinished = DispatchSemaphore(value: 0)
+        let events = LockEventRecorder()
         defer {
-            allowAClose.signal()
+            waiterReady.signal()
             releaseB.signal()
         }
         let holderA = try fixture.store(
             account: account,
-            beforeLockDescriptorClose: {
-                aBeforeClose.signal()
-                allowAClose.wait()
-            }
+            afterLockDescriptorClose: { events.append("a-closed") }
         )
-        let waiterB = try fixture.store(account: account)
+        let waiterB = try fixture.store(
+            account: account,
+            beforeProcessLockAttempt: { waiterReady.signal() }
+        )
 
         DispatchQueue.global().async {
             defer { aFinished.signal() }
-            try? holderA.withAccountLock { _ in }
+            try? holderA.withAccountLock { _ in
+                holderEntered.signal()
+                waiterReady.wait()
+            }
         }
-        try #require(aBeforeClose.wait(timeout: .now() + 2) == .success)
+        try #require(holderEntered.wait(timeout: .now() + 2) == .success)
         DispatchQueue.global().async {
             defer { bFinished.signal() }
             try? waiterB.withAccountLock { _ in
+                events.append("b-entered")
                 bEntered.signal()
                 releaseB.wait()
             }
         }
 
-        let bEnteredBeforeAClose = bEntered.wait(timeout: .now() + 0.2)
-        #expect(bEnteredBeforeAClose == .timedOut)
-        allowAClose.signal()
-        try #require(aFinished.wait(timeout: .now() + 2) == .success)
-        if bEnteredBeforeAClose == .timedOut {
-            try #require(bEntered.wait(timeout: .now() + 2) == .success)
-        }
+        try #require(bEntered.wait(timeout: .now() + 2) == .success)
+        #expect(events.snapshot() == ["a-closed", "b-entered"])
 
         let lockURL = fixture.accountURL(account).appendingPathComponent(".lock")
         let process = Process()
@@ -185,7 +185,73 @@ import Testing
         #expect(process.terminationStatus == 2)
 
         releaseB.signal()
+        #expect(aFinished.wait(timeout: .now() + 2) == .success)
         #expect(bFinished.wait(timeout: .now() + 2) == .success)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func failingSiblingValidationCannotDropActiveKernelLock() throws {
+        let fixture = try CloudAssetFileStoreFixture()
+        let account = "failing-sibling-lock"
+        try fixture.store(account: account).withAccountLock { _ in }
+        let holder = try fixture.store(account: account)
+        let holderEntered = DispatchSemaphore(value: 0)
+        let releaseHolder = DispatchSemaphore(value: 0)
+        let holderFinished = DispatchSemaphore(value: 0)
+        let siblingReady = DispatchSemaphore(value: 0)
+        let siblingRejected = DispatchSemaphore(value: 0)
+        let siblingUnexpectedlyEntered = DispatchSemaphore(value: 0)
+        let failingSibling = try fixture.store(
+            account: account,
+            expectedLockOwnerID: Darwin.geteuid() &+ 1,
+            beforeProcessLockAttempt: { siblingReady.signal() }
+        )
+        defer { releaseHolder.signal() }
+
+        DispatchQueue.global().async {
+            defer { holderFinished.signal() }
+            try? holder.withAccountLock { _ in
+                holderEntered.signal()
+                releaseHolder.wait()
+            }
+        }
+        try #require(holderEntered.wait(timeout: .now() + 2) == .success)
+
+        DispatchQueue.global().async {
+            do {
+                _ = try failingSibling.withAccountLock { _ in
+                    siblingUnexpectedlyEntered.signal()
+                }
+            } catch CloudAssetFileStoreError.unsafeFile {
+                siblingRejected.signal()
+            } catch {}
+        }
+        try #require(siblingReady.wait(timeout: .now() + 2) == .success)
+
+        let lockURL = fixture.accountURL(account).appendingPathComponent(".lock")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = [
+            "-c",
+            """
+            import fcntl, sys
+            handle = open(sys.argv[1], "r+b", buffering=0)
+            try:
+                fcntl.lockf(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                sys.exit(2)
+            sys.exit(0)
+            """,
+            lockURL.path,
+        ]
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 2)
+
+        releaseHolder.signal()
+        #expect(holderFinished.wait(timeout: .now() + 2) == .success)
+        #expect(siblingRejected.wait(timeout: .now() + 2) == .success)
+        #expect(siblingUnexpectedlyEntered.wait(timeout: .now()) == .timedOut)
     }
 
     @Test func nestedServiceRootIsCreatedBelowTrustedTempContainer() throws {
@@ -458,7 +524,8 @@ private final class CloudAssetFileStoreFixture {
         externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
         beforeReturn: (@Sendable () throws -> Void)? = nil,
         expectedLockOwnerID: uid_t = Darwin.geteuid(),
-        beforeLockDescriptorClose: (@Sendable () -> Void)? = nil,
+        beforeProcessLockAttempt: (@Sendable () -> Void)? = nil,
+        afterLockDescriptorClose: (@Sendable () -> Void)? = nil,
         directoryEntryReader: @escaping (
             UnsafeMutablePointer<DIR>?
         ) -> UnsafeMutablePointer<dirent>? = Darwin.readdir
@@ -470,7 +537,8 @@ private final class CloudAssetFileStoreFixture {
             externalReader: externalReader,
             beforeReturn: beforeReturn,
             expectedLockOwnerID: expectedLockOwnerID,
-            beforeLockDescriptorClose: beforeLockDescriptorClose,
+            beforeProcessLockAttempt: beforeProcessLockAttempt,
+            afterLockDescriptorClose: afterLockDescriptorClose,
             directoryEntryReader: directoryEntryReader
         )
     }
@@ -497,5 +565,18 @@ private final class CloudAssetFileStoreFixture {
                 withIntermediateDirectories: false
             )
         }
+    }
+}
+
+private final class LockEventRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [String] = []
+
+    func append(_ event: String) {
+        lock.withLock { events.append(event) }
+    }
+
+    func snapshot() -> [String] {
+        lock.withLock { events }
     }
 }

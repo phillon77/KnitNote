@@ -1,5 +1,6 @@
 import CryptoKit
 import Darwin
+import Dispatch
 import Foundation
 import Testing
 
@@ -52,6 +53,133 @@ import Testing
         }
         try secondSharedStore.withAccountLock { _ in
             #expect(FileManager.default.fileExists(atPath: releaseURL.path))
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func sameProcessEquivalentRootAliasesSerializeOneAccount() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "cloud-asset-equivalent-root-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: container) }
+        try FileManager.default.createDirectory(
+            at: container,
+            withIntermediateDirectories: false
+        )
+        let directRoot = container.appendingPathComponent("SharedRoot", isDirectory: true)
+        let equivalentRoot = container.appendingPathComponent("sharedroot", isDirectory: true)
+        try FileManager.default.createDirectory(at: directRoot, withIntermediateDirectories: false)
+        var directStatus = stat()
+        var aliasStatus = stat()
+        try #require(directRoot.path.withCString { Darwin.lstat($0, &directStatus) } == 0)
+        try #require(equivalentRoot.path.withCString { Darwin.lstat($0, &aliasStatus) } == 0)
+        try #require(directStatus.st_dev == aliasStatus.st_dev)
+        try #require(directStatus.st_ino == aliasStatus.st_ino)
+        let directStore = try CloudAssetAccountFileStore(
+            rootURL: directRoot,
+            accountIdentifier: "same-process",
+            maximumAssetBytes: 1_024
+        )
+        let aliasStore = try CloudAssetAccountFileStore(
+            rootURL: equivalentRoot,
+            accountIdentifier: "same-process",
+            maximumAssetBytes: 1_024
+        )
+        try directStore.withAccountLock { _ in }
+
+        let firstEntered = DispatchSemaphore(value: 0)
+        let releaseFirst = DispatchSemaphore(value: 0)
+        let firstFinished = DispatchSemaphore(value: 0)
+        let secondEntered = DispatchSemaphore(value: 0)
+        let secondFinished = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            defer { firstFinished.signal() }
+            try? directStore.withAccountLock { _ in
+                firstEntered.signal()
+                releaseFirst.wait()
+            }
+        }
+        #expect(firstEntered.wait(timeout: .now() + 2) == .success)
+        DispatchQueue.global().async {
+            defer { secondFinished.signal() }
+            _ = try? aliasStore.withAccountLock { _ in secondEntered.signal() }
+        }
+
+        let enteredBeforeRelease = secondEntered.wait(timeout: .now() + 0.2)
+        releaseFirst.signal()
+        #expect(enteredBeforeRelease == .timedOut)
+        #expect(secondEntered.wait(timeout: .now() + 2) == .success)
+        #expect(firstFinished.wait(timeout: .now() + 2) == .success)
+        #expect(secondFinished.wait(timeout: .now() + 2) == .success)
+    }
+
+    @Test func nestedServiceRootIsCreatedBelowTrustedTempContainer() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "cloud-asset-nested-root-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: container) }
+        try FileManager.default.createDirectory(at: container, withIntermediateDirectories: false)
+        let nestedRoot = container
+            .appendingPathComponent("level-one", isDirectory: true)
+            .appendingPathComponent("level-two", isDirectory: true)
+            .appendingPathComponent("CloudAssetStaging", isDirectory: true)
+        let store = try CloudAssetAccountFileStore(
+            rootURL: nestedRoot,
+            accountIdentifier: "nested-account",
+            maximumAssetBytes: 1_024
+        )
+
+        try store.withAccountLock { _ in }
+
+        var status = stat()
+        #expect(nestedRoot.path.withCString { Darwin.lstat($0, &status) } == 0)
+        #expect((status.st_mode & S_IFMT) == S_IFDIR)
+    }
+
+    @Test func serviceRootAncestorSymlinkFailsClosed() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "cloud-asset-symlink-root-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: container) }
+        try FileManager.default.createDirectory(at: container, withIntermediateDirectories: false)
+        let target = container.appendingPathComponent("target", isDirectory: true)
+        let alias = container.appendingPathComponent("alias", isDirectory: true)
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: target)
+        let unsafeRoot = alias
+            .appendingPathComponent("nested", isDirectory: true)
+            .appendingPathComponent("CloudAssetStaging", isDirectory: true)
+        let store = try CloudAssetAccountFileStore(
+            rootURL: unsafeRoot,
+            accountIdentifier: "symlink-ancestor",
+            maximumAssetBytes: 1_024
+        )
+
+        #expect(throws: CloudAssetFileStoreError.unsafeFile) {
+            _ = try store.withAccountLock { _ in }
+        }
+        #expect(!FileManager.default.fileExists(
+            atPath: target.appendingPathComponent("nested").path
+        ))
+    }
+
+    @Test func listOwnedPropagatesDirectoryEnumerationError() throws {
+        let fixture = try CloudAssetFileStoreFixture()
+        let store = try fixture.store(
+            account: "readdir-error",
+            directoryEntryReader: { _ in
+                errno = EIO
+                return nil
+            }
+        )
+
+        _ = try store.withAccountLock { directories in
+            #expect(throws: CloudAssetFileStoreError.unavailable) {
+                _ = try store.listOwned(in: directories.uploads)
+            }
         }
     }
 
@@ -255,7 +383,10 @@ private final class CloudAssetFileStoreFixture {
         account: String,
         externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
         beforeReturn: (@Sendable () throws -> Void)? = nil,
-        expectedLockOwnerID: uid_t = Darwin.geteuid()
+        expectedLockOwnerID: uid_t = Darwin.geteuid(),
+        directoryEntryReader: @escaping (
+            UnsafeMutablePointer<DIR>?
+        ) -> UnsafeMutablePointer<dirent>? = Darwin.readdir
     ) throws -> CloudAssetAccountFileStore {
         try CloudAssetAccountFileStore(
             rootURL: root,
@@ -263,7 +394,8 @@ private final class CloudAssetFileStoreFixture {
             maximumAssetBytes: 1_024,
             externalReader: externalReader,
             beforeReturn: beforeReturn,
-            expectedLockOwnerID: expectedLockOwnerID
+            expectedLockOwnerID: expectedLockOwnerID,
+            directoryEntryReader: directoryEntryReader
         )
     }
 

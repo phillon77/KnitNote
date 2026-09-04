@@ -21,9 +21,13 @@ struct CloudAssetAccountDirectories {
 /// Descriptor-scoped filesystem operations for one CloudKit account.
 /// Directory descriptors are valid only for the duration of `withAccountLock`.
 final class CloudAssetAccountFileStore: @unchecked Sendable {
+    typealias DirectoryEntryReader = (
+        UnsafeMutablePointer<DIR>?
+    ) -> UnsafeMutablePointer<dirent>?
+
     private static let lockName = ".lock"
     private static let processLockRegistry = NSLock()
-    private nonisolated(unsafe) static var processLocks: [String: NSLock] = [:]
+    private nonisolated(unsafe) static var processLocks: [Identity: ProcessLockEntry] = [:]
 
     private let rootURL: URL
     private let accountToken: String
@@ -31,6 +35,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     private let externalReader: any SyncRegularFileReading
     private let beforeReturn: (@Sendable () throws -> Void)?
     private let expectedLockOwnerID: uid_t
+    private let directoryEntryReader: DirectoryEntryReader
     private let activeDescriptorsLock = NSLock()
     private var activeDescriptors: Set<Int32> = []
 
@@ -40,27 +45,38 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         maximumAssetBytes: Int = SyncPublicationFileLimits.maximumAttachmentBytes,
         externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
         beforeReturn: (@Sendable () throws -> Void)? = nil,
-        expectedLockOwnerID: uid_t = Darwin.geteuid()
+        expectedLockOwnerID: uid_t = Darwin.geteuid(),
+        directoryEntryReader: @escaping DirectoryEntryReader = Darwin.readdir
     ) throws {
         guard !accountIdentifier.isEmpty else { throw CloudAssetFileStoreError.invalidAccount }
         guard maximumAssetBytes >= 0 else { throw CloudAssetFileStoreError.tooLarge }
-        self.rootURL = rootURL
+        self.rootURL = rootURL.standardizedFileURL
         accountToken = Self.hex(Data(SHA256.hash(data: Data(accountIdentifier.utf8))))
         self.maximumAssetBytes = maximumAssetBytes
         self.externalReader = externalReader
         self.beforeReturn = beforeReturn
         self.expectedLockOwnerID = expectedLockOwnerID
+        self.directoryEntryReader = directoryEntryReader
     }
 
     func withAccountLock<T>(_ body: (CloudAssetAccountDirectories) throws -> T) throws -> T {
-        let processLock = Self.processLock(for: rootURL.path + "\u{0}" + accountToken)
-        processLock.lock()
-        defer { processLock.unlock() }
-
         let tree = try openTree()
         defer { tree.close() }
         let lockDescriptor = try openOrCreateLock(in: tree.account)
         defer { Darwin.close(lockDescriptor) }
+        try validateTree(tree)
+        try validateLock(lockDescriptor, in: tree.account)
+        let lockIdentity = try ownedIdentity(
+            lockDescriptor,
+            expectedOwnerID: expectedLockOwnerID
+        )
+        let processLock = Self.retainProcessLock(for: lockIdentity)
+        processLock.lock.lock()
+        defer {
+            processLock.lock.unlock()
+            Self.releaseProcessLock(processLock, for: lockIdentity)
+        }
+
         try Self.setLock(lockDescriptor, type: Int16(F_WRLCK))
         defer { try? Self.setLock(lockDescriptor, type: Int16(F_UNLCK)) }
         try validateTree(tree)
@@ -218,7 +234,12 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         }
         defer { Darwin.closedir(stream) }
         var names: [String] = []
-        while let entry = Darwin.readdir(stream) {
+        while true {
+            errno = 0
+            guard let entry = directoryEntryReader(stream) else {
+                guard errno == 0 else { throw CloudAssetFileStoreError.unavailable }
+                break
+            }
             let name = withUnsafePointer(to: &entry.pointee.d_name) { pointer in
                 pointer.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) {
                     String(cString: $0)
@@ -245,28 +266,54 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     }
 
     private struct OpenTree {
-        let root: Int32
+        let rootPath: OpenDirectoryPath
         let accounts: Int32
         let account: Int32
         let uploads: Int32
         let installed: Int32
         let quarantine: Int32
 
+        var root: Int32 { rootPath.root }
+
         func close() {
             Darwin.close(quarantine); Darwin.close(installed); Darwin.close(uploads)
-            Darwin.close(account); Darwin.close(accounts); Darwin.close(root)
+            Darwin.close(account); Darwin.close(accounts); rootPath.close()
         }
     }
 
-    private struct Identity: Equatable {
+    private struct OpenDirectoryPath {
+        let descriptors: [Int32]
+        let childNames: [String]
+
+        var root: Int32 { descriptors[descriptors.count - 1] }
+
+        func validate() throws {
+            for index in childNames.indices {
+                try CloudAssetAccountFileStore.validateDirectory(
+                    descriptors[index + 1],
+                    named: childNames[index],
+                    in: descriptors[index]
+                )
+            }
+        }
+
+        func close() {
+            for descriptor in descriptors.reversed() { Darwin.close(descriptor) }
+        }
+    }
+
+    private struct Identity: Hashable {
         let device: dev_t
         let inode: ino_t
     }
 
+    private final class ProcessLockEntry: @unchecked Sendable {
+        let lock = NSLock()
+        var retainCount = 0
+    }
+
     private func openTree() throws -> OpenTree {
-        do { try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true) }
-        catch { throw CloudAssetFileStoreError.unavailable }
-        let root = try Self.openDirectory(at: rootURL)
+        let rootPath = try Self.openRootPath(at: rootURL)
         var accounts: Int32 = -1, account: Int32 = -1, uploads: Int32 = -1
         var installed: Int32 = -1, quarantine: Int32 = -1
         var transferred = false
@@ -277,28 +324,23 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
                 if uploads >= 0 { Darwin.close(uploads) }
                 if account >= 0 { Darwin.close(account) }
                 if accounts >= 0 { Darwin.close(accounts) }
-                Darwin.close(root)
+                rootPath.close()
             }
         }
-        accounts = try Self.openOrCreateDirectory(named: "Accounts", in: root)
+        accounts = try Self.openOrCreateDirectory(named: "Accounts", in: rootPath.root)
         account = try Self.openOrCreateDirectory(named: accountToken, in: accounts)
         uploads = try Self.openOrCreateDirectory(named: "Uploads", in: account)
         installed = try Self.openOrCreateDirectory(named: "Installed", in: account)
         quarantine = try Self.openOrCreateDirectory(named: "Quarantine", in: account)
         transferred = true
         return OpenTree(
-            root: root, accounts: accounts, account: account,
+            rootPath: rootPath, accounts: accounts, account: account,
             uploads: uploads, installed: installed, quarantine: quarantine
         )
     }
 
     private func validateTree(_ tree: OpenTree) throws {
-        let rootIdentity = try Self.directoryIdentity(tree.root)
-        var rootStatus = stat()
-        guard rootURL.path.withCString({ Darwin.lstat($0, &rootStatus) }) == 0,
-              Self.isOwnedDirectory(rootStatus),
-              rootIdentity == Identity(device: rootStatus.st_dev, inode: rootStatus.st_ino)
-        else { throw CloudAssetFileStoreError.unsafeFile }
+        try tree.rootPath.validate()
         try Self.validateDirectory(tree.accounts, named: "Accounts", in: tree.root)
         try Self.validateDirectory(tree.account, named: accountToken, in: tree.accounts)
         try Self.validateDirectory(tree.uploads, named: "Uploads", in: tree.account)
@@ -320,6 +362,54 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
             throw CloudAssetFileStoreError.unsafeFile
         }
         return descriptor
+    }
+
+    private static func openRootPath(at rootURL: URL) throws -> OpenDirectoryPath {
+        let trustedParent = try trustedParent(for: rootURL)
+        let parentComponents = trustedParent.pathComponents
+        let rootComponents = rootURL.pathComponents
+        guard rootComponents.count > parentComponents.count,
+              Array(rootComponents.prefix(parentComponents.count)) == parentComponents
+        else {
+            throw CloudAssetFileStoreError.unsafeFile
+        }
+        let childNames = Array(rootComponents.dropFirst(parentComponents.count))
+        let parent = try openDirectory(at: trustedParent)
+        var descriptors = [parent]
+        do {
+            for name in childNames {
+                let child = try openOrCreateDirectory(named: name, in: descriptors.last!)
+                do {
+                    try validateDirectory(child, named: name, in: descriptors.last!)
+                } catch {
+                    Darwin.close(child)
+                    throw error
+                }
+                descriptors.append(child)
+            }
+            return OpenDirectoryPath(descriptors: descriptors, childNames: childNames)
+        } catch {
+            for descriptor in descriptors.reversed() { Darwin.close(descriptor) }
+            throw error
+        }
+    }
+
+    private static func trustedParent(for rootURL: URL) throws -> URL {
+        let rootComponents = rootURL.pathComponents
+        let candidates = [
+            FileManager.default.temporaryDirectory.standardizedFileURL,
+            FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL,
+        ].filter { candidate in
+            let components = candidate.pathComponents
+            return rootComponents.count > components.count
+                && Array(rootComponents.prefix(components.count)) == components
+        }
+        guard let parent = candidates.max(by: {
+            $0.pathComponents.count < $1.pathComponents.count
+        }) else {
+            throw CloudAssetFileStoreError.unsafeFile
+        }
+        return parent
     }
 
     private static func openOrCreateDirectory(named name: String, in parent: Int32) throws -> Int32 {
@@ -531,12 +621,22 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         }
     }
 
-    private static func processLock(for key: String) -> NSLock {
+    private static func retainProcessLock(for identity: Identity) -> ProcessLockEntry {
         processLockRegistry.withLock {
-            if let lock = processLocks[key] { return lock }
-            let lock = NSLock()
-            processLocks[key] = lock
-            return lock
+            let entry = processLocks[identity] ?? ProcessLockEntry()
+            entry.retainCount += 1
+            processLocks[identity] = entry
+            return entry
+        }
+    }
+
+    private static func releaseProcessLock(_ entry: ProcessLockEntry, for identity: Identity) {
+        processLockRegistry.withLock {
+            guard processLocks[identity] === entry else { return }
+            entry.retainCount -= 1
+            if entry.retainCount == 0 {
+                processLocks.removeValue(forKey: identity)
+            }
         }
     }
 

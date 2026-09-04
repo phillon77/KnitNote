@@ -190,6 +190,30 @@ import Testing
         ) == nil)
     }
 
+    @Test func systemFieldsTransportRejectsBlankAccountBeforeEngineActivation() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let creations = LockedCounter()
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(),
+            stateStore: fixture.store,
+            systemFieldsStore: FileCloudRecordSystemFieldsStore(
+                url: fixture.root.appendingPathComponent("system-fields.json"),
+                zoneID: testZoneID()
+            ),
+            initialAccountIdentifier: " \n ",
+            engineFactory: { _, _ in
+                creations.increment()
+                return TestSyncEngineDriver()
+            }
+        )
+
+        await #expect(throws: CloudSyncTransportError.missingAccountIdentity) {
+            try await transport.start()
+        }
+        #expect(creations.value == 0)
+    }
+
     @Test func sentConflictAndDeleteCallbacksDurablyAdvanceSystemFields() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -335,6 +359,94 @@ import Testing
         ) == nil)
     }
 
+    @Test func fetchedSaveStoreFailureEmitsNoAcknowledgeableBatchAndBlocksState() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let systemFieldsURL = fixture.root.appendingPathComponent("system-fields.json")
+        let decoy = fixture.root.appendingPathComponent("decoy")
+        try Data("unrelated".utf8).write(to: decoy)
+        try FileManager.default.createSymbolicLink(
+            at: systemFieldsURL,
+            withDestinationURL: decoy
+        )
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            systemFieldsStore: FileCloudRecordSystemFieldsStore(
+                url: systemFieldsURL,
+                zoneID: zoneID
+            ),
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+        let record = try CloudRecordCodec().encode(
+            testRecord(uuid: "00000000-0000-0000-0000-000000000043", revision: 1),
+            zoneID: zoneID
+        )
+
+        await transport.receiveFetchedChanges(records: [record], deletedRecordIDs: [])
+
+        guard case .failed(.statePersistence)? = await iterator.next() else {
+            Issue.record("Expected system-field durability failure")
+            return
+        }
+        await transport.receiveZoneReady(zoneID)
+        guard case .zoneReady? = await iterator.next() else {
+            Issue.record("A failed fetched save must not emit an acknowledgeable batch")
+            return
+        }
+        await transport.receiveStateUpdate(try stateSerialization(base64: "AQ=="))
+        #expect(try fixture.store.load() == nil)
+    }
+
+    @Test func fetchedDeleteStoreFailureEmitsNoAcknowledgeableBatchAndBlocksState() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let systemFieldsURL = fixture.root.appendingPathComponent("system-fields.json")
+        let systemStore = FileCloudRecordSystemFieldsStore(
+            url: systemFieldsURL,
+            zoneID: zoneID
+        )
+        let record = try CloudRecordCodec().encode(
+            testRecord(uuid: "00000000-0000-0000-0000-000000000044", revision: 1),
+            zoneID: zoneID
+        )
+        try systemStore.save(record, accountIdentifier: "account-a")
+        let decoy = fixture.root.appendingPathComponent("decoy-system-fields.json")
+        try FileManager.default.moveItem(at: systemFieldsURL, to: decoy)
+        try FileManager.default.createSymbolicLink(
+            at: systemFieldsURL,
+            withDestinationURL: decoy
+        )
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            systemFieldsStore: systemStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+
+        await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [record.recordID])
+
+        guard case .failed(.statePersistence)? = await iterator.next() else {
+            Issue.record("Expected system-field deletion durability failure")
+            return
+        }
+        await transport.receiveZoneReady(zoneID)
+        guard case .zoneReady? = await iterator.next() else {
+            Issue.record("A failed fetched deletion must not emit an acknowledgeable batch")
+            return
+        }
+        await transport.receiveStateUpdate(try stateSerialization(base64: "Ag=="))
+        #expect(try fixture.store.load() == nil)
+    }
+
     @Test func fetchedChangesPreserveTheirCallbackOrder() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -445,6 +557,41 @@ import Testing
         await driver.waitUntilCancelled()
 
         #expect(try fixture.store.load() == nil)
+    }
+
+    @Test func terminatedStreamCannotRestartOrScheduleWhileCleanupIsSuspended() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(),
+            stateStore: fixture.store,
+            engineFactory: { _, _ in driver }
+        )
+        let consumer = Task {
+            for await _ in transport.events {}
+        }
+        try await transport.start()
+        await driver.suspendNextCancellation()
+
+        consumer.cancel()
+        await driver.waitUntilCancellationSuspended()
+
+        await #expect(throws: CloudSyncTransportError.terminated) {
+            try await transport.start()
+        }
+        let mutation = SyncMutation.delete(
+            .init(
+                kind: .project,
+                uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000052")!
+            ),
+            mutationID: UUID(uuidString: "60000000-0000-0000-0000-000000000003")!
+        )
+        await #expect(throws: CloudSyncTransportError.terminated) {
+            try await transport.schedule([mutation])
+        }
+
+        await driver.resumeCancellation()
     }
 
     @Test func accountChangeClearsOnlyEngineStateAndLeavesMutationJournal() async throws {
@@ -597,6 +744,86 @@ import Testing
         await materializer.resume()
 
         #expect(await batching.value == nil)
+    }
+
+    @Test func batchSuspendedDuringMaterializationReturnsNilAfterZoneDeletion() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let driver = TestSyncEngineDriver()
+        let materializer = SuspendingRecordMaterializer(zoneID: testZoneID())
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(),
+            stateStore: fixture.store,
+            recordMaterializer: { mutation, baseRecord in
+                try await materializer.materialize(mutation, baseRecord: baseRecord)
+            },
+            engineFactory: { _, _ in driver }
+        )
+        try await transport.start()
+        let mutation = try testSaveMutation(revision: 1, mutationSuffix: 32)
+        try await transport.schedule([mutation])
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(testZoneID())
+        await materializer.suspendNextMaterialization()
+        let recordID = cloudRecordID(
+            kind: mutation.recordID.kind,
+            uuid: mutation.recordID.uuid.uuidString,
+            zoneID: testZoneID()
+        )
+        let batching = Task {
+            await transport.recordZoneChangeBatch(
+                pendingChanges: [.saveRecord(recordID)],
+                scope: .all
+            )
+        }
+        await materializer.waitUntilSuspended()
+
+        await transport.receiveDeletedZones([testZoneID()])
+        await materializer.resume()
+
+        #expect(await batching.value == nil)
+    }
+
+    @Test func olderSuspendedBatchCannotOverwriteNewerActiveAttempt() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let driver = TestSyncEngineDriver()
+        let materializer = SuspendingRecordMaterializer(zoneID: testZoneID())
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(),
+            stateStore: fixture.store,
+            recordMaterializer: { mutation, baseRecord in
+                try await materializer.materialize(mutation, baseRecord: baseRecord)
+            },
+            engineFactory: { _, _ in driver }
+        )
+        try await transport.start()
+        let mutation = try testSaveMutation(revision: 1, mutationSuffix: 33)
+        try await transport.schedule([mutation])
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(testZoneID())
+        await materializer.suspendNextMaterialization()
+        let recordID = cloudRecordID(
+            kind: mutation.recordID.kind,
+            uuid: mutation.recordID.uuid.uuidString,
+            zoneID: testZoneID()
+        )
+        let olderBatch = Task {
+            await transport.recordZoneChangeBatch(
+                pendingChanges: [.saveRecord(recordID)],
+                scope: .all
+            )
+        }
+        await materializer.waitUntilSuspended()
+
+        let newerBatch = await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(recordID)],
+            scope: .all
+        )
+        #expect(newerBatch?.recordsToSave.count == 1)
+        await materializer.resume()
+
+        #expect(await olderBatch.value == nil)
     }
 
     @Test func queuesSameRecordMutationsOneAtATimeAndEmitsMatchingIdentities() async throws {
@@ -772,11 +999,105 @@ import Testing
             Issue.record("Expected configured-zone ready event")
             return
         }
+        #expect(await driver.sendCallCount() == 1)
+        await transport.receiveZoneReady(zoneID)
+        #expect(await driver.sendCallCount() == 1)
         await transport.receiveDeletedZones([foreignZone, zoneID])
         guard case .zoneDeleted? = await iterator.next() else {
             Issue.record("Expected configured-zone deleted event")
             return
         }
+    }
+
+    @Test func zoneDeletionClearsBasesRequeuesZoneAndKeepsRecordsGated() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let accountIdentifier = "account-a"
+        let systemStore = FileCloudRecordSystemFieldsStore(
+            url: fixture.root.appendingPathComponent("system-fields.json"),
+            zoneID: zoneID
+        )
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            systemFieldsStore: systemStore,
+            initialAccountIdentifier: accountIdentifier,
+            engineFactory: { _, _ in driver }
+        )
+        try await transport.start()
+        let zoneSave = CKSyncEngine.PendingDatabaseChange.saveZone(CKRecordZone(zoneID: zoneID))
+        await driver.completeDatabaseChange(zoneSave)
+        await transport.receiveZoneReady(zoneID)
+        let mutation = try testSaveMutation(revision: 1, mutationSuffix: 61)
+        let savedVersion = try #require(mutation.savedRecordVersion)
+        let record = try CloudRecordCodec().encode(
+            savedVersion.record,
+            zoneID: zoneID
+        )
+        try systemStore.save(record, accountIdentifier: accountIdentifier)
+        try await transport.schedule([mutation])
+        try await transport.finishMutationReplay()
+        let sendsBeforeDeletion = await driver.sendCallCount()
+
+        await transport.receiveDeletedZones([zoneID])
+
+        #expect(try systemStore.load(
+            recordID: record.recordID,
+            accountIdentifier: accountIdentifier
+        ) == nil)
+        #expect(await driver.pendingDatabaseChanges() == [zoneSave])
+        #expect(await driver.sendCallCount() == sendsBeforeDeletion + 1)
+        #expect(await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(record.recordID)],
+            scope: .all
+        ) == nil)
+    }
+
+    @Test func deleteCycleGateReopeningKicksExactlyOneScopedSend() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            engineFactory: { _, _ in driver }
+        )
+        try await transport.start()
+        let save = try testSaveMutation(revision: 1, mutationSuffix: 62)
+        let deletion = SyncMutation.delete(
+            save.recordID,
+            mutationID: UUID(uuidString: "40000000-0000-0000-0000-000000000063")!
+        )
+        try await transport.schedule([save, deletion])
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(zoneID)
+        let recordID = cloudRecordID(
+            kind: save.recordID.kind,
+            uuid: save.recordID.uuid.uuidString,
+            zoneID: zoneID
+        )
+        let savedRecord = try #require(await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(recordID)],
+            scope: .all
+        )?.recordsToSave.first)
+        await driver.complete(.saveRecord(recordID))
+        await transport.receiveSentChanges(savedRecords: [savedRecord], deletedRecordIDs: [])
+        _ = await transport.recordZoneChangeBatch(
+            pendingChanges: [.deleteRecord(recordID)],
+            scope: .all
+        )
+        await driver.complete(.deleteRecord(recordID))
+        await transport.receiveSentChanges(savedRecords: [], deletedRecordIDs: [recordID])
+        let sendsBeforeReopening = await driver.sendCallCount()
+
+        await transport.receiveSendCycleCompleted()
+
+        #expect(await driver.sendCallCount() == sendsBeforeReopening + 1)
+        await transport.receiveSendCycleCompleted()
+        #expect(await driver.sendCallCount() == sendsBeforeReopening + 1)
     }
 
     @Test func changeBatchFiltersScopeAndCapsRequestsAt250() async throws {
@@ -1009,7 +1330,9 @@ import Testing
         ) == nil)
 
         let replacement = try testSaveMutation(revision: 2, mutationSuffix: 22)
+        let sendsBeforeResolution = await driver.sendCallCount()
         try await transport.resolveFailedMutation(first.mutationID, replacement: replacement)
+        #expect(await driver.sendCallCount() == sendsBeforeResolution + 1)
         let replacementRecord = try #require(await transport.recordZoneChangeBatch(
             pendingChanges: [.saveRecord(recordID)],
             scope: .all
@@ -1120,6 +1443,10 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
         databasePending.removeAll { changes.contains($0) }
     }
 
+    func completeDatabaseChange(_ change: CKSyncEngine.PendingDatabaseChange) {
+        databasePending.removeAll { $0 == change }
+    }
+
     func fetchChanges(_ options: CKSyncEngine.FetchChangesOptions) async throws {}
     func sendChanges(_ options: CKSyncEngine.SendChangesOptions) async throws {
         sendScopes.append(options.scope)
@@ -1208,6 +1535,23 @@ private final class LockedBoundaryRecorder: @unchecked Sendable {
     func removeAll() {
         lock.lock()
         storage.removeAll()
+        lock.unlock()
+    }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func increment() {
+        lock.lock()
+        storage += 1
         lock.unlock()
     }
 }

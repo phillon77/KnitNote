@@ -64,6 +64,8 @@ enum CloudSyncFailure: Error, Equatable, Sendable {
 
 enum CloudSyncTransportError: Error, Equatable {
     case notStarted
+    case terminated
+    case missingAccountIdentity
     case unknownFetchedBatch
     case unknownFailedMutation
     case invalidReplacement
@@ -138,6 +140,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
 
     nonisolated let events: AsyncStream<CloudSyncEvent>
     private nonisolated let eventContinuation: AsyncStream<CloudSyncEvent>.Continuation
+    private nonisolated let terminalLatch: CloudSyncTerminalLatch
     private let zoneID: CKRecordZone.ID
     private let stateStore: FileCloudSyncEngineStateStore
     private let systemFieldsStore: FileCloudRecordSystemFieldsStore?
@@ -149,8 +152,11 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var generation: UInt64 = 0
     private var unacknowledgedFetchedBatchIDs: [UUID] = []
     private var deferredStateUpdates: [DeferredStateUpdate] = []
+    private var inboundDurabilityBlocked = false
     private var mutationReplayFinished = false
     private var configuredZoneIsReady = false
+    private var zoneEpoch: UInt64 = 0
+    private var zoneResetDurabilityBlocked = false
     private var sendAttempts: [SyncEntityID: SendAttempt] = [:]
     private var failedMutationIDs: Set<UUID> = []
     private var deleteCallbackBarriers: Set<SyncEntityID> = []
@@ -165,14 +171,14 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         zoneID: CKRecordZone.ID,
         stateStore: FileCloudSyncEngineStateStore,
         systemFieldsStore: FileCloudRecordSystemFieldsStore,
-        initialAccountIdentifier: String? = nil
+        accountIdentifier: String
     ) {
         let database = container.privateCloudDatabase
         self.init(
             zoneID: zoneID,
             stateStore: stateStore,
             systemFieldsStore: systemFieldsStore,
-            initialAccountIdentifier: initialAccountIdentifier
+            initialAccountIdentifier: accountIdentifier
         ) { serialization, delegate in
             var configuration = CKSyncEngine.Configuration(
                 database: database,
@@ -189,14 +195,14 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         zoneID: CKRecordZone.ID,
         stateStore: FileCloudSyncEngineStateStore,
         systemFieldsStore: FileCloudRecordSystemFieldsStore,
-        initialAccountIdentifier: String? = nil
+        accountIdentifier: String
     ) {
         self.init(
             container: CKContainer(identifier: containerIdentifier),
             zoneID: zoneID,
             stateStore: stateStore,
             systemFieldsStore: systemFieldsStore,
-            initialAccountIdentifier: initialAccountIdentifier
+            accountIdentifier: accountIdentifier
         )
     }
 
@@ -209,8 +215,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         engineFactory: @escaping EngineFactory
     ) {
         let pair = AsyncStream<CloudSyncEvent>.makeStream()
+        let terminalLatch = CloudSyncTerminalLatch()
         events = pair.stream
         eventContinuation = pair.continuation
+        self.terminalLatch = terminalLatch
         self.zoneID = zoneID
         self.stateStore = stateStore
         self.systemFieldsStore = systemFieldsStore
@@ -233,12 +241,22 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             return baseRecord
         }
         self.engineFactory = engineFactory
-        eventContinuation.onTermination = { [weak self] _ in
+        eventContinuation.onTermination = { [weak self, terminalLatch] _ in
+            terminalLatch.terminate()
             Task { await self?.terminateForEndedEventStream() }
         }
     }
 
     func start() async throws {
+        try requireNotTerminated()
+        if systemFieldsStore != nil {
+            guard let currentAccountIdentifier,
+                  !currentAccountIdentifier.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                  ).isEmpty else {
+                throw CloudSyncTransportError.missingAccountIdentity
+            }
+        }
         guard !accountResetBlocksRestart else {
             throw CloudSyncTransportError.accountResetIncomplete
         }
@@ -259,6 +277,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func schedule(_ mutations: [SyncMutation]) async throws {
+        try requireNotTerminated()
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
         var enginePending = await engine.pendingChanges()
@@ -283,6 +302,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func fetchNow() async throws {
+        try requireNotTerminated()
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
         do {
@@ -298,6 +318,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func finishMutationReplay() async throws {
+        try requireNotTerminated()
         guard engine != nil else { throw CloudSyncTransportError.notStarted }
         mutationReplayFinished = true
         try await sendNow()
@@ -315,6 +336,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func acknowledgeFetchedBatch(_ batchID: UUID) async throws {
+        try requireNotTerminated()
         guard unacknowledgedFetchedBatchIDs.contains(batchID) else {
             throw CloudSyncTransportError.unknownFetchedBatch
         }
@@ -338,6 +360,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func resolveFailedMutation(_ mutationID: UUID, replacement: SyncMutation?) async throws {
+        try requireNotTerminated()
         guard let entry = queues.first(where: { $0.value.first?.mutationID == mutationID }),
               failedMutationIDs.contains(mutationID) else {
             throw CloudSyncTransportError.unknownFailedMutation
@@ -380,9 +403,15 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             enginePending: &pending,
             generation: operationGeneration
         )
+        await kickConfiguredZoneSend()
     }
 
     func sendNow() async throws {
+        try requireNotTerminated()
+        try await sendConfiguredZoneChanges()
+    }
+
+    private func sendConfiguredZoneChanges() async throws {
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
         do {
@@ -398,6 +427,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveStateUpdate(_ serialization: CKSyncEngine.State.Serialization) {
+        guard !terminalLatch.isTerminated else { return }
+        guard !inboundDurabilityBlocked else { return }
         guard !unacknowledgedFetchedBatchIDs.isEmpty else {
             persistStateUpdate(serialization)
             return
@@ -425,8 +456,11 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         queues.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
+        inboundDurabilityBlocked = false
         mutationReplayFinished = false
         configuredZoneIsReady = false
+        zoneEpoch &+= 1
+        zoneResetDurabilityBlocked = false
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
@@ -444,18 +478,24 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveFetchedChanges(records: [CKRecord], deletedRecordIDs: [CKRecord.ID]) {
+        guard !inboundDurabilityBlocked else {
+            eventContinuation.yield(.failed(.statePersistence))
+            return
+        }
         var decodedRecords: [SyncRecord] = []
         decodedRecords.reserveCapacity(records.count)
         for record in records {
             guard record.recordID.zoneID == zoneID else {
                 eventContinuation.yield(.failed(.invalidRecord(recordID: Self.entityID(for: record.recordID))))
-                continue
+                inboundDurabilityBlocked = true
+                return
             }
             do {
-                try persistSystemFields(record)
                 decodedRecords.append(try codec.decode(record))
             } catch {
                 eventContinuation.yield(.failed(.invalidRecord(recordID: Self.entityID(for: record.recordID))))
+                inboundDurabilityBlocked = true
+                return
             }
         }
 
@@ -464,14 +504,26 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         for recordID in deletedRecordIDs {
             guard recordID.zoneID == zoneID, let entityID = Self.entityID(for: recordID) else {
                 eventContinuation.yield(.failed(.invalidRecord(recordID: Self.entityID(for: recordID))))
-                continue
-            }
-            do {
-                try removeSystemFields(recordID)
-            } catch {
-                eventContinuation.yield(.failed(.statePersistence))
+                inboundDurabilityBlocked = true
+                return
             }
             deleted.append(entityID)
+        }
+        do {
+            if let systemFieldsStore {
+                guard let currentAccountIdentifier else {
+                    throw CloudRecordSystemFieldsStoreError.unavailable
+                }
+                try systemFieldsStore.apply(
+                    records: records,
+                    deletedRecordIDs: deletedRecordIDs,
+                    accountIdentifier: currentAccountIdentifier
+                )
+            }
+        } catch {
+            inboundDurabilityBlocked = true
+            eventContinuation.yield(.failed(.statePersistence))
+            return
         }
         let batchID = UUID()
         unacknowledgedFetchedBatchIDs.append(batchID)
@@ -482,16 +534,52 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         ))
     }
 
-    func receiveZoneReady(_ readyZoneID: CKRecordZone.ID) {
-        guard readyZoneID == zoneID else { return }
+    func receiveZoneReady(_ readyZoneID: CKRecordZone.ID) async {
+        guard readyZoneID == zoneID,
+              !configuredZoneIsReady,
+              !zoneResetDurabilityBlocked else { return }
         configuredZoneIsReady = true
+        zoneEpoch &+= 1
         eventContinuation.yield(.zoneReady)
+        await kickConfiguredZoneSend()
     }
 
-    func receiveDeletedZones(_ deletedZoneIDs: [CKRecordZone.ID]) {
+    func receiveDeletedZones(_ deletedZoneIDs: [CKRecordZone.ID]) async {
         guard deletedZoneIDs.contains(zoneID) else { return }
         configuredZoneIsReady = false
+        zoneEpoch &+= 1
+        sendAttempts.removeAll(keepingCapacity: false)
+        deleteCallbackBarriers.removeAll(keepingCapacity: false)
+        zoneResetDurabilityBlocked = false
         eventContinuation.yield(.zoneDeleted)
+        if let systemFieldsStore {
+            do {
+                guard let currentAccountIdentifier else {
+                    throw CloudRecordSystemFieldsStoreError.unavailable
+                }
+                try systemFieldsStore.removeAll(accountIdentifier: currentAccountIdentifier)
+            } catch {
+                zoneResetDurabilityBlocked = true
+                eventContinuation.yield(.failed(.statePersistence))
+            }
+        }
+        guard let engine else { return }
+        let operationGeneration = generation
+        let operationZoneEpoch = zoneEpoch
+        let pending = await engine.pendingDatabaseChanges()
+        guard isCurrentOperation(
+            generation: operationGeneration,
+            zoneEpoch: operationZoneEpoch
+        ) else { return }
+        let zoneSave = CKSyncEngine.PendingDatabaseChange.saveZone(CKRecordZone(zoneID: zoneID))
+        if !pending.contains(zoneSave) {
+            await engine.addDatabaseChanges([zoneSave])
+            guard isCurrentOperation(
+                generation: operationGeneration,
+                zoneEpoch: operationZoneEpoch
+            ) else { return }
+        }
+        await kickConfiguredZoneSend()
     }
 
     func receiveSentChanges(savedRecords: [CKRecord], deletedRecordIDs: [CKRecord.ID]) async {
@@ -606,8 +694,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
     }
 
-    func receiveSendCycleCompleted() {
+    func receiveSendCycleCompleted() async {
+        guard !deleteCallbackBarriers.isEmpty else { return }
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
+        await kickConfiguredZoneSend()
     }
 
     func recordZoneChangeBatch(
@@ -615,7 +705,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         scope: CKSyncEngine.SendChangesOptions.Scope
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
         let operationGeneration = generation
-        guard mutationReplayFinished, configuredZoneIsReady else { return nil }
+        let operationZoneEpoch = zoneEpoch
+        guard !terminalLatch.isTerminated,
+              mutationReplayFinished,
+              configuredZoneIsReady else { return nil }
         var current: [SyncEntityID: SyncMutation] = [:]
         for (entityID, queue) in queues {
             guard let mutation = queue.first,
@@ -671,7 +764,12 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             }
             do {
                 let record = try await recordMaterializer(mutation, baseRecord)
-                guard generation == operationGeneration else { return nil }
+                guard batchContextIsCurrent(
+                    entityID: entityID,
+                    mutation: mutation,
+                    generation: operationGeneration,
+                    zoneEpoch: operationZoneEpoch
+                ) else { return nil }
                 record["syncMutationID"] = attempt.mutationID.uuidString.lowercased() as NSString
                 record["syncAttemptID"] = attempt.attemptID.uuidString.lowercased() as NSString
                 materializedRecords[recordID] = record
@@ -679,13 +777,30 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 eventContinuation.yield(.failed(.invalidRecord(recordID: entityID)))
             }
         }
-        guard generation == operationGeneration else { return nil }
+        guard isCurrentOperation(
+            generation: operationGeneration,
+            zoneEpoch: operationZoneEpoch
+        ), configuredZoneIsReady, mutationReplayFinished else { return nil }
         let materializedSnapshot = materializedRecords
         let batch = await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: bounded) { recordID in
             materializedSnapshot[recordID]
         }
-        guard generation == operationGeneration, let batch else { return nil }
+        guard isCurrentOperation(
+            generation: operationGeneration,
+            zoneEpoch: operationZoneEpoch
+        ), configuredZoneIsReady, mutationReplayFinished, let batch else { return nil }
         let representedIDs = Set(batch.recordsToSave.map { $0.recordID } + batch.recordIDsToDelete)
+        for (entityID, attempt) in attempts where representedIDs.contains(
+            Self.cloudRecordID(for: entityID, zoneID: zoneID)
+        ) {
+            guard batchContextIsCurrent(
+                entityID: entityID,
+                mutationID: attempt.mutationID,
+                intent: attempt.intent,
+                generation: operationGeneration,
+                zoneEpoch: operationZoneEpoch
+            ) else { return nil }
+        }
         for (entityID, attempt) in attempts where representedIDs.contains(
             Self.cloudRecordID(for: entityID, zoneID: zoneID)
         ) {
@@ -695,7 +810,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
-        guard cloudKitEngineIdentifier == ObjectIdentifier(syncEngine) else { return }
+        guard !terminalLatch.isTerminated,
+              cloudKitEngineIdentifier == ObjectIdentifier(syncEngine) else { return }
         switch event {
         case let .stateUpdate(update):
             receiveStateUpdate(update.stateSerialization)
@@ -715,12 +831,12 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             }
         case let .fetchedDatabaseChanges(changes):
             for modification in changes.modifications where modification.zoneID == zoneID {
-                receiveZoneReady(modification.zoneID)
+                await receiveZoneReady(modification.zoneID)
             }
-            receiveDeletedZones(changes.deletions.map(\.zoneID))
+            await receiveDeletedZones(changes.deletions.map(\.zoneID))
         case let .sentDatabaseChanges(changes):
             for zone in changes.savedZones where zone.zoneID == zoneID {
-                receiveZoneReady(zone.zoneID)
+                await receiveZoneReady(zone.zoneID)
             }
             for failure in changes.failedZoneSaves where failure.zone.zoneID == zoneID {
                 eventContinuation.yield(.failed(.map(failure.error, codec: codec)))
@@ -754,7 +870,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 eventContinuation.yield(.failed(.map(error, codec: codec)))
             }
         case .didSendChanges:
-            receiveSendCycleCompleted()
+            await receiveSendCycleCompleted()
         case .willFetchChanges, .willFetchRecordZoneChanges, .didFetchChanges,
              .willSendChanges:
             break
@@ -769,11 +885,13 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
         guard cloudKitEngineIdentifier == ObjectIdentifier(syncEngine) else { return nil }
         let callbackGeneration = generation
+        let callbackZoneEpoch = zoneEpoch
         let batch = await recordZoneChangeBatch(
             pendingChanges: syncEngine.state.pendingRecordZoneChanges,
             scope: context.options.scope
         )
         guard generation == callbackGeneration,
+              zoneEpoch == callbackZoneEpoch,
               cloudKitEngineIdentifier == ObjectIdentifier(syncEngine) else { return nil }
         return batch
     }
@@ -892,16 +1010,69 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     private func requireCurrentGeneration(_ expected: UInt64) throws {
+        try requireNotTerminated()
         guard generation == expected, engine != nil else {
             throw CloudSyncTransportError.staleOperation
         }
     }
 
+    private func isCurrentOperation(generation expectedGeneration: UInt64, zoneEpoch: UInt64) -> Bool {
+        !terminalLatch.isTerminated
+            && generation == expectedGeneration
+            && self.zoneEpoch == zoneEpoch
+            && engine != nil
+    }
+
+    private func batchContextIsCurrent(
+        entityID: SyncEntityID,
+        mutation: SyncMutation,
+        generation: UInt64,
+        zoneEpoch: UInt64
+    ) -> Bool {
+        batchContextIsCurrent(
+            entityID: entityID,
+            mutationID: mutation.mutationID,
+            intent: mutation.intent,
+            generation: generation,
+            zoneEpoch: zoneEpoch
+        )
+    }
+
+    private func batchContextIsCurrent(
+        entityID: SyncEntityID,
+        mutationID: UUID,
+        intent: SyncMutationIntent,
+        generation: UInt64,
+        zoneEpoch: UInt64
+    ) -> Bool {
+        isCurrentOperation(generation: generation, zoneEpoch: zoneEpoch)
+            && configuredZoneIsReady
+            && mutationReplayFinished
+            && queues[entityID]?.first?.mutationID == mutationID
+            && queues[entityID]?.first?.intent == intent
+            && sendAttempts[entityID] == nil
+            && !failedMutationIDs.contains(mutationID)
+            && !deleteCallbackBarriers.contains(entityID)
+    }
+
+    private func kickConfiguredZoneSend() async {
+        do {
+            try await sendConfiguredZoneChanges()
+        } catch {
+            // CK errors are surfaced by sendConfiguredZoneChanges; stale/terminal work is discarded.
+        }
+    }
+
+    private func requireNotTerminated() throws {
+        guard !terminalLatch.isTerminated else {
+            throw CloudSyncTransportError.terminated
+        }
+    }
+
     private func persistSystemFields(_ record: CKRecord) throws {
         guard let systemFieldsStore else { return }
-        let accountIdentifier = currentAccountIdentifier
-            ?? record.creatorUserRecordID?.recordName
-        guard let accountIdentifier else {
+        guard let accountIdentifier = currentAccountIdentifier,
+              !accountIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw CloudRecordSystemFieldsStoreError.unavailable
         }
         try systemFieldsStore.save(record, accountIdentifier: accountIdentifier)
@@ -940,6 +1111,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     private func terminateForEndedEventStream() async {
+        terminalLatch.terminate()
         generation &+= 1
         let detachedEngine = engine
         engine = nil
@@ -947,12 +1119,30 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         queues.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
+        inboundDurabilityBlocked = false
         mutationReplayFinished = false
         configuredZoneIsReady = false
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
         await detachedEngine?.cancelOperations()
+    }
+}
+
+private final class CloudSyncTerminalLatch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var terminated = false
+
+    var isTerminated: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return terminated
+    }
+
+    func terminate() {
+        lock.lock()
+        terminated = true
+        lock.unlock()
     }
 }
 

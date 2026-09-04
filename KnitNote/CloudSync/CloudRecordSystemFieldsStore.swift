@@ -34,20 +34,62 @@ struct FileCloudRecordSystemFieldsStore: @unchecked Sendable {
     }
 
     func save(_ record: CKRecord, accountIdentifier: String) throws {
-        guard record.recordID.zoneID == zoneID else {
-            throw CloudRecordSystemFieldsStoreError.wrongZone
-        }
-        var envelope = try loadEnvelope()
-        var account = envelope.accounts[accountIdentifier, default: [:]]
-        account[record.recordID.recordName] = try Self.encodeSystemFields(record)
-        envelope.accounts[accountIdentifier] = account
-        try saveEnvelope(envelope)
+        try apply(
+            records: [record],
+            deletedRecordIDs: [],
+            accountIdentifier: accountIdentifier
+        )
     }
 
     func remove(recordID: CKRecord.ID, accountIdentifier: String) throws {
-        guard recordID.zoneID == zoneID else { throw CloudRecordSystemFieldsStoreError.wrongZone }
+        try apply(
+            records: [],
+            deletedRecordIDs: [recordID],
+            accountIdentifier: accountIdentifier
+        )
+    }
+
+    func apply(
+        records: [CKRecord],
+        deletedRecordIDs: [CKRecord.ID],
+        accountIdentifier: String
+    ) throws {
+        guard !accountIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw CloudRecordSystemFieldsStoreError.unavailable
+        }
+        var encodedRecords: [(name: String, data: Data)] = []
+        encodedRecords.reserveCapacity(records.count)
+        for record in records {
+            guard record.recordID.zoneID == zoneID else {
+                throw CloudRecordSystemFieldsStoreError.wrongZone
+            }
+            encodedRecords.append((
+                name: record.recordID.recordName,
+                data: try Self.encodeSystemFields(record)
+            ))
+        }
+        guard deletedRecordIDs.allSatisfy({ $0.zoneID == zoneID }) else {
+            throw CloudRecordSystemFieldsStoreError.wrongZone
+        }
+        guard !encodedRecords.isEmpty || !deletedRecordIDs.isEmpty else { return }
         var envelope = try loadEnvelope()
-        envelope.accounts[accountIdentifier]?.removeValue(forKey: recordID.recordName)
+        var account = envelope.accounts[accountIdentifier, default: [:]]
+        for record in encodedRecords { account[record.name] = record.data }
+        for recordID in deletedRecordIDs { account.removeValue(forKey: recordID.recordName) }
+        if account.isEmpty {
+            envelope.accounts.removeValue(forKey: accountIdentifier)
+        } else {
+            envelope.accounts[accountIdentifier] = account
+        }
+        try saveEnvelope(envelope)
+    }
+
+    func removeAll(accountIdentifier: String) throws {
+        guard !accountIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw CloudRecordSystemFieldsStoreError.unavailable
+        }
+        var envelope = try loadEnvelope()
+        guard envelope.accounts.removeValue(forKey: accountIdentifier) != nil else { return }
         try saveEnvelope(envelope)
     }
 

@@ -236,6 +236,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var incomingBatchGeneration: UInt64 = 0
     private var accountEpoch: CloudSyncAccountEpoch
     private var activeFetchedBatchIDs: [UUID] = []
+    private var sourceObservedFetchedBatchIDs: Set<UUID> = []
     private var unacknowledgedFetchedBatchIDs: [UUID] = []
     private var deferredStateUpdates: [DeferredStateUpdate] = []
     private var inboundDurabilityBlocked = false
@@ -372,6 +373,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             generation: incoming.generation
         )
         activeFetchedBatchIDs = incoming.batches.map(\.batchID)
+        sourceObservedFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs = activeFetchedBatchIDs
         let created = engineFactory(serialization, self)
         generation &+= 1
@@ -578,11 +580,15 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     func receiveStateUpdate(_ serialization: CKSyncEngine.State.Serialization) {
         guard !terminalLatch.isTerminated else { return }
         guard !inboundDurabilityBlocked else { return }
-        guard !unacknowledgedFetchedBatchIDs.isEmpty else {
+        let coveredBatchIDs = sourceObservedFetchedBatchIDs
+        let requiredBatchIDs = Set(
+            unacknowledgedFetchedBatchIDs.filter { coveredBatchIDs.contains($0) }
+        )
+        guard !requiredBatchIDs.isEmpty else {
             do {
                 let data = try persistStateUpdate(
                     serialization,
-                    coveredBatchIDs: Set(activeFetchedBatchIDs)
+                    coveredBatchIDs: coveredBatchIDs
                 )
                 eventContinuation.yield(.stateUpdated(data))
             } catch {
@@ -592,8 +598,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
         deferredStateUpdates.append(DeferredStateUpdate(
             serialization: serialization,
-            requiredBatchIDs: Set(unacknowledgedFetchedBatchIDs),
-            coveredBatchIDs: Set(activeFetchedBatchIDs)
+            requiredBatchIDs: requiredBatchIDs,
+            coveredBatchIDs: coveredBatchIDs
         ))
     }
 
@@ -612,6 +618,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         let data = try stateStore.save(serialization)
         try incomingBatchStore.completeStateCommit(engineState: encoded)
         activeFetchedBatchIDs.removeAll { coveredBatchIDs.contains($0) }
+        sourceObservedFetchedBatchIDs.subtract(coveredBatchIDs)
         unacknowledgedFetchedBatchIDs.removeAll { coveredBatchIDs.contains($0) }
         return data
     }
@@ -624,6 +631,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         cloudKitEngineIdentifier = nil
         queues.removeAll(keepingCapacity: false)
         activeFetchedBatchIDs.removeAll(keepingCapacity: false)
+        sourceObservedFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
         inboundDurabilityBlocked = false
@@ -706,6 +714,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 generation: incomingBatchGeneration
             )
         } catch CloudIncomingBatchStoreError.capacityExceeded {
+            inboundDurabilityBlocked = true
             eventContinuation.yield(.failed(.incomingBackpressure))
             return
         } catch {
@@ -713,8 +722,9 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             eventContinuation.yield(.failed(.statePersistence))
             return
         }
-        guard recording.shouldDeliver else { return }
         let batchID = recording.envelope.batchID
+        sourceObservedFetchedBatchIDs.insert(batchID)
+        guard recording.shouldDeliver else { return }
         activeFetchedBatchIDs.append(batchID)
         unacknowledgedFetchedBatchIDs.append(batchID)
         eventContinuation.yield(.fetched(
@@ -1330,6 +1340,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         cloudKitEngineIdentifier = nil
         queues.removeAll(keepingCapacity: false)
         activeFetchedBatchIDs.removeAll(keepingCapacity: false)
+        sourceObservedFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
         inboundDurabilityBlocked = false

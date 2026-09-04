@@ -144,6 +144,15 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
             }
             store.stagedStateCommit = nil
         }
+        // The account owner clears CKSyncEngine state before reconstructing
+        // this transport. Envelopes from a previous account can therefore be
+        // retired: if that account returns, its cleared state refetches them.
+        // Keeping them here would let an unrelated account consume the bounded
+        // spool without ever being eligible for replay in the new scope.
+        store.batches.removeAll { $0.accountIdentifier != accountIdentifier }
+        store.generations.removeAll {
+            $0.scope.accountIdentifier != accountIdentifier
+        }
         let scope = CloudIncomingBatchScope(
             accountIdentifier: accountIdentifier,
             zoneName: zoneID.zoneName,

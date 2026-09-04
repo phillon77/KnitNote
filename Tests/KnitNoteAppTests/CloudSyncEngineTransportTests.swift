@@ -696,7 +696,7 @@ import Testing
         try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
     }
 
-    @Test func durableFetchedSpoolBackpressuresAtBoundAndAcceptsPostEvictionBatch() async throws {
+    @Test func freshTransportRedeliversOverflowedBatchWithoutManualCallbackReinjection() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
         let zoneID = testZoneID()
@@ -704,56 +704,158 @@ import Testing
             url: fixture.root.appendingPathComponent("incoming-batches.json"),
             maximumBatchCount: 2
         )
-        let transport = CKSyncEngineTransport(
+        let records = try (53...55).map { suffix in
+            try testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", suffix),
+                revision: UInt64(suffix)
+            )
+        }
+        let cloudRecords = try records.map { try CloudRecordCodec().encode($0, zoneID: zoneID) }
+        let firstTransport = CKSyncEngineTransport(
             zoneID: zoneID,
             stateStore: fixture.store,
             incomingBatchStore: incomingStore,
             initialAccountIdentifier: "account-a",
             engineFactory: { _, _ in TestSyncEngineDriver() }
         )
-        var iterator = transport.events.makeAsyncIterator()
-        try await transport.start()
-        let cloudRecords = try (46...48).map { suffix in
-            try CloudRecordCodec().encode(
-                testRecord(
-                    uuid: String(format: "00000000-0000-0000-0000-%012d", suffix),
-                    revision: UInt64(suffix)
-                ),
-                zoneID: zoneID
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        for cloudRecord in cloudRecords.prefix(2) {
+            await firstTransport.receiveFetchedChanges(
+                records: [cloudRecord],
+                deletedRecordIDs: []
             )
+            guard case let .fetched(batchID, _, _, _)? = await firstEvents.next() else {
+                Issue.record("Expected durable fetched batch before saturation")
+                return
+            }
+            try await firstTransport.acknowledgeFetchedBatch(batchID)
         }
 
-        await transport.receiveFetchedChanges(records: [cloudRecords[0]], deletedRecordIDs: [])
-        guard case let .fetched(firstBatchID, _, _, _)? = await iterator.next() else {
-            Issue.record("Expected first fetched batch")
+        await firstTransport.receiveFetchedChanges(
+            records: [cloudRecords[2]],
+            deletedRecordIDs: []
+        )
+
+        guard case .failed(.incomingBackpressure)? = await firstEvents.next() else {
+            Issue.record("Expected bounded spool backpressure")
             return
         }
-        await transport.receiveFetchedChanges(records: [cloudRecords[1]], deletedRecordIDs: [])
-        guard case let .fetched(secondBatchID, _, _, _)? = await iterator.next() else {
-            Issue.record("Expected second fetched batch")
-            return
+        await firstTransport.receiveStateUpdate(try stateSerialization(base64: "Aw=="))
+        try #require(fixture.store.load() == nil)
+
+        let restartedDriver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in restartedDriver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        for expectedRecord in records.prefix(2) {
+            guard case let .fetched(batchID, _, replayedRecords, _)? = await restartedEvents.next() else {
+                Issue.record("Expected durable fetched batch replay after restart")
+                return
+            }
+            #expect(replayedRecords == [expectedRecord])
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        let firstState = try stateSerialization(base64: "AQ==")
+        let secondState = try stateSerialization(base64: "Ag==")
+        let finalState = try stateSerialization(base64: "Aw==")
+        await restartedDriver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[0]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(firstState)
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[1]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(secondState)
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[2]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(finalState)
         }
 
-        await transport.receiveFetchedChanges(records: [cloudRecords[2]], deletedRecordIDs: [])
-        guard case .failed(.incomingBackpressure)? = await iterator.next() else {
-            Issue.record("Expected bounded durable-spool backpressure")
-            return
-        }
+        try await restartedTransport.fetchNow()
 
-        try await transport.acknowledgeFetchedBatch(firstBatchID)
-        try await transport.acknowledgeFetchedBatch(secondBatchID)
-        await transport.receiveStateUpdate(try stateSerialization(base64: "Aw=="))
-        guard case .stateUpdated? = await iterator.next() else {
-            Issue.record("Expected durable state commit to evict covered receipts")
+        guard case .stateUpdated? = await restartedEvents.next(),
+              case .stateUpdated? = await restartedEvents.next(),
+              case let .fetched(redeliveredBatchID, _, redeliveredRecords, _)? = await restartedEvents.next() else {
+            Issue.record("Expected source replay to free capacity and deliver overflowed batch")
             return
         }
+        #expect(redeliveredRecords == [records[2]])
+        try await restartedTransport.acknowledgeFetchedBatch(redeliveredBatchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected overflowed batch acknowledgement to release its held state")
+            return
+        }
+        #expect(
+            try encodedState(fixture.store.load())
+                == encodedState(finalState)
+        )
+    }
 
-        await transport.receiveFetchedChanges(records: [cloudRecords[2]], deletedRecordIDs: [])
-        guard case let .fetched(postEvictionBatchID, _, _, _)? = await iterator.next() else {
-            Issue.record("Expected fetched batch after durable receipt eviction")
+    @Test func accountSwitchRetiresSaturatedOldAccountSpoolWithoutReplayLeak() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let oldRecord = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000056",
+            revision: 56
+        )
+        let oldTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        try await oldTransport.start()
+        await oldTransport.receiveFetchedChanges(
+            records: [try CloudRecordCodec().encode(oldRecord, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+        await oldTransport.receiveAccountChange(previous: "account-a", current: "account-b")
+
+        let newRecord = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000057",
+            revision: 57
+        )
+        let newTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-b",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var newEvents = newTransport.events.makeAsyncIterator()
+        try await newTransport.start()
+        await newTransport.receiveFetchedChanges(
+            records: [try CloudRecordCodec().encode(newRecord, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+
+        guard case let .fetched(batchID, epoch, records, _)? = await newEvents.next() else {
+            Issue.record("Expected new account batch despite saturated old account spool")
             return
         }
-        try await transport.acknowledgeFetchedBatch(postEvictionBatchID)
+        #expect(epoch.accountIdentifier == "account-b")
+        #expect(records == [newRecord])
+        #expect(!records.contains(oldRecord))
+        try await newTransport.acknowledgeFetchedBatch(batchID)
     }
 
     @Test func streamTerminationCancelsEngineWithoutPersistingHeldFetchedState() async throws {
@@ -1672,6 +1774,7 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     private var shouldSuspendFetch = false
     private var fetchEnteredWaiters: [CheckedContinuation<Void, Never>] = []
     private var fetchResume: CheckedContinuation<Void, Never>?
+    private var fetchAction: (@Sendable () async -> Void)?
 
     init(initialPending: [CKSyncEngine.PendingRecordZoneChange] = []) {
         pending = initialPending
@@ -1736,6 +1839,7 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
             for waiter in waiters { waiter.resume() }
             await withCheckedContinuation { fetchResume = $0 }
         }
+        await fetchAction?()
     }
     func sendChanges(_ options: CKSyncEngine.SendChangesOptions) async throws {
         sendScopes.append(options.scope)
@@ -1745,6 +1849,9 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
         sendScopes.last?.contains(CKRecord.ID(recordName: "scope-probe", zoneID: zoneID)) ?? false
     }
     func suspendNextFetch() { shouldSuspendFetch = true }
+    func setFetchAction(_ action: @escaping @Sendable () async -> Void) {
+        fetchAction = action
+    }
     func waitUntilFetchSuspended() async {
         guard shouldSuspendFetch || fetchResume == nil else { return }
         await withCheckedContinuation { fetchEnteredWaiters.append($0) }

@@ -266,6 +266,8 @@ struct SyncAttachmentPublicationEvidence: Codable, Equatable {
         })
     }
 
+    var retainedAttachmentRecords: [SyncRecord] { attachmentRecords }
+
     mutating func apply(_ mutations: [SyncMutation]) throws {
         var proofsByID = Dictionary(uniqueKeysWithValues: watchCommandProofs.map {
             ($0.id, $0)
@@ -2071,7 +2073,7 @@ private func syncRegularFileMetadata(at url: URL) throws -> SyncRegularFileMetad
 }
 #endif
 
-private func syncMediaType(for filename: String, fallback: String) -> String {
+func syncMediaType(for filename: String, fallback: String) -> String {
     switch URL(fileURLWithPath: filename).pathExtension.lowercased() {
     case "jpg", "jpeg": "image/jpeg"
     case "png": "image/png"
@@ -6329,114 +6331,14 @@ final class PatternLibraryDeletionTransaction {
     private func syncArchiveAttachmentReferences(
         in archive: ProjectArchive
     ) throws -> [SyncAttachmentReference] {
-        var result: [SyncAttachmentReference] = []
-
-        func add(
-            owner: SyncEntityID,
-            role: String,
-            slotID: String,
-            sourceURL: URL,
-            displayFilename: String,
-            fallbackMediaType: String
-        ) {
-            result.append(SyncAttachmentReference(
-                slot: .init(owner: owner, role: role, slotID: slotID),
-                sourceURL: sourceURL,
-                mediaType: syncMediaType(
-                    for: displayFilename,
-                    fallback: fallbackMediaType
-                ),
-                displayFilename: displayFilename
-            ))
-        }
-
-        for project in archive.projects {
-            let projectOwner = SyncEntityID(kind: .project, uuid: project.id)
-            if let filename = project.photoFilename {
-                add(
-                    owner: projectOwner,
-                    role: "project-photo",
-                    slotID: "primary",
-                    sourceURL: photoService.url(filename: filename),
-                    displayFilename: filename,
-                    fallbackMediaType: "image/jpeg"
-                )
-            }
-            for pattern in project.patterns {
-                add(
-                    owner: .init(kind: .pattern, uuid: pattern.id),
-                    role: "legacy-pattern-source",
-                    slotID: "project:\(project.id.uuidString)/source",
-                    sourceURL: patternURL(projectID: project.id, pattern: pattern),
-                    displayFilename: pattern.storedFilename,
-                    fallbackMediaType: "application/octet-stream"
-                )
-            }
-            for entry in project.journalEntries {
-                for (role, filename) in [
-                    ("journal-photo", entry.photoFilename),
-                    ("journal-thumbnail", entry.thumbnailFilename)
-                ] {
-                    guard let sourceURL = journalPhotoService.url(filename: filename) else {
-                        throw SyncPublicationTransactionFileError.corrupt
-                    }
-                    add(
-                        owner: .init(kind: .journalEntry, uuid: entry.id),
-                        role: role,
-                        slotID: "primary",
-                        sourceURL: sourceURL,
-                        displayFilename: filename,
-                        fallbackMediaType: "image/jpeg"
-                    )
-                }
-            }
-        }
-        for yarn in archive.yarns {
-            let owner = SyncEntityID(kind: .yarn, uuid: yarn.id)
-            if let filename = yarn.photoFilename {
-                add(
-                    owner: owner,
-                    role: "yarn-photo",
-                    slotID: "primary",
-                    sourceURL: yarnPhotoService.url(filename: filename),
-                    displayFilename: filename,
-                    fallbackMediaType: "image/jpeg"
-                )
-            }
-            for (filename, slotID) in zip(yarn.labelPhotoFilenames, yarn.labelPhotoSlotIDs) {
-                guard let sourceURL = yarnLabelPhotoService.url(filename: filename) else {
-                    throw SyncPublicationTransactionFileError.corrupt
-                }
-                add(
-                    owner: owner,
-                    role: "yarn-label-photo",
-                    slotID: "label:\(slotID.uuidString.lowercased())",
-                    sourceURL: sourceURL,
-                    displayFilename: filename,
-                    fallbackMediaType: "image/jpeg"
-                )
-            }
-        }
-        if !archive.patterns.isEmpty {
-            let assetsByID = Dictionary(uniqueKeysWithValues: archive.patternAssets.map {
-                ($0.id, $0)
-            })
-            let files = try requiredPatternFileService()
-            for pattern in archive.patterns {
-                guard let asset = assetsByID[pattern.assetID], asset.kind != .youtube else {
-                    continue
-                }
-                add(
-                    owner: .init(kind: .pattern, uuid: pattern.id),
-                    role: "pattern-source",
-                    slotID: "source",
-                    sourceURL: try files.assetURL(asset),
-                    displayFilename: asset.storedFilename,
-                    fallbackMediaType: "application/octet-stream"
-                )
-            }
-        }
-        return result
+        try SyncArchiveAttachmentReferences(
+            photoService: photoService,
+            yarnPhotoService: yarnPhotoService,
+            yarnLabelPhotoService: yarnLabelPhotoService,
+            journalPhotoService: journalPhotoService,
+            patternFileService: try requiredPatternFileService(),
+            patternMarkupFileService: patternMarkupFileService
+        ).references(in: archive)
     }
 
     // Compatibility reference only. This full-hash-on-every-save path is

@@ -60,6 +60,7 @@ public struct SyncPublicationProjector {
     private let fileReader: any SyncRegularFileReading
     private let now: () -> Date
     private let makeUUID: () -> UUID
+    private let makeAttachmentVersionID: ((SyncAttachmentReference, SyncRegularFileRead, UUID?) -> UUID)?
 
     public init(
         deviceID: String,
@@ -73,7 +74,8 @@ public struct SyncPublicationProjector {
         deletedAttachmentVersionIDs: Set<UUID> = [],
         fileReader: any SyncRegularFileReading = SyncRegularFileReader(),
         now: @escaping () -> Date = Date.init,
-        makeUUID: @escaping () -> UUID = UUID.init
+        makeUUID: @escaping () -> UUID = UUID.init,
+        makeAttachmentVersionID: ((SyncAttachmentReference, SyncRegularFileRead, UUID?) -> UUID)? = nil
     ) {
         self.deviceID = deviceID
         self.preparedWatchCommand = preparedWatchCommand
@@ -87,6 +89,7 @@ public struct SyncPublicationProjector {
         self.fileReader = fileReader
         self.now = now
         self.makeUUID = makeUUID
+        self.makeAttachmentVersionID = makeAttachmentVersionID
     }
 
     public func project(
@@ -279,7 +282,7 @@ public struct SyncPublicationProjector {
                     mediaType: reference.mediaType,
                     displayFilename: reference.displayFilename,
                     replacesVersionID: issued?.versionID,
-                    versionID: makeUUID()
+                    versionID: makeAttachmentVersionID?(reference, read, issued?.versionID) ?? makeUUID()
                 )
                 mutations.append(try saveMutation(
                     version: version,
@@ -889,6 +892,9 @@ struct SyncCanonicalPublicationSnapshot {
             if reuse(
                 .init(kind: .pattern, uuid: pattern.id),
                 when: previousPatterns[pattern.id] == pattern
+                    && cache?.records[.init(kind: .pattern, uuid: pattern.id)]?.payload.fields["assetSnapshot"] != nil
+                    && cache?.archive.patternAssets.first(where: { $0.id == pattern.assetID })
+                        == archive.patternAssets.first(where: { $0.id == pattern.assetID })
             ) { continue }
             try add(
                 pattern,
@@ -898,6 +904,13 @@ struct SyncCanonicalPublicationSnapshot {
                 modifiedAt: pattern.lastOpenedAt ?? pattern.createdAt,
                 searchableName: pattern.displayName
             )
+            if let asset = archive.patternAssets.first(where: { $0.id == pattern.assetID }) {
+                let id = SyncEntityID(kind: .pattern, uuid: pattern.id)
+                let stamp = records[id]!.deletedAt.stamp
+                records[id]!.payload.fields["assetSnapshot"] = .init(
+                    value: .data(try encoder.encode(asset)), stamp: stamp
+                )
+            }
         }
         for usage in archive.patternUsages {
             if reuse(
@@ -919,10 +932,13 @@ struct SyncCanonicalPublicationSnapshot {
     }
 }
 
-private struct SyncProjectProjection: Encodable, Equatable {
+struct SyncProjectProjection: Codable, Equatable {
     let id: UUID
     let name: String
     let createdAt: Date
+    let updatedAt: Date?
+    let counterOrder: [UUID]?
+    let reminderOrder: [UUID]?
     let selectedCounterID: UUID
     let photoFilename: String?
     let completedAt: Date?
@@ -935,6 +951,9 @@ private struct SyncProjectProjection: Encodable, Equatable {
         id = project.id
         name = project.name
         createdAt = project.createdAt
+        updatedAt = project.updatedAt
+        counterOrder = project.counters.map(\.id)
+        reminderOrder = project.knittingReminders.map(\.id)
         selectedCounterID = project.selectedCounterID
         photoFilename = project.photoFilename
         completedAt = project.completedAt
@@ -945,7 +964,7 @@ private struct SyncProjectProjection: Encodable, Equatable {
     }
 }
 
-private struct SyncYarnProjection: Encodable, Equatable {
+struct SyncYarnProjection: Codable, Equatable {
     let id: UUID
     let name: String
     let photoFilename: String?
@@ -991,7 +1010,7 @@ private struct SyncYarnProjection: Encodable, Equatable {
     }
 }
 
-private struct SyncProjectYarnLinkProjection: Encodable {
+struct SyncProjectYarnLinkProjection: Codable {
     let projectID: UUID
     let yarnID: UUID
 }
@@ -1000,7 +1019,7 @@ private func syncEntityIDIsOrderedBefore(_ lhs: SyncEntityID, _ rhs: SyncEntityI
     (lhs.kind.rawValue, lhs.uuid.uuidString) < (rhs.kind.rawValue, rhs.uuid.uuidString)
 }
 
-private func deterministicSyncUUID(
+func deterministicSyncUUID(
     kind: SyncEntityKind,
     components: [String]
 ) -> UUID {

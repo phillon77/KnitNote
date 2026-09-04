@@ -2486,7 +2486,7 @@ private func makeServiceFixture() throws -> (KnitNoteBackupService, URL, URL) {
     )
 }
 
-private enum BackupFixture {
+enum BackupFixture {
     struct CompleteArchive {
         let referencedRelativePaths: [String]
     }
@@ -2610,7 +2610,7 @@ private enum BackupFixture {
             )
         }
 
-        func mutateYouTubeSidecar(_ mutation: YouTubeSidecarBackupMutation) throws {
+        fileprivate func mutateYouTubeSidecar(_ mutation: YouTubeSidecarBackupMutation) throws {
             let relativePath = "Patterns/Assets/\(asset.storedFilename)"
             let sidecar = url.appendingPathComponent("Data/\(relativePath)")
             switch mutation {

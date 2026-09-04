@@ -40,6 +40,8 @@ enum CloudAssetStagingBoundary: Sendable {
     case cleanupAfterMove
     case cleanupBeforeUnlink(candidate: URL)
     case cleanupAfterFinalIdentityCheck(candidate: URL)
+    case retirementAfterReusableSlotValidation(slot: URL)
+    case retirementAfterLegacyCompactionValidation(survivor: URL, candidate: URL)
     case coordinationAfterLock(lock: URL)
     case coordinationBeforeReturn(account: URL)
     case acknowledgementAfterManifest
@@ -68,6 +70,11 @@ enum CloudAssetStagingBoundary: Sendable {
             (.cleanupAfterMove, .cleanupAfterMove),
             (.cleanupBeforeUnlink, .cleanupBeforeUnlink),
             (.cleanupAfterFinalIdentityCheck, .cleanupAfterFinalIdentityCheck),
+            (.retirementAfterReusableSlotValidation, .retirementAfterReusableSlotValidation),
+            (
+                .retirementAfterLegacyCompactionValidation,
+                .retirementAfterLegacyCompactionValidation
+            ),
             (.coordinationAfterLock, .coordinationAfterLock),
             (.coordinationBeforeReturn, .coordinationBeforeReturn),
             (.acknowledgementAfterManifest, .acknowledgementAfterManifest):
@@ -845,6 +852,12 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
         guard descriptor >= 0 else { throw CloudAssetStagingError.unavailable }
         let stagedIdentity = try Self.fileIdentity(of: descriptor)
+        let stagedAuthority = ManifestAuthority.present(
+            identity: stagedIdentity,
+            byteCount: Int64(data.count),
+            sha256: Data(SHA256.hash(data: data)),
+            canonicalData: data
+        )
         var removeTemporary = true
         defer {
             if removeTemporary {
@@ -923,6 +936,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
                     destination: accountRootURL.appendingPathComponent(Self.manifestName),
                     displaced: accountRootURL.appendingPathComponent(temporaryName)
                 ))
+                try verifyManifestAuthority(stagedAuthority, in: accountDescriptor)
+                try verifyManifestDescriptor(
+                    displacedDescriptor,
+                    against: expectedAuthority
+                )
                 let retirementName = try captureBoundFile(
                     named: temporaryName,
                     logicalName: Self.manifestName,
@@ -934,10 +952,12 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 )
                 capturedRetirementName = retirementName
                 try beforeBoundary(.manifestBeforeDirectorySync)
-                guard try destinationIdentity(
-                    named: Self.manifestName,
-                    in: accountDescriptor
-                    ) == stagedIdentity,
+                try verifyManifestAuthority(stagedAuthority, in: accountDescriptor)
+                try verifyManifestDescriptor(
+                    displacedDescriptor,
+                    against: expectedAuthority
+                )
+                guard
                     try destinationIdentity(
                         named: retirementName,
                         in: retiredDescriptor
@@ -965,6 +985,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
                         expectedIdentity: original,
                         retiredDescriptor: retiredDescriptor
                     )
+                    try compactFinishedRetirement(
+                        named: capturedRetirementName,
+                        retiredDescriptor: retiredDescriptor,
+                        boundary: .reusable
+                    )
                 }
                 removeTemporary = false
                 throw operationError
@@ -977,6 +1002,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
                     descriptor: displacedDescriptor,
                     expectedIdentity: original,
                     retiredDescriptor: retiredDescriptor
+                )
+                try? compactFinishedRetirement(
+                    named: capturedRetirementName,
+                    retiredDescriptor: retiredDescriptor,
+                    boundary: .reusable
                 )
             }
         } else {
@@ -1001,12 +1031,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
             removeTemporary = false
             do {
                 try beforeBoundary(.manifestBeforeDirectorySync)
-                guard try destinationIdentity(
-                    named: Self.manifestName,
-                    in: accountDescriptor
-                ) == stagedIdentity else {
-                    throw CloudAssetStagingError.unsafeFile
-                }
+                try verifyManifestAuthority(stagedAuthority, in: accountDescriptor)
                 guard Darwin.fsync(accountDescriptor) == 0 else {
                     throw CloudAssetStagingError.unavailable
                 }
@@ -1022,12 +1047,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
         return LoadedManifest(
             payload: normalized,
-            authority: .present(
-                identity: stagedIdentity,
-                byteCount: Int64(data.count),
-                sha256: Data(SHA256.hash(data: data)),
-                canonicalData: data
-            )
+            authority: stagedAuthority
         )
     }
 
@@ -2000,14 +2020,16 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
         _ = try compactZeroRetirementMarkers(
             kind: nil,
-            retiredDescriptor: directories.retired
+            retiredDescriptor: directories.retired,
+            boundary: .legacy
         )
     }
 
-    /// Atomically removes a pathname from an active directory, proves the
-    /// moved entry is still the descriptor-bound inode, then retires only that
-    /// inode's payload. One canonical zero-byte marker per retirement kind is
-    /// reused by atomic rename because Darwin has no unlink-by-descriptor primitive.
+    /// Moves an active pathname into retirement without clobbering an existing
+    /// entry, proves the moved entry is still the descriptor-bound inode, then
+    /// retires only that inode's payload. Verified zero markers are compacted
+    /// separately through an atomic-swap CAS because Darwin has no
+    /// unlink-by-descriptor primitive.
     private func retireBoundFile(
         named name: String,
         logicalName: String,
@@ -2032,6 +2054,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
             expectedIdentity: expectedIdentity,
             retiredDescriptor: retiredDescriptor
         )
+        try compactFinishedRetirement(
+            named: retirementName,
+            retiredDescriptor: retiredDescriptor,
+            boundary: .reusable
+        )
     }
 
     private func captureBoundFile(
@@ -2055,45 +2082,15 @@ final class CloudAssetStagingService: @unchecked Sendable {
             Self.hex(fingerprint.sha256),
             UUID().uuidString.lowercased(),
         ].joined(separator: ".") + ".retired"
-        let reusableMarker = try reusableRetirementMarker(
-            kind: kind,
-            retiredDescriptor: retiredDescriptor
-        )
-        if let reusableMarker {
-            let renameMarker = reusableMarker.withCString { source in
-                retirementName.withCString { destination in
-                    Darwin.renameatx_np(
-                        retiredDescriptor,
-                        source,
-                        retiredDescriptor,
-                        destination,
-                        UInt32(RENAME_EXCL)
-                    )
-                }
-            }
-            guard renameMarker == 0 else { throw CloudAssetStagingError.unavailable }
-        }
         let moveResult = name.withCString { source in
             retirementName.withCString { destination in
-                if reusableMarker == nil {
-                    Darwin.renameatx_np(
-                        directory,
-                        source,
-                        retiredDescriptor,
-                        destination,
-                        UInt32(RENAME_EXCL)
-                    )
-                } else {
-                    // Replacing a verified zero-byte marker is one atomic
-                    // rename. It removes the active pathname and bounds the
-                    // retirement namespace without a check-then-unlink race.
-                    Darwin.renameat(
-                        directory,
-                        source,
-                        retiredDescriptor,
-                        destination
-                    )
-                }
+                Darwin.renameatx_np(
+                    directory,
+                    source,
+                    retiredDescriptor,
+                    destination,
+                    UInt32(RENAME_EXCL)
+                )
             }
         }
         guard moveResult == 0 else { throw CloudAssetStagingError.unavailable }
@@ -2140,19 +2137,30 @@ final class CloudAssetStagingService: @unchecked Sendable {
         }
     }
 
-    private func reusableRetirementMarker(
-        kind: RetirementKind,
-        retiredDescriptor: Int32
-    ) throws -> String? {
-        try compactZeroRetirementMarkers(
-            kind: kind,
-            retiredDescriptor: retiredDescriptor
-        )[kind]
+    private enum ZeroRetirementCompactionBoundary {
+        case reusable
+        case legacy
+    }
+
+    private func compactFinishedRetirement(
+        named name: String,
+        retiredDescriptor: Int32,
+        boundary: ZeroRetirementCompactionBoundary
+    ) throws {
+        guard let metadata = retirementMetadata(from: name) else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+        _ = try compactZeroRetirementMarkers(
+            kind: metadata.kind,
+            retiredDescriptor: retiredDescriptor,
+            boundary: boundary
+        )
     }
 
     private func compactZeroRetirementMarkers(
         kind requestedKind: RetirementKind?,
-        retiredDescriptor: Int32
+        retiredDescriptor: Int32,
+        boundary: ZeroRetirementCompactionBoundary
     ) throws -> [RetirementKind: String] {
         let emptySHA256 = Data(SHA256.hash(data: Data()))
         var result: [RetirementKind: String] = [:]
@@ -2176,7 +2184,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
             try replaceZeroRetirementMarker(
                 survivor,
                 with: candidate,
-                retiredDescriptor: retiredDescriptor
+                retiredDescriptor: retiredDescriptor,
+                boundary: boundary
             )
             changed = true
         }
@@ -2189,7 +2198,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
     private func replaceZeroRetirementMarker(
         _ destinationName: String,
         with sourceName: String,
-        retiredDescriptor: Int32
+        retiredDescriptor: Int32,
+        boundary: ZeroRetirementCompactionBoundary
     ) throws {
         let sourceDescriptor = sourceName.withCString {
             Darwin.openat(retiredDescriptor, $0, O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
@@ -2219,7 +2229,55 @@ final class CloudAssetStagingService: @unchecked Sendable {
         else {
             throw CloudAssetStagingError.unsafeFile
         }
-        let result = sourceName.withCString { source in
+        let retiredRoot = accountRootURL.appendingPathComponent("Retired", isDirectory: true)
+        switch boundary {
+        case .reusable:
+            try beforeBoundary(.retirementAfterReusableSlotValidation(
+                slot: retiredRoot.appendingPathComponent(destinationName)
+            ))
+        case .legacy:
+            try beforeBoundary(.retirementAfterLegacyCompactionValidation(
+                survivor: retiredRoot.appendingPathComponent(destinationName),
+                candidate: retiredRoot.appendingPathComponent(sourceName)
+            ))
+        }
+        try verifyZeroRetirementMarker(
+            named: sourceName,
+            descriptor: sourceDescriptor,
+            expectedIdentity: sourceIdentity,
+            retiredDescriptor: retiredDescriptor
+        )
+        try verifyZeroRetirementMarker(
+            named: destinationName,
+            descriptor: destinationDescriptor,
+            expectedIdentity: destinationIdentity,
+            retiredDescriptor: retiredDescriptor
+        )
+        let swap = sourceName.withCString { source in
+            destinationName.withCString { destination in
+                Darwin.renameatx_np(
+                    retiredDescriptor,
+                    source,
+                    retiredDescriptor,
+                    destination,
+                    UInt32(RENAME_SWAP)
+                )
+            }
+        }
+        guard swap == 0 else { throw CloudAssetStagingError.unavailable }
+        try verifyZeroRetirementMarker(
+            named: sourceName,
+            descriptor: destinationDescriptor,
+            expectedIdentity: destinationIdentity,
+            retiredDescriptor: retiredDescriptor
+        )
+        try verifyZeroRetirementMarker(
+            named: destinationName,
+            descriptor: sourceDescriptor,
+            expectedIdentity: sourceIdentity,
+            retiredDescriptor: retiredDescriptor
+        )
+        let commit = sourceName.withCString { source in
             destinationName.withCString { destination in
                 Darwin.renameat(
                     retiredDescriptor,
@@ -2229,14 +2287,32 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 )
             }
         }
-        guard result == 0,
+        guard commit == 0,
             try self.destinationIdentity(named: destinationName, in: retiredDescriptor)
-                == sourceIdentity,
+                == destinationIdentity,
             Darwin.fstat(sourceDescriptor, &sourceStatus) == 0,
-            sourceStatus.st_nlink == 1,
+            sourceStatus.st_nlink == 0,
             Darwin.fstat(destinationDescriptor, &destinationStatus) == 0,
-            destinationStatus.st_nlink == 0,
+            destinationStatus.st_nlink == 1,
             try Self.fileIdentity(of: destinationDescriptor) == destinationIdentity
+        else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+    }
+
+    private func verifyZeroRetirementMarker(
+        named name: String,
+        descriptor: Int32,
+        expectedIdentity: FileIdentity,
+        retiredDescriptor: Int32
+    ) throws {
+        var status = stat()
+        guard try destinationIdentity(named: name, in: retiredDescriptor) == expectedIdentity,
+            try Self.fileIdentity(of: descriptor) == expectedIdentity,
+            Darwin.fstat(descriptor, &status) == 0,
+            (status.st_mode & S_IFMT) == S_IFREG,
+            status.st_size == 0,
+            status.st_nlink == 1
         else {
             throw CloudAssetStagingError.unsafeFile
         }

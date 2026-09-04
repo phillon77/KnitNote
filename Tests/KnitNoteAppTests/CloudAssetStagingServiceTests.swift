@@ -168,6 +168,156 @@ import Testing
         }
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func accountFileLockSerializesAgainstASeparateProcess() throws {
+        let fixture = try Fixture()
+        let seedBytes = Data("seed lock file".utf8)
+        _ = try fixture.service.stageUpload(
+            source: fixture.source(seedBytes),
+            version: fixture.version(for: seedBytes),
+            mutationID: fixedUUID(27)
+        )
+        let lockURL = fixture.service.accountRootURL
+            .appendingPathComponent(".asset-staging.lock")
+        let readyURL = fixture.root.appendingPathComponent("child-lock-ready")
+        let releaseURL = fixture.root.appendingPathComponent("child-lock-release")
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        child.arguments = [
+            "-c",
+            """
+            import fcntl, os, sys, time
+            descriptor = os.open(sys.argv[1], os.O_RDWR)
+            fcntl.lockf(descriptor, fcntl.LOCK_EX)
+            open(sys.argv[2], "x").close()
+            while not os.path.exists(sys.argv[3]):
+                time.sleep(0.01)
+            fcntl.lockf(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+            """,
+            lockURL.path,
+            readyURL.path,
+            releaseURL.path,
+        ]
+        try child.run()
+        defer {
+            if child.isRunning {
+                _ = FileManager.default.createFile(atPath: releaseURL.path, contents: Data())
+                child.terminate()
+            }
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: readyURL.path), Date() < deadline {
+            usleep(10_000)
+        }
+        #expect(FileManager.default.fileExists(atPath: readyURL.path))
+
+        let started = DispatchSemaphore(value: 0)
+        let completed = DispatchSemaphore(value: 0)
+        let results = ConcurrentResults()
+        let blockedBytes = Data("must wait for subprocess lock".utf8)
+        let blockedSource = try fixture.source(blockedBytes, named: "blocked.asset")
+        let blockedVersion = try fixture.version(for: blockedBytes)
+        DispatchQueue.global().async {
+            started.signal()
+            do {
+                results.append(.success(try fixture.service.stageUpload(
+                    source: blockedSource,
+                    version: blockedVersion,
+                    mutationID: fixedUUID(28)
+                )))
+            } catch {
+                results.append(.failure(error))
+            }
+            completed.signal()
+        }
+        #expect(started.wait(timeout: .now() + 1) == .success)
+        #expect(completed.wait(timeout: .now() + 0.2) == .timedOut)
+
+        #expect(FileManager.default.createFile(atPath: releaseURL.path, contents: Data()))
+        #expect(completed.wait(timeout: .now() + 5) == .success)
+        child.waitUntilExit()
+        #expect(child.terminationStatus == 0)
+        #expect(try results.values.map { try $0.get() }.count == 1)
+    }
+
+    @Test func sameVersionIDDivergenceRejectsEveryImmutableFieldWithoutChangingState() throws {
+        let fixture = try Fixture()
+        let baseBytes = Data("base immutable version".utf8)
+        let versionID = fixedUUID(29)
+        let base = try fixture.version(for: baseBytes, versionID: versionID)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(baseBytes),
+            version: base,
+            mutationID: fixedUUID(30)
+        )
+        let manifestURL = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        let originalManifest = try Data(contentsOf: manifestURL)
+        let otherBytes = Data("other immutable bytes".utf8)
+        let otherOwner = SyncEntityID(kind: .project, uuid: fixedUUID(101))
+        let otherRoleSlot = SyncAttachmentSlot(
+            owner: base.slot.owner,
+            role: "other-role",
+            slotID: base.slot.slotID
+        )
+        let otherOwnerSlot = SyncAttachmentSlot(
+            owner: otherOwner,
+            role: base.slot.role,
+            slotID: base.slot.slotID
+        )
+        let otherIDSlot = SyncAttachmentSlot(
+            owner: base.slot.owner,
+            role: base.slot.role,
+            slotID: "other-slot"
+        )
+        func divergent(
+            slot: SyncAttachmentSlot? = nil,
+            bytes: Data? = nil,
+            mediaType: String? = nil,
+            filename: String? = nil,
+            replaces: UUID? = nil
+        ) throws -> (SyncAttachmentVersion, Data) {
+            let chosenSlot = slot ?? base.slot
+            let chosenBytes = bytes ?? baseBytes
+            return (
+                try SyncAttachmentVersion(
+                    slot: chosenSlot,
+                    versionID: versionID,
+                    conflictGroupID: try SyncAttachmentVersion.conflictGroupID(for: chosenSlot),
+                    contentSHA256: Data(SHA256.hash(data: chosenBytes)),
+                    byteCount: Int64(chosenBytes.count),
+                    mediaType: mediaType ?? base.mediaType,
+                    displayFilename: filename ?? base.displayFilename,
+                    replacesVersionID: replaces
+                ),
+                chosenBytes
+            )
+        }
+        let variants = try [
+            divergent(bytes: otherBytes),
+            divergent(slot: otherRoleSlot),
+            divergent(slot: otherOwnerSlot),
+            divergent(slot: otherIDSlot),
+            divergent(mediaType: "application/octet-stream"),
+            divergent(filename: "other.jpg"),
+            divergent(replaces: fixedUUID(102)),
+        ]
+
+        for (index, variant) in variants.enumerated() {
+            #expect(throws: CloudAssetStagingError.immutableIdentityMismatch) {
+                _ = try fixture.service.stageUpload(
+                    source: fixture.source(variant.1, named: "divergent-\(index).asset"),
+                    version: variant.0,
+                    mutationID: fixedUUID(40 + index)
+                )
+            }
+            #expect(try Data(contentsOf: manifestURL) == originalManifest)
+            #expect(try Data(contentsOf: upload.stagedFileURL) == baseBytes)
+            #expect(try fixture.regularFiles(in: fixture.service.uploadsRootURL).count == 1)
+        }
+    }
+
     @Test func createsFreshCKAssetForEveryAttemptAtStableStagedURL() throws {
         let fixture = try Fixture()
         let bytes = Data("fresh cloud assets".utf8)
@@ -220,7 +370,9 @@ import Testing
             from: fixture.source(goodBytes).fileURL,
             version: version
         )
-        let corruptSource = try fixture.source(Data("corrupt download".utf8), named: "bad.asset")
+        var corruptBytes = goodBytes
+        corruptBytes[corruptBytes.startIndex] ^= 0x01
+        let corruptSource = try fixture.source(corruptBytes, named: "bad.asset")
 
         #expect(throws: CloudAssetStagingError.contentMismatch) {
             _ = try fixture.service.installDownload(
@@ -232,8 +384,27 @@ import Testing
         #expect(try Data(contentsOf: destination) == goodBytes)
         let quarantined = try fixture.regularFiles(in: fixture.service.quarantineRootURL)
         #expect(quarantined.count == 1)
-        #expect(try Data(contentsOf: quarantined[0]) == Data("corrupt download".utf8))
+        #expect(try Data(contentsOf: quarantined[0]) == corruptBytes)
         #expect(FileManager.default.fileExists(atPath: corruptSource.fileURL.path))
+    }
+
+    @Test func oversizedDeclaredDownloadIsNotReadOrCopiedIntoQuarantine() throws {
+        let fixture = try Fixture(maximumAssetBytes: 2_000_000)
+        let expected = Data("safe".utf8)
+        let oversized = Data(repeating: 0x41, count: 1_000_000)
+        let source = try fixture.source(oversized, named: "oversized-download.asset")
+
+        #expect(throws: CloudAssetStagingError.contentMismatch) {
+            _ = try fixture.service.installDownload(
+                from: source.fileURL,
+                version: fixture.version(for: expected)
+            )
+        }
+
+        let quarantined = try fixture.regularFiles(in: fixture.service.quarantineRootURL)
+        #expect(quarantined.count == 1)
+        #expect(try Data(contentsOf: quarantined[0]).count <= expected.count + 1)
+        #expect(try Data(contentsOf: source.fileURL) == oversized)
     }
 
     @Test func installUsesNoClobberPathsForDistinctImmutableVersions() throws {
@@ -344,6 +515,186 @@ import Testing
         _ = try restarted.asset(for: upload)
     }
 
+    @Test func validJSONReferenceRemovalCannotAuthorizeStagedByteCleanup() throws {
+        let fixture = try Fixture()
+        let bytes = Data("checksum protects upload authority".utf8)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(71)
+        )
+        let manifestURL = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        var object = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL))
+                as? [String: Any]
+        )
+        if var payload = object["payload"] as? [String: Any] {
+            payload["references"] = []
+            object["payload"] = payload
+        } else {
+            object["references"] = []
+        }
+        let mutatedManifest = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.sortedKeys]
+        )
+        try mutatedManifest.write(to: manifestURL)
+
+        #expect(throws: CloudAssetStagingError.corruptManifest) {
+            try fixture.service.reconcile()
+        }
+        #expect(try Data(contentsOf: manifestURL) == mutatedManifest)
+        #expect(try Data(contentsOf: upload.stagedFileURL) == bytes)
+    }
+
+    @Test func validJSONReferenceMutationCannotChangeUploadAuthority() throws {
+        let fixture = try Fixture()
+        let bytes = Data("mutated manifest reference".utf8)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(72)
+        )
+        let manifestURL = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        var object = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL))
+                as? [String: Any]
+        )
+        if var payload = object["payload"] as? [String: Any],
+            var references = payload["references"] as? [[String: Any]],
+            !references.isEmpty
+        {
+            references[0]["mutationID"] = fixedUUID(73).uuidString
+            payload["references"] = references
+            object["payload"] = payload
+        } else if var references = object["references"] as? [[String: Any]],
+            !references.isEmpty
+        {
+            references[0]["mutationID"] = fixedUUID(73).uuidString
+            object["references"] = references
+        } else {
+            Issue.record("Manifest did not contain an upload reference")
+        }
+        let mutatedManifest = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.sortedKeys]
+        )
+        try mutatedManifest.write(to: manifestURL)
+
+        #expect(throws: CloudAssetStagingError.corruptManifest) {
+            try fixture.service.reconcile()
+        }
+        #expect(try Data(contentsOf: manifestURL) == mutatedManifest)
+        #expect(try Data(contentsOf: upload.stagedFileURL) == bytes)
+    }
+
+    @Test func missingManifestWithFinalUploadFailsClosedAndPreservesBytes() throws {
+        let fixture = try Fixture()
+        let bytes = Data("missing manifest cannot revoke authority".utf8)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(74)
+        )
+        let manifestURL = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        try FileManager.default.removeItem(at: manifestURL)
+
+        #expect(throws: CloudAssetStagingError.corruptManifest) {
+            try fixture.service.reconcile()
+        }
+        #expect(try Data(contentsOf: upload.stagedFileURL) == bytes)
+        #expect(!FileManager.default.fileExists(atPath: manifestURL.path))
+    }
+
+    @Test func uploadPublishedBeforeManifestIsPreservedWithoutCleanupAuthority() throws {
+        let fixture = try Fixture()
+        let bytes = Data("published before manifest".utf8)
+        let controller = BoundaryController(failOnceAt: .uploadBeforeDirectorySync)
+        let interrupted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+
+        #expect(throws: BoundaryFailure.interrupted) {
+            _ = try interrupted.stageUpload(
+                source: fixture.source(bytes),
+                version: fixture.version(for: bytes),
+                mutationID: fixedUUID(75)
+            )
+        }
+        let published = try #require(
+            fixture.regularFiles(in: interrupted.uploadsRootURL).first
+        )
+
+        #expect(throws: CloudAssetStagingError.corruptManifest) {
+            try fixture.service.reconcile()
+        }
+        #expect(try Data(contentsOf: published) == bytes)
+    }
+
+    @Test func interruptedCleanupMoveIsCompletedOnlyFromExactDurableAckIntent() throws {
+        let fixture = try Fixture()
+        let bytes = Data("cleanup tombstone bytes".utf8)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(76)
+        )
+        let controller = BoundaryController(failOnceAt: .cleanupAfterMove)
+        let interrupted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+
+        #expect(throws: BoundaryFailure.interrupted) {
+            try interrupted.acknowledgeUpload(upload)
+        }
+        #expect(!FileManager.default.fileExists(atPath: upload.stagedFileURL.path))
+        let tombstone = try #require(
+            fixture.regularFiles(in: interrupted.uploadsRootURL)
+                .first(where: { $0.lastPathComponent.hasSuffix(".cleanup") })
+        )
+        #expect(try Data(contentsOf: tombstone) == bytes)
+
+        let restarted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        try restarted.reconcile()
+        #expect(try fixture.regularFiles(in: restarted.uploadsRootURL).isEmpty)
+        #expect(throws: CloudAssetStagingError.unknownUpload) {
+            try restarted.acknowledgeUpload(upload)
+        }
+    }
+
+    @Test func reconcileRemovesSeededManifestAndQuarantineCrashTemporaries() throws {
+        let fixture = try Fixture()
+        let bytes = Data("keeps manifest valid".utf8)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(77)
+        )
+        let manifestTemporary = fixture.service.accountRootURL
+            .appendingPathComponent(".upload-references.json.seeded.tmp")
+        let quarantineTemporary = fixture.service.quarantineRootURL
+            .appendingPathComponent(".seeded-quarantine.asset.seeded.tmp")
+        try Data("old manifest bytes".utf8).write(to: manifestTemporary)
+        try Data("partial quarantine bytes".utf8).write(to: quarantineTemporary)
+
+        try fixture.service.reconcile()
+
+        #expect(!FileManager.default.fileExists(atPath: manifestTemporary.path))
+        #expect(!FileManager.default.fileExists(atPath: quarantineTemporary.path))
+        #expect(try Data(contentsOf: upload.stagedFileURL) == bytes)
+        _ = try fixture.service.asset(for: upload)
+    }
+
     @Test func rejectsSymlinksFIFOsAndOversizedSourcesWithoutBlocking() throws {
         let fixture = try Fixture(maximumAssetBytes: 4)
         let target = try fixture.source(Data("safe".utf8), named: "target")
@@ -425,6 +776,85 @@ import Testing
             )
         }
         #expect(try Data(contentsOf: outside.fileURL) == Data("outside".utf8))
+    }
+
+    @Test func manifestSubstitutionAfterIdentityCheckIsNotOverwritten() throws {
+        let fixture = try Fixture()
+        let firstBytes = Data("first manifest authority".utf8)
+        let first = try fixture.service.stageUpload(
+            source: fixture.source(firstBytes),
+            version: fixture.version(for: firstBytes),
+            mutationID: fixedUUID(81)
+        )
+        let replacementBytes = Data("attacker replacement manifest".utf8)
+        let controller = BoundaryController { boundary in
+            guard case .manifestAfterIdentityCheck(let destination) = boundary else { return }
+            try FileManager.default.removeItem(at: destination)
+            try replacementBytes.write(to: destination)
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let secondBytes = Data("second manifest authority".utf8)
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            _ = try service.stageUpload(
+                source: fixture.source(secondBytes, named: "second-manifest.asset"),
+                version: fixture.version(for: secondBytes),
+                mutationID: fixedUUID(82)
+            )
+        }
+        let manifestURL = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        #expect(try Data(contentsOf: manifestURL) == replacementBytes)
+        #expect(try Data(contentsOf: first.stagedFileURL) == firstBytes)
+    }
+
+    @Test func cleanupSubstitutionAfterIdentityCheckIsMovedBackWithoutUnlinking() throws {
+        let fixture = try Fixture()
+        let bytes = Data("acknowledged immutable bytes".utf8)
+        let upload = try fixture.service.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(83)
+        )
+        let displaced = fixture.sources.appendingPathComponent("displaced-upload.asset")
+        let replacementBytes = Data("replacement must survive".utf8)
+        let controller = BoundaryController { boundary in
+            guard case .cleanupAfterIdentityCheck(let candidate) = boundary else { return }
+            try FileManager.default.moveItem(at: candidate, to: displaced)
+            try replacementBytes.write(to: candidate)
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            try service.acknowledgeUpload(upload)
+        }
+        #expect(try Data(contentsOf: upload.stagedFileURL) == replacementBytes)
+        #expect(try Data(contentsOf: displaced) == bytes)
+    }
+
+    @Test func nonRegularAccountLockIsRejectedBeforeCoordination() throws {
+        let fixture = try Fixture()
+        let lockURL = fixture.service.accountRootURL
+            .appendingPathComponent(".asset-staging.lock")
+        #expect(Darwin.mkfifo(lockURL.path, S_IRUSR | S_IWUSR) == 0)
+        let bytes = Data("must not trust fifo lock".utf8)
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            _ = try fixture.service.stageUpload(
+                source: fixture.source(bytes),
+                version: fixture.version(for: bytes),
+                mutationID: fixedUUID(84)
+            )
+        }
+        #expect(try fixture.regularFiles(in: fixture.service.uploadsRootURL).isEmpty)
     }
 
     @Test func quarantineUsesUniqueOwnedNamesAndNeverOverwritesDiagnostics() throws {

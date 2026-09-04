@@ -65,6 +65,61 @@ import Testing
         }
     }
 
+    @Test func declaredSizeMismatchIsRejectedBeforeAllocationOrPayloadRead() throws {
+        let fixture = try SyncRegularFileReaderFixture()
+        let file = fixture.url(named: "declared-size-mismatch.bin")
+        #expect(FileManager.default.createFile(atPath: file.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.truncate(atOffset: 1_000_000)
+        try handle.close()
+        let counters = SyncRegularFileReaderIOCounters()
+
+        #expect(throws: SyncRegularFileReadError.expectationMismatch) {
+            _ = try SyncRegularFileReader(ioCounters: counters).read(
+                file,
+                maximumBytes: 2_000_000,
+                expected: .init(byteCount: 4)
+            )
+        }
+        #expect(counters.bytesRead == 0)
+    }
+
+    @Test func growthAfterFstatConsumesOnlyOneOverrunByteBeyondDeclaredSize() throws {
+        let fixture = try SyncRegularFileReaderFixture()
+        let file = fixture.url(named: "declared-size-growth.bin")
+        try Data("safe".utf8).write(to: file)
+        let counters = SyncRegularFileReaderIOCounters()
+        let reader = SyncRegularFileReader(
+            beforeRead: {
+                let handle = try FileHandle(forWritingTo: file)
+                try handle.seekToEnd()
+                try handle.write(contentsOf: Data(repeating: 0x41, count: 1_000_000))
+                try handle.close()
+            },
+            ioCounters: counters
+        )
+
+        #expect(throws: SyncRegularFileReadError.expectationMismatch) {
+            _ = try reader.read(
+                file,
+                maximumBytes: 2_000_000,
+                expected: .init(byteCount: 4)
+            )
+        }
+        #expect(counters.bytesRead == 5)
+    }
+
+    @Test func integerMaximumCapDoesNotOverflowTheOverrunProbe() throws {
+        let fixture = try SyncRegularFileReaderFixture()
+        let file = fixture.url(named: "empty-at-integer-cap.bin")
+        try Data().write(to: file)
+
+        let read = try SyncRegularFileReader().read(file, maximumBytes: Int.max)
+
+        #expect(read.data.isEmpty)
+        #expect(read.byteCount == 0)
+    }
+
     @Test func growthBeyondCapIsRejectedDuringRead() throws {
         let fixture = try SyncRegularFileReaderFixture()
         let file = fixture.url(named: "growing.bin")

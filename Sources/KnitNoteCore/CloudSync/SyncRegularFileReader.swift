@@ -68,21 +68,42 @@ public struct SyncRegularFileRead: Sendable {
     }
 }
 
+struct SyncRegularFileReaderIOCounters: Sendable {
+    private final class Storage: @unchecked Sendable {
+        let lock = NSLock()
+        var bytesRead = 0
+    }
+
+    private let storage = Storage()
+
+    var bytesRead: Int {
+        storage.lock.withLock { storage.bytesRead }
+    }
+
+    fileprivate func record(bytesRead: Int) {
+        storage.lock.withLock { storage.bytesRead += bytesRead }
+    }
+}
+
 public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
     private let beforeOpen: (@Sendable () throws -> Void)?
     private let beforeRead: (@Sendable () throws -> Void)?
+    private let ioCounters: SyncRegularFileReaderIOCounters?
 
     public init() {
         beforeOpen = nil
         beforeRead = nil
+        ioCounters = nil
     }
 
     init(
         beforeOpen: (@Sendable () throws -> Void)? = nil,
-        beforeRead: (@Sendable () throws -> Void)? = nil
+        beforeRead: (@Sendable () throws -> Void)? = nil,
+        ioCounters: SyncRegularFileReaderIOCounters? = nil
     ) {
         self.beforeOpen = beforeOpen
         self.beforeRead = beforeRead
+        self.ioCounters = ioCounters
     }
 
     public func read(
@@ -144,6 +165,14 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
         guard openedByteCount <= maximumByteCount else {
             throw SyncRegularFileReadError.tooLarge
         }
+        if let expectedByteCount = expected?.byteCount {
+            guard expectedByteCount >= 0,
+                expectedByteCount <= maximumByteCount,
+                openedByteCount == expectedByteCount
+            else {
+                throw SyncRegularFileReadError.expectationMismatch
+            }
+        }
 
         do {
             try beforeRead?()
@@ -153,18 +182,25 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
             throw SyncRegularFileReadError.unavailable
         }
 
+        let readLimit = expected?.byteCount ?? maximumByteCount
         var data = Data()
-        data.reserveCapacity(Int(openedByteCount))
+        data.reserveCapacity(Int(min(openedByteCount, readLimit)))
         var hasher = SHA256()
         var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
         while true {
+            let remaining = Int(readLimit) - data.count
+            let requestedCount = remaining >= buffer.count ? buffer.count : remaining + 1
             let count = buffer.withUnsafeMutableBytes { bytes in
-                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
+                Darwin.read(descriptor, bytes.baseAddress, requestedCount)
             }
             if count < 0, errno == EINTR { continue }
             guard count >= 0 else { throw SyncRegularFileReadError.unavailable }
             guard count > 0 else { break }
-            guard data.count <= maximumBytes - count else {
+            ioCounters?.record(bytesRead: count)
+            guard count <= remaining else {
+                if expected?.byteCount != nil {
+                    throw SyncRegularFileReadError.expectationMismatch
+                }
                 throw SyncRegularFileReadError.tooLarge
             }
             data.append(buffer, count: count)

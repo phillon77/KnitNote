@@ -55,6 +55,7 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
     static let defaultMaximumAssetBytes = SyncPublicationFileLimits.maximumAttachmentBytes
 
     let accountRootURL: URL
+    let accountIdentifier: String
     let uploadsRootURL: URL
     let installedRootURL: URL
     let quarantineRootURL: URL
@@ -87,6 +88,7 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
         else { throw CloudAssetStagingError.invalidMetadata }
 
         do {
+            self.accountIdentifier = accountIdentifier
             let store = try CloudAssetAccountFileStore(
                 rootURL: rootURL,
                 accountIdentifier: accountIdentifier,
@@ -307,6 +309,20 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
             }
         } catch {
             throw Self.map(error)
+        }
+    }
+
+    /// Restart-safe locator: returns only account-bound bytes verified against
+    /// the immutable version carried by the incoming journal, never a second metadata authority.
+    func installedDownload(version: SyncAttachmentVersion) throws -> URL {
+        let version = try validate(version)
+        let filename = Self.installedFilename(versionID: version.versionID)
+        let binding = try installedBinding(for: version)
+        return try fileStore.withAccountLock { directories in
+            _ = try fileStore.readOwned(named: filename, in: directories.installed,
+                expectedByteCount: version.byteCount, expectedSHA256: version.contentSHA256,
+                expectedBinding: binding)
+            return installedRootURL.appendingPathComponent(filename)
         }
     }
 

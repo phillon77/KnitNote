@@ -2,6 +2,7 @@ import CloudKit
 import Foundation
 import Security
 import Testing
+@testable import KnitNote
 
 private enum CloudKitDevelopmentGateError: Error, Equatable {
     case productionEnvironmentRefused
@@ -70,7 +71,7 @@ private enum CloudKitDevelopmentGate {
     }
 }
 
-private enum CloudKitDevelopmentProbe {
+@MainActor private enum CloudKitDevelopmentProbe {
     static func run(
         zoneID: CKRecordZone.ID,
         createZone: () async throws -> Void,
@@ -88,8 +89,22 @@ private enum CloudKitDevelopmentProbe {
     }
 }
 
-@Suite struct CloudKitDevelopmentIntegrationTests {
+@Suite @MainActor struct CloudKitDevelopmentIntegrationTests {
     private enum ProbeError: Error, Equatable { case create, record, cleanup }
+
+    @Test @MainActor func offlineComposedPlan2RoundtripRestartsDurableAttachmentState() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        try await runComposedPlan2Roundtrip(root: fixture.root, zoneID: uniqueProbeZoneID()) { record in
+            let fetched = try CloudRecordCodec().encode(CloudRecordCodec().decode(record), zoneID: record.recordID.zoneID)
+            if let source = (record["asset"] as? CKAsset)?.fileURL {
+                let downloaded = fixture.root.appendingPathComponent("downloaded.asset")
+                try FileManager.default.copyItem(at: source, to: downloaded)
+                fetched["asset"] = CKAsset(fileURL: downloaded)
+            }
+            return fetched
+        }
+    }
 
     @Test func successfulProbeCleansUpTheExactZoneOnce() async throws {
         let chosen = uniqueProbeZoneID()
@@ -228,14 +243,18 @@ private enum CloudKitDevelopmentProbe {
             try await CloudKitDevelopmentGate.liveDevelopmentContainerIsAvailable()
         }
     )
-    func createsFetchesUpdatesAndDeletesUniqueDevelopmentZone() async throws {
+    @MainActor func createsFetchesUpdatesAndDeletesUniqueDevelopmentZone() async throws {
         // Recheck the environment before constructing CKContainer in the test body.
         let environment = ProcessInfo.processInfo.environment
         guard environment[CloudKitDevelopmentGate.environmentVariable]?.lowercased() != "production" else {
             throw CloudKitDevelopmentGateError.productionEnvironmentRefused
         }
         let identifier = try #require(CloudKitDevelopmentGate.configuredContainerIdentifier())
-        let database = CKContainer(identifier: identifier).privateCloudDatabase
+        guard try await CloudKitDevelopmentGate.liveDevelopmentContainerIsAvailable() else { return }
+        let container = CKContainer(identifier: identifier)
+        let database = container.privateCloudDatabase
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
         let suffix = UUID().uuidString.lowercased()
         let zoneID = CKRecordZone.ID(
             zoneName: "KnitNoteDevelopmentIntegration-\(suffix)",
@@ -247,24 +266,165 @@ private enum CloudKitDevelopmentProbe {
                 _ = try await database.save(CKRecordZone(zoneID: zoneID))
             },
             exerciseRecord: {
-            let recordID = CKRecord.ID(recordName: "probe-\(suffix)", zoneID: zoneID)
-            let record = CKRecord(recordType: "KnitNoteDevelopmentIntegrationProbe", recordID: recordID)
-            record["sequence"] = 1 as NSNumber
-            record["createdAt"] = Date() as NSDate
-            _ = try await database.save(record)
-
-            let fetched = try await database.record(for: recordID)
-            #expect((fetched["sequence"] as? NSNumber)?.intValue == 1)
-
-            fetched["sequence"] = 2 as NSNumber
-            _ = try await database.save(fetched)
-            let updated = try await database.record(for: recordID)
-            #expect((updated["sequence"] as? NSNumber)?.intValue == 2)
+                try await runLiveComposedPlan2Roundtrip(root: fixture.root, zoneID: zoneID, container: container)
             },
             deleteZone: { exactZoneID in
                 _ = try await database.deleteRecordZone(withID: exactZoneID)
             }
         )
+    }
+}
+
+/// Offline composition uses deterministic callbacks at the engine boundary.
+/// The separately gated live path below uses real CKSyncEngine delegate events.
+@MainActor private func runComposedPlan2Roundtrip(
+    root: URL, zoneID: CKRecordZone.ID,
+    exchange: @Sendable (CKRecord) async throws -> CKRecord
+) async throws {
+    let stagingRoot = root.appendingPathComponent("staging")
+    let staging = try CloudAssetStagingService(rootURL: stagingRoot, accountIdentifier: "probe-account")
+    let mutation = try integrationAttachment(root: root)
+    let version = try #require(mutation.savedRecordVersion?.record.payload.attachment)
+    let journalURL = root.appendingPathComponent("journal")
+    let journal = FileSyncMutationJournal(url: journalURL)
+    try journal.enqueue(mutation)
+    let stateStore = FileCloudSyncEngineStateStore(url: root.appendingPathComponent("engine"))
+    let driver = TestSyncEngineDriver()
+    let transport = CKSyncEngineTransport(zoneID: zoneID, stateStore: stateStore,
+        initialAccountIdentifier: "probe-account", assetStaging: staging, engineFactory: { _, _ in driver })
+    let domainURL = root.appendingPathComponent("committed-records.json")
+    let committer = ProbeDurableCommitter(url: domainURL, staging: staging)
+    let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
+        mergeEngine: SyncMergeEngine(), recordProvider: committer, fetchedBatchCommitter: committer, screenshotMode: false)
+    await coordinator.start()
+    for _ in 0..<100 { await Task.yield() }
+    try await transport.finishMutationReplay()
+    await transport.receiveZoneReady(zoneID)
+    let pending = await driver.pendingChanges()
+    let first = try #require(await transport.recordZoneChangeBatch(pendingChanges: pending, scope: .all)?.recordsToSave.first)
+    let firstAsset = try #require(first["asset"] as? CKAsset)
+    let stagedURL = try #require(firstAsset.fileURL)
+    await transport.receiveFailedSave(first, error: CKError(.networkFailure))
+    let retry = try #require(await transport.recordZoneChangeBatch(pendingChanges: pending, scope: .all)?.recordsToSave.first)
+    let retryAsset = try #require(retry["asset"] as? CKAsset)
+    #expect(firstAsset !== retryAsset)
+    #expect(retryAsset.fileURL == stagedURL)
+    let fetched = try await exchange(retry)
+    await transport.receiveSentChanges(savedRecords: [retry], deletedRecordIDs: [])
+    for _ in 0..<2_000 {
+        if try journal.pending().isEmpty && !FileManager.default.fileExists(atPath: stagedURL.path) { break }
+        await Task.yield()
+    }
+    #expect(try FileSyncMutationJournal(url: journalURL).pending().isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: stagedURL.path))
+    await transport.receiveFetchedChanges(records: [fetched], deletedRecordIDs: [])
+    for _ in 0..<2_000 {
+        if FileManager.default.fileExists(atPath: domainURL.path) { break }
+        await Task.yield()
+    }
+    let committed = try JSONDecoder().decode([SyncRecord].self, from: Data(contentsOf: domainURL))
+    #expect(committed.contains { $0.payload.attachment == version })
+    let restartedStaging = try CloudAssetStagingService(rootURL: stagingRoot, accountIdentifier: "probe-account")
+    let installed = try restartedStaging.installedDownload(version: version)
+    #expect(try Data(contentsOf: installed) == Data("Plan2 immutable attachment bytes".utf8))
+    let restartedTransport = CKSyncEngineTransport(zoneID: zoneID, stateStore: stateStore,
+        initialAccountIdentifier: "probe-account", assetStaging: restartedStaging,
+        engineFactory: { _, _ in TestSyncEngineDriver() })
+    try await restartedTransport.start()
+    #expect(try FileSyncMutationJournal(url: journalURL).pending().isEmpty)
+}
+
+private final class ProbeDurableCommitter: SyncFetchedBatchCommitting, SyncRecordProvider, @unchecked Sendable {
+    let url: URL
+    let staging: CloudAssetStagingService
+    let initialRecords: [SyncRecord]
+    init(url: URL, staging: CloudAssetStagingService, initialRecords: [SyncRecord] = []) {
+        self.url = url; self.staging = staging; self.initialRecords = initialRecords
+    }
+    func record(for id: SyncEntityID) throws -> SyncRecord? { initialRecords.first { $0.id == id } }
+    func commitFetchedBatch(batchID: UUID, accountEpoch: CloudSyncAccountEpoch,
+        mergeResult: SyncMergeResult, deletedRecordIDs: [SyncEntityID]) async throws {
+        try accountEpoch.withCurrent {
+            for record in mergeResult.records {
+                if let version = record.payload.attachment { _ = try staging.installedDownload(version: version) }
+            }
+            try SyncDurableFile.write(JSONEncoder().encode(mergeResult.records), to: url)
+        }
+    }
+    func commitServerRecordChanged(failedMutation: SyncMutation, accountEpoch: CloudSyncAccountEpoch,
+        expectedRecordQueue: [SyncMutationIdentity], mergeResult: SyncMergeResult) async throws -> SyncFailedMutationCommitResult {
+        throw CloudSyncTransportError.invalidReplacement
+    }
+}
+
+@MainActor private func runLiveComposedPlan2Roundtrip(root: URL, zoneID: CKRecordZone.ID, container: CKContainer) async throws {
+    let account = try await container.userRecordID().recordName
+    let staging = try CloudAssetStagingService(rootURL: root.appendingPathComponent("assets"), accountIdentifier: account)
+    let mutation = try integrationAttachment(root: root)
+    let version = try #require(mutation.savedRecordVersion?.record.payload.attachment)
+    let journalURL = root.appendingPathComponent("journal")
+    let journal = FileSyncMutationJournal(url: journalURL)
+    try journal.enqueue(mutation)
+    let stateStore = FileCloudSyncEngineStateStore(url: root.appendingPathComponent("engine"))
+    let fields = FileCloudRecordSystemFieldsStore(url: root.appendingPathComponent("system-fields"), zoneID: zoneID)
+    let drivers = ProbeLiveDrivers()
+    let database = container.privateCloudDatabase
+    let factory: CKSyncEngineTransport.EngineFactory = { state, delegate in
+        var config = CKSyncEngine.Configuration(database: database, stateSerialization: state, delegate: delegate)
+        // Explicit requests make the unique-zone test bounded and prevent
+        // background work from escaping cleanup. Delegate events remain real.
+        config.automaticallySync = false
+        let driver = LiveCKSyncEngineDriver(engine: CKSyncEngine(config))
+        drivers.append(driver)
+        return driver
+    }
+    let transport = CKSyncEngineTransport(zoneID: zoneID, stateStore: stateStore, systemFieldsStore: fields,
+        initialAccountIdentifier: account, assetStaging: staging, engineFactory: factory)
+    let domainURL = root.appendingPathComponent("committed-records.json")
+    let committer = ProbeDurableCommitter(url: domainURL, staging: staging, initialRecords: [mutation.savedRecordVersion!.record])
+    let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal, mergeEngine: SyncMergeEngine(),
+        recordProvider: committer, fetchedBatchCommitter: committer, screenshotMode: false)
+    do {
+        await coordinator.start()
+        try await transport.finishMutationReplay()
+        try await waitForLiveProbe { try journal.pending().isEmpty }
+        try await transport.fetchNow()
+        try await waitForLiveProbe { FileManager.default.fileExists(atPath: domainURL.path) }
+        #expect(try staging.installedDownload(version: version).isFileURL)
+        #expect(try Data(contentsOf: staging.installedDownload(version: version)) == Data("Plan2 immutable attachment bytes".utf8))
+        #expect(try stateStore.load() != nil)
+        await drivers.cancelAll()
+        let restartedJournal = FileSyncMutationJournal(url: journalURL)
+        #expect(try restartedJournal.pending().isEmpty)
+        let restarted = CKSyncEngineTransport(zoneID: zoneID, stateStore: stateStore, systemFieldsStore: fields,
+            initialAccountIdentifier: account, assetStaging: staging, engineFactory: factory)
+        let restartedCoordinator = KnitNoteCloudSyncCoordinator(transport: restarted, journal: restartedJournal,
+            mergeEngine: SyncMergeEngine(), recordProvider: committer, fetchedBatchCommitter: committer, screenshotMode: false)
+        await restartedCoordinator.start()
+        try await restarted.fetchNow()
+        #expect(try Data(contentsOf: staging.installedDownload(version: version)) == Data("Plan2 immutable attachment bytes".utf8))
+        await drivers.cancelAll()
+    } catch {
+        await drivers.cancelAll()
+        throw error
+    }
+}
+
+@MainActor private func waitForLiveProbe(_ condition: () throws -> Bool) async throws {
+    let deadline = ContinuousClock.now + .seconds(90)
+    while try !condition() {
+        guard ContinuousClock.now < deadline else { throw CKError(.networkFailure) }
+        try await Task.sleep(for: .milliseconds(100))
+    }
+}
+
+private final class ProbeLiveDrivers: @unchecked Sendable {
+    private let lock = NSLock()
+    private var drivers: [LiveCKSyncEngineDriver] = []
+    func append(_ driver: LiveCKSyncEngineDriver) { lock.withLock { drivers.append(driver) } }
+    func cancelAll() async {
+        let snapshot = lock.withLock { drivers }
+        for driver in snapshot { await driver.cancelOperations() }
     }
 }
 

@@ -5,6 +5,124 @@ import Testing
 @testable import KnitNote
 
 @Suite @MainActor struct KnitNoteCloudSyncCoordinatorTests {
+    @Test func postJournalCleanupFailureRetriesOnNextSyncWithoutResendingAttachment() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let mutation = try integrationAttachment(root: fixture.root)
+        let journal = FileSyncMutationJournal(url: fixture.root.appendingPathComponent("journal"))
+        try journal.enqueue(mutation)
+        let fault = CleanupFaultOnce()
+        let staging = try CloudAssetStagingService(rootURL: fixture.root.appendingPathComponent("assets"), accountIdentifier: "account",
+            beforeBoundary: { boundary in try fault.check(boundary) })
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "account", assetStaging: staging, engineFactory: { _, _ in TestSyncEngineDriver() })
+        let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
+            mergeEngine: SyncMergeEngine(), recordProvider: FakeCoordinatorRecordProvider(records: [:]),
+            fetchedBatchCommitter: FakeFetchedBatchCommitter(), screenshotMode: false)
+        await coordinator.start()
+        await drainCoordinatorTasks()
+        await transport.receiveZoneReady(testZoneID())
+        let cloudID = try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID()).recordID
+        let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloudID)], scope: .all)?.recordsToSave.first)
+        let stagedURL = try #require((outgoing["asset"] as? CKAsset)?.fileURL)
+        await transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
+        #expect(await eventually { coordinator.status.phase == .needsAttention })
+        #expect(try journal.pending().isEmpty)
+        #expect(FileManager.default.fileExists(atPath: stagedURL.path))
+        let version = try #require(mutation.savedRecordVersion?.record.payload.attachment)
+        let concurrentMutationID = UUID()
+        try staging.stageUpload(version: version, source: mutation.attachmentSource!, mutationID: concurrentMutationID)
+        let concurrentURL = try #require(staging.assetForUpload(versionID: version.versionID, mutationID: concurrentMutationID).fileURL)
+        await coordinator.syncNow()
+        #expect(await eventually { !FileManager.default.fileExists(atPath: stagedURL.path) })
+        #expect(FileManager.default.fileExists(atPath: concurrentURL.path))
+        #expect(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloudID)], scope: .all) == nil)
+    }
+
+    @Test func composedTransportRebasesTwoConflictsThenAcknowledgesHeadAndSuccessor() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let head = try saveMutation(revision: 1, mutationSuffix: 94)
+        let tail = try saveMutation(revision: 2, mutationSuffix: 95)
+        let journal = FakeCoordinatorJournal([head, tail])
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "account", engineFactory: { _, _ in TestSyncEngineDriver() })
+        let committer = FakeFetchedBatchCommitter(journal: journal)
+        let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
+            mergeEngine: SyncMergeEngine(), recordProvider: FakeCoordinatorRecordProvider(records: [:]),
+            fetchedBatchCommitter: committer, screenshotMode: false)
+        await coordinator.start()
+        await drainCoordinatorTasks()
+        await transport.receiveZoneReady(testZoneID())
+        let cloudID = try CloudRecordCodec().encode(head.savedRecordVersion!.record, zoneID: testZoneID()).recordID
+        var attempts: Set<String> = []
+        for revision: UInt64 in [3, 4] {
+            let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloudID)], scope: .all)?.recordsToSave.first)
+            attempts.insert(try #require(outgoing["syncAttemptID"] as? String))
+            let server = try CloudRecordCodec().encode(projectRecord(id: head.recordID, revision: revision, name: "server-\(revision)"), zoneID: testZoneID())
+            await transport.receiveFailedSave(outgoing, error: CKError(.serverRecordChanged, userInfo: [CKRecordChangedErrorServerRecordKey: server]))
+            #expect(await eventually { committer.conflictMutationIDs.count == Int(revision - 2) })
+            await drainCoordinatorTasks()
+        }
+        #expect(attempts.count == 2)
+        #expect(journal.pendingMutations.last?.savedRecordVersion?.record.payload.fields["name"]?.value == .string("server-4"))
+        for mutation in [head, tail] {
+            let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloudID)], scope: .all)?.recordsToSave.first)
+            #expect(outgoing["syncMutationID"] as? String == mutation.mutationID.uuidString.lowercased())
+            await transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
+            await drainCoordinatorTasks()
+        }
+        #expect(journal.pendingMutations.isEmpty)
+    }
+
+    @Test func accountInvalidationRejectsSuspendedTransportConflictDurableCommit() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let mutation = try saveMutation(revision: 1, mutationSuffix: 93)
+        let journal = FakeCoordinatorJournal([mutation])
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "old-account", engineFactory: { _, _ in TestSyncEngineDriver() })
+        let committer = FakeFetchedBatchCommitter(journal: journal, suspendConflictCommit: true)
+        let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
+            mergeEngine: SyncMergeEngine(), recordProvider: FakeCoordinatorRecordProvider(records: [:]),
+            fetchedBatchCommitter: committer, screenshotMode: false)
+        await coordinator.start()
+        await drainCoordinatorTasks()
+        await transport.receiveZoneReady(testZoneID())
+        let server = try CloudRecordCodec().encode(projectRecord(id: mutation.recordID, revision: 3, name: "server"), zoneID: testZoneID())
+        let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(server.recordID)], scope: .all)?.recordsToSave.first)
+        await transport.receiveFailedSave(outgoing, error: CKError(.serverRecordChanged, userInfo: [CKRecordChangedErrorServerRecordKey: server]))
+        #expect(await committer.waitUntilConflictCommitSuspended())
+        await transport.receiveAccountChange(previous: "old-account", current: "new-account")
+        await committer.resumeConflictCommit()
+        await drainCoordinatorTasks()
+        #expect(journal.pendingMutations == [mutation])
+        #expect(committer.conflictMutationIDs.isEmpty)
+    }
+
+    @Test func twoFreshConflictsForStableMutationBothRebaseBeforeAcknowledgement() async throws {
+        let first = try saveMutation(revision: 1, mutationSuffix: 91)
+        let later = try saveMutation(revision: 2, mutationSuffix: 92)
+        let journal = FakeCoordinatorJournal([first, later])
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(journal: journal)
+        let coordinator = makeCoordinator(transport: transport, journal: journal, committer: committer)
+        await coordinator.start()
+        for revision: UInt64 in [3, 4] {
+            transport.emit(.mutationFailed(
+                recordID: first.recordID, mutationID: first.mutationID,
+                failure: .serverRecordChanged(recordID: first.recordID, serverRecord: projectRecord(
+                    id: first.recordID, revision: revision, name: "server-\(revision)"
+                ))
+            ))
+            #expect(await eventually { transport.resolvedMutationIDs.count == Int(revision - 2) })
+        }
+        #expect(committer.conflictMutationIDs.count == 2)
+        #expect(journal.pendingMutations.last?.savedRecordVersion?.record.payload.fields["name"]?.value == .string("server-4"))
+        transport.emit(.sent(recordID: first.recordID, mutationID: first.mutationID))
+        #expect(await eventually { journal.pendingMutations.map(\.identity) == [later.identity] })
+    }
+
     @Test func screenshotModeNeverStartsCloudSync() async {
         let transport = FakeCoordinatorTransport()
         let coordinator = makeCoordinator(
@@ -423,16 +541,19 @@ import Testing
         await drainCoordinatorTasks()
         #expect(transport.resolvedMutationIDs.isEmpty)
 
+        let repeatedAttempt = UUID()
         transport.emit(.mutationFailed(
             recordID: first.recordID,
             mutationID: first.mutationID,
-            failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server)
+            failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server),
+            accountEpoch: coordinatorTestEpoch(), attemptID: repeatedAttempt
         ))
         #expect(await eventually { transport.resolvedMutationIDs == [first.mutationID] })
         transport.emit(.mutationFailed(
             recordID: first.recordID,
             mutationID: first.mutationID,
-            failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server)
+            failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server),
+            accountEpoch: coordinatorTestEpoch(), attemptID: repeatedAttempt
         ))
         await drainCoordinatorTasks()
 
@@ -713,7 +834,30 @@ import Testing
     }
 }
 
+private final class CleanupFaultOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+    func check(_ boundary: CloudAssetUploadFaultBoundary) throws {
+        try lock.withLock {
+            if boundary == .acknowledgementAfterManifest, !fired {
+                fired = true
+                throw CloudAssetStagingError.unavailable
+            }
+        }
+    }
+}
+
 private let fixedNow = Date(timeIntervalSince1970: 1_800_000_000)
+
+private func coordinatorTestEpoch() -> CloudSyncAccountEpoch {
+    CloudSyncAccountEpoch(accountIdentifier: "test", zoneID: testZoneID(), generation: 1)
+}
+
+private extension CloudSyncEvent {
+    static func mutationFailed(recordID: SyncEntityID, mutationID: UUID, failure: CloudSyncFailure) -> Self {
+        .mutationFailed(recordID: recordID, mutationID: mutationID, failure: failure, accountEpoch: coordinatorTestEpoch())
+    }
+}
 
 private func uuid(suffix: Int) -> UUID {
     UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", suffix))!
@@ -1085,12 +1229,14 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
 
     func commitServerRecordChanged(
         failedMutation: SyncMutation,
+        accountEpoch: CloudSyncAccountEpoch,
         expectedRecordQueue: [SyncMutationIdentity],
         mergeResult: SyncMergeResult
     ) async throws -> SyncFailedMutationCommitResult {
         if let conflictCommitGate {
             await conflictCommitGate.suspendOnce()
         }
+        return try accountEpoch.withCurrent {
         let shouldFail = withLock { () -> Bool in
             guard conflictFailuresRemaining > 0 else { return false }
             conflictFailuresRemaining -= 1
@@ -1118,6 +1264,7 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
             replacement: replacement,
             followingReplacements: Array(replacements.dropFirst())
         ))
+        }
     }
 
     func waitUntilConflictCommitSuspended() async -> Bool {

@@ -1,9 +1,172 @@
 import CloudKit
+import CryptoKit
 import Foundation
 import Testing
 @testable import KnitNote
 
 @Suite struct CloudSyncEngineTransportTests {
+    @Test func restartRejectsIncomingAttachmentWhoseVerifiedInstalledBytesWereLost() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let mutation = try integrationAttachment(root: fixture.root)
+        let version = try #require(mutation.savedRecordVersion?.record.payload.attachment)
+        let staging = try CloudAssetStagingService(rootURL: fixture.root.appendingPathComponent("assets"), accountIdentifier: "account")
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "account", assetStaging: staging, engineFactory: { _, _ in TestSyncEngineDriver() })
+        try await transport.start()
+        let record = try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID())
+        record["asset"] = CKAsset(fileURL: mutation.attachmentSource!.fileURL)
+        await transport.receiveFetchedChanges(records: [record], deletedRecordIDs: [])
+        let installed = try staging.installedDownload(version: version)
+        try FileManager.default.removeItem(at: installed)
+        let restarted = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "account", assetStaging: staging, engineFactory: { _, _ in TestSyncEngineDriver() })
+        do { try await restarted.start(); Issue.record("missing installed bytes must block replay") }
+        catch { /* fail closed before any fetched event or receipt */ }
+    }
+
+    @Test func attachmentSuccessAndRestartRetainReferencesWithoutExactDurableAcknowledgement() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let mutation = try integrationAttachment(root: fixture.root)
+        let next = try SyncMutation.save(recordVersion: mutation.savedRecordVersion!, attachmentSource: mutation.attachmentSource, mutationID: UUID())
+        let version = try #require(mutation.savedRecordVersion?.record.payload.attachment)
+        let stagingRoot = fixture.root.appendingPathComponent("assets")
+        let staging = try CloudAssetStagingService(rootURL: stagingRoot, accountIdentifier: "account")
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "account", assetStaging: staging, engineFactory: { _, _ in TestSyncEngineDriver() })
+        try await transport.start()
+        try await transport.schedule([mutation, next])
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(testZoneID())
+        let cloud = try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID())
+        let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloud.recordID)], scope: .all)?.recordsToSave.first)
+        let url = try #require((outgoing["asset"] as? CKAsset)?.fileURL)
+        await transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        let nextRecord = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloud.recordID)], scope: .all)?.recordsToSave.first)
+        let nextURL = try #require((nextRecord["asset"] as? CKAsset)?.fileURL)
+        #expect(nextURL != url)
+        // A journal snapshot cannot prove that an absent staging reference was
+        // acknowledged: it may belong to concurrent, not-yet-replayed work.
+        let restartedStaging = try CloudAssetStagingService(rootURL: stagingRoot, accountIdentifier: "account")
+        let restarted = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "account", assetStaging: restartedStaging, engineFactory: { _, _ in TestSyncEngineDriver() })
+        try await restarted.start()
+        try await restarted.schedule([next])
+        try await restarted.finishMutationReplay()
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(try restartedStaging.assetForUpload(versionID: version.versionID, mutationID: next.mutationID).fileURL == nextURL)
+        await restarted.receiveAccountChange(previous: "account", current: "different-account")
+        do { try await restarted.start(); Issue.record("old-account staging must not rebind") }
+        catch { #expect(error as? CloudSyncTransportError == .missingAccountIdentity) }
+        #expect(FileManager.default.fileExists(atPath: nextURL.path))
+    }
+
+    @Test func corruptAttachmentBytesCannotReachIncomingReceipt() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let mutation = try integrationAttachment(root: fixture.root)
+        let staging = try CloudAssetStagingService(rootURL: fixture.root.appendingPathComponent("assets"), accountIdentifier: "account")
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "account", assetStaging: staging, engineFactory: { _, _ in TestSyncEngineDriver() })
+        try await transport.start()
+        let record = try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID())
+        let badURL = fixture.root.appendingPathComponent("bad")
+        try Data("wrong bytes".utf8).write(to: badURL)
+        record["asset"] = CKAsset(fileURL: badURL)
+        await transport.receiveFetchedChanges(records: [record], deletedRecordIDs: [])
+        let incoming = FileCloudIncomingBatchStore(url: fixture.store.relatedURL(pathExtension: "incoming-batches"))
+        #expect(try incoming.beginGeneration(accountIdentifier: "account", zoneID: testZoneID(), persistedEngineState: nil).batches.isEmpty)
+    }
+
+    @Test func requestLevelLimitExceededRetriesReducedBatchesAndStopsAtSingleRecord() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            engineFactory: { _, _ in driver })
+        try await transport.start()
+        let mutations = try (1...4).map { index in
+            try SyncMutation.save(recordVersion: SyncRecordVersion(record: testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", index), revision: 1)), mutationID: UUID())
+        }
+        try await transport.schedule(mutations)
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(testZoneID())
+        let observation = RequestLimitObservation()
+        await driver.setSendAction {
+            while let batch = await transport.recordZoneChangeBatch(pendingChanges: driver.pendingChanges(), scope: .all) {
+                await observation.append(batch.recordsToSave.count)
+                if batch.recordsToSave.count > 2 { throw CKError(.limitExceeded) }
+                await transport.receiveSentChanges(savedRecords: batch.recordsToSave, deletedRecordIDs: [])
+            }
+        }
+        try await transport.sendNow()
+        #expect(await observation.sizes == [4, 2, 2])
+        // A one-record failure is terminal and keeps that mutation pending.
+        let single = try testSaveMutation(revision: 1, mutationSuffix: 111)
+        try await transport.schedule([single])
+        await driver.setSendAction {
+            if let batch = await transport.recordZoneChangeBatch(pendingChanges: driver.pendingChanges(), scope: .all) {
+                await observation.append(batch.recordsToSave.count)
+                throw CKError(.limitExceeded)
+            }
+        }
+        do { try await transport.sendNow(); Issue.record("single record limit must surface") }
+        catch { #expect(error as? CloudSyncFailure == .limitExceeded) }
+        #expect(await observation.sizes == [4, 2, 2, 1])
+        #expect(await transport.recordZoneChangeBatch(pendingChanges: driver.pendingChanges(), scope: .all) == nil)
+    }
+
+    @Test func defaultTransportRefusesMetadataOnlyAttachmentSaveAndFetch() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let mutation = try integrationAttachment(root: fixture.root)
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            engineFactory: { _, _ in TestSyncEngineDriver() })
+        var events = transport.events.makeAsyncIterator()
+        try await transport.start()
+        try await transport.schedule([mutation])
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(testZoneID())
+        _ = await events.next()
+        let record = try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID())
+        let batch = await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(record.recordID)], scope: .all)
+        #expect(batch?.recordsToSave.isEmpty ?? true)
+        await transport.receiveFetchedChanges(records: [record], deletedRecordIDs: [])
+        // No receipt may exist for bytes never installed.
+        let replay = try FileCloudIncomingBatchStore(url: fixture.store.relatedURL(pathExtension: "incoming-batches"))
+            .beginGeneration(accountIdentifier: "", zoneID: testZoneID(), persistedEngineState: nil)
+        #expect(replay.batches.isEmpty)
+    }
+
+    @Test func limitExceededSplitsPendingBatchWithoutLosingStableMutations() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            engineFactory: { _, _ in TestSyncEngineDriver() })
+        try await transport.start()
+        let mutations = try (1...4).map { index in
+            try SyncMutation.save(recordVersion: SyncRecordVersion(record: testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", index), revision: 1)), mutationID: UUID())
+        }
+        let changes = try mutations.map { mutation in
+            CKSyncEngine.PendingRecordZoneChange.saveRecord(try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID()).recordID)
+        }
+        try await transport.schedule(mutations)
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(testZoneID())
+        let large = try #require(await transport.recordZoneChangeBatch(pendingChanges: changes, scope: .all))
+        for record in large.recordsToSave { await transport.receiveFailedSave(record, error: CKError(.limitExceeded)) }
+        let reduced = try #require(await transport.recordZoneChangeBatch(pendingChanges: changes, scope: .all))
+        #expect(reduced.recordsToSave.count == 2)
+        await transport.receiveSentChanges(savedRecords: reduced.recordsToSave, deletedRecordIDs: [])
+        let tail = try #require(await transport.recordZoneChangeBatch(pendingChanges: changes, scope: .all))
+        #expect(tail.recordsToSave.count == 2)
+        #expect(Set((reduced.recordsToSave + tail.recordsToSave).compactMap { $0["syncMutationID"] as? String }) == Set(mutations.map { $0.mutationID.uuidString.lowercased() }))
+    }
+
     @Test func explicitFetchCompletionFollowsBatchesDeliveredDuringThatFetch() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -3097,7 +3260,7 @@ import Testing
         )?.recordsToSave.first)
 
         await transport.receiveFailedSave(firstRecord, error: CKError(.invalidArguments))
-        guard case let .mutationFailed(_, failedID, .invalidArguments)? = await iterator.next() else {
+        guard case let .mutationFailed(_, failedID, .invalidArguments, _, _)? = await iterator.next() else {
             Issue.record("Expected identified permanent head failure")
             return
         }
@@ -3164,7 +3327,7 @@ import Testing
     }
 }
 
-private actor TestSyncEngineDriver: CKSyncEngineDriving {
+actor TestSyncEngineDriver: CKSyncEngineDriving {
     nonisolated let cloudKitEngineIdentifier: ObjectIdentifier? = nil
     private var pending: [CKSyncEngine.PendingRecordZoneChange]
     private var additions = 0
@@ -3186,6 +3349,8 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     private var fetchResume: CheckedContinuation<Void, Never>?
     private var fetchAction: (@Sendable () async -> Void)?
     private var fetchErrorCode: CKError.Code?
+    private var sendAction: (@Sendable () async throws -> Void)?
+    func setSendAction(_ action: @escaping @Sendable () async throws -> Void) { sendAction = action }
 
     init(initialPending: [CKSyncEngine.PendingRecordZoneChange] = []) {
         pending = initialPending
@@ -3258,6 +3423,7 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     }
     func sendChanges(_ options: CKSyncEngine.SendChangesOptions) async throws {
         sendScopes.append(options.scope)
+        try await sendAction?()
     }
     func sendCallCount() -> Int { sendScopes.count }
     func lastSendScopeContains(_ zoneID: CKRecordZone.ID) -> Bool {
@@ -3332,7 +3498,27 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     }
 }
 
-private struct StateStoreFixture {
+func integrationAttachment(root: URL) throws -> SyncMutation {
+    let bytes = Data("Plan2 immutable attachment bytes".utf8)
+    let sourceURL = root.appendingPathComponent("source.jpg")
+    try bytes.write(to: sourceURL)
+    let owner = SyncEntityID(kind: .project, uuid: UUID())
+    let version = try SyncAttachmentVersion.issuing(slot: .init(owner: owner, role: "photo", slotID: "primary"),
+        contentSHA256: Data(SHA256.hash(data: bytes)), byteCount: Int64(bytes.count), mediaType: "image/jpeg", displayFilename: "photo.jpg")
+    let record = SyncRecord(schemaVersion: 1, id: .init(kind: .attachment, uuid: version.versionID),
+        createdAt: Date(timeIntervalSince1970: 1), entityRevision: 1,
+        payload: .init(fields: [:], attachment: version), relationships: [.init(role: "owner", target: owner)],
+        deletedAt: .init(value: nil, stamp: .init(logicalRevision: 1, modifiedAt: Date(timeIntervalSince1970: 1), deviceID: "integration")))
+    return try .save(recordVersion: SyncRecordVersion(record: record), attachmentSource: SyncAttachmentSource(
+        fileURL: sourceURL, contentSHA256: version.contentSHA256, byteCount: version.byteCount), mutationID: UUID())
+}
+
+private actor RequestLimitObservation {
+    private(set) var sizes: [Int] = []
+    func append(_ size: Int) { sizes.append(size) }
+}
+
+struct StateStoreFixture {
     let root: URL
     let url: URL
     let store: FileCloudSyncEngineStateStore
@@ -3463,7 +3649,7 @@ private func encodedState(_ state: CKSyncEngine.State.Serialization?) throws -> 
     try state.map { try JSONEncoder().encode($0) }
 }
 
-private func testZoneID() -> CKRecordZone.ID {
+func testZoneID() -> CKRecordZone.ID {
     CKRecordZone.ID(zoneName: "KnitNoteSync", ownerName: CKCurrentUserDefaultName)
 }
 

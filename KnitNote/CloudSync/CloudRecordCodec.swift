@@ -214,7 +214,8 @@ struct CloudRecordCodec {
     }
 
     private static func requiredInt(_ record: CKRecord, field: String) throws -> Int {
-        guard let value = record[field] as? NSNumber else { throw CloudRecordCodecError.malformedRecord }
+        guard let value = record[field] as? NSNumber,
+              CFGetTypeID(value) != CFBooleanGetTypeID() else { throw CloudRecordCodecError.malformedRecord }
         let integer = value.intValue
         guard value.doubleValue.isFinite, value.doubleValue == Double(integer) else {
             throw CloudRecordCodecError.malformedRecord

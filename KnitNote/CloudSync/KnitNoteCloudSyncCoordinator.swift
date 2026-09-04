@@ -6,6 +6,7 @@ enum CloudSyncIssue: Equatable, Sendable {
     case missingLocalRecord(SyncEntityID)
     case durableCommit
     case journal
+    case assetCleanup
     case operation
     case inconsistentEvent
     case accountChanged
@@ -38,8 +39,11 @@ protocol SyncFetchedBatchCommitting: Sendable {
 
     /// Atomically compares the complete same-record FIFO identities with
     /// `expectedRecordQueue` and replaces that exact queue, or returns stale.
+    /// The final synchronous durable CAS must run inside `accountEpoch.withCurrent`,
+    /// including after any suspension, just like a fetched-batch commit.
     func commitServerRecordChanged(
         failedMutation: SyncMutation,
+        accountEpoch: CloudSyncAccountEpoch,
         expectedRecordQueue: [SyncMutationIdentity],
         mergeResult: SyncMergeResult
     ) async throws -> SyncFailedMutationCommitResult
@@ -82,7 +86,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private var blockingFetchedBatchOrder: [UUID] = []
     private var blockingConflictMutations: [SyncMutationIdentity: CloudSyncIssue] = [:]
     private var blockingConflictMutationOrder: [SyncMutationIdentity] = []
-    private var resolvedFailedMutations: Set<SyncMutationIdentity> = []
+    private var resolvedFailedAttempts: [SyncMutationIdentity: Set<UUID>] = [:]
 
     init(
         transport: any CloudSyncTransport,
@@ -176,14 +180,16 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
         case let .fetchRequestCompleted(requestID):
             await handleFetchRequestCompleted(requestID)
         case let .sent(recordID, mutationID):
-            handleSent(recordID: recordID, mutationID: mutationID)
+            await handleSent(recordID: recordID, mutationID: mutationID)
         case let .sendRequestCompleted(requestID):
             handleSendRequestCompleted(requestID)
-        case let .mutationFailed(recordID, mutationID, failure):
+        case let .mutationFailed(recordID, mutationID, failure, accountEpoch, attemptID):
             await handleMutationFailure(
                 recordID: recordID,
                 mutationID: mutationID,
-                failure: failure
+                failure: failure,
+                accountEpoch: accountEpoch,
+                attemptID: attemptID
             )
         case .zoneReady, .zoneDeleted:
             if activeCycle == nil, !accountInvalidated, status.issue == nil {
@@ -257,13 +263,19 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
         }
     }
 
-    private func handleSent(recordID: SyncEntityID, mutationID: UUID) {
+    private func handleSent(recordID: SyncEntityID, mutationID: UUID) async {
         do {
             let pending = try journal.pending()
             guard let head = pending.first(where: { $0.recordID == recordID }),
                   head.mutationID == mutationID else { return }
             try journal.acknowledge([head.identity])
-            resolvedFailedMutations.remove(head.identity)
+            resolvedFailedAttempts.removeValue(forKey: head.identity)
+            do {
+                try await transport.acknowledgeSentMutation(head.identity)
+            } catch {
+                fail(.assetCleanup)
+                return
+            }
             let remaining = try journal.pending()
             let hasBlocker = !blockingFetchedBatches.isEmpty
                 || !blockingConflictMutations.isEmpty
@@ -282,15 +294,18 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private func handleMutationFailure(
         recordID: SyncEntityID,
         mutationID: UUID,
-        failure: CloudSyncFailure
+        failure: CloudSyncFailure,
+        accountEpoch: CloudSyncAccountEpoch,
+        attemptID: UUID
     ) async {
         guard case let .serverRecordChanged(serverRecordID, serverRecord) = failure else {
             handleTransportFailure(failure)
             return
         }
         let failedIdentity = SyncMutationIdentity(recordID: recordID, mutationID: mutationID)
-        guard !resolvedFailedMutations.contains(failedIdentity) else { return }
+        guard resolvedFailedAttempts[failedIdentity]?.contains(attemptID) != true else { return }
         do {
+            try accountEpoch.requireCurrent()
             guard serverRecordID == recordID,
                   let serverRecord,
                   serverRecord.id == recordID else {
@@ -298,6 +313,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 return
             }
             while true {
+                try accountEpoch.requireCurrent()
                 let pending = try journal.pending()
                 guard let head = pending.first(where: { $0.recordID == recordID }),
                       head.mutationID == mutationID else { return }
@@ -318,14 +334,18 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 do {
                     commitResult = try await fetchedBatchCommitter.commitServerRecordChanged(
                         failedMutation: head,
+                        accountEpoch: accountEpoch,
                         expectedRecordQueue: expectedQueue,
                         mergeResult: result
                     )
+                } catch CloudSyncAccountEpochError.stale {
+                    return
                 } catch {
                     failConflict(failedIdentity, issue: .durableCommit)
                     return
                 }
                 guard case let .committed(resolution) = commitResult else { continue }
+                try accountEpoch.requireCurrent()
                 guard resolution.failedMutation == head.identity,
                       resolution.replacement.identity == head.identity,
                       resolution.followingReplacements.map(\.identity)
@@ -356,7 +376,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                     return
                 }
                 clearConflictBlocker(failedIdentity)
-                resolvedFailedMutations.insert(failedIdentity)
+                resolvedFailedAttempts[failedIdentity, default: []].insert(attemptID)
                 publish(
                     phase: activeCycle == nil ? .waiting : .syncing,
                     pendingCount: durablePending.count,
@@ -364,6 +384,8 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 )
                 return
             }
+        } catch CloudSyncAccountEpochError.stale {
+            return
         } catch let error as CoordinatorConsistencyError {
             switch error {
             case let .missingLocalRecord(id):

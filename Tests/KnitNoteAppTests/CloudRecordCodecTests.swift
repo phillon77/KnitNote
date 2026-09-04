@@ -4,6 +4,13 @@ import Testing
 @testable import KnitNote
 
 @Suite struct CloudRecordCodecTests {
+    @Test func booleanCannotImpersonateSchemaVersionOne() throws {
+        let codec = CloudRecordCodec()
+        let record = try encodedProjectYarnLinkRecord(using: codec)
+        record["schemaVersion"] = NSNumber(value: true)
+        #expect(throws: CloudRecordCodecError.malformedRecord) { try codec.decode(record) }
+    }
+
     @Test func roundTripsVersionedFieldsAndExplicitRelationships() throws {
         let source = try projectYarnLinkRecord()
         let codec = CloudRecordCodec()

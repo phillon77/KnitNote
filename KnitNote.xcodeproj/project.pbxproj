@@ -82,6 +82,8 @@
 		27A3D14010BEAF07C41EE93C /* ProjectPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70FD986F2D3E4C84860398EB /* ProjectPhotoView.swift */; };
 		286616987F74C2AB6C3DA691 /* EntitlementSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA07321152D08FECE09EB46 /* EntitlementSnapshot.swift */; };
 		2A9099D8D970DB14FDCE8E4E /* PatternDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD315B2053510F599375477E /* PatternDetailView.swift */; };
+		2B19A81BB4B13AFB29174753 /* CloudAssetStagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */; };
+		2B305AA2B12BB32D7C062844 /* CloudAssetStagingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D40A63B071272BBD332D01 /* CloudAssetStagingServiceTests.swift */; };
 		2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */; };
 		2C65A881C19AB58778C5A130 /* KnitNoteBackupExportPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */; };
@@ -679,6 +681,7 @@
 		C05CEE6F88AA591A17AA4C99 /* ProjectPatternImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPatternImportPresentation.swift; sourceTree = "<group>"; };
 		C0745F3B3D12949F7D145FAD /* YarnLabelCandidateReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelCandidateReviewView.swift; sourceTree = "<group>"; };
 		C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseServiceLifecycleTests.swift; sourceTree = "<group>"; };
+		C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetStagingService.swift; sourceTree = "<group>"; };
 		C27CD7D290EB0C1B3F7A706C /* WatchSyncCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncCache.swift; sourceTree = "<group>"; };
 		C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternCalculator.swift; sourceTree = "<group>"; };
 		C474D58BBB238B47B244C7CA /* ShareImportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportController.swift; sourceTree = "<group>"; };
@@ -704,6 +707,7 @@
 		E465B08D730079FCDD3CC5C4 /* LegacyPaidVersionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPaidVersionPolicy.swift; sourceTree = "<group>"; };
 		E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternProjectUsage.swift; sourceTree = "<group>"; };
 		E6035C578ADF8D6DF0D15AE0 /* SyncDurableFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDurableFile.swift; sourceTree = "<group>"; };
+		E6D40A63B071272BBD332D01 /* CloudAssetStagingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetStagingServiceTests.swift; sourceTree = "<group>"; };
 		E97FF35EE94B14299E3D2C90 /* PatternFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternFolder.swift; sourceTree = "<group>"; };
 		E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		E9F9AB70EA6020F2BECF5EFD /* KnitNoteBackupDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupDocument.swift; sourceTree = "<group>"; };
@@ -892,6 +896,7 @@
 		2A0467EE3ABAB49B19A460A0 /* CloudSync */ = {
 			isa = PBXGroup;
 			children = (
+				C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */,
 				932195DE8057B24F95F8171C /* CloudRecordCodec.swift */,
 				74311719DB8969B5A448F0B7 /* CloudRecordSystemFieldsStore.swift */,
 				A3C000000000000000000004 /* KnitNoteCloudSyncCoordinator.swift */,
@@ -923,6 +928,7 @@
 		491A1A35F59A29BF49F08ADE /* KnitNoteAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				E6D40A63B071272BBD332D01 /* CloudAssetStagingServiceTests.swift */,
 				52B7BE71370E3844C127442D /* CloudRecordCodecTests.swift */,
 				D03C04E23B8721F67EFC6466 /* CloudSyncEngineTransportTests.swift */,
 				A3C000000000000000000002 /* KnitNoteCloudSyncCoordinatorTests.swift */,
@@ -1576,6 +1582,7 @@
 				AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */,
 				57736CDDC618972A5516C3AF /* ChooseProjectYarnsView.swift in Sources */,
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
+				2B19A81BB4B13AFB29174753 /* CloudAssetStagingService.swift in Sources */,
 				DC489CE9A9732D5FBC3ECB64 /* CloudRecordCodec.swift in Sources */,
 				15197003C9CF7A37A5D6C0B6 /* CloudRecordSystemFieldsStore.swift in Sources */,
 				A3C000000000000000000003 /* KnitNoteCloudSyncCoordinator.swift in Sources */,
@@ -1908,6 +1915,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B305AA2B12BB32D7C062844 /* CloudAssetStagingServiceTests.swift in Sources */,
 				D49E367D588606A53D0EAC9B /* CloudRecordCodecTests.swift in Sources */,
 				8E36309417BA3AF90713772D /* CloudSyncEngineTransportTests.swift in Sources */,
 				A3C000000000000000000001 /* KnitNoteCloudSyncCoordinatorTests.swift in Sources */,

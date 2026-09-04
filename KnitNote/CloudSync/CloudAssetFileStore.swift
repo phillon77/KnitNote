@@ -18,6 +18,14 @@ struct CloudAssetAccountDirectories {
     let quarantine: Int32
 }
 
+enum CloudAssetAtomicReplacementBoundary: Hashable, Sendable {
+    case replacementBeforeDirectorySync
+    case rollbackBeforeMutation
+    case rollbackBeforeDirectorySync
+    case transactionCleanupBeforeUnlink
+    case transactionCleanupBeforeDirectorySync
+}
+
 /// Descriptor-scoped filesystem operations for one CloudKit account.
 /// Directory descriptors are valid only for the duration of `withAccountLock`.
 final class CloudAssetAccountFileStore: @unchecked Sendable {
@@ -38,6 +46,9 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
     private let beforeProcessLockAttempt: (@Sendable () -> Void)?
     private let afterLockDescriptorClose: (@Sendable () -> Void)?
     private let beforeAtomicReplacementDirectorySync: @Sendable () throws -> Void
+    private let atomicReplacementFault: @Sendable (
+        CloudAssetAtomicReplacementBoundary
+    ) throws -> Void
     private let directoryEntryReader: DirectoryEntryReader
     private let activeDescriptorsLock = NSLock()
     private var activeDescriptors: Set<Int32> = []
@@ -52,6 +63,9 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         beforeProcessLockAttempt: (@Sendable () -> Void)? = nil,
         afterLockDescriptorClose: (@Sendable () -> Void)? = nil,
         beforeAtomicReplacementDirectorySync: @escaping @Sendable () throws -> Void = {},
+        atomicReplacementFault: @escaping @Sendable (
+            CloudAssetAtomicReplacementBoundary
+        ) throws -> Void = { _ in },
         directoryEntryReader: @escaping DirectoryEntryReader = Darwin.readdir
     ) throws {
         guard !accountIdentifier.isEmpty else { throw CloudAssetFileStoreError.invalidAccount }
@@ -65,6 +79,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         self.beforeProcessLockAttempt = beforeProcessLockAttempt
         self.afterLockDescriptorClose = afterLockDescriptorClose
         self.beforeAtomicReplacementDirectorySync = beforeAtomicReplacementDirectorySync
+        self.atomicReplacementFault = atomicReplacementFault
         self.directoryEntryReader = directoryEntryReader
     }
 
@@ -218,12 +233,247 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         try synchronize(directory)
     }
 
-    func replaceAtomically(_ data: Data, named name: String, in directory: Int32) throws {
+    func replaceAtomically(
+        _ data: Data,
+        named name: String,
+        in directory: Int32,
+        transactionDomain: String = "knitnote.cloud-asset.file-replacement.v1"
+    ) throws {
         try requireActive(directory)
         try Self.validateName(name)
         try validatePayload(data)
-        let priorIdentity = try destinationIdentityIfPresent(named: name, in: directory)
-        let temporary = ".tmp-\(UUID().uuidString.lowercased())"
+        guard !transactionDomain.isEmpty else { throw CloudAssetFileStoreError.unsafeFile }
+        try recoverAtomicReplacement(
+            named: name,
+            in: directory,
+            transactionDomain: transactionDomain
+        )
+
+        let priorData: Data?
+        if try ownedFileExists(named: name, in: directory) {
+            priorData = try readOwned(
+                named: name,
+                in: directory,
+                maximumByteCount: maximumAssetBytes
+            )
+        } else {
+            priorData = nil
+        }
+        let transaction = AtomicReplacementTransaction(
+            schemaVersion: 1,
+            destination: name,
+            replacementTemporary: ".tmp-\(UUID().uuidString.lowercased())",
+            priorData: priorData,
+            replacementByteCount: Int64(data.count),
+            replacementSHA256: Data(SHA256.hash(data: data))
+        )
+        let marker = try encodeTransaction(
+            transaction,
+            domain: transactionDomain
+        )
+        try publishTransactionMarker(
+            marker,
+            named: transactionMarkerName(for: name),
+            in: directory
+        )
+
+        do {
+            try publishReplacement(
+                data,
+                temporary: transaction.replacementTemporary,
+                destination: name,
+                destinationExisted: priorData != nil,
+                directory: directory
+            )
+            try beforeAtomicReplacementDirectorySync()
+            try atomicReplacementFault(.replacementBeforeDirectorySync)
+            try synchronize(directory)
+            try cleanupTransactionMarker(
+                named: name,
+                in: directory,
+                injectFaults: true
+            )
+        } catch {
+            do {
+                try restoreAtomicReplacement(
+                    transaction,
+                    markerData: marker,
+                    in: directory,
+                    transactionDomain: transactionDomain,
+                    injectFaults: true
+                )
+            } catch {
+                throw CloudAssetFileStoreError.unavailable
+            }
+            throw error
+        }
+    }
+
+    func recoverAtomicReplacement(
+        named name: String,
+        in directory: Int32,
+        transactionDomain: String
+    ) throws {
+        try requireActive(directory)
+        try Self.validateName(name)
+        guard !transactionDomain.isEmpty else { throw CloudAssetFileStoreError.unsafeFile }
+        let markerName = transactionMarkerName(for: name)
+        let markerTemporary = transactionMarkerTemporaryName(for: name)
+        if !(try ownedFileExists(named: markerName, in: directory)) {
+            if try removeIfPresent(named: markerTemporary, in: directory) {
+                try synchronize(directory)
+            }
+            if try removeIfPresent(named: recoveryTemporaryName(for: name), in: directory) {
+                try synchronize(directory)
+            }
+            return
+        }
+        let markerData = try readOwned(
+            named: markerName,
+            in: directory,
+            maximumByteCount: maximumTransactionBytes
+        )
+        let transaction = try decodeTransaction(
+            markerData,
+            expectedDestination: name,
+            domain: transactionDomain
+        )
+        try restoreAtomicReplacement(
+            transaction,
+            markerData: markerData,
+            in: directory,
+            transactionDomain: transactionDomain,
+            injectFaults: false
+        )
+    }
+
+    private struct AtomicReplacementTransaction: Codable, Equatable {
+        let schemaVersion: Int
+        let destination: String
+        let replacementTemporary: String
+        let priorData: Data?
+        let replacementByteCount: Int64
+        let replacementSHA256: Data
+    }
+
+    private struct AtomicReplacementEnvelope: Codable, Equatable {
+        let checksum: Data
+        let payload: Data
+    }
+
+    private var maximumTransactionBytes: Int {
+        let overhead = 1_048_576
+        guard maximumAssetBytes <= (Int.max - overhead) / 2 else { return Int.max }
+        return maximumAssetBytes * 2 + overhead
+    }
+
+    private func transactionMarkerName(for destination: String) -> String {
+        ".\(destination).replace-transaction"
+    }
+
+    private func transactionMarkerTemporaryName(for destination: String) -> String {
+        ".\(destination).replace-transaction.tmp"
+    }
+
+    private func recoveryTemporaryName(for destination: String) -> String {
+        ".\(destination).replace-recovery.tmp"
+    }
+
+    private func encodeTransaction(
+        _ transaction: AtomicReplacementTransaction,
+        domain: String
+    ) throws -> Data {
+        let payload = try Self.canonicalEncoder().encode(transaction)
+        let envelope = AtomicReplacementEnvelope(
+            checksum: Self.transactionChecksum(domain: domain, payload: payload),
+            payload: payload
+        )
+        let data = try Self.canonicalEncoder().encode(envelope)
+        guard data.count <= maximumTransactionBytes else {
+            throw CloudAssetFileStoreError.tooLarge
+        }
+        return data
+    }
+
+    private func decodeTransaction(
+        _ data: Data,
+        expectedDestination: String,
+        domain: String
+    ) throws -> AtomicReplacementTransaction {
+        do {
+            let envelope = try JSONDecoder().decode(AtomicReplacementEnvelope.self, from: data)
+            guard envelope.checksum.count == SHA256.byteCount,
+                  envelope.checksum == Self.transactionChecksum(
+                      domain: domain,
+                      payload: envelope.payload
+                  ),
+                  try Self.canonicalEncoder().encode(envelope) == data
+            else { throw CloudAssetFileStoreError.unsafeFile }
+            let transaction = try JSONDecoder().decode(
+                AtomicReplacementTransaction.self,
+                from: envelope.payload
+            )
+            guard try Self.canonicalEncoder().encode(transaction) == envelope.payload,
+                  transaction.schemaVersion == 1,
+                  transaction.destination == expectedDestination,
+                  transaction.replacementByteCount >= 0,
+                  transaction.replacementByteCount <= Int64(maximumAssetBytes),
+                  transaction.replacementSHA256.count == SHA256.byteCount,
+                  Self.isReplacementTemporaryName(transaction.replacementTemporary),
+                  transaction.priorData?.count ?? 0 <= maximumAssetBytes
+            else { throw CloudAssetFileStoreError.unsafeFile }
+            return transaction
+        } catch let error as CloudAssetFileStoreError {
+            throw error
+        } catch {
+            throw CloudAssetFileStoreError.unsafeFile
+        }
+    }
+
+    private func publishTransactionMarker(
+        _ data: Data,
+        named marker: String,
+        in directory: Int32
+    ) throws {
+        let markerTemporary = "\(marker).tmp"
+        if try removeIfPresent(named: markerTemporary, in: directory) {
+            try synchronize(directory)
+        }
+        let descriptor = try createTemporary(named: markerTemporary, in: directory)
+        defer { Darwin.close(descriptor) }
+        var removeTemporary = true
+        defer {
+            if removeTemporary {
+                _ = markerTemporary.withCString { Darwin.unlinkat(directory, $0, 0) }
+            }
+        }
+        try Self.writeAll(data, descriptor: descriptor)
+        guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetFileStoreError.unavailable }
+        let identity = try ownedIdentity(descriptor)
+        try validatePath(named: markerTemporary, in: directory, equals: identity)
+        let published = markerTemporary.withCString { source in
+            marker.withCString { destination in
+                Darwin.renameatx_np(
+                    directory, source, directory, destination, UInt32(RENAME_EXCL)
+                )
+            }
+        }
+        guard published == 0 else { throw CloudAssetFileStoreError.unavailable }
+        removeTemporary = false
+        try validatePath(named: marker, in: directory, equals: identity)
+        try synchronize(directory)
+    }
+
+    private func publishReplacement(
+        _ data: Data,
+        temporary: String,
+        destination: String,
+        destinationExisted: Bool,
+        directory: Int32
+    ) throws {
+        if try removeIfPresent(named: temporary, in: directory) {
+            try synchronize(directory)
+        }
         let descriptor = try createTemporary(named: temporary, in: directory)
         defer { Darwin.close(descriptor) }
         var removeTemporary = true
@@ -232,125 +482,109 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         }
         try Self.writeAll(data, descriptor: descriptor)
         guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetFileStoreError.unavailable }
-        let replacementIdentity = try ownedIdentity(descriptor)
-        try validatePath(named: temporary, in: directory, equals: replacementIdentity)
-
-        if let priorIdentity {
-            let exchanged = temporary.withCString { replacement in
-                name.withCString { prior in
-                    Darwin.renameatx_np(
-                        directory, replacement, directory, prior, UInt32(RENAME_SWAP)
+        let identity = try ownedIdentity(descriptor)
+        try validatePath(named: temporary, in: directory, equals: identity)
+        let renamed = temporary.withCString { source in
+            destination.withCString { target in
+                destinationExisted
+                    ? Darwin.renameat(directory, source, directory, target)
+                    : Darwin.renameatx_np(
+                        directory, source, directory, target, UInt32(RENAME_EXCL)
                     )
-                }
-            }
-            guard exchanged == 0 else { throw CloudAssetFileStoreError.unavailable }
-            do {
-                try validatePath(named: name, in: directory, equals: replacementIdentity)
-                try validatePath(named: temporary, in: directory, equals: priorIdentity)
-                try beforeAtomicReplacementDirectorySync()
-                try synchronize(directory)
-            } catch {
-                // After the exchange, `temporary` names the prior authority.
-                // Disable generic cleanup before rollback so a rollback failure
-                // preserves that inode for diagnosis/recovery.
-                removeTemporary = false
-                try rollbackExchange(
-                    temporary: temporary,
-                    destination: name,
-                    priorIdentity: priorIdentity,
-                    replacementIdentity: replacementIdentity,
-                    directory: directory
-                )
-                throw error
-            }
-
-            // The replacement is durable at this point. Removing the exchanged
-            // prior inode is cleanup, not part of publishing the new authority.
-            guard temporary.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0 else {
-                removeTemporary = false
-                try rollbackExchange(
-                    temporary: temporary,
-                    destination: name,
-                    priorIdentity: priorIdentity,
-                    replacementIdentity: replacementIdentity,
-                    directory: directory
-                )
-                throw CloudAssetFileStoreError.unavailable
-            }
-            removeTemporary = false
-            try? synchronize(directory)
-            return
-        }
-
-        let published = temporary.withCString { source in
-            name.withCString { destination in
-                Darwin.renameatx_np(
-                    directory, source, directory, destination, UInt32(RENAME_EXCL)
-                )
             }
         }
-        guard published == 0 else { throw CloudAssetFileStoreError.unavailable }
-        do {
-            try validatePath(named: name, in: directory, equals: replacementIdentity)
-            try beforeAtomicReplacementDirectorySync()
-            try synchronize(directory)
-            removeTemporary = false
-        } catch {
-            removeTemporary = false
-            try rollbackInitialPublication(
-                temporary: temporary,
-                destination: name,
-                replacementIdentity: replacementIdentity,
+        guard renamed == 0 else { throw CloudAssetFileStoreError.unavailable }
+        removeTemporary = false
+        try validatePath(named: destination, in: directory, equals: identity)
+    }
+
+    private func restoreAtomicReplacement(
+        _ transaction: AtomicReplacementTransaction,
+        markerData: Data,
+        in directory: Int32,
+        transactionDomain: String,
+        injectFaults: Bool
+    ) throws {
+        let markerName = transactionMarkerName(for: transaction.destination)
+        if !(try ownedFileExists(named: markerName, in: directory)) {
+            try publishTransactionMarker(markerData, named: markerName, in: directory)
+        }
+        if injectFaults { try atomicReplacementFault(.rollbackBeforeMutation) }
+
+        if let priorData = transaction.priorData {
+            try publishReplacement(
+                priorData,
+                temporary: recoveryTemporaryName(for: transaction.destination),
+                destination: transaction.destination,
+                destinationExisted: try ownedFileExists(
+                    named: transaction.destination,
+                    in: directory
+                ),
                 directory: directory
             )
-            throw error
+        } else if try ownedFileExists(named: transaction.destination, in: directory) {
+            _ = try readOwned(
+                named: transaction.destination,
+                in: directory,
+                expectedByteCount: transaction.replacementByteCount,
+                expectedSHA256: transaction.replacementSHA256
+            )
+            guard transaction.destination.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0
+            else { throw CloudAssetFileStoreError.unavailable }
         }
+
+        if injectFaults { try atomicReplacementFault(.rollbackBeforeDirectorySync) }
+        try synchronize(directory)
+        _ = try removeIfPresent(named: transaction.replacementTemporary, in: directory)
+        _ = try removeIfPresent(named: recoveryTemporaryName(for: transaction.destination), in: directory)
+        try cleanupTransactionMarker(
+            named: transaction.destination,
+            in: directory,
+            injectFaults: injectFaults
+        )
     }
 
-    private func rollbackExchange(
-        temporary: String,
-        destination: String,
-        priorIdentity: Identity,
-        replacementIdentity: Identity,
-        directory: Int32
+    private func cleanupTransactionMarker(
+        named destination: String,
+        in directory: Int32,
+        injectFaults: Bool
     ) throws {
-        let exchanged = temporary.withCString { prior in
-            destination.withCString { replacement in
-                Darwin.renameatx_np(
-                    directory, prior, directory, replacement, UInt32(RENAME_SWAP)
-                )
-            }
-        }
-        guard exchanged == 0 else { throw CloudAssetFileStoreError.unavailable }
-        try validatePath(named: destination, in: directory, equals: priorIdentity)
-        try validatePath(named: temporary, in: directory, equals: replacementIdentity)
-        try synchronize(directory)
-        guard temporary.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0 else {
+        let marker = transactionMarkerName(for: destination)
+        if injectFaults { try atomicReplacementFault(.transactionCleanupBeforeUnlink) }
+        guard try removeIfPresent(named: marker, in: directory) else {
             throw CloudAssetFileStoreError.unavailable
+        }
+        if injectFaults {
+            try atomicReplacementFault(.transactionCleanupBeforeDirectorySync)
         }
         try synchronize(directory)
     }
 
-    private func rollbackInitialPublication(
-        temporary: String,
-        destination: String,
-        replacementIdentity: Identity,
-        directory: Int32
-    ) throws {
-        let movedBack = destination.withCString { published in
-            temporary.withCString { temporaryName in
-                Darwin.renameatx_np(
-                    directory, published, directory, temporaryName, UInt32(RENAME_EXCL)
-                )
-            }
-        }
-        guard movedBack == 0 else { throw CloudAssetFileStoreError.unavailable }
-        try validatePath(named: temporary, in: directory, equals: replacementIdentity)
-        try synchronize(directory)
-        guard temporary.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0 else {
+    private func removeIfPresent(named name: String, in directory: Int32) throws -> Bool {
+        guard try ownedFileExists(named: name, in: directory) else { return false }
+        guard name.withCString({ Darwin.unlinkat(directory, $0, 0) }) == 0 else {
             throw CloudAssetFileStoreError.unavailable
         }
-        try synchronize(directory)
+        return true
+    }
+
+    private static func canonicalEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }
+
+    private static func transactionChecksum(domain: String, payload: Data) -> Data {
+        var material = Data(domain.utf8)
+        material.append(0)
+        material.append(payload)
+        return Data(SHA256.hash(data: material))
+    }
+
+    private static func isReplacementTemporaryName(_ name: String) -> Bool {
+        guard name.hasPrefix(".tmp-"), name.count == ".tmp-".count + 36 else { return false }
+        let id = String(name.dropFirst(".tmp-".count))
+        return UUID(uuidString: id) != nil && id == id.lowercased()
     }
 
     func removeOwned(named name: String, in directory: Int32) throws {

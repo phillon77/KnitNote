@@ -305,6 +305,70 @@ import Testing
         let accountNames = try FileManager.default.contentsOfDirectory(atPath: fixture.accountURL.path)
         #expect(accountNames.filter { $0.hasPrefix(".tmp-") || $0.hasPrefix(".backup-") }.isEmpty)
     }
+
+    @Test(arguments: [
+        CloudAssetAtomicReplacementBoundary.rollbackBeforeMutation,
+        .rollbackBeforeDirectorySync,
+    ])
+    func rollbackFailureIsRecoveredBeforeNextLoad(
+        _ rollbackBoundary: CloudAssetAtomicReplacementBoundary
+    ) throws {
+        let faults = AtomicReplacementFaults()
+        let fixture = try ManifestFixture(atomicReplacementFault: faults.check)
+        let original = try fixture.upload(mutation: 1, version: 1)
+        let replacement = try fixture.upload(mutation: 2, version: 2)
+        try fixture.withLock { try fixture.manifests.commitUploads([original], in: $0) }
+        faults.arm(.replacementBeforeDirectorySync)
+        faults.arm(rollbackBoundary)
+
+        #expect(throws: CloudAssetManifestStoreError.unavailable) {
+            try fixture.withLock { try fixture.manifests.commitUploads([replacement], in: $0) }
+        }
+
+        #expect(try fixture.loadUploadsAfterRestart() == [original])
+        #expect(try fixture.transactionArtifacts().isEmpty)
+    }
+
+    @Test(arguments: [
+        CloudAssetAtomicReplacementBoundary.transactionCleanupBeforeUnlink,
+        .transactionCleanupBeforeDirectorySync,
+    ])
+    func cleanupFailureReportsFailureAndRestoresPriorAuthority(
+        _ cleanupBoundary: CloudAssetAtomicReplacementBoundary
+    ) throws {
+        let faults = AtomicReplacementFaults()
+        let fixture = try ManifestFixture(atomicReplacementFault: faults.check)
+        let original = try fixture.upload(mutation: 1, version: 1)
+        let replacement = try fixture.upload(mutation: 2, version: 2)
+        try fixture.withLock { try fixture.manifests.commitUploads([original], in: $0) }
+        faults.arm(cleanupBoundary)
+
+        #expect(throws: CloudAssetManifestStoreError.unavailable) {
+            try fixture.withLock { try fixture.manifests.commitUploads([replacement], in: $0) }
+        }
+
+        #expect(try fixture.loadUploadsAfterRestart() == [original])
+        #expect(try fixture.transactionArtifacts().isEmpty)
+    }
+
+    @Test func repeatedFailedTransactionsRemainBoundedAcrossRestartRecovery() throws {
+        let faults = AtomicReplacementFaults()
+        let fixture = try ManifestFixture(atomicReplacementFault: faults.check)
+        let original = try fixture.upload(mutation: 1, version: 1)
+        let replacement = try fixture.upload(mutation: 2, version: 2)
+        try fixture.withLock { try fixture.manifests.commitUploads([original], in: $0) }
+
+        for _ in 0..<20 {
+            faults.arm(.replacementBeforeDirectorySync)
+            faults.arm(.rollbackBeforeMutation)
+            #expect(throws: CloudAssetManifestStoreError.unavailable) {
+                try fixture.withLock { try fixture.manifests.commitUploads([replacement], in: $0) }
+            }
+            #expect(try fixture.transactionArtifacts().count <= 1)
+            #expect(try fixture.loadUploadsAfterRestart() == [original])
+            #expect(try fixture.transactionArtifacts().isEmpty)
+        }
+    }
 }
 
 private final class ManifestFixture {
@@ -314,7 +378,10 @@ private final class ManifestFixture {
     let manifests: CloudAssetManifestStore
 
     init(
-        beforeAtomicReplacementDirectorySync: @escaping @Sendable () throws -> Void = {}
+        beforeAtomicReplacementDirectorySync: @escaping @Sendable () throws -> Void = {},
+        atomicReplacementFault: @escaping @Sendable (
+            CloudAssetAtomicReplacementBoundary
+        ) throws -> Void = { _ in }
     ) throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "cloud-asset-manifest-\(UUID().uuidString)", isDirectory: true
@@ -322,7 +389,8 @@ private final class ManifestFixture {
         fileStore = try CloudAssetAccountFileStore(
             rootURL: root,
             accountIdentifier: accountIdentifier,
-            beforeAtomicReplacementDirectorySync: beforeAtomicReplacementDirectorySync
+            beforeAtomicReplacementDirectorySync: beforeAtomicReplacementDirectorySync,
+            atomicReplacementFault: atomicReplacementFault
         )
         manifests = CloudAssetManifestStore(fileStore: fileStore)
         try fileStore.withAccountLock { _ in }
@@ -410,6 +478,23 @@ private final class ManifestFixture {
         ]
         return try JSONSerialization.data(withJSONObject: rewritten, options: [.sortedKeys])
     }
+
+    func loadUploadsAfterRestart() throws -> [CloudAssetUploadReference] {
+        let restartedFileStore = try CloudAssetAccountFileStore(
+            rootURL: root,
+            accountIdentifier: accountIdentifier
+        )
+        let restartedManifests = CloudAssetManifestStore(fileStore: restartedFileStore)
+        return try restartedFileStore.withAccountLock {
+            try restartedManifests.loadUploads(in: $0)
+        }
+    }
+
+    func transactionArtifacts() throws -> [String] {
+        try FileManager.default.contentsOfDirectory(atPath: accountURL.path).filter {
+            $0.hasPrefix(".tmp-") || $0.contains("replace-transaction")
+        }
+    }
 }
 
 private struct InjectedManifestFailure: Error {}
@@ -426,5 +511,19 @@ private final class AtomicReplaceFault: @unchecked Sendable {
             armed = false
             return true
         }
+    }
+}
+
+private final class AtomicReplacementFaults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var armed: Set<CloudAssetAtomicReplacementBoundary> = []
+
+    func arm(_ boundary: CloudAssetAtomicReplacementBoundary) {
+        lock.withLock { _ = armed.insert(boundary) }
+    }
+
+    func check(_ boundary: CloudAssetAtomicReplacementBoundary) throws {
+        let shouldFail = lock.withLock { armed.remove(boundary) != nil }
+        if shouldFail { throw InjectedManifestFailure() }
     }
 }

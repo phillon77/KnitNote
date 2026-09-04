@@ -134,6 +134,13 @@ final class CloudAssetManifestStore {
         isFinalName: (String) -> Bool,
         empty: Payload
     ) throws -> Payload {
+        do {
+            try fileStore.recoverAtomicReplacement(
+                named: name,
+                in: directory,
+                transactionDomain: "\(domain).transaction"
+            )
+        } catch { throw map(error) }
         let exists: Bool
         do { exists = try fileStore.ownedFileExists(named: name, in: directory) }
         catch { throw map(error) }
@@ -190,7 +197,8 @@ final class CloudAssetManifestStore {
             try fileStore.replaceAtomically(
                 try encoder().encode(envelope),
                 named: name,
-                in: directory
+                in: directory,
+                transactionDomain: "\(domain).transaction"
             )
         } catch let error as CloudAssetManifestStoreError {
             throw error

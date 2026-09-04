@@ -146,6 +146,27 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         }
     }
 
+    /// Reads one external descriptor with a caller-selected bound and returns
+    /// the observed identity and digest. Download staging uses this to classify
+    /// a mismatch without reopening the external pathname for quarantine.
+    func readExternalObserved(
+        _ url: URL,
+        maximumByteCount: Int
+    ) throws -> SyncRegularFileRead {
+        guard maximumByteCount >= 0, maximumByteCount <= maximumAssetBytes else {
+            throw CloudAssetFileStoreError.tooLarge
+        }
+        do {
+            return try externalReader.read(
+                url,
+                maximumBytes: maximumByteCount,
+                expected: nil
+            )
+        } catch let error as SyncRegularFileReadError {
+            throw Self.map(error)
+        }
+    }
+
     func readOwned(
         named name: String,
         in directory: Int32,
@@ -203,7 +224,12 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         return data
     }
 
-    func publishNoClobber(_ data: Data, named name: String, in directory: Int32) throws {
+    func publishNoClobber(
+        _ data: Data,
+        named name: String,
+        in directory: Int32,
+        afterTemporaryFileSync: @Sendable () throws -> Void = {}
+    ) throws {
         try requireActive(directory)
         try Self.validateName(name)
         try validatePayload(data)
@@ -221,6 +247,14 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         guard Darwin.fsync(descriptor) == 0 else { throw CloudAssetFileStoreError.unavailable }
         let identity = try ownedIdentity(descriptor)
         try validatePath(named: temporary, in: directory, equals: identity)
+        do {
+            try afterTemporaryFileSync()
+        } catch {
+            // Fault injection models process death after durable temp creation.
+            // Reconciliation owns cleanup on the next service start.
+            removeTemporary = false
+            throw error
+        }
         let result = temporary.withCString { source in
             name.withCString { destination in
                 Darwin.renameatx_np(
@@ -817,7 +851,7 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         let rootComponents = rootURL.pathComponents
         let candidates = [
             FileManager.default.temporaryDirectory.standardizedFileURL,
-            FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL,
+            URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).standardizedFileURL,
         ].filter { candidate in
             let components = candidate.pathComponents
             return rootComponents.count > components.count

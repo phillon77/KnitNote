@@ -19,6 +19,11 @@ enum CloudAssetUploadFaultBoundary: Equatable, Sendable {
     case acknowledgementAfterManifest
 }
 
+enum CloudAssetDownloadFaultBoundary: Equatable, Sendable {
+    case installAfterTemporaryFileSync
+    case quarantineAfterEvictionManifestCommit
+}
+
 protocol CloudAssetUploadStagingBoundary: AnyObject {
     func stageUpload(
         version: SyncAttachmentVersion,
@@ -30,13 +35,22 @@ protocol CloudAssetUploadStagingBoundary: AnyObject {
     func reconcile() throws
 }
 
-/// Reserved extension point for Task 4's verified download and quarantine API.
-protocol CloudAssetStagingBoundary: CloudAssetUploadStagingBoundary {}
+protocol CloudAssetStagingBoundary: CloudAssetUploadStagingBoundary {
+    func installDownload(version: SyncAttachmentVersion, sourceURL: URL) throws -> URL
+    func quarantine(
+        version: SyncAttachmentVersion,
+        sourceURL: URL,
+        reason: CloudAssetQuarantineReason
+    ) throws
+}
 
 /// CloudKit-facing upload workflow. The manifest is the only durable reference
 /// authority and every mutation owns a separate immutable staged file.
 final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Sendable {
     typealias BeforeBoundary = @Sendable (CloudAssetUploadFaultBoundary) throws -> Void
+    typealias BeforeDownloadBoundary = @Sendable (
+        CloudAssetDownloadFaultBoundary
+    ) throws -> Void
 
     static let defaultMaximumAssetBytes = SyncPublicationFileLimits.maximumAttachmentBytes
 
@@ -48,18 +62,28 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
     private let fileStore: CloudAssetAccountFileStore
     private let manifestStore: CloudAssetManifestStore
     private let beforeBoundary: BeforeBoundary
+    private let maximumQuarantineEntries: Int
+    private let maximumQuarantineBytes: Int64
+    private let beforeDownloadBoundary: BeforeDownloadBoundary
 
     init(
         rootURL: URL,
         accountIdentifier: String,
         maximumAssetBytes: Int = CloudAssetStagingService.defaultMaximumAssetBytes,
         externalReader: any SyncRegularFileReading = SyncRegularFileReader(),
-        beforeBoundary: @escaping BeforeBoundary = { _ in }
+        beforeBoundary: @escaping BeforeBoundary = { _ in },
+        maximumQuarantineEntries: Int = 4,
+        maximumQuarantineBytes: Int64 = 400_000_000,
+        beforeDownloadBoundary: @escaping BeforeDownloadBoundary = { _ in }
     ) throws {
         guard rootURL.isFileURL,
               !accountIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { throw CloudAssetStagingError.invalidAccount }
         guard maximumAssetBytes >= 0 else { throw CloudAssetStagingError.tooLarge }
+        guard (1...4).contains(maximumQuarantineEntries),
+              maximumQuarantineBytes >= 0,
+              maximumQuarantineBytes <= 400_000_000
+        else { throw CloudAssetStagingError.invalidMetadata }
 
         do {
             let store = try CloudAssetAccountFileStore(
@@ -71,6 +95,9 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
             fileStore = store
             manifestStore = CloudAssetManifestStore(fileStore: store)
             self.beforeBoundary = beforeBoundary
+            self.maximumQuarantineEntries = maximumQuarantineEntries
+            self.maximumQuarantineBytes = maximumQuarantineBytes
+            self.beforeDownloadBoundary = beforeDownloadBoundary
 
             let account = rootURL.standardizedFileURL
                 .appendingPathComponent("Accounts", isDirectory: true)
@@ -189,14 +216,223 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
         }
     }
 
-    func reconcile() throws {
+    func installDownload(version: SyncAttachmentVersion, sourceURL: URL) throws -> URL {
+        let version = try validate(version)
+        guard sourceURL.isFileURL else { throw CloudAssetStagingError.invalidMetadata }
+        let filename = Self.installedFilename(versionID: version.versionID)
+
         do {
-            try fileStore.withAccountLock { directories in
-                _ = try reconcileUploads(in: directories)
+            return try fileStore.withAccountLock { directories in
+                try reconcileInstalled(in: directories)
+                var quarantineReferences = try reconcileQuarantine(in: directories)
+                let observed = try fileStore.readExternalObserved(
+                    sourceURL,
+                    maximumByteCount: Int(version.byteCount)
+                )
+                if observed.byteCount != version.byteCount {
+                    try quarantine(
+                        observed: observed,
+                        version: version,
+                        reason: .byteCountMismatch,
+                        references: &quarantineReferences,
+                        in: directories
+                    )
+                    throw CloudAssetStagingError.contentMismatch
+                }
+                if observed.sha256 != version.contentSHA256 {
+                    try quarantine(
+                        observed: observed,
+                        version: version,
+                        reason: .contentHashMismatch,
+                        references: &quarantineReferences,
+                        in: directories
+                    )
+                    throw CloudAssetStagingError.contentMismatch
+                }
+
+                if try fileStore.ownedFileExists(named: filename, in: directories.installed) {
+                    do {
+                        _ = try fileStore.readOwned(
+                            named: filename,
+                            in: directories.installed,
+                            expectedByteCount: version.byteCount,
+                            expectedSHA256: version.contentSHA256
+                        )
+                    } catch CloudAssetFileStoreError.contentMismatch {
+                        throw CloudAssetStagingError.immutableIdentityMismatch
+                    } catch CloudAssetFileStoreError.tooLarge {
+                        throw CloudAssetStagingError.immutableIdentityMismatch
+                    }
+                    return installedRootURL.appendingPathComponent(filename)
+                }
+
+                do {
+                    try fileStore.publishNoClobber(
+                        observed.data,
+                        named: filename,
+                        in: directories.installed,
+                        afterTemporaryFileSync: { [beforeDownloadBoundary] in
+                            try beforeDownloadBoundary(.installAfterTemporaryFileSync)
+                        }
+                    )
+                } catch CloudAssetFileStoreError.alreadyExists {
+                    do {
+                        _ = try fileStore.readOwned(
+                            named: filename,
+                            in: directories.installed,
+                            expectedByteCount: version.byteCount,
+                            expectedSHA256: version.contentSHA256
+                        )
+                    } catch {
+                        throw CloudAssetStagingError.immutableIdentityMismatch
+                    }
+                }
+                _ = try fileStore.readOwned(
+                    named: filename,
+                    in: directories.installed,
+                    expectedByteCount: version.byteCount,
+                    expectedSHA256: version.contentSHA256
+                )
+                return installedRootURL.appendingPathComponent(filename)
             }
         } catch {
             throw Self.map(error)
         }
+    }
+
+    func quarantine(
+        version: SyncAttachmentVersion,
+        sourceURL: URL,
+        reason: CloudAssetQuarantineReason
+    ) throws {
+        let version = try validate(version)
+        guard sourceURL.isFileURL else { throw CloudAssetStagingError.invalidMetadata }
+        do {
+            try fileStore.withAccountLock { directories in
+                var references = try reconcileQuarantine(in: directories)
+                let observed = try fileStore.readExternalObserved(
+                    sourceURL,
+                    maximumByteCount: Int(version.byteCount)
+                )
+                switch reason {
+                case .byteCountMismatch:
+                    guard observed.byteCount != version.byteCount else {
+                        throw CloudAssetStagingError.invalidMetadata
+                    }
+                case .contentHashMismatch:
+                    guard observed.byteCount == version.byteCount,
+                          observed.sha256 != version.contentSHA256
+                    else { throw CloudAssetStagingError.invalidMetadata }
+                }
+                try quarantine(
+                    observed: observed,
+                    version: version,
+                    reason: reason,
+                    references: &references,
+                    in: directories
+                )
+            }
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
+    func reconcile() throws {
+        do {
+            try fileStore.withAccountLock { directories in
+                _ = try reconcileUploads(in: directories)
+                try reconcileInstalled(in: directories)
+                _ = try reconcileQuarantine(in: directories)
+            }
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
+    private func reconcileInstalled(in directories: CloudAssetAccountDirectories) throws {
+        for name in try fileStore.listOwned(in: directories.installed) {
+            if Self.isInstalledFilename(name) { continue }
+            guard Self.isTemporaryFilename(name) else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            try fileStore.removeOwned(named: name, in: directories.installed)
+        }
+    }
+
+    private func reconcileQuarantine(
+        in directories: CloudAssetAccountDirectories
+    ) throws -> [CloudAssetQuarantineReference] {
+        let references = try manifestStore.loadQuarantine(in: directories)
+        for reference in references {
+            _ = try fileStore.readOwned(
+                named: reference.relativeFilename,
+                in: directories.quarantine,
+                expectedByteCount: reference.byteCount,
+                expectedSHA256: reference.contentSHA256
+            )
+        }
+        let referenced = Set(references.map(\.relativeFilename))
+        for name in try fileStore.listOwned(in: directories.quarantine) {
+            if name == "manifest.json" || referenced.contains(name) { continue }
+            guard Self.isQuarantineFilename(name) || Self.isTemporaryFilename(name) else {
+                throw CloudAssetStagingError.unsafeFile
+            }
+            try fileStore.removeOwned(named: name, in: directories.quarantine)
+        }
+        return references
+    }
+
+    private func quarantine(
+        observed: SyncRegularFileRead,
+        version: SyncAttachmentVersion,
+        reason: CloudAssetQuarantineReason,
+        references: inout [CloudAssetQuarantineReference],
+        in directories: CloudAssetAccountDirectories
+    ) throws {
+        let identifier = UUID()
+        let reference = CloudAssetQuarantineReference(
+            id: identifier,
+            createdAt: Date(),
+            versionID: version.versionID,
+            reason: reason,
+            byteCount: observed.byteCount,
+            contentSHA256: observed.sha256,
+            relativeFilename: Self.quarantineFilename(id: identifier)
+        )
+        var retained = references.sorted {
+            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+            return $0.id.uuidString < $1.id.uuidString
+        }
+        var evicted: [CloudAssetQuarantineReference] = []
+        var total = retained.reduce(Int64(0)) { $0 + $1.byteCount }
+        while retained.count + 1 > maximumQuarantineEntries
+            || total + observed.byteCount > maximumQuarantineBytes
+        {
+            guard !retained.isEmpty else { throw CloudAssetStagingError.tooLarge }
+            let oldest = retained.removeFirst()
+            evicted.append(oldest)
+            total -= oldest.byteCount
+        }
+
+        if !evicted.isEmpty {
+            try manifestStore.commitQuarantine(retained, in: directories)
+            try beforeDownloadBoundary(.quarantineAfterEvictionManifestCommit)
+            for old in evicted {
+                try fileStore.removeOwned(
+                    named: old.relativeFilename,
+                    in: directories.quarantine
+                )
+            }
+        }
+
+        try fileStore.publishNoClobber(
+            observed.data,
+            named: reference.relativeFilename,
+            in: directories.quarantine
+        )
+        retained.append(reference)
+        try manifestStore.commitQuarantine(retained, in: directories)
+        references = retained
     }
 
     private func reconcileUploads(
@@ -264,6 +500,24 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
 
     private static func filename(mutationID: UUID, versionID: UUID) -> String {
         "\(mutationID.uuidString.lowercased())-\(versionID.uuidString.lowercased()).asset"
+    }
+
+    private static func installedFilename(versionID: UUID) -> String {
+        "\(versionID.uuidString.lowercased()).asset"
+    }
+
+    private static func quarantineFilename(id: UUID) -> String {
+        "\(id.uuidString.lowercased()).asset"
+    }
+
+    private static func isInstalledFilename(_ name: String) -> Bool {
+        isQuarantineFilename(name)
+    }
+
+    private static func isQuarantineFilename(_ name: String) -> Bool {
+        guard name.hasSuffix(".asset"), name.count == 36 + 6 else { return false }
+        let identifier = String(name.prefix(36))
+        return UUID(uuidString: identifier) != nil && identifier == identifier.lowercased()
     }
 
     private static func isUploadFilename(_ name: String) -> Bool {

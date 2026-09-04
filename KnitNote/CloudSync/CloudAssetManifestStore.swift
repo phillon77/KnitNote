@@ -14,9 +14,16 @@ struct CloudAssetUploadReference: Codable, Equatable, Sendable {
     let relativeFilename: String
 }
 
+enum CloudAssetQuarantineReason: String, Codable, Equatable, Sendable {
+    case byteCountMismatch
+    case contentHashMismatch
+}
+
 struct CloudAssetQuarantineReference: Codable, Equatable, Sendable {
     let id: UUID
     let createdAt: Date
+    let versionID: UUID
+    let reason: CloudAssetQuarantineReason
     let byteCount: Int64
     let contentSHA256: Data
     let relativeFilename: String

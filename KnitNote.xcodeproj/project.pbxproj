@@ -89,6 +89,7 @@
 		C0A552000000000000000001 /* CloudAssetManifestStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A552000000000000000002 /* CloudAssetManifestStoreTests.swift */; };
 		C0A552000000000000000003 /* CloudAssetManifestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A552000000000000000004 /* CloudAssetManifestStore.swift */; };
 		C0A553000000000000000001 /* CloudAssetUploadStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A553000000000000000002 /* CloudAssetUploadStagingTests.swift */; };
+		C0A554000000000000000001 /* CloudAssetDownloadStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A554000000000000000002 /* CloudAssetDownloadStagingTests.swift */; };
 		2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */; };
 		2C65A881C19AB58778C5A130 /* KnitNoteBackupExportPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */; };
@@ -692,6 +693,7 @@
 		C0A552000000000000000002 /* CloudAssetManifestStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetManifestStoreTests.swift; sourceTree = "<group>"; };
 		C0A552000000000000000004 /* CloudAssetManifestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetManifestStore.swift; sourceTree = "<group>"; };
 		C0A553000000000000000002 /* CloudAssetUploadStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetUploadStagingTests.swift; sourceTree = "<group>"; };
+		C0A554000000000000000002 /* CloudAssetDownloadStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetDownloadStagingTests.swift; sourceTree = "<group>"; };
 		C27CD7D290EB0C1B3F7A706C /* WatchSyncCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncCache.swift; sourceTree = "<group>"; };
 		C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternCalculator.swift; sourceTree = "<group>"; };
 		C474D58BBB238B47B244C7CA /* ShareImportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportController.swift; sourceTree = "<group>"; };
@@ -943,6 +945,7 @@
 				C0A551000000000000000002 /* CloudAssetFileStoreTests.swift */,
 				C0A552000000000000000002 /* CloudAssetManifestStoreTests.swift */,
 				C0A553000000000000000002 /* CloudAssetUploadStagingTests.swift */,
+				C0A554000000000000000002 /* CloudAssetDownloadStagingTests.swift */,
 				E6D40A63B071272BBD332D01 /* CloudAssetStagingServiceTests.swift */,
 				52B7BE71370E3844C127442D /* CloudRecordCodecTests.swift */,
 				D03C04E23B8721F67EFC6466 /* CloudSyncEngineTransportTests.swift */,
@@ -1935,6 +1938,7 @@
 				C0A551000000000000000001 /* CloudAssetFileStoreTests.swift in Sources */,
 				C0A552000000000000000001 /* CloudAssetManifestStoreTests.swift in Sources */,
 				C0A553000000000000000001 /* CloudAssetUploadStagingTests.swift in Sources */,
+				C0A554000000000000000001 /* CloudAssetDownloadStagingTests.swift in Sources */,
 				2B305AA2B12BB32D7C062844 /* CloudAssetStagingServiceTests.swift in Sources */,
 				D49E367D588606A53D0EAC9B /* CloudRecordCodecTests.swift in Sources */,
 				8E36309417BA3AF90713772D /* CloudSyncEngineTransportTests.swift in Sources */,

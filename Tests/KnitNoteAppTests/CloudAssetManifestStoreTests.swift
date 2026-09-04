@@ -586,6 +586,8 @@ private final class ManifestFixture {
         return CloudAssetQuarantineReference(
             id: id,
             createdAt: Date(timeIntervalSince1970: TimeInterval(suffix)),
+            versionID: uuid(100 + suffix),
+            reason: .contentHashMismatch,
             byteCount: bytes,
             contentSHA256: Data(repeating: UInt8(suffix), count: 32),
             relativeFilename: "\(id.uuidString.lowercased()).asset"

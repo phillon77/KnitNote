@@ -118,7 +118,7 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
         guard url.path.withCString({ Darwin.lstat($0, &pathStatus) }) == 0 else {
             throw SyncRegularFileReadError.unavailable
         }
-        guard Self.isRegularFile(pathStatus) else {
+        guard Self.isSafeRegularFile(pathStatus) else {
             throw SyncRegularFileReadError.unsafeFile
         }
         guard let pathByteCount = Self.size(of: pathStatus) else {
@@ -148,7 +148,7 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
         guard Darwin.fstat(descriptor, &openedStatus) == 0 else {
             throw SyncRegularFileReadError.unavailable
         }
-        guard Self.isRegularFile(openedStatus) else {
+        guard Self.isSafeRegularFile(openedStatus) else {
             throw SyncRegularFileReadError.unsafeFile
         }
         guard Self.identity(of: openedStatus) == Self.identity(of: pathStatus) else {
@@ -211,7 +211,7 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
         guard Darwin.fstat(descriptor, &finalStatus) == 0 else {
             throw SyncRegularFileReadError.unavailable
         }
-        guard Self.isRegularFile(finalStatus) else {
+        guard Self.isSafeRegularFile(finalStatus) else {
             throw SyncRegularFileReadError.unsafeFile
         }
         guard Self.identity(of: finalStatus) == Self.identity(of: openedStatus) else {
@@ -250,8 +250,8 @@ public struct SyncRegularFileReader: SyncRegularFileReading, Sendable {
         )
     }
 
-    private static func isRegularFile(_ status: stat) -> Bool {
-        (status.st_mode & S_IFMT) == S_IFREG
+    private static func isSafeRegularFile(_ status: stat) -> Bool {
+        (status.st_mode & S_IFMT) == S_IFREG && status.st_nlink == 1
     }
 
     private static func size(of status: stat) -> Int64? {

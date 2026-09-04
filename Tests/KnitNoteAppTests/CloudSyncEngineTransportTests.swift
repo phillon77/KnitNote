@@ -4,6 +4,114 @@ import Testing
 @testable import KnitNote
 
 @Suite struct CloudSyncEngineTransportTests {
+    @Test func explicitFetchCompletionFollowsBatchesDeliveredDuringThatFetch() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            engineFactory: { _, _ in driver }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+        let requestID = UUID(uuidString: "20000000-0000-0000-0000-000000000001")!
+        let cloudRecord = try CloudRecordCodec().encode(
+            testRecord(uuid: "00000000-0000-0000-0000-000000000001", revision: 1),
+            zoneID: zoneID
+        )
+        await driver.suspendNextFetch()
+
+        let fetch = Task { try await transport.fetchNow(completionID: requestID) }
+        await driver.waitUntilFetchSuspended()
+        await transport.receiveFetchedChanges(records: [cloudRecord], deletedRecordIDs: [])
+        await driver.resumeFetch()
+        try await fetch.value
+
+        guard case .fetched? = await iterator.next() else {
+            Issue.record("Expected fetched batch before request completion")
+            return
+        }
+        guard case .fetchRequestCompleted(requestID)? = await iterator.next() else {
+            Issue.record("Expected matching fetch request completion")
+            return
+        }
+    }
+
+    @Test func explicitSendCompletionCarriesTheMatchingRequestIdentity() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(),
+            stateStore: fixture.store,
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+        let requestID = UUID(uuidString: "20000000-0000-0000-0000-000000000002")!
+
+        try await transport.finishMutationReplay(completionID: requestID)
+
+        guard case .sendRequestCompleted(requestID)? = await iterator.next() else {
+            Issue.record("Expected matching send request completion")
+            return
+        }
+    }
+
+    @Test func conflictResolutionInstallsDurableTailAppendedWhileHeadWasInFlight() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            engineFactory: { _, _ in driver }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+        let first = try testSaveMutation(revision: 1, mutationSuffix: 70)
+        try await transport.schedule([first])
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(zoneID)
+        _ = await iterator.next()
+        let recordID = cloudRecordID(
+            kind: first.recordID.kind,
+            uuid: first.recordID.uuid.uuidString,
+            zoneID: zoneID
+        )
+        let outgoing = try #require(await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(recordID)],
+            scope: .all
+        )?.recordsToSave.first)
+        await transport.receiveFailedSave(outgoing, error: CKError(.invalidArguments))
+        _ = await iterator.next()
+        let replacement = try testSaveMutation(revision: 2, mutationSuffix: 70)
+        let appended = try testSaveMutation(revision: 3, mutationSuffix: 72)
+
+        try await transport.resolveFailedMutation(
+            first.mutationID,
+            replacement: replacement,
+            followingReplacements: [appended]
+        )
+        let retried = try #require(await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(recordID)],
+            scope: .all
+        )?.recordsToSave.first)
+        #expect(retried["syncMutationID"] as? String
+            == replacement.mutationID.uuidString.lowercased())
+        await driver.complete(.saveRecord(recordID))
+        await transport.receiveSentChanges(savedRecords: [retried], deletedRecordIDs: [])
+        _ = await iterator.next()
+        let successor = try #require(await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(recordID)],
+            scope: .all
+        )?.recordsToSave.first)
+        #expect(successor["syncMutationID"] as? String
+            == appended.mutationID.uuidString.lowercased())
+    }
+
     @Test func stateWriteIsAtomicAndSynchronizesFileAndParentDirectory() throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -1450,6 +1558,9 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     private var cancellationEnteredWaiters: [CheckedContinuation<Void, Never>] = []
     private var cancellationResume: CheckedContinuation<Void, Never>?
     private var sendScopes: [CKSyncEngine.SendChangesOptions.Scope] = []
+    private var shouldSuspendFetch = false
+    private var fetchEnteredWaiters: [CheckedContinuation<Void, Never>] = []
+    private var fetchResume: CheckedContinuation<Void, Never>?
 
     init(initialPending: [CKSyncEngine.PendingRecordZoneChange] = []) {
         pending = initialPending
@@ -1506,13 +1617,30 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
         databasePending.removeAll { $0 == change }
     }
 
-    func fetchChanges(_ options: CKSyncEngine.FetchChangesOptions) async throws {}
+    func fetchChanges(_ options: CKSyncEngine.FetchChangesOptions) async throws {
+        if shouldSuspendFetch {
+            shouldSuspendFetch = false
+            let waiters = fetchEnteredWaiters
+            fetchEnteredWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+            await withCheckedContinuation { fetchResume = $0 }
+        }
+    }
     func sendChanges(_ options: CKSyncEngine.SendChangesOptions) async throws {
         sendScopes.append(options.scope)
     }
     func sendCallCount() -> Int { sendScopes.count }
     func lastSendScopeContains(_ zoneID: CKRecordZone.ID) -> Bool {
         sendScopes.last?.contains(CKRecord.ID(recordName: "scope-probe", zoneID: zoneID)) ?? false
+    }
+    func suspendNextFetch() { shouldSuspendFetch = true }
+    func waitUntilFetchSuspended() async {
+        guard shouldSuspendFetch || fetchResume == nil else { return }
+        await withCheckedContinuation { fetchEnteredWaiters.append($0) }
+    }
+    func resumeFetch() {
+        fetchResume?.resume()
+        fetchResume = nil
     }
     func cancelOperations() async {
         if shouldSuspendCancellation {

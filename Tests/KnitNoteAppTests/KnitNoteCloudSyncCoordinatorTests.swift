@@ -1,0 +1,850 @@
+import Foundation
+import Testing
+@testable import KnitNote
+
+@Suite @MainActor struct KnitNoteCloudSyncCoordinatorTests {
+    @Test func screenshotModeNeverStartsCloudSync() async {
+        let transport = FakeCoordinatorTransport()
+        let coordinator = makeCoordinator(
+            transport: transport,
+            screenshotMode: true
+        )
+
+        await coordinator.start()
+
+        #expect(transport.operations.isEmpty)
+        #expect(coordinator.status == CloudSyncStatusSnapshot(
+            phase: .disabled,
+            pendingCount: 0,
+            lastCompleteSuccess: nil,
+            issue: nil
+        ))
+    }
+
+    @Test func restartReschedulesTheExactDurableJournalEntriesAfterTransportStart() async throws {
+        let first = try saveMutation(revision: 1, mutationSuffix: 1)
+        let second = SyncMutation.delete(
+            recordID(suffix: 2),
+            mutationID: uuid(suffix: 2)
+        )
+        let journal = FakeCoordinatorJournal([first, second])
+
+        let firstTransport = FakeCoordinatorTransport()
+        await makeCoordinator(
+            transport: firstTransport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [first.recordID: try #require(
+                first.savedRecordVersion?.record
+            )])
+        ).start()
+
+        let restartedTransport = FakeCoordinatorTransport()
+        await makeCoordinator(
+            transport: restartedTransport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [first.recordID: try #require(
+                first.savedRecordVersion?.record
+            )])
+        ).start()
+
+        #expect(firstTransport.scheduledMutations == [first, second])
+        #expect(restartedTransport.scheduledMutations == [first, second])
+        #expect(restartedTransport.operations.prefix(2) == ["start", "schedule"])
+    }
+
+    @Test func startupFetchesBeforeItEnablesBootstrapSend() async {
+        let transport = FakeCoordinatorTransport()
+        let coordinator = makeCoordinator(transport: transport)
+
+        await coordinator.start()
+        await coordinator.start()
+
+        #expect(await eventually { transport.operations == ["start", "fetch", "finishReplay"] })
+        #expect(await eventually { coordinator.status.lastCompleteSuccess == fixedNow })
+        #expect(transport.operations == ["start", "fetch", "finishReplay"])
+        #expect(coordinator.status.phase == .waiting)
+        #expect(coordinator.status.lastCompleteSuccess == fixedNow)
+    }
+
+    @Test func startupDoesNotEnableSendOrReportSuccessUntilFetchedEventsAreConsumed() async throws {
+        let batchID = uuid(suffix: 6)
+        let id = recordID(suffix: 6)
+        let remote = projectRecord(id: id, revision: 1, name: "remote")
+        let operations = CoordinatorOperationRecorder()
+        let transport = FakeCoordinatorTransport(
+            recorder: operations,
+            automaticallyCompleteRequests: false
+        )
+        let committer = FakeFetchedBatchCommitter(recorder: operations)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            provider: FakeCoordinatorRecordProvider(records: [id: remote]),
+            committer: committer
+        )
+
+        await coordinator.start()
+
+        #expect(transport.operations == ["start", "fetch"])
+        #expect(coordinator.status.lastCompleteSuccess == nil)
+        let requestID = try #require(transport.fetchRequestIDs.first)
+
+        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        #expect(await eventually { transport.acknowledgedBatchIDs == [batchID] })
+        transport.emit(.fetchRequestCompleted(requestID))
+        #expect(await eventually { transport.operations.contains("finishReplay") })
+        #expect(coordinator.status.lastCompleteSuccess == nil)
+
+        transport.emit(.sendRequestCompleted(requestID))
+        #expect(await eventually { coordinator.status.lastCompleteSuccess == fixedNow })
+        #expect(operations.values.firstIndex(of: "ackFetched:\(batchID.uuidString)")! <
+            operations.values.firstIndex(of: "finishReplay")!)
+    }
+
+    @Test func sentCallbacksAcknowledgeOnlyTheExactPerRecordJournalHead() async throws {
+        let first = try saveMutation(revision: 1, mutationSuffix: 11)
+        let second = try saveMutation(revision: 2, mutationSuffix: 12)
+        let journal = FakeCoordinatorJournal([first, second])
+        let transport = FakeCoordinatorTransport()
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [first.recordID: try #require(
+                second.savedRecordVersion?.record
+            )])
+        )
+        await coordinator.start()
+
+        transport.emit(.sent(recordID: second.recordID, mutationID: second.mutationID))
+        await drainCoordinatorTasks()
+        #expect(journal.pendingMutations == [first, second])
+
+        transport.emit(.sent(recordID: first.recordID, mutationID: first.mutationID))
+        #expect(await eventually { journal.pendingMutations == [second] })
+
+        transport.emit(.sent(recordID: first.recordID, mutationID: first.mutationID))
+        await drainCoordinatorTasks()
+
+        #expect(journal.pendingMutations == [second])
+        #expect(journal.acknowledgedIdentities == [first.identity])
+        #expect(coordinator.status.pendingCount == 1)
+    }
+
+    @Test func fetchedBatchIsAcknowledgedOnceAndOnlyAfterItsMergeIsDurablyCommitted() async {
+        let batchID = uuid(suffix: 21)
+        let id = recordID(suffix: 21)
+        let local = projectRecord(id: id, revision: 1, name: "local")
+        let remote = projectRecord(id: id, revision: 2, name: "remote")
+        let operations = CoordinatorOperationRecorder()
+        let transport = FakeCoordinatorTransport(recorder: operations)
+        let committer = FakeFetchedBatchCommitter(recorder: operations)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            provider: FakeCoordinatorRecordProvider(records: [id: local]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        #expect(await eventually { transport.acknowledgedBatchIDs == [batchID] })
+        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        await drainCoordinatorTasks()
+
+        #expect(committer.fetchedBatchIDs == [batchID])
+        #expect(committer.fetchedResults.first?.records == [remote])
+        #expect(operations.values.suffix(2) == [
+            "commitFetched:\(batchID.uuidString)",
+            "ackFetched:\(batchID.uuidString)",
+        ])
+        #expect(transport.acknowledgedBatchIDs == [batchID])
+    }
+
+    @Test func failedFetchedBatchCommitLeavesBatchUnacknowledgedAndNeedsAttention() async {
+        let batchID = uuid(suffix: 31)
+        let id = recordID(suffix: 31)
+        let record = projectRecord(id: id, revision: 1, name: "remote")
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(failFetchedCommit: true)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            provider: FakeCoordinatorRecordProvider(records: [id: record]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.fetched(batchID: batchID, records: [record], deleted: []))
+        #expect(await eventually { coordinator.status.phase == .needsAttention })
+
+        #expect(transport.acknowledgedBatchIDs.isEmpty)
+        #expect(coordinator.status.issue == .durableCommit)
+    }
+
+    @Test func failedFetchedCommitInvalidatesMatchingFetchAndSendCompletions() async throws {
+        let batchID = uuid(suffix: 32)
+        let record = projectRecord(id: recordID(suffix: 32), revision: 1, name: "remote")
+        let pending = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: record),
+            mutationID: uuid(suffix: 33)
+        )
+        let journal = FakeCoordinatorJournal([pending])
+        let transport = FakeCoordinatorTransport(automaticallyCompleteRequests: false)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [record.id: record]),
+            committer: FakeFetchedBatchCommitter(failFetchedCommit: true)
+        )
+        await coordinator.start()
+        let requestID = try #require(transport.fetchRequestIDs.first)
+
+        transport.emit(.fetched(batchID: batchID, records: [record], deleted: []))
+        #expect(await eventually { coordinator.status.issue == .durableCommit })
+        transport.emit(.sent(recordID: pending.recordID, mutationID: pending.mutationID))
+        transport.emit(.fetchRequestCompleted(requestID))
+        transport.emit(.sendRequestCompleted(requestID))
+        await drainCoordinatorTasks()
+
+        await coordinator.syncNow()
+        let manualRequestID = try #require(transport.fetchRequestIDs.last)
+        #expect(manualRequestID != requestID)
+        transport.emit(.fetchRequestCompleted(manualRequestID))
+        transport.emit(.sendRequestCompleted(manualRequestID))
+        await drainCoordinatorTasks()
+
+        #expect(transport.acknowledgedBatchIDs.isEmpty)
+        #expect(coordinator.status.phase == .needsAttention)
+        #expect(coordinator.status.issue == .durableCommit)
+        #expect(coordinator.status.lastCompleteSuccess == nil)
+    }
+
+    @Test func successfulUnrelatedBatchDoesNotClearBlockedFetchedBatch() async {
+        let failedBatchID = uuid(suffix: 34)
+        let successfulBatchID = uuid(suffix: 35)
+        let record = projectRecord(id: recordID(suffix: 34), revision: 1, name: "remote")
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(
+            failingFetchedBatchIDs: [failedBatchID]
+        )
+        let coordinator = makeCoordinator(
+            transport: transport,
+            provider: FakeCoordinatorRecordProvider(records: [record.id: record]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.fetched(batchID: failedBatchID, records: [record], deleted: []))
+        #expect(await eventually { coordinator.status.issue == .durableCommit })
+        transport.emit(.fetched(batchID: successfulBatchID, records: [record], deleted: []))
+        #expect(await eventually {
+            transport.acknowledgedBatchIDs == [successfulBatchID]
+        })
+
+        #expect(coordinator.status.phase == .needsAttention)
+        #expect(coordinator.status.issue == .durableCommit)
+        #expect(!transport.acknowledgedBatchIDs.contains(failedBatchID))
+    }
+
+    @Test func missingProviderRecordForPendingSaveBlocksFetchedAcknowledgement() async throws {
+        let batchID = uuid(suffix: 41)
+        let mutation = try saveMutation(revision: 1, mutationSuffix: 41)
+        let remote = projectRecord(id: mutation.recordID, revision: 2, name: "remote")
+        let journal = FakeCoordinatorJournal([mutation])
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter()
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [:]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        #expect(await eventually { coordinator.status.phase == .needsAttention })
+
+        #expect(coordinator.status.issue == .missingLocalRecord(mutation.recordID))
+        #expect(committer.fetchedBatchIDs.isEmpty)
+        #expect(transport.acknowledgedBatchIDs.isEmpty)
+    }
+
+    @Test func transientFailureWaitsForTransportRetryWithoutACompetingRetryLoop() async {
+        let transport = FakeCoordinatorTransport()
+        let coordinator = makeCoordinator(transport: transport)
+        await coordinator.start()
+        #expect(await eventually { coordinator.status.lastCompleteSuccess == fixedNow })
+        let callsBeforeFailure = transport.operations
+        let failure = CloudSyncFailure.retryable(code: 7, retryAfterSeconds: 2)
+
+        transport.emit(.failed(failure))
+        #expect(await eventually { coordinator.status.issue == .transport(failure) })
+
+        #expect(coordinator.status.phase == .waiting)
+        #expect(transport.operations == callsBeforeFailure)
+    }
+
+    @Test func retryableFetchFailureDoesNotGetOverwrittenByGenericOperationFailure() async {
+        let failure = CloudSyncFailure.retryable(code: 7, retryAfterSeconds: 2)
+        let transport = FakeCoordinatorTransport(fetchFailure: failure)
+        let coordinator = makeCoordinator(transport: transport)
+
+        await coordinator.start()
+
+        #expect(coordinator.status.phase == .waiting)
+        #expect(coordinator.status.issue == .transport(failure))
+    }
+
+    @Test func manualSyncReloadsAndSchedulesMutationsCommittedAfterStartup() async throws {
+        let journal = FakeCoordinatorJournal()
+        let transport = FakeCoordinatorTransport()
+        let coordinator = makeCoordinator(transport: transport, journal: journal)
+        await coordinator.start()
+        #expect(await eventually { coordinator.status.lastCompleteSuccess == fixedNow })
+        let mutation = try saveMutation(revision: 1, mutationSuffix: 45)
+        try journal.enqueue(mutation)
+
+        await coordinator.syncNow()
+
+        #expect(await eventually {
+            transport.operations.suffix(3) == ["fetch", "schedule", "send"]
+        })
+        #expect(transport.scheduleBatches.last == [mutation])
+        #expect(transport.operations.suffix(3) == ["fetch", "schedule", "send"])
+    }
+
+    @Test func accountChangeStopsThisAccountScopedCoordinator() async {
+        let transport = FakeCoordinatorTransport()
+        let coordinator = makeCoordinator(transport: transport)
+        await coordinator.start()
+        #expect(await eventually { coordinator.status.lastCompleteSuccess == fixedNow })
+        let operationsBeforeChange = transport.operations
+
+        transport.emit(.accountChanged(previous: "old", current: "new"))
+        #expect(await eventually { coordinator.status.issue == .accountChanged })
+        await coordinator.syncNow()
+
+        #expect(coordinator.status.phase == .needsAttention)
+        #expect(transport.operations == operationsBeforeChange)
+    }
+
+    @Test func serverRecordChangedMergesAndCommitsExactFailedHeadBeforeResolvingIt() async throws {
+        let id = recordID(suffix: 10)
+        let local = record(
+            id: id,
+            entityRevision: 2,
+            fields: [
+                "name": field("local", revision: 2),
+                "localOnly": field("kept", revision: 2),
+            ]
+        )
+        let first = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: local),
+            mutationID: uuid(suffix: 51)
+        )
+        let later = try saveMutation(revision: 3, mutationSuffix: 52)
+        let server = record(
+            id: id,
+            entityRevision: 3,
+            fields: [
+                "name": field("server-old", revision: 1),
+                "serverOnly": field("preserved", revision: 3),
+            ]
+        )
+        let journal = FakeCoordinatorJournal([first, later])
+        let operations = CoordinatorOperationRecorder()
+        let transport = FakeCoordinatorTransport(recorder: operations)
+        let committer = FakeFetchedBatchCommitter(recorder: operations, journal: journal)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [first.recordID: local]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.mutationFailed(
+            recordID: later.recordID,
+            mutationID: later.mutationID,
+            failure: .serverRecordChanged(recordID: later.recordID, serverRecord: server)
+        ))
+        await drainCoordinatorTasks()
+        #expect(transport.resolvedMutationIDs.isEmpty)
+
+        transport.emit(.mutationFailed(
+            recordID: first.recordID,
+            mutationID: first.mutationID,
+            failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server)
+        ))
+        #expect(await eventually { transport.resolvedMutationIDs == [first.mutationID] })
+        transport.emit(.mutationFailed(
+            recordID: first.recordID,
+            mutationID: first.mutationID,
+            failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server)
+        ))
+        await drainCoordinatorTasks()
+
+        #expect(committer.conflictMutationIDs == [first.mutationID])
+        #expect(operations.values.suffix(2) == [
+            "commitConflict:\(first.mutationID.uuidString)",
+            "resolve:\(first.mutationID.uuidString)",
+        ])
+        #expect(transport.resolvedMutationIDs == [first.mutationID])
+        let replacement = try #require(transport.resolvedReplacements.first ?? nil)
+        let mergedRecord = try #require(replacement.savedRecordVersion?.record)
+        let rebasedLater = try #require(journal.pendingMutations.last)
+        let rebasedLaterRecord = try #require(rebasedLater.savedRecordVersion?.record)
+        #expect(mergedRecord.payload.fields["localOnly"]?.value == .string("kept"))
+        #expect(mergedRecord.payload.fields["serverOnly"]?.value == .string("preserved"))
+        #expect(rebasedLaterRecord.payload.fields["serverOnly"]?.value == .string("preserved"))
+        #expect(replacement.mutationID == first.mutationID)
+        #expect(rebasedLater.mutationID == later.mutationID)
+        #expect(journal.pendingMutations == [replacement, rebasedLater])
+        #expect(transport.resolvedFollowingReplacements.first == [rebasedLater])
+
+        let restartedTransport = FakeCoordinatorTransport()
+        await makeCoordinator(
+            transport: restartedTransport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [first.recordID: mergedRecord]),
+            committer: committer
+        ).start()
+        #expect(restartedTransport.scheduledMutations == [replacement, rebasedLater])
+    }
+
+    @Test func failedConflictCommitLeavesExactMutationUnresolved() async throws {
+        let mutation = try saveMutation(revision: 2, mutationSuffix: 61)
+        let journal = FakeCoordinatorJournal([mutation])
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(
+            failConflictCommit: true,
+            journal: journal
+        )
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [:]),
+            committer: committer
+        )
+        await coordinator.start()
+        let server = projectRecord(id: mutation.recordID, revision: 3, name: "server")
+
+        transport.emit(.mutationFailed(
+            recordID: mutation.recordID,
+            mutationID: mutation.mutationID,
+            failure: .serverRecordChanged(recordID: mutation.recordID, serverRecord: server)
+        ))
+        #expect(await eventually { coordinator.status.issue == .durableCommit })
+
+        #expect(transport.resolvedMutationIDs.isEmpty)
+        #expect(journal.pendingMutations == [mutation])
+    }
+
+    @Test func transportResolutionFailureRetriesFromDurableSameIdentity() async throws {
+        let mutation = try saveMutation(revision: 2, mutationSuffix: 62)
+        let journal = FakeCoordinatorJournal([mutation])
+        let transport = FakeCoordinatorTransport(resolveFailuresRemaining: 1)
+        let committer = FakeFetchedBatchCommitter(journal: journal)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [:]),
+            committer: committer
+        )
+        await coordinator.start()
+        let server = projectRecord(id: mutation.recordID, revision: 3, name: "server")
+        let event = CloudSyncEvent.mutationFailed(
+            recordID: mutation.recordID,
+            mutationID: mutation.mutationID,
+            failure: .serverRecordChanged(recordID: mutation.recordID, serverRecord: server)
+        )
+
+        transport.emit(event)
+        #expect(await eventually { coordinator.status.issue == .operation })
+        #expect(journal.pendingMutations.first?.identity == mutation.identity)
+        transport.emit(event)
+        #expect(await eventually { transport.resolvedMutationIDs == [mutation.mutationID] })
+
+        #expect(committer.conflictMutationIDs == [mutation.mutationID, mutation.mutationID])
+    }
+
+    private func makeCoordinator(
+        transport: FakeCoordinatorTransport,
+        journal: FakeCoordinatorJournal = FakeCoordinatorJournal(),
+        provider: FakeCoordinatorRecordProvider = FakeCoordinatorRecordProvider(records: [:]),
+        committer: FakeFetchedBatchCommitter = FakeFetchedBatchCommitter(),
+        screenshotMode: Bool = false
+    ) -> KnitNoteCloudSyncCoordinator {
+        KnitNoteCloudSyncCoordinator(
+            transport: transport,
+            journal: journal,
+            mergeEngine: SyncMergeEngine(),
+            recordProvider: provider,
+            fetchedBatchCommitter: committer,
+            screenshotMode: screenshotMode,
+            now: { fixedNow }
+        )
+    }
+}
+
+private let fixedNow = Date(timeIntervalSince1970: 1_800_000_000)
+
+private func uuid(suffix: Int) -> UUID {
+    UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", suffix))!
+}
+
+private func recordID(suffix: Int) -> SyncEntityID {
+    SyncEntityID(kind: .project, uuid: uuid(suffix: suffix))
+}
+
+private func projectRecord(
+    id: SyncEntityID,
+    revision: UInt64,
+    name: String
+) -> SyncRecord {
+    record(
+        id: id,
+        entityRevision: revision,
+        fields: ["name": field(name, revision: revision)]
+    )
+}
+
+private func field(_ value: String, revision: UInt64) -> SyncFieldVersion<SyncScalar> {
+    .init(value: .string(value), stamp: SyncMutationStamp(
+        logicalRevision: revision,
+        modifiedAt: Date(timeIntervalSince1970: TimeInterval(revision)),
+        deviceID: "device-\(revision)"
+    ))
+}
+
+private func record(
+    id: SyncEntityID,
+    entityRevision: UInt64,
+    fields: [String: SyncFieldVersion<SyncScalar>]
+) -> SyncRecord {
+    let deletedStamp = SyncMutationStamp(
+        logicalRevision: entityRevision,
+        modifiedAt: Date(timeIntervalSince1970: TimeInterval(entityRevision)),
+        deviceID: "device-\(entityRevision)"
+    )
+    return SyncRecord(
+        schemaVersion: 1,
+        id: id,
+        createdAt: Date(timeIntervalSince1970: 1),
+        entityRevision: entityRevision,
+        payload: .init(fields: fields),
+        relationships: [],
+        deletedAt: .init(value: nil, stamp: deletedStamp)
+    )
+}
+
+private func saveMutation(revision: UInt64, mutationSuffix: Int) throws -> SyncMutation {
+    let id = recordID(suffix: 10)
+    return try .save(
+        recordVersion: SyncRecordVersion(record: projectRecord(
+            id: id,
+            revision: revision,
+            name: "name-\(revision)"
+        )),
+        mutationID: uuid(suffix: mutationSuffix)
+    )
+}
+
+@MainActor
+private func drainCoordinatorTasks() async {
+    for _ in 0..<20 { await Task.yield() }
+}
+
+@MainActor
+private func eventually(_ condition: () -> Bool) async -> Bool {
+    for _ in 0..<200 {
+        if condition() { return true }
+        await Task.yield()
+    }
+    return condition()
+}
+
+private final class CoordinatorOperationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var values: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func append(_ value: String) {
+        lock.lock()
+        storage.append(value)
+        lock.unlock()
+    }
+}
+
+private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sendable {
+    let events: AsyncStream<CloudSyncEvent>
+    private let continuation: AsyncStream<CloudSyncEvent>.Continuation
+    private let lock = NSLock()
+    private let recorder: CoordinatorOperationRecorder
+    private let automaticallyCompleteRequests: Bool
+    private let fetchFailure: CloudSyncFailure?
+    private var resolveFailuresRemaining: Int
+    private var operationStorage: [String] = []
+    private var scheduledStorage: [SyncMutation] = []
+    private var scheduleBatchStorage: [[SyncMutation]] = []
+    private var acknowledgedBatchStorage: [UUID] = []
+    private var resolvedMutationStorage: [UUID] = []
+    private var resolvedReplacementStorage: [SyncMutation?] = []
+    private var resolvedFollowingReplacementStorage: [[SyncMutation]] = []
+    private var fetchRequestIDStorage: [UUID] = []
+
+    init(
+        recorder: CoordinatorOperationRecorder = CoordinatorOperationRecorder(),
+        automaticallyCompleteRequests: Bool = true,
+        fetchFailure: CloudSyncFailure? = nil,
+        resolveFailuresRemaining: Int = 0
+    ) {
+        self.recorder = recorder
+        self.automaticallyCompleteRequests = automaticallyCompleteRequests
+        self.fetchFailure = fetchFailure
+        self.resolveFailuresRemaining = resolveFailuresRemaining
+        var captured: AsyncStream<CloudSyncEvent>.Continuation!
+        events = AsyncStream { captured = $0 }
+        continuation = captured
+    }
+
+    var operations: [String] { withLock { operationStorage } }
+    var scheduledMutations: [SyncMutation] { withLock { scheduledStorage } }
+    var scheduleBatches: [[SyncMutation]] { withLock { scheduleBatchStorage } }
+    var acknowledgedBatchIDs: [UUID] { withLock { acknowledgedBatchStorage } }
+    var resolvedMutationIDs: [UUID] { withLock { resolvedMutationStorage } }
+    var resolvedReplacements: [SyncMutation?] { withLock { resolvedReplacementStorage } }
+    var resolvedFollowingReplacements: [[SyncMutation]] {
+        withLock { resolvedFollowingReplacementStorage }
+    }
+    var fetchRequestIDs: [UUID] { withLock { fetchRequestIDStorage } }
+
+    func start() async throws { record("start") }
+
+    func schedule(_ mutations: [SyncMutation]) async throws {
+        withLock {
+            scheduledStorage = mutations
+            scheduleBatchStorage.append(mutations)
+        }
+        record("schedule")
+    }
+
+    func finishMutationReplay(completionID: UUID?) async throws {
+        record("finishReplay")
+        if automaticallyCompleteRequests, let completionID {
+            continuation.yield(.sendRequestCompleted(completionID))
+        }
+    }
+
+    func acknowledgeFetchedBatch(_ batchID: UUID) async throws {
+        withLock { acknowledgedBatchStorage.append(batchID) }
+        record("ackFetched:\(batchID.uuidString)")
+    }
+
+    func resolveFailedMutation(
+        _ mutationID: UUID,
+        replacement: SyncMutation?,
+        followingReplacements: [SyncMutation]?
+    ) async throws {
+        let shouldFail = withLock { () -> Bool in
+            guard resolveFailuresRemaining > 0 else { return false }
+            resolveFailuresRemaining -= 1
+            return true
+        }
+        if shouldFail { throw FakeCoordinatorError.transportResolutionFailed }
+        withLock {
+            resolvedMutationStorage.append(mutationID)
+            resolvedReplacementStorage.append(replacement)
+            resolvedFollowingReplacementStorage.append(followingReplacements ?? [])
+        }
+        record("resolve:\(mutationID.uuidString)")
+    }
+
+    func fetchNow(completionID: UUID?) async throws {
+        record("fetch")
+        if let completionID {
+            withLock { fetchRequestIDStorage.append(completionID) }
+        }
+        if let fetchFailure {
+            continuation.yield(.failed(fetchFailure))
+            throw fetchFailure
+        }
+        if automaticallyCompleteRequests, let completionID {
+            continuation.yield(.fetchRequestCompleted(completionID))
+        }
+    }
+
+    func sendNow(completionID: UUID?) async throws {
+        record("send")
+        if automaticallyCompleteRequests, let completionID {
+            continuation.yield(.sendRequestCompleted(completionID))
+        }
+    }
+
+    func emit(_ event: CloudSyncEvent) {
+        continuation.yield(event)
+    }
+
+    private func record(_ operation: String) {
+        lock.lock()
+        operationStorage.append(operation)
+        lock.unlock()
+        recorder.append(operation)
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
+private final class FakeCoordinatorJournal: SyncMutationJournalProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [SyncMutation]
+    private var acknowledgedStorage: [SyncMutationIdentity] = []
+
+    init(_ mutations: [SyncMutation] = []) {
+        storage = mutations
+    }
+
+    var pendingMutations: [SyncMutation] { withLock { storage } }
+    var acknowledgedIdentities: [SyncMutationIdentity] { withLock { acknowledgedStorage } }
+
+    func enqueue(_ mutations: [SyncMutation]) throws {
+        lock.lock()
+        storage.append(contentsOf: mutations)
+        lock.unlock()
+    }
+
+    func pending() throws -> [SyncMutation] { pendingMutations }
+
+    func acknowledge(_ identities: Set<SyncMutationIdentity>) throws {
+        lock.lock()
+        acknowledgedStorage.append(contentsOf: storage.compactMap {
+            identities.contains($0.identity) ? $0.identity : nil
+        })
+        storage.removeAll { identities.contains($0.identity) }
+        lock.unlock()
+    }
+
+    func replaceExactRecordQueue(
+        _ identity: SyncMutationIdentity,
+        with replacements: [SyncMutation]
+    ) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        let indices = storage.indices.filter { storage[$0].recordID == identity.recordID }
+        guard let firstIndex = indices.first,
+              storage[firstIndex].identity == identity,
+              indices.map({ storage[$0].identity }) == replacements.map(\.identity) else {
+            throw FakeCoordinatorError.inconsistentJournal
+        }
+        for (index, replacement) in zip(indices, replacements) {
+            storage[index] = replacement
+        }
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
+private struct FakeCoordinatorRecordProvider: SyncRecordProvider {
+    let records: [SyncEntityID: SyncRecord]
+
+    func record(for id: SyncEntityID) throws -> SyncRecord? {
+        records[id]
+    }
+}
+
+private struct FetchedCommitCapture {
+    let batchID: UUID
+    let result: SyncMergeResult
+    let deleted: [SyncEntityID]
+}
+
+private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unchecked Sendable {
+    private let lock = NSLock()
+    private let recorder: CoordinatorOperationRecorder
+    private let failFetchedCommit: Bool
+    private let failingFetchedBatchIDs: Set<UUID>
+    private let failConflictCommit: Bool
+    private let journal: FakeCoordinatorJournal?
+    private var fetchedStorage: [FetchedCommitCapture] = []
+    private var conflictStorage: [(UUID, SyncMergeResult)] = []
+
+    init(
+        recorder: CoordinatorOperationRecorder = CoordinatorOperationRecorder(),
+        failFetchedCommit: Bool = false,
+        failingFetchedBatchIDs: Set<UUID> = [],
+        failConflictCommit: Bool = false,
+        journal: FakeCoordinatorJournal? = nil
+    ) {
+        self.recorder = recorder
+        self.failFetchedCommit = failFetchedCommit
+        self.failingFetchedBatchIDs = failingFetchedBatchIDs
+        self.failConflictCommit = failConflictCommit
+        self.journal = journal
+    }
+
+    var fetchedBatchIDs: [UUID] { withLock { fetchedStorage.map(\.batchID) } }
+    var fetchedResults: [SyncMergeResult] { withLock { fetchedStorage.map(\.result) } }
+    var conflictMutationIDs: [UUID] { withLock { conflictStorage.map(\.0) } }
+
+    func commitFetchedBatch(
+        batchID: UUID,
+        mergeResult: SyncMergeResult,
+        deletedRecordIDs: [SyncEntityID]
+    ) async throws {
+        recorder.append("commitFetched:\(batchID.uuidString)")
+        if failFetchedCommit || failingFetchedBatchIDs.contains(batchID) {
+            throw FakeCoordinatorError.commitFailed
+        }
+        withLock {
+            fetchedStorage.append(.init(
+                batchID: batchID,
+                result: mergeResult,
+                deleted: deletedRecordIDs
+            ))
+        }
+    }
+
+    func commitServerRecordChanged(
+        failedMutation: SyncMutation,
+        mergeResult: SyncMergeResult
+    ) async throws -> SyncFailedMutationResolution {
+        recorder.append("commitConflict:\(failedMutation.mutationID.uuidString)")
+        if failConflictCommit { throw FakeCoordinatorError.commitFailed }
+        withLock { conflictStorage.append((failedMutation.mutationID, mergeResult)) }
+        let replacements = mergeResult.mutationsToUpload.filter {
+            $0.recordID == failedMutation.recordID
+        }
+        guard let replacement = replacements.first,
+              replacement.identity == failedMutation.identity else {
+            throw FakeCoordinatorError.inconsistentJournal
+        }
+        try journal?.replaceExactRecordQueue(failedMutation.identity, with: replacements)
+        return SyncFailedMutationResolution(
+            failedMutation: failedMutation.identity,
+            replacement: replacement,
+            followingReplacements: Array(replacements.dropFirst())
+        )
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
+private enum FakeCoordinatorError: Error {
+    case commitFailed
+    case inconsistentJournal
+    case transportResolutionFailed
+}

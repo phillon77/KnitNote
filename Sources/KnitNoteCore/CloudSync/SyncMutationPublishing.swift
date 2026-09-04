@@ -7,6 +7,10 @@ public protocol SyncMutationSink: Sendable {
     func publish(_ mutations: [SyncMutation]) throws
 }
 
+public protocol SyncRecordProvider: Sendable {
+    func record(for id: SyncEntityID) throws -> SyncRecord?
+}
+
 public extension SyncMutationSink {
     func publish(_ mutations: [SyncMutation]) throws {
         for mutation in mutations {

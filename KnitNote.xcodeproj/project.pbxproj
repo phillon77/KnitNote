@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A3C000000000000000000001 /* KnitNoteCloudSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000002 /* KnitNoteCloudSyncCoordinatorTests.swift */; };
+		A3C000000000000000000003 /* KnitNoteCloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000004 /* KnitNoteCloudSyncCoordinator.swift */; };
 		0067BD647A5C8F1074C2BF40 /* YarnLabelObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF29A3759BFD3D7AEB014EBA /* YarnLabelObservation.swift */; };
 		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
@@ -450,6 +452,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A3C000000000000000000002 /* KnitNoteCloudSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCloudSyncCoordinatorTests.swift; sourceTree = "<group>"; };
+		A3C000000000000000000004 /* KnitNoteCloudSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCloudSyncCoordinator.swift; sourceTree = "<group>"; };
 		00EBACED64349D218A8F4356 /* YarnLabelFieldParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelFieldParser.swift; sourceTree = "<group>"; };
 		02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoFileService.swift; sourceTree = "<group>"; };
 		0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxPublicationReceiptService.swift; sourceTree = "<group>"; };
@@ -890,6 +894,7 @@
 			children = (
 				932195DE8057B24F95F8171C /* CloudRecordCodec.swift */,
 				74311719DB8969B5A448F0B7 /* CloudRecordSystemFieldsStore.swift */,
+				A3C000000000000000000004 /* KnitNoteCloudSyncCoordinator.swift */,
 				D63EEDC87D1700429BC81348 /* CloudSyncEngineStateStore.swift */,
 				25946A1F60CBFECA99D463F3 /* CloudSyncEngineTransport.swift */,
 			);
@@ -920,6 +925,7 @@
 			children = (
 				52B7BE71370E3844C127442D /* CloudRecordCodecTests.swift */,
 				D03C04E23B8721F67EFC6466 /* CloudSyncEngineTransportTests.swift */,
+				A3C000000000000000000002 /* KnitNoteCloudSyncCoordinatorTests.swift */,
 				49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */,
 				20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */,
 				6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */,
@@ -1572,6 +1578,7 @@
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
 				DC489CE9A9732D5FBC3ECB64 /* CloudRecordCodec.swift in Sources */,
 				15197003C9CF7A37A5D6C0B6 /* CloudRecordSystemFieldsStore.swift in Sources */,
+				A3C000000000000000000003 /* KnitNoteCloudSyncCoordinator.swift in Sources */,
 				0AE7EF17BCE4C8F24B393223 /* CloudSyncEngineStateStore.swift in Sources */,
 				314F5050E15AE32A54527F3A /* CloudSyncEngineTransport.swift in Sources */,
 				BCA209B015AA3F4D86B281EF /* CounterManagerView.swift in Sources */,
@@ -1903,6 +1910,7 @@
 			files = (
 				D49E367D588606A53D0EAC9B /* CloudRecordCodecTests.swift in Sources */,
 				8E36309417BA3AF90713772D /* CloudSyncEngineTransportTests.swift in Sources */,
+				A3C000000000000000000001 /* KnitNoteCloudSyncCoordinatorTests.swift in Sources */,
 				9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */,
 				75F5F44DE9FB203222A758B9 /* EditProjectDeletionActionTests.swift in Sources */,
 				A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */,

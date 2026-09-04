@@ -1,21 +1,49 @@
 import CloudKit
 import Foundation
 
-protocol CloudSyncTransport: AnyObject {
+protocol CloudSyncTransport: AnyObject, Sendable {
     var events: AsyncStream<CloudSyncEvent> { get }
     func start() async throws
     func schedule(_ mutations: [SyncMutation]) async throws
-    func finishMutationReplay() async throws
+    func finishMutationReplay(completionID: UUID?) async throws
     func acknowledgeFetchedBatch(_ batchID: UUID) async throws
-    func resolveFailedMutation(_ mutationID: UUID, replacement: SyncMutation?) async throws
-    func fetchNow() async throws
-    func sendNow() async throws
+    func resolveFailedMutation(
+        _ mutationID: UUID,
+        replacement: SyncMutation?,
+        followingReplacements: [SyncMutation]?
+    ) async throws
+    func fetchNow(completionID: UUID?) async throws
+    func sendNow(completionID: UUID?) async throws
+}
+
+extension CloudSyncTransport {
+    func resolveFailedMutation(_ mutationID: UUID, replacement: SyncMutation?) async throws {
+        try await resolveFailedMutation(
+            mutationID,
+            replacement: replacement,
+            followingReplacements: nil
+        )
+    }
+
+    func finishMutationReplay() async throws {
+        try await finishMutationReplay(completionID: nil)
+    }
+
+    func fetchNow() async throws {
+        try await fetchNow(completionID: nil)
+    }
+
+    func sendNow() async throws {
+        try await sendNow(completionID: nil)
+    }
 }
 
 enum CloudSyncEvent: Sendable {
     case accountChanged(previous: String?, current: String?)
     case fetched(batchID: UUID, records: [SyncRecord], deleted: [SyncEntityID])
+    case fetchRequestCompleted(UUID)
     case sent(recordID: SyncEntityID, mutationID: UUID)
+    case sendRequestCompleted(UUID)
     case mutationFailed(recordID: SyncEntityID, mutationID: UUID, failure: CloudSyncFailure)
     case zoneReady
     case zoneDeleted
@@ -302,27 +330,31 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
     }
 
-    func fetchNow() async throws {
+    func fetchNow(completionID: UUID?) async throws {
         try requireNotTerminated()
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
         do {
             try await engine.fetchChanges(.init(scope: .zoneIDs([zoneID])))
             try requireCurrentGeneration(operationGeneration)
+            if let completionID {
+                eventContinuation.yield(.fetchRequestCompleted(completionID))
+            }
         } catch let error as CKError {
             guard generation == operationGeneration else {
                 throw CloudSyncTransportError.staleOperation
             }
-            eventContinuation.yield(.failed(.map(error, codec: codec)))
-            throw error
+            let failure = CloudSyncFailure.map(error, codec: codec)
+            eventContinuation.yield(.failed(failure))
+            throw failure
         }
     }
 
-    func finishMutationReplay() async throws {
+    func finishMutationReplay(completionID: UUID?) async throws {
         try requireNotTerminated()
         guard engine != nil else { throw CloudSyncTransportError.notStarted }
         mutationReplayFinished = true
-        try await sendNow()
+        try await sendNow(completionID: completionID)
     }
 
     func configuredFetchOptions(
@@ -360,13 +392,29 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         deferredStateUpdates.removeFirst(persistableCount)
     }
 
-    func resolveFailedMutation(_ mutationID: UUID, replacement: SyncMutation?) async throws {
+    func resolveFailedMutation(
+        _ mutationID: UUID,
+        replacement: SyncMutation?,
+        followingReplacements: [SyncMutation]?
+    ) async throws {
         try requireNotTerminated()
         guard let entry = queues.first(where: { $0.value.first?.mutationID == mutationID }),
               failedMutationIDs.contains(mutationID) else {
             throw CloudSyncTransportError.unknownFailedMutation
         }
-        var queue = entry.value
+        let previousQueue = entry.value
+        var queue = Array(previousQueue.dropFirst())
+        if let followingReplacements {
+            let validatedFollowing = try followingReplacements.map { try $0.validated() }
+            let previousTailIdentities = previousQueue.dropFirst().map(\.identity)
+            let replacementTailIdentities = validatedFollowing.map(\.identity)
+            guard validatedFollowing.allSatisfy({ $0.recordID == entry.key }),
+                  Set(replacementTailIdentities).count == replacementTailIdentities.count,
+                  replacementTailIdentities.starts(with: previousTailIdentities) else {
+                throw CloudSyncTransportError.invalidReplacement
+            }
+            queue = validatedFollowing
+        }
         if let replacement {
             let validated = try replacement.validated()
             guard validated.recordID == entry.key else {
@@ -375,9 +423,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             if case let .save(save) = validated {
                 _ = try codec.encode(save.recordVersion.record, zoneID: zoneID)
             }
-            queue[0] = validated
-        } else {
-            queue.removeFirst()
+            queue.insert(validated, at: 0)
         }
         failedMutationIDs.remove(mutationID)
         if queue.isEmpty {
@@ -407,23 +453,27 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         await kickConfiguredZoneSend()
     }
 
-    func sendNow() async throws {
+    func sendNow(completionID: UUID?) async throws {
         try requireNotTerminated()
-        try await sendConfiguredZoneChanges()
+        try await sendConfiguredZoneChanges(completionID: completionID)
     }
 
-    private func sendConfiguredZoneChanges() async throws {
+    private func sendConfiguredZoneChanges(completionID: UUID? = nil) async throws {
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
         do {
             try await engine.sendChanges(.init(scope: .zoneIDs([zoneID])))
             try requireCurrentGeneration(operationGeneration)
+            if let completionID {
+                eventContinuation.yield(.sendRequestCompleted(completionID))
+            }
         } catch let error as CKError {
             guard generation == operationGeneration else {
                 throw CloudSyncTransportError.staleOperation
             }
-            eventContinuation.yield(.failed(.map(error, codec: codec)))
-            throw error
+            let failure = CloudSyncFailure.map(error, codec: codec)
+            eventContinuation.yield(.failed(failure))
+            throw failure
         }
     }
 

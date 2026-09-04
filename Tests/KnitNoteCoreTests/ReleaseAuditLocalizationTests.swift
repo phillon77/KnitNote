@@ -25,7 +25,65 @@ struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
     var testDescription: String { "\(product.rawValue)-\(kind.rawValue)" }
 }
 
+struct ProductIdentifierMutation: Sendable, CustomTestStringConvertible {
+    enum Product: String, CaseIterable, Sendable { case iOS, macOS, watch, share }
+    enum Location: String, CaseIterable, Sendable { case profile, signed }
+    enum Kind: String, CaseIterable, Sendable {
+        case missingCanonical
+        case alternateOnly
+        case extraCorrectAlias
+        case extraConflictingAlias
+    }
+
+    let product: Product
+    let location: Location
+    let kind: Kind
+
+    static let all: [Self] = Product.allCases.flatMap { product in
+        Location.allCases.flatMap { location in
+            Kind.allCases.map { Self(product: product, location: location, kind: $0) }
+        }
+    }
+
+    var testDescription: String { "\(product.rawValue)-\(location.rawValue)-\(kind.rawValue)" }
+}
+
+struct BaseConfigurationMutation: Sendable, CustomTestStringConvertible {
+    let owner: String
+    let configuration: String
+
+    static let all: [Self] = [
+        #"PBXProject "KnitNote""#,
+        #"PBXNativeTarget "KnitNote""#,
+        #"PBXNativeTarget "KnitNoteWatch""#,
+        #"PBXNativeTarget "KnitNoteShare""#,
+    ].flatMap { owner in
+        ["Debug", "Release"].map { Self(owner: owner, configuration: $0) }
+    }
+
+    var testDescription: String { "\(owner)-\(configuration)" }
+}
+
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test(arguments: ProductIdentifierMutation.all)
+    func archiveAuditRejectsEachProfileAndSignedIdentifierAliasAmbiguity(
+        mutation: ProductIdentifierMutation
+    ) throws {
+        let fixture = try makeArchiveFixture(identifierMutation: mutation)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        let expected = mutation.location == .profile
+            ? "provisioning profile is expired or is not App Store distribution"
+            : "signed entitlements do not match"
+        #expect(result.output.contains(expected), Comment(rawValue: result.output))
+    }
+
     @Test(arguments: [
         SignedCloudEntitlementMutation(product: .iOS, kind: .missingContainer),
         SignedCloudEntitlementMutation(product: .iOS, kind: .wrongContainer),
@@ -142,6 +200,105 @@ struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
 
         #expect(result.status != 0)
         #expect(result.output.contains("project CODE_SIGN_ENTITLEMENTS"))
+    }
+
+    @Test(arguments: BaseConfigurationMutation.all)
+    func staticAuditRejectsBaseConfigurationReferencesForRelevantConfigurations(
+        mutation: BaseConfigurationMutation
+    ) throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let release = try #require(generatedBuildConfiguration(
+            in: source,
+            owner: mutation.owner,
+            configuration: mutation.configuration
+        ))
+        let mutatedRelease = release.replacingOccurrences(
+            of: "isa = XCBuildConfiguration;",
+            with: "isa = XCBuildConfiguration;\n\t\t\tbaseConfigurationReference = DEADBEEFDEADBEEFDEADBEEF /* Fixture.xcconfig */;"
+        )
+        let result = try runStaticAudit(
+            projectFileSource: source.replacingOccurrences(of: release, with: mutatedRelease)
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("baseConfigurationReference"))
+    }
+
+    @Test func staticAuditRejectsAlternateMainInfoPlistBinding() throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let mutated = try #require(source.replacingFirstOccurrence(
+            of: "INFOPLIST_FILE = KnitNote/Info.plist;",
+            with: "INFOPLIST_FILE = KnitNote/CloudKitRemoteNotificationInfo.plist;"
+        ))
+        let result = try runStaticAudit(projectFileSource: mutated)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source iOS/macOS INFOPLIST_FILE"))
+    }
+
+    @Test func staticAuditRejectsMainInfoWithoutRemoteNotificationEvenWhenProjectSpecContainsIt() throws {
+        let fixture = try sourceInfoPlistFixture(mainModes: nil)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let result = try runReleaseAudit(environment: ["KNITNOTE_MAIN_INFO_PLIST": fixture.main.path])
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source main UIBackgroundModes"))
+    }
+
+    @Test func staticAuditRejectsRemoteNotificationMovedToWatchInfo() throws {
+        let fixture = try sourceInfoPlistFixture(mainModes: nil, watchModes: ["remote-notification"])
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let result = try runReleaseAudit(environment: [
+            "KNITNOTE_MAIN_INFO_PLIST": fixture.main.path,
+            "KNITNOTE_WATCH_INFO_PLIST": fixture.watch.path,
+        ])
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source main UIBackgroundModes"))
+    }
+
+    @Test func staticAuditRejectsUnusedInfoDecoyWithRemoteNotification() throws {
+        let fixture = try sourceInfoPlistFixture(mainModes: nil, decoyModes: ["remote-notification"])
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let result = try runReleaseAudit(environment: ["KNITNOTE_MAIN_INFO_PLIST": fixture.main.path])
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source main UIBackgroundModes"))
+    }
+
+    @Test func staticAuditRejectsProjectSpecWhoseOnlyRemoteNotificationIsADecoy() throws {
+        let fixture = try projectSpecFixture { specification in
+            var targets = try #require(specification["targets"] as? [String: Any])
+            var main = try #require(targets["KnitNote"] as? [String: Any])
+            var info = try #require(main["info"] as? [String: Any])
+            var properties = try #require(info["properties"] as? [String: Any])
+            properties.removeValue(forKey: "UIBackgroundModes")
+            info["properties"] = properties
+            main["info"] = info
+            targets["KnitNote"] = main
+            specification["targets"] = targets
+            specification["UIBackgroundModesDecoy"] = ["remote-notification"]
+        }
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let result = try runReleaseAudit(environment: ["KNITNOTE_XCODEGEN": fixture.xcodegen.path])
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source main target UIBackgroundModes"))
+    }
+
+    @Test func staticAuditRejectsAnyExtraMainBackgroundMode() throws {
+        let fixture = try sourceInfoPlistFixture(mainModes: ["remote-notification", "fetch"])
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let result = try runReleaseAudit(environment: ["KNITNOTE_MAIN_INFO_PLIST": fixture.main.path])
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("source main UIBackgroundModes"))
     }
 
     @Test func staticAuditAcceptsCanonicalProjectArchiveSchemaSource() throws {
@@ -2015,6 +2172,80 @@ private func runStaticAudit(projectFileSource sourceText: String) throws -> Audi
     return try runReleaseAudit(environment: ["KNITNOTE_PROJECT_FILE": source.path])
 }
 
+private struct SourceInfoPlistFixture {
+    let root: URL
+    let main: URL
+    let watch: URL
+}
+
+private struct ProjectSpecFixture {
+    let root: URL
+    let xcodegen: URL
+}
+
+private func projectSpecFixture(
+    mutate: (inout [String: Any]) throws -> Void
+) throws -> ProjectSpecFixture {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("knitnote-project-spec-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let process = Process()
+    process.executableURL = URL(filePath: "/opt/homebrew/bin/xcodegen")
+    process.arguments = ["dump", "--type", "parsed-json"]
+    process.currentDirectoryURL = releaseAuditRepositoryRoot
+    let output = Pipe()
+    process.standardOutput = output
+    try process.run()
+    process.waitUntilExit()
+    try #require(process.terminationStatus == 0)
+    var specification = try #require(
+        JSONSerialization.jsonObject(with: output.fileHandleForReading.readDataToEndOfFile())
+            as? [String: Any]
+    )
+    try mutate(&specification)
+    let json = root.appendingPathComponent("project.json")
+    try JSONSerialization.data(withJSONObject: specification).write(to: json)
+    let xcodegen = root.appendingPathComponent("xcodegen")
+    try """
+    #!/bin/sh
+    cat '\(json.path)'
+    """.write(to: xcodegen, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes(
+        [.posixPermissions: NSNumber(value: 0o755)],
+        ofItemAtPath: xcodegen.path
+    )
+    return ProjectSpecFixture(root: root, xcodegen: xcodegen)
+}
+
+private func sourceInfoPlistFixture(
+    mainModes: [String]?,
+    watchModes: [String]? = nil,
+    decoyModes: [String]? = nil
+) throws -> SourceInfoPlistFixture {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("knitnote-source-info-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    func mutatedPlist(_ relativePath: String, modes: [String]?) throws -> [String: Any] {
+        let data = try Data(contentsOf: releaseAuditRepositoryRoot.appendingPathComponent(relativePath))
+        var plist = try #require(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+        plist["UIBackgroundModes"] = modes
+        return plist
+    }
+    let main = root.appendingPathComponent("Main.plist")
+    let watch = root.appendingPathComponent("Watch.plist")
+    try writePlist(try mutatedPlist("KnitNote/Info.plist", modes: mainModes), to: main)
+    try writePlist(try mutatedPlist("KnitNoteWatch/Info.plist", modes: watchModes), to: watch)
+    if let decoyModes {
+        try writePlist(
+            try mutatedPlist("KnitNote/Info.plist", modes: decoyModes),
+            to: root.appendingPathComponent("CloudKitRemoteNotificationDecoy.plist")
+        )
+    }
+    return SourceInfoPlistFixture(root: root, main: main, watch: watch)
+}
+
 private extension String {
     func replacingFirstOccurrence(of target: String, with replacement: String) -> String? {
         guard let range = range(of: target) else { return nil }
@@ -2300,6 +2531,51 @@ private func conflictingSignedIdentifierAlias(
     return "<key>\(key)</key><string>9CFPAUL5N5.\(product == .watch ? "com.phillon.KnitNote.watch" : product == .share ? "com.phillon.KnitNote.share" : "com.phillon.KnitNote")</string>"
 }
 
+private func identifierKeys(
+    for product: ProductIdentifierMutation.Product
+) -> (canonical: String, alternate: String, bundle: String) {
+    let bundle: String
+    switch product {
+    case .iOS, .macOS: bundle = "com.phillon.KnitNote"
+    case .watch: bundle = "com.phillon.KnitNote.watch"
+    case .share: bundle = "com.phillon.KnitNote.share"
+    }
+    return product == .macOS
+        ? ("com.apple.application-identifier", "application-identifier", bundle)
+        : ("application-identifier", "com.apple.application-identifier", bundle)
+}
+
+private func identifierValues(
+    for product: ProductIdentifierMutation.Product,
+    location: ProductIdentifierMutation.Location,
+    mutation: ProductIdentifierMutation?,
+    canonicalOverride: String? = nil
+) -> [String: String] {
+    let keys = identifierKeys(for: product)
+    let expected = canonicalOverride ?? "9CFPAUL5N5.\(keys.bundle)"
+    guard mutation?.product == product, mutation?.location == location else {
+        return [keys.canonical: expected]
+    }
+    switch mutation?.kind {
+    case .missingCanonical:
+        return [:]
+    case .alternateOnly:
+        return [keys.alternate: expected]
+    case .extraCorrectAlias:
+        return [keys.canonical: expected, keys.alternate: expected]
+    case .extraConflictingAlias:
+        return [keys.canonical: expected, keys.alternate: "9CFPAUL5N5.com.phillon.Conflicting"]
+    case nil:
+        return [keys.canonical: expected]
+    }
+}
+
+private func identifierXML(_ values: [String: String]) -> String {
+    values.keys.sorted().map { key in
+        "<key>\(key)</key><string>\(values[key]!)</string>"
+    }.joined()
+}
+
 private func makeArchiveFixture(
     omittingDirectory: (target: String, locale: String)? = nil,
     extraDirectory: (target: String, locale: String)? = nil,
@@ -2333,6 +2609,7 @@ private func makeArchiveFixture(
     changedMacSignedEntitlement: String? = nil,
     extraMacSignedEntitlement: String? = nil,
     signedCloudEntitlementMutation: SignedCloudEntitlementMutation? = nil,
+    identifierMutation: ProductIdentifierMutation? = nil,
     mutateDistributionAfterProvenance: String? = nil,
     removeDistributionAfterProvenance: String? = nil,
     extractionFailure: String? = nil,
@@ -2502,12 +2779,20 @@ private func makeArchiveFixture(
         let profile = item.name == "macOS"
             ? item.bundle.appendingPathComponent("Contents/embedded.provisionprofile")
             : item.bundle.appendingPathComponent("embedded.mobileprovision")
-        let profileIdentifierKey = item.name == "macOS"
-            ? "com.apple.application-identifier"
-            : "application-identifier"
-        var profileEntitlements: [String: Any] = [
-            profileIdentifierKey: profileIdentifierOverride ?? "9CFPAUL5N5.\(item.identifier)",
-        ]
+        let product: ProductIdentifierMutation.Product
+        switch item.name {
+        case "iOS": product = .iOS
+        case "macOS": product = .macOS
+        case "Watch": product = .watch
+        case "Share": product = .share
+        default: throw CocoaError(.validationMissingMandatoryProperty)
+        }
+        var profileEntitlements: [String: Any] = identifierValues(
+            for: product,
+            location: .profile,
+            mutation: identifierMutation,
+            canonicalOverride: profileIdentifierOverride
+        )
         if item.name == "macOS" {
             if let macProfileGetTaskAllow {
                 profileEntitlements["get-task-allow"] = macProfileGetTaskAllow
@@ -2614,7 +2899,22 @@ private func makeArchiveFixture(
     try fileManager.createDirectory(at: fakeBin, withIntermediateDirectories: true)
     let codesign = fakeBin.appendingPathComponent("codesign")
     let shouldFailCodesign = codesignFailure ? "yes" : "no"
-    let fixtureSignedIdentifier = signedIdentifierOverride ?? ""
+    let iOSIdentifier = identifierXML(identifierValues(
+        for: .iOS, location: .signed, mutation: identifierMutation,
+        canonicalOverride: signedIdentifierOverride
+    ))
+    let watchIdentifier = identifierXML(identifierValues(
+        for: .watch, location: .signed, mutation: identifierMutation,
+        canonicalOverride: signedIdentifierOverride
+    ))
+    let shareIdentifier = identifierXML(identifierValues(
+        for: .share, location: .signed, mutation: identifierMutation,
+        canonicalOverride: signedIdentifierOverride
+    ))
+    let macIdentifier = identifierXML(identifierValues(
+        for: .macOS, location: .signed, mutation: identifierMutation,
+        canonicalOverride: signedIdentifierOverride
+    ))
     let iOSCloudEntitlements = signedCloudEntitlements(for: .iOS, mutation: signedCloudEntitlementMutation)
     let watchCloudEntitlements = signedCloudEntitlements(for: .watch, mutation: signedCloudEntitlementMutation)
     let shareCloudEntitlements = signedCloudEntitlements(for: .share, mutation: signedCloudEntitlementMutation)
@@ -2650,14 +2950,12 @@ private func makeArchiveFixture(
       exit 64
     elif [ "${1:-}" = "-d" ]; then
       case "${4:-${3:-}}" in
-        *KnitNoteWatch.app) bundle='com.phillon.KnitNote.watch'; identity_key='application-identifier'; group='\(watchCloudEntitlements)\(watchIdentifierAlias)' ;;
-        *KnitNoteShare.appex) bundle='com.phillon.KnitNote.share'; identity_key='application-identifier'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(shareCloudEntitlements)\(shareIdentifierAlias)' ;;
-        *macOS*|*/mac/*) bundle='com.phillon.KnitNote'; identity_key='com.apple.application-identifier'; group='\(macSecurityEntitlements)\(macIdentifierAlias)' ;;
-        *) bundle='com.phillon.KnitNote'; identity_key='application-identifier'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(iOSCloudEntitlements)\(iOSIdentifierAlias)' ;;
+        *KnitNoteWatch.app) identity='\(watchIdentifier)'; group='\(watchCloudEntitlements)\(watchIdentifierAlias)' ;;
+        *KnitNoteShare.appex) identity='\(shareIdentifier)'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(shareCloudEntitlements)\(shareIdentifierAlias)' ;;
+        *macOS*|*/mac/*) identity='\(macIdentifier)'; group='\(macSecurityEntitlements)\(macIdentifierAlias)' ;;
+        *) identity='\(iOSIdentifier)'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(iOSCloudEntitlements)\(iOSIdentifierAlias)' ;;
       esac
-      signed_id='\(fixtureSignedIdentifier)'
-      [ -n "$signed_id" ] || signed_id="9CFPAUL5N5.$bundle"
-      printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>'"$identity_key"'</key><string>'"$signed_id"'</string><key>com.apple.developer.team-identifier</key><string>9CFPAUL5N5</string><key>get-task-allow</key><false/>'"$group"'</dict></plist>'
+      printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>'"$identity"'<key>com.apple.developer.team-identifier</key><string>9CFPAUL5N5</string><key>get-task-allow</key><false/>'"$group"'</dict></plist>'
     fi
     exit 0
     """.write(to: codesign, atomically: true, encoding: .utf8)

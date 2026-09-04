@@ -242,6 +242,11 @@ expected = {
         "CODE_SIGN_ENTITLEMENTS": "KnitNoteShare/KnitNoteShare.entitlements",
     },
 }
+expected_info = {
+    "KnitNote": {"INFOPLIST_FILE": "KnitNote/Info.plist"},
+    "KnitNoteWatch": {"INFOPLIST_FILE": "KnitNoteWatch/Info.plist"},
+    "KnitNoteShare": {"INFOPLIST_FILE": "KnitNoteShare/Info.plist"},
+}
 labels = {"KnitNote": "iOS/macOS", "KnitNoteWatch": "Watch", "KnitNoteShare": "Share"}
 
 def configuration_section(owner, configuration):
@@ -269,10 +274,17 @@ setting_pattern = re.compile(
     r'^\s*"?(CODE_SIGN_ENTITLEMENTS(?:\[sdk=[^]]+\])?)"?\s*=\s*"?([^";]+)"?;\s*$',
     re.MULTILINE,
 )
+info_setting_pattern = re.compile(
+    r'^\s*"?(INFOPLIST_FILE(?:\[sdk=[^]]+\])?)"?\s*=\s*"?([^";]+)"?;\s*$',
+    re.MULTILINE,
+)
+base_configuration_pattern = re.compile(r'^\s*baseConfigurationReference\s*=', re.MULTILINE)
 for configuration in ("Debug", "Release"):
     section = configuration_section('PBXProject "KnitNote"', configuration)
     if section is None:
         raise SystemExit("release audit: project CODE_SIGN_ENTITLEMENTS configuration is missing")
+    if base_configuration_pattern.search(section):
+        raise SystemExit("release audit: relevant project baseConfigurationReference is forbidden")
     if setting_pattern.findall(section):
         raise SystemExit("release audit: project CODE_SIGN_ENTITLEMENTS must not be inherited")
 
@@ -281,6 +293,10 @@ for target, wanted in expected.items():
         section = configuration_section(f'PBXNativeTarget "{target}"', configuration)
         if section is None:
             raise SystemExit(f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS configuration is missing")
+        if base_configuration_pattern.search(section):
+            raise SystemExit(
+                f"release audit: source {labels[target]} baseConfigurationReference is forbidden"
+            )
         pairs = setting_pattern.findall(section)
         actual = {}
         for key, value in pairs:
@@ -291,11 +307,31 @@ for target, wanted in expected.items():
             raise SystemExit(
                 f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS does not match canonical paths"
             )
+        info_pairs = info_setting_pattern.findall(section)
+        info_actual = {}
+        for key, value in info_pairs:
+            if key in info_actual:
+                raise SystemExit(f"release audit: source {labels[target]} INFOPLIST_FILE has duplicate assignments")
+            info_actual[key] = value.strip()
+        if info_actual != expected_info[target]:
+            raise SystemExit(
+                f"release audit: source {labels[target]} INFOPLIST_FILE does not match canonical path"
+            )
 PY
 }
 
 verify_source_product_cloud_entitlements() {
   verify_generated_entitlement_bindings
+  "$PLUTIL" -convert json -o - "$MAIN_INFO_PLIST" \
+    | jq -e '.UIBackgroundModes == ["remote-notification"]' >/dev/null \
+    || fail "source main UIBackgroundModes must contain only remote-notification"
+
+  jq -e '
+    .targets.KnitNote.info.path == "KnitNote/Info.plist"
+    and .targets.KnitNote.info.properties.UIBackgroundModes == ["remote-notification"]
+  ' "$SPEC_JSON" >/dev/null \
+    || fail "source main target UIBackgroundModes must contain only remote-notification"
+
   "$PLUTIL" -convert json -o - "$IOS_ENTITLEMENTS" \
     | jq -e '. == {
       "com.apple.security.application-groups": ["group.com.phillon.KnitNote"],
@@ -911,6 +947,7 @@ if [[ "$TEST_ONLY" == 1 ]]; then
   PROJECT_SCAN_ROOT="${KNITNOTE_PROJECT_SCAN_ROOT:-$PROJECT_SCAN_ROOT}"
   NETWORK_SCAN_ROOT="${KNITNOTE_NETWORK_SCAN_ROOT:-$NETWORK_SCAN_ROOT}"
   GIT="${KNITNOTE_GIT:-$GIT}"
+  XCODEGEN="${KNITNOTE_XCODEGEN:-$XCODEGEN}"
   CODESIGN="${KNITNOTE_CODESIGN:-$CODESIGN}"
   SECURITY="${KNITNOTE_SECURITY:-$SECURITY}"
   SWIFT="${KNITNOTE_SWIFT:-$SWIFT}"

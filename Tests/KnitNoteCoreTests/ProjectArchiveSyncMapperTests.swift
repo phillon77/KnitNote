@@ -3,6 +3,72 @@ import Testing
 @testable import KnitNoteCore
 
 struct ProjectArchiveSyncMapperTests {
+    @Test func cachedBootstrapIssuesEveryUnissuedAttachmentWithoutResettingMetadata() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try BackupFixture.writeCompleteArchive(to: root)
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: root.appendingPathComponent("projects-v1.json")))
+        var cached = try SyncCanonicalPublicationSnapshot(archive: archive, deviceID: "test").records
+        let projectID = SyncEntityID(kind: .project, uuid: archive.projects[0].id)
+        var projectRecord = cached[projectID]!
+        projectRecord.entityRevision = 99
+        cached[projectID] = projectRecord
+        let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "test",
+            reusing: .init(archive: archive, records: cached), issuedAttachmentRecords: [])
+        #expect(package.attachments.count == 6)
+        #expect(try package.record(for: projectID) == projectRecord)
+        let result = try ProjectArchiveSyncMapper.materialize(records: package.records,
+            attachments: stage(package, root: root), baseArchive: .init(version: 14, projects: []))
+        #expect(result.archive.projects == archive.projects)
+    }
+
+    @Test func invalidCounterOrdinalsCannotTriggerDomainDecoderNormalization() throws {
+        let project = try StoredProject(name: "Counters")
+        let archive = ProjectArchive(version: 14, projects: [project])
+        let original = try SyncCanonicalPublicationSnapshot(archive: archive, deviceID: "test").records.values
+        for ordinals in [[1, 1, 1, 1, 1, 1], [0, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 7]] {
+            let changed = original.map { record -> SyncRecord in
+                guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return record }
+                var record = record
+                let counter = ProjectCounter(id: state.counter.id,
+                    defaultOrdinal: ordinals[state.counter.defaultOrdinal - 1], value: 17)
+                record.payload.atomicDomain = .init(value: .projectCounter(.init(counter: counter,
+                    reminders: [], preparedCommand: nil, processedCommandIDs: [], occurrence: nil)),
+                    stamp: record.payload.atomicDomain!.stamp)
+                return record
+            }
+            _ = try SyncRecordValidator().validate(changed)
+            #expect(throws: (any Error).self) {
+                try ProjectArchiveSyncMapper.materialize(records: changed, attachments: [:], baseArchive: archive)
+            }
+        }
+    }
+
+    @Test func concurrentAttachmentHeadsSurviveMaterializationAndReexport() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try BackupFixture.writeCompleteArchive(to: root)
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: root.appendingPathComponent("projects-v1.json")))
+        let first = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "a")
+        let second = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "b")
+        let history = first.records.filter { $0.id.kind == .attachment } + second.records.filter { $0.id.kind == .attachment }
+        let merged = second.records.filter { $0.id.kind != .attachment } + history
+        let result = try ProjectArchiveSyncMapper.materialize(records: merged,
+            attachments: stage(second, root: root), baseArchive: archive)
+        #expect(result.files.count == 6)
+        #expect(Set(result.files.map { $0.version.versionID }) == Set(second.attachments.keys))
+        for records in [history, history.reversed()] {
+            let exported = try ProjectArchiveSyncMapper.export(archive: result.archive, liveRoot: root, deviceID: "b",
+                reusing: .init(archive: result.archive, records: Dictionary(uniqueKeysWithValues: result.records.map { ($0.id, $0) })),
+                issuedAttachmentRecords: records)
+            #expect(exported.records.filter { $0.id.kind == .attachment }.count == 12)
+            #expect(Set(exported.attachments.keys) == Set(second.attachments.keys))
+            for record in history { #expect(try exported.record(for: record.id) == record) }
+        }
+    }
+
     @Test func exportRejectsCorruptDeclaredPatternAsset() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

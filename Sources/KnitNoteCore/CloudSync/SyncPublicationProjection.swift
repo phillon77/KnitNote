@@ -61,6 +61,7 @@ public struct SyncPublicationProjector {
     private let now: () -> Date
     private let makeUUID: () -> UUID
     private let makeAttachmentVersionID: ((SyncAttachmentReference, SyncRegularFileRead, UUID?) -> UUID)?
+    private let issueUnissuedAttachments: Bool
 
     public init(
         deviceID: String,
@@ -75,7 +76,8 @@ public struct SyncPublicationProjector {
         fileReader: any SyncRegularFileReading = SyncRegularFileReader(),
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
-        makeAttachmentVersionID: ((SyncAttachmentReference, SyncRegularFileRead, UUID?) -> UUID)? = nil
+        makeAttachmentVersionID: ((SyncAttachmentReference, SyncRegularFileRead, UUID?) -> UUID)? = nil,
+        issueUnissuedAttachments: Bool = false
     ) {
         self.deviceID = deviceID
         self.preparedWatchCommand = preparedWatchCommand
@@ -90,6 +92,7 @@ public struct SyncPublicationProjector {
         self.now = now
         self.makeUUID = makeUUID
         self.makeAttachmentVersionID = makeAttachmentVersionID
+        self.issueUnissuedAttachments = issueUnissuedAttachments
     }
 
     public func project(
@@ -202,7 +205,8 @@ public struct SyncPublicationProjector {
             // being introduced. A changed reference in the same semantic slot
             // is a real replacement, however, and must receive a fresh
             // version without guessing a legacy predecessor.
-            if oldEntry == nil,
+            if !issueUnissuedAttachments,
+               oldEntry == nil,
                issued == nil,
                let beforeReference = beforeBySlot[reference.slot],
                beforeReference == reference {

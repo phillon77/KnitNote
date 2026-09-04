@@ -86,11 +86,16 @@ struct SyncAttachmentLineage: Sendable {
     }
 
     func resolvedLiveVersionIDs() -> [SyncAttachmentSlot: UUID] {
-        headsBySlot.compactMapValues { records in
-            guard let winner = records.max(by: Self.recordLess),
-                  winner.deletedAt.value == nil else { return nil }
+        resolvedHeadsBySlot().compactMapValues { winner in
+            guard winner.deletedAt.value == nil else { return nil }
             return winner.id.uuid
         }
+    }
+
+    /// Includes tombstone winners so a later issuance can retain its exact
+    /// predecessor while all concurrent immutable heads remain in history.
+    func resolvedHeadsBySlot() -> [SyncAttachmentSlot: SyncRecord] {
+        headsBySlot.compactMapValues { $0.max(by: Self.recordLess) }
     }
 
     private static func recordLess(_ lhs: SyncRecord, _ rhs: SyncRecord) -> Bool {

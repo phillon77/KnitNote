@@ -78,8 +78,7 @@ public enum ProjectArchiveSyncMapper {
         let lineage = try SyncAttachmentLineage(records: issued)
         var versions: [SyncAttachmentSlot: SyncAttachmentVersion] = [:]
         var issuedBySlot: [SyncAttachmentSlot: SyncRecord] = [:]
-        for (slot, heads) in lineage.headsBySlot {
-            guard heads.count == 1, let record = heads.first else { throw SyncAttachmentManifestError.corrupt }
+        for (slot, record) in lineage.resolvedHeadsBySlot() {
             versions[slot] = record.payload.attachment!
             issuedBySlot[slot] = record
         }
@@ -106,7 +105,8 @@ public enum ProjectArchiveSyncMapper {
                     read.sha256.base64EncodedString(), String(read.byteCount), reference.mediaType,
                     reference.displayFilename, parent?.uuidString ?? ""
                 ])
-            }
+            },
+            issueUnissuedAttachments: true
         ).project(before: cache?.archive ?? .init(version: archive.version, projects: []), after: archive, manifest: [:])
         var records = projection.cache.records
         for record in (cache.map { Array($0.records.values) } ?? []) where record.deletedAt.value != nil {
@@ -186,6 +186,7 @@ public enum ProjectArchiveSyncMapper {
             }
             let order = projection.counterOrder ?? counters.sorted { $0.defaultOrdinal < $1.defaultOrdinal }.map(\.id)
             guard counters.count == 6, Set(order).count == 6, Set(order) == Set(counters.map(\.id)),
+                  Set(counters.map(\.defaultOrdinal)) == Set(1...6),
                   order.contains(projection.selectedCounterID) else { throw ProjectArchiveSyncMappingError.invalidDomain(record.id) }
             let orderedCounters = order.map { id in counters.first { $0.id == id }! }
             // Atomic counter state owns note content; standalone records must
@@ -212,7 +213,11 @@ public enum ProjectArchiveSyncMapper {
             object["knittingReminders"] = try jsonValue(reminderOrder.map { id in reminders.first { $0.id == id }! })
             object["journalEntries"] = try jsonValue(entries)
             if case let .string(name)? = record.payload.fields["name"]?.value { object["name"] = name }
-            projects.append(try decodeObject(StoredProject.self, object))
+            let reconstructed = try decodeObject(StoredProject.self, object)
+            guard reconstructed.counters == orderedCounters else {
+                throw ProjectArchiveSyncMappingError.invalidDomain(record.id)
+            }
+            projects.append(reconstructed)
         }
         var yarns: [StoredYarn] = []
         for record in live where record.id.kind == .yarn {

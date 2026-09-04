@@ -600,10 +600,10 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
         accountIdentifier: String,
         zoneID: CKRecordZone.ID,
         generation: UInt64
-    ) throws -> (currentBatchIDs: Set<UUID>, introducedBatchIDs: Set<UUID>) {
+    ) throws -> (currentBatchIDs: Set<UUID>, awaitingSourceRedeliveryBatchIDs: Set<UUID>) {
         var store = try load()
         var currentBatchIDs: Set<UUID> = []
-        var introducedBatchIDs: Set<UUID> = []
+        var awaitingSourceRedeliveryBatchIDs: Set<UUID> = []
         for index in store.batches.indices where store.batches[index].belongs(
             to: accountIdentifier,
             zoneID: zoneID
@@ -630,13 +630,15 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
                     repeating: false,
                     count: store.batches[index].deletedRecordIDs.count
                 )
-                introducedBatchIDs.insert(batchID)
+            }
+            if store.batches[index].awaitingSourceRedelivery {
+                awaitingSourceRedeliveryBatchIDs.insert(batchID)
             }
         }
         if !currentBatchIDs.isEmpty {
             try save(store)
         }
-        return (currentBatchIDs, introducedBatchIDs)
+        return (currentBatchIDs, awaitingSourceRedeliveryBatchIDs)
     }
 
     func acknowledge(

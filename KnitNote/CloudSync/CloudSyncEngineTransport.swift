@@ -834,7 +834,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 )
                 sourcePendingFetchedBatchIDs = sourcePendingBatchBaseline.intersection(
                     restored.currentBatchIDs
-                ).union(restored.introducedBatchIDs)
+                ).union(restored.awaitingSourceRedeliveryBatchIDs)
                 deferredStateUpdates = deferredStateBaseline
                 if let data = try persistEligibleDeferredState(
                     remainingUnacknowledgedBatchIDs: Set(unacknowledgedFetchedBatchIDs)

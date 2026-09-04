@@ -1671,14 +1671,58 @@ import Testing
         await #expect(throws: CloudSyncFailure.self) {
             try await restartedTransport.fetchNow()
         }
-        await restartedTransport.receiveStateUpdate(
-            try stateSerialization(base64: "EQ==")
-        )
+        let postFailureState = try stateSerialization(base64: "EQ==")
+        await restartedTransport.receiveStateUpdate(postFailureState)
 
         let spool = try #require(
             JSONSerialization.jsonObject(with: Data(contentsOf: incomingURL)) as? [String: Any]
         )
         #expect((spool["batches"] as? [[String: Any]])?.count == 1)
+        guard try fixture.store.load() == nil else {
+            Issue.record("A post-failure state must not advance past the restored receipt")
+            return
+        }
+
+        let recoveryDriver = TestSyncEngineDriver()
+        let recoveryTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in recoveryDriver }
+        )
+        var recoveryEvents = recoveryTransport.events.makeAsyncIterator()
+        try await recoveryTransport.start()
+        guard case let .fetched(recoveryBatchID, _, recoveryRecords, _)?
+                = await recoveryEvents.next() else {
+            Issue.record("Expected the restored receipt to replay from disk")
+            return
+        }
+        #expect(recoveryBatchID == replayedBatchID)
+        #expect(recoveryRecords == [record])
+        try await recoveryTransport.acknowledgeFetchedBatch(recoveryBatchID)
+
+        let recoveredState = try stateSerialization(base64: "Eg==")
+        await recoveryDriver.setFetchAction { [weak recoveryTransport] in
+            guard let recoveryTransport else { return }
+            await recoveryTransport.receiveFetchedChanges(
+                records: [cloudRecord],
+                deletedRecordIDs: []
+            )
+            await recoveryTransport.receiveStateUpdate(recoveredState)
+        }
+
+        try await recoveryTransport.fetchNow()
+
+        guard case .stateUpdated? = await recoveryEvents.next() else {
+            Issue.record("Expected successful source recovery to install its state")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(recoveredState))
+        let recoveredSpool = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: incomingURL)) as? [String: Any]
+        )
+        #expect((recoveredSpool["batches"] as? [[String: Any]])?.isEmpty == true)
     }
 
     @Test func failedFetchPreservesPriorSuccessfulCoverageWaitingForAcknowledgement() async throws {

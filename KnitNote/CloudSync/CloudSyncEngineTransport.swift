@@ -156,6 +156,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var mutationReplayFinished = false
     private var configuredZoneIsReady = false
     private var zoneEpoch: UInt64 = 0
+    private var zoneResetInProgress = false
     private var zoneResetDurabilityBlocked = false
     private var sendAttempts: [SyncEntityID: SendAttempt] = [:]
     private var failedMutationIDs: Set<UUID> = []
@@ -460,6 +461,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         mutationReplayFinished = false
         configuredZoneIsReady = false
         zoneEpoch &+= 1
+        zoneResetInProgress = false
         zoneResetDurabilityBlocked = false
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
@@ -537,6 +539,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     func receiveZoneReady(_ readyZoneID: CKRecordZone.ID) async {
         guard readyZoneID == zoneID,
               !configuredZoneIsReady,
+              !zoneResetInProgress,
               !zoneResetDurabilityBlocked else { return }
         configuredZoneIsReady = true
         zoneEpoch &+= 1
@@ -545,9 +548,17 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveDeletedZones(_ deletedZoneIDs: [CKRecordZone.ID]) async {
-        guard deletedZoneIDs.contains(zoneID) else { return }
+        guard deletedZoneIDs.contains(zoneID), !zoneResetInProgress else { return }
+        zoneResetInProgress = true
         configuredZoneIsReady = false
         zoneEpoch &+= 1
+        let resetGeneration = generation
+        let resetZoneEpoch = zoneEpoch
+        defer {
+            if generation == resetGeneration, zoneEpoch == resetZoneEpoch {
+                zoneResetInProgress = false
+            }
+        }
         sendAttempts.removeAll(keepingCapacity: false)
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
         zoneResetDurabilityBlocked = false
@@ -1122,6 +1133,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         inboundDurabilityBlocked = false
         mutationReplayFinished = false
         configuredZoneIsReady = false
+        zoneResetInProgress = false
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
         deleteCallbackBarriers.removeAll(keepingCapacity: false)

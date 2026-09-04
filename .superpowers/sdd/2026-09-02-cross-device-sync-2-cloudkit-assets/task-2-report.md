@@ -369,3 +369,54 @@ Result: exit 0 with no diagnostics.
 - Live CloudKit networking remains intentionally unexercised; the suite uses real CloudKit value types, real descriptor-relative stores, and a deterministic driver without contacting a container.
 - Stream termination is intentionally final for a transport instance. A caller that needs synchronization again must construct a new transport and stream.
 - The full Swift package suite was intentionally not rerun because amended files remain app-target-only; the earlier recorded package evidence and unrelated timing concern are unchanged.
+
+---
+
+## Fix round 3/5 — 2026-09-04
+
+### Finding addressed
+
+`DONE`: the zone-deletion recovery now enters an explicit reset-in-progress phase before any suspension. Readiness and duplicate deletion callbacks are rejected until durable base clearing, `.saveZone` reconciliation, and the configured-zone recovery send have completed. The latch is generation/zone-epoch bound so an interleaved account reset or terminal cleanup cannot be overwritten by the stale deletion handler.
+
+### Strict TDD evidence
+
+The first attempted single-test selector at `/tmp/KnitNoteTask2Fix3-ZoneResetRED` matched zero Swift Testing cases (`totalTestCount: 0`) and is not counted as RED evidence. The covering suite was then run with the valid suite selector:
+
+```sh
+xcodebuild test -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /tmp/KnitNoteTask2Fix3-ZoneResetRED2 -only-testing:KnitNoteAppTests/CloudSyncEngineTransportTests CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 65 (expected RED), `passedTests: 37`, `failedTests: 1`, `totalTestCount: 38`. `zoneReadyInterleavedDuringResetCannotBypassRecovery()` failed at `await driver.sendCallCount() == sendsBeforeReset`, proving a readiness callback prematurely kicked a send while deletion recovery was suspended.
+
+After adding the minimal reset-phase latch, the identical covering suite with `-derivedDataPath /tmp/KnitNoteTask2Fix3-ZoneResetGREEN` exited 0. Its `xcresulttool` summary reported `passedTests: 38`, `failedTests: 0`, `totalTestCount: 38`, `result: Passed`.
+
+The regression uses a controllably suspending deterministic-driver database-change read. While recovery is suspended it proves there is no send kick and no record batch; after resumption it proves exactly one pending `.saveZone`, exactly one recovery send, configured-zone scope, and a still-closed record gate.
+
+### Generic iOS verification
+
+```sh
+xcodebuild build -quiet -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/KnitNoteTask2Fix3-iOSFinal CODE_SIGNING_ALLOWED=NO
+```
+
+Result: exit 0 with no diagnostics.
+
+### Static checks
+
+- `git diff --check` — exit 0, no output.
+- `plutil -lint KnitNote.xcodeproj/project.pbxproj` — exit 0, `KnitNote.xcodeproj/project.pbxproj: OK`.
+- `rg '^import CloudKit' Sources/KnitNoteCore` — exit 1 with no matches, as required.
+- Branch/base recheck: `docs/cross-device-sync-design` at `3d8cbac3a9343962c3b78ae0be71b8522faf59ce` before this fix commit.
+
+### Fix-round files
+
+- `KnitNote/CloudSync/CloudSyncEngineTransport.swift`
+- `Tests/KnitNoteAppTests/CloudSyncEngineTransportTests.swift`
+- `.superpowers/sdd/2026-09-02-cross-device-sync-2-cloudkit-assets/task-2-report.md`
+
+### Self-review and concerns
+
+- The reset flag is established before the first possible await and remains set through the recovery send await. The transition that clears it verifies the same account generation and zone epoch.
+- Account reset and terminal stream cleanup explicitly clear their own reset phase; a stale deletion continuation cannot change that newer lifecycle state.
+- Duplicate deletion callbacks during an active reset are ignored, preventing duplicate zone saves and recovery kicks.
+- No unrelated transport behavior, entitlement, schema, lifecycle/UI wiring, Core package, or Watch target changed.
+- Live CloudKit networking remains intentionally unexercised; the deterministic driver covers the exact actor interleaving without contacting a container.

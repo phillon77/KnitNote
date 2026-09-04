@@ -1055,6 +1055,53 @@ import Testing
         ) == nil)
     }
 
+    @Test func zoneReadyInterleavedDuringResetCannotBypassRecovery() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            engineFactory: { _, _ in driver }
+        )
+        try await transport.start()
+        let zoneSave = CKSyncEngine.PendingDatabaseChange.saveZone(CKRecordZone(zoneID: zoneID))
+        await driver.completeDatabaseChange(zoneSave)
+        await transport.receiveZoneReady(zoneID)
+        let mutation = try testSaveMutation(revision: 1, mutationSuffix: 64)
+        try await transport.schedule([mutation])
+        try await transport.finishMutationReplay()
+        let recordID = cloudRecordID(
+            kind: mutation.recordID.kind,
+            uuid: mutation.recordID.uuid.uuidString,
+            zoneID: zoneID
+        )
+        let sendsBeforeReset = await driver.sendCallCount()
+        await driver.suspendNextPendingDatabaseRead()
+
+        let deletion = Task { await transport.receiveDeletedZones([zoneID]) }
+        await driver.waitUntilPendingDatabaseReadSuspended()
+        await transport.receiveZoneReady(zoneID)
+
+        #expect(await driver.sendCallCount() == sendsBeforeReset)
+        #expect(await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(recordID)],
+            scope: .all
+        ) == nil)
+
+        await driver.resumePendingDatabaseRead()
+        await deletion.value
+
+        #expect(await driver.pendingDatabaseChanges() == [zoneSave])
+        #expect(await driver.sendCallCount() == sendsBeforeReset + 1)
+        #expect(await driver.lastSendScopeContains(zoneID))
+        #expect(await transport.recordZoneChangeBatch(
+            pendingChanges: [.saveRecord(recordID)],
+            scope: .all
+        ) == nil)
+    }
+
     @Test func deleteCycleGateReopeningKicksExactlyOneScopedSend() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -1396,6 +1443,9 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     private var shouldSuspendPendingRead = false
     private var pendingReadEnteredWaiters: [CheckedContinuation<Void, Never>] = []
     private var pendingReadResume: CheckedContinuation<Void, Never>?
+    private var shouldSuspendPendingDatabaseRead = false
+    private var pendingDatabaseReadEnteredWaiters: [CheckedContinuation<Void, Never>] = []
+    private var pendingDatabaseReadResume: CheckedContinuation<Void, Never>?
     private var shouldSuspendCancellation = false
     private var cancellationEnteredWaiters: [CheckedContinuation<Void, Never>] = []
     private var cancellationResume: CheckedContinuation<Void, Never>?
@@ -1431,7 +1481,16 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
 
     func addCallCount() -> Int { additions }
 
-    func pendingDatabaseChanges() -> [CKSyncEngine.PendingDatabaseChange] { databasePending }
+    func pendingDatabaseChanges() async -> [CKSyncEngine.PendingDatabaseChange] {
+        if shouldSuspendPendingDatabaseRead {
+            shouldSuspendPendingDatabaseRead = false
+            let waiters = pendingDatabaseReadEnteredWaiters
+            pendingDatabaseReadEnteredWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+            await withCheckedContinuation { pendingDatabaseReadResume = $0 }
+        }
+        return databasePending
+    }
 
     func addDatabaseChanges(_ changes: [CKSyncEngine.PendingDatabaseChange]) {
         for change in changes where !databasePending.contains(change) {
@@ -1484,6 +1543,18 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     func resumePendingRead() {
         pendingReadResume?.resume()
         pendingReadResume = nil
+    }
+
+    func suspendNextPendingDatabaseRead() { shouldSuspendPendingDatabaseRead = true }
+
+    func waitUntilPendingDatabaseReadSuspended() async {
+        guard shouldSuspendPendingDatabaseRead || pendingDatabaseReadResume == nil else { return }
+        await withCheckedContinuation { pendingDatabaseReadEnteredWaiters.append($0) }
+    }
+
+    func resumePendingDatabaseRead() {
+        pendingDatabaseReadResume?.resume()
+        pendingDatabaseReadResume = nil
     }
 
     func suspendNextCancellation() { shouldSuspendCancellation = true }

@@ -2328,13 +2328,13 @@ private enum BoundaryFailure: Error {
 
 private final class ConcurrentResults: @unchecked Sendable {
     private let lock = NSLock()
-    private var storage: [Result<CloudAssetUploadReference, Error>] = []
+    private var storage: [Result<LegacyCloudAssetUploadReference, Error>] = []
 
-    var values: [Result<CloudAssetUploadReference, Error>] {
+    var values: [Result<LegacyCloudAssetUploadReference, Error>] {
         lock.withLock { storage }
     }
 
-    func append(_ result: Result<CloudAssetUploadReference, Error>) {
+    func append(_ result: Result<LegacyCloudAssetUploadReference, Error>) {
         lock.withLock { storage.append(result) }
     }
 }

@@ -89,7 +89,7 @@ enum CloudAssetStagingBoundary: Sendable {
     }
 }
 
-struct CloudAssetUploadReference: Codable, Equatable, Sendable {
+struct LegacyCloudAssetUploadReference: Codable, Equatable, Sendable {
     let version: SyncAttachmentVersion
     let mutationID: UUID
     let stagedFileURL: URL
@@ -153,7 +153,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         source: SyncAttachmentSource,
         version: SyncAttachmentVersion,
         mutationID: UUID
-    ) throws -> CloudAssetUploadReference {
+    ) throws -> LegacyCloudAssetUploadReference {
         let version = try validated(version)
         try validate(source: source, against: version)
         let sourceRead = try readExternal(
@@ -162,7 +162,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
             expectedSHA256: version.contentSHA256
         )
         let fileName = try immutableFileName(for: version)
-        let result = CloudAssetUploadReference(
+        let result = LegacyCloudAssetUploadReference(
             version: version,
             mutationID: mutationID,
             stagedFileURL: uploadsRootURL.appendingPathComponent(fileName)
@@ -241,7 +241,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
 
     /// CKAsset is intentionally constructed at the last possible moment. A
     /// caller must request a new object for every CKRecord save attempt.
-    func asset(for reference: CloudAssetUploadReference) throws -> CKAsset {
+    func asset(for reference: LegacyCloudAssetUploadReference) throws -> CKAsset {
         let version = try validated(reference.version)
         let expectedURL = uploadsRootURL.appendingPathComponent(
             try immutableFileName(for: version)
@@ -264,7 +264,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         return CKAsset(fileURL: expectedURL)
     }
 
-    func acknowledgeUpload(_ reference: CloudAssetUploadReference) throws {
+    func acknowledgeUpload(_ reference: LegacyCloudAssetUploadReference) throws {
         let version = try validated(reference.version)
         let fileName = try immutableFileName(for: version)
         let expectedURL = uploadsRootURL.appendingPathComponent(fileName)
@@ -662,8 +662,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
     }
 
     private func referencesMatch(
-        _ lhs: CloudAssetUploadReference,
-        _ rhs: CloudAssetUploadReference
+        _ lhs: LegacyCloudAssetUploadReference,
+        _ rhs: LegacyCloudAssetUploadReference
     ) -> Bool {
         lhs.version == rhs.version
             && lhs.mutationID == rhs.mutationID
@@ -691,8 +691,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
 
     private struct Manifest: Codable, Equatable {
         let version: Int
-        var references: [CloudAssetUploadReference]
-        var cleanupIntents: [CloudAssetUploadReference]
+        var references: [LegacyCloudAssetUploadReference]
+        var cleanupIntents: [LegacyCloudAssetUploadReference]
     }
 
     private struct StoredManifest: Codable {
@@ -1230,8 +1230,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
     }
 
     private func sorted(
-        _ references: [CloudAssetUploadReference]
-    ) -> [CloudAssetUploadReference] {
+        _ references: [LegacyCloudAssetUploadReference]
+    ) -> [LegacyCloudAssetUploadReference] {
         references.sorted {
             if $0.mutationID != $1.mutationID {
                 return $0.mutationID.uuidString < $1.mutationID.uuidString

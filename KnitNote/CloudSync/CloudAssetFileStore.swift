@@ -153,6 +153,34 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
         return data
     }
 
+    /// Reads service-owned metadata when its checksum and exact byte count are
+    /// stored inside that metadata rather than known by the caller.
+    func readOwned(
+        named name: String,
+        in directory: Int32,
+        maximumByteCount: Int
+    ) throws -> Data {
+        try requireActive(directory)
+        try Self.validateName(name)
+        guard maximumByteCount >= 0 else {
+            throw CloudAssetFileStoreError.tooLarge
+        }
+        let descriptor = name.withCString {
+            Darwin.openat(directory, $0, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        }
+        if descriptor < 0 {
+            if errno == ELOOP { throw CloudAssetFileStoreError.unsafeFile }
+            throw errno == ENOENT
+                ? CloudAssetFileStoreError.unavailable
+                : CloudAssetFileStoreError.unsafeFile
+        }
+        defer { Darwin.close(descriptor) }
+        try validateOwnedFile(descriptor, named: name, in: directory)
+        let data = try readDescriptor(descriptor, maximumByteCount: maximumByteCount)
+        try validateOwnedFile(descriptor, named: name, in: directory)
+        return data
+    }
+
     func publishNoClobber(_ data: Data, named name: String, in directory: Int32) throws {
         try requireActive(directory)
         try Self.validateName(name)
@@ -266,6 +294,23 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
             names.append(name)
         }
         return names.sorted()
+    }
+
+    func ownedFileExists(named name: String, in directory: Int32) throws -> Bool {
+        try requireActive(directory)
+        try Self.validateName(name)
+        var status = stat()
+        let result = name.withCString {
+            Darwin.fstatat(directory, $0, &status, AT_SYMLINK_NOFOLLOW)
+        }
+        if result != 0 {
+            if errno == ENOENT { return false }
+            throw CloudAssetFileStoreError.unavailable
+        }
+        guard Self.isOwnedRegularFile(status, ownerID: Darwin.geteuid()) else {
+            throw CloudAssetFileStoreError.unsafeFile
+        }
+        return true
     }
 
     func synchronize(_ directory: Int32) throws {
@@ -590,6 +635,41 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
               before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
               data.count == Int(before.st_size),
               Data(hasher.finalize()) == expectedSHA256
+        else { throw CloudAssetFileStoreError.contentMismatch }
+        return data
+    }
+
+    private func readDescriptor(_ descriptor: Int32, maximumByteCount: Int) throws -> Data {
+        var before = stat()
+        guard Darwin.fstat(descriptor, &before) == 0,
+              Self.isOwnedRegularFile(before, ownerID: Darwin.geteuid()),
+              before.st_size >= 0
+        else { throw CloudAssetFileStoreError.unsafeFile }
+        guard before.st_size <= maximumByteCount else { throw CloudAssetFileStoreError.tooLarge }
+        var data = Data()
+        data.reserveCapacity(Int(before.st_size))
+        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+        while true {
+            let remaining = maximumByteCount - data.count
+            let requestedCount = min(buffer.count, remaining + 1)
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, requestedCount)
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count >= 0 else { throw CloudAssetFileStoreError.unavailable }
+            guard count > 0 else { break }
+            guard count <= remaining else { throw CloudAssetFileStoreError.tooLarge }
+            data.append(buffer, count: count)
+        }
+        var after = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              Self.isOwnedRegularFile(after, ownerID: Darwin.geteuid()),
+              before.st_dev == after.st_dev,
+              before.st_ino == after.st_ino,
+              before.st_size == after.st_size,
+              before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
+              before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
+              data.count == Int(before.st_size)
         else { throw CloudAssetFileStoreError.contentMismatch }
         return data
     }

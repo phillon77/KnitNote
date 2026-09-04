@@ -196,6 +196,58 @@ struct PBXDuplicateSettingMutation: Sendable, CustomTestStringConvertible {
     }
 }
 
+struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
+    enum Placement: String, CaseIterable, Sendable {
+        case leadingASCII, trailingASCII, leadingUnicode, trailingUnicode
+
+        func apply(to path: String) -> String {
+            switch self {
+            case .leadingASCII: " \(path)"
+            case .trailingASCII: "\(path)\t"
+            case .leadingUnicode: "\u{00A0}\(path)"
+            case .trailingUnicode: "\(path)\u{2003}"
+            }
+        }
+    }
+
+    let product: String
+    let owner: String
+    let configuration: String
+    let key: String
+    let canonicalValue: String
+    let placement: Placement
+
+    static let all: [Self] = {
+        let assignments = [
+            ("iOS", #"PBXNativeTarget "KnitNote""#, "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]", "KnitNote/KnitNote-iOS.entitlements"),
+            ("iOS-simulator", #"PBXNativeTarget "KnitNote""#, "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]", "KnitNote/KnitNote-iOS.entitlements"),
+            ("macOS", #"PBXNativeTarget "KnitNote""#, "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]", "KnitNote/KnitNote-macOS.entitlements"),
+            ("main-Info", #"PBXNativeTarget "KnitNote""#, "INFOPLIST_FILE", "KnitNote/Info.plist"),
+            ("Watch-Info", #"PBXNativeTarget "KnitNoteWatch""#, "INFOPLIST_FILE", "KnitNoteWatch/Info.plist"),
+            ("Share", #"PBXNativeTarget "KnitNoteShare""#, "CODE_SIGN_ENTITLEMENTS", "KnitNoteShare/KnitNoteShare.entitlements"),
+            ("Share-Info", #"PBXNativeTarget "KnitNoteShare""#, "INFOPLIST_FILE", "KnitNoteShare/Info.plist"),
+        ]
+        return assignments.flatMap { product, owner, key, canonicalValue in
+            ["Debug", "Release"].flatMap { configuration in
+                Placement.allCases.map {
+                    Self(
+                        product: product,
+                        owner: owner,
+                        configuration: configuration,
+                        key: key,
+                        canonicalValue: canonicalValue,
+                        placement: $0
+                    )
+                }
+            }
+        }
+    }()
+
+    var testDescription: String {
+        "\(product)-\(configuration)-\(key)-\(placement.rawValue)"
+    }
+}
+
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
     @Test(arguments: PBXGraphMutation.all)
     func staticAuditRejectsUntypedAmbiguousOrDanglingPBXGraph(
@@ -395,6 +447,42 @@ struct PBXDuplicateSettingMutation: Sendable, CustomTestStringConvertible {
 
         #expect(result.status != 0)
         #expect(result.output.contains("source \(product) CODE_SIGN_ENTITLEMENTS"))
+    }
+
+    @Test(arguments: PBXPathWhitespaceMutation.all)
+    func staticAuditRejectsWhitespaceAroundEveryCanonicalGeneratedPath(
+        mutation: PBXPathWhitespaceMutation
+    ) throws {
+        let source = try String(
+            contentsOf: releaseAuditRepositoryRoot.appendingPathComponent("KnitNote.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        let configuration = try #require(generatedBuildConfiguration(
+            in: source,
+            owner: mutation.owner,
+            configuration: mutation.configuration
+        ))
+        let key = mutation.key.contains("[") ? "\"\(mutation.key)\"" : mutation.key
+        let canonicalAssignment = mutation.key.contains("[")
+            ? "\(key) = \"\(mutation.canonicalValue)\";"
+            : "\(key) = \(mutation.canonicalValue);"
+        let whitespaceAssignment = "\(key) = \"\(mutation.placement.apply(to: mutation.canonicalValue))\";"
+        let mutatedConfiguration = try #require(configuration.replacingFirstOccurrence(
+            of: canonicalAssignment,
+            with: whitespaceAssignment
+        ))
+        let result = try runStaticAudit(
+            projectFileSource: source.replacingOccurrences(
+                of: configuration,
+                with: mutatedConfiguration
+            )
+        )
+
+        #expect(result.status != 0)
+        let setting = mutation.key.hasPrefix("CODE_SIGN_ENTITLEMENTS")
+            ? "CODE_SIGN_ENTITLEMENTS"
+            : "INFOPLIST_FILE"
+        #expect(result.output.contains(setting), Comment(rawValue: result.output))
     }
 
     @Test func staticAuditRejectsAnyWatchEntitlementBinding() throws {

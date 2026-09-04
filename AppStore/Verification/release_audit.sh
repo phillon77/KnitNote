@@ -505,7 +505,7 @@ for target_name, wanted in expected.items():
         except KeyError:
             raise SystemExit(error)
         actual = {
-            key: value.strip() if isinstance(value, str) else value
+            key: value
             for key, value in settings.items()
             if key.startswith("CODE_SIGN_ENTITLEMENTS")
         }
@@ -514,7 +514,7 @@ for target_name, wanted in expected.items():
                 f"release audit: source {labels[target_name]} CODE_SIGN_ENTITLEMENTS does not match canonical paths"
             )
         info_actual = {
-            key: value.strip() if isinstance(value, str) else value
+            key: value
             for key, value in settings.items()
             if key.startswith("INFOPLIST_FILE")
         }

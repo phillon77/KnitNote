@@ -42,6 +42,8 @@ enum CloudAssetStagingBoundary: Sendable {
     case cleanupAfterFinalIdentityCheck(candidate: URL)
     case retirementAfterReusableSlotValidation(slot: URL)
     case retirementAfterLegacyCompactionValidation(survivor: URL, candidate: URL)
+    case retirementAfterSwapBeforeArchive(survivor: URL, candidate: URL)
+    case retirementBeforeTruncate(candidate: URL)
     case coordinationAfterLock(lock: URL)
     case coordinationBeforeReturn(account: URL)
     case acknowledgementAfterManifest
@@ -75,6 +77,8 @@ enum CloudAssetStagingBoundary: Sendable {
                 .retirementAfterLegacyCompactionValidation,
                 .retirementAfterLegacyCompactionValidation
             ),
+            (.retirementAfterSwapBeforeArchive, .retirementAfterSwapBeforeArchive),
+            (.retirementBeforeTruncate, .retirementBeforeTruncate),
             (.coordinationAfterLock, .coordinationAfterLock),
             (.coordinationBeforeReturn, .coordinationBeforeReturn),
             (.acknowledgementAfterManifest, .acknowledgementAfterManifest):
@@ -103,6 +107,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
     private static let manifestIntegrityDomain = "knitnote.cloud-asset.upload-references"
     private static let maximumManifestBytes = 16 * 1_024 * 1_024
     private static let manifestName = "upload-references.json"
+    private static let retirementEvidenceDirectoryName = ".zero-retirement-evidence"
     private static let lockName = ".asset-staging.lock"
     private static let processLock = NSLock()
 
@@ -497,6 +502,25 @@ final class CloudAssetStagingService: @unchecked Sendable {
             let emptySHA256 = Data(SHA256.hash(data: Data()))
             for name in try directoryEntryNames(directories.retired)
             where name != "." && name != ".." {
+                if name == Self.retirementEvidenceDirectoryName {
+                    let evidenceDescriptor = name.withCString {
+                        Darwin.openat(
+                            directories.retired,
+                            $0,
+                            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+                        )
+                    }
+                    guard evidenceDescriptor >= 0 else {
+                        throw CloudAssetStagingError.unsafeFile
+                    }
+                    defer { Darwin.close(evidenceDescriptor) }
+                    try validateDirectory(
+                        descriptor: evidenceDescriptor,
+                        named: name,
+                        in: directories.retired
+                    )
+                    continue
+                }
                 guard isRetirementTombstone(name) else {
                     throw CloudAssetStagingError.unsafeFile
                 }
@@ -895,7 +919,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
             }
             guard result == 0 else { throw CloudAssetStagingError.unavailable }
             var displacedDescriptor: Int32 = -1
-            var capturedRetirementName: String?
+            var capturedRetirement: CapturedRetirement?
             defer {
                 if displacedDescriptor >= 0 { Darwin.close(displacedDescriptor) }
             }
@@ -941,7 +965,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                     displacedDescriptor,
                     against: expectedAuthority
                 )
-                let retirementName = try captureBoundFile(
+                let retirement = try captureBoundFile(
                     named: temporaryName,
                     logicalName: Self.manifestName,
                     from: accountDescriptor,
@@ -950,7 +974,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                     retiredDescriptor: retiredDescriptor,
                     synchronize: false
                 )
-                capturedRetirementName = retirementName
+                capturedRetirement = retirement
                 try beforeBoundary(.manifestBeforeDirectorySync)
                 try verifyManifestAuthority(stagedAuthority, in: accountDescriptor)
                 try verifyManifestDescriptor(
@@ -959,7 +983,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 )
                 guard
                     try destinationIdentity(
-                        named: retirementName,
+                        named: retirement.name,
                         in: retiredDescriptor
                     ) == original
                 else {
@@ -978,15 +1002,17 @@ final class CloudAssetStagingService: @unchecked Sendable {
                     additionalNamesToPreserve: [temporaryName],
                     fallbackCanonicalData: nil
                 )
-                if let capturedRetirementName {
+                if let capturedRetirement {
                     try finishRetiredFile(
-                        named: capturedRetirementName,
+                        named: capturedRetirement.name,
                         descriptor: displacedDescriptor,
                         expectedIdentity: original,
+                        expectedByteCount: capturedRetirement.byteCount,
+                        expectedSHA256: capturedRetirement.sha256,
                         retiredDescriptor: retiredDescriptor
                     )
                     try compactFinishedRetirement(
-                        named: capturedRetirementName,
+                        named: capturedRetirement.name,
                         retiredDescriptor: retiredDescriptor,
                         boundary: .reusable
                     )
@@ -994,17 +1020,19 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 removeTemporary = false
                 throw operationError
             }
-            if let capturedRetirementName {
+            if let capturedRetirement {
                 // Publication is committed. A crash or cleanup failure here is
                 // resumed from the checksummed manifest during reconciliation.
-                try? finishRetiredFile(
-                    named: capturedRetirementName,
+                try finishRetiredFile(
+                    named: capturedRetirement.name,
                     descriptor: displacedDescriptor,
                     expectedIdentity: original,
+                    expectedByteCount: capturedRetirement.byteCount,
+                    expectedSHA256: capturedRetirement.sha256,
                     retiredDescriptor: retiredDescriptor
                 )
-                try? compactFinishedRetirement(
-                    named: capturedRetirementName,
+                try compactFinishedRetirement(
+                    named: capturedRetirement.name,
                     retiredDescriptor: retiredDescriptor,
                     boundary: .reusable
                 )
@@ -1957,6 +1985,25 @@ final class CloudAssetStagingService: @unchecked Sendable {
         let correlatedReferences = manifest.references + manifest.cleanupIntents
         for name in try directoryEntryNames(directories.retired)
         where name != "." && name != ".." {
+            if name == Self.retirementEvidenceDirectoryName {
+                let evidenceDescriptor = name.withCString {
+                    Darwin.openat(
+                        directories.retired,
+                        $0,
+                        O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+                    )
+                }
+                guard evidenceDescriptor >= 0 else {
+                    throw CloudAssetStagingError.unsafeFile
+                }
+                defer { Darwin.close(evidenceDescriptor) }
+                try validateDirectory(
+                    descriptor: evidenceDescriptor,
+                    named: name,
+                    in: directories.retired
+                )
+                continue
+            }
             guard let metadata = retirementMetadata(from: name) else {
                 throw CloudAssetStagingError.unsafeFile
             }
@@ -2015,6 +2062,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 named: name,
                 descriptor: descriptor,
                 expectedIdentity: identity,
+                expectedByteCount: metadata.byteCount,
+                expectedSHA256: read.sha256,
                 retiredDescriptor: directories.retired
             )
         }
@@ -2028,8 +2077,8 @@ final class CloudAssetStagingService: @unchecked Sendable {
     /// Moves an active pathname into retirement without clobbering an existing
     /// entry, proves the moved entry is still the descriptor-bound inode, then
     /// retires only that inode's payload. Verified zero markers are compacted
-    /// separately through an atomic-swap CAS because Darwin has no
-    /// unlink-by-descriptor primitive.
+    /// separately by preserving one generation in a service-owned evidence
+    /// directory because Darwin has no unlink-by-descriptor primitive.
     private func retireBoundFile(
         named name: String,
         logicalName: String,
@@ -2039,7 +2088,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         retiredDescriptor: Int32,
         synchronize: Bool = true
     ) throws {
-        let retirementName = try captureBoundFile(
+        let retirement = try captureBoundFile(
             named: name,
             logicalName: logicalName,
             from: directory,
@@ -2049,16 +2098,24 @@ final class CloudAssetStagingService: @unchecked Sendable {
             synchronize: synchronize
         )
         try finishRetiredFile(
-            named: retirementName,
+            named: retirement.name,
             descriptor: descriptor,
             expectedIdentity: expectedIdentity,
+            expectedByteCount: retirement.byteCount,
+            expectedSHA256: retirement.sha256,
             retiredDescriptor: retiredDescriptor
         )
         try compactFinishedRetirement(
-            named: retirementName,
+            named: retirement.name,
             retiredDescriptor: retiredDescriptor,
             boundary: .reusable
         )
+    }
+
+    private struct CapturedRetirement {
+        let name: String
+        let byteCount: Int64
+        let sha256: Data
     }
 
     private func captureBoundFile(
@@ -2069,7 +2126,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         expectedIdentity: FileIdentity,
         retiredDescriptor: Int32,
         synchronize: Bool = true
-    ) throws -> String {
+    ) throws -> CapturedRetirement {
         let fingerprint = try readDescriptorPreservingOffset(
             descriptor,
             maximumBytes: max(maximumAssetBytes, Self.maximumManifestBytes)
@@ -2118,7 +2175,11 @@ final class CloudAssetStagingService: @unchecked Sendable {
                 }
             }
             capturedExpectedInode = true
-            return retirementName
+            return CapturedRetirement(
+                name: retirementName,
+                byteCount: fingerprint.byteCount,
+                sha256: fingerprint.sha256
+            )
         } catch {
             if !capturedExpectedInode {
                 _ = retirementName.withCString { source in
@@ -2167,6 +2228,7 @@ final class CloudAssetStagingService: @unchecked Sendable {
         var changed = false
         for candidate in try directoryEntryNames(retiredDescriptor)
         where candidate != "." && candidate != ".." {
+            if candidate == Self.retirementEvidenceDirectoryName { continue }
             guard let metadata = retirementMetadata(from: candidate) else {
                 throw CloudAssetStagingError.unsafeFile
             }
@@ -2277,24 +2339,97 @@ final class CloudAssetStagingService: @unchecked Sendable {
             expectedIdentity: sourceIdentity,
             retiredDescriptor: retiredDescriptor
         )
-        let commit = sourceName.withCString { source in
-            destinationName.withCString { destination in
-                Darwin.renameat(
+        let retirementRoot = accountRootURL.appendingPathComponent("Retired", isDirectory: true)
+        try beforeBoundary(.retirementAfterSwapBeforeArchive(
+            survivor: retirementRoot.appendingPathComponent(destinationName),
+            candidate: retirementRoot.appendingPathComponent(sourceName)
+        ))
+        try verifyZeroRetirementMarker(
+            named: sourceName,
+            descriptor: destinationDescriptor,
+            expectedIdentity: destinationIdentity,
+            retiredDescriptor: retiredDescriptor
+        )
+        try verifyZeroRetirementMarker(
+            named: destinationName,
+            descriptor: sourceDescriptor,
+            expectedIdentity: sourceIdentity,
+            retiredDescriptor: retiredDescriptor
+        )
+        try archiveRetirementEvidence(
+            named: sourceName,
+            descriptor: destinationDescriptor,
+            expectedIdentity: destinationIdentity,
+            expectedByteCount: 0,
+            expectedSHA256: Data(SHA256.hash(data: Data())),
+            retiredDescriptor: retiredDescriptor
+        )
+        guard
+            try self.destinationIdentity(named: destinationName, in: retiredDescriptor)
+                == sourceIdentity,
+            try self.destinationIdentity(named: sourceName, in: retiredDescriptor) == nil,
+            Darwin.fstat(sourceDescriptor, &sourceStatus) == 0,
+            sourceStatus.st_size == 0,
+            sourceStatus.st_nlink == 1,
+            Darwin.fstat(destinationDescriptor, &destinationStatus) == 0,
+            destinationStatus.st_size == 0,
+            destinationStatus.st_nlink == 1,
+            try Self.fileIdentity(of: sourceDescriptor) == sourceIdentity,
+            try Self.fileIdentity(of: destinationDescriptor) == destinationIdentity
+        else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+    }
+
+    private func archiveRetirementEvidence(
+        named name: String,
+        descriptor: Int32,
+        expectedIdentity: FileIdentity,
+        expectedByteCount: Int64,
+        expectedSHA256: Data,
+        retiredDescriptor: Int32
+    ) throws {
+        let evidenceDescriptor = try Self.openOrCreateDirectory(
+            named: Self.retirementEvidenceDirectoryName,
+            in: retiredDescriptor
+        )
+        defer { Darwin.close(evidenceDescriptor) }
+        try validateDirectory(
+            descriptor: evidenceDescriptor,
+            named: Self.retirementEvidenceDirectoryName,
+            in: retiredDescriptor
+        )
+        let evidenceName = "\(name).\(UUID().uuidString.lowercased()).evidence"
+        let archive = name.withCString { source in
+            evidenceName.withCString { destination in
+                Darwin.renameatx_np(
                     retiredDescriptor,
                     source,
-                    retiredDescriptor,
-                    destination
+                    evidenceDescriptor,
+                    destination,
+                    UInt32(RENAME_EXCL)
                 )
             }
         }
-        guard commit == 0,
-            try self.destinationIdentity(named: destinationName, in: retiredDescriptor)
-                == destinationIdentity,
-            Darwin.fstat(sourceDescriptor, &sourceStatus) == 0,
-            sourceStatus.st_nlink == 0,
-            Darwin.fstat(destinationDescriptor, &destinationStatus) == 0,
-            destinationStatus.st_nlink == 1,
-            try Self.fileIdentity(of: destinationDescriptor) == destinationIdentity
+        guard archive == 0,
+            try destinationIdentity(named: name, in: retiredDescriptor) == nil,
+            try destinationIdentity(named: evidenceName, in: evidenceDescriptor)
+                == expectedIdentity,
+            try Self.fileIdentity(of: descriptor) == expectedIdentity
+        else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+        let maximumBytes = max(maximumAssetBytes, Self.maximumManifestBytes)
+        guard expectedByteCount >= 0,
+            expectedByteCount <= Int64(maximumBytes),
+            let archived = try? readDescriptorPreservingOffset(
+                descriptor,
+                maximumBytes: maximumBytes
+            ),
+            archived.byteCount == expectedByteCount,
+            archived.sha256 == expectedSHA256,
+            Darwin.fsync(evidenceDescriptor) == 0,
+            Darwin.fsync(retiredDescriptor) == 0
         else {
             throw CloudAssetStagingError.unsafeFile
         }
@@ -2322,8 +2457,14 @@ final class CloudAssetStagingService: @unchecked Sendable {
         named name: String,
         descriptor: Int32,
         expectedIdentity: FileIdentity,
+        expectedByteCount: Int64,
+        expectedSHA256: Data,
         retiredDescriptor: Int32
     ) throws {
+        try beforeBoundary(.retirementBeforeTruncate(
+            candidate: accountRootURL.appendingPathComponent("Retired", isDirectory: true)
+                .appendingPathComponent(name)
+        ))
         var status = stat()
         guard try destinationIdentity(named: name, in: retiredDescriptor) == expectedIdentity,
             try Self.fileIdentity(of: descriptor) == expectedIdentity,
@@ -2331,6 +2472,29 @@ final class CloudAssetStagingService: @unchecked Sendable {
             (status.st_mode & S_IFMT) == S_IFREG,
             status.st_nlink == 1
         else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+        let maximumBytes = max(maximumAssetBytes, Self.maximumManifestBytes)
+        guard expectedByteCount >= 0,
+            expectedByteCount <= Int64(maximumBytes),
+            let fingerprint = try? readDescriptorPreservingOffset(
+                descriptor,
+                maximumBytes: maximumBytes
+            )
+        else {
+            throw CloudAssetStagingError.unsafeFile
+        }
+        guard fingerprint.byteCount == expectedByteCount,
+            fingerprint.sha256 == expectedSHA256
+        else {
+            try archiveRetirementEvidence(
+                named: name,
+                descriptor: descriptor,
+                expectedIdentity: expectedIdentity,
+                expectedByteCount: fingerprint.byteCount,
+                expectedSHA256: fingerprint.sha256,
+                retiredDescriptor: retiredDescriptor
+            )
             throw CloudAssetStagingError.unsafeFile
         }
         guard Darwin.ftruncate(descriptor, 0) == 0,

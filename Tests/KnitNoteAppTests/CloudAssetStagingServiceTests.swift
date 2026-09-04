@@ -1355,6 +1355,162 @@ import Testing
         #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
     }
 
+    @Test func displacedManifestMutationAtDirectorySyncIsNeverTruncatedDuringRollback() throws {
+        let fixture = try Fixture()
+        let firstBytes = Data("manifest authority before rollback retirement".utf8)
+        let first = try fixture.service.stageUpload(
+            source: fixture.source(firstBytes),
+            version: fixture.version(for: firstBytes),
+            mutationID: fixedUUID(142)
+        )
+        let manifest = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        let loadedAuthority = try Data(contentsOf: manifest)
+        let adversarialBytes = Data("manifest mutation at directory sync".utf8)
+        let controller = BoundaryController { boundary in
+            guard case .manifestBeforeDirectorySync = boundary else { return }
+            let retired = fixture.service.accountRootURL.appendingPathComponent("Retired")
+            let displaced = try #require(
+                fixture.regularFiles(in: retired).first(where: {
+                    $0.lastPathComponent.hasPrefix("manifest.")
+                        && ((try? Data(contentsOf: $0).isEmpty) == false)
+                })
+            )
+            let handle = try FileHandle(forWritingTo: displaced)
+            try handle.truncate(atOffset: 0)
+            try handle.write(contentsOf: adversarialBytes)
+            try handle.synchronize()
+            try handle.close()
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let secondBytes = Data("candidate rejected before rollback retirement".utf8)
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            _ = try service.stageUpload(
+                source: fixture.source(secondBytes),
+                version: fixture.version(for: secondBytes),
+                mutationID: fixedUUID(143)
+            )
+        }
+        #expect(try Data(contentsOf: manifest) == loadedAuthority)
+        #expect(try Data(contentsOf: first.stagedFileURL) == firstBytes)
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+
+        let recovered = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        let recoveredSecond = try recovered.stageUpload(
+            source: fixture.source(secondBytes, named: "retry-directory-sync-retirement.asset"),
+            version: fixture.version(for: secondBytes),
+            mutationID: fixedUUID(143)
+        )
+        _ = try recovered.asset(for: recoveredSecond)
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+    }
+
+    @Test func committedManifestMutationImmediatelyBeforeRetirementFailsAndSurvives() throws {
+        let fixture = try Fixture()
+        let firstBytes = Data("manifest authority before committed retirement".utf8)
+        _ = try fixture.service.stageUpload(
+            source: fixture.source(firstBytes),
+            version: fixture.version(for: firstBytes),
+            mutationID: fixedUUID(144)
+        )
+        let oldManifest = try Data(contentsOf: fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json"))
+        let adversarialBytes = Data("committed manifest final-retirement mutation".utf8)
+        let controller = BoundaryController { boundary in
+            guard case .retirementBeforeTruncate(let candidate) = boundary,
+                candidate.lastPathComponent.hasPrefix("manifest.")
+            else { return }
+            let handle = try FileHandle(forWritingTo: candidate)
+            try handle.truncate(atOffset: 0)
+            try handle.write(contentsOf: adversarialBytes)
+            try handle.synchronize()
+            try handle.close()
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let secondBytes = Data("manifest candidate committed before cleanup failure".utf8)
+        let secondVersion = try fixture.version(for: secondBytes)
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            _ = try service.stageUpload(
+                source: fixture.source(secondBytes),
+                version: secondVersion,
+                mutationID: fixedUUID(145)
+            )
+        }
+        let committedManifest = try Data(contentsOf: service.accountRootURL
+            .appendingPathComponent("upload-references.json"))
+        #expect(committedManifest != oldManifest)
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+
+        let recovered = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        let recoveredSecond = try recovered.stageUpload(
+            source: fixture.source(secondBytes, named: "retry-committed-retirement.asset"),
+            version: secondVersion,
+            mutationID: fixedUUID(145)
+        )
+        _ = try recovered.asset(for: recoveredSecond)
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+    }
+
+    @Test func rollbackManifestMutationImmediatelyBeforeRetirementFailsAndSurvives() throws {
+        let fixture = try Fixture()
+        let firstBytes = Data("manifest authority before interrupted retirement".utf8)
+        let first = try fixture.service.stageUpload(
+            source: fixture.source(firstBytes),
+            version: fixture.version(for: firstBytes),
+            mutationID: fixedUUID(146)
+        )
+        let manifest = fixture.service.accountRootURL
+            .appendingPathComponent("upload-references.json")
+        let loadedAuthority = try Data(contentsOf: manifest)
+        let adversarialBytes = Data("rollback manifest final-retirement mutation".utf8)
+        let controller = ManifestRollbackRetirementController(adversarialBytes: adversarialBytes)
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let secondBytes = Data("manifest candidate interrupted before commit".utf8)
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            _ = try service.stageUpload(
+                source: fixture.source(secondBytes),
+                version: fixture.version(for: secondBytes),
+                mutationID: fixedUUID(147)
+            )
+        }
+        #expect(try Data(contentsOf: manifest) == loadedAuthority)
+        #expect(try Data(contentsOf: first.stagedFileURL) == firstBytes)
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+
+        let recovered = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        let recoveredSecond = try recovered.stageUpload(
+            source: fixture.source(secondBytes, named: "retry-interrupted-retirement.asset"),
+            version: fixture.version(for: secondBytes),
+            mutationID: fixedUUID(147)
+        )
+        _ = try recovered.asset(for: recoveredSecond)
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+    }
+
     @Test func nonregularDisplacedManifestAfterSwapCannotLeaveNewManifestPublished() throws {
         let fixture = try Fixture()
         let firstBytes = Data("manifest before displaced substitution".utf8)
@@ -1752,6 +1908,136 @@ import Testing
         ).count <= 3)
     }
 
+    @Test func reusableRetirementPostSwapPathReplacementIsPreservedWithoutClobbering() throws {
+        let fixture = try Fixture()
+        let seedBytes = Data("seed post-swap replacement slot".utf8)
+        let seed = try fixture.service.stageUpload(
+            source: fixture.source(seedBytes),
+            version: fixture.version(for: seedBytes),
+            mutationID: fixedUUID(148)
+        )
+        try fixture.service.acknowledgeUpload(seed)
+        let savedSurvivor = fixture.sources.appendingPathComponent("saved-post-swap-survivor")
+        let adversarialBytes = Data("post-swap retirement pathname replacement".utf8)
+        let controller = BoundaryController { boundary in
+            guard case .retirementAfterSwapBeforeArchive(let survivor, _) = boundary,
+                survivor.lastPathComponent.hasPrefix("asset.")
+            else { return }
+            try FileManager.default.moveItem(at: survivor, to: savedSurvivor)
+            try adversarialBytes.write(to: survivor)
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let bytes = Data("post-swap replacement retirement payload".utf8)
+        let source = try fixture.source(bytes)
+        let upload = try service.stageUpload(
+            source: source,
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(149)
+        )
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            try service.acknowledgeUpload(upload)
+        }
+        #expect(try Data(contentsOf: savedSurvivor).isEmpty)
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+        #expect(try Data(contentsOf: source.fileURL) == bytes)
+    }
+
+    @Test func reusableRetirementPostSwapSameInodeMutationIsPreservedWithoutUnlinking() throws {
+        let fixture = try Fixture()
+        let seedBytes = Data("seed post-swap same-inode slot".utf8)
+        let seed = try fixture.service.stageUpload(
+            source: fixture.source(seedBytes),
+            version: fixture.version(for: seedBytes),
+            mutationID: fixedUUID(150)
+        )
+        try fixture.service.acknowledgeUpload(seed)
+        let adversarialBytes = Data("post-swap same-inode retirement mutation".utf8)
+        let controller = BoundaryController { boundary in
+            guard case .retirementAfterSwapBeforeArchive(let survivor, _) = boundary,
+                survivor.lastPathComponent.hasPrefix("asset.")
+            else { return }
+            let handle = try FileHandle(forWritingTo: survivor)
+            try handle.write(contentsOf: adversarialBytes)
+            try handle.synchronize()
+            try handle.close()
+        }
+        let service = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let bytes = Data("post-swap same-inode retirement payload".utf8)
+        let source = try fixture.source(bytes)
+        let upload = try service.stageUpload(
+            source: source,
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(151)
+        )
+
+        #expect(throws: CloudAssetStagingError.unsafeFile) {
+            try service.acknowledgeUpload(upload)
+        }
+        #expect(try accountContains(service.accountRootURL, bytes: adversarialBytes))
+        #expect(try Data(contentsOf: source.fileURL) == bytes)
+    }
+
+    @Test func reusableRetirementCrashAfterSwapPreservesBothMarkersForRestartArchive() throws {
+        let fixture = try Fixture()
+        let seedBytes = Data("seed post-swap crash slot".utf8)
+        let seed = try fixture.service.stageUpload(
+            source: fixture.source(seedBytes),
+            version: fixture.version(for: seedBytes),
+            mutationID: fixedUUID(152)
+        )
+        try fixture.service.acknowledgeUpload(seed)
+        let controller = BoundaryController { boundary in
+            guard case .retirementAfterSwapBeforeArchive(let survivor, _) = boundary,
+                survivor.lastPathComponent.hasPrefix("asset.")
+            else { return }
+            throw BoundaryFailure.interrupted
+        }
+        let interrupted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier,
+            beforeBoundary: controller.visit
+        )
+        let bytes = Data("post-swap crash retirement payload".utf8)
+        let upload = try interrupted.stageUpload(
+            source: fixture.source(bytes),
+            version: fixture.version(for: bytes),
+            mutationID: fixedUUID(153)
+        )
+
+        #expect(throws: BoundaryFailure.interrupted) {
+            try interrupted.acknowledgeUpload(upload)
+        }
+        let retired = interrupted.accountRootURL.appendingPathComponent("Retired")
+        #expect(try fixture.regularFiles(in: retired).filter {
+            $0.lastPathComponent.hasPrefix("asset.")
+        }.count == 2)
+        let evidence = retired.appendingPathComponent(".zero-retirement-evidence")
+        let evidenceBeforeRestart = try fixture.regularFiles(in: evidence).filter {
+            $0.lastPathComponent.hasPrefix("asset.")
+        }.count
+
+        let restarted = try CloudAssetStagingService(
+            rootURL: fixture.cloudRoot,
+            accountIdentifier: fixture.accountIdentifier
+        )
+        try restarted.reconcile()
+        #expect(try fixture.regularFiles(in: retired).filter {
+            $0.lastPathComponent.hasPrefix("asset.")
+        }.count == 1)
+        #expect(try fixture.regularFiles(in: evidence).filter {
+            $0.lastPathComponent.hasPrefix("asset.")
+        }.count == evidenceBeforeRestart + 1)
+    }
+
     @Test func restartCompactsLegacyZeroRetirementMarkersToOnePerKind() throws {
         let fixture = try Fixture()
         let retired = fixture.service.accountRootURL.appendingPathComponent("Retired")
@@ -2076,6 +2362,44 @@ private final class BoundaryController: @unchecked Sendable {
         guard !didFail, boundary.sameKind(as: failOnceAt) else { return }
         didFail = true
         throw BoundaryFailure.interrupted
+    }
+}
+
+private final class ManifestRollbackRetirementController: @unchecked Sendable {
+    private let lock = NSLock()
+    private let adversarialBytes: Data
+    private var interruptedCommit = false
+    private var mutatedRetirement = false
+
+    init(adversarialBytes: Data) {
+        self.adversarialBytes = adversarialBytes
+    }
+
+    func visit(_ boundary: CloudAssetStagingBoundary) throws {
+        switch boundary {
+        case .manifestBeforeDirectorySync:
+            let shouldInterrupt = lock.withLock {
+                guard !interruptedCommit else { return false }
+                interruptedCommit = true
+                return true
+            }
+            if shouldInterrupt { throw BoundaryFailure.interrupted }
+        case .retirementBeforeTruncate(let candidate)
+        where candidate.lastPathComponent.hasPrefix("manifest."):
+            let shouldMutate = lock.withLock {
+                guard interruptedCommit, !mutatedRetirement else { return false }
+                mutatedRetirement = true
+                return true
+            }
+            guard shouldMutate else { return }
+            let handle = try FileHandle(forWritingTo: candidate)
+            try handle.truncate(atOffset: 0)
+            try handle.write(contentsOf: adversarialBytes)
+            try handle.synchronize()
+            try handle.close()
+        default:
+            break
+        }
     }
 }
 

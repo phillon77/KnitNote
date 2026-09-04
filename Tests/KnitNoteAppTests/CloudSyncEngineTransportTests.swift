@@ -456,7 +456,7 @@ import Testing
 
         await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [record.recordID])
 
-        guard case let .fetched(_, _, deleted)? = await iterator.next() else {
+        guard case let .fetched(_, _, _, deleted)? = await iterator.next() else {
             Issue.record("Expected fetched deletion")
             return
         }
@@ -579,7 +579,7 @@ import Testing
 
         await transport.receiveFetchedChanges(records: cloudRecords, deletedRecordIDs: deleted)
 
-        guard case let .fetched(_, receivedRecords, receivedDeleted)? = await iterator.next() else {
+        guard case let .fetched(_, _, receivedRecords, receivedDeleted)? = await iterator.next() else {
             Issue.record("Expected fetched event")
             return
         }
@@ -601,7 +601,7 @@ import Testing
         var iterator = transport.events.makeAsyncIterator()
         try await transport.start()
         await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
-        guard case let .fetched(batchID, _, _)? = await iterator.next() else {
+        guard case let .fetched(batchID, _, _, _)? = await iterator.next() else {
             Issue.record("Expected identified fetched batch")
             return
         }
@@ -625,14 +625,14 @@ import Testing
         var iterator = transport.events.makeAsyncIterator()
         try await transport.start()
         await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
-        guard case let .fetched(firstBatchID, _, _)? = await iterator.next() else {
+        guard case let .fetched(firstBatchID, _, _, _)? = await iterator.next() else {
             Issue.record("Expected first identified fetched batch")
             return
         }
         let firstState = try stateSerialization(base64: "AQ==")
         await transport.receiveStateUpdate(firstState)
         await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
-        guard case let .fetched(secondBatchID, _, _)? = await iterator.next() else {
+        guard case let .fetched(secondBatchID, _, _, _)? = await iterator.next() else {
             Issue.record("Expected second identified fetched batch")
             return
         }
@@ -643,6 +643,117 @@ import Testing
         #expect(try fixture.store.load() == nil)
         try await transport.acknowledgeFetchedBatch(firstBatchID)
         #expect(try encodedState(fixture.store.load()) == encodedState(secondState))
+    }
+
+    @Test func freshTransportReplaysDurableFetchedBatchWithStableIdentityBeforeAcknowledgement() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json")
+        )
+        let record = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000045",
+            revision: 1
+        )
+        let cloudRecord = try CloudRecordCodec().encode(record, zoneID: zoneID)
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+
+        await firstTransport.receiveFetchedChanges(records: [cloudRecord], deletedRecordIDs: [])
+
+        guard case let .fetched(firstBatchID, _, firstRecords, _)? = await firstEvents.next() else {
+            Issue.record("Expected first durable fetched batch")
+            return
+        }
+        #expect(firstRecords == [record])
+
+        // Simulate a process ending after its domain committer returned but
+        // before the transport acknowledgement reached durable bookkeeping.
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+
+        guard case let .fetched(replayedBatchID, _, replayedRecords, _)? = await restartedEvents.next() else {
+            Issue.record("Expected durable fetched batch replay after restart")
+            return
+        }
+        #expect(replayedBatchID == firstBatchID)
+        #expect(replayedRecords == [record])
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+    }
+
+    @Test func durableFetchedSpoolBackpressuresAtBoundAndAcceptsPostEvictionBatch() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 2
+        )
+        let transport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+        let cloudRecords = try (46...48).map { suffix in
+            try CloudRecordCodec().encode(
+                testRecord(
+                    uuid: String(format: "00000000-0000-0000-0000-%012d", suffix),
+                    revision: UInt64(suffix)
+                ),
+                zoneID: zoneID
+            )
+        }
+
+        await transport.receiveFetchedChanges(records: [cloudRecords[0]], deletedRecordIDs: [])
+        guard case let .fetched(firstBatchID, _, _, _)? = await iterator.next() else {
+            Issue.record("Expected first fetched batch")
+            return
+        }
+        await transport.receiveFetchedChanges(records: [cloudRecords[1]], deletedRecordIDs: [])
+        guard case let .fetched(secondBatchID, _, _, _)? = await iterator.next() else {
+            Issue.record("Expected second fetched batch")
+            return
+        }
+
+        await transport.receiveFetchedChanges(records: [cloudRecords[2]], deletedRecordIDs: [])
+        guard case .failed(.incomingBackpressure)? = await iterator.next() else {
+            Issue.record("Expected bounded durable-spool backpressure")
+            return
+        }
+
+        try await transport.acknowledgeFetchedBatch(firstBatchID)
+        try await transport.acknowledgeFetchedBatch(secondBatchID)
+        await transport.receiveStateUpdate(try stateSerialization(base64: "Aw=="))
+        guard case .stateUpdated? = await iterator.next() else {
+            Issue.record("Expected durable state commit to evict covered receipts")
+            return
+        }
+
+        await transport.receiveFetchedChanges(records: [cloudRecords[2]], deletedRecordIDs: [])
+        guard case let .fetched(postEvictionBatchID, _, _, _)? = await iterator.next() else {
+            Issue.record("Expected fetched batch after durable receipt eviction")
+            return
+        }
+        try await transport.acknowledgeFetchedBatch(postEvictionBatchID)
     }
 
     @Test func streamTerminationCancelsEngineWithoutPersistingHeldFetchedState() async throws {

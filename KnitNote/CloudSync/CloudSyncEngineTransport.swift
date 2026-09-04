@@ -40,7 +40,12 @@ extension CloudSyncTransport {
 
 enum CloudSyncEvent: Sendable {
     case accountChanged(previous: String?, current: String?)
-    case fetched(batchID: UUID, records: [SyncRecord], deleted: [SyncEntityID])
+    case fetched(
+        batchID: UUID,
+        accountEpoch: CloudSyncAccountEpoch,
+        records: [SyncRecord],
+        deleted: [SyncEntityID]
+    )
     case fetchRequestCompleted(UUID)
     case sent(recordID: SyncEntityID, mutationID: UUID)
     case sendRequestCompleted(UUID)
@@ -49,6 +54,54 @@ enum CloudSyncEvent: Sendable {
     case zoneDeleted
     case stateUpdated(Data)
     case failed(CloudSyncFailure)
+}
+
+enum CloudSyncAccountEpochError: Error, Equatable {
+    case stale
+}
+
+/// Immutable identity plus a thread-safe invalidation latch. Durable domain
+/// committers must check this latch at their atomic commit boundary.
+final class CloudSyncAccountEpoch: @unchecked Sendable {
+    let accountIdentifier: String
+    let zoneName: String
+    let ownerName: String
+    let generation: UInt64
+
+    private let lock = NSLock()
+    private var current = true
+
+    init(
+        accountIdentifier: String,
+        zoneID: CKRecordZone.ID,
+        generation: UInt64
+    ) {
+        self.accountIdentifier = accountIdentifier
+        zoneName = zoneID.zoneName
+        ownerName = zoneID.ownerName
+        self.generation = generation
+    }
+
+    func requireCurrent() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard current else { throw CloudSyncAccountEpochError.stale }
+    }
+
+    /// Runs the actual durable write while account invalidation is excluded,
+    /// making the write and an account switch linearly ordered.
+    func withCurrent<T>(_ durableWrite: () throws -> T) throws -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        guard current else { throw CloudSyncAccountEpochError.stale }
+        return try durableWrite()
+    }
+
+    func invalidate() {
+        lock.lock()
+        current = false
+        lock.unlock()
+    }
 }
 
 enum CloudSyncFailure: Error, Equatable, Sendable {
@@ -60,6 +113,7 @@ enum CloudSyncFailure: Error, Equatable, Sendable {
     case changeTokenExpired
     case zoneNotFound
     case invalidRecord(recordID: SyncEntityID?)
+    case incomingBackpressure
     case statePersistence
     case fatal(code: Int)
 
@@ -171,6 +225,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private nonisolated let terminalLatch: CloudSyncTerminalLatch
     private let zoneID: CKRecordZone.ID
     private let stateStore: FileCloudSyncEngineStateStore
+    private let incomingBatchStore: FileCloudIncomingBatchStore
     private let systemFieldsStore: FileCloudRecordSystemFieldsStore?
     private let recordMaterializer: RecordMaterializer
     private let engineFactory: EngineFactory
@@ -178,6 +233,9 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var engine: (any CKSyncEngineDriving)?
     private var cloudKitEngineIdentifier: ObjectIdentifier?
     private var generation: UInt64 = 0
+    private var incomingBatchGeneration: UInt64 = 0
+    private var accountEpoch: CloudSyncAccountEpoch
+    private var activeFetchedBatchIDs: [UUID] = []
     private var unacknowledgedFetchedBatchIDs: [UUID] = []
     private var deferredStateUpdates: [DeferredStateUpdate] = []
     private var inboundDurabilityBlocked = false
@@ -238,6 +296,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     init(
         zoneID: CKRecordZone.ID,
         stateStore: FileCloudSyncEngineStateStore,
+        incomingBatchStore: FileCloudIncomingBatchStore? = nil,
         systemFieldsStore: FileCloudRecordSystemFieldsStore? = nil,
         initialAccountIdentifier: String? = nil,
         recordMaterializer: RecordMaterializer? = nil,
@@ -250,8 +309,16 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         self.terminalLatch = terminalLatch
         self.zoneID = zoneID
         self.stateStore = stateStore
+        self.incomingBatchStore = incomingBatchStore ?? FileCloudIncomingBatchStore(
+            url: stateStore.relatedURL(pathExtension: "incoming-batches")
+        )
         self.systemFieldsStore = systemFieldsStore
         currentAccountIdentifier = initialAccountIdentifier
+        accountEpoch = CloudSyncAccountEpoch(
+            accountIdentifier: initialAccountIdentifier ?? "",
+            zoneID: zoneID,
+            generation: 0
+        )
         self.recordMaterializer = recordMaterializer ?? { mutation, baseRecord in
             guard case let .save(save) = mutation else {
                 throw CloudSyncTransportError.invalidReplacement
@@ -291,6 +358,21 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
         guard engine == nil else { return }
         let serialization = try stateStore.load()
+        let durableState = try serialization.map { try Self.encodedState($0) }
+        let incoming = try incomingBatchStore.beginGeneration(
+            accountIdentifier: incomingAccountIdentifier,
+            zoneID: zoneID,
+            persistedEngineState: durableState
+        )
+        incomingBatchGeneration = incoming.generation
+        accountEpoch.invalidate()
+        accountEpoch = CloudSyncAccountEpoch(
+            accountIdentifier: incomingAccountIdentifier,
+            zoneID: zoneID,
+            generation: incoming.generation
+        )
+        activeFetchedBatchIDs = incoming.batches.map(\.batchID)
+        unacknowledgedFetchedBatchIDs = activeFetchedBatchIDs
         let created = engineFactory(serialization, self)
         generation &+= 1
         let operationGeneration = generation
@@ -302,6 +384,14 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         if !pendingDatabaseChanges.contains(zoneSave) {
             await created.addDatabaseChanges([zoneSave])
             try requireCurrentGeneration(operationGeneration)
+        }
+        for batch in incoming.batches {
+            eventContinuation.yield(.fetched(
+                batchID: batch.batchID,
+                accountEpoch: accountEpoch,
+                records: batch.records,
+                deleted: batch.deletedRecordIDs
+            ))
         }
     }
 
@@ -370,17 +460,25 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
 
     func acknowledgeFetchedBatch(_ batchID: UUID) async throws {
         try requireNotTerminated()
-        guard unacknowledgedFetchedBatchIDs.contains(batchID) else {
+        guard activeFetchedBatchIDs.contains(batchID) else {
             throw CloudSyncTransportError.unknownFetchedBatch
         }
+        try incomingBatchStore.acknowledge(
+            batchID,
+            accountIdentifier: incomingAccountIdentifier,
+            zoneID: zoneID
+        )
+        guard unacknowledgedFetchedBatchIDs.contains(batchID) else { return }
         let remaining = Set(unacknowledgedFetchedBatchIDs.filter { $0 != batchID })
         let persistableCount = deferredStateUpdates.prefix {
             $0.requiredBatchIDs.isDisjoint(with: remaining)
         }.count
         if persistableCount > 0 {
             do {
-                let data = try stateStore.save(
-                    deferredStateUpdates[persistableCount - 1].serialization
+                let update = deferredStateUpdates[persistableCount - 1]
+                let data = try persistStateUpdate(
+                    update.serialization,
+                    coveredBatchIDs: update.coveredBatchIDs
                 )
                 eventContinuation.yield(.stateUpdated(data))
             } catch {
@@ -481,30 +579,51 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         guard !terminalLatch.isTerminated else { return }
         guard !inboundDurabilityBlocked else { return }
         guard !unacknowledgedFetchedBatchIDs.isEmpty else {
-            persistStateUpdate(serialization)
+            do {
+                let data = try persistStateUpdate(
+                    serialization,
+                    coveredBatchIDs: Set(activeFetchedBatchIDs)
+                )
+                eventContinuation.yield(.stateUpdated(data))
+            } catch {
+                eventContinuation.yield(.failed(.statePersistence))
+            }
             return
         }
         deferredStateUpdates.append(DeferredStateUpdate(
             serialization: serialization,
-            requiredBatchIDs: Set(unacknowledgedFetchedBatchIDs)
+            requiredBatchIDs: Set(unacknowledgedFetchedBatchIDs),
+            coveredBatchIDs: Set(activeFetchedBatchIDs)
         ))
     }
 
-    private func persistStateUpdate(_ serialization: CKSyncEngine.State.Serialization) {
-        do {
-            let data = try stateStore.save(serialization)
-            eventContinuation.yield(.stateUpdated(data))
-        } catch {
-            eventContinuation.yield(.failed(.statePersistence))
+    private func persistStateUpdate(
+        _ serialization: CKSyncEngine.State.Serialization,
+        coveredBatchIDs: Set<UUID>
+    ) throws -> Data {
+        guard !coveredBatchIDs.isEmpty else {
+            return try stateStore.save(serialization)
         }
+        let encoded = try Self.encodedState(serialization)
+        try incomingBatchStore.stageStateCommit(
+            engineState: encoded,
+            coveredBatchIDs: coveredBatchIDs
+        )
+        let data = try stateStore.save(serialization)
+        try incomingBatchStore.completeStateCommit(engineState: encoded)
+        activeFetchedBatchIDs.removeAll { coveredBatchIDs.contains($0) }
+        unacknowledgedFetchedBatchIDs.removeAll { coveredBatchIDs.contains($0) }
+        return data
     }
 
     func receiveAccountChange(previous: String?, current: String?) async {
+        accountEpoch.invalidate()
         generation &+= 1
         let detachedEngine = engine
         engine = nil
         cloudKitEngineIdentifier = nil
         queues.removeAll(keepingCapacity: false)
+        activeFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
         inboundDurabilityBlocked = false
@@ -577,10 +696,30 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             eventContinuation.yield(.failed(.statePersistence))
             return
         }
-        let batchID = UUID()
+        let recording: CloudIncomingBatchRecordingResult
+        do {
+            recording = try incomingBatchStore.record(
+                records: decodedRecords,
+                deletedRecordIDs: deleted,
+                accountIdentifier: incomingAccountIdentifier,
+                zoneID: zoneID,
+                generation: incomingBatchGeneration
+            )
+        } catch CloudIncomingBatchStoreError.capacityExceeded {
+            eventContinuation.yield(.failed(.incomingBackpressure))
+            return
+        } catch {
+            inboundDurabilityBlocked = true
+            eventContinuation.yield(.failed(.statePersistence))
+            return
+        }
+        guard recording.shouldDeliver else { return }
+        let batchID = recording.envelope.batchID
+        activeFetchedBatchIDs.append(batchID)
         unacknowledgedFetchedBatchIDs.append(batchID)
         eventContinuation.yield(.fetched(
             batchID: batchID,
+            accountEpoch: accountEpoch,
             records: decodedRecords,
             deleted: deleted
         ))
@@ -1130,6 +1269,18 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
     }
 
+    private var incomingAccountIdentifier: String {
+        currentAccountIdentifier ?? ""
+    }
+
+    private static func encodedState(
+        _ serialization: CKSyncEngine.State.Serialization
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(serialization)
+    }
+
     private func persistSystemFields(_ record: CKRecord) throws {
         guard let systemFieldsStore else { return }
         guard let accountIdentifier = currentAccountIdentifier,
@@ -1178,6 +1329,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         engine = nil
         cloudKitEngineIdentifier = nil
         queues.removeAll(keepingCapacity: false)
+        activeFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
         inboundDurabilityBlocked = false
@@ -1211,6 +1363,7 @@ private final class CloudSyncTerminalLatch: @unchecked Sendable {
 private struct DeferredStateUpdate {
     let serialization: CKSyncEngine.State.Serialization
     let requiredBatchIDs: Set<UUID>
+    let coveredBatchIDs: Set<UUID>
 }
 
 private struct SendAttempt: Equatable {

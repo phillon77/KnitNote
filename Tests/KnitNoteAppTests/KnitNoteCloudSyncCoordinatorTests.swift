@@ -1,3 +1,5 @@
+import CloudKit
+import CryptoKit
 import Foundation
 import Testing
 @testable import KnitNote
@@ -88,7 +90,10 @@ import Testing
         #expect(coordinator.status.lastCompleteSuccess == nil)
         let requestID = try #require(transport.fetchRequestIDs.first)
 
-        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        transport.emit(.fetched(
+            batchID: batchID, accountEpoch: transport.accountEpoch,
+            records: [remote], deleted: []
+        ))
         #expect(await eventually { transport.acknowledgedBatchIDs == [batchID] })
         transport.emit(.fetchRequestCompleted(requestID))
         #expect(await eventually { transport.operations.contains("finishReplay") })
@@ -144,9 +149,15 @@ import Testing
         )
         await coordinator.start()
 
-        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        transport.emit(.fetched(
+            batchID: batchID, accountEpoch: transport.accountEpoch,
+            records: [remote], deleted: []
+        ))
         #expect(await eventually { transport.acknowledgedBatchIDs == [batchID] })
-        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        transport.emit(.fetched(
+            batchID: batchID, accountEpoch: transport.accountEpoch,
+            records: [remote], deleted: []
+        ))
         await drainCoordinatorTasks()
 
         #expect(committer.fetchedBatchIDs == [batchID])
@@ -171,7 +182,10 @@ import Testing
         )
         await coordinator.start()
 
-        transport.emit(.fetched(batchID: batchID, records: [record], deleted: []))
+        transport.emit(.fetched(
+            batchID: batchID, accountEpoch: transport.accountEpoch,
+            records: [record], deleted: []
+        ))
         #expect(await eventually { coordinator.status.phase == .needsAttention })
 
         #expect(transport.acknowledgedBatchIDs.isEmpty)
@@ -196,7 +210,10 @@ import Testing
         await coordinator.start()
         let requestID = try #require(transport.fetchRequestIDs.first)
 
-        transport.emit(.fetched(batchID: batchID, records: [record], deleted: []))
+        transport.emit(.fetched(
+            batchID: batchID, accountEpoch: transport.accountEpoch,
+            records: [record], deleted: []
+        ))
         #expect(await eventually { coordinator.status.issue == .durableCommit })
         transport.emit(.sent(recordID: pending.recordID, mutationID: pending.mutationID))
         transport.emit(.fetchRequestCompleted(requestID))
@@ -231,9 +248,15 @@ import Testing
         )
         await coordinator.start()
 
-        transport.emit(.fetched(batchID: failedBatchID, records: [record], deleted: []))
+        transport.emit(.fetched(
+            batchID: failedBatchID, accountEpoch: transport.accountEpoch,
+            records: [record], deleted: []
+        ))
         #expect(await eventually { coordinator.status.issue == .durableCommit })
-        transport.emit(.fetched(batchID: successfulBatchID, records: [record], deleted: []))
+        transport.emit(.fetched(
+            batchID: successfulBatchID, accountEpoch: transport.accountEpoch,
+            records: [record], deleted: []
+        ))
         #expect(await eventually {
             transport.acknowledgedBatchIDs == [successfulBatchID]
         })
@@ -258,7 +281,10 @@ import Testing
         )
         await coordinator.start()
 
-        transport.emit(.fetched(batchID: batchID, records: [remote], deleted: []))
+        transport.emit(.fetched(
+            batchID: batchID, accountEpoch: transport.accountEpoch,
+            records: [remote], deleted: []
+        ))
         #expect(await eventually { coordinator.status.phase == .needsAttention })
 
         #expect(coordinator.status.issue == .missingLocalRecord(mutation.recordID))
@@ -323,6 +349,35 @@ import Testing
 
         #expect(coordinator.status.phase == .needsAttention)
         #expect(transport.operations == operationsBeforeChange)
+    }
+
+    @Test func accountChangeInvalidatesSuspendedFetchedCommitBeforeDurableBoundary() async {
+        let batchID = uuid(suffix: 46)
+        let record = projectRecord(id: recordID(suffix: 46), revision: 1, name: "remote")
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(suspendFetchedCommit: true)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            provider: FakeCoordinatorRecordProvider(records: [record.id: record]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.fetched(
+            batchID: batchID,
+            accountEpoch: transport.accountEpoch,
+            records: [record],
+            deleted: []
+        ))
+        #expect(await committer.waitUntilFetchedCommitSuspended())
+
+        transport.emit(.accountChanged(previous: "account-a", current: "account-b"))
+        await committer.resumeFetchedCommit()
+        #expect(await eventually { coordinator.status.issue == .accountChanged })
+
+        #expect(committer.fetchedBatchIDs.isEmpty)
+        #expect(transport.acknowledgedBatchIDs.isEmpty)
+        #expect(coordinator.status.phase == .needsAttention)
     }
 
     @Test func serverRecordChangedMergesAndCommitsExactFailedHeadBeforeResolvingIt() async throws {
@@ -409,6 +464,112 @@ import Testing
         #expect(restartedTransport.scheduledMutations == [replacement, rebasedLater])
     }
 
+    @Test func conflictCommitCASRebasesMutationAppendedWhileCommitWasSuspended() async throws {
+        let first = try saveMutation(revision: 1, mutationSuffix: 53)
+        let second = try saveMutation(revision: 2, mutationSuffix: 54)
+        let third = try saveMutation(revision: 3, mutationSuffix: 55)
+        let server = record(
+            id: first.recordID,
+            entityRevision: 4,
+            fields: [
+                "name": field("name-1", revision: 1),
+                "serverOnly": field("preserved", revision: 4),
+            ]
+        )
+        let journal = FakeCoordinatorJournal([first, second])
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(
+            journal: journal,
+            suspendConflictCommit: true
+        )
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [:]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.mutationFailed(
+            recordID: first.recordID,
+            mutationID: first.mutationID,
+            failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server)
+        ))
+        #expect(await committer.waitUntilConflictCommitSuspended())
+        try journal.enqueue(third)
+        await committer.resumeConflictCommit()
+
+        #expect(await eventually { transport.resolvedMutationIDs == [first.mutationID] })
+        #expect(journal.pendingMutations.map(\.identity) == [
+            first.identity, second.identity, third.identity,
+        ])
+        let rebasedThird = try #require(journal.pendingMutations.last?.savedRecordVersion?.record)
+        #expect(rebasedThird.payload.fields["serverOnly"]?.value == .string("preserved"))
+        #expect(transport.resolvedFollowingReplacements.first?.map(\.identity) == [
+            second.identity, third.identity,
+        ])
+    }
+
+    @Test func conflictRebasePreservesAttachmentHeadMetadataFromEveryPrefix() async throws {
+        let owner = recordID(suffix: 56)
+        let slot = SyncAttachmentSlot(owner: owner, role: "photo", slotID: "primary")
+        let bytes = Data("attachment".utf8)
+        let attachment = try SyncAttachmentVersion.issuing(
+            slot: slot,
+            contentSHA256: Data(SHA256.hash(data: bytes)),
+            byteCount: Int64(bytes.count),
+            mediaType: "image/jpeg",
+            displayFilename: "photo.jpg"
+        )
+        let attachmentID = SyncEntityID(kind: .attachment, uuid: attachment.versionID)
+        let stamp = SyncMutationStamp(
+            logicalRevision: 1,
+            modifiedAt: Date(timeIntervalSince1970: 1),
+            deviceID: "attachment-device"
+        )
+        let attachmentRecord = SyncRecord(
+            schemaVersion: 1,
+            id: attachmentID,
+            createdAt: Date(timeIntervalSince1970: 1),
+            entityRevision: 1,
+            payload: .init(fields: [:], attachment: attachment),
+            relationships: [.init(role: "owner", target: owner)],
+            deletedAt: .init(value: nil, stamp: stamp)
+        )
+        let source = try SyncAttachmentSource(
+            fileURL: URL(fileURLWithPath: "/tmp/task-3-conflict-head.jpg"),
+            contentSHA256: attachment.contentSHA256,
+            byteCount: attachment.byteCount
+        )
+        let save = try SyncMutation.save(
+            recordVersion: SyncRecordVersion(record: attachmentRecord),
+            attachmentSource: source,
+            mutationID: uuid(suffix: 56)
+        )
+        let delete = SyncMutation.delete(attachmentID, mutationID: uuid(suffix: 57))
+        let journal = FakeCoordinatorJournal([save, delete])
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(journal: journal)
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [attachmentID: attachmentRecord]),
+            committer: committer
+        )
+        await coordinator.start()
+
+        transport.emit(.mutationFailed(
+            recordID: attachmentID,
+            mutationID: save.mutationID,
+            failure: .serverRecordChanged(recordID: attachmentID, serverRecord: attachmentRecord)
+        ))
+
+        #expect(await eventually { transport.resolvedMutationIDs == [save.mutationID] })
+        let result = try #require(committer.conflictResults.first)
+        #expect(result.resolvedAttachmentVersionIDs[slot] == attachment.versionID)
+        #expect(result.mutationsToUpload.map(\.identity) == [save.identity, delete.identity])
+    }
+
     @Test func failedConflictCommitLeavesExactMutationUnresolved() async throws {
         let mutation = try saveMutation(revision: 2, mutationSuffix: 61)
         let journal = FakeCoordinatorJournal([mutation])
@@ -437,15 +598,74 @@ import Testing
         #expect(journal.pendingMutations == [mutation])
     }
 
+    @Test func conflictBlockerSurvivesUnrelatedSuccessAndClearsOnlyAfterExactResolution() async throws {
+        let failed = try saveMutation(revision: 2, mutationSuffix: 63)
+        let unrelatedID = recordID(suffix: 64)
+        let unrelated = SyncMutation.delete(unrelatedID, mutationID: uuid(suffix: 64))
+        let fetchedRecord = projectRecord(
+            id: recordID(suffix: 65), revision: 1, name: "unrelated-remote"
+        )
+        let server = projectRecord(id: failed.recordID, revision: 3, name: "server")
+        let journal = FakeCoordinatorJournal([failed, unrelated])
+        let transport = FakeCoordinatorTransport()
+        let committer = FakeFetchedBatchCommitter(
+            conflictFailuresRemaining: 1,
+            journal: journal
+        )
+        let coordinator = makeCoordinator(
+            transport: transport,
+            journal: journal,
+            provider: FakeCoordinatorRecordProvider(records: [
+                failed.recordID: try #require(failed.savedRecordVersion?.record),
+                fetchedRecord.id: fetchedRecord,
+            ]),
+            committer: committer
+        )
+        await coordinator.start()
+        let conflict = CloudSyncEvent.mutationFailed(
+            recordID: failed.recordID,
+            mutationID: failed.mutationID,
+            failure: .serverRecordChanged(recordID: failed.recordID, serverRecord: server)
+        )
+
+        transport.emit(conflict)
+        #expect(await eventually { coordinator.status.issue == .durableCommit })
+
+        transport.emit(.sent(recordID: unrelated.recordID, mutationID: unrelated.mutationID))
+        transport.emit(.fetched(
+            batchID: uuid(suffix: 65),
+            accountEpoch: transport.accountEpoch,
+            records: [fetchedRecord],
+            deleted: []
+        ))
+        #expect(await eventually { transport.acknowledgedBatchIDs == [uuid(suffix: 65)] })
+        #expect(coordinator.status.phase == .needsAttention)
+        #expect(coordinator.status.issue == .durableCommit)
+        #expect(coordinator.status.lastCompleteSuccess == nil)
+
+        transport.emit(conflict)
+        #expect(await eventually {
+            transport.resolvedMutationIDs == [failed.mutationID]
+                && coordinator.status.issue == nil
+                && coordinator.status.phase == .waiting
+        })
+    }
+
     @Test func transportResolutionFailureRetriesFromDurableSameIdentity() async throws {
         let mutation = try saveMutation(revision: 2, mutationSuffix: 62)
+        let unrelated = projectRecord(
+            id: recordID(suffix: 66), revision: 1, name: "unrelated"
+        )
         let journal = FakeCoordinatorJournal([mutation])
         let transport = FakeCoordinatorTransport(resolveFailuresRemaining: 1)
         let committer = FakeFetchedBatchCommitter(journal: journal)
         let coordinator = makeCoordinator(
             transport: transport,
             journal: journal,
-            provider: FakeCoordinatorRecordProvider(records: [:]),
+            provider: FakeCoordinatorRecordProvider(records: [
+                mutation.recordID: try #require(mutation.savedRecordVersion?.record),
+                unrelated.id: unrelated,
+            ]),
             committer: committer
         )
         await coordinator.start()
@@ -459,6 +679,15 @@ import Testing
         transport.emit(event)
         #expect(await eventually { coordinator.status.issue == .operation })
         #expect(journal.pendingMutations.first?.identity == mutation.identity)
+        transport.emit(.fetched(
+            batchID: uuid(suffix: 66),
+            accountEpoch: transport.accountEpoch,
+            records: [unrelated],
+            deleted: []
+        ))
+        #expect(await eventually { transport.acknowledgedBatchIDs == [uuid(suffix: 66)] })
+        #expect(coordinator.status.phase == .needsAttention)
+        #expect(coordinator.status.issue == .operation)
         transport.emit(event)
         #expect(await eventually { transport.resolvedMutationIDs == [mutation.mutationID] })
 
@@ -580,6 +809,14 @@ private final class CoordinatorOperationRecorder: @unchecked Sendable {
 
 private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sendable {
     let events: AsyncStream<CloudSyncEvent>
+    let accountEpoch = CloudSyncAccountEpoch(
+        accountIdentifier: "fake-account",
+        zoneID: CKRecordZone.ID(
+            zoneName: "KnitNoteSync",
+            ownerName: CKCurrentUserDefaultName
+        ),
+        generation: 1
+    )
     private let continuation: AsyncStream<CloudSyncEvent>.Continuation
     private let lock = NSLock()
     private let recorder: CoordinatorOperationRecorder
@@ -684,6 +921,9 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
     }
 
     func emit(_ event: CloudSyncEvent) {
+        if case .accountChanged = event {
+            accountEpoch.invalidate()
+        }
         continuation.yield(event)
     }
 
@@ -773,7 +1013,10 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
     private let recorder: CoordinatorOperationRecorder
     private let failFetchedCommit: Bool
     private let failingFetchedBatchIDs: Set<UUID>
+    private let fetchedCommitGate: FetchedCommitGate?
     private let failConflictCommit: Bool
+    private let conflictCommitGate: ConflictCommitGate?
+    private var conflictFailuresRemaining: Int
     private let journal: FakeCoordinatorJournal?
     private var fetchedStorage: [FetchedCommitCapture] = []
     private var conflictStorage: [(UUID, SyncMergeResult)] = []
@@ -782,44 +1025,85 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
         recorder: CoordinatorOperationRecorder = CoordinatorOperationRecorder(),
         failFetchedCommit: Bool = false,
         failingFetchedBatchIDs: Set<UUID> = [],
+        suspendFetchedCommit: Bool = false,
         failConflictCommit: Bool = false,
-        journal: FakeCoordinatorJournal? = nil
+        conflictFailuresRemaining: Int = 0,
+        journal: FakeCoordinatorJournal? = nil,
+        suspendConflictCommit: Bool = false
     ) {
         self.recorder = recorder
         self.failFetchedCommit = failFetchedCommit
         self.failingFetchedBatchIDs = failingFetchedBatchIDs
+        fetchedCommitGate = suspendFetchedCommit ? FetchedCommitGate() : nil
         self.failConflictCommit = failConflictCommit
+        self.conflictFailuresRemaining = conflictFailuresRemaining
+        conflictCommitGate = suspendConflictCommit ? ConflictCommitGate() : nil
         self.journal = journal
     }
 
     var fetchedBatchIDs: [UUID] { withLock { fetchedStorage.map(\.batchID) } }
     var fetchedResults: [SyncMergeResult] { withLock { fetchedStorage.map(\.result) } }
     var conflictMutationIDs: [UUID] { withLock { conflictStorage.map(\.0) } }
+    var conflictResults: [SyncMergeResult] { withLock { conflictStorage.map(\.1) } }
 
     func commitFetchedBatch(
         batchID: UUID,
+        accountEpoch: CloudSyncAccountEpoch,
         mergeResult: SyncMergeResult,
         deletedRecordIDs: [SyncEntityID]
     ) async throws {
         recorder.append("commitFetched:\(batchID.uuidString)")
+        if let fetchedCommitGate {
+            await fetchedCommitGate.suspend()
+        }
         if failFetchedCommit || failingFetchedBatchIDs.contains(batchID) {
             throw FakeCoordinatorError.commitFailed
         }
-        withLock {
-            fetchedStorage.append(.init(
-                batchID: batchID,
-                result: mergeResult,
-                deleted: deletedRecordIDs
-            ))
+        try accountEpoch.withCurrent {
+            withLock {
+                fetchedStorage.append(.init(
+                    batchID: batchID,
+                    result: mergeResult,
+                    deleted: deletedRecordIDs
+                ))
+            }
         }
+    }
+
+    func waitUntilFetchedCommitSuspended() async -> Bool {
+        guard let fetchedCommitGate else { return false }
+        for _ in 0..<2_000 {
+            if await fetchedCommitGate.isSuspended { return true }
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        return await fetchedCommitGate.isSuspended
+    }
+
+    func resumeFetchedCommit() async {
+        await fetchedCommitGate?.resume()
     }
 
     func commitServerRecordChanged(
         failedMutation: SyncMutation,
+        expectedRecordQueue: [SyncMutationIdentity],
         mergeResult: SyncMergeResult
-    ) async throws -> SyncFailedMutationResolution {
+    ) async throws -> SyncFailedMutationCommitResult {
+        if let conflictCommitGate {
+            await conflictCommitGate.suspendOnce()
+        }
+        let shouldFail = withLock { () -> Bool in
+            guard conflictFailuresRemaining > 0 else { return false }
+            conflictFailuresRemaining -= 1
+            return true
+        }
+        if failConflictCommit || shouldFail { throw FakeCoordinatorError.commitFailed }
+        let currentQueue = journal?.pendingMutations.filter {
+            $0.recordID == failedMutation.recordID
+        }
+        if let currentQueue, currentQueue.map(\.identity) != expectedRecordQueue {
+            return .staleRecordQueue
+        }
         recorder.append("commitConflict:\(failedMutation.mutationID.uuidString)")
-        if failConflictCommit { throw FakeCoordinatorError.commitFailed }
         withLock { conflictStorage.append((failedMutation.mutationID, mergeResult)) }
         let replacements = mergeResult.mutationsToUpload.filter {
             $0.recordID == failedMutation.recordID
@@ -829,17 +1113,69 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
             throw FakeCoordinatorError.inconsistentJournal
         }
         try journal?.replaceExactRecordQueue(failedMutation.identity, with: replacements)
-        return SyncFailedMutationResolution(
+        return .committed(SyncFailedMutationResolution(
             failedMutation: failedMutation.identity,
             replacement: replacement,
             followingReplacements: Array(replacements.dropFirst())
-        )
+        ))
+    }
+
+    func waitUntilConflictCommitSuspended() async -> Bool {
+        guard let conflictCommitGate else { return false }
+        for _ in 0..<2_000 {
+            if await conflictCommitGate.isSuspended { return true }
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        return await conflictCommitGate.isSuspended
+    }
+
+    func resumeConflictCommit() async {
+        await conflictCommitGate?.resume()
     }
 
     private func withLock<T>(_ body: () -> T) -> T {
         lock.lock()
         defer { lock.unlock() }
         return body()
+    }
+}
+
+private actor FetchedCommitGate {
+    private var suspended = false
+    private var resumeContinuation: CheckedContinuation<Void, Never>?
+
+    var isSuspended: Bool { suspended }
+
+    func suspend() async {
+        suspended = true
+        await withCheckedContinuation { resumeContinuation = $0 }
+        suspended = false
+    }
+
+    func resume() {
+        resumeContinuation?.resume()
+        resumeContinuation = nil
+    }
+}
+
+private actor ConflictCommitGate {
+    private var shouldSuspend = true
+    private var suspended = false
+    private var resumeContinuation: CheckedContinuation<Void, Never>?
+
+    var isSuspended: Bool { suspended }
+
+    func suspendOnce() async {
+        guard shouldSuspend else { return }
+        shouldSuspend = false
+        suspended = true
+        await withCheckedContinuation { resumeContinuation = $0 }
+        suspended = false
+    }
+
+    func resume() {
+        resumeContinuation?.resume()
+        resumeContinuation = nil
     }
 }
 

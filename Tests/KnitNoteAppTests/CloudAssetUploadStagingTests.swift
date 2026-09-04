@@ -5,6 +5,11 @@ import Testing
 
 @testable import KnitNote
 
+// Task 4 extends this production protocol with download/quarantine methods.
+// Keeping this compile-time seam prevents a fault-injection type from taking
+// over the approved public boundary name again.
+private protocol Task4CloudAssetBoundaryCompileSeam: CloudAssetStagingBoundary {}
+
 @Suite(.serialized) struct CloudAssetUploadStagingTests {
     @Test func stageCopiesAndVerifiesDistinctMutationOwnedBytes() throws {
         let fixture = try UploadFixture()

@@ -14,7 +14,7 @@ enum CloudAssetStagingError: Error, Equatable {
     case immutableIdentityMismatch
 }
 
-enum CloudAssetStagingBoundary: Equatable, Sendable {
+enum CloudAssetUploadFaultBoundary: Equatable, Sendable {
     case uploadAfterFilePublish
     case acknowledgementAfterManifest
 }
@@ -30,10 +30,13 @@ protocol CloudAssetUploadStagingBoundary: AnyObject {
     func reconcile() throws
 }
 
+/// Reserved extension point for Task 4's verified download and quarantine API.
+protocol CloudAssetStagingBoundary: CloudAssetUploadStagingBoundary {}
+
 /// CloudKit-facing upload workflow. The manifest is the only durable reference
 /// authority and every mutation owns a separate immutable staged file.
-final class CloudAssetStagingService: CloudAssetUploadStagingBoundary, @unchecked Sendable {
-    typealias BeforeBoundary = @Sendable (CloudAssetStagingBoundary) throws -> Void
+final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Sendable {
+    typealias BeforeBoundary = @Sendable (CloudAssetUploadFaultBoundary) throws -> Void
 
     static let defaultMaximumAssetBytes = SyncPublicationFileLimits.maximumAttachmentBytes
 
@@ -179,7 +182,6 @@ final class CloudAssetStagingService: CloudAssetUploadStagingBoundary, @unchecke
                         named: reference.relativeFilename,
                         in: directories.uploads
                     )
-                    try fileStore.synchronize(directories.uploads)
                 }
             }
         } catch {
@@ -206,16 +208,13 @@ final class CloudAssetStagingService: CloudAssetUploadStagingBoundary, @unchecke
         }
 
         let referenced = Set(references.map(\.relativeFilename))
-        var removed = false
         for name in try fileStore.listOwned(in: directories.uploads) {
             if referenced.contains(name) { continue }
             guard Self.isUploadFilename(name) || Self.isTemporaryFilename(name) else {
                 throw CloudAssetStagingError.unsafeFile
             }
             try fileStore.removeOwned(named: name, in: directories.uploads)
-            removed = true
         }
-        if removed { try fileStore.synchronize(directories.uploads) }
         return references
     }
 

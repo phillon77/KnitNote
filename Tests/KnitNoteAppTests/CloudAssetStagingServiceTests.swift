@@ -5,6 +5,10 @@ import Testing
 @testable import KnitNote
 
 @Suite struct CloudAssetStagingServiceTests {
+    @Test func serviceReservesTheTaskFourExtensionBoundary() {
+        requireTaskFourBoundary(CloudAssetStagingService.self)
+    }
+
     @Test func canonicalMetadataStillRejectsInvalidDigest() throws {
         #expect(throws: SyncAttachmentVersionError.invalidMetadata) {
             _ = try SyncAttachmentVersion.issuing(
@@ -21,3 +25,5 @@ import Testing
         }
     }
 }
+
+private func requireTaskFourBoundary<T: CloudAssetStagingBoundary>(_: T.Type) {}

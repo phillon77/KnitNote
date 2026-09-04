@@ -49,8 +49,23 @@ struct ProductIdentifierMutation: Sendable, CustomTestStringConvertible {
 }
 
 struct BaseConfigurationMutation: Sendable, CustomTestStringConvertible {
+    enum KeySyntax: String, CaseIterable, Sendable {
+        case unquoted
+        case quoted
+        case escapedQuoted
+
+        var assignmentKey: String {
+            switch self {
+            case .unquoted: "baseConfigurationReference"
+            case .quoted: #""baseConfigurationReference""#
+            case .escapedQuoted: #""baseConfigurationReferenc\U0065""#
+            }
+        }
+    }
+
     let owner: String
     let configuration: String
+    let keySyntax: KeySyntax
 
     static let all: [Self] = [
         #"PBXProject "KnitNote""#,
@@ -58,10 +73,14 @@ struct BaseConfigurationMutation: Sendable, CustomTestStringConvertible {
         #"PBXNativeTarget "KnitNoteWatch""#,
         #"PBXNativeTarget "KnitNoteShare""#,
     ].flatMap { owner in
-        ["Debug", "Release"].map { Self(owner: owner, configuration: $0) }
+        ["Debug", "Release"].flatMap { configuration in
+            KeySyntax.allCases.map {
+                Self(owner: owner, configuration: configuration, keySyntax: $0)
+            }
+        }
     }
 
-    var testDescription: String { "\(owner)-\(configuration)" }
+    var testDescription: String { "\(owner)-\(configuration)-\(keySyntax.rawValue)" }
 }
 
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
@@ -217,7 +236,7 @@ struct BaseConfigurationMutation: Sendable, CustomTestStringConvertible {
         ))
         let mutatedRelease = release.replacingOccurrences(
             of: "isa = XCBuildConfiguration;",
-            with: "isa = XCBuildConfiguration;\n\t\t\tbaseConfigurationReference = DEADBEEFDEADBEEFDEADBEEF /* Fixture.xcconfig */;"
+            with: "isa = XCBuildConfiguration;\n\t\t\t\(mutation.keySyntax.assignmentKey) = DEADBEEFDEADBEEFDEADBEEF /* Evil.xcconfig */;"
         )
         let result = try runStaticAudit(
             projectFileSource: source.replacingOccurrences(of: release, with: mutatedRelease)

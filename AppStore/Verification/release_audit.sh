@@ -224,12 +224,10 @@ verify_signed_product_cloud_entitlements() {
 }
 
 verify_generated_entitlement_bindings() {
-  python3 - "$PROJECT_FILE" <<'PY'
-import re
+  python3 - "$PROJECT_FILE" "$PLUTIL" <<'PY'
+import json
+import subprocess
 import sys
-from pathlib import Path
-
-text = Path(sys.argv[1]).read_text(encoding="utf-8")
 
 expected = {
     "KnitNote": {
@@ -249,73 +247,95 @@ expected_info = {
 }
 labels = {"KnitNote": "iOS/macOS", "KnitNoteWatch": "Watch", "KnitNoteShare": "Share"}
 
-def configuration_section(owner, configuration):
-    marker = f'/* Build configuration list for {owner} */ = {{'
-    start = text.find(marker)
-    if start < 0:
-        return None
-    end = text.find("\n\t\t};", start)
-    if end < 0:
-        return None
-    listing = text[start:end]
-    match = re.search(rf'^\s*([A-F0-9]+) /\* {re.escape(configuration)} \*/,?$', listing, re.MULTILINE)
-    if match is None:
-        return None
-    config_marker = f'\t\t{match.group(1)} /* {configuration} */ = {{'
-    config_start = text.find(config_marker)
-    if config_start < 0:
-        return None
-    config_end = text.find("\n\t\t};", config_start)
-    if config_end < 0:
-        return None
-    return text[config_start:config_end]
+conversion = subprocess.run(
+    [sys.argv[2], "-convert", "json", "-o", "-", sys.argv[1]],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    check=False,
+)
+if conversion.returncode != 0:
+    raise SystemExit("release audit: generated project is not a valid OpenStep property list")
+try:
+    project = json.loads(conversion.stdout)
+    objects = project["objects"]
+    root = objects[project["rootObject"]]
+except (KeyError, TypeError, ValueError):
+    raise SystemExit("release audit: generated project object graph is invalid")
 
-setting_pattern = re.compile(
-    r'^\s*"?(CODE_SIGN_ENTITLEMENTS(?:\[sdk=[^]]+\])?)"?\s*=\s*"?([^";]+)"?;\s*$',
-    re.MULTILINE,
-)
-info_setting_pattern = re.compile(
-    r'^\s*"?(INFOPLIST_FILE(?:\[sdk=[^]]+\])?)"?\s*=\s*"?([^";]+)"?;\s*$',
-    re.MULTILINE,
-)
-base_configuration_pattern = re.compile(r'^\s*baseConfigurationReference\s*=', re.MULTILINE)
-for configuration in ("Debug", "Release"):
-    section = configuration_section('PBXProject "KnitNote"', configuration)
-    if section is None:
-        raise SystemExit("release audit: project CODE_SIGN_ENTITLEMENTS configuration is missing")
-    if base_configuration_pattern.search(section):
+def referenced_object(reference, error):
+    try:
+        value = objects[reference]
+    except (KeyError, TypeError):
+        raise SystemExit(error)
+    if not isinstance(value, dict):
+        raise SystemExit(error)
+    return value
+
+def configurations(owner, error):
+    listing = referenced_object(owner.get("buildConfigurationList"), error)
+    references = listing.get("buildConfigurations")
+    if not isinstance(references, list):
+        raise SystemExit(error)
+    result = {}
+    for reference in references:
+        configuration = referenced_object(reference, error)
+        name = configuration.get("name")
+        if name in result:
+            raise SystemExit(error)
+        result[name] = configuration
+    required = {"Debug", "Release"}
+    if not required.issubset(result):
+        raise SystemExit(error)
+    return {name: result[name] for name in required}
+
+project_error = "release audit: project CODE_SIGN_ENTITLEMENTS configuration is missing"
+for configuration in configurations(root, project_error).values():
+    if "baseConfigurationReference" in configuration:
         raise SystemExit("release audit: relevant project baseConfigurationReference is forbidden")
-    if setting_pattern.findall(section):
+    settings = configuration.get("buildSettings")
+    if not isinstance(settings, dict):
+        raise SystemExit(project_error)
+    if any(key.startswith("CODE_SIGN_ENTITLEMENTS") for key in settings):
         raise SystemExit("release audit: project CODE_SIGN_ENTITLEMENTS must not be inherited")
 
-for target, wanted in expected.items():
-    for configuration in ("Debug", "Release"):
-        section = configuration_section(f'PBXNativeTarget "{target}"', configuration)
-        if section is None:
-            raise SystemExit(f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS configuration is missing")
-        if base_configuration_pattern.search(section):
+targets = {}
+for reference in root.get("targets", []):
+    target = referenced_object(reference, "release audit: generated project target graph is invalid")
+    name = target.get("name")
+    if name in expected:
+        if name in targets:
+            raise SystemExit(f"release audit: source {labels[name]} target is ambiguous")
+        targets[name] = target
+if set(targets) != set(expected):
+    raise SystemExit("release audit: relevant generated project target is missing")
+
+for target_name, wanted in expected.items():
+    error = f"release audit: source {labels[target_name]} CODE_SIGN_ENTITLEMENTS configuration is missing"
+    for configuration in configurations(targets[target_name], error).values():
+        if "baseConfigurationReference" in configuration:
             raise SystemExit(
-                f"release audit: source {labels[target]} baseConfigurationReference is forbidden"
+                f"release audit: source {labels[target_name]} baseConfigurationReference is forbidden"
             )
-        pairs = setting_pattern.findall(section)
-        actual = {}
-        for key, value in pairs:
-            if key in actual:
-                raise SystemExit(f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS has duplicate assignments")
-            actual[key] = value.strip()
+        settings = configuration.get("buildSettings")
+        if not isinstance(settings, dict):
+            raise SystemExit(error)
+        actual = {
+            key: value.strip() if isinstance(value, str) else value
+            for key, value in settings.items()
+            if key.startswith("CODE_SIGN_ENTITLEMENTS")
+        }
         if actual != wanted:
             raise SystemExit(
-                f"release audit: source {labels[target]} CODE_SIGN_ENTITLEMENTS does not match canonical paths"
+                f"release audit: source {labels[target_name]} CODE_SIGN_ENTITLEMENTS does not match canonical paths"
             )
-        info_pairs = info_setting_pattern.findall(section)
-        info_actual = {}
-        for key, value in info_pairs:
-            if key in info_actual:
-                raise SystemExit(f"release audit: source {labels[target]} INFOPLIST_FILE has duplicate assignments")
-            info_actual[key] = value.strip()
-        if info_actual != expected_info[target]:
+        info_actual = {
+            key: value.strip() if isinstance(value, str) else value
+            for key, value in settings.items()
+            if key.startswith("INFOPLIST_FILE")
+        }
+        if info_actual != expected_info[target_name]:
             raise SystemExit(
-                f"release audit: source {labels[target]} INFOPLIST_FILE does not match canonical path"
+                f"release audit: source {labels[target_name]} INFOPLIST_FILE does not match canonical path"
             )
 PY
 }

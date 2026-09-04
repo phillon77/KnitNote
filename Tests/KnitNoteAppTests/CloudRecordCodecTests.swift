@@ -36,6 +36,30 @@ import Testing
         #expect(try codec.decode(encoded) == source)
     }
 
+    @Test(arguments: KnownOptionalField.allCases)
+    func rejectsWronglyTypedKnownOptionalFields(_ field: KnownOptionalField) throws {
+        let codec = CloudRecordCodec()
+        let encoded = try encodedProjectYarnLinkRecord(using: codec)
+        encoded[field.recordKey] = "wrong type" as NSString
+
+        #expect(throws: CloudRecordCodecError.malformedRecord) {
+            try codec.decode(encoded)
+        }
+    }
+
+    @Test func rejectsOversizedUnknownOptionalField() throws {
+        let codec = CloudRecordCodec()
+        let encoded = try encodedProjectYarnLinkRecord(using: codec)
+        encoded["futureOptionalField"] = Data(
+            repeating: 0,
+            count: CloudRecordCodec.maximumNonAssetPayloadByteCount
+        )
+
+        #expect(throws: CloudRecordCodecError.payloadTooLarge) {
+            try codec.decode(encoded)
+        }
+    }
+
     @Test func rejectsUnsupportedSchemaInsteadOfGuessingItsMeaning() throws {
         let source = try projectYarnLinkRecord()
         let codec = CloudRecordCodec()
@@ -144,6 +168,26 @@ import Testing
     }
 }
 
+enum KnownOptionalField: CaseIterable, Sendable {
+    case deletedAt
+    case deletionCascade
+    case atomicDomain
+    case attachment
+
+    var recordKey: String {
+        switch self {
+        case .deletedAt:
+            "deletedAt"
+        case .deletionCascade:
+            "deletionCascade"
+        case .atomicDomain:
+            "atomicDomain"
+        case .attachment:
+            "attachment"
+        }
+    }
+}
+
 private func projectYarnLinkRecord() throws -> SyncRecord {
     let stamp = SyncMutationStamp(
         logicalRevision: 7,
@@ -179,5 +223,12 @@ private func projectYarnLinkRecord() throws -> SyncRecord {
             ),
         ],
         deletedAt: .init(value: nil, stamp: stamp)
+    )
+}
+
+private func encodedProjectYarnLinkRecord(using codec: CloudRecordCodec) throws -> CKRecord {
+    try codec.encode(
+        projectYarnLinkRecord(),
+        zoneID: CKRecordZone.ID(zoneName: "sync", ownerName: CKCurrentUserDefaultName)
     )
 }

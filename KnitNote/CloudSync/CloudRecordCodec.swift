@@ -65,6 +65,7 @@ struct CloudRecordCodec {
     }
 
     func decode(_ record: CKRecord) throws -> SyncRecord {
+        try Self.validateIncomingNonAssetPayloadSize(record)
         let kind = try Self.kind(forRecordType: record.recordType)
         let schemaVersion = try Self.requiredInt(record, field: Field.schemaVersion)
         let entityID = try Self.requiredUUID(record, field: Field.entityID)
@@ -80,12 +81,12 @@ struct CloudRecordCodec {
             entityID: entityID.uuidString.lowercased(),
             createdAt: try Self.requiredDate(record, field: Field.createdAt),
             entityRevision: try Self.requiredString(record, field: Field.entityRevision),
-            deletedAt: record[Field.deletedAt] as? Date,
+            deletedAt: try Self.optionalDate(record, field: Field.deletedAt),
             deletedStamp: try Self.requiredData(record, field: Field.deletedStamp),
             fields: try Self.requiredData(record, field: Field.fields),
-            deletionCascade: record[Field.deletionCascade] as? Data,
-            atomicDomain: record[Field.atomicDomain] as? Data,
-            attachment: record[Field.attachment] as? Data,
+            deletionCascade: try Self.optionalData(record, field: Field.deletionCascade),
+            atomicDomain: try Self.optionalData(record, field: Field.atomicDomain),
+            attachment: try Self.optionalData(record, field: Field.attachment),
             relationships: relationships
         )
         try Self.validatePayloadSize(wirePayload)
@@ -177,6 +178,26 @@ struct CloudRecordCodec {
         }
     }
 
+    private static func validateIncomingNonAssetPayloadSize(_ record: CKRecord) throws {
+        let fields = record.allKeys().sorted().compactMap { key -> [Any]? in
+            guard let value = record[key], !(value is CKAsset) else { return nil }
+            return [key, value]
+        }
+        do {
+            let payload = try NSKeyedArchiver.archivedData(
+                withRootObject: fields,
+                requiringSecureCoding: true
+            )
+            guard payload.count <= maximumNonAssetPayloadByteCount else {
+                throw CloudRecordCodecError.payloadTooLarge
+            }
+        } catch let error as CloudRecordCodecError {
+            throw error
+        } catch {
+            throw CloudRecordCodecError.malformedRecord
+        }
+    }
+
     private static func encodeJSON<Value: Encodable>(_ value: Value) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -216,6 +237,18 @@ struct CloudRecordCodec {
     private static func requiredData(_ record: CKRecord, field: String) throws -> Data {
         guard let value = record[field] as? Data else { throw CloudRecordCodecError.malformedRecord }
         return value
+    }
+
+    private static func optionalDate(_ record: CKRecord, field: String) throws -> Date? {
+        guard let value = record[field] else { return nil }
+        guard let date = value as? Date else { throw CloudRecordCodecError.malformedRecord }
+        return date
+    }
+
+    private static func optionalData(_ record: CKRecord, field: String) throws -> Data? {
+        guard let value = record[field] else { return nil }
+        guard let data = value as? Data else { throw CloudRecordCodecError.malformedRecord }
+        return data
     }
 }
 

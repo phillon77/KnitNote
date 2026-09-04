@@ -28,6 +28,9 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         KnitNoteSourceRevision: $(KNITNOTE_SOURCE_REVISION)
+        KnitNoteCloudKitContainerIdentifier: $(KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER)
+        UIBackgroundModes:
+          - remote-notification
         CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el, nl]
         CFBundleURLTypes:
           - CFBundleURLName: com.phillon.KnitNote
@@ -76,6 +79,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
+        KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER: iCloud.com.phillon.KnitNote
         MARKETING_VERSION: 1.7.0
         CURRENT_PROJECT_VERSION: 13
         PRODUCT_NAME: KnitNote

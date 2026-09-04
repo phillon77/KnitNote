@@ -138,15 +138,28 @@ verify_mac_security_entitlements() {
         "com.apple.security.files.user-selected.read-write": true,
         "com.apple.security.network.client": true
       };
+      def source_cloudkit: {
+        "com.apple.developer.icloud-container-identifiers": ["$(KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER)"],
+        "com.apple.developer.icloud-services": ["CloudKit"],
+        "com.apple.developer.aps-environment": "development"
+      };
       if $mode == "source" then
-        . == production_security
+        . == (production_security + source_cloudkit)
       else
         (with_entries(select(.key | startswith("com.apple.security."))) == production_security)
+        and (."com.apple.developer.icloud-container-identifiers" == ["iCloud.com.phillon.KnitNote"])
+        and (."com.apple.developer.icloud-services" == ["CloudKit"])
+        and (."com.apple.developer.icloud-container-environment" == "Production")
+        and (."com.apple.developer.aps-environment" == "production")
         and ((keys - [
           "application-identifier",
           "com.apple.application-identifier",
           "com.apple.developer.team-identifier",
           "get-task-allow",
+          "com.apple.developer.aps-environment",
+          "com.apple.developer.icloud-container-environment",
+          "com.apple.developer.icloud-container-identifiers",
+          "com.apple.developer.icloud-services",
           "com.apple.security.app-sandbox",
           "com.apple.security.files.user-selected.read-write",
           "com.apple.security.network.client"

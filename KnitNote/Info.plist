@@ -47,12 +47,18 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>KnitNoteCloudKitContainerIdentifier</key>
+	<string>$(KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER)</string>
 	<key>KnitNoteSourceRevision</key>
 	<string>$(KNITNOTE_SOURCE_REVISION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.lifestyle</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Take photos for knitting projects, journal entries, and yarn labels.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UISupportedInterfaceOrientations</key>

@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A3C000000000000000000001 /* KnitNoteCloudSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000002 /* KnitNoteCloudSyncCoordinatorTests.swift */; };
-		A3C000000000000000000003 /* KnitNoteCloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000004 /* KnitNoteCloudSyncCoordinator.swift */; };
 		0067BD647A5C8F1074C2BF40 /* YarnLabelObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF29A3759BFD3D7AEB014EBA /* YarnLabelObservation.swift */; };
 		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
@@ -26,6 +24,7 @@
 		06CD1A2B0DEEB8D74433C66A /* EntitlementProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2D22CF7B75BC56528CA43C /* EntitlementProjection.swift */; };
 		0759B471D6CC3E86D64C59DF /* PatternPDFScalePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BF3FAA27407B79CBBF6B95 /* PatternPDFScalePolicy.swift */; };
 		07C709111804310728B7489F /* KnittingReminderListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD414CDA5FB53E60A9B6A51 /* KnittingReminderListView.swift */; };
+		0939455BBB049947CF911E2F /* CloudAssetFileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900C0FC5920D203F4AC599B6 /* CloudAssetFileStoreTests.swift */; };
 		0A04D52A852FA20B96057FD1 /* PatternNightRenderingModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5EA4C77BEE26A13CC4C1BED /* PatternNightRenderingModifier.swift */; };
 		0AC22A070D7CB4AFE17D0E23 /* SyncMutationJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA77004900FEA73D4CE5CD19 /* SyncMutationJournal.swift */; };
 		0AE7EF17BCE4C8F24B393223 /* CloudSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63EEDC87D1700429BC81348 /* CloudSyncEngineStateStore.swift */; };
@@ -34,12 +33,14 @@
 		0C7F4765BC5495DFE7C51C8E /* WatchCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65533430112873329E49422 /* WatchCounterView.swift */; };
 		0CA6894F111A03507DCD1C4F /* PatternInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC6666C076E59D1DEE909F2 /* PatternInboxItem.swift */; };
 		0CE9C1460396F8117ACFAA74 /* YouTubePatternThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */; };
+		0CFAE97E6555D5FB511170C5 /* CloudKitDevelopmentIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDF51DD9513A376AE0E2EBD /* CloudKitDevelopmentIntegrationTests.swift */; };
 		0D0F6E7010A716A05A8BDB1D /* AppUpdateReminderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3167220F3F5F030644D66D9C /* AppUpdateReminderCoordinator.swift */; };
 		0EB4F5AA1F727A8B7EFAF0CA /* PatternLibraryMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493798E728C3205A3A8BF98B /* PatternLibraryMigrator.swift */; };
 		0F220D5DEEB9FA643A9CAC70 /* MacYarnEditorLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C9AFA4B7ADBFDEC2DF1FE9 /* MacYarnEditorLayoutTests.swift */; };
 		0FCF6F4C5C2D193C026D0737 /* PatternFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CED6A558B7B52DF3926BC8 /* PatternFileService.swift */; };
 		0FFD14D844495F2E62249E5D /* ProjectJournalPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87122E654FD5FC76F4013B48 /* ProjectJournalPreviewLoader.swift */; };
 		101F6F346F89597E2053753E /* SyncRevisionLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FD3D9FF8756FDDC08EB27E /* SyncRevisionLedger.swift */; };
+		1157C6C14327C76CB5AD3509 /* KnitNoteCloudSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0CAADAD1208C6BF05FAA16E /* KnitNoteCloudSyncCoordinatorTests.swift */; };
 		12CECA964F06EAD8326C669D /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
 		130F9F8B595AA39A521A4FD6 /* MacYarnEditorAccessibilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B43D411F3A6902FA7C9BDF7 /* MacYarnEditorAccessibilityUITests.swift */; };
 		145C11E71DE7CFD10288B647 /* TrialStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F225BBD0F4165FC214529A1 /* TrialStatusPill.swift */; };
@@ -84,12 +85,6 @@
 		2A9099D8D970DB14FDCE8E4E /* PatternDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD315B2053510F599375477E /* PatternDetailView.swift */; };
 		2B19A81BB4B13AFB29174753 /* CloudAssetStagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */; };
 		2B305AA2B12BB32D7C062844 /* CloudAssetStagingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D40A63B071272BBD332D01 /* CloudAssetStagingServiceTests.swift */; };
-		C0A551000000000000000001 /* CloudAssetFileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A551000000000000000002 /* CloudAssetFileStoreTests.swift */; };
-		C0A551000000000000000003 /* CloudAssetFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A551000000000000000004 /* CloudAssetFileStore.swift */; };
-		C0A552000000000000000001 /* CloudAssetManifestStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A552000000000000000002 /* CloudAssetManifestStoreTests.swift */; };
-		C0A552000000000000000003 /* CloudAssetManifestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A552000000000000000004 /* CloudAssetManifestStore.swift */; };
-		C0A553000000000000000001 /* CloudAssetUploadStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A553000000000000000002 /* CloudAssetUploadStagingTests.swift */; };
-		C0A554000000000000000001 /* CloudAssetDownloadStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A554000000000000000002 /* CloudAssetDownloadStagingTests.swift */; };
 		2BBD5788EC1192B3878D9A2B /* FamilyLaunchTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09798330821D1F0BF4BA803D /* FamilyLaunchTimeline.swift */; };
 		2C14F6DCC66352FD964D948A /* WatercolorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBC48066EDE949B29B5F081 /* WatercolorTheme.swift */; };
 		2C65A881C19AB58778C5A130 /* KnitNoteBackupExportPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */; };
@@ -142,6 +137,7 @@
 		5228A6968BD37F82F24E6FC5 /* KnittingReminderPresentationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209A2245F1F19574274B8FF4 /* KnittingReminderPresentationCoordinator.swift */; };
 		52A4EF771E42E61C79D4DC81 /* CreateProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B5CAC03492CA7EF2B29BDC /* CreateProjectView.swift */; };
 		52FA8A3EA61D356F594109C4 /* EvenStitchAdjustmentCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F8A59940BD2F1CA4BFD2E3 /* EvenStitchAdjustmentCalculatorView.swift */; };
+		54232D5EFD58E22A1CD62ED7 /* CloudAssetFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4312CABCB2407EF0B7CEA064 /* CloudAssetFileStore.swift */; };
 		548D47A478269DAC1221ABEA /* YouTubePatternMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9745AF84B9E8AE558F17155 /* YouTubePatternMetadata.swift */; };
 		5536B07A38E71EE08FCBEFB8 /* WatercolorSurfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1587DA4ECD08A93EFE0BB89A /* WatercolorSurfaces.swift */; };
 		55604F7E1350796B6B0EB59F /* TrialRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50AA2B4D946DB9585CF69A39 /* TrialRecord.swift */; };
@@ -243,6 +239,7 @@
 		8E398CA20F165CEC0701CEE4 /* LocaleAwareText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676403AB59AEEED6870627AD /* LocaleAwareText.swift */; };
 		8EFAF523F9908E0B95BFCB89 /* KnittingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40E2A43FA18A0C33DE7E42 /* KnittingProject.swift */; };
 		8FD1B2AA14E8733CCCF86D56 /* StoreScreenshotRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1B8BEF83041ABE98D2C550 /* StoreScreenshotRootView.swift */; };
+		90CA9FE95797A99B9CDC8FB6 /* CloudAssetUploadStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52171F2A45599FD24CD162A /* CloudAssetUploadStagingTests.swift */; };
 		91D6190C47A2D9A2564F00A8 /* WatchReliableSnapshotFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA26ED7A66F7AB3B45C0A7F /* WatchReliableSnapshotFingerprint.swift */; };
 		936DA4AC5AFBC827946FCA49 /* KnitNoteWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 1112E674E478840A2286F6BA /* KnitNoteWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		941A6C75385E9861EA992A1B /* StoredYarn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBF6B48289E8AE66DF4A39 /* StoredYarn.swift */; };
@@ -250,6 +247,7 @@
 		95E455B94A36C1FE305417D0 /* YarnLabelFieldParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EBACED64349D218A8F4356 /* YarnLabelFieldParser.swift */; };
 		971900674C9C5D5FD20475B3 /* EvenStitchAdjustmentCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC0A9F78A3AB007A97ADE58 /* EvenStitchAdjustmentCalculator.swift */; };
 		9769C28AD1B6B4442F93C096 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0909BEC96D61347D4BF52C0A /* PrivacyInfo.xcprivacy */; };
+		985412EA06A42B2247DAD9C4 /* CloudAssetManifestStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1C904636D06C5F9F3085E1 /* CloudAssetManifestStoreTests.swift */; };
 		985F0B5648770B653EF824A7 /* PatternFolderSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E437DA1AC28AB708F10B123 /* PatternFolderSidebarView.swift */; };
 		9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */; };
 		997DEDA5DBCE086E364F52E3 /* BackupSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87964CF329F1030E0BD835C3 /* BackupSettingsSection.swift */; };
@@ -331,6 +329,7 @@
 		D1B419F969D9B3AB8A3617DB /* ProjectPatternLinkIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C37BC4EF5146BCD84B4DDD9 /* ProjectPatternLinkIndex.swift */; };
 		D1DE59CB01C60B48B3511FAA /* YarnInventoryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317AA99C4071F5F032A42C9E /* YarnInventoryText.swift */; };
 		D25E473555AEF8D28E1F8E76 /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260C2E24AB236712E5FE22CC /* BackupHistory.swift */; };
+		D441E394F6FDEFAEA92674F9 /* CloudAssetDownloadStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC4ED73108C3002C14F305FB /* CloudAssetDownloadStagingTests.swift */; };
 		D49E367D588606A53D0EAC9B /* CloudRecordCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B7BE71370E3844C127442D /* CloudRecordCodecTests.swift */; };
 		D56C0BDFF30C510581164CC1 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */; };
 		D5EF0DF13872B22FE216EDBD /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
@@ -351,6 +350,8 @@
 		DD86888BF9949C6FC0E5597D /* PatternStorageLocations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5C6551EA4224F62E01A497 /* PatternStorageLocations.swift */; };
 		E0105E33B08A8A5882F76C55 /* PatternReaderLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2B3C24736C7CA11ADE9211 /* PatternReaderLayoutPolicy.swift */; };
 		E027E8ADB3D1D51F88D2E861 /* WatchSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB074C1B50EF23336130AF93 /* WatchSnapshotBuilder.swift */; };
+		E10250765127315332D6B3C8 /* CloudAssetManifestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA868BA403CC9D70C96E744E /* CloudAssetManifestStore.swift */; };
+		E25DBC65D92167CB87C785FE /* KnitNoteCloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B953A945A6BDB9B5F26F22F /* KnitNoteCloudSyncCoordinator.swift */; };
 		E5430D5CFA26B9B6ABFCD630 /* PatternReaderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574023FAFE21D43916E576AB /* PatternReaderAppearance.swift */; };
 		E5741A3297F5579C9D49E6DB /* MacYarnEditorFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391EA8DCA05776530E4CDF0C /* MacYarnEditorFields.swift */; };
 		E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E61240F580ED0B2AE45DAB8 /* AllNotesView.swift */; };
@@ -460,8 +461,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A3C000000000000000000002 /* KnitNoteCloudSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCloudSyncCoordinatorTests.swift; sourceTree = "<group>"; };
-		A3C000000000000000000004 /* KnitNoteCloudSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCloudSyncCoordinator.swift; sourceTree = "<group>"; };
 		00EBACED64349D218A8F4356 /* YarnLabelFieldParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelFieldParser.swift; sourceTree = "<group>"; };
 		02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoFileService.swift; sourceTree = "<group>"; };
 		0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxPublicationReceiptService.swift; sourceTree = "<group>"; };
@@ -537,6 +536,7 @@
 		3FA6A7C93C52B67714FFB5F1 /* CameraCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCaptureView.swift; sourceTree = "<group>"; };
 		417621C761C9ACB8A4C96CD7 /* YarnLabelScanLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelScanLauncher.swift; sourceTree = "<group>"; };
 		431158CF5C9EC212EABD87BA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		4312CABCB2407EF0B7CEA064 /* CloudAssetFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetFileStore.swift; sourceTree = "<group>"; };
 		43F405FDF39010F40EC5FD8F /* CounterValueInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CounterValueInput.swift; sourceTree = "<group>"; };
 		4451F3892CAC312B00F3AC04 /* PatternMarkup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkup.swift; sourceTree = "<group>"; };
 		44B50375391FAE4E84A86BCF /* AtomicWatchSyncFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomicWatchSyncFile.swift; sourceTree = "<group>"; };
@@ -566,6 +566,7 @@
 		5A0EC135896E1EBC9F9FA1F9 /* YouTubePatternThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePatternThumbnailLoader.swift; sourceTree = "<group>"; };
 		5BB622204D2EC5632CCEE094 /* EditProjectJournalEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProjectJournalEntryView.swift; sourceTree = "<group>"; };
 		5D0CCE222E5B3D6656AA2345 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5E1C904636D06C5F9F3085E1 /* CloudAssetManifestStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetManifestStoreTests.swift; sourceTree = "<group>"; };
 		5F825D878BD495CBF8CFA3E4 /* JSONProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStore.swift; sourceTree = "<group>"; };
 		6047A37140A375666423E1A2 /* PatternMarkupFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternMarkupFileService.swift; sourceTree = "<group>"; };
 		6372EC9591B330B0530ED932 /* SyncRegularFileReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRegularFileReader.swift; sourceTree = "<group>"; };
@@ -625,6 +626,7 @@
 		87F8A59940BD2F1CA4BFD2E3 /* EvenStitchAdjustmentCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentCalculatorView.swift; sourceTree = "<group>"; };
 		8828E79C51F974FA9A312FD1 /* KnitNoteMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KnitNoteMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A88F2F1F316B39D9094EB46 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		8B953A945A6BDB9B5F26F22F /* KnitNoteCloudSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCloudSyncCoordinator.swift; sourceTree = "<group>"; };
 		8CEC6756D753A4BB41008CF0 /* PhoneWatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSession.swift; sourceTree = "<group>"; };
 		8D23316ABF1FB39513935883 /* KnitNoteAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KnitNoteAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D2E722BF22B736D8CA30A55 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -632,6 +634,7 @@
 		8EC95544D5E0191870E83D15 /* PatternInboxProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxProcessor.swift; sourceTree = "<group>"; };
 		8F9C16AA729B6B8BE6255F13 /* EvenStitchAdjustmentInputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenStitchAdjustmentInputParser.swift; sourceTree = "<group>"; };
 		8FB235B6DC453F8BE362501B /* AppVersionInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionInfo.swift; sourceTree = "<group>"; };
+		900C0FC5920D203F4AC599B6 /* CloudAssetFileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetFileStoreTests.swift; sourceTree = "<group>"; };
 		90CE1C0101996F572112D739 /* PatternReaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderControls.swift; sourceTree = "<group>"; };
 		9159BBC2B03BA0E86B8C92FF /* PatternSystemAppearanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternSystemAppearanceMonitor.swift; sourceTree = "<group>"; };
 		926C002CC977A56CD9D4B192 /* WatchConnectivityEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityEnvelope.swift; sourceTree = "<group>"; };
@@ -669,6 +672,7 @@
 		AE2721C6AB54E5F271947F0E /* ProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
 		AE3918ED2A51381BB1F6E245 /* EntitlementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementResolver.swift; sourceTree = "<group>"; };
 		AEECBF6C9CBE6C2B01EAB680 /* CreateYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateYarnView.swift; sourceTree = "<group>"; };
+		B0CAADAD1208C6BF05FAA16E /* KnitNoteCloudSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteCloudSyncCoordinatorTests.swift; sourceTree = "<group>"; };
 		B21F8D76EB3D6C654694408A /* SyncRecordValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecordValidation.swift; sourceTree = "<group>"; };
 		B2AF74C2A54A14E81EF3B331 /* SyncMergeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMergeEngine.swift; sourceTree = "<group>"; };
 		B4023DB9C449EC74D375A226 /* YarnLabelDraftSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelDraftSeed.swift; sourceTree = "<group>"; };
@@ -681,6 +685,7 @@
 		BA77004900FEA73D4CE5CD19 /* SyncMutationJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMutationJournal.swift; sourceTree = "<group>"; };
 		BA850E172D868553998BB9D7 /* FamilyLaunchAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyLaunchAnimationView.swift; sourceTree = "<group>"; };
 		BB6A28F0EA50AC95D8AE7156 /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
+		BC4ED73108C3002C14F305FB /* CloudAssetDownloadStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetDownloadStagingTests.swift; sourceTree = "<group>"; };
 		BDACACFA5A882F4B425E44A4 /* EditYarnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditYarnView.swift; sourceTree = "<group>"; };
 		C05B67645287474EA73C4DDF /* ProjectCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCard.swift; sourceTree = "<group>"; };
 		C05CDA77F3B1408AFFF947CE /* KnitNoteWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteWatchApp.swift; sourceTree = "<group>"; };
@@ -688,16 +693,11 @@
 		C0745F3B3D12949F7D145FAD /* YarnLabelCandidateReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelCandidateReviewView.swift; sourceTree = "<group>"; };
 		C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseServiceLifecycleTests.swift; sourceTree = "<group>"; };
 		C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetStagingService.swift; sourceTree = "<group>"; };
-		C0A551000000000000000002 /* CloudAssetFileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetFileStoreTests.swift; sourceTree = "<group>"; };
-		C0A551000000000000000004 /* CloudAssetFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetFileStore.swift; sourceTree = "<group>"; };
-		C0A552000000000000000002 /* CloudAssetManifestStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetManifestStoreTests.swift; sourceTree = "<group>"; };
-		C0A552000000000000000004 /* CloudAssetManifestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetManifestStore.swift; sourceTree = "<group>"; };
-		C0A553000000000000000002 /* CloudAssetUploadStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetUploadStagingTests.swift; sourceTree = "<group>"; };
-		C0A554000000000000000002 /* CloudAssetDownloadStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetDownloadStagingTests.swift; sourceTree = "<group>"; };
 		C27CD7D290EB0C1B3F7A706C /* WatchSyncCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncCache.swift; sourceTree = "<group>"; };
 		C2E9829A93C347EF048B9A71 /* PatternCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternCalculator.swift; sourceTree = "<group>"; };
 		C474D58BBB238B47B244C7CA /* ShareImportController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImportController.swift; sourceTree = "<group>"; };
 		C47915CA0A7676EA5E2C3506 /* SyncInstallationIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncInstallationIdentity.swift; sourceTree = "<group>"; };
+		C52171F2A45599FD24CD162A /* CloudAssetUploadStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetUploadStagingTests.swift; sourceTree = "<group>"; };
 		C65533430112873329E49422 /* WatchCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCounterView.swift; sourceTree = "<group>"; };
 		C7566DB749ED0266182EB98E /* SyncAttachmentManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAttachmentManifest.swift; sourceTree = "<group>"; };
 		C91BF954284C661B187FF8FB /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -705,6 +705,7 @@
 		C9C17AF6B6756E61DCAE3970 /* KnitNote-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KnitNote-iOS.entitlements"; sourceTree = "<group>"; };
 		C9DEB55BFC29EE9E020BD06A /* PatternLibraryIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLibraryIndex.swift; sourceTree = "<group>"; };
 		CA363DCDA92A5056B92DEF4A /* PatternAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternAsset.swift; sourceTree = "<group>"; };
+		CA868BA403CC9D70C96E744E /* CloudAssetManifestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssetManifestStore.swift; sourceTree = "<group>"; };
 		CCF071059A4592DF3DE45298 /* SyncIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncIdentity.swift; sourceTree = "<group>"; };
 		CF86FAD0384C737E658266E3 /* EntitlementProjectionWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementProjectionWriter.swift; sourceTree = "<group>"; };
 		D03C04E23B8721F67EFC6466 /* CloudSyncEngineTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncEngineTransportTests.swift; sourceTree = "<group>"; };
@@ -715,6 +716,7 @@
 		D63EEDC87D1700429BC81348 /* CloudSyncEngineStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncEngineStateStore.swift; sourceTree = "<group>"; };
 		DE009E064EA3668A5264ABF4 /* AppUpdateFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateFixture.swift; sourceTree = "<group>"; };
 		DE93168C75522B21CB0CB7DF /* PaintingOverlayRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaintingOverlayRegion.swift; sourceTree = "<group>"; };
+		DEDF51DD9513A376AE0E2EBD /* CloudKitDevelopmentIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitDevelopmentIntegrationTests.swift; sourceTree = "<group>"; };
 		E20855F4064BBED2846643DC /* ProjectJournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectJournalEntry.swift; sourceTree = "<group>"; };
 		E465B08D730079FCDD3CC5C4 /* LegacyPaidVersionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPaidVersionPolicy.swift; sourceTree = "<group>"; };
 		E4DF9A19D72F9B07E20D9F61 /* PatternProjectUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternProjectUsage.swift; sourceTree = "<group>"; };
@@ -908,14 +910,14 @@
 		2A0467EE3ABAB49B19A460A0 /* CloudSync */ = {
 			isa = PBXGroup;
 			children = (
-				C0A551000000000000000004 /* CloudAssetFileStore.swift */,
-				C0A552000000000000000004 /* CloudAssetManifestStore.swift */,
+				4312CABCB2407EF0B7CEA064 /* CloudAssetFileStore.swift */,
+				CA868BA403CC9D70C96E744E /* CloudAssetManifestStore.swift */,
 				C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */,
 				932195DE8057B24F95F8171C /* CloudRecordCodec.swift */,
 				74311719DB8969B5A448F0B7 /* CloudRecordSystemFieldsStore.swift */,
-				A3C000000000000000000004 /* KnitNoteCloudSyncCoordinator.swift */,
 				D63EEDC87D1700429BC81348 /* CloudSyncEngineStateStore.swift */,
 				25946A1F60CBFECA99D463F3 /* CloudSyncEngineTransport.swift */,
+				8B953A945A6BDB9B5F26F22F /* KnitNoteCloudSyncCoordinator.swift */,
 			);
 			path = CloudSync;
 			sourceTree = "<group>";
@@ -942,18 +944,19 @@
 		491A1A35F59A29BF49F08ADE /* KnitNoteAppTests */ = {
 			isa = PBXGroup;
 			children = (
-				C0A551000000000000000002 /* CloudAssetFileStoreTests.swift */,
-				C0A552000000000000000002 /* CloudAssetManifestStoreTests.swift */,
-				C0A553000000000000000002 /* CloudAssetUploadStagingTests.swift */,
-				C0A554000000000000000002 /* CloudAssetDownloadStagingTests.swift */,
+				BC4ED73108C3002C14F305FB /* CloudAssetDownloadStagingTests.swift */,
+				900C0FC5920D203F4AC599B6 /* CloudAssetFileStoreTests.swift */,
+				5E1C904636D06C5F9F3085E1 /* CloudAssetManifestStoreTests.swift */,
 				E6D40A63B071272BBD332D01 /* CloudAssetStagingServiceTests.swift */,
+				C52171F2A45599FD24CD162A /* CloudAssetUploadStagingTests.swift */,
+				DEDF51DD9513A376AE0E2EBD /* CloudKitDevelopmentIntegrationTests.swift */,
 				52B7BE71370E3844C127442D /* CloudRecordCodecTests.swift */,
 				D03C04E23B8721F67EFC6466 /* CloudSyncEngineTransportTests.swift */,
-				A3C000000000000000000002 /* KnitNoteCloudSyncCoordinatorTests.swift */,
 				49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */,
 				20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */,
 				6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */,
 				453B830DB1C1E2A3A3954A38 /* KeychainTrialStoreTests.swift */,
+				B0CAADAD1208C6BF05FAA16E /* KnitNoteCloudSyncCoordinatorTests.swift */,
 				2D1B84617CFE68892DFBBD66 /* MacFormLayoutSmokeTests.swift */,
 				58C9AFA4B7ADBFDEC2DF1FE9 /* MacYarnEditorLayoutTests.swift */,
 				1E3AEB2A7F20F40D8B6D410F /* MacYarnLabelFileImporterTests.swift */,
@@ -1580,8 +1583,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C0A551000000000000000003 /* CloudAssetFileStore.swift in Sources */,
-				C0A552000000000000000003 /* CloudAssetManifestStore.swift in Sources */,
 				1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */,
 				E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */,
 				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
@@ -1602,10 +1603,11 @@
 				AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */,
 				57736CDDC618972A5516C3AF /* ChooseProjectYarnsView.swift in Sources */,
 				26E3D77C78F53AAA71230E55 /* ChooseYarnProjectsView.swift in Sources */,
+				54232D5EFD58E22A1CD62ED7 /* CloudAssetFileStore.swift in Sources */,
+				E10250765127315332D6B3C8 /* CloudAssetManifestStore.swift in Sources */,
 				2B19A81BB4B13AFB29174753 /* CloudAssetStagingService.swift in Sources */,
 				DC489CE9A9732D5FBC3ECB64 /* CloudRecordCodec.swift in Sources */,
 				15197003C9CF7A37A5D6C0B6 /* CloudRecordSystemFieldsStore.swift in Sources */,
-				A3C000000000000000000003 /* KnitNoteCloudSyncCoordinator.swift in Sources */,
 				0AE7EF17BCE4C8F24B393223 /* CloudSyncEngineStateStore.swift in Sources */,
 				314F5050E15AE32A54527F3A /* CloudSyncEngineTransport.swift in Sources */,
 				BCA209B015AA3F4D86B281EF /* CounterManagerView.swift in Sources */,
@@ -1645,6 +1647,7 @@
 				FE26C3A4479579A031F1D330 /* KnitNoteBackupExportPackage.swift in Sources */,
 				21AE8142598C234C733C0A24 /* KnitNoteBackupManifest.swift in Sources */,
 				6C1465A6FA4F7D7B674D34CA /* KnitNoteBackupService.swift in Sources */,
+				E25DBC65D92167CB87C785FE /* KnitNoteCloudSyncCoordinator.swift in Sources */,
 				66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */,
 				8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */,
 				C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */,
@@ -1935,18 +1938,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C0A551000000000000000001 /* CloudAssetFileStoreTests.swift in Sources */,
-				C0A552000000000000000001 /* CloudAssetManifestStoreTests.swift in Sources */,
-				C0A553000000000000000001 /* CloudAssetUploadStagingTests.swift in Sources */,
-				C0A554000000000000000001 /* CloudAssetDownloadStagingTests.swift in Sources */,
+				D441E394F6FDEFAEA92674F9 /* CloudAssetDownloadStagingTests.swift in Sources */,
+				0939455BBB049947CF911E2F /* CloudAssetFileStoreTests.swift in Sources */,
+				985412EA06A42B2247DAD9C4 /* CloudAssetManifestStoreTests.swift in Sources */,
 				2B305AA2B12BB32D7C062844 /* CloudAssetStagingServiceTests.swift in Sources */,
+				90CA9FE95797A99B9CDC8FB6 /* CloudAssetUploadStagingTests.swift in Sources */,
+				0CFAE97E6555D5FB511170C5 /* CloudKitDevelopmentIntegrationTests.swift in Sources */,
 				D49E367D588606A53D0EAC9B /* CloudRecordCodecTests.swift in Sources */,
 				8E36309417BA3AF90713772D /* CloudSyncEngineTransportTests.swift in Sources */,
-				A3C000000000000000000001 /* KnitNoteCloudSyncCoordinatorTests.swift in Sources */,
 				9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */,
 				75F5F44DE9FB203222A758B9 /* EditProjectDeletionActionTests.swift in Sources */,
 				A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */,
 				CA1626EA32C6EE7500EB03A4 /* KeychainTrialStoreTests.swift in Sources */,
+				1157C6C14327C76CB5AD3509 /* KnitNoteCloudSyncCoordinatorTests.swift in Sources */,
 				0383C350EB8EE615B729A4B5 /* MacFormLayoutSmokeTests.swift in Sources */,
 				0F220D5DEEB9FA643A9CAC70 /* MacYarnEditorLayoutTests.swift in Sources */,
 				6B092FD7942C7888BC80656D /* MacYarnLabelFileImporterTests.swift in Sources */,
@@ -2087,6 +2091,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 13;
 				INFOPLIST_FILE = KnitNote/Info.plist;
+				KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER = iCloud.com.phillon.KnitNote;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -2130,6 +2135,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 13;
 				INFOPLIST_FILE = KnitNote/Info.plist;
+				KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER = iCloud.com.phillon.KnitNote;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

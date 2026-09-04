@@ -2378,7 +2378,12 @@ private func makeArchiveFixture(
         guard missingMacSignedEntitlement != key else { return "" }
         let value = changedMacSignedEntitlement == key ? "<false/>" : "<true/>"
         return "<key>\(key)</key>\(value)"
-    }.joined() + (extraMacSignedEntitlement.map { "<key>\($0)</key><true/>" } ?? "")
+    }.joined() + """
+    <key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string></array>
+    <key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>
+    <key>com.apple.developer.icloud-container-environment</key><string>Production</string>
+    <key>com.apple.developer.aps-environment</key><string>production</string>
+    """ + (extraMacSignedEntitlement.map { "<key>\($0)</key><true/>" } ?? "")
     try """
     #!/bin/sh
     case "$*" in

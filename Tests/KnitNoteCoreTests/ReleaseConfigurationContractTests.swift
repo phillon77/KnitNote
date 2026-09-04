@@ -57,7 +57,7 @@ import Testing
         #expect(entitlements?["com.apple.security.app-sandbox"] as? Bool == true)
         #expect(entitlements?["com.apple.security.files.user-selected.read-write"] as? Bool == true)
         #expect(entitlements?["com.apple.security.network.client"] as? Bool == true)
-        #expect(entitlements?.count == 3)
+        #expect(entitlements?.count == 6)
     }
 
     @Test func submissionSourceHasEveryRequiredSection() throws {

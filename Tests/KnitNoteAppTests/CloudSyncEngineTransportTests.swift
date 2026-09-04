@@ -645,6 +645,125 @@ import Testing
         #expect(try encodedState(fixture.store.load()) == encodedState(secondState))
     }
 
+    @Test func incrementalStateCommitDoesNotRetainCoverageForAnEvictedReceipt() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(),
+            stateStore: fixture.store,
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+
+        await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
+        guard case let .fetched(firstBatchID, _, _, _)? = await iterator.next() else {
+            Issue.record("Expected first fetched batch")
+            return
+        }
+        let firstState = try stateSerialization(base64: "AQ==")
+        await transport.receiveStateUpdate(firstState)
+        await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
+        guard case let .fetched(secondBatchID, _, _, _)? = await iterator.next() else {
+            Issue.record("Expected second fetched batch")
+            return
+        }
+        let secondState = try stateSerialization(base64: "Ag==")
+        await transport.receiveStateUpdate(secondState)
+
+        try await transport.acknowledgeFetchedBatch(firstBatchID)
+        #expect(try encodedState(fixture.store.load()) == encodedState(firstState))
+        try await transport.acknowledgeFetchedBatch(secondBatchID)
+        #expect(try encodedState(fixture.store.load()) == encodedState(secondState))
+    }
+
+    @Test func sustainedStateUpdatesCoalesceBehindOneUnacknowledgedBatch() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(),
+            stateStore: fixture.store,
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var iterator = transport.events.makeAsyncIterator()
+        try await transport.start()
+        await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
+        guard case let .fetched(batchID, _, _, _)? = await iterator.next() else {
+            Issue.record("Expected fetched batch")
+            return
+        }
+        var latestState = try stateSerialization(base64: "AA==")
+        for value in 1...2_000 {
+            latestState = try stateSerialization(
+                base64: Data(String(value).utf8).base64EncodedString()
+            )
+            await transport.receiveStateUpdate(latestState)
+        }
+
+        #expect(await transport.pendingStateUpdateCountForTesting() == 1)
+        #expect(try fixture.store.load() == nil)
+        try await transport.acknowledgeFetchedBatch(batchID)
+        #expect(try encodedState(fixture.store.load()) == encodedState(latestState))
+    }
+
+    @Test func incomingAdmissionReservesBytesForWorstCaseRestartReset() throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let records = try (200...263).map { value in
+            try testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", value),
+                revision: UInt64(value)
+            )
+        }
+        let calibrationURL = fixture.root.appendingPathComponent("calibration-incoming.json")
+        let calibrationStore = FileCloudIncomingBatchStore(
+            url: calibrationURL,
+            maximumBatchCount: 1,
+            maximumEncodedBytes: 8 * 1_024 * 1_024
+        )
+        let calibrationGeneration = try calibrationStore.beginGeneration(
+            accountIdentifier: "account-a",
+            zoneID: zoneID,
+            persistedEngineState: nil
+        ).generation
+        _ = try calibrationStore.record(
+            records: records,
+            deletedRecordIDs: [],
+            accountIdentifier: "account-a",
+            zoneID: zoneID,
+            generation: calibrationGeneration
+        )
+        let admittedSize = try Data(contentsOf: calibrationURL).count
+        _ = try calibrationStore.beginGeneration(
+            accountIdentifier: "account-a",
+            zoneID: zoneID,
+            persistedEngineState: nil
+        )
+        let restartedSize = try Data(contentsOf: calibrationURL).count
+        #expect(restartedSize > admittedSize)
+
+        let constrainedStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("constrained-incoming.json"),
+            maximumBatchCount: 1,
+            maximumEncodedBytes: admittedSize
+        )
+        let constrainedGeneration = try constrainedStore.beginGeneration(
+            accountIdentifier: "account-a",
+            zoneID: zoneID,
+            persistedEngineState: nil
+        ).generation
+        #expect(throws: CloudIncomingBatchStoreError.capacityExceeded) {
+            _ = try constrainedStore.record(
+                records: records,
+                deletedRecordIDs: [],
+                accountIdentifier: "account-a",
+                zoneID: zoneID,
+                generation: constrainedGeneration
+            )
+        }
+    }
+
     @Test func freshTransportReplaysDurableFetchedBatchWithStableIdentityBeforeAcknowledgement() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -786,9 +905,7 @@ import Testing
 
         try await restartedTransport.fetchNow()
 
-        guard case .stateUpdated? = await restartedEvents.next(),
-              case .stateUpdated? = await restartedEvents.next(),
-              case let .fetched(redeliveredBatchID, _, redeliveredRecords, _)? = await restartedEvents.next() else {
+        guard case let .fetched(redeliveredBatchID, _, redeliveredRecords, _)? = await restartedEvents.next() else {
             Issue.record("Expected source replay to free capacity and deliver overflowed batch")
             return
         }
@@ -802,6 +919,1034 @@ import Testing
             try encodedState(fixture.store.load())
                 == encodedState(finalState)
         )
+    }
+
+    @Test(arguments: FreshReplayShape.allCases)
+    func freshRestartReconcilesOverflowIndependentOfSourceBatchShape(
+        _ shape: FreshReplayShape
+    ) async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let records = try (58...60).map { suffix in
+            try testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", suffix),
+                revision: UInt64(suffix)
+            )
+        }
+        let cloudRecords = try records.map { try CloudRecordCodec().encode($0, zoneID: zoneID) }
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: shape.durableCallbacks.count
+        )
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        for callback in shape.durableCallbacks {
+            await firstTransport.receiveFetchedChanges(
+                records: callback.map { cloudRecords[$0] },
+                deletedRecordIDs: []
+            )
+            guard case let .fetched(batchID, _, _, _)? = await firstEvents.next() else {
+                Issue.record("Expected durable fetched batch before saturation")
+                return
+            }
+            try await firstTransport.acknowledgeFetchedBatch(batchID)
+        }
+        await firstTransport.receiveFetchedChanges(
+            records: [cloudRecords[2]],
+            deletedRecordIDs: []
+        )
+        guard case .failed(.incomingBackpressure)? = await firstEvents.next() else {
+            Issue.record("Expected bounded spool backpressure")
+            return
+        }
+
+        let restartedDriver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in restartedDriver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        for _ in shape.durableCallbacks {
+            guard case let .fetched(batchID, _, _, _)? = await restartedEvents.next() else {
+                Issue.record("Expected durable replay after restart")
+                return
+            }
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        let callbackStates = [
+            try stateSerialization(base64: "AQ=="),
+            try stateSerialization(base64: "Ag=="),
+        ]
+        let finalState = try stateSerialization(base64: "Aw==")
+        await restartedDriver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            for (index, callback) in shape.sourceCallbacks.enumerated() {
+                await restartedTransport.receiveFetchedChanges(
+                    records: callback.map { cloudRecords[$0] },
+                    deletedRecordIDs: []
+                )
+                await restartedTransport.receiveStateUpdate(callbackStates[index])
+            }
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[2]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(finalState)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        guard case let .fetched(batchID, _, fetchedRecords, _)? = await restartedEvents.next() else {
+            Issue.record("Expected shape-independent recovery to release overflow capacity")
+            return
+        }
+        #expect(fetchedRecords == [records[2]])
+        try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected overflowed callback state after acknowledgement")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(finalState))
+    }
+
+    @Test func freshRestartAcceptsReplayAndDistinctOverflowInOneCombinedCallback() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let records = try (63...64).map { suffix in
+            try testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", suffix),
+                revision: UInt64(suffix)
+            )
+        }
+        let cloudRecords = try records.map { try CloudRecordCodec().encode($0, zoneID: zoneID) }
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(records: [cloudRecords[0]], deletedRecordIDs: [])
+        guard case let .fetched(firstBatchID, _, _, _)? = await firstEvents.next() else {
+            Issue.record("Expected durable fetched batch")
+            return
+        }
+        try await firstTransport.acknowledgeFetchedBatch(firstBatchID)
+        await firstTransport.receiveFetchedChanges(records: [cloudRecords[1]], deletedRecordIDs: [])
+        guard case .failed(.incomingBackpressure)? = await firstEvents.next() else {
+            Issue.record("Expected initial overflow backpressure")
+            return
+        }
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        guard case let .fetched(replayedBatchID, _, _, _)? = await restartedEvents.next() else {
+            Issue.record("Expected durable replay")
+            return
+        }
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+        let finalState = try stateSerialization(base64: "BA==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: cloudRecords,
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(finalState)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        guard case let .fetched(batchID, _, fetchedRecords, _)? = await restartedEvents.next() else {
+            Issue.record("Expected distinct overflow work from combined callback")
+            return
+        }
+        #expect(fetchedRecords == [records[1]])
+        try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected combined callback state after acknowledgement")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(finalState))
+    }
+
+    @Test func newerSameEntitySourceCoversStaleReceiptAndRemainsDistinctWork() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let oldRecord = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000065",
+            revision: 65
+        )
+        let newerRecord = try testRecord(
+            uuid: oldRecord.id.uuid.uuidString,
+            revision: 66
+        )
+        let unrelatedOverflow = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000067",
+            revision: 67
+        )
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(
+            records: [try CloudRecordCodec().encode(oldRecord, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+        guard case let .fetched(oldBatchID, _, _, _)? = await firstEvents.next() else {
+            Issue.record("Expected old durable batch")
+            return
+        }
+        try await firstTransport.acknowledgeFetchedBatch(oldBatchID)
+        await firstTransport.receiveFetchedChanges(
+            records: [try CloudRecordCodec().encode(unrelatedOverflow, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+        guard case .failed(.incomingBackpressure)? = await firstEvents.next() else {
+            Issue.record("Expected initial overflow backpressure")
+            return
+        }
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        guard case let .fetched(replayedBatchID, _, _, _)? = await restartedEvents.next() else {
+            Issue.record("Expected stale receipt replay")
+            return
+        }
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+        let state = try stateSerialization(base64: "BQ==")
+        let newerCloudRecord = try CloudRecordCodec().encode(newerRecord, zoneID: zoneID)
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [newerCloudRecord],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(state)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        guard case let .fetched(batchID, _, fetchedRecords, _)? = await restartedEvents.next() else {
+            Issue.record("Expected superseding payload as distinct work")
+            return
+        }
+        #expect(fetchedRecords == [newerRecord])
+        try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected superseding state after acknowledgement")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(state))
+    }
+
+    @Test func olderSameEntitySourceDoesNotCoverLaterDurableReceipt() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 2
+        )
+        let older = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000068",
+            revision: 68
+        )
+        let newer = try testRecord(uuid: older.id.uuid.uuidString, revision: 69)
+        let cloudRecords = try [older, newer].map {
+            try CloudRecordCodec().encode($0, zoneID: zoneID)
+        }
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        for cloudRecord in cloudRecords {
+            await firstTransport.receiveFetchedChanges(
+                records: [cloudRecord],
+                deletedRecordIDs: []
+            )
+            guard case let .fetched(batchID, _, _, _)? = await firstEvents.next() else {
+                Issue.record("Expected ordered durable same-entity receipt")
+                return
+            }
+            try await firstTransport.acknowledgeFetchedBatch(batchID)
+        }
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        for _ in cloudRecords {
+            guard case let .fetched(batchID, _, _, _)? = await restartedEvents.next() else {
+                Issue.record("Expected ordered durable replay")
+                return
+            }
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        let olderState = try stateSerialization(base64: "Bg==")
+        let newerState = try stateSerialization(base64: "Bw==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[0]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(olderState)
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[1]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(newerState)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        var sourceBatchIDs: [UUID] = []
+        for expected in [older, newer] {
+            guard case let .fetched(batchID, _, records, _)? = await restartedEvents.next() else {
+                Issue.record("Expected ordered source occurrence as distinct work")
+                return
+            }
+            #expect(records == [expected])
+            sourceBatchIDs.append(batchID)
+        }
+        for batchID in sourceBatchIDs {
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected the later ordered source frontier to commit")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(newerState))
+    }
+
+    @Test func divergentSameRevisionSourceCoversDurableReceiptAsDistinctWork() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let durable = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000076",
+            revision: 76
+        )
+        let divergentStamp = SyncMutationStamp(
+            logicalRevision: 76,
+            modifiedAt: Date(timeIntervalSince1970: 77),
+            deviceID: "device-b"
+        )
+        let divergent = try SyncRecordValidator().validate(SyncRecord(
+            schemaVersion: durable.schemaVersion,
+            id: durable.id,
+            createdAt: durable.createdAt,
+            entityRevision: durable.entityRevision,
+            payload: .init(fields: [
+                "title": .init(value: .string("divergent-76"), stamp: divergentStamp),
+            ]),
+            relationships: durable.relationships,
+            deletedAt: .init(value: nil, stamp: divergentStamp)
+        ))
+        let codec = CloudRecordCodec()
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(
+            records: [try codec.encode(durable, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+        guard case let .fetched(durableBatchID, _, _, _)? = await firstEvents.next() else {
+            Issue.record("Expected durable same-revision receipt")
+            return
+        }
+        try await firstTransport.acknowledgeFetchedBatch(durableBatchID)
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        guard case let .fetched(replayedBatchID, _, _, _)? = await restartedEvents.next() else {
+            Issue.record("Expected durable same-revision replay")
+            return
+        }
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+        let state = try stateSerialization(base64: "Cw==")
+        let divergentCloudRecord = try codec.encode(divergent, zoneID: zoneID)
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [divergentCloudRecord],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(state)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        guard case let .fetched(batchID, _, records, _)? = await restartedEvents.next() else {
+            Issue.record("Expected divergent same-revision source work")
+            return
+        }
+        #expect(records == [divergent])
+        try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected same-revision replacement frontier")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(state))
+    }
+
+    @Test func sourceDeletionCoversDurableSaveButRemainsDistinctWork() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let durable = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000077",
+            revision: 77
+        )
+        let codec = CloudRecordCodec()
+        let cloudRecord = try codec.encode(durable, zoneID: zoneID)
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(records: [cloudRecord], deletedRecordIDs: [])
+        guard case let .fetched(durableBatchID, _, _, _)? = await firstEvents.next() else {
+            Issue.record("Expected durable save receipt")
+            return
+        }
+        try await firstTransport.acknowledgeFetchedBatch(durableBatchID)
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        guard case let .fetched(replayedBatchID, _, _, _)? = await restartedEvents.next() else {
+            Issue.record("Expected durable save replay")
+            return
+        }
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+        let state = try stateSerialization(base64: "DA==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [],
+                deletedRecordIDs: [cloudRecord.recordID]
+            )
+            await restartedTransport.receiveStateUpdate(state)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        guard case let .fetched(batchID, _, records, deleted)? = await restartedEvents.next() else {
+            Issue.record("Expected source deletion as distinct work")
+            return
+        }
+        #expect(records.isEmpty)
+        #expect(deleted == [durable.id])
+        try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected deletion frontier after acknowledgement")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(state))
+    }
+
+    @Test func olderEqualRevisionOccurrenceWaitsForLaterDivergentOccurrenceInFetch() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 2
+        )
+        let first = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000078",
+            revision: 78
+        )
+        let laterStamp = SyncMutationStamp(
+            logicalRevision: 78,
+            modifiedAt: Date(timeIntervalSince1970: 79),
+            deviceID: "device-b"
+        )
+        let later = try SyncRecordValidator().validate(SyncRecord(
+            schemaVersion: first.schemaVersion,
+            id: first.id,
+            createdAt: first.createdAt,
+            entityRevision: first.entityRevision,
+            payload: .init(fields: [
+                "title": .init(value: .string("later-divergent-78"), stamp: laterStamp),
+            ]),
+            relationships: first.relationships,
+            deletedAt: .init(value: nil, stamp: laterStamp)
+        ))
+        let codec = CloudRecordCodec()
+        let cloudRecords = try [first, later].map { try codec.encode($0, zoneID: zoneID) }
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        for cloudRecord in cloudRecords {
+            await firstTransport.receiveFetchedChanges(records: [cloudRecord], deletedRecordIDs: [])
+            guard case let .fetched(batchID, _, _, _)? = await firstEvents.next() else {
+                Issue.record("Expected equal-revision durable occurrence")
+                return
+            }
+            try await firstTransport.acknowledgeFetchedBatch(batchID)
+        }
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        for _ in cloudRecords {
+            guard case let .fetched(batchID, _, _, _)? = await restartedEvents.next() else {
+                Issue.record("Expected equal-revision durable replay")
+                return
+            }
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        let firstState = try stateSerialization(base64: "DQ==")
+        let finalState = try stateSerialization(base64: "Dg==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[0]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(firstState)
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecords[1]],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(finalState)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        var sourceBatchIDs: [UUID] = []
+        for expected in [first, later] {
+            guard case let .fetched(batchID, _, records, _)? = await restartedEvents.next() else {
+                Issue.record("Expected equal-revision source occurrence as distinct work")
+                return
+            }
+            #expect(records == [expected])
+            sourceBatchIDs.append(batchID)
+        }
+        for batchID in sourceBatchIDs {
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected final equal-revision frontier")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(finalState))
+    }
+
+    @Test func restoredSourceRecordCoversDurableDeletionAtSuccessfulFetchFrontier() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let restored = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000079",
+            revision: 79
+        )
+        let codec = CloudRecordCodec()
+        let restoredCloudRecord = try codec.encode(restored, zoneID: zoneID)
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(
+            records: [],
+            deletedRecordIDs: [restoredCloudRecord.recordID]
+        )
+        guard case let .fetched(durableBatchID, _, _, _)? = await firstEvents.next() else {
+            Issue.record("Expected durable deletion receipt")
+            return
+        }
+        try await firstTransport.acknowledgeFetchedBatch(durableBatchID)
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        guard case let .fetched(replayedBatchID, _, _, _)? = await restartedEvents.next() else {
+            Issue.record("Expected durable deletion replay")
+            return
+        }
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+        let state = try stateSerialization(base64: "Dw==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [restoredCloudRecord],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(state)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        guard case let .fetched(batchID, _, records, deleted)? = await restartedEvents.next() else {
+            Issue.record("Expected restored record as distinct work")
+            return
+        }
+        #expect(records == [restored])
+        #expect(deleted.isEmpty)
+        try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected restored-record frontier")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(state))
+    }
+
+    @Test func failedFetchCannotRetireExactlyMatchedRecoveryReceiptOrPersistItsState() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingURL = fixture.root.appendingPathComponent("incoming-batches.json")
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: incomingURL,
+            maximumBatchCount: 1
+        )
+        let record = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000080",
+            revision: 80
+        )
+        let cloudRecord = try CloudRecordCodec().encode(record, zoneID: zoneID)
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(records: [cloudRecord], deletedRecordIDs: [])
+        guard case let .fetched(firstBatchID, _, _, _)? = await firstEvents.next() else {
+            Issue.record("Expected durable receipt before failed restart fetch")
+            return
+        }
+        try await firstTransport.acknowledgeFetchedBatch(firstBatchID)
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        guard case let .fetched(replayedBatchID, _, _, _)? = await restartedEvents.next() else {
+            Issue.record("Expected durable replay before failed fetch")
+            return
+        }
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+        let rejectedState = try stateSerialization(base64: "EA==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [cloudRecord],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(rejectedState)
+        }
+        await driver.failNextFetch(with: .networkFailure)
+
+        await #expect(throws: CloudSyncFailure.self) {
+            try await restartedTransport.fetchNow()
+        }
+        await restartedTransport.receiveStateUpdate(
+            try stateSerialization(base64: "EQ==")
+        )
+
+        let spool = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: incomingURL)) as? [String: Any]
+        )
+        #expect((spool["batches"] as? [[String: Any]])?.count == 1)
+    }
+
+    @Test func failedFetchPreservesPriorSuccessfulCoverageWaitingForAcknowledgement() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 2
+        )
+        let first = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000082",
+            revision: 82
+        )
+        let second = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000083",
+            revision: 83
+        )
+        let firstReplacement = try testRecord(
+            uuid: first.id.uuid.uuidString,
+            revision: 84
+        )
+        let codec = CloudRecordCodec()
+        let firstCloudRecord = try codec.encode(first, zoneID: zoneID)
+        let secondCloudRecord = try codec.encode(second, zoneID: zoneID)
+        let replacementCloudRecord = try codec.encode(firstReplacement, zoneID: zoneID)
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        for cloudRecord in [firstCloudRecord, secondCloudRecord] {
+            await firstTransport.receiveFetchedChanges(records: [cloudRecord], deletedRecordIDs: [])
+            guard case let .fetched(batchID, _, _, _)? = await firstEvents.next() else {
+                Issue.record("Expected durable receipt before restart")
+                return
+            }
+            try await firstTransport.acknowledgeFetchedBatch(batchID)
+        }
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        for _ in 0..<2 {
+            guard case let .fetched(batchID, _, _, _)? = await restartedEvents.next() else {
+                Issue.record("Expected durable replay")
+                return
+            }
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        let successfulState = try stateSerialization(base64: "Ew==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [replacementCloudRecord],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(successfulState)
+        }
+        try await restartedTransport.fetchNow()
+        guard case let .fetched(replacementBatchID, _, records, _)? = await restartedEvents.next() else {
+            Issue.record("Expected replacement work waiting for domain acknowledgement")
+            return
+        }
+        #expect(records == [firstReplacement])
+
+        let failedState = try stateSerialization(base64: "FA==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [secondCloudRecord],
+                deletedRecordIDs: []
+            )
+            await restartedTransport.receiveStateUpdate(failedState)
+        }
+        await driver.failNextFetch(with: .networkFailure)
+        await #expect(throws: CloudSyncFailure.self) {
+            try await restartedTransport.fetchNow()
+        }
+
+        try await restartedTransport.acknowledgeFetchedBatch(replacementBatchID)
+        #expect(try encodedState(fixture.store.load()) == encodedState(successfulState))
+    }
+
+    @Test func sourceDeletionAfterDurableDeleteRestoreHistoryIsDeliveredDistinctly() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 2
+        )
+        let restored = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000081",
+            revision: 81
+        )
+        let restoredCloudRecord = try CloudRecordCodec().encode(restored, zoneID: zoneID)
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(
+            records: [],
+            deletedRecordIDs: [restoredCloudRecord.recordID]
+        )
+        await firstTransport.receiveFetchedChanges(
+            records: [restoredCloudRecord],
+            deletedRecordIDs: []
+        )
+        for _ in 0..<2 {
+            guard case let .fetched(batchID, _, _, _)? = await firstEvents.next() else {
+                Issue.record("Expected durable delete/restore history")
+                return
+            }
+            try await firstTransport.acknowledgeFetchedBatch(batchID)
+        }
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        for _ in 0..<2 {
+            guard case let .fetched(batchID, _, _, _)? = await restartedEvents.next() else {
+                Issue.record("Expected durable delete/restore replay")
+                return
+            }
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        let state = try stateSerialization(base64: "Eg==")
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            await restartedTransport.receiveFetchedChanges(
+                records: [],
+                deletedRecordIDs: [restoredCloudRecord.recordID]
+            )
+            await restartedTransport.receiveStateUpdate(state)
+        }
+
+        try await restartedTransport.fetchNow()
+
+        guard try fixture.store.load() == nil else {
+            Issue.record("Deletion state must wait for distinct domain acknowledgement")
+            return
+        }
+        guard case let .fetched(batchID, _, records, deleted)? = await restartedEvents.next() else {
+            Issue.record("Expected final source deletion as distinct work")
+            return
+        }
+        #expect(records.isEmpty)
+        #expect(deleted == [restored.id])
+        try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected final deletion frontier")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(state))
+    }
+
+    @Test func repeatedMixedSplitCallbacksRemainDurableWithinByteBound() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let durable = try (70...72).map { suffix in
+            try testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", suffix),
+                revision: UInt64(suffix)
+            )
+        }
+        let distinct = try (73...75).map { suffix in
+            try testRecord(
+                uuid: String(format: "00000000-0000-0000-0000-%012d", suffix),
+                revision: UInt64(suffix)
+            )
+        }
+        let codec = CloudRecordCodec()
+        let durableCloudRecords = try durable.map { try codec.encode($0, zoneID: zoneID) }
+        let distinctCloudRecords = try distinct.map { try codec.encode($0, zoneID: zoneID) }
+        let firstTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var firstEvents = firstTransport.events.makeAsyncIterator()
+        try await firstTransport.start()
+        await firstTransport.receiveFetchedChanges(
+            records: durableCloudRecords,
+            deletedRecordIDs: []
+        )
+        guard case let .fetched(firstBatchID, _, _, _)? = await firstEvents.next() else {
+            Issue.record("Expected durable aggregate before restart")
+            return
+        }
+        try await firstTransport.acknowledgeFetchedBatch(firstBatchID)
+
+        let driver = TestSyncEngineDriver()
+        let restartedTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in driver }
+        )
+        var restartedEvents = restartedTransport.events.makeAsyncIterator()
+        try await restartedTransport.start()
+        guard case let .fetched(replayedBatchID, _, _, _)? = await restartedEvents.next() else {
+            Issue.record("Expected durable aggregate replay")
+            return
+        }
+        try await restartedTransport.acknowledgeFetchedBatch(replayedBatchID)
+        let states = try ["CA==", "CQ==", "Cg=="].map(stateSerialization(base64:))
+        await driver.setFetchAction { [weak restartedTransport] in
+            guard let restartedTransport else { return }
+            for index in durableCloudRecords.indices {
+                await restartedTransport.receiveFetchedChanges(
+                    records: [durableCloudRecords[index], distinctCloudRecords[index]],
+                    deletedRecordIDs: []
+                )
+                await restartedTransport.receiveStateUpdate(states[index])
+            }
+        }
+
+        try await restartedTransport.fetchNow()
+
+        var deliveredBatchIDs: [UUID] = []
+        for expectedRecord in distinct {
+            guard case let .fetched(batchID, _, records, _)? = await restartedEvents.next() else {
+                Issue.record("Expected every distinct split-callback record")
+                return
+            }
+            #expect(records == [expectedRecord])
+            deliveredBatchIDs.append(batchID)
+        }
+        for batchID in deliveredBatchIDs {
+            try await restartedTransport.acknowledgeFetchedBatch(batchID)
+        }
+        guard case .stateUpdated? = await restartedEvents.next() else {
+            Issue.record("Expected final split-callback frontier after all acknowledgements")
+            return
+        }
+        #expect(try encodedState(fixture.store.load()) == encodedState(states[2]))
     }
 
     @Test func accountSwitchRetiresSaturatedOldAccountSpoolWithoutReplayLeak() async throws {
@@ -1007,26 +2152,247 @@ import Testing
         #expect(await driver.pendingChanges().isEmpty)
     }
 
-    @Test func failedAccountStateClearBlocksRestartEvenAfterPathIsRepaired() async throws {
+    @Test func failedAccountStateClearRemainsTransactionalAcrossReconstruction() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
-        try fixture.store.save(try stateSerialization(base64: "AQ=="))
+        let zoneID = testZoneID()
+        let persistedOldState = try stateSerialization(base64: "AQ==")
+        let encodedOldState = try encodedState(persistedOldState)
+        let persistedOldStateBytes = try #require(encodedOldState)
+        let incomingURL = fixture.root.appendingPathComponent("incoming-batches.json")
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: incomingURL,
+            maximumBatchCount: 1
+        )
+        let oldRecord = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000061",
+            revision: 61
+        )
+        let oldCloudRecord = try CloudRecordCodec().encode(oldRecord, zoneID: zoneID)
+        let oldTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var oldEvents = oldTransport.events.makeAsyncIterator()
+        try await oldTransport.start()
+        await oldTransport.receiveStateUpdate(persistedOldState)
+        guard case .stateUpdated? = await oldEvents.next() else {
+            Issue.record("Expected old-account engine state to persist")
+            return
+        }
+        await oldTransport.receiveFetchedChanges(
+            records: [oldCloudRecord],
+            deletedRecordIDs: []
+        )
+        guard case let .fetched(oldBatchID, _, _, _)? = await oldEvents.next() else {
+            Issue.record("Expected old-account recovery batch")
+            return
+        }
+        try await oldTransport.acknowledgeFetchedBatch(oldBatchID)
+
         try FileManager.default.removeItem(at: fixture.url)
         let target = fixture.root.appendingPathComponent("unsafe-target")
         try Data("unsafe".utf8).write(to: target)
         try FileManager.default.createSymbolicLink(at: fixture.url, withDestinationURL: target)
-        let transport = CKSyncEngineTransport(
-            zoneID: testZoneID(),
+
+        await oldTransport.receiveAccountChange(previous: "account-a", current: "account-b")
+
+        let failedResetSpool = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: incomingURL)) as? [String: Any]
+        )
+        #expect((failedResetSpool["batches"] as? [[String: Any]])?.count == 1)
+
+        let crossAccountSerialization = LockedCounter()
+        let newTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
             stateStore: fixture.store,
-            engineFactory: { _, _ in TestSyncEngineDriver() }
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-b",
+            engineFactory: { serialization, _ in
+                if serialization != nil { crossAccountSerialization.increment() }
+                return TestSyncEngineDriver()
+            }
         )
 
-        await transport.receiveAccountChange(previous: "account-a", current: "account-b")
-        try FileManager.default.removeItem(at: fixture.url)
-
         await #expect(throws: CloudSyncTransportError.accountResetIncomplete) {
-            try await transport.start()
+            try await newTransport.start()
         }
+        #expect(crossAccountSerialization.value == 0)
+
+        try FileManager.default.removeItem(at: fixture.url)
+        try persistedOldStateBytes.write(to: fixture.url)
+        try await newTransport.start()
+        #expect(crossAccountSerialization.value == 0)
+
+        var newEvents = newTransport.events.makeAsyncIterator()
+        let newRecord = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000062",
+            revision: 62
+        )
+        await newTransport.receiveFetchedChanges(
+            records: [try CloudRecordCodec().encode(newRecord, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+        guard case let .fetched(newBatchID, epoch, records, _)? = await newEvents.next() else {
+            Issue.record("Expected successful reset to free new-account spool capacity")
+            return
+        }
+        #expect(epoch.accountIdentifier == "account-b")
+        #expect(records == [newRecord])
+        try await newTransport.acknowledgeFetchedBatch(newBatchID)
+
+        await newTransport.receiveAccountChange(previous: "account-b", current: "account-a")
+        let returningDriver = TestSyncEngineDriver()
+        let returningSerialization = LockedCounter()
+        let returningTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { serialization, _ in
+                if serialization != nil { returningSerialization.increment() }
+                return returningDriver
+            }
+        )
+        var returningEvents = returningTransport.events.makeAsyncIterator()
+        try await returningTransport.start()
+        await returningDriver.setFetchAction { [weak returningTransport] in
+            guard let returningTransport else { return }
+            await returningTransport.receiveFetchedChanges(
+                records: [oldCloudRecord],
+                deletedRecordIDs: []
+            )
+        }
+        try await returningTransport.fetchNow()
+        guard case let .fetched(_, epoch, records, _)? = await returningEvents.next() else {
+            Issue.record("Expected returning old account to refetch from cleared state")
+            return
+        }
+        #expect(returningSerialization.value == 0)
+        #expect(epoch.accountIdentifier == "account-a")
+        #expect(records == [oldRecord])
+    }
+
+    @Test func coldLaunchAccountMismatchClearsOwnedStateAndForeignSpoolBeforeEngineCreation() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json"),
+            maximumBatchCount: 1
+        )
+        let oldTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var oldEvents = oldTransport.events.makeAsyncIterator()
+        try await oldTransport.start()
+        await oldTransport.receiveStateUpdate(try stateSerialization(base64: "Bg=="))
+        guard case .stateUpdated? = await oldEvents.next() else {
+            Issue.record("Expected old-account state persistence")
+            return
+        }
+        let oldRecord = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000068",
+            revision: 68
+        )
+        await oldTransport.receiveFetchedChanges(
+            records: [try CloudRecordCodec().encode(oldRecord, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+        guard case let .fetched(oldBatchID, _, _, _)? = await oldEvents.next() else {
+            Issue.record("Expected old-account spool batch")
+            return
+        }
+        try await oldTransport.acknowledgeFetchedBatch(oldBatchID)
+
+        let crossAccountSerialization = LockedCounter()
+        let newTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-b",
+            engineFactory: { serialization, _ in
+                if serialization != nil { crossAccountSerialization.increment() }
+                return TestSyncEngineDriver()
+            }
+        )
+        var newEvents = newTransport.events.makeAsyncIterator()
+        try await newTransport.start()
+
+        #expect(crossAccountSerialization.value == 0)
+        let newRecord = try testRecord(
+            uuid: "00000000-0000-0000-0000-000000000069",
+            revision: 69
+        )
+        await newTransport.receiveFetchedChanges(
+            records: [try CloudRecordCodec().encode(newRecord, zoneID: zoneID)],
+            deletedRecordIDs: []
+        )
+        guard case let .fetched(_, epoch, records, _)? = await newEvents.next() else {
+            Issue.record("Expected foreign spool retirement to free bounded capacity")
+            return
+        }
+        #expect(epoch.accountIdentifier == "account-b")
+        #expect(records == [newRecord])
+    }
+
+    @Test func resetMarkerCreationFailureCannotLoseAccountMismatchAcrossReconstruction() async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let zoneID = testZoneID()
+        let incomingStore = FileCloudIncomingBatchStore(
+            url: fixture.root.appendingPathComponent("incoming-batches.json")
+        )
+        let oldTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-a",
+            engineFactory: { _, _ in TestSyncEngineDriver() }
+        )
+        var oldEvents = oldTransport.events.makeAsyncIterator()
+        try await oldTransport.start()
+        await oldTransport.receiveStateUpdate(try stateSerialization(base64: "Bw=="))
+        guard case .stateUpdated? = await oldEvents.next() else {
+            Issue.record("Expected owned old-account state")
+            return
+        }
+        let resetMarkerURL = fixture.store.relatedURL(pathExtension: "account-reset")
+        let markerTarget = fixture.root.appendingPathComponent("unsafe-reset-marker-target")
+        try Data("unsafe".utf8).write(to: markerTarget)
+        try FileManager.default.createSymbolicLink(
+            at: resetMarkerURL,
+            withDestinationURL: markerTarget
+        )
+
+        await oldTransport.receiveAccountChange(previous: "account-a", current: "account-b")
+
+        let crossAccountSerialization = LockedCounter()
+        let newTransport = CKSyncEngineTransport(
+            zoneID: zoneID,
+            stateStore: fixture.store,
+            incomingBatchStore: incomingStore,
+            initialAccountIdentifier: "account-b",
+            engineFactory: { serialization, _ in
+                if serialization != nil { crossAccountSerialization.increment() }
+                return TestSyncEngineDriver()
+            }
+        )
+        await #expect(throws: CloudSyncTransportError.accountResetIncomplete) {
+            try await newTransport.start()
+        }
+        #expect(crossAccountSerialization.value == 0)
+
+        try FileManager.default.removeItem(at: resetMarkerURL)
+        try await newTransport.start()
+        #expect(crossAccountSerialization.value == 0)
     }
 
     @Test func batchSuspendedDuringRecordMaterializationReturnsNilAfterAccountReset() async throws {
@@ -1775,6 +3141,7 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     private var fetchEnteredWaiters: [CheckedContinuation<Void, Never>] = []
     private var fetchResume: CheckedContinuation<Void, Never>?
     private var fetchAction: (@Sendable () async -> Void)?
+    private var fetchErrorCode: CKError.Code?
 
     init(initialPending: [CKSyncEngine.PendingRecordZoneChange] = []) {
         pending = initialPending
@@ -1840,6 +3207,10 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
             await withCheckedContinuation { fetchResume = $0 }
         }
         await fetchAction?()
+        if let fetchErrorCode {
+            self.fetchErrorCode = nil
+            throw CKError(fetchErrorCode)
+        }
     }
     func sendChanges(_ options: CKSyncEngine.SendChangesOptions) async throws {
         sendScopes.append(options.scope)
@@ -1852,6 +3223,7 @@ private actor TestSyncEngineDriver: CKSyncEngineDriving {
     func setFetchAction(_ action: @escaping @Sendable () async -> Void) {
         fetchAction = action
     }
+    func failNextFetch(with code: CKError.Code) { fetchErrorCode = code }
     func waitUntilFetchSuspended() async {
         guard shouldSuspendFetch || fetchResume == nil else { return }
         await withCheckedContinuation { fetchEnteredWaiters.append($0) }
@@ -1932,6 +3304,32 @@ private struct StateStoreFixture {
 }
 
 private struct TestInterruption: Error {}
+
+enum FreshReplayShape: CaseIterable, Sendable {
+    case combined
+    case split
+    case reordered
+
+    var durableCallbacks: [[Int]] {
+        switch self {
+        case .combined:
+            [[0], [1]]
+        case .split, .reordered:
+            [[0, 1]]
+        }
+    }
+
+    var sourceCallbacks: [[Int]] {
+        switch self {
+        case .combined:
+            [[0, 1]]
+        case .split:
+            [[0], [1]]
+        case .reordered:
+            [[1, 0]]
+        }
+    }
+}
 
 private final class LockedBoundaryRecorder: @unchecked Sendable {
     private let lock = NSLock()

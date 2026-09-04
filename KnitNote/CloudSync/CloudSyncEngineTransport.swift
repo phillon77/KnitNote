@@ -237,8 +237,18 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var accountEpoch: CloudSyncAccountEpoch
     private var activeFetchedBatchIDs: [UUID] = []
     private var sourceObservedFetchedBatchIDs: Set<UUID> = []
+    private var sourcePendingFetchedBatchIDs: Set<UUID> = []
     private var unacknowledgedFetchedBatchIDs: [UUID] = []
     private var deferredStateUpdates: [DeferredStateUpdate] = []
+    private var sourceObservationCycleDepth = 0
+    private var sourceObservationCycleFailed = false
+    private var sourceObservationCycleAllowsSpillover = false
+    private var sourceObservationSequence: UInt64 = 0
+    private var sourceObservationEntityIDs: Set<SyncEntityID> = []
+    private var sourceObservationStoreBaseline: CloudIncomingBatchSourceObservationSnapshot?
+    private var sourceObservedBatchBaseline: Set<UUID> = []
+    private var sourcePendingBatchBaseline: Set<UUID> = []
+    private var deferredStateBaseline: [DeferredStateUpdate] = []
     private var inboundDurabilityBlocked = false
     private var mutationReplayFinished = false
     private var configuredZoneIsReady = false
@@ -354,7 +364,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 throw CloudSyncTransportError.missingAccountIdentity
             }
         }
-        guard !accountResetBlocksRestart else {
+        do {
+            try prepareAccountScope()
+        } catch {
+            accountResetBlocksRestart = true
             throw CloudSyncTransportError.accountResetIncomplete
         }
         guard engine == nil else { return }
@@ -374,7 +387,17 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         )
         activeFetchedBatchIDs = incoming.batches.map(\.batchID)
         sourceObservedFetchedBatchIDs.removeAll(keepingCapacity: false)
+        sourcePendingFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs = activeFetchedBatchIDs
+        sourceObservationCycleDepth = 0
+        sourceObservationCycleFailed = false
+        sourceObservationCycleAllowsSpillover = false
+        sourceObservationSequence = 0
+        sourceObservationEntityIDs.removeAll(keepingCapacity: false)
+        sourceObservationStoreBaseline = nil
+        sourceObservedBatchBaseline.removeAll(keepingCapacity: false)
+        sourcePendingBatchBaseline.removeAll(keepingCapacity: false)
+        deferredStateBaseline.removeAll(keepingCapacity: false)
         let created = engineFactory(serialization, self)
         generation &+= 1
         let operationGeneration = generation
@@ -427,18 +450,30 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
         do {
+            try beginSourceObservationCycle()
+        } catch {
+            inboundDurabilityBlocked = true
+            eventContinuation.yield(.failed(.statePersistence))
+            throw CloudSyncFailure.statePersistence
+        }
+        do {
             try await engine.fetchChanges(.init(scope: .zoneIDs([zoneID])))
             try requireCurrentGeneration(operationGeneration)
+            completeSourceObservationCycle(succeeded: true)
             if let completionID {
                 eventContinuation.yield(.fetchRequestCompleted(completionID))
             }
         } catch let error as CKError {
+            completeSourceObservationCycle(succeeded: false)
             guard generation == operationGeneration else {
                 throw CloudSyncTransportError.staleOperation
             }
             let failure = CloudSyncFailure.map(error, codec: codec)
             eventContinuation.yield(.failed(failure))
             throw failure
+        } catch {
+            completeSourceObservationCycle(succeeded: false)
+            throw error
         }
     }
 
@@ -471,25 +506,22 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             zoneID: zoneID
         )
         guard unacknowledgedFetchedBatchIDs.contains(batchID) else { return }
+        if sourceObservationCycleDepth > 0 {
+            unacknowledgedFetchedBatchIDs.removeAll { $0 == batchID }
+            return
+        }
         let remaining = Set(unacknowledgedFetchedBatchIDs.filter { $0 != batchID })
-        let persistableCount = deferredStateUpdates.prefix {
-            $0.requiredBatchIDs.isDisjoint(with: remaining)
-        }.count
-        if persistableCount > 0 {
-            do {
-                let update = deferredStateUpdates[persistableCount - 1]
-                let data = try persistStateUpdate(
-                    update.serialization,
-                    coveredBatchIDs: update.coveredBatchIDs
-                )
+        do {
+            if let data = try persistEligibleDeferredState(
+                remainingUnacknowledgedBatchIDs: remaining
+            ) {
                 eventContinuation.yield(.stateUpdated(data))
-            } catch {
-                eventContinuation.yield(.failed(.statePersistence))
-                throw error
             }
+        } catch {
+            eventContinuation.yield(.failed(.statePersistence))
+            throw error
         }
         unacknowledgedFetchedBatchIDs.removeAll { $0 == batchID }
-        deferredStateUpdates.removeFirst(persistableCount)
     }
 
     func resolveFailedMutation(
@@ -584,23 +616,73 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         let requiredBatchIDs = Set(
             unacknowledgedFetchedBatchIDs.filter { coveredBatchIDs.contains($0) }
         )
-        guard !requiredBatchIDs.isEmpty else {
+        let incompleteSourceBatchIDs = sourcePendingFetchedBatchIDs
+        let awaitsSuccessfulFetchBoundary = sourceObservationCycleDepth > 0
+        guard !requiredBatchIDs.isEmpty || !incompleteSourceBatchIDs.isEmpty
+                || awaitsSuccessfulFetchBoundary else {
             do {
                 let data = try persistStateUpdate(
                     serialization,
                     coveredBatchIDs: coveredBatchIDs
                 )
+                deferredStateUpdates.removeAll(keepingCapacity: true)
                 eventContinuation.yield(.stateUpdated(data))
             } catch {
                 eventContinuation.yield(.failed(.statePersistence))
             }
             return
         }
-        deferredStateUpdates.append(DeferredStateUpdate(
+        deferredStateUpdates.removeAll {
+            !$0.incompleteSourceBatchIDs.isEmpty || $0.awaitsSuccessfulFetchBoundary
+        }
+        let update = DeferredStateUpdate(
             serialization: serialization,
             requiredBatchIDs: requiredBatchIDs,
-            coveredBatchIDs: coveredBatchIDs
-        ))
+            coveredBatchIDs: coveredBatchIDs,
+            incompleteSourceBatchIDs: incompleteSourceBatchIDs,
+            sourceObservationSequence: sourceObservationSequence,
+            awaitsSuccessfulFetchBoundary: awaitsSuccessfulFetchBoundary
+        )
+        if let last = deferredStateUpdates.last,
+           last.requiredBatchIDs == update.requiredBatchIDs,
+           last.coveredBatchIDs == update.coveredBatchIDs,
+           last.incompleteSourceBatchIDs == update.incompleteSourceBatchIDs {
+            deferredStateUpdates[deferredStateUpdates.count - 1] = update
+        } else {
+            deferredStateUpdates.append(update)
+        }
+    }
+
+    #if DEBUG
+    func pendingStateUpdateCountForTesting() -> Int {
+        deferredStateUpdates.count
+    }
+    #endif
+
+    private func persistEligibleDeferredState(
+        remainingUnacknowledgedBatchIDs: Set<UUID>
+    ) throws -> Data? {
+        let persistableCount = deferredStateUpdates.prefix {
+            !$0.awaitsSuccessfulFetchBoundary
+                && $0.incompleteSourceBatchIDs.isEmpty
+                && $0.requiredBatchIDs.isDisjoint(with: remainingUnacknowledgedBatchIDs)
+        }.count
+        guard persistableCount > 0 else { return nil }
+        let update = deferredStateUpdates[persistableCount - 1]
+        let data = try persistStateUpdate(
+            update.serialization,
+            coveredBatchIDs: update.coveredBatchIDs
+        )
+        let retiredBatchIDs = update.coveredBatchIDs
+        deferredStateUpdates.removeFirst(persistableCount)
+        if !retiredBatchIDs.isEmpty {
+            for index in deferredStateUpdates.indices {
+                deferredStateUpdates[index].requiredBatchIDs.subtract(retiredBatchIDs)
+                deferredStateUpdates[index].coveredBatchIDs.subtract(retiredBatchIDs)
+                deferredStateUpdates[index].incompleteSourceBatchIDs.subtract(retiredBatchIDs)
+            }
+        }
+        return data
     }
 
     private func persistStateUpdate(
@@ -619,6 +701,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         try incomingBatchStore.completeStateCommit(engineState: encoded)
         activeFetchedBatchIDs.removeAll { coveredBatchIDs.contains($0) }
         sourceObservedFetchedBatchIDs.subtract(coveredBatchIDs)
+        sourcePendingFetchedBatchIDs.subtract(coveredBatchIDs)
         unacknowledgedFetchedBatchIDs.removeAll { coveredBatchIDs.contains($0) }
         return data
     }
@@ -632,8 +715,18 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         queues.removeAll(keepingCapacity: false)
         activeFetchedBatchIDs.removeAll(keepingCapacity: false)
         sourceObservedFetchedBatchIDs.removeAll(keepingCapacity: false)
+        sourcePendingFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
+        sourceObservationCycleDepth = 0
+        sourceObservationCycleFailed = false
+        sourceObservationCycleAllowsSpillover = false
+        sourceObservationSequence = 0
+        sourceObservationEntityIDs.removeAll(keepingCapacity: false)
+        sourceObservationStoreBaseline = nil
+        sourceObservedBatchBaseline.removeAll(keepingCapacity: false)
+        sourcePendingBatchBaseline.removeAll(keepingCapacity: false)
+        deferredStateBaseline.removeAll(keepingCapacity: false)
         inboundDurabilityBlocked = false
         mutationReplayFinished = false
         configuredZoneIsReady = false
@@ -643,17 +736,164 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
+        currentAccountIdentifier = current
         do {
-            try stateStore.clear()
-            accountResetBlocksRestart = false
-            currentAccountIdentifier = current
+            try stateStore.beginAccountReset(previous: previous, current: current)
+            accountResetBlocksRestart = true
+            try completePendingAccountResetIfNeeded()
         } catch {
             accountResetBlocksRestart = true
-            currentAccountIdentifier = nil
             eventContinuation.yield(.failed(.statePersistence))
         }
         eventContinuation.yield(.accountChanged(previous: previous, current: current))
         await detachedEngine?.cancelOperations()
+    }
+
+    private func completePendingAccountResetIfNeeded() throws {
+        guard try stateStore.hasPendingAccountReset() else { return }
+        try stateStore.clear()
+        try incomingBatchStore.retireAllAfterEngineStateReset()
+        try stateStore.clearAccountOwner()
+        try stateStore.completeAccountReset()
+        accountResetBlocksRestart = false
+    }
+
+    private func prepareAccountScope() throws {
+        try completePendingAccountResetIfNeeded()
+        let accountIdentifier = incomingAccountIdentifier
+        let durableOwner = try stateStore.loadAccountOwner()
+        let storedState = try stateStore.load()
+        let hasUnboundState = durableOwner == nil && storedState != nil
+        let hasForeignIncomingWork = try incomingBatchStore.containsForeignAccount(
+            accountIdentifier
+        )
+        if accountResetBlocksRestart
+            || hasUnboundState
+            || durableOwner.map({ $0 != accountIdentifier }) == true
+            || hasForeignIncomingWork {
+            try stateStore.beginAccountReset(
+                previous: durableOwner,
+                current: accountIdentifier
+            )
+            accountResetBlocksRestart = true
+            try completePendingAccountResetIfNeeded()
+        }
+        try stateStore.bindAccountOwner(accountIdentifier)
+        accountResetBlocksRestart = false
+    }
+
+    private func beginSourceObservationCycle() throws {
+        if sourceObservationCycleDepth == 0 {
+            let snapshot = try incomingBatchStore.sourceObservationSnapshot(
+                accountIdentifier: incomingAccountIdentifier,
+                zoneID: zoneID,
+                generation: incomingBatchGeneration
+            )
+            sourceObservationStoreBaseline = snapshot
+            sourceObservationCycleAllowsSpillover = snapshot.batches.values.contains {
+                $0.awaitingSourceRedelivery
+            }
+            sourceObservedBatchBaseline = sourceObservedFetchedBatchIDs
+            sourcePendingBatchBaseline = sourcePendingFetchedBatchIDs
+            deferredStateBaseline = deferredStateUpdates
+            sourceObservationCycleFailed = false
+            sourceObservationEntityIDs.removeAll(keepingCapacity: true)
+        }
+        sourceObservationCycleDepth += 1
+    }
+
+    private func completeSourceObservationCycle(succeeded: Bool) {
+        guard sourceObservationCycleDepth > 0 else { return }
+        if !succeeded {
+            sourceObservationCycleFailed = true
+        }
+        sourceObservationCycleDepth -= 1
+        guard sourceObservationCycleDepth == 0 else { return }
+        defer {
+            sourceObservationCycleFailed = false
+            sourceObservationCycleAllowsSpillover = false
+            sourceObservationEntityIDs.removeAll(keepingCapacity: true)
+            sourceObservationStoreBaseline = nil
+            sourceObservedBatchBaseline.removeAll(keepingCapacity: true)
+            sourcePendingBatchBaseline.removeAll(keepingCapacity: true)
+            deferredStateBaseline.removeAll(keepingCapacity: true)
+        }
+        guard !sourceObservationCycleFailed else {
+            do {
+                guard let sourceObservationStoreBaseline else {
+                    throw CloudIncomingBatchStoreError.corrupt
+                }
+                let restored = try incomingBatchStore.restoreSourceObservation(
+                    sourceObservationStoreBaseline,
+                    accountIdentifier: incomingAccountIdentifier,
+                    zoneID: zoneID,
+                    generation: incomingBatchGeneration
+                )
+                sourceObservedFetchedBatchIDs = sourceObservedBatchBaseline.intersection(
+                    restored.currentBatchIDs
+                )
+                sourcePendingFetchedBatchIDs = sourcePendingBatchBaseline.intersection(
+                    restored.currentBatchIDs
+                ).union(restored.introducedBatchIDs)
+                deferredStateUpdates = deferredStateBaseline
+                if let data = try persistEligibleDeferredState(
+                    remainingUnacknowledgedBatchIDs: Set(unacknowledgedFetchedBatchIDs)
+                ) {
+                    eventContinuation.yield(.stateUpdated(data))
+                }
+            } catch {
+                inboundDurabilityBlocked = true
+                eventContinuation.yield(.failed(.statePersistence))
+            }
+            return
+        }
+        let recording: CloudIncomingBatchRecordingResult
+        do {
+            recording = try incomingBatchStore.completeSourceObservation(
+                entityIDs: sourceObservationEntityIDs,
+                accountIdentifier: incomingAccountIdentifier,
+                zoneID: zoneID,
+                generation: incomingBatchGeneration
+            )
+        } catch CloudIncomingBatchStoreError.capacityExceeded {
+            inboundDurabilityBlocked = true
+            eventContinuation.yield(.failed(.incomingBackpressure))
+            return
+        } catch {
+            inboundDurabilityBlocked = true
+            eventContinuation.yield(.failed(.statePersistence))
+            return
+        }
+        sourcePendingFetchedBatchIDs.subtract(recording.fullyObservedBatchIDs)
+        sourcePendingFetchedBatchIDs.formUnion(recording.partiallyObservedBatchIDs)
+        sourceObservedFetchedBatchIDs.formUnion(recording.fullyObservedBatchIDs)
+        let newlyRequiredBatchIDs = Set(unacknowledgedFetchedBatchIDs).intersection(
+            recording.fullyObservedBatchIDs
+        )
+        for index in deferredStateUpdates.indices
+        where deferredStateUpdates[index].sourceObservationSequence
+            == sourceObservationSequence {
+            deferredStateUpdates[index].awaitsSuccessfulFetchBoundary = false
+            deferredStateUpdates[index].requiredBatchIDs.formUnion(newlyRequiredBatchIDs)
+            deferredStateUpdates[index].coveredBatchIDs.formUnion(
+                recording.fullyObservedBatchIDs
+            )
+            deferredStateUpdates[index].incompleteSourceBatchIDs.subtract(
+                recording.fullyObservedBatchIDs
+            )
+            deferredStateUpdates[index].incompleteSourceBatchIDs.formUnion(
+                recording.partiallyObservedBatchIDs
+            )
+        }
+        do {
+            if let data = try persistEligibleDeferredState(
+                remainingUnacknowledgedBatchIDs: Set(unacknowledgedFetchedBatchIDs)
+            ) {
+                eventContinuation.yield(.stateUpdated(data))
+            }
+        } catch {
+            eventContinuation.yield(.failed(.statePersistence))
+        }
     }
 
     func receiveFetchedChanges(records: [CKRecord], deletedRecordIDs: [CKRecord.ID]) {
@@ -667,6 +907,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             guard record.recordID.zoneID == zoneID else {
                 eventContinuation.yield(.failed(.invalidRecord(recordID: Self.entityID(for: record.recordID))))
                 inboundDurabilityBlocked = true
+                if sourceObservationCycleDepth > 0 { sourceObservationCycleFailed = true }
                 return
             }
             do {
@@ -674,6 +915,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             } catch {
                 eventContinuation.yield(.failed(.invalidRecord(recordID: Self.entityID(for: record.recordID))))
                 inboundDurabilityBlocked = true
+                if sourceObservationCycleDepth > 0 { sourceObservationCycleFailed = true }
                 return
             }
         }
@@ -684,6 +926,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             guard recordID.zoneID == zoneID, let entityID = Self.entityID(for: recordID) else {
                 eventContinuation.yield(.failed(.invalidRecord(recordID: Self.entityID(for: recordID))))
                 inboundDurabilityBlocked = true
+                if sourceObservationCycleDepth > 0 { sourceObservationCycleFailed = true }
                 return
             }
             deleted.append(entityID)
@@ -701,6 +944,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             }
         } catch {
             inboundDurabilityBlocked = true
+            if sourceObservationCycleDepth > 0 { sourceObservationCycleFailed = true }
             eventContinuation.yield(.failed(.statePersistence))
             return
         }
@@ -711,27 +955,37 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 deletedRecordIDs: deleted,
                 accountIdentifier: incomingAccountIdentifier,
                 zoneID: zoneID,
-                generation: incomingBatchGeneration
+                generation: incomingBatchGeneration,
+                allowsReconciliationSpillover: sourceObservationCycleAllowsSpillover
             )
         } catch CloudIncomingBatchStoreError.capacityExceeded {
             inboundDurabilityBlocked = true
+            if sourceObservationCycleDepth > 0 { sourceObservationCycleFailed = true }
             eventContinuation.yield(.failed(.incomingBackpressure))
             return
         } catch {
             inboundDurabilityBlocked = true
+            if sourceObservationCycleDepth > 0 { sourceObservationCycleFailed = true }
             eventContinuation.yield(.failed(.statePersistence))
             return
         }
-        let batchID = recording.envelope.batchID
-        sourceObservedFetchedBatchIDs.insert(batchID)
-        guard recording.shouldDeliver else { return }
+        if sourceObservationCycleDepth > 0 {
+            sourceObservationEntityIDs.formUnion(decodedRecords.map(\.id))
+            sourceObservationEntityIDs.formUnion(deleted)
+            sourceObservationSequence &+= 1
+        }
+        sourcePendingFetchedBatchIDs.subtract(recording.fullyObservedBatchIDs)
+        sourcePendingFetchedBatchIDs.formUnion(recording.partiallyObservedBatchIDs)
+        sourceObservedFetchedBatchIDs.formUnion(recording.fullyObservedBatchIDs)
+        guard let envelope = recording.deliveredEnvelope else { return }
+        let batchID = envelope.batchID
         activeFetchedBatchIDs.append(batchID)
         unacknowledgedFetchedBatchIDs.append(batchID)
         eventContinuation.yield(.fetched(
             batchID: batchID,
             accountEpoch: accountEpoch,
-            records: decodedRecords,
-            deleted: deleted
+            records: envelope.records,
+            deleted: envelope.deletedRecordIDs
         ))
     }
 
@@ -1059,6 +1313,13 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 records: changes.modifications.map(\.record),
                 deletedRecordIDs: changes.deletions.map(\.recordID)
             )
+        case .willFetchRecordZoneChanges:
+            do {
+                try beginSourceObservationCycle()
+            } catch {
+                inboundDurabilityBlocked = true
+                eventContinuation.yield(.failed(.statePersistence))
+            }
         case let .sentRecordZoneChanges(changes):
             let callbackGeneration = generation
             await receiveSentChanges(
@@ -1078,11 +1339,13 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         case let .didFetchRecordZoneChanges(result):
             if let error = result.error {
                 eventContinuation.yield(.failed(.map(error, codec: codec)))
+                completeSourceObservationCycle(succeeded: false)
+            } else {
+                completeSourceObservationCycle(succeeded: true)
             }
         case .didSendChanges:
             await receiveSendCycleCompleted()
-        case .willFetchChanges, .willFetchRecordZoneChanges, .didFetchChanges,
-             .willSendChanges:
+        case .willFetchChanges, .didFetchChanges, .willSendChanges:
             break
         @unknown default:
             eventContinuation.yield(.failed(.fatal(code: -1)))
@@ -1341,8 +1604,18 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         queues.removeAll(keepingCapacity: false)
         activeFetchedBatchIDs.removeAll(keepingCapacity: false)
         sourceObservedFetchedBatchIDs.removeAll(keepingCapacity: false)
+        sourcePendingFetchedBatchIDs.removeAll(keepingCapacity: false)
         unacknowledgedFetchedBatchIDs.removeAll(keepingCapacity: false)
         deferredStateUpdates.removeAll(keepingCapacity: false)
+        sourceObservationCycleDepth = 0
+        sourceObservationCycleFailed = false
+        sourceObservationCycleAllowsSpillover = false
+        sourceObservationSequence = 0
+        sourceObservationEntityIDs.removeAll(keepingCapacity: false)
+        sourceObservationStoreBaseline = nil
+        sourceObservedBatchBaseline.removeAll(keepingCapacity: false)
+        sourcePendingBatchBaseline.removeAll(keepingCapacity: false)
+        deferredStateBaseline.removeAll(keepingCapacity: false)
         inboundDurabilityBlocked = false
         mutationReplayFinished = false
         configuredZoneIsReady = false
@@ -1373,8 +1646,11 @@ private final class CloudSyncTerminalLatch: @unchecked Sendable {
 
 private struct DeferredStateUpdate {
     let serialization: CKSyncEngine.State.Serialization
-    let requiredBatchIDs: Set<UUID>
-    let coveredBatchIDs: Set<UUID>
+    var requiredBatchIDs: Set<UUID>
+    var coveredBatchIDs: Set<UUID>
+    var incompleteSourceBatchIDs: Set<UUID>
+    let sourceObservationSequence: UInt64
+    var awaitsSuccessfulFetchBoundary: Bool
 }
 
 private struct SendAttempt: Equatable {

@@ -6393,6 +6393,52 @@ final class PatternLibraryDeletionTransaction {
         syncInstallationID ?? "sync-installation-unavailable"
     }
 
+    /// The caller must hold its account/journal freeze across this entire
+    /// synchronous call and capture every pending record, byte and ledger path
+    /// in `references`. MainActor alone is not that cross-process freeze.
+    public func purgeRecentlyDeleted(now: Date, acknowledgedVersions: Set<UUID>,
+        references: () throws -> SyncDeletionReferences) throws {
+        try ensureArchiveAvailable()
+        try ensureSyncPublicationReady()
+        guard isSyncPublicationEnabled, syncBootstrapHydrated, let cache = syncProjectionCache else {
+            throw SyncPublicationError.pendingRepair
+        }
+        try beginDataOperation()
+        defer { isDataOperationInProgress = false }
+        var protected = try references()
+        protected.acknowledgedRemovalVersionIDs.formIntersection(acknowledgedVersions)
+        let archive = try archiveFromDisk()
+        let current = ProjectArchive(version: ProjectArchive.currentVersion, projects: projects, yarns: yarns,
+            patternFolders: patternFolders, patternAssets: patternAssets, patterns: patterns, patternUsages: patternUsages)
+        guard syncDeletionArchivesMatch(archive, current), syncDeletionArchivesMatch(cache.archive, current) else {
+            throw SyncPublicationError.pendingRepair
+        }
+        var attachments = syncHydratedAttachments
+        for record in syncAttachmentPublicationEvidence.retainedAttachmentRecords { attachments[record.id.uuid] = record }
+        let canonical = Array(cache.records.values) + Array(attachments.values)
+        let live = canonical.filter { $0.deletedAt.value == nil }
+        protected.protectedRecordIDs.formUnion(live.map(\.id))
+        protected.protectedRecordIDs.formUnion(live.flatMap { $0.relationships.map(\.target) })
+        for record in live {
+            if case let .projectCounter(state)? = record.payload.atomicDomain?.value {
+                protected.protectedRecordIDs.formUnion(state.reminders.map { .init(kind: .knittingReminder, uuid: $0.id) })
+            }
+            if record.id.kind == .project, case let .data(bytes)? = record.payload.fields["domainSnapshot"]?.value {
+                let projection = try JSONDecoder().decode(SyncProjectProjection.self, from: bytes)
+                protected.protectedRecordIDs.formUnion(projection.legacyPatterns.map { .init(kind: .pattern, uuid: $0.id) })
+                protected.protectedRecordIDs.formUnion((projection.reminderOrder ?? []).map { .init(kind: .knittingReminder, uuid: $0) })
+            }
+        }
+        protected.protectedAttachmentVersionIDs.formUnion(live.compactMap { $0.payload.attachment?.versionID })
+        let ledger = try deletionLedger()
+        try ledger.purge(now: now, references: protected)
+        let markers = try ledger.deletionMarkers()
+        let purged = Set(markers.map(\.targetID))
+        syncProjectionCache = .init(archive: cache.archive, records: cache.records.filter { !purged.contains($0.key) })
+        syncHydratedAttachments = syncHydratedAttachments.filter { !purged.contains(.init(kind: .attachment, uuid: $0.key)) }
+        syncHydratedAttachmentSources = syncHydratedAttachmentSources.filter { !purged.contains(.init(kind: .attachment, uuid: $0.key)) }
+    }
+
     public func restoreRecentlyDeleted(id: UUID, now: Date) throws {
         try ensureArchiveAvailable()
         try ensureSyncPublicationReady()

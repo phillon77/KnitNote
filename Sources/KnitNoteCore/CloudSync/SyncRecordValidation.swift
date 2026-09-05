@@ -130,6 +130,7 @@ public struct SyncRecordValidator: Sendable {
         try validateRelatedDeletions(in: record)
         try validateAtomicDomain(in: record)
         try validateAttachment(in: record)
+        if record.id.kind == .deletionMarker { _ = try DeletionMarker(record: record) }
         return record
     }
 

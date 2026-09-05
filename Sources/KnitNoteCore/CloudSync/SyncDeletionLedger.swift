@@ -36,6 +36,15 @@ struct SyncDeletionLedger {
     private struct Manifest: Codable {
         let version: Int
         var groups: [Group]
+        var markers: [DeletionMarker]? = nil
+        var pendingMarkerVersions: [SyncRecordVersion]? = nil
+        var purgeIntents: [PurgeIntent]? = nil
+    }
+    private struct PurgeIntent: Codable {
+        let entryID: UUID
+        let markers: [DeletionMarker]
+        let pendingMarkerVersions: [SyncRecordVersion]
+        let files: [SyncDeletionFileProof]
     }
     private struct Envelope: Codable {
         let payload: Data
@@ -64,7 +73,8 @@ struct SyncDeletionLedger {
             let result = lstat(manifestURL.path, &status)
             let lookupError = errno
             if result == 0 || existed {
-                _ = try load()
+                var manifest = try load()
+                try completePurges(&manifest)
             } else {
                 guard lookupError == ENOENT else { throw SyncDeletionLedgerError.unavailable }
                 try persist(.init(version: 1, groups: []))
@@ -76,7 +86,17 @@ struct SyncDeletionLedger {
                restoreRelativePaths: [UUID: String], deletedAt: Date) throws -> UUID {
         try locked {
             var manifest = try load()
-            try validate(domain)
+            try Self.validateDomain(domain)
+            let markers = manifest.markers ?? []
+            try DeletionMarker.gate(records: domain.ownedRecords, markers: markers)
+            let embeddedIDs = Set(domain.removedReminders.values.flatMap { $0 }.map {
+                SyncEntityID(kind: .knittingReminder, uuid: $0.id)
+            }).union(domain.removedLegacyPatterns.values.flatMap { $0 }.map {
+                SyncEntityID(kind: .pattern, uuid: $0.id)
+            })
+            guard embeddedIDs.isDisjoint(with: markers.map(\.targetID)) else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
             guard deletedAt.timeIntervalSinceReferenceDate.isFinite else {
                 throw SyncDeletionLedgerError.corrupt
             }
@@ -122,14 +142,84 @@ struct SyncDeletionLedger {
         try locked { try load().groups.filter(\.active).map(\.entry) }
     }
 
+    func deletionMarkers() throws -> [DeletionMarker] {
+        try locked { try load().markers ?? [] }
+    }
+
+    /// Exact immutable publication queue; a future transport must consume this
+    /// authority explicitly. Its absence never acknowledges a removal.
+    func pendingDeletionMarkerVersions() throws -> [SyncRecordVersion] {
+        try locked { try load().pendingMarkerVersions ?? [] }
+    }
+
+    func purge(now: Date, references: SyncDeletionReferences,
+               afterIntent: () throws -> Void = {}, afterUnlink: () throws -> Void = {}) throws {
+        try locked {
+            var manifest = try load()
+            // Replay witnesses remain owned until their reviewed publication
+            // recovery contract retires them. Do not compact their payloads.
+            let entries = manifest.groups.filter { $0.active && $0.restoration == nil }.map(\.entry)
+            let actions = SyncDeletionPolicy.evaluate(now: now, records: entries, references: references)
+            for entry in entries where actions.eligibleEntryIDs.contains(entry.id) {
+                let markers = try SyncDeletionPolicy.markerCandidates(entry)
+                let versions = try markers.map { try SyncRecordVersion(record: $0.record()) }
+                manifest.purgeIntents = (manifest.purgeIntents ?? []) + [.init(entryID: entry.id,
+                    markers: markers, pendingMarkerVersions: versions, files: entry.files)]
+                for (marker, version) in zip(markers, versions) {
+                    if let prior = manifest.markers?.first(where: { $0.targetID == marker.targetID }), prior != marker {
+                        throw SyncDeletionLedgerError.witnessMismatch
+                    }
+                    if !(manifest.markers ?? []).contains(marker) {
+                        manifest.markers = (manifest.markers ?? []) + [marker]
+                        manifest.pendingMarkerVersions = (manifest.pendingMarkerVersions ?? []) + [version]
+                    }
+                }
+            }
+            guard !actions.eligibleEntryIDs.isEmpty else { return }
+            manifest.groups.removeAll { actions.eligibleEntryIDs.contains($0.entry.id) }
+            // This atomic replacement removes retained user payloads and
+            // commits permanent authority before the first byte is unlinked.
+            try persist(manifest)
+            try afterIntent()
+            try completePurges(&manifest, afterUnlink: afterUnlink)
+        }
+    }
+
+    private func completePurges(_ manifest: inout Manifest, afterUnlink: () throws -> Void = {}) throws {
+        guard !(manifest.purgeIntents ?? []).isEmpty else { return }
+        for intent in manifest.purgeIntents ?? [] {
+            for proof in intent.files {
+                let file = root.appendingPathComponent(proof.retainedRelativePath)
+                let parent = try openDirectory(file.deletingLastPathComponent())
+                defer { close(parent) }
+                var before = stat()
+                if fstatat(parent, file.lastPathComponent, &before, AT_SYMLINK_NOFOLLOW) != 0 {
+                    guard errno == ENOENT else { throw SyncDeletionLedgerError.unsafePath }
+                    guard fsync(parent) == 0 else { throw SyncDeletionLedgerError.unavailable }
+                    continue
+                }
+                _ = try read(file, expected: .init(byteCount: proof.byteCount, sha256: proof.sha256))
+                var current = stat()
+                guard fstatat(parent, file.lastPathComponent, &current, AT_SYMLINK_NOFOLLOW) == 0,
+                      before.st_dev == current.st_dev, before.st_ino == current.st_ino,
+                      (current.st_mode & S_IFMT) == S_IFREG, current.st_nlink == 1,
+                      unlinkat(parent, file.lastPathComponent, 0) == 0,
+                      fsync(parent) == 0 else { throw SyncDeletionLedgerError.unsafePath }
+            }
+        }
+        try afterUnlink()
+        manifest.purgeIntents = []
+        try persist(manifest)
+    }
+
     func captureIncomingDeleted(domain: SyncDeletedDomain, exactRemovalVersions: [SyncRecordVersion],
         attachments: [UUID: SyncAttachmentSource], restoreRelativePaths: [UUID: String], deletedAt: Date,
         currentRecords: [SyncRecord], currentArchive: ProjectArchive,
         supportingAttachments: [UUID: SyncAttachmentSource] = [:], sourceRoots: [URL],
         counterReminderContext: SyncCounterReminderMergeContext = .init()) throws -> UUID {
-        try validate(domain)
+        try Self.validateDomain(domain)
         guard domain.restorableRecordIDs != nil else { throw SyncDeletionLedgerError.corrupt }
-        try validateRemovalVersions(exactRemovalVersions, domain: domain)
+        try Self.validateRemovalVersions(exactRemovalVersions, domain: domain)
         _ = try SyncRecordValidator().validate(currentRecords)
         let supplied = Dictionary(uniqueKeysWithValues: currentRecords.map { ($0.id, $0) })
         let selectedAttachments = try requiredAttachments(domain)
@@ -182,8 +272,8 @@ struct SyncDeletionLedger {
                 paths[proof.attachmentVersionID] = proof.restoreRelativePath
             }
         }
-        try validate(selected)
-        try validateRemovalVersions(versions, domain: selected)
+        try Self.validateDomain(selected)
+        try Self.validateRemovalVersions(versions, domain: selected)
         let required = try requiredAttachments(selected)
         retainedSources = retainedSources.filter { required[$0.key] != nil }
         paths = paths.filter { required[$0.key] != nil }
@@ -388,7 +478,7 @@ struct SyncDeletionLedger {
             }
             let entry = manifest.groups[index].entry
             let versions = try exactRemovalVersions.map { try $0.validated() }
-            try validateRemovalVersions(versions, domain: entry.domain)
+            try Self.validateRemovalVersions(versions, domain: entry.domain)
             manifest.groups[index].entry = .init(id: entry.id, deletedAt: entry.deletedAt,
                 domain: entry.domain, exactRemovalVersions: versions, files: entry.files)
             manifest.groups[index].binding = .init(beforeArchiveSHA256: beforeArchiveSHA256,
@@ -573,7 +663,7 @@ struct SyncDeletionLedger {
             .filter { domain.selectedLiveIDs.contains($0.id) }.map { ($0.id.uuid, $0.payload.attachment!) })
     }
 
-    private func validateRemovalVersions(_ versions: [SyncRecordVersion], domain: SyncDeletedDomain) throws {
+    static func validateRemovalVersions(_ versions: [SyncRecordVersion], domain: SyncDeletedDomain) throws {
         let owned = Dictionary(uniqueKeysWithValues: domain.ownedRecords.filter {
             domain.selectedLiveIDs.contains($0.id)
         }.map { ($0.id, $0) })
@@ -625,7 +715,7 @@ struct SyncDeletionLedger {
         }
     }
 
-    private func validate(_ domain: SyncDeletedDomain) throws {
+    static func validateDomain(_ domain: SyncDeletedDomain) throws {
         _ = try SyncRecordValidator().validate(domain.ownedRecords)
         var selectedReminderIDs = Set<UUID>()
         for (counterID, reminders) in domain.removedReminders {
@@ -717,8 +807,38 @@ struct SyncDeletionLedger {
               Set(manifest.groups.map { $0.entry.id }).count == manifest.groups.count else {
             throw SyncDeletionLedgerError.corrupt
         }
+        let markers = manifest.markers ?? []
+        let pending = manifest.pendingMarkerVersions ?? []
+        guard Set(markers.map(\.targetID)).count == markers.count,
+              Set(pending.map(\.versionID)).count == pending.count,
+              pending.count == markers.count else { throw SyncDeletionLedgerError.corrupt }
+        for marker in markers {
+            let version = try SyncRecordVersion(record: marker.record())
+            guard pending.contains(version) else { throw SyncDeletionLedgerError.witnessMismatch }
+        }
+        let intents = manifest.purgeIntents ?? []
+        guard Set(intents.map(\.entryID)).count == intents.count,
+              Set(intents.map(\.entryID)).isDisjoint(with: manifest.groups.map { $0.entry.id }) else {
+            throw SyncDeletionLedgerError.corrupt
+        }
+        for intent in intents {
+            guard !intent.markers.isEmpty, intent.markers.allSatisfy({ markers.contains($0) }),
+                  intent.pendingMarkerVersions == (try intent.markers.map { try SyncRecordVersion(record: $0.record()) }),
+                  intent.pendingMarkerVersions.allSatisfy({ pending.contains($0) }),
+                  Set(intent.files.map(\.attachmentVersionID)).count == intent.files.count else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            for proof in intent.files {
+                guard proof.retainedRelativePath == "\(intent.entryID.uuidString)/\(proof.attachmentVersionID.uuidString).retained",
+                      Self.safePath(proof.restoreRelativePath), proof.byteCount >= 0,
+                      proof.byteCount <= maximumBytes, proof.sha256.count == 32,
+                      intent.markers.contains(where: { $0.targetID == .init(kind: .attachment, uuid: proof.attachmentVersionID) }) else {
+                    throw SyncDeletionLedgerError.corrupt
+                }
+            }
+        }
         for group in manifest.groups {
-            try validate(group.entry.domain)
+            try Self.validateDomain(group.entry.domain)
             guard group.entry.deletedAt.timeIntervalSinceReferenceDate.isFinite,
                   !group.active || ((group.binding != nil || group.incoming == true) && group.canceled != true),
                   group.canceled != true || group.binding != nil else { throw SyncDeletionLedgerError.corrupt }
@@ -737,10 +857,10 @@ struct SyncDeletionLedger {
                       (binding.beforeArchiveSHA256 != binding.afterArchiveSHA256 || binding.commitBoundary == .artifacts) else {
                     throw SyncDeletionLedgerError.corrupt
                 }
-                try validateRemovalVersions(group.entry.exactRemovalVersions, domain: group.entry.domain)
+                try Self.validateRemovalVersions(group.entry.exactRemovalVersions, domain: group.entry.domain)
             } else if group.incoming == true {
                 guard group.entry.domain.restorableRecordIDs != nil else { throw SyncDeletionLedgerError.corrupt }
-                try validateRemovalVersions(group.entry.exactRemovalVersions, domain: group.entry.domain)
+                try Self.validateRemovalVersions(group.entry.exactRemovalVersions, domain: group.entry.domain)
             } else if !group.entry.exactRemovalVersions.isEmpty {
                 throw SyncDeletionLedgerError.corrupt
             }

@@ -1,6 +1,7 @@
 import Foundation
 
 public enum SyncMergeError: Error, Equatable, Sendable {
+    case permanentlyDeleted(SyncEntityID)
     case corruptEqualStamp(entity: SyncEntityID, field: String)
     case corruptAtomicDomain(entity: SyncEntityID, revision: UInt64)
     case corruptAttachmentVersion(UUID)
@@ -478,7 +479,8 @@ public struct SyncMergeEngine: Sendable {
         local: some Sequence<SyncRecord>,
         remote: some Sequence<SyncRecord>,
         pendingLocal: Set<SyncEntityID>,
-        counterReminderContext: SyncCounterReminderMergeContext = .init()
+        counterReminderContext: SyncCounterReminderMergeContext = .init(),
+        deletionMarkers: [DeletionMarker] = []
     ) throws -> SyncMergeResult {
         try mergeRecords(
             local: Array(local),
@@ -486,7 +488,8 @@ public struct SyncMergeEngine: Sendable {
             pendingLocal: pendingLocal,
             pendingMutations: [],
             pendingCanonicalSaveRecords: [],
-            counterReminderContext: counterReminderContext
+            counterReminderContext: counterReminderContext,
+            deletionMarkers: deletionMarkers
         )
     }
 
@@ -494,7 +497,8 @@ public struct SyncMergeEngine: Sendable {
         local: some Sequence<SyncRecord>,
         remote: some Sequence<SyncRecord>,
         pendingLocalMutations: [SyncMutation],
-        counterReminderContext: SyncCounterReminderMergeContext = .init()
+        counterReminderContext: SyncCounterReminderMergeContext = .init(),
+        deletionMarkers: [DeletionMarker] = []
     ) throws -> SyncMergeResult {
         let pendingCanonicalSaveRecords: [SyncRecord] = pendingLocalMutations.compactMap {
             guard let record = $0.savedRecordVersion?.record,
@@ -507,7 +511,8 @@ public struct SyncMergeEngine: Sendable {
             pendingLocal: Set(pendingLocalMutations.map(\.recordID)),
             pendingMutations: pendingLocalMutations,
             pendingCanonicalSaveRecords: pendingCanonicalSaveRecords,
-            counterReminderContext: counterReminderContext
+            counterReminderContext: counterReminderContext,
+            deletionMarkers: deletionMarkers
         )
     }
 
@@ -517,8 +522,15 @@ public struct SyncMergeEngine: Sendable {
         pendingLocal: Set<SyncEntityID>,
         pendingMutations: [SyncMutation],
         pendingCanonicalSaveRecords: [SyncRecord],
-        counterReminderContext: SyncCounterReminderMergeContext
+        counterReminderContext: SyncCounterReminderMergeContext,
+        deletionMarkers: [DeletionMarker]
     ) throws -> SyncMergeResult {
+        for mutation in pendingMutations where mutation.recordID.kind == .deletionMarker {
+            if case .delete = mutation { throw SyncMergeError.permanentlyDeleted(mutation.recordID) }
+        }
+        let allInputs = local + remote + pendingMutations.compactMap(\.savedRecordVersion?.record)
+        let transportedMarkers = try allInputs.filter { $0.id.kind == .deletionMarker }.map { try DeletionMarker(record: $0) }
+        try DeletionMarker.gate(records: allInputs, markers: deletionMarkers + transportedMarkers)
         let legacyPlan = try legacyReminderMigrationPlan(records: local + remote)
         let canonicalLocal = local.filter { $0.id.kind != .knittingReminder }
         let canonicalRemote = remote.filter { $0.id.kind != .knittingReminder }

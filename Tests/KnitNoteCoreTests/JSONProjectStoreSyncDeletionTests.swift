@@ -4,6 +4,31 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct JSONProjectStoreSyncDeletionTests {
+    @Test(arguments: ["purge", "throw", "missingAck", "protected"]) func purgeCapturesFreshReferencesInsideOperation(reason: String) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let store = fixture.store()
+        try fixture.hydrate(store)
+        try store.delete(id: fixture.projectID)
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        let ack = Set(entry.exactRemovalVersions.map(\.versionID))
+        var called = false
+        do {
+            try store.purgeRecentlyDeleted(now: entry.deletedAt.addingTimeInterval(2592000), acknowledgedVersions: ack) {
+                called = true
+                #expect(store.isDataOperationInProgress)
+                if reason == "throw" { throw SyncDeletionLedgerError.unavailable }
+                return .init(acknowledgedRemovalVersionIDs: reason == "missingAck" ? [] : ack,
+                    protectedRecordIDs: reason == "protected" ? entry.domain.rootIDs : [])
+            }
+            #expect(reason != "throw")
+        } catch { #expect(reason == "throw") }
+        #expect(called)
+        #expect(!store.isDataOperationInProgress)
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty == (reason == "purge"))
+        #expect(store.project(id: fixture.projectID) == nil)
+    }
+
     @Test func restoredMediaPublishesIntoActualJournalBeforeEntryRetirement() throws {
         let fixture = try DeletionStoreFixture()
         defer { fixture.cleanUp() }

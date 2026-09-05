@@ -4,6 +4,77 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncDeletionLedgerTests {
+    @Test(arguments: ["intent", "unlink", "complete"]) func purgeIsDurableAndReplaysOnlyExactOwnedPaths(boundary: String) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fixture = try attachmentFixture(root)
+        let ledger = try SyncDeletionLedger(root: root.appendingPathComponent("ledger"))
+        let date = Date(timeIntervalSince1970: 100)
+        let id = try ledger.stage(domain: fixture.domain, attachments: fixture.sources, restoreRelativePaths: fixture.paths, deletedAt: date)
+        let versions = try removalVersions(fixture.domain)
+        let witness = Data(repeating: 3, count: 32)
+        try ledger.prepare(id: id, beforeArchiveSHA256: Data(repeating: 1, count: 32),
+            afterArchiveSHA256: Data(repeating: 2, count: 32), exactRemovalVersions: versions, publicationSHA256: witness)
+        try ledger.activate(id: id, publicationSHA256: witness)
+        let entry = try #require(ledger.recentlyDeleted().first)
+        let unrelated = ledger.root.appendingPathComponent("do-not-own.bin")
+        try Data("unrelated".utf8).write(to: unrelated)
+        let refs = SyncDeletionReferences(acknowledgedRemovalVersionIDs: Set(versions.map(\.versionID)))
+        let file = try #require(entry.files.first)
+        for protected in [
+            SyncDeletionReferences(acknowledgedRemovalVersionIDs: refs.acknowledgedRemovalVersionIDs,
+                protectedRecordIDs: [fixture.domain.ownedRecords.first!.id]),
+            SyncDeletionReferences(acknowledgedRemovalVersionIDs: refs.acknowledgedRemovalVersionIDs,
+                protectedAttachmentVersionIDs: [file.attachmentVersionID]),
+            SyncDeletionReferences(acknowledgedRemovalVersionIDs: refs.acknowledgedRemovalVersionIDs,
+                protectedLedgerRelativePaths: [file.retainedRelativePath]),
+            SyncDeletionReferences(acknowledgedRemovalVersionIDs: [UUID()])
+        ] {
+            try ledger.purge(now: date.addingTimeInterval(2592000), references: protected)
+            #expect(try ledger.recentlyDeleted().map(\.id) == [id])
+            #expect(try ledger.deletionMarkers().isEmpty)
+            #expect(FileManager.default.fileExists(atPath: ledger.root.appendingPathComponent(file.retainedRelativePath).path))
+        }
+        do {
+            try ledger.purge(now: date.addingTimeInterval(2592000), references: refs,
+                afterIntent: { if boundary == "intent" { throw SyncDeletionLedgerError.unavailable } },
+                afterUnlink: { if boundary == "unlink" { throw SyncDeletionLedgerError.unavailable } })
+            #expect(boundary == "complete")
+        } catch { #expect(boundary != "complete") }
+        if boundary == "intent" {
+            let manifestURL = ledger.root.appendingPathComponent("ledger.json")
+            let original = try Data(contentsOf: manifestURL)
+            var envelope = try JSONSerialization.jsonObject(with: original) as! [String: Any]
+            var payload = try JSONSerialization.jsonObject(with: Data(base64Encoded: envelope["payload"] as! String)!) as! [String: Any]
+            var pending = payload["pendingMarkerVersions"] as! [[String: Any]]
+            pending[0]["versionID"] = UUID().uuidString
+            payload["pendingMarkerVersions"] = pending
+            let bytes = try JSONSerialization.data(withJSONObject: payload, options: .sortedKeys)
+            envelope["payload"] = bytes.base64EncodedString()
+            envelope["sha256"] = Data(SHA256.hash(data: bytes)).base64EncodedString()
+            try JSONSerialization.data(withJSONObject: envelope).write(to: manifestURL)
+            #expect(throws: (any Error).self) { try SyncDeletionLedger(root: ledger.root) }
+            #expect(entry.files.allSatisfy { FileManager.default.fileExists(atPath: ledger.root.appendingPathComponent($0.retainedRelativePath).path) })
+            try original.write(to: manifestURL)
+        }
+        let reopened = try SyncDeletionLedger(root: ledger.root)
+        #expect(try reopened.recentlyDeleted().isEmpty)
+        #expect(try reopened.deletionMarkers().count >= fixture.domain.ownedRecords.count)
+        #expect(try !reopened.pendingDeletionMarkerVersions().isEmpty)
+        #expect(entry.files.allSatisfy { !FileManager.default.fileExists(atPath: ledger.root.appendingPathComponent($0.retainedRelativePath).path) })
+        #expect(try Data(contentsOf: unrelated) == Data("unrelated".utf8))
+        #expect(try fixture.sources.values.allSatisfy { try Data(contentsOf: $0.fileURL).count > 0 })
+        let envelope = try JSONSerialization.jsonObject(with: Data(contentsOf: ledger.root.appendingPathComponent("ledger.json"))) as! [String: Any]
+        let payload = String(decoding: Data(base64Encoded: envelope["payload"] as! String)!, as: UTF8.self)
+        #expect(!payload.contains("Retained project"))
+        #expect(!payload.contains("retainedRelativePath"))
+        #expect(!payload.contains("contentSHA256"))
+        #expect(throws: (any Error).self) {
+            try reopened.stage(domain: fixture.domain, attachments: fixture.sources,
+                restoreRelativePaths: fixture.paths, deletedAt: .now)
+        }
+    }
+
     @Test func initializationPreservesLedgerPublishedAfterRootExistenceCheck() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

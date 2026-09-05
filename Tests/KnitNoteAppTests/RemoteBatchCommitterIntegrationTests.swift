@@ -480,6 +480,7 @@ import Testing
         #expect(try f.checkpoints.load() == saturated)
         #expect(try Data(contentsOf: f.archiveURL) == originalArchive)
         #expect(try f.journal.pending().isEmpty)
+        #expect(store.project(id: f.projectID)?.name == "First")
 
         let retired = saturatedReceipts[0]
         transport.acknowledged = [retired.identity.batchID]
@@ -488,7 +489,17 @@ import Testing
             accountEpoch: f.epoch()
         )
         let remaining = Array(saturatedReceipts.dropFirst())
-        #expect(try f.checkpoints.load()?.remoteBatchReceipts == remaining)
+        let afterRetirement = try #require(try f.checkpoints.load())
+        let expectedAfterRetirement = try SyncCanonicalCheckpoint(
+            accountIDHash: saturated.accountIDHash,
+            commitID: afterRetirement.commitID,
+            archiveSHA256: saturated.archiveSHA256,
+            records: saturated.records,
+            legacyRecordIDsToDelete: saturated.legacyRecordIDsToDelete,
+            remoteBatchReceipts: remaining
+        )
+        #expect(afterRetirement.commitID != saturated.commitID)
+        #expect(afterRetirement == expectedAfterRetirement)
 
         transport.acknowledged.removeAll()
         transport.failAck = true
@@ -507,17 +518,23 @@ import Testing
         transport.emit(event)
         await drain { coordinator.status.phase == .needsAttention }
         let afterFailedACK = try #require(try f.checkpoints.load())
-        #expect(afterFailedACK.remoteBatchReceipts.count == 4_096)
-        #expect(Set(afterFailedACK.remoteBatchReceipts.map(\.identity.batchID))
-            == Set(remaining.map(\.identity.batchID)).union([batch.identity.batchID]))
-        for receipt in remaining {
-            #expect(afterFailedACK.remoteBatchReceipts.contains(receipt))
+        let expectedBatchReceipt = SyncRemoteBatchReceipt(
+            identity: batch.identity,
+            commitID: afterFailedACK.commitID,
+            domainChanged: true
+        )
+        let expectedRemoteRecords = afterRetirement.records.map { current in
+            batch.records.first { $0.id == current.id } ?? current
         }
-        let retainedBatchReceipt = try #require(afterFailedACK.remoteBatchReceipts.first {
-            $0.identity == batch.identity
-        })
-        #expect(retainedBatchReceipt.commitID == afterFailedACK.commitID)
-        #expect(retainedBatchReceipt.domainChanged)
+        let expectedAfterFailedACK = try SyncCanonicalCheckpoint(
+            accountIDHash: afterRetirement.accountIDHash,
+            commitID: afterFailedACK.commitID,
+            archiveSHA256: Data(SHA256.hash(data: Data(contentsOf: f.archiveURL))),
+            records: expectedRemoteRecords,
+            legacyRecordIDsToDelete: afterRetirement.legacyRecordIDsToDelete,
+            remoteBatchReceipts: remaining + [expectedBatchReceipt]
+        )
+        #expect(afterFailedACK == expectedAfterFailedACK)
         #expect(transport.acknowledged.isEmpty)
         #expect(store.project(id: f.projectID)?.name == "Remote")
 
@@ -546,9 +563,17 @@ import Testing
         transport.emit(event)
         await drain { transport.finished.contains(batch.identity.batchID) }
         let afterDuplicate = try #require(try f.checkpoints.load())
+        let expectedAfterDuplicate = try SyncCanonicalCheckpoint(
+            accountIDHash: afterLocalEdit.accountIDHash,
+            commitID: afterDuplicate.commitID,
+            archiveSHA256: afterLocalEdit.archiveSHA256,
+            records: afterLocalEdit.records,
+            legacyRecordIDsToDelete: afterLocalEdit.legacyRecordIDsToDelete,
+            remoteBatchReceipts: remaining
+        )
         #expect(store.project(id: f.projectID)?.name == "Later local edit")
-        #expect(afterDuplicate.records == afterLocalEdit.records)
-        #expect(afterDuplicate.remoteBatchReceipts == remaining)
+        #expect(afterDuplicate.commitID != afterLocalEdit.commitID)
+        #expect(afterDuplicate == expectedAfterDuplicate)
         #expect(try f.journal.pending() == exactPending)
         #expect(try Data(contentsOf: f.archiveURL) == exactArchive)
         #expect(transport.acknowledged == [batch.identity.batchID])

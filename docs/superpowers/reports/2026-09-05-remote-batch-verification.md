@@ -19,8 +19,11 @@ Controller 核准的 sandbox 外完整 Core 已在未改動候選上通過：2,3
 - Sources tree：126fac016c69a1620f5a30bdda3d03fb15db8e3a
 - KnitNote/CloudSync tree：7f395352e5142f8d635af03e7a2c45106986dee2
 - 從 144a1dc 到 cf0dd9d 的 12 個 production/project changed-file SHA-256 manifest：118bd74765a09124eea6f7fce9e51bbd2b91dec5dbaed5959c7451541bd05db1；逐檔清單保存在 /tmp/remote-batch-task6-production-files.sha256。
-- Task 6 最終 Core 組合測試檔 SHA-256：f424d9b701d27275a299c7e21d5b9a3ba07966031956a543df3166c5a6650992
-- Task 6 最終 App 組合測試檔 SHA-256：8528efd3ef49e8450e49357b51f0f96e9e57649e68efa305cc00cb7cb6e4e7e7
+- 完整 Core 兩次執行當時的 Core 組合測試檔 SHA-256：f424d9b701d27275a299c7e21d5b9a3ba07966031956a543df3166c5a6650992
+- 完整 Core 兩次執行當時的 App 組合測試檔 SHA-256：8528efd3ef49e8450e49357b51f0f96e9e57649e68efa305cc00cb7cb6e4e7e7
+- Review fix round 1 最終 focused/no-host 快照的 Core 組合測試檔 SHA-256：6094e505ba6b6ad76d75ee6cc6c9ce797d4bcd4d20779cb26a75e778f537fe94
+- Review fix round 1 最終 focused/no-host 快照的 App 組合測試檔 SHA-256：09cc3ad674b786de95d7df9fb4c92eda2be9c1e30304d262dc145b19be3e506a
+- 上述新 test-file hashes 只由 fix-round focused/no-host 執行驗證；不回溯宣稱它們參與既有的完整 Core 執行。完整 Core 仍綁定前兩個原始 hashes 與未改 production source cf0dd9d。
 - Task 6 在 production commit 後只改測試與本報告；Sources、KnitNote、KnitNoteWatch、KnitNoteShare 與 project.pbxproj 對該 commit 沒有 Task 6 diff。後續報告型 commit 改變 HEAD 不會改變被測 source 身分。
 - 版本／build 保持 1.7.0（13）。
 
@@ -38,11 +41,11 @@ Controller 核准的 sandbox 外完整 Core 已在未改動候選上通過：2,3
 
 | 項目 | 結果 | 證據 |
 | --- | --- | --- |
-| Core 新增組合測試（最終還原後） | exit 0，3 tests／1 suite，2.310s，無 warning | /tmp/remote-batch-task6-core-combined-final.log |
-| App 新增組合測試 | exit 0，1 test／1 suite，16.899s，無 warning | /tmp/remote-batch-task6-app-combined-final.log |
+| Fix round 1 前的 Core 組合測試快照 | exit 0，3 tests／1 suite，2.310s，無 warning | /tmp/remote-batch-task6-core-combined-final.log |
+| Fix round 1 前的 App 組合測試快照 | exit 0，1 test／1 suite，16.899s，無 warning | /tmp/remote-batch-task6-app-combined-final.log |
 | 無宿主 discovery | exit 0；swift test list 發現 required 5 suites 皆非空；無 deprecated/unhandled-source 或 compiler warning | /tmp/remote-batch-task6-discovery.log |
 | 實際來源無宿主 5-suite 回歸 | exit 0，136 tests／5 suites，22.899s，無 warning/error | /tmp/remote-batch-task6-app-focused-final.log |
-| managed-sandbox 完整 Core | exit 1，2,366 tests／174 suites，1,217.628s，45 issues；runner 1,286.695s，無 timeout | /tmp/remote-batch-task6-full-core.log |
+| managed-sandbox 完整 Core | exit 1，2,366 tests／174 suites，1,217.628s，45 issues；runner 1,286.695s，無 timeout；編譯階段 82 行 `warning:` | /tmp/remote-batch-task6-full-core.log |
 | sandbox 內 xcodebuild build-settings 對照 | 8/8 命令 exit 0，但 JSON settings 全空並附 Code 513/PIFCache EPERM | /tmp/remote-batch-task6-buildsettings-sandbox-status.log 及對應 .json/.stderr |
 | Unix socket 實際 errno 對照 | sandbox 內 bind=-1, errno=1；sandbox 外 bind=0 | /tmp/task6-socket-diagnostic.swift、/tmp/remote-batch-task6-socket-outside.log |
 | sandbox 外失敗項精確對照 | exit 0，3 tests／2 suites，10.786s | /tmp/remote-batch-task6-full-failure-outside-diagnostic.log |
@@ -56,11 +59,22 @@ Controller 核准的 sandbox 外完整 Core 已在未改動候選上通過：2,3
 
 第一次 5-suite 無宿主執行的 136 tests 中有 1 test／2 issues：測試錯誤假設 receipts 排序一定把新 UUID 放最後。改為比較完整精確集合、每個 retained receipt 及新 receipt 的完整 identity／commitID／domainChanged 後，最終 136 項全通過。更早 attachment 與 tombstone 失敗分別來自沒有 issued-history lineage 的非法 fixture 及不完整 deletion proof set；都改成由真實已持久 authority 推導的合法 fixture，沒有改 production behavior。這些是 fixture/oracle 修正，不冒稱 production RED。
 
-完整 Core managed-sandbox 輸出另含一行 CoreGraphics PDF diagnostic，以及負向 release-audit 案例預期觸發的 release_archive_manifest.py missing-artifact tracebacks；對應負向案例最後通過。它們仍保留為 diagnostic noise，不當成成功也不隱藏。
+完整 Core managed-sandbox 執行有實際編譯，其 log 含 82 行 `warning:`：共 41 個編譯診斷 header（每個又在 source annotation 重複一行），其中 20 個是 `#require` 對已知非 nil attachment source 的 redundant warning，21 個是 macOS 15 `String(contentsOf:)` deprecation warning。另含一行 CoreGraphics PDF diagnostic，以及負向 release-audit 案例預期觸發的 release_archive_manifest.py missing-artifact tracebacks；對應負向案例最後通過。這些 warning/診斷均保留，不當成成功也不隱藏。
 
-Sandbox 外 full 也保留一行相同 CoreGraphics diagnostic、負向 release-audit 的預期 tracebacks，以及三行預期的 provenance mismatch 診斷；沒有 failed summary 或 compiler warning。macOS build 有 3 行 AppIntents metadata extraction skipped warning（App、AppTests、MacUITests）；iOS build 有 3 行同類 warning（App、Watch、Share）及 2 行 No AppShortcuts found - Skipping note。兩個 build 均無 error。
+Sandbox 外 full 也保留一行相同 CoreGraphics diagnostic、負向 release-audit 的預期 tracebacks，以及三行預期的 provenance mismatch 診斷；沒有 failed summary。該次使用 `--skip-build`，因此沒有執行 compiler，其「無 compiler warning」不能抵銷或改寫 managed full 的 82 行 warning。macOS build 有 3 行 AppIntents metadata extraction skipped warning（App、AppTests、MacUITests）；iOS build 有 3 行同類 warning（App、Watch、Share）及 2 行 No AppShortcuts found - Skipping note。兩個 build 均無 error。
 
 因新行為在合法 fixture 上已正確，沒有製造 production bug。為確認最重要的 payload oracle，曾短暫把 dependent project save 的期望 version 改為 nil；/tmp/remote-batch-task6-oracle-mutation.log 精確記錄 1 test／1 suite 因完整 SyncRecordVersion 不等於 nil 而失敗 1 issue。隨即還原；Core 測試檔 SHA-256 回到 f424d9b701d27275a299c7e21d5b9a3ba07966031956a543df3166c5a6650992，production diff 仍為零，最終 3 個組合測試再度全數通過。
+
+## Review fix round 1 追加驗證
+
+Review 指出原組合測試對 changed project、new attachment/history heads、receipt retirement checkpoint 與 duplicate checkpoint 仍只比較局部欄位。本輪只加強兩個測試檔與報告，沒有 production 變更：Core 改為比較完整 expected canonical records，包含 changed project、new attachment 與每個 history head；duplicate replay 後再讀 staged URL 比對 bytes。App 對 capacity reject 後的 in-memory project 立即斷言，並以 predecessor authority、精確 batch record/archive digest/receipt 與唯一新 commit ID 組出完整 expected checkpoints，包含 account、commit metadata、records、legacy deletion IDs 與 receipts。Watch FIFO 也從只要求非空，加強為六個 command 對應的 18 筆 `[project, counter, counter]` record-ID 順序。
+
+行為已正確，因此不製造 production RED。兩個純測試 mutation 證明新 oracle 會失敗：`/tmp/remote-batch-task6-fix1-core-records-mutation.log` 將 expected changed record 退回 predecessor 後 exit 1、1 test／1 suite、1 issue；`/tmp/remote-batch-task6-fix1-app-checkpoint-mutation.log` 將 expected duplicate-retirement archive digest 改為 32 個 zero bytes後 exit 1、1 test／1 suite、1 issue。還原後兩檔 hashes 回到上述 fix-round 快照。
+
+- `/tmp/remote-batch-task6-fix1-core-final.log`：exit 0，3 tests／1 suite，2.223s。
+- `/tmp/remote-batch-task6-fix1-app-final.log`：exit 0，1 test／1 suite，15.200s。
+- `/tmp/remote-batch-task6-fix1-nohost-final.log`：exit 0，136 tests／5 suites，20.720s；required no-host suites 全部覆蓋，沒有執行 live CloudKit suite。
+- `git diff --check`：exit 0。本 fix round 依指示沒有再執行 full Core；既有 full 繼續綁定 cf0dd9d 與原測試檔 hashes，新 hashes 只綁定上述 focused/no-host 證據。
 
 ## 精確驗證命令
 

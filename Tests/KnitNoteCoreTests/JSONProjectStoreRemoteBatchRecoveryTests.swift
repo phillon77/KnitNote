@@ -42,7 +42,13 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         let watchLedger = try Data(contentsOf: WatchSyncPaths.processedLedger(in: live))
         let before = try #require(try fixture.checkpoints.load())
         let exactPending = try fixture.journal.pending()
-        #expect(!exactPending.isEmpty)
+        let projectRecordID = SyncEntityID(kind: .project, uuid: project.id)
+        let expectedPendingRecordIDs = commands.flatMap { command in
+            let counterRecordID = SyncEntityID(kind: .projectCounter, uuid: command.counterID)
+            return [projectRecordID, counterRecordID, counterRecordID]
+        }
+        #expect(exactPending.count == commands.count * 3)
+        #expect(exactPending.map(\.recordID) == expectedPendingRecordIDs)
 
         let otherProject = try #require(fixture.store.projects.first { $0.id != project.id })
         var remote = try #require(before.records.first {
@@ -70,9 +76,9 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         }
 
         let after = try #require(try fixture.checkpoints.load())
-        let untouchedIDs = Set(before.records.map(\.id)).subtracting([remote.id])
-        #expect(after.records.filter { untouchedIDs.contains($0.id) }
-            == before.records.filter { untouchedIDs.contains($0.id) })
+        let expectedRecords = before.records.map { $0.id == remote.id ? remote : $0 }
+        #expect(after.records == expectedRecords)
+        #expect(after.records.first { $0.id == remote.id } == remote)
         #expect(fixture.store.project(id: otherProject.id)?.name == "Remote Second")
         #expect(fixture.store.project(id: project.id)?.counters.map(\.value) == [1, 1, 1, 1, 1, 1])
         let counterStates = after.records.compactMap { record -> SyncCounterReminderState? in
@@ -195,14 +201,17 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         }
 
         let after = try #require(try fixture.checkpoints.load())
+        #expect(after.records == retainedCandidate.records)
         let afterAttachments = after.records.filter { $0.id.kind == .attachment }
         for prior in historical {
+            let expected = try #require(retainedCandidate.records.first { $0.id == prior.id })
             let retained = try #require(afterAttachments.first { $0.id == prior.id })
-            #expect(retained.payload.attachment == prior.payload.attachment)
-            if prior.deletedAt.value != nil {
-                #expect(retained == prior)
-            }
+            #expect(retained == expected)
         }
+        let expectedAttachment = try #require(retainedCandidate.records.first {
+            $0.id == .init(kind: .attachment, uuid: attachmentID)
+        })
+        #expect(afterAttachments.first { $0.id == expectedAttachment.id } == expectedAttachment)
         #expect(Set(afterAttachments.map(\.id)) == Set(historical.map(\.id)).union([
             .init(kind: .attachment, uuid: attachmentID),
         ]))
@@ -230,6 +239,7 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         #expect(try fixture.checkpoints.load() == after)
         #expect(try Data(contentsOf: fixture.archiveURL) == exactArchive)
         #expect(try Data(contentsOf: installedURL) == stagedBytes)
+        #expect(try Data(contentsOf: stagedURL) == stagedBytes)
     }
 
     @Test

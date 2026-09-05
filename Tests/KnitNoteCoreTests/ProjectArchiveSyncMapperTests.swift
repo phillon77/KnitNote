@@ -3,7 +3,7 @@ import Testing
 @testable import KnitNoteCore
 
 struct ProjectArchiveSyncMapperTests {
-    @Test func bootstrapReplacementStampDoesNotResurrectAttachmentTombstone() throws {
+    @Test func newAttachmentDeletionDominatesIssuedLiveVersionAndRetriesExactly() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -12,11 +12,42 @@ struct ProjectArchiveSyncMapperTests {
         let package = try ProjectArchiveSyncMapper.export(archive: before, liveRoot: root, deviceID: "local")
         var after = before
         after.projects[0].setPhotoFilename(nil, now: before.projects[0].updatedAt)
-        let removed = try #require(package.records.first { $0.payload.attachment?.slot.role == "project-photo" })
+        var removed = try #require(package.records.first { $0.payload.attachment?.slot.role == "project-photo" })
+        let issuedStamp = SyncMutationStamp(logicalRevision: 1, modifiedAt: .init(timeIntervalSinceReferenceDate: 200), deviceID: "local")
+        removed.entityRevision = 1
+        removed.payload.fields = removed.payload.fields.mapValues { .init(value: $0.value, stamp: issuedStamp) }
+        removed.deletedAt = .init(value: nil, stamp: issuedStamp)
+        let original = package.records.map { $0.id == removed.id ? removed : $0 }
         let exported = try ProjectArchiveSyncMapper.export(archive: after, liveRoot: root, deviceID: "local",
-            reusing: .init(archive: before, records: Dictionary(uniqueKeysWithValues: package.records.map { ($0.id, $0) })),
-            issuedAttachmentRecords: package.records.filter { $0.id.kind == .attachment })
-        #expect(try exported.record(for: removed.id)?.deletedAt.value != nil)
+            reusing: .init(archive: before, records: Dictionary(uniqueKeysWithValues: original.map { ($0.id, $0) })),
+            issuedAttachmentRecords: original.filter { $0.id.kind == .attachment })
+        let deletion = try #require(try exported.record(for: removed.id))
+        #expect(deletion.deletedAt.value != nil)
+        #expect(deletion.deletedAt.stamp > issuedStamp)
+        #expect(try SyncAttachmentImmutableSnapshot(record: deletion).sha256 == SyncAttachmentImmutableSnapshot(record: removed).sha256)
+        let merged = try SyncMergeEngine().merge(local: [deletion], remote: [removed], pendingLocal: [])
+        #expect(merged.records == [deletion])
+        let retry = try ProjectArchiveSyncMapper.export(archive: after, liveRoot: root, deviceID: "local",
+            reusing: .init(archive: after, records: Dictionary(uniqueKeysWithValues: exported.records.map { ($0.id, $0) })),
+            issuedAttachmentRecords: exported.records.filter { $0.id.kind == .attachment })
+        #expect(try retry.record(for: removed.id) == deletion)
+        #expect(try SyncMergeEngine().merge(local: [deletion], remote: merged.records, pendingLocal: []).records == [deletion])
+    }
+
+    @Test func alreadyIssuedAttachmentTombstoneIsPreservedExactly() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try BackupFixture.writeCompleteArchive(to: root)
+        var archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: root.appendingPathComponent("projects-v1.json")))
+        let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "local")
+        var tombstone = try #require(package.records.first { $0.payload.attachment?.slot.role == "project-photo" })
+        tombstone.deletedAt = .init(value: .init(timeIntervalSinceReferenceDate: 900),
+            stamp: .init(logicalRevision: 7, modifiedAt: .init(timeIntervalSinceReferenceDate: 900), deviceID: "remote"))
+        archive.projects[0].setPhotoFilename(nil, now: archive.projects[0].updatedAt)
+        let issued = package.records.filter { $0.id.kind == .attachment }.map { $0.id == tombstone.id ? tombstone : $0 }
+        let exported = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "local", issuedAttachmentRecords: issued)
+        #expect(try exported.record(for: tombstone.id) == tombstone)
     }
     @Test func exhaustedAttachmentStampCanReuseButCannotIssueReplacement() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

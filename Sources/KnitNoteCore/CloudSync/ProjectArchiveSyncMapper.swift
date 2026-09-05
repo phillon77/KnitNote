@@ -130,11 +130,18 @@ public enum ProjectArchiveSyncMapper {
         for mutation in projection.mutations {
             if case let .save(save) = mutation, save.recordVersion.record.id.kind == .attachment {
                 let record = save.recordVersion.record
-                // Deletions retain the immutable issued record and its own
-                // causal tombstone. Only a newly issued live version gets the
-                // deterministic bootstrap successor stamp.
+                // Keep an issued tombstone exact. A new removal must instead
+                // dominate issued history, changing only the deletion overlay
+                // and never the immutable attachment snapshot.
                 if record.deletedAt.value != nil {
-                    records[record.id] = record
+                    if records[record.id]?.deletedAt.value != nil { continue }
+                    guard !exhaustedSlots.contains(record.payload.attachment!.slot),
+                          let stamp = successorStamps[record.payload.attachment!.slot] else {
+                        throw SyncMergeError.corruptAttachmentVersion(record.id.uuid)
+                    }
+                    var deletion = record
+                    deletion.deletedAt = .init(value: stamp.modifiedAt, stamp: stamp)
+                    records[record.id] = deletion
                     continue
                 }
                 guard !exhaustedSlots.contains(record.payload.attachment!.slot) else {

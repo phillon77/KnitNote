@@ -11,6 +11,8 @@
 		DC0400000000000000000002 /* SyncCanonicalCheckpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */; };
 		DC0400000000000000000003 /* SyncCanonicalCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */; };
 		DC0400000000000000000004 /* SyncCanonicalCheckpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */; };
+		DB0500000000000000000001 /* SyncRemoteBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0500000000000000000003 /* SyncRemoteBatch.swift */; };
+		DB0500000000000000000002 /* SyncRemoteBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0500000000000000000003 /* SyncRemoteBatch.swift */; };
 		551111111111111111111113 /* CloudAccountTransitionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */; };
 		551111111111111111111115 /* CloudRecoveryVaultKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */; };
 		551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */; };
@@ -598,6 +600,7 @@
 		5610E37F95A98EDC6333A985 /* MovePatternFolderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovePatternFolderView.swift; sourceTree = "<group>"; };
 		574023FAFE21D43916E576AB /* PatternReaderAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternReaderAppearance.swift; sourceTree = "<group>"; };
 		57C788B9ECD15B6F70599FE3 /* SyncRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecord.swift; sourceTree = "<group>"; };
+		DB0500000000000000000003 /* SyncRemoteBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRemoteBatch.swift; sourceTree = "<group>"; };
 		58B6D1749C6CE1F1835EAB08 /* WatchOptimisticState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchOptimisticState.swift; sourceTree = "<group>"; };
 		58C9AFA4B7ADBFDEC2DF1FE9 /* MacYarnEditorLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnEditorLayoutTests.swift; sourceTree = "<group>"; };
 		599E557622BDBD257E4CFEF3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -1375,6 +1378,7 @@
 				A010233A552FAA2B7BB147E5 /* SyncMutationPublishing.swift */,
 				FBB6D912075A4481BA6E8611 /* SyncPublicationProjection.swift */,
 				57C788B9ECD15B6F70599FE3 /* SyncRecord.swift */,
+				DB0500000000000000000003 /* SyncRemoteBatch.swift */,
 				B21F8D76EB3D6C654694408A /* SyncRecordValidation.swift */,
 				6372EC9591B330B0530ED932 /* SyncRegularFileReader.swift */,
 				69FD3D9FF8756FDDC08EB27E /* SyncRevisionLedger.swift */,
@@ -1856,6 +1860,7 @@
 				A5D3A26290E05043159371A0 /* SyncMutationPublishing.swift in Sources */,
 				36AF92BF3D17BDF681E82148 /* SyncPublicationProjection.swift in Sources */,
 				F39EC7197B3C32F9DE5603F2 /* SyncRecord.swift in Sources */,
+				DB0500000000000000000001 /* SyncRemoteBatch.swift in Sources */,
 				846E5FAA94266869A36E80CB /* SyncRecordValidation.swift in Sources */,
 				6F334BF740D2302D3FA3CEE3 /* SyncRegularFileReader.swift in Sources */,
 				101F6F346F89597E2053753E /* SyncRevisionLedger.swift in Sources */,
@@ -2003,6 +2008,7 @@
 				5C0550F87409ED5F494A5A14 /* SyncMutationPublishing.swift in Sources */,
 				CFEC3BDD7EC254860657CED7 /* SyncPublicationProjection.swift in Sources */,
 				A08F2624BA274CC9890E6FF7 /* SyncRecord.swift in Sources */,
+				DB0500000000000000000002 /* SyncRemoteBatch.swift in Sources */,
 				E6E778D2A3446CF75A3B483A /* SyncRecordValidation.swift in Sources */,
 				5A91714D1B8161D087D0E681 /* SyncRegularFileReader.swift in Sources */,
 				3F234799484DD03E106D3465 /* SyncRevisionLedger.swift in Sources */,

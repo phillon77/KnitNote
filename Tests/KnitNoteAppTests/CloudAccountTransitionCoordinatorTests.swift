@@ -331,13 +331,14 @@ private struct TransitionDurableCommitter: SyncFetchedBatchCommitting {
     let fail: Bool
     let latch: TransitionCommitLatch?
     let committed: @MainActor @Sendable () -> Void
-    func commitFetchedBatch(batchID: UUID, accountEpoch: CloudSyncAccountEpoch, mergeResult: SyncMergeResult, deletedRecordIDs: [SyncEntityID]) async throws {
+    func commitFetchedBatch(batch: SyncRemoteBatch, accountEpoch: CloudSyncAccountEpoch) async throws {
         if fail { throw TransitionTestError.unexpected }
         await latch?.wait()
-        let bytes = try JSONEncoder().encode(TransitionCommittedPayload(batchID: batchID, records: mergeResult.records, deleted: deletedRecordIDs))
+        let bytes = try JSONEncoder().encode(TransitionCommittedPayload(batchID: batch.identity.batchID, records: batch.records, deleted: batch.deletedRecordIDs))
         try accountEpoch.withCurrent { try DescriptorRelativeAtomicFile(url: url).write(bytes) }
         await committed()
     }
+    func didAcknowledgeFetchedBatch(batch: SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch) async throws { try accountEpoch.requireCurrent() }
     func commitServerRecordChanged(failedMutation: SyncMutation, accountEpoch: CloudSyncAccountEpoch, expectedRecordQueue: [SyncMutationIdentity], mergeResult: SyncMergeResult) async throws -> SyncFailedMutationCommitResult { throw TransitionTestError.unexpected }
 }
 

@@ -33,11 +33,12 @@ protocol SyncFetchedBatchCommitting: Sendable {
     /// `accountEpoch.withCurrent` so an account switch and the write are
     /// linearly ordered.
     func commitFetchedBatch(
-        batchID: UUID,
-        accountEpoch: CloudSyncAccountEpoch,
-        mergeResult: SyncMergeResult,
-        deletedRecordIDs: [SyncEntityID]
+        batch: SyncRemoteBatch,
+        accountEpoch: CloudSyncAccountEpoch
     ) async throws
+
+    func didAcknowledgeFetchedBatch(batch: SyncRemoteBatchIdentity,
+        accountEpoch: CloudSyncAccountEpoch) async throws
 
     /// Atomically compares the complete same-record FIFO identities with
     /// `expectedRecordQueue` and replaces that exact queue, or returns stale.
@@ -83,6 +84,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private var activeCycle: SyncCycle?
     private var accountInvalidated = false
     private var acknowledgedBatchIDs: Set<UUID> = []
+    private var committedFetchedBatches: [UUID: SyncRemoteBatchIdentity] = [:]
     private var blockingFetchedBatches: [UUID: CloudSyncIssue] = [:]
     private var blockingFetchedBatchOrder: [UUID] = []
     private var blockingConflictMutations: [SyncMutationIdentity: CloudSyncIssue] = [:]
@@ -208,6 +210,8 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 records: records,
                 deleted: deleted
             )
+        case let .acknowledgedFetched(identity, accountEpoch):
+            await reconcileAcknowledgement(identity, accountEpoch: accountEpoch)
         case let .fetchRequestCompleted(requestID):
             await handleFetchRequestCompleted(requestID)
         case let .sent(recordID, mutationID):
@@ -242,24 +246,15 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
         guard !acknowledgedBatchIDs.contains(batchID) else { return }
         do {
             try accountEpoch.requireCurrent()
-            let pending = try journal.pending()
-            let local = try requiredLocalRecords(
-                remoteRecords: records,
-                deletedRecordIDs: deleted,
-                pending: pending
-            )
-            let result = try mergeEngine.merge(
-                local: local,
-                remote: records,
-                pendingLocalMutations: pending
-            )
+            let batch = try SyncRemoteBatch(accountIDHash: accountEpoch.verifiedAccountIdentity().accountIDHash,
+                batchID: batchID, records: records, deletedRecordIDs: deleted)
             do {
-                try await fetchedBatchCommitter.commitFetchedBatch(
-                    batchID: batchID,
-                    accountEpoch: accountEpoch,
-                    mergeResult: result,
-                    deletedRecordIDs: deleted
-                )
+                if let committed = committedFetchedBatches[batchID] {
+                    guard committed == batch.identity else { throw SyncRemoteBatchError.identityCollision }
+                } else {
+                    try await fetchedBatchCommitter.commitFetchedBatch(batch: batch, accountEpoch: accountEpoch)
+                    committedFetchedBatches[batchID] = batch.identity
+                }
             } catch CloudSyncAccountEpochError.stale {
                 return
             } catch {
@@ -272,6 +267,10 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 try await transport.schedule(stagedPending)
             }
             try await transport.acknowledgeFetchedBatch(batchID)
+            try await transport.verifyFetchedBatchAcknowledgement(batchID)
+            try await fetchedBatchCommitter.didAcknowledgeFetchedBatch(batch: batch.identity, accountEpoch: accountEpoch)
+            try await transport.finishFetchedBatchAcknowledgement(batch.identity)
+            committedFetchedBatches.removeValue(forKey: batchID)
             blockingFetchedBatches.removeValue(forKey: batchID)
             blockingFetchedBatchOrder.removeAll { $0 == batchID }
             acknowledgedBatchIDs.insert(batchID)
@@ -291,6 +290,25 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
             }
         } catch {
             failFetched(batchID, issue: .operation)
+        }
+    }
+
+    private func reconcileAcknowledgement(_ identity: SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch) async {
+        do {
+            try accountEpoch.requireCurrent()
+            guard try accountEpoch.verifiedAccountIdentity().accountIDHash == identity.accountIDHash else {
+                throw SyncRemoteBatchError.missingAuthority
+            }
+            try await transport.verifyFetchedBatchAcknowledgement(identity.batchID)
+            try await fetchedBatchCommitter.didAcknowledgeFetchedBatch(batch: identity, accountEpoch: accountEpoch)
+            try await transport.finishFetchedBatchAcknowledgement(identity)
+            acknowledgedBatchIDs.insert(identity.batchID)
+            blockingFetchedBatches.removeValue(forKey: identity.batchID)
+            blockingFetchedBatchOrder.removeAll { $0 == identity.batchID }
+        } catch CloudSyncAccountEpochError.stale {
+            return
+        } catch {
+            failFetched(identity.batchID, issue: .durableCommit)
         }
     }
 

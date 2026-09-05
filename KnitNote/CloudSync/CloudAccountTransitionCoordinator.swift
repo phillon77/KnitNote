@@ -131,7 +131,7 @@ struct CloudAccountDomainInstallation {
             let state = FileCloudSyncEngineStateStore(url: destination.paths.engineState.appendingPathComponent("engine.json"))
             let fields = FileCloudRecordSystemFieldsStore(url: destination.paths.engineState.appendingPathComponent("system-fields.json"), zoneID: zoneID)
             let transport = CKSyncEngineTransport(zoneID: zoneID, stateStore: state, systemFieldsStore: fields,
-                initialAccountIdentifier: new.userRecordName, assetStaging: assets, requiresInitialFetchReceipt: true, engineFactory: engineFactory)
+                initialAccountIdentifier: new.userRecordName, assetStaging: assets, requiresInitialFetchReceipt: true, containerIdentifier: new.containerIdentifier, engineFactory: engineFactory)
             destination.transport = transport
             try await transport.validateRecoveryBinding(account: new, paths: destination.paths)
             let sync = KnitNoteCloudSyncCoordinator(transport: transport, journal: destination.journal,

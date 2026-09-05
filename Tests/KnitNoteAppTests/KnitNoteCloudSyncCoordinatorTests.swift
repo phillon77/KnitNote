@@ -15,7 +15,7 @@ import Testing
         let staging = try CloudAssetStagingService(rootURL: fixture.root.appendingPathComponent("assets"), accountIdentifier: "account",
             beforeBoundary: { boundary in try fault.check(boundary) })
         let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
-            initialAccountIdentifier: "account", assetStaging: staging, engineFactory: { _, _ in TestSyncEngineDriver() })
+            initialAccountIdentifier: "account", assetStaging: staging, containerIdentifier: "test.container", engineFactory: { _, _ in TestSyncEngineDriver() })
         let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
             mergeEngine: SyncMergeEngine(), recordProvider: FakeCoordinatorRecordProvider(records: [:]),
             fetchedBatchCommitter: FakeFetchedBatchCommitter(), screenshotMode: false)
@@ -46,7 +46,7 @@ import Testing
         let tail = try saveMutation(revision: 2, mutationSuffix: 95)
         let journal = FakeCoordinatorJournal([head, tail])
         let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
-            initialAccountIdentifier: "account", engineFactory: { _, _ in TestSyncEngineDriver() })
+            initialAccountIdentifier: "account", containerIdentifier: "test.container", engineFactory: { _, _ in TestSyncEngineDriver() })
         let committer = FakeFetchedBatchCommitter(journal: journal)
         let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
             mergeEngine: SyncMergeEngine(), recordProvider: FakeCoordinatorRecordProvider(records: [:]),
@@ -384,7 +384,7 @@ import Testing
         #expect(!transport.acknowledgedBatchIDs.contains(failedBatchID))
     }
 
-    @Test func missingProviderRecordForPendingSaveBlocksFetchedAcknowledgement() async throws {
+    @Test func missingProviderRecordDoesNotBlockExactRawBatchForwarding() async throws {
         let batchID = uuid(suffix: 41)
         let mutation = try saveMutation(revision: 1, mutationSuffix: 41)
         let remote = projectRecord(id: mutation.recordID, revision: 2, name: "remote")
@@ -403,11 +403,11 @@ import Testing
             batchID: batchID, accountEpoch: transport.accountEpoch,
             records: [remote], deleted: []
         ))
-        #expect(await eventually { coordinator.status.phase == .needsAttention })
+        #expect(await eventually { transport.acknowledgedBatchIDs == [batchID] })
 
-        #expect(coordinator.status.issue == .missingLocalRecord(mutation.recordID))
-        #expect(committer.fetchedBatchIDs.isEmpty)
-        #expect(transport.acknowledgedBatchIDs.isEmpty)
+        #expect(committer.fetchedBatchIDs == [batchID])
+        #expect(committer.fetchedResults.first?.records == [remote])
+        #expect(transport.acknowledgedBatchIDs == [batchID])
     }
 
     @Test func transientFailureWaitsForTransportRetryWithoutACompetingRetryLoop() async {
@@ -850,7 +850,7 @@ private final class CleanupFaultOnce: @unchecked Sendable {
 private let fixedNow = Date(timeIntervalSince1970: 1_800_000_000)
 
 private func coordinatorTestEpoch() -> CloudSyncAccountEpoch {
-    CloudSyncAccountEpoch(accountIdentifier: "test", zoneID: testZoneID(), generation: 1)
+    CloudSyncAccountEpoch(accountIdentifier: "test", zoneID: testZoneID(), generation: 1, containerIdentifier: "test.container")
 }
 
 private extension CloudSyncEvent {
@@ -927,9 +927,9 @@ private func drainCoordinatorTasks() async {
 
 @MainActor
 private func eventually(_ condition: () -> Bool) async -> Bool {
-    for _ in 0..<200 {
+    for _ in 0..<2_000 {
         if condition() { return true }
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
     return condition()
 }
@@ -959,7 +959,7 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
             zoneName: "KnitNoteSync",
             ownerName: CKCurrentUserDefaultName
         ),
-        generation: 1
+        generation: 1, containerIdentifier: "test.container"
     )
     private let continuation: AsyncStream<CloudSyncEvent>.Continuation
     private let lock = NSLock()
@@ -1002,6 +1002,12 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
     }
     var fetchRequestIDs: [UUID] { withLock { fetchRequestIDStorage } }
 
+    func verifyFetchedBatchAcknowledgement(_ batchID: UUID) async throws {
+        guard acknowledgedBatchIDs.contains(batchID) else { throw FakeCoordinatorError.commitFailed }
+    }
+    func finishFetchedBatchAcknowledgement(_ identity: SyncRemoteBatchIdentity) async throws {
+        guard acknowledgedBatchIDs.contains(identity.batchID) else { throw FakeCoordinatorError.commitFailed }
+    }
     func start() async throws { record("start") }
 
     func schedule(_ mutations: [SyncMutation]) async throws {
@@ -1191,11 +1197,12 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
     var conflictResults: [SyncMergeResult] { withLock { conflictStorage.map(\.1) } }
 
     func commitFetchedBatch(
-        batchID: UUID,
-        accountEpoch: CloudSyncAccountEpoch,
-        mergeResult: SyncMergeResult,
-        deletedRecordIDs: [SyncEntityID]
+        batch: SyncRemoteBatch,
+        accountEpoch: CloudSyncAccountEpoch
     ) async throws {
+        let batchID = batch.identity.batchID
+        let deletedRecordIDs = batch.deletedRecordIDs
+        let mergeResult = try SyncMergeEngine().merge(local: [], remote: batch.records, pendingLocalMutations: [])
         recorder.append("commitFetched:\(batchID.uuidString)")
         if let fetchedCommitGate {
             await fetchedCommitGate.suspend()
@@ -1212,6 +1219,10 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
                 ))
             }
         }
+    }
+
+    func didAcknowledgeFetchedBatch(batch: SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch) async throws {
+        try accountEpoch.requireCurrent()
     }
 
     func waitUntilFetchedCommitSuspended() async -> Bool {

@@ -342,15 +342,15 @@ private final class ProbeDurableCommitter: SyncFetchedBatchCommitting, SyncRecor
         self.url = url; self.staging = staging; self.initialRecords = initialRecords
     }
     func record(for id: SyncEntityID) throws -> SyncRecord? { initialRecords.first { $0.id == id } }
-    func commitFetchedBatch(batchID: UUID, accountEpoch: CloudSyncAccountEpoch,
-        mergeResult: SyncMergeResult, deletedRecordIDs: [SyncEntityID]) async throws {
+    func commitFetchedBatch(batch: SyncRemoteBatch, accountEpoch: CloudSyncAccountEpoch) async throws {
         try accountEpoch.withCurrent {
-            for record in mergeResult.records {
+            for record in batch.records {
                 if let version = record.payload.attachment { _ = try staging.installedDownload(version: version) }
             }
-            try SyncDurableFile.write(JSONEncoder().encode(mergeResult.records), to: url)
+            try SyncDurableFile.write(JSONEncoder().encode(batch.records), to: url)
         }
     }
+    func didAcknowledgeFetchedBatch(batch: SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch) async throws { try accountEpoch.requireCurrent() }
     func commitServerRecordChanged(failedMutation: SyncMutation, accountEpoch: CloudSyncAccountEpoch,
         expectedRecordQueue: [SyncMutationIdentity], mergeResult: SyncMergeResult) async throws -> SyncFailedMutationCommitResult {
         throw CloudSyncTransportError.invalidReplacement

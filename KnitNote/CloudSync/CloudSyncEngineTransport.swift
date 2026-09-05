@@ -8,6 +8,8 @@ protocol CloudSyncTransport: AnyObject, Sendable {
     func schedule(_ mutations: [SyncMutation]) async throws
     func finishMutationReplay(completionID: UUID?) async throws
     func acknowledgeFetchedBatch(_ batchID: UUID) async throws
+    func verifyFetchedBatchAcknowledgement(_ batchID: UUID) async throws
+    func finishFetchedBatchAcknowledgement(_ identity: SyncRemoteBatchIdentity) async throws
     func acknowledgeSentMutation(_ identity: SyncMutationIdentity) async throws
     func resolveFailedMutation(
         _ mutationID: UUID,
@@ -62,6 +64,7 @@ enum CloudSyncEvent: Sendable {
         records: [SyncRecord],
         deleted: [SyncEntityID]
     )
+    case acknowledgedFetched(SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch)
     case fetchRequestCompleted(UUID)
     case sent(recordID: SyncEntityID, mutationID: UUID)
     case sendRequestCompleted(UUID)
@@ -84,6 +87,12 @@ final class CloudSyncAccountEpoch: @unchecked Sendable {
     let zoneName: String
     let ownerName: String
     let generation: UInt64
+    let containerIdentifier: String?
+
+    func verifiedAccountIdentity() throws -> SyncAccountIdentity {
+        guard let containerIdentifier else { throw CloudSyncTransportError.missingAccountIdentity }
+        return try SyncAccountIdentity(containerIdentifier: containerIdentifier, userRecordName: accountIdentifier)
+    }
 
     private let lock = NSLock()
     private var current = true
@@ -91,12 +100,14 @@ final class CloudSyncAccountEpoch: @unchecked Sendable {
     init(
         accountIdentifier: String,
         zoneID: CKRecordZone.ID,
-        generation: UInt64
+        generation: UInt64,
+        containerIdentifier: String? = nil
     ) {
         self.accountIdentifier = accountIdentifier
         zoneName = zoneID.zoneName
         ownerName = zoneID.ownerName
         self.generation = generation
+        self.containerIdentifier = containerIdentifier
     }
 
     func requireCurrent() throws {
@@ -282,6 +293,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var currentAccountIdentifier: String?
     private var accountResetBlocksRestart = false
     private let requiresInitialFetchReceipt: Bool
+    private let syncContainerIdentifier: String?
     private var fetchedBatchSequence: UInt64 = 0
     private var activeReceiptFetch: UUID?
     private var receiptFetchBatches: [UUID: Set<UUID>] = [:]
@@ -310,7 +322,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             stateStore: stateStore,
             systemFieldsStore: systemFieldsStore,
             initialAccountIdentifier: accountIdentifier,
-            assetStaging: assetStaging
+            assetStaging: assetStaging,
+            containerIdentifier: container.containerIdentifier
         ) { serialization, delegate in
             var configuration = CKSyncEngine.Configuration(
                 database: database,
@@ -349,6 +362,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         assetStaging: CloudAssetStagingService? = nil,
         recordMaterializer: RecordMaterializer? = nil,
         requiresInitialFetchReceipt: Bool = false,
+        containerIdentifier: String? = nil,
         engineFactory: @escaping EngineFactory
     ) {
         let pair = AsyncStream<CloudSyncEvent>.makeStream()
@@ -358,6 +372,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         self.terminalLatch = terminalLatch
         self.zoneID = zoneID
         self.requiresInitialFetchReceipt = requiresInitialFetchReceipt
+        self.syncContainerIdentifier = containerIdentifier
         self.stateStore = stateStore
         self.incomingBatchStore = incomingBatchStore ?? FileCloudIncomingBatchStore(
             url: stateStore.relatedURL(pathExtension: "incoming-batches")
@@ -368,7 +383,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         accountEpoch = CloudSyncAccountEpoch(
             accountIdentifier: initialAccountIdentifier ?? "",
             zoneID: zoneID,
-            generation: 0
+            generation: 0, containerIdentifier: containerIdentifier
         )
         self.recordMaterializer = recordMaterializer ?? { mutation, baseRecord in
             guard case let .save(save) = mutation else {
@@ -422,9 +437,11 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             zoneID: zoneID,
             persistedEngineState: durableState
         )
+        let proofs = try acknowledgementIdentities()
+        let provenIDs = Set(proofs.map(\.batchID))
         // Replay has no CKAsset handles: its immutable versions must still
         // resolve to verified durable bytes before they can be acknowledged.
-        for envelope in incoming.batches {
+        for envelope in incoming.batches where !provenIDs.contains(envelope.batchID) {
             for record in envelope.records where record.deletedAt.value == nil {
                 if let version = record.payload.attachment {
                     _ = try requireAssetStaging().installedDownload(version: version)
@@ -436,12 +453,13 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         accountEpoch = CloudSyncAccountEpoch(
             accountIdentifier: incomingAccountIdentifier,
             zoneID: zoneID,
-            generation: incoming.generation
+            generation: incoming.generation, containerIdentifier: syncContainerIdentifier
         )
         activeFetchedBatchIDs = incoming.batches.map(\.batchID)
         sourceObservedFetchedBatchIDs.removeAll(keepingCapacity: false)
         sourcePendingFetchedBatchIDs.removeAll(keepingCapacity: false)
-        unacknowledgedFetchedBatchIDs = activeFetchedBatchIDs
+        unacknowledgedFetchedBatchIDs = activeFetchedBatchIDs.filter { !provenIDs.contains($0) }
+        committedReceiptBatches.formUnion(provenIDs)
         sourceObservationCycleDepth = 0
         sourceObservationCycleFailed = false
         sourceObservationCycleAllowsSpillover = false
@@ -463,7 +481,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             await created.addDatabaseChanges([zoneSave])
             try requireCurrentGeneration(operationGeneration)
         }
-        for batch in incoming.batches {
+        for identity in proofs {
+            eventContinuation.yield(.acknowledgedFetched(identity, accountEpoch: accountEpoch))
+        }
+        for batch in incoming.batches where !provenIDs.contains(batch.batchID) {
             eventContinuation.yield(.fetched(
                 batchID: batch.batchID,
                 accountEpoch: accountEpoch,
@@ -570,12 +591,17 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     func acknowledgeFetchedBatch(_ batchID: UUID) async throws {
         try requireNotTerminated()
         guard activeFetchedBatchIDs.contains(batchID) else {
+            if try acknowledgementIdentities().contains(where: { $0.batchID == batchID }) {
+                try await verifyFetchedBatchAcknowledgement(batchID)
+                return
+            }
             throw CloudSyncTransportError.unknownFetchedBatch
         }
         try incomingBatchStore.acknowledge(
             batchID,
             accountIdentifier: incomingAccountIdentifier,
-            zoneID: zoneID
+            zoneID: zoneID,
+            account: try syncContainerIdentifier.map { try SyncAccountIdentity(containerIdentifier: $0, userRecordName: incomingAccountIdentifier) }
         )
         if requiresInitialFetchReceipt {
             committedReceiptBatches.insert(batchID)
@@ -597,6 +623,31 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             throw error
         }
         unacknowledgedFetchedBatchIDs.removeAll { $0 == batchID }
+    }
+
+    private func acknowledgementIdentities() throws -> [SyncRemoteBatchIdentity] {
+        guard let syncContainerIdentifier else { return [] }
+        let account = try SyncAccountIdentity(containerIdentifier: syncContainerIdentifier, userRecordName: incomingAccountIdentifier)
+        return try incomingBatchStore.acknowledgements(accountIdentifier: incomingAccountIdentifier, zoneID: zoneID, account: account)
+    }
+
+    func verifyFetchedBatchAcknowledgement(_ batchID: UUID) async throws {
+        try requireNotTerminated()
+        let account = try accountEpoch.verifiedAccountIdentity()
+        guard let identity = try acknowledgementIdentities().first(where: { $0.batchID == batchID }) else {
+            throw CloudSyncTransportError.unknownFetchedBatch
+        }
+        try accountEpoch.withCurrent {
+            try incomingBatchStore.verifyAcknowledgement(identity, accountIdentifier: incomingAccountIdentifier, zoneID: zoneID, account: account)
+        }
+    }
+
+    func finishFetchedBatchAcknowledgement(_ identity: SyncRemoteBatchIdentity) async throws {
+        try requireNotTerminated()
+        let account = try accountEpoch.verifiedAccountIdentity()
+        try accountEpoch.withCurrent {
+            try incomingBatchStore.finishAcknowledgement(identity, accountIdentifier: incomingAccountIdentifier, zoneID: zoneID, account: account)
+        }
     }
 
     func resolveFailedMutation(

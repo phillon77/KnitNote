@@ -2,6 +2,9 @@ import CloudKit
 import Darwin
 import Foundation
 
+@_silgen_name("flock")
+private func incomingStoreFlock(_ descriptor: Int32, _ operation: Int32) -> Int32
+
 enum CloudSyncEngineStateStoreError: Error, Equatable {
     case corrupt
     case unsafeFile
@@ -296,6 +299,8 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
     private static let defaultMaximumEncodedBytes = 16 * 1_024 * 1_024
 
     private let file: DescriptorRelativeAtomicFile
+    // One process-wide lock also serializes separately constructed instances.
+    private static let authorityLock = NSLock()
     private let maximumBatchCount: Int
     private let maximumEncodedBytes: Int
 
@@ -315,52 +320,55 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
         zoneID: CKRecordZone.ID,
         persistedEngineState: Data?
     ) throws -> (generation: UInt64, batches: [CloudIncomingBatchEnvelope]) {
-        var store = try load()
-        if let staged = store.stagedStateCommit {
-            if staged.engineState == persistedEngineState {
-                let covered = Set(staged.coveredBatchIDs)
-                store.batches.removeAll { covered.contains($0.batchID) }
+        return try synchronized {
+            var store = try load()
+            if let staged = store.stagedStateCommit {
+                if staged.engineState == persistedEngineState {
+                    let covered = Set(staged.coveredBatchIDs)
+                    store.batches.removeAll { covered.contains($0.batchID) }
+                    retireFinishedProofs(&store)
+                }
+                store.stagedStateCommit = nil
             }
-            store.stagedStateCommit = nil
-        }
-        let scope = CloudIncomingBatchScope(
-            accountIdentifier: accountIdentifier,
-            zoneName: zoneID.zoneName,
-            ownerName: zoneID.ownerName
-        )
-        let previous = store.generations.firstIndex { $0.scope == scope }
-        let generation: UInt64
-        if let previous {
-            guard store.generations[previous].generation < UInt64.max else {
-                throw CloudIncomingBatchStoreError.corrupt
+            let scope = CloudIncomingBatchScope(
+                accountIdentifier: accountIdentifier,
+                zoneName: zoneID.zoneName,
+                ownerName: zoneID.ownerName
+            )
+            let previous = store.generations.firstIndex { $0.scope == scope }
+            let generation: UInt64
+            if let previous {
+                guard store.generations[previous].generation < UInt64.max else {
+                    throw CloudIncomingBatchStoreError.corrupt
+                }
+                generation = store.generations[previous].generation + 1
+                store.generations[previous].generation = generation
+            } else {
+                generation = 1
+                store.generations.append(.init(scope: scope, generation: generation))
             }
-            generation = store.generations[previous].generation + 1
-            store.generations[previous].generation = generation
-        } else {
-            generation = 1
-            store.generations.append(.init(scope: scope, generation: generation))
-        }
-        for index in store.batches.indices where store.batches[index].belongs(
-            to: accountIdentifier,
-            zoneID: zoneID
-        ) {
-            store.batches[index].deliveryGeneration = generation
-            store.batches[index].awaitingSourceRedelivery = true
-            store.batches[index].acknowledged = false
-            store.batches[index].sourceObservedRecords = Array(
-                repeating: false,
-                count: store.batches[index].records.count
+            for index in store.batches.indices where store.batches[index].belongs(
+                to: accountIdentifier,
+                zoneID: zoneID
+            ) {
+                store.batches[index].deliveryGeneration = generation
+                store.batches[index].awaitingSourceRedelivery = true
+                store.batches[index].acknowledged = (store.acknowledgementProofs ?? []).contains { $0.identity.batchID == store.batches[index].batchID }
+                store.batches[index].sourceObservedRecords = Array(
+                    repeating: false,
+                    count: store.batches[index].records.count
+                )
+                store.batches[index].sourceObservedDeletions = Array(
+                    repeating: false,
+                    count: store.batches[index].deletedRecordIDs.count
+                )
+            }
+            try save(store)
+            return (
+                generation,
+                store.batches.filter { $0.belongs(to: accountIdentifier, zoneID: zoneID) }
             )
-            store.batches[index].sourceObservedDeletions = Array(
-                repeating: false,
-                count: store.batches[index].deletedRecordIDs.count
-            )
         }
-        try save(store)
-        return (
-            generation,
-            store.batches.filter { $0.belongs(to: accountIdentifier, zoneID: zoneID) }
-        )
     }
 
     func record(
@@ -371,152 +379,154 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
         generation: UInt64,
         allowsReconciliationSpillover: Bool = false
     ) throws -> CloudIncomingBatchRecordingResult {
-        var store = try load()
-        var matchedRecordIndexes: Set<Int> = []
-        var matchedDeletionIndexes: Set<Int> = []
-        var touchedBatchIndexes: Set<Int> = []
-        var unresolvedOccurrenceCountByEntity: [SyncEntityID: Int] = [:]
-        for batch in store.batches where batch.belongs(
-            to: accountIdentifier,
-            zoneID: zoneID
-        ) && batch.deliveryGeneration == generation
-            && batch.awaitingSourceRedelivery {
-            for index in batch.records.indices where !batch.sourceObservedRecords[index] {
-                unresolvedOccurrenceCountByEntity[batch.records[index].id, default: 0] += 1
+        return try synchronized {
+            var store = try load()
+            var matchedRecordIndexes: Set<Int> = []
+            var matchedDeletionIndexes: Set<Int> = []
+            var touchedBatchIndexes: Set<Int> = []
+            var unresolvedOccurrenceCountByEntity: [SyncEntityID: Int] = [:]
+            for batch in store.batches where batch.belongs(
+                to: accountIdentifier,
+                zoneID: zoneID
+            ) && batch.deliveryGeneration == generation
+                && batch.awaitingSourceRedelivery {
+                for index in batch.records.indices where !batch.sourceObservedRecords[index] {
+                    unresolvedOccurrenceCountByEntity[batch.records[index].id, default: 0] += 1
+                }
+                for index in batch.deletedRecordIDs.indices
+                where !batch.sourceObservedDeletions[index] {
+                    unresolvedOccurrenceCountByEntity[batch.deletedRecordIDs[index], default: 0] += 1
+                }
             }
-            for index in batch.deletedRecordIDs.indices
-            where !batch.sourceObservedDeletions[index] {
-                unresolvedOccurrenceCountByEntity[batch.deletedRecordIDs[index], default: 0] += 1
-            }
-        }
 
-        for (incomingIndex, record) in records.enumerated() {
-            guard unresolvedOccurrenceCountByEntity[record.id] == 1 else { continue }
+            for (incomingIndex, record) in records.enumerated() {
+                guard unresolvedOccurrenceCountByEntity[record.id] == 1 else { continue }
+                for batchIndex in store.batches.indices where store.batches[batchIndex].belongs(
+                    to: accountIdentifier,
+                    zoneID: zoneID
+                ) && store.batches[batchIndex].deliveryGeneration == generation
+                    && store.batches[batchIndex].awaitingSourceRedelivery {
+                    guard let recordIndex = store.batches[batchIndex].records.indices.first(where: {
+                        !store.batches[batchIndex].sourceObservedRecords[$0]
+                            && store.batches[batchIndex].records[$0] == record
+                    }) else { continue }
+                    store.batches[batchIndex].sourceObservedRecords[recordIndex] = true
+                    touchedBatchIndexes.insert(batchIndex)
+                    matchedRecordIndexes.insert(incomingIndex)
+                    break
+                }
+            }
+            for (incomingIndex, deletedRecordID) in deletedRecordIDs.enumerated() {
+                guard unresolvedOccurrenceCountByEntity[deletedRecordID] == 1 else { continue }
+                for batchIndex in store.batches.indices where store.batches[batchIndex].belongs(
+                    to: accountIdentifier,
+                    zoneID: zoneID
+                ) && store.batches[batchIndex].deliveryGeneration == generation
+                    && store.batches[batchIndex].awaitingSourceRedelivery {
+                    guard let deletionIndex = store.batches[batchIndex].deletedRecordIDs.indices.first(where: {
+                        !store.batches[batchIndex].sourceObservedDeletions[$0]
+                            && store.batches[batchIndex].deletedRecordIDs[$0] == deletedRecordID
+                    }) else { continue }
+                    store.batches[batchIndex].sourceObservedDeletions[deletionIndex] = true
+                    touchedBatchIndexes.insert(batchIndex)
+                    matchedDeletionIndexes.insert(incomingIndex)
+                    break
+                }
+            }
+
+            // Nonidentical saves and save/delete transitions are ambiguous until
+            // a successful fetch boundary. Remember that this callback touched the
+            // durable entity so distinct work can spill to the encoded-byte bound,
+            // but do not guess causal coverage from revision or content alone.
+            let sourceEntityIDs = Set(records.map(\.id)).union(deletedRecordIDs)
             for batchIndex in store.batches.indices where store.batches[batchIndex].belongs(
                 to: accountIdentifier,
                 zoneID: zoneID
             ) && store.batches[batchIndex].deliveryGeneration == generation
                 && store.batches[batchIndex].awaitingSourceRedelivery {
-                guard let recordIndex = store.batches[batchIndex].records.indices.first(where: {
+                let hasUnobservedSourceEntity = store.batches[batchIndex].records.indices.contains {
                     !store.batches[batchIndex].sourceObservedRecords[$0]
-                        && store.batches[batchIndex].records[$0] == record
-                }) else { continue }
-                store.batches[batchIndex].sourceObservedRecords[recordIndex] = true
-                touchedBatchIndexes.insert(batchIndex)
-                matchedRecordIndexes.insert(incomingIndex)
-                break
-            }
-        }
-        for (incomingIndex, deletedRecordID) in deletedRecordIDs.enumerated() {
-            guard unresolvedOccurrenceCountByEntity[deletedRecordID] == 1 else { continue }
-            for batchIndex in store.batches.indices where store.batches[batchIndex].belongs(
-                to: accountIdentifier,
-                zoneID: zoneID
-            ) && store.batches[batchIndex].deliveryGeneration == generation
-                && store.batches[batchIndex].awaitingSourceRedelivery {
-                guard let deletionIndex = store.batches[batchIndex].deletedRecordIDs.indices.first(where: {
+                        && sourceEntityIDs.contains(store.batches[batchIndex].records[$0].id)
+                } || store.batches[batchIndex].deletedRecordIDs.indices.contains {
                     !store.batches[batchIndex].sourceObservedDeletions[$0]
-                        && store.batches[batchIndex].deletedRecordIDs[$0] == deletedRecordID
-                }) else { continue }
-                store.batches[batchIndex].sourceObservedDeletions[deletionIndex] = true
-                touchedBatchIndexes.insert(batchIndex)
-                matchedDeletionIndexes.insert(incomingIndex)
-                break
+                        && sourceEntityIDs.contains(store.batches[batchIndex].deletedRecordIDs[$0])
+                }
+                if hasUnobservedSourceEntity {
+                    touchedBatchIndexes.insert(batchIndex)
+                }
             }
-        }
-
-        // Nonidentical saves and save/delete transitions are ambiguous until
-        // a successful fetch boundary. Remember that this callback touched the
-        // durable entity so distinct work can spill to the encoded-byte bound,
-        // but do not guess causal coverage from revision or content alone.
-        let sourceEntityIDs = Set(records.map(\.id)).union(deletedRecordIDs)
-        for batchIndex in store.batches.indices where store.batches[batchIndex].belongs(
-            to: accountIdentifier,
-            zoneID: zoneID
-        ) && store.batches[batchIndex].deliveryGeneration == generation
-            && store.batches[batchIndex].awaitingSourceRedelivery {
-            let hasUnobservedSourceEntity = store.batches[batchIndex].records.indices.contains {
-                !store.batches[batchIndex].sourceObservedRecords[$0]
-                    && sourceEntityIDs.contains(store.batches[batchIndex].records[$0].id)
-            } || store.batches[batchIndex].deletedRecordIDs.indices.contains {
-                !store.batches[batchIndex].sourceObservedDeletions[$0]
-                    && sourceEntityIDs.contains(store.batches[batchIndex].deletedRecordIDs[$0])
+            if records.isEmpty, deletedRecordIDs.isEmpty,
+               let emptyIndex = store.batches.indices.first(where: {
+                   store.batches[$0].belongs(to: accountIdentifier, zoneID: zoneID)
+                       && store.batches[$0].deliveryGeneration == generation
+                       && store.batches[$0].awaitingSourceRedelivery
+                       && store.batches[$0].records.isEmpty
+                       && store.batches[$0].deletedRecordIDs.isEmpty
+               }) {
+                touchedBatchIndexes.insert(emptyIndex)
             }
-            if hasUnobservedSourceEntity {
-                touchedBatchIndexes.insert(batchIndex)
+
+            var fullyObservedBatchIDs: Set<UUID> = []
+            var partiallyObservedBatchIDs: Set<UUID> = []
+            for batchIndex in touchedBatchIndexes {
+                let isFullyObserved = store.batches[batchIndex].sourceObservedRecords.allSatisfy { $0 }
+                    && store.batches[batchIndex].sourceObservedDeletions.allSatisfy { $0 }
+                if isFullyObserved {
+                    store.batches[batchIndex].awaitingSourceRedelivery = false
+                    fullyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
+                } else {
+                    partiallyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
+                }
             }
-        }
-        if records.isEmpty, deletedRecordIDs.isEmpty,
-           let emptyIndex = store.batches.indices.first(where: {
-               store.batches[$0].belongs(to: accountIdentifier, zoneID: zoneID)
-                   && store.batches[$0].deliveryGeneration == generation
-                   && store.batches[$0].awaitingSourceRedelivery
-                   && store.batches[$0].records.isEmpty
-                   && store.batches[$0].deletedRecordIDs.isEmpty
-           }) {
-            touchedBatchIndexes.insert(emptyIndex)
-        }
 
-        var fullyObservedBatchIDs: Set<UUID> = []
-        var partiallyObservedBatchIDs: Set<UUID> = []
-        for batchIndex in touchedBatchIndexes {
-            let isFullyObserved = store.batches[batchIndex].sourceObservedRecords.allSatisfy { $0 }
-                && store.batches[batchIndex].sourceObservedDeletions.allSatisfy { $0 }
-            if isFullyObserved {
-                store.batches[batchIndex].awaitingSourceRedelivery = false
-                fullyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
-            } else {
-                partiallyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
+            let unmatchedRecords = records.indices.compactMap {
+                matchedRecordIndexes.contains($0) ? nil : records[$0]
             }
-        }
+            let unmatchedDeletedRecordIDs = deletedRecordIDs.indices.compactMap {
+                matchedDeletionIndexes.contains($0) ? nil : deletedRecordIDs[$0]
+            }
 
-        let unmatchedRecords = records.indices.compactMap {
-            matchedRecordIndexes.contains($0) ? nil : records[$0]
-        }
-        let unmatchedDeletedRecordIDs = deletedRecordIDs.indices.compactMap {
-            matchedDeletionIndexes.contains($0) ? nil : deletedRecordIDs[$0]
-        }
-
-        guard !unmatchedRecords.isEmpty || !unmatchedDeletedRecordIDs.isEmpty
-                || touchedBatchIndexes.isEmpty else {
+            guard !unmatchedRecords.isEmpty || !unmatchedDeletedRecordIDs.isEmpty
+                    || touchedBatchIndexes.isEmpty else {
+                try save(store)
+                return .init(
+                    deliveredEnvelope: nil,
+                    fullyObservedBatchIDs: fullyObservedBatchIDs,
+                    partiallyObservedBatchIDs: partiallyObservedBatchIDs
+                )
+            }
+            // During reconciliation, a source callback can contain both one piece
+            // of old work and new distinct work. Callback splitting is unbounded,
+            // so the count limit cannot safely predict the required headroom. The
+            // encoded-file byte cap remains the hard durable bound; ordinary new
+            // callbacks continue to use the configured batch-count backpressure.
+            guard allowsReconciliationSpillover
+                    || !touchedBatchIndexes.isEmpty
+                    || store.batches.count < maximumBatchCount else {
+                throw CloudIncomingBatchStoreError.capacityExceeded
+            }
+            let batch = CloudIncomingBatchEnvelope(
+                batchID: UUID(),
+                accountIdentifier: accountIdentifier,
+                zoneName: zoneID.zoneName,
+                ownerName: zoneID.ownerName,
+                deliveryGeneration: generation,
+                awaitingSourceRedelivery: false,
+                acknowledged: false,
+                records: unmatchedRecords,
+                deletedRecordIDs: unmatchedDeletedRecordIDs,
+                sourceObservedRecords: Array(repeating: true, count: unmatchedRecords.count),
+                sourceObservedDeletions: Array(repeating: true, count: unmatchedDeletedRecordIDs.count)
+            )
+            store.batches.append(batch)
+            fullyObservedBatchIDs.insert(batch.batchID)
             try save(store)
             return .init(
-                deliveredEnvelope: nil,
+                deliveredEnvelope: batch,
                 fullyObservedBatchIDs: fullyObservedBatchIDs,
                 partiallyObservedBatchIDs: partiallyObservedBatchIDs
             )
         }
-        // During reconciliation, a source callback can contain both one piece
-        // of old work and new distinct work. Callback splitting is unbounded,
-        // so the count limit cannot safely predict the required headroom. The
-        // encoded-file byte cap remains the hard durable bound; ordinary new
-        // callbacks continue to use the configured batch-count backpressure.
-        guard allowsReconciliationSpillover
-                || !touchedBatchIndexes.isEmpty
-                || store.batches.count < maximumBatchCount else {
-            throw CloudIncomingBatchStoreError.capacityExceeded
-        }
-        let batch = CloudIncomingBatchEnvelope(
-            batchID: UUID(),
-            accountIdentifier: accountIdentifier,
-            zoneName: zoneID.zoneName,
-            ownerName: zoneID.ownerName,
-            deliveryGeneration: generation,
-            awaitingSourceRedelivery: false,
-            acknowledged: false,
-            records: unmatchedRecords,
-            deletedRecordIDs: unmatchedDeletedRecordIDs,
-            sourceObservedRecords: Array(repeating: true, count: unmatchedRecords.count),
-            sourceObservedDeletions: Array(repeating: true, count: unmatchedDeletedRecordIDs.count)
-        )
-        store.batches.append(batch)
-        fullyObservedBatchIDs.insert(batch.batchID)
-        try save(store)
-        return .init(
-            deliveredEnvelope: batch,
-            fullyObservedBatchIDs: fullyObservedBatchIDs,
-            partiallyObservedBatchIDs: partiallyObservedBatchIDs
-        )
     }
 
     /// At a successful fetch boundary, the last source occurrence observed for
@@ -529,53 +539,55 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
         zoneID: CKRecordZone.ID,
         generation: UInt64
     ) throws -> CloudIncomingBatchRecordingResult {
-        guard !entityIDs.isEmpty else {
+        return try synchronized {
+            guard !entityIDs.isEmpty else {
+                return .init(
+                    deliveredEnvelope: nil,
+                    fullyObservedBatchIDs: [],
+                    partiallyObservedBatchIDs: []
+                )
+            }
+            var store = try load()
+            var touchedBatchIndexes: Set<Int> = []
+            for batchIndex in store.batches.indices where store.batches[batchIndex].belongs(
+                to: accountIdentifier,
+                zoneID: zoneID
+            ) && store.batches[batchIndex].deliveryGeneration == generation
+                && store.batches[batchIndex].awaitingSourceRedelivery {
+                for recordIndex in store.batches[batchIndex].records.indices
+                where !store.batches[batchIndex].sourceObservedRecords[recordIndex]
+                    && entityIDs.contains(store.batches[batchIndex].records[recordIndex].id) {
+                    store.batches[batchIndex].sourceObservedRecords[recordIndex] = true
+                    touchedBatchIndexes.insert(batchIndex)
+                }
+                for deletionIndex in store.batches[batchIndex].deletedRecordIDs.indices
+                where !store.batches[batchIndex].sourceObservedDeletions[deletionIndex]
+                    && entityIDs.contains(store.batches[batchIndex].deletedRecordIDs[deletionIndex]) {
+                    store.batches[batchIndex].sourceObservedDeletions[deletionIndex] = true
+                    touchedBatchIndexes.insert(batchIndex)
+                }
+            }
+            var fullyObservedBatchIDs: Set<UUID> = []
+            var partiallyObservedBatchIDs: Set<UUID> = []
+            for batchIndex in touchedBatchIndexes {
+                let isFullyObserved = store.batches[batchIndex].sourceObservedRecords.allSatisfy { $0 }
+                    && store.batches[batchIndex].sourceObservedDeletions.allSatisfy { $0 }
+                if isFullyObserved {
+                    store.batches[batchIndex].awaitingSourceRedelivery = false
+                    fullyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
+                } else {
+                    partiallyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
+                }
+            }
+            if !touchedBatchIndexes.isEmpty {
+                try save(store)
+            }
             return .init(
                 deliveredEnvelope: nil,
-                fullyObservedBatchIDs: [],
-                partiallyObservedBatchIDs: []
+                fullyObservedBatchIDs: fullyObservedBatchIDs,
+                partiallyObservedBatchIDs: partiallyObservedBatchIDs
             )
         }
-        var store = try load()
-        var touchedBatchIndexes: Set<Int> = []
-        for batchIndex in store.batches.indices where store.batches[batchIndex].belongs(
-            to: accountIdentifier,
-            zoneID: zoneID
-        ) && store.batches[batchIndex].deliveryGeneration == generation
-            && store.batches[batchIndex].awaitingSourceRedelivery {
-            for recordIndex in store.batches[batchIndex].records.indices
-            where !store.batches[batchIndex].sourceObservedRecords[recordIndex]
-                && entityIDs.contains(store.batches[batchIndex].records[recordIndex].id) {
-                store.batches[batchIndex].sourceObservedRecords[recordIndex] = true
-                touchedBatchIndexes.insert(batchIndex)
-            }
-            for deletionIndex in store.batches[batchIndex].deletedRecordIDs.indices
-            where !store.batches[batchIndex].sourceObservedDeletions[deletionIndex]
-                && entityIDs.contains(store.batches[batchIndex].deletedRecordIDs[deletionIndex]) {
-                store.batches[batchIndex].sourceObservedDeletions[deletionIndex] = true
-                touchedBatchIndexes.insert(batchIndex)
-            }
-        }
-        var fullyObservedBatchIDs: Set<UUID> = []
-        var partiallyObservedBatchIDs: Set<UUID> = []
-        for batchIndex in touchedBatchIndexes {
-            let isFullyObserved = store.batches[batchIndex].sourceObservedRecords.allSatisfy { $0 }
-                && store.batches[batchIndex].sourceObservedDeletions.allSatisfy { $0 }
-            if isFullyObserved {
-                store.batches[batchIndex].awaitingSourceRedelivery = false
-                fullyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
-            } else {
-                partiallyObservedBatchIDs.insert(store.batches[batchIndex].batchID)
-            }
-        }
-        if !touchedBatchIndexes.isEmpty {
-            try save(store)
-        }
-        return .init(
-            deliveredEnvelope: nil,
-            fullyObservedBatchIDs: fullyObservedBatchIDs,
-            partiallyObservedBatchIDs: partiallyObservedBatchIDs
-        )
     }
 
     func sourceObservationSnapshot(
@@ -583,19 +595,21 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
         zoneID: CKRecordZone.ID,
         generation: UInt64
     ) throws -> CloudIncomingBatchSourceObservationSnapshot {
-        let store = try load()
-        var batches: [UUID: CloudIncomingBatchSourceObservationSnapshot.Batch] = [:]
-        for batch in store.batches where batch.belongs(
-            to: accountIdentifier,
-            zoneID: zoneID
-        ) && batch.deliveryGeneration == generation {
-            batches[batch.batchID] = .init(
-                awaitingSourceRedelivery: batch.awaitingSourceRedelivery,
-                sourceObservedRecords: batch.sourceObservedRecords,
-                sourceObservedDeletions: batch.sourceObservedDeletions
-            )
+        return try synchronized(createIfMissing: false) {
+            let store = try load()
+            var batches: [UUID: CloudIncomingBatchSourceObservationSnapshot.Batch] = [:]
+            for batch in store.batches where batch.belongs(
+                to: accountIdentifier,
+                zoneID: zoneID
+            ) && batch.deliveryGeneration == generation {
+                batches[batch.batchID] = .init(
+                    awaitingSourceRedelivery: batch.awaitingSourceRedelivery,
+                    sourceObservedRecords: batch.sourceObservedRecords,
+                    sourceObservedDeletions: batch.sourceObservedDeletions
+                )
+            }
+            return .init(batches: batches)
         }
-        return .init(batches: batches)
     }
 
     func restoreSourceObservation(
@@ -604,107 +618,192 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
         zoneID: CKRecordZone.ID,
         generation: UInt64
     ) throws -> (currentBatchIDs: Set<UUID>, awaitingSourceRedeliveryBatchIDs: Set<UUID>) {
-        var store = try load()
-        var currentBatchIDs: Set<UUID> = []
-        var awaitingSourceRedeliveryBatchIDs: Set<UUID> = []
-        for index in store.batches.indices where store.batches[index].belongs(
-            to: accountIdentifier,
-            zoneID: zoneID
-        ) && store.batches[index].deliveryGeneration == generation {
-            let batchID = store.batches[index].batchID
-            currentBatchIDs.insert(batchID)
-            if let original = snapshot.batches[batchID] {
-                guard original.sourceObservedRecords.count
-                        == store.batches[index].records.count,
-                      original.sourceObservedDeletions.count
-                        == store.batches[index].deletedRecordIDs.count else {
-                    throw CloudIncomingBatchStoreError.corrupt
+        return try synchronized {
+            var store = try load()
+            var currentBatchIDs: Set<UUID> = []
+            var awaitingSourceRedeliveryBatchIDs: Set<UUID> = []
+            for index in store.batches.indices where store.batches[index].belongs(
+                to: accountIdentifier,
+                zoneID: zoneID
+            ) && store.batches[index].deliveryGeneration == generation {
+                let batchID = store.batches[index].batchID
+                currentBatchIDs.insert(batchID)
+                if let original = snapshot.batches[batchID] {
+                    guard original.sourceObservedRecords.count
+                            == store.batches[index].records.count,
+                          original.sourceObservedDeletions.count
+                            == store.batches[index].deletedRecordIDs.count else {
+                        throw CloudIncomingBatchStoreError.corrupt
+                    }
+                    store.batches[index].awaitingSourceRedelivery = original.awaitingSourceRedelivery
+                    store.batches[index].sourceObservedRecords = original.sourceObservedRecords
+                    store.batches[index].sourceObservedDeletions = original.sourceObservedDeletions
+                } else {
+                    store.batches[index].awaitingSourceRedelivery = true
+                    store.batches[index].sourceObservedRecords = Array(
+                        repeating: false,
+                        count: store.batches[index].records.count
+                    )
+                    store.batches[index].sourceObservedDeletions = Array(
+                        repeating: false,
+                        count: store.batches[index].deletedRecordIDs.count
+                    )
                 }
-                store.batches[index].awaitingSourceRedelivery = original.awaitingSourceRedelivery
-                store.batches[index].sourceObservedRecords = original.sourceObservedRecords
-                store.batches[index].sourceObservedDeletions = original.sourceObservedDeletions
-            } else {
-                store.batches[index].awaitingSourceRedelivery = true
-                store.batches[index].sourceObservedRecords = Array(
-                    repeating: false,
-                    count: store.batches[index].records.count
-                )
-                store.batches[index].sourceObservedDeletions = Array(
-                    repeating: false,
-                    count: store.batches[index].deletedRecordIDs.count
-                )
+                if store.batches[index].awaitingSourceRedelivery {
+                    awaitingSourceRedeliveryBatchIDs.insert(batchID)
+                }
             }
-            if store.batches[index].awaitingSourceRedelivery {
-                awaitingSourceRedeliveryBatchIDs.insert(batchID)
+            if !currentBatchIDs.isEmpty {
+                try save(store)
             }
+            return (currentBatchIDs, awaitingSourceRedeliveryBatchIDs)
         }
-        if !currentBatchIDs.isEmpty {
-            try save(store)
-        }
-        return (currentBatchIDs, awaitingSourceRedeliveryBatchIDs)
     }
 
     func acknowledge(
         _ batchID: UUID,
         accountIdentifier: String,
-        zoneID: CKRecordZone.ID
+        zoneID: CKRecordZone.ID,
+        account: SyncAccountIdentity? = nil
     ) throws {
-        var store = try load()
-        guard let index = store.batches.firstIndex(where: {
-            $0.batchID == batchID && $0.belongs(to: accountIdentifier, zoneID: zoneID)
-        }) else {
+        return try synchronized {
+            var store = try load()
+            guard let index = store.batches.firstIndex(where: {
+                $0.batchID == batchID && $0.belongs(to: accountIdentifier, zoneID: zoneID)
+            }) else {
+                throw CloudSyncTransportError.unknownFetchedBatch
+            }
+            if let account {
+                let envelope = store.batches[index]
+                let identity = try SyncRemoteBatch(accountIDHash: account.accountIDHash, batchID: batchID,
+                    records: envelope.records, deletedRecordIDs: envelope.deletedRecordIDs).identity
+                var proofs = store.acknowledgementProofs ?? []
+                if let existing = proofs.first(where: { $0.identity.batchID == batchID }) {
+                    guard existing.identity == identity, existing.scope == scope(accountIdentifier, zoneID) else {
+                        throw CloudIncomingBatchStoreError.corrupt
+                    }
+                } else {
+                    guard proofs.count < maximumBatchCount else { throw CloudIncomingBatchStoreError.capacityExceeded }
+                    proofs.append(.init(scope: scope(accountIdentifier, zoneID), identity: identity, receiptRetired: false))
+                }
+                store.acknowledgementProofs = proofs
+            }
+            store.batches[index].acknowledged = true
+            try save(store)
+        }
+    }
+
+    func acknowledgements(accountIdentifier: String, zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws -> [SyncRemoteBatchIdentity] {
+        return try synchronized(createIfMissing: false) {
+            let store = try load()
+            return try (store.acknowledgementProofs ?? []).filter { $0.scope == scope(accountIdentifier, zoneID) }.map {
+                guard $0.identity.accountIDHash == account.accountIDHash else { throw CloudIncomingBatchStoreError.corrupt }
+                return $0.identity
+            }
+        }
+    }
+
+    func verifyAcknowledgement(_ identity: SyncRemoteBatchIdentity, accountIdentifier: String,
+        zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws {
+        return try synchronized(createIfMissing: false) {
+            _ = try requiredProof(identity, in: load(), accountIdentifier: accountIdentifier, zoneID: zoneID, account: account)
+        }
+    }
+
+    func finishAcknowledgement(_ identity: SyncRemoteBatchIdentity, accountIdentifier: String,
+        zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws {
+        return try synchronized {
+            var store = try load()
+            let index = try requiredProof(identity, in: store, accountIdentifier: accountIdentifier, zoneID: zoneID, account: account)
+            store.acknowledgementProofs![index].receiptRetired = true
+            retireFinishedProofs(&store)
+            try save(store)
+        }
+    }
+
+    private func requiredProof(_ identity: SyncRemoteBatchIdentity, in store: CloudIncomingBatchStoreFile,
+        accountIdentifier: String, zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws -> Int {
+        guard identity.accountIDHash == account.accountIDHash else { throw CloudIncomingBatchStoreError.corrupt }
+        guard let index = store.acknowledgementProofs?.firstIndex(where: { $0.identity.batchID == identity.batchID }) else {
             throw CloudSyncTransportError.unknownFetchedBatch
         }
-        guard !store.batches[index].acknowledged else { return }
-        store.batches[index].acknowledged = true
-        try save(store)
+        let proof = store.acknowledgementProofs![index]
+        guard proof.identity == identity, proof.scope == scope(accountIdentifier, zoneID) else { throw CloudIncomingBatchStoreError.corrupt }
+        return index
+    }
+
+    private func scope(_ accountIdentifier: String, _ zoneID: CKRecordZone.ID) -> CloudIncomingBatchScope {
+        .init(accountIdentifier: accountIdentifier, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName)
+    }
+
+    private func retireFinishedProofs(_ store: inout CloudIncomingBatchStoreFile) {
+        let replayable = Set(store.batches.map(\.batchID))
+        store.acknowledgementProofs?.removeAll { $0.receiptRetired && !replayable.contains($0.identity.batchID) }
     }
 
     func stageStateCommit(engineState: Data, coveredBatchIDs: Set<UUID>) throws {
-        var store = try load()
-        guard coveredBatchIDs.isSubset(of: Set(store.batches.map(\.batchID))) else {
-            throw CloudIncomingBatchStoreError.corrupt
+        return try synchronized {
+            var store = try load()
+            guard coveredBatchIDs.isSubset(of: Set(store.batches.map(\.batchID))) else {
+                throw CloudIncomingBatchStoreError.corrupt
+            }
+            store.stagedStateCommit = .init(
+                engineState: engineState,
+                coveredBatchIDs: coveredBatchIDs.sorted { $0.uuidString < $1.uuidString }
+            )
+            try save(store)
         }
-        store.stagedStateCommit = .init(
-            engineState: engineState,
-            coveredBatchIDs: coveredBatchIDs.sorted { $0.uuidString < $1.uuidString }
-        )
-        try save(store)
     }
 
     func completeStateCommit(engineState: Data) throws {
-        var store = try load()
-        guard let staged = store.stagedStateCommit,
-              staged.engineState == engineState else {
-            throw CloudIncomingBatchStoreError.corrupt
+        return try synchronized {
+            var store = try load()
+            guard let staged = store.stagedStateCommit,
+                  staged.engineState == engineState else {
+                throw CloudIncomingBatchStoreError.corrupt
+            }
+            let covered = Set(staged.coveredBatchIDs)
+            store.batches.removeAll { covered.contains($0.batchID) }
+            retireFinishedProofs(&store)
+            store.stagedStateCommit = nil
+            try save(store)
         }
-        let covered = Set(staged.coveredBatchIDs)
-        store.batches.removeAll { covered.contains($0.batchID) }
-        store.stagedStateCommit = nil
-        try save(store)
     }
 
     /// Called only after the opaque CKSyncEngine state has been durably cleared.
     /// Any account can then safely refetch work represented by these envelopes.
     func retireAllAfterEngineStateReset() throws {
-        var store = try load()
-        store.batches.removeAll(keepingCapacity: false)
-        store.generations.removeAll(keepingCapacity: false)
-        store.stagedStateCommit = nil
-        try save(store)
+        return try synchronized {
+            var store = try load()
+            store.batches.removeAll(keepingCapacity: false)
+            retireFinishedProofs(&store)
+            store.generations.removeAll(keepingCapacity: false)
+            store.stagedStateCommit = nil
+            try save(store)
+        }
     }
 
     func containsForeignAccount(_ accountIdentifier: String) throws -> Bool {
-        let store = try load()
-        return store.batches.contains { $0.accountIdentifier != accountIdentifier }
-            || store.generations.contains {
-                $0.scope.accountIdentifier != accountIdentifier
-            }
+        return try synchronized(createIfMissing: false) {
+            let store = try load()
+            return (store.acknowledgementProofs ?? []).contains { $0.scope.accountIdentifier != accountIdentifier }
+                || store.batches.contains { $0.accountIdentifier != accountIdentifier }
+                || store.generations.contains {
+                    $0.scope.accountIdentifier != accountIdentifier
+                }
+        }
+    }
+
+    private func synchronized<T>(createIfMissing: Bool = true, _ operation: () throws -> T) throws -> T {
+        Self.authorityLock.lock()
+        defer { Self.authorityLock.unlock() }
+        do { return try file.withExclusiveParent(createIfMissing: createIfMissing, operation) }
+        catch let error as DescriptorRelativeAtomicFileError { throw Self.map(error) }
     }
 
     private func load() throws -> CloudIncomingBatchStoreFile {
         do {
-            guard let data = try file.read(), !data.isEmpty else {
+            guard let data = try file.read() else {
                 return .init(
                     version: Self.version,
                     generations: [],
@@ -712,6 +811,7 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
                     stagedStateCommit: nil
                 )
             }
+            guard !data.isEmpty else { throw CloudIncomingBatchStoreError.corrupt }
             guard data.count <= maximumEncodedBytes else {
                 throw CloudIncomingBatchStoreError.capacityExceeded
             }
@@ -724,6 +824,21 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
                   }),
                   Set(decoded.generations.map(\.scope)).count == decoded.generations.count else {
                 throw CloudIncomingBatchStoreError.corrupt
+            }
+            let proofs = decoded.acknowledgementProofs ?? []
+            guard proofs.count <= maximumBatchCount, Set(proofs.map { $0.identity.batchID }).count == proofs.count else {
+                throw CloudIncomingBatchStoreError.corrupt
+            }
+            for proof in proofs {
+                _ = try proof.identity.validated()
+                if let envelope = decoded.batches.first(where: { $0.batchID == proof.identity.batchID }) {
+                    guard envelope.acknowledged, proof.scope == scope(envelope.accountIdentifier,
+                        CKRecordZone.ID(zoneName: envelope.zoneName, ownerName: envelope.ownerName)),
+                        try SyncRemoteBatch(accountIDHash: proof.identity.accountIDHash, batchID: envelope.batchID,
+                            records: envelope.records, deletedRecordIDs: envelope.deletedRecordIDs).identity == proof.identity else {
+                        throw CloudIncomingBatchStoreError.corrupt
+                    }
+                }
             }
             return decoded
         } catch let error as DescriptorRelativeAtomicFileError {
@@ -809,6 +924,13 @@ private struct CloudIncomingBatchStoreFile: Codable {
     var generations: [CloudIncomingBatchGeneration]
     var batches: [CloudIncomingBatchEnvelope]
     var stagedStateCommit: CloudIncomingBatchStateCommit?
+    var acknowledgementProofs: [CloudIncomingBatchAcknowledgement]? = nil
+}
+
+private struct CloudIncomingBatchAcknowledgement: Codable {
+    let scope: CloudIncomingBatchScope
+    let identity: SyncRemoteBatchIdentity
+    var receiptRetired: Bool
 }
 
 private struct CloudIncomingBatchScope: Codable, Equatable, Hashable {
@@ -844,6 +966,34 @@ struct DescriptorRelativeAtomicFile: @unchecked Sendable {
         parentURL = url.deletingLastPathComponent()
         fileName = url.lastPathComponent
         self.beforeWriteBoundary = beforeWriteBoundary
+    }
+
+    // Atomic file reads/writes do not acquire flock themselves. Holding this
+    // boundary therefore never recursively acquires the parent-directory lock.
+    func withExclusiveParent<T>(createIfMissing: Bool, _ operation: () throws -> T) throws -> T {
+        let descriptor = try openParent(createIfMissing: createIfMissing)
+        guard descriptor >= 0 else { throw DescriptorRelativeAtomicFileError.unavailable }
+        defer { Darwin.close(descriptor) }
+        while incomingStoreFlock(descriptor, LOCK_EX) != 0 {
+            guard errno == EINTR else { throw DescriptorRelativeAtomicFileError.unavailable }
+        }
+        defer { _ = incomingStoreFlock(descriptor, LOCK_UN) }
+        var original = stat()
+        guard Darwin.fstat(descriptor, &original) == 0 else { throw DescriptorRelativeAtomicFileError.unavailable }
+        func validate() throws {
+            let current = try openParent(createIfMissing: false)
+            guard current >= 0 else { throw DescriptorRelativeAtomicFileError.unsafeFile }
+            defer { Darwin.close(current) }
+            var status = stat()
+            guard Darwin.fstat(current, &status) == 0,
+                status.st_dev == original.st_dev, status.st_ino == original.st_ino else {
+                throw DescriptorRelativeAtomicFileError.unsafeFile
+            }
+        }
+        try validate()
+        let result = try operation()
+        try validate()
+        return result
     }
 
     func read() throws -> Data? {

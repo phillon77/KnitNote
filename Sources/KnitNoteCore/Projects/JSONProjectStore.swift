@@ -6281,29 +6281,33 @@ final class PatternLibraryDeletionTransaction {
         }
     }
 
-    public func commitRemoteBatch(_ preparation: SyncRemoteBatchPreparation) throws -> SyncRemoteBatchCommitResult {
-        let (_, current, sink) = try remoteBatchAuthority(account: preparation.identity.accountIDHash)
-        guard preparation.liveRoot == url.deletingLastPathComponent() else { throw SyncRemoteBatchError.missingAuthority }
-        let result: SyncRemoteBatchCommitResult = try sink.withExclusivePending { lease in
-            if let receipt = try remoteReceipt(preparation.identity, in: current) { return .alreadyCommitted(receipt) }
-            let additional = preparation.authority.map { URL(fileURLWithPath: $0.path) }.filter {
-                !$0.path.hasPrefix(remoteComparisonURL(preparation.liveRoot).path + "/")
-                    && $0 != remoteComparisonURL(preparation.liveRoot)
+    public func commitRemoteBatch(_ preparation: SyncRemoteBatchPreparation,
+        withCommitOwnership: (_ commit: () throws -> SyncRemoteBatchCommitResult) throws -> SyncRemoteBatchCommitResult = { try $0() }
+    ) throws -> SyncRemoteBatchCommitResult {
+        let result = try withCommitOwnership {
+            let (_, current, sink) = try remoteBatchAuthority(account: preparation.identity.accountIDHash)
+            guard preparation.liveRoot == url.deletingLastPathComponent() else { throw SyncRemoteBatchError.missingAuthority }
+            return try sink.withExclusivePending { lease in
+                if let receipt = try remoteReceipt(preparation.identity, in: current) { return .alreadyCommitted(receipt) }
+                let additional = preparation.authority.map { URL(fileURLWithPath: $0.path) }.filter {
+                    !$0.path.hasPrefix(remoteComparisonURL(preparation.liveRoot).path + "/")
+                        && $0 != remoteComparisonURL(preparation.liveRoot)
+                }
+                guard current == preparation.predecessor, try lease.pending() == preparation.pending,
+                      try remoteAuthoritySnapshot(additional: additional) == preparation.authority else { return .stalePredecessor }
+                if let plan = preparation.transaction?.remoteSource?.durablePlan {
+                    guard plan.journalURL == lease.location else { throw SyncRemoteBatchError.missingAuthority }
+                    let context = try remoteWatchContext()
+                    guard context.preparedCommands == plan.preparedCommands,
+                          context.processedLedger == plan.processedLedger else { return .stalePredecessor }
+                }
+                guard let transaction = preparation.transaction,
+                      let receipt = transaction.canonicalTransition?.candidate.remoteBatchReceipts.first(where: { $0.identity == preparation.identity }) else {
+                    throw SyncRemoteBatchError.missingAuthority
+                }
+                try executeRemoteTransaction(transaction, lease: lease)
+                return .committed(receipt)
             }
-            guard current == preparation.predecessor, try lease.pending() == preparation.pending,
-                  try remoteAuthoritySnapshot(additional: additional) == preparation.authority else { return .stalePredecessor }
-            if let plan = preparation.transaction?.remoteSource?.durablePlan {
-                guard plan.journalURL == lease.location else { throw SyncRemoteBatchError.missingAuthority }
-                let context = try remoteWatchContext()
-                guard context.preparedCommands == plan.preparedCommands,
-                      context.processedLedger == plan.processedLedger else { return .stalePredecessor }
-            }
-            guard let transaction = preparation.transaction,
-                  let receipt = transaction.canonicalTransition?.candidate.remoteBatchReceipts.first(where: { $0.identity == preparation.identity }) else {
-                throw SyncRemoteBatchError.missingAuthority
-            }
-            try executeRemoteTransaction(transaction, lease: lease)
-            return .committed(receipt)
         }
         if case let .committed(receipt) = result, receipt.domainChanged { onRemoteDomainCommitted?(receipt.commitID) }
         return result
@@ -6317,8 +6321,11 @@ final class PatternLibraryDeletionTransaction {
     public func retireRemoteBatchReceipt(_ identity: SyncRemoteBatchIdentity,
         verifyTransportAcknowledgement: () throws -> Void) throws {
         let (checkpoints, current, sink) = try remoteBatchAuthority(account: identity.accountIDHash)
-        guard try remoteReceipt(identity, in: current) != nil else { throw SyncRemoteBatchError.missingAuthority }
         try verifyTransportAcknowledgement()
+        // A crash can follow canonical retirement but precede the incoming
+        // store's retirement marker. Only a validated durable ACK permits this
+        // idempotent absence; authority and identity collisions still fail.
+        guard try remoteReceipt(identity, in: current) != nil else { return }
         try sink.withExclusivePending { lease in
             let pending = try lease.pending()
             let authority = try remoteAuthoritySnapshot(additional: [])

@@ -32,9 +32,11 @@
 | --- | --- |
 | `Sources/KnitNoteCore/CloudSync/SyncRecoveryVault.swift` | Authenticated bounded ciphertext persistence, per-vault injected key ownership, expiry. |
 | `Sources/KnitNoteCore/CloudSync/SyncPendingRecoveryPacket.swift` | Typed exact pending journal and bounded account-owned attachment capture/validation. |
+| `Sources/KnitNoteCore/CloudSync/SyncAccountRecoveryInventory.swift` | Read-only frozen inventory and selected pending dependency representation. |
 | `Sources/KnitNoteCore/CloudSync/SyncAccountRecoveryTransaction.swift` | Account-bound sealed receipt, persistent cleanup intent, same-account replay, selected recovery dependencies. |
 | `Sources/KnitNoteCore/CloudSync/SyncAccountStorage.swift` | Narrow locked inventory/cleanup/install primitives preserving vault and lock ownership. |
-| `Sources/KnitNoteCore/CloudSync/SyncDeletionLedger.swift` | Narrow selected unsent deletion/marker recovery export/import only if required by capture. |
+| `Sources/KnitNoteCore/CloudSync/SyncDeletionLedger.swift` | Read-only selected unsent deletion/marker export and later validated recovery import. |
+| `Sources/KnitNoteCore/CloudSync/SyncMutationJournal.swift` | Narrow concrete recovery location binding and later exact replay-state verifier; no journal format redesign. |
 | `KnitNote/CloudSync/CloudAccountTransitionCoordinator.swift` | Transition phases, domain lifecycle dependency, composition of real journal/vault/storage/transport. |
 | `KnitNote/CloudSync/CloudSyncEngineTransport.swift` | Immediate stop/invalidation separated from durable reset; blocked sends until authorized new-account readiness. |
 | `KnitNote/CloudSync/KnitNoteCloudSyncCoordinator.swift` | Account-event handoff and fetch/commit completion gate. |
@@ -74,13 +76,35 @@ let id = try vault.seal(bytes, account: account, now: now)
 - [ ] Validate expiry before restore; expiry purge removes only authenticated expired vault material and its key, with retryable interrupted cleanup. Never delete another account's material. Key/file failure must not falsely report complete cleanup.
 - [ ] Run focused plus relevant existing journal-source tests once; commit `feat: persist authenticated pending recovery packets`. Report exact output, limitations and durable artifact ownership for Task2.
 
-## Task 2: Seal-authorized account cleanup and recovery replay
+## Task 2: Read-only recovery inventory and dependency export
+
+**Files:** Create `SyncAccountRecoveryInventory.swift` and `Tests/KnitNoteCoreTests/SyncAccountRecoveryInventoryTests.swift`; modify storage, deletion ledger and concrete mutation journal narrowly, with their targeted tests.
+
+**Interfaces:** Produce `SyncAccountRecoveryInventory.capture(storage:paths:account:journal:archiveURL:maximumBytes:)` through held storage ownership, bound to exact account/root and archive URL. `FileSyncMutationJournal` exposes an internal concrete recovery location/snapshot binding, not arbitrary protocol-guessed URLs; if existing pending readers would repair/mutate state, the read-only capture must refuse that state or use a validated nonmutating view. `SyncDeletionLedger` gains a static read-only recovery export that bypasses its initializing/purge-recovery constructor. The export represents selected group metadata and exact file proofs/sources plus pending marker authority; it does not perform cleanup or install. Return concrete APIs in the report for Task3. A narrow packet overload consuming the exact read-only snapshot is allowed if needed to avoid a second mutating journal read.
+
+- [ ] Add read-only tests using actual open account storage, journal and ledger fixtures. Compare source manifest/file bytes before and after successful export and every refusal. Include bootstrap sibling, persistent journal companions, staged bytes and encrypted vault exclusion in inventory.
+- [ ] Select an active deletion group when **any** exact removal version intersects pending journal versions, retaining the complete minimal group/domain/file proof. Partial acknowledgement is normal; recovered journal still contains only the original pending mutations. Preserve pending marker versions separately. Test a partially acknowledged group and an unrelated fully acknowledged group that is not exported.
+- [ ] Distinguish truly unresolved prepared restoration/purge/publication/bootstrap state from completed/canceled/inactive witnesses. Apply existing recovery semantics to an export copy only after validating its current publication/repair authority from disk; never call a mutating recovery initializer or blindly refuse every terminal historical witness. Unknown authority fails closed without source changes. Test both unresolved refusal and validated terminal witness handling.
+- [ ] Run `CLANG_MODULE_CACHE_PATH=/tmp/plan3-clang-cache swift test --disable-sandbox --filter 'SyncAccountRecoveryInventoryTests|SyncAccountStorageTests|SyncDeletionLedgerTests|SyncMutationJournalTests'` and record RED.
+- [ ] Implement descriptor-relative read-only account inventory/fingerprint, fixed ownership-control/vault exclusions, exact journal binding, and bounded selected ledger export. No caller-selected arbitrary root exclusion. Aggregate capture budget must include both journal packet and selected dependency metadata/bytes; no unbounded pre-read accumulation.
+
+```swift
+// Inventory/export are read-only inputs, never cleanup authorization.
+let before = try Data(contentsOf: manifestURL)
+_ = try SyncAccountRecoveryInventory.capture(storage: storage, paths: paths,
+    account: account, journal: journal, archiveURL: archiveURL, maximumBytes: 100_000_000)
+#expect(try Data(contentsOf: manifestURL) == before)
+```
+
+- [ ] Run targeted plus one relevant sweep and commit `feat: capture account recovery ownership without mutation`. No destructive API, transport changes or restoration implementation in this task.
+
+## Task 3: Seal-authorized account cleanup
 
 **Files:** Create `SyncAccountRecoveryTransaction.swift`, `Tests/KnitNoteCoreTests/SyncAccountRecoveryTransactionTests.swift`; modify storage and narrowly scoped deletion-ledger recovery APIs/tests as needed.
 
-**Interfaces:** Consume open `SyncAccountStorage.Paths`, its held ownership, Task1 vault/packet and the actual journal. Produce `SyncAccountRecoveryTransaction` prepare/seal/cleanup/recover operations with a non-forgeable-in-process sealed receipt binding account, vault UUID, exact packet hash and inventory fingerprint. Durable intent must be revalidated by authenticating the vault on crash recovery; an arbitrary caller UUID is never authorization.
+**Interfaces:** Consume Task2 inventory/export and journal binding, open `SyncAccountStorage.Paths`, held ownership, and Task1 vault/packet. Produce `SyncAccountRecoveryTransaction` prepare/seal/cleanup/recover operations with a non-forgeable-in-process sealed receipt binding account, vault UUID, exact packet hash and inventory fingerprint. Durable intent must be revalidated by authenticating the vault on crash recovery; an arbitrary caller UUID is never authorization.
 
-Use an initializer bound to `storage`, `paths`, `account`, `vault`, and `journal`; expose `prepare(now:)`, `seal(_:now:)`, `cleanup(_:)`, `restore(vaultID:now:)`, and `recoverInterruptedTransition(now:)`. Prepared/sealed handle initializers are internal and their proofs are revalidated by the durable operations. This sequence is the destructive boundary:
+Use an initializer bound to `storage`, `paths`, `account`, `vault`, and concrete `journal`; expose `prepare(now:)`, `seal(_:now:)`, `cleanup(_:)`, and `recoverInterruptedTransition(now:)`. Prepared/sealed handle initializers are internal and their proofs are revalidated by the durable operations. Restore is Task4. This sequence is the destructive boundary:
 
 ```swift
 let prepared = try transaction.prepare(now: now)
@@ -90,18 +114,38 @@ try storage.close()
 ```
 
 - [ ] Write real storage/journal/vault tests for old-account cleanup containing working data, pending attachments, bootstrap sibling and deletion recovery bytes. Assert no plaintext deletion before seal readback, no vault/key removal, and refusal after inventory mutation or account mismatch.
-- [ ] Test each cut: before key/cipher persistence, after sealed intent before first unlink, during unlink, after cleanup before close, and after recovered files before journal enqueue. Reopen must preserve either original plaintext or authenticated exact recovery, never neither.
-- [ ] Capture only pending payload plus selected deletion/marker dependencies associated with pending removal versions. Existing unresolved bootstrap/publication repair state must be explicitly settled or refused without cleanup; do not silently discard an unsupported recovery witness. Add actual pending-deletion retention roundtrip and pending marker preservation. Unknown/unproven dependencies fail closed, with a concrete compatibility gate rather than whole-archive sealing.
+- [ ] Test each cut: before key/cipher persistence, after sealed intent before first unlink, during unlink, and after cleanup before close. Reopen must preserve either original plaintext or authenticated exact recovery, never neither. Retrying readable prior intents must reestablish durability before each destructive boundary.
+- [ ] Seal Task2 selected pending/deletion/marker dependencies, never an unrelated whole archive. Unsupported unresolved authority remains refused untouched. Verify actual pending-deletion bytes and pending markers survive in authenticated payload after plaintext cleanup.
 - [ ] Run `CLANG_MODULE_CACHE_PATH=/tmp/plan3-clang-cache swift test --disable-sandbox --filter 'SyncAccountRecoveryTransactionTests|SyncRecoveryVaultTests|SyncPendingRecoveryPacketTests|SyncAccountStorageTests|SyncDeletionLedgerTests'` and record RED.
 - [ ] Fingerprint exact account-owned plaintext inventory while frozen; exclude encrypted vault and retained lock/ownership control paths, not arbitrary user-selected exclusions. Persist cleanup intent after sealed proof. Revalidate before descriptor-relative no-follow cleanup while lock remains held. Keep storage bindings usable for final close; complete cleanup and fsync before sign-out success.
-- [ ] Same-account restore authenticates first, installs verified packet files to exact original owned paths, then uses actual journal enqueue retaining immutable identities. Cross-account restore is refused. Retry is idempotent; do not retire the encrypted sole copy before durable restored journal/dependencies. Current/new-account material cannot be overwritten by a stale receipt.
-- [ ] Run focused and one affected storage/journal/deletion sweep; commit `feat: gate account cleanup on sealed recovery`. Document exact receipt/phase APIs for Task3 and every unsupported-state refusal.
+- [ ] Persist cleanup-complete intent bound to the current selected vault/capture after all plaintext removals are durable. It is Task4 restore authority; preserve encrypted vault/key and ownership controls. Do not replace this current intent with a stale receipt.
+- [ ] Run focused and one affected storage/journal/deletion sweep; commit `feat: gate account cleanup on sealed recovery`. Document exact receipt/phase APIs for Task4 and every unsupported-state refusal.
 
-## Task 3: Composed runtime account-transition gate
+## Task 4: Same-account exact recovery replay
+
+**Files:** Extend `SyncAccountRecoveryTransaction.swift` and its tests; narrowly extend concrete journal replay verification and selected deletion-ledger import with targeted tests.
+
+**Interfaces:** Add `restore(vaultID:now:)` using the currently selected authenticated cleanup-complete intent, not a UUID alone. Persist restore-start before installing; retry accepts only exact authorized file/journal/dependency effects. Task2 concrete journal binding identifies its namespace; the journal verifies its actual recognized replay artifacts and exact pending identities without trusting arbitrary path-prefix files.
+
+- [ ] Write actual same-account restore tests with journal versions/deletes/attachment URLs and retained deletion/marker dependencies. A→B identity mismatch, stale vault, missing current intent, nonempty newer destination and changed file bytes must refuse before overwrite.
+- [ ] Inject interruptions after restore-start, after some files, during journal enqueue, after dependency import and before completion. Reopen/retry may accept only exact effects of this restore; reject extra/new pending mutations or unrecognized journal artifacts.
+- [ ] Run focused transaction/journal/deletion tests to observe RED. Authenticate all payloads before installing bytes, verify account-root equality, and preserve immutable original URLs; no raw journal history migration or guessed source rewrite.
+
+```swift
+try transaction.restore(vaultID: selectedVaultID, now: now)
+#expect(try journal.pending() == originalPending)
+try transaction.restore(vaultID: selectedVaultID, now: now) // exact replay only
+#expect(try journal.pending() == originalPending)
+```
+
+- [ ] Implement owned no-follow exact-path installation and concrete journal replay validation. Keep the encrypted sole copy until journal and selected dependencies are durable; never downgrade crypto failures. Mark completion durably and refuse stale receipt reuse against later account data.
+- [ ] Run one affected sweep; commit `feat: replay sealed changes only into their original account`. Return concrete restored-state/intent APIs for Task5 runtime composition.
+
+## Task 5: Composed runtime account-transition gate
 
 **Files:** Create coordinator and Keychain adapter above; modify transport/coordinator narrowly; create `Tests/KnitNoteAppTests/CloudAccountTransitionCoordinatorTests.swift` and extend existing transport account tests. If app project uses explicit membership, add only required file references.
 
-**Interfaces:** `CloudAccountTransitionCoordinator.transition(from:to:now:)` consumes Task2 transaction and concrete old/new transport/journal/storage adapters. Define an explicit domain lifecycle protocol for stop/hide/freeze and validated current-account installation; Plan4 provides its app composition. Existing epoch and fetch receipt acknowledgements remain authority, not a new guessed Boolean. Keychain adapter implements Task1 protocol with a fixed service and per-vault UUID account, random key supplied by vault, and device-local key accessibility.
+**Interfaces:** `CloudAccountTransitionCoordinator.transition(from:to:now:)` consumes reviewed Task3/4 transaction and concrete old/new transport/journal/storage adapters. Define an explicit domain lifecycle protocol for stop/hide/freeze and validated current-account installation; parent Plan4 provides its app composition. Existing epoch and fetch receipt acknowledgements remain authority, not a new guessed Boolean. Keychain adapter implements Task1 protocol with a fixed service and per-vault UUID account, random key supplied by vault, and device-local key accessibility.
 
 ```swift
 enum CloudAccountTransitionPhase {
@@ -120,4 +164,4 @@ enum CloudAccountTransitionPhase {
 
 ## Parent completion
 
-All three tasks need independent review, then one integrated security/data-loss review and any single unified fix/scoped review. Retain original parent and subplan rulings/gates for final reporting. ParentTask5 is not complete at a crypto-only checkpoint. Full Swift/platform validation, UI lifecycle/daily checkpoint, live CloudKit, physical matrix and release candidate approval remain separate gates; do not claim complete cross-device sync or submission.
+All five tasks need independent review, then one integrated security/data-loss review and any single unified fix/scoped review. Retain original parent and subplan rulings/gates for final reporting. ParentTask5 is not complete at a crypto-only checkpoint. Full Swift/platform validation, UI lifecycle/daily checkpoint, live CloudKit, physical matrix and release candidate approval remain separate gates; do not claim complete cross-device sync or submission.

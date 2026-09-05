@@ -17,10 +17,15 @@ import Testing
         try Data(
             """
             import Foundation
-            func render(locale: Locale) {
-                _ = String(localized: "unqualified")
-                _ = String(localized: "locale-is-formatting-only", locale: locale)
-                _ = String.localizedStringWithFormat("%d", 1)
+            private protocol RenderingBoundary: AnyObject {}
+            private actor Renderer: RenderingBoundary {
+                init(locale: Locale) {
+                    _ = String(localized: "unqualified")
+                    _ = String(localized: "locale-is-formatting-only", locale: locale)
+                    _ = String.localizedStringWithFormat("%d", 1)
+                    _ = "String(localized: fake)"
+                    // String(localized: "comment-only")
+                }
             }
             """.utf8
         ).write(to: source)
@@ -32,6 +37,19 @@ import Testing
             "String(localized:locale:)",
             "String.localizedStringWithFormat",
         ])
+    }
+
+    @Test func compilerASTRepeatedlyParsesActorInitializerConformance() throws {
+        let source = runtimeLocalizationRepositoryRoot.appending(
+            path: "KnitNote/CloudSync/CloudSyncEngineTransport.swift"
+        )
+        // Swift 6.3.3's dump-parse intermittently crashes during access lookup
+        // for this initializer. Every invocation must succeed; these are not retries.
+        for _ in 0..<60 {
+            let ast = try swiftAST(for: source)
+            #expect(ast.contains("constructor_decl"))
+            #expect(ast.contains("CKSyncEngineTransport"))
+        }
     }
 
     @Test func shippingUISourcesUseTheRuntimeLocaleAwareBoundary() throws {
@@ -182,7 +200,12 @@ private func directLocalizationViolations(in ast: String) -> [String] {
 private func swiftAST(for source: URL) throws -> String {
     let process = Process()
     process.executableURL = URL(filePath: "/usr/bin/xcrun")
-    process.arguments = ["swiftc", "-frontend", "-dump-parse", source.path]
+    // This scanner inspects syntax, not access correctness. Swift 6.3.3 can
+    // crash in access lookup while dumping an actor initializer's parsed AST.
+    // Keep this workaround local to scanning; shipping builds retain access checks.
+    process.arguments = [
+        "swiftc", "-frontend", "-dump-parse", "-disable-access-control", source.path,
+    ]
     process.currentDirectoryURL = runtimeLocalizationRepositoryRoot
     let output = Pipe()
     let errors = Pipe()

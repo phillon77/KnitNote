@@ -6,6 +6,13 @@ import Testing
 @MainActor
 struct JSONProjectStoreRemoteBatchRecoveryTests {
     private enum Fault: Error { case injected }
+    private final class WeakBox<Value: AnyObject> {
+        weak var value: Value?
+
+        init(_ value: Value) {
+            self.value = value
+        }
+    }
 
     @Test(arguments: SyncCanonicalPublicationBoundary.allCases)
     func everyPublicationBoundaryRecoversTheRetainedRemoteCandidateExactly(
@@ -35,6 +42,11 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
             try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load()
         )
         let candidate = try #require(retained.canonicalTransition?.candidate)
+        #expect(retained.mutations.count == 1)
+        let retainedMutation = try #require(retained.mutations.first)
+        let retainedRecord = try #require(retainedMutation.savedRecordVersion?.record)
+        #expect(retainedMutation.recordID == batch.records[0].id)
+        #expect(retainedRecord == candidate.records.first { $0.id == retainedMutation.recordID })
         let receipt = try #require(
             candidate.remoteBatchReceipts.first { $0.identity == batch.identity }
         )
@@ -60,14 +72,17 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
             #expect(try fixture.journal.pending() == committedPending)
         }
 
+        let droppedCheckpointStore = WeakBox(fixture.checkpoints)
+        #expect(droppedCheckpointStore.value != nil)
         fixture.dropInitialHandles()
+        #expect(droppedCheckpointStore.value == nil)
         for _ in 0..<2 {
             let reopened = try fixture.reopen()
+            let reopenedCheckpoints = try fixture.freshCheckpointStore()
             let replay = try reopened.prepareRemoteBatch(batch, attachmentSources: [:])
             #expect(try reopened.commitRemoteBatch(replay) == .alreadyCommitted(receipt))
-            #expect(try fixture.checkpoints.load()?.records == candidate.records)
-            #expect(try fixture.checkpoints.load()?.commitID == candidate.commitID)
-            #expect(try fixture.freshJournal().pending().map(\.identity) == committedPending.map(\.identity))
+            #expect(try reopenedCheckpoints.load() == candidate)
+            #expect(try fixture.freshJournal().pending() == committedPending)
             #expect(try Data(contentsOf: fixture.archiveURL) == candidateArchive)
             #expect(try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load() == nil)
         }
@@ -96,8 +111,9 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
 
         fixture.dropInitialHandles()
         #expect(throws: (any Error).self) { try fixture.reopen() }
+        let reopenedCheckpoints = try fixture.freshCheckpointStore()
         #expect(try Data(contentsOf: fixture.archiveURL) == archive)
-        #expect(try fixture.checkpoints.load() == predecessor)
+        #expect(try reopenedCheckpoints.load() == predecessor)
         #expect(try fixture.freshJournal().pending() == pending)
         #expect(try Data(contentsOf: fixture.publicationIntentURL) == damaged)
     }
@@ -119,10 +135,11 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
 
         fixture.dropInitialHandles()
         #expect(throws: (any Error).self) { try fixture.reopen() }
+        let reopenedCheckpoints = try fixture.freshCheckpointStore()
         #expect(try Data(contentsOf: fixture.archiveURL) == archive)
         #expect(try fixture.freshJournal().pending() == pending)
         #expect(try Data(contentsOf: fixture.publicationIntentURL) == intent)
-        #expect(!FileManager.default.fileExists(atPath: checkpointURL.path))
+        #expect(try reopenedCheckpoints.load() == nil)
     }
 
     @Test
@@ -136,6 +153,8 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         #expect(throws: (any Error).self) { try fixture.store.commitRemoteBatch(prepared) }
         let archive = try Data(contentsOf: fixture.archiveURL)
         let intent = try Data(contentsOf: fixture.publicationIntentURL)
+        let checkpoint = try #require(try fixture.checkpoints.load())
+        let journal = try fixture.journalAuthority()
         fixture.dropInitialHandles()
 
         let live = fixture.root.appendingPathComponent("Live")
@@ -144,8 +163,18 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         try FileManager.default.copyItem(at: displaced, to: live)
 
         #expect(throws: (any Error).self) { try fixture.reopen() }
+        let replacementCheckpoints = try fixture.freshCheckpointStore(at: live)
+        let displacedCheckpoints = try fixture.freshCheckpointStore(at: displaced)
+        let displacedArchive = displaced.appendingPathComponent("projects-v1.json")
+        let displacedIntent = SyncPublicationTransactionFile(archiveURL: displacedArchive).url
         #expect(try Data(contentsOf: fixture.archiveURL) == archive)
         #expect(try Data(contentsOf: fixture.publicationIntentURL) == intent)
+        #expect(try replacementCheckpoints.load() == checkpoint)
+        #expect(try displacedCheckpoints.load() == checkpoint)
+        #expect(try fixture.journalAuthority(at: live) == journal)
+        #expect(try fixture.journalAuthority(at: displaced) == journal)
+        #expect(try Data(contentsOf: displacedArchive) == archive)
+        #expect(try Data(contentsOf: displacedIntent) == intent)
     }
 
     @Test
@@ -158,6 +187,8 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         )
         #expect(throws: (any Error).self) { try fixture.store.commitRemoteBatch(prepared) }
         let intent = try Data(contentsOf: fixture.publicationIntentURL)
+        let checkpoint = try #require(try fixture.checkpoints.load())
+        let journal = try fixture.journalAuthority()
         let target = fixture.root.appendingPathComponent("outside-archive.json")
         let targetBytes = Data("outside must remain unchanged".utf8)
         try targetBytes.write(to: target)
@@ -166,8 +197,11 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
 
         fixture.dropInitialHandles()
         #expect(throws: (any Error).self) { try fixture.reopen() }
+        let reopenedCheckpoints = try fixture.freshCheckpointStore()
         #expect(try Data(contentsOf: target) == targetBytes)
         #expect(try Data(contentsOf: fixture.publicationIntentURL) == intent)
+        #expect(try reopenedCheckpoints.load() == checkpoint)
+        #expect(try fixture.journalAuthority() == journal)
         let destination = try FileManager.default.destinationOfSymbolicLink(atPath: fixture.archiveURL.path)
         #expect(URL(fileURLWithPath: destination).lastPathComponent == target.lastPathComponent)
     }
@@ -191,11 +225,16 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         )
         try fixture.journal.enqueue(unrelated)
         let pending = try fixture.journal.pending()
+        let checkpoint = try #require(try fixture.checkpoints.load())
+        let journal = try fixture.journalAuthority()
 
         fixture.dropInitialHandles()
         #expect(throws: (any Error).self) { try fixture.reopen() }
+        let reopenedCheckpoints = try fixture.freshCheckpointStore()
         #expect(try Data(contentsOf: fixture.archiveURL) == predecessorArchive)
         #expect(try fixture.freshJournal().pending() == pending)
+        #expect(try fixture.journalAuthority() == journal)
+        #expect(try reopenedCheckpoints.load() == checkpoint)
         #expect(try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load() == intent)
     }
 
@@ -231,12 +270,13 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         let pending = try fixture.journal.pending()
         fixture.dropInitialHandles()
         let reopened = try fixture.reopen()
+        let reopenedCheckpoints = try fixture.freshCheckpointStore()
         let batch = try fixture.batch(records: [], id: UUID())
 
         #expect(throws: (any Error).self) {
             try reopened.prepareRemoteBatch(batch, attachmentSources: [:])
         }
-        #expect(try fixture.checkpoints.load() == full)
+        #expect(try reopenedCheckpoints.load() == full)
         #expect(try Data(contentsOf: fixture.archiveURL) == archive)
         #expect(try fixture.freshJournal().pending() == pending)
         #expect(!FileManager.default.fileExists(atPath: fixture.publicationIntentURL.path))
@@ -277,8 +317,9 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         fixture.dropInitialHandles()
         for _ in 0..<2 {
             _ = try fixture.reopen()
-            #expect(try fixture.checkpoints.load() == candidate)
-            #expect(try fixture.checkpoints.load()?.remoteBatchReceipts.isEmpty == true)
+            let reopenedCheckpoints = try fixture.freshCheckpointStore()
+            #expect(try reopenedCheckpoints.load() == candidate)
+            #expect(try reopenedCheckpoints.load()?.remoteBatchReceipts.isEmpty == true)
             #expect(try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load() == nil)
         }
     }
@@ -293,7 +334,7 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
             Issue.record("Expected receipt insertion")
             return
         }
-        let checkpoint = try fixture.checkpoints.load()
+        let checkpoint = try #require(try fixture.checkpoints.load())
         let archive = try Data(contentsOf: fixture.archiveURL)
         let pending = try fixture.journal.pending()
 
@@ -307,7 +348,7 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
 
         fixture.dropInitialHandles()
         _ = try fixture.reopen()
-        #expect(try fixture.checkpoints.load()?.remoteBatchReceipts == [receipt])
+        #expect(try fixture.freshCheckpointStore().load()?.remoteBatchReceipts == [receipt])
     }
 
     @Test
@@ -333,7 +374,7 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
 
         #expect(try reopened.commitRemoteBatch(replay) == .alreadyCommitted(receipt))
         #expect(reopened.project(id: fixture.projectID)?.name == "Later local edit")
-        #expect(try fixture.checkpoints.load() == exactLater)
+        #expect(try fixture.freshCheckpointStore().load() == exactLater)
         #expect(try Data(contentsOf: fixture.archiveURL) == archive)
         #expect(try fixture.freshJournal().pending() == pending)
         #expect(notifications.isEmpty)
@@ -386,15 +427,15 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         fixture.dropInitialHandles()
         for _ in 0..<2 {
             let reopened = try fixture.reopen()
+            let reopenedCheckpoints = try fixture.freshCheckpointStore()
             let replay = try reopened.prepareRemoteBatch(
                 input.batch,
                 attachmentSources: input.attachments
             )
             #expect(try reopened.commitRemoteBatch(replay) == .alreadyCommitted(receipt))
-            #expect(try fixture.checkpoints.load() == candidate)
+            #expect(try reopenedCheckpoints.load() == candidate)
             #expect(try Data(contentsOf: target) == file.data)
-            #expect(try fixture.freshJournal().pending().map(\.identity)
-                == (originalPending + retained.mutations).map(\.identity))
+            #expect(try fixture.freshJournal().pending() == originalPending + retained.mutations)
             #expect(try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load() == nil)
         }
     }
@@ -467,11 +508,16 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         }
         let archive = try Data(contentsOf: fixture.archiveURL)
         let intent = try Data(contentsOf: fixture.publicationIntentURL)
+        let checkpoint = try #require(try fixture.checkpoints.load())
+        let journal = try fixture.journalAuthority()
 
         fixture.dropInitialHandles()
         #expect(throws: (any Error).self) { try fixture.reopen() }
+        let reopenedCheckpoints = try fixture.freshCheckpointStore()
         #expect(try Data(contentsOf: fixture.archiveURL) == archive)
         #expect(try Data(contentsOf: fixture.publicationIntentURL) == intent)
         #expect(try Data(contentsOf: symlink ? outside : target) == substituted)
+        #expect(try reopenedCheckpoints.load() == checkpoint)
+        #expect(try fixture.journalAuthority() == journal)
     }
 }

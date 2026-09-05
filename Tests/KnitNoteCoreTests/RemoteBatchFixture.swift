@@ -6,22 +6,38 @@ struct RemoteBatchFixture {
     private final class InitialHandles {
         var store: JSONProjectStore?
         var journal: FileSyncMutationJournal?
+        var checkpoints: SyncCanonicalCheckpointStore?
 
-        init(store: JSONProjectStore, journal: FileSyncMutationJournal) {
+        init(
+            store: JSONProjectStore,
+            journal: FileSyncMutationJournal,
+            checkpoints: SyncCanonicalCheckpointStore
+        ) {
             self.store = store
             self.journal = journal
+            self.checkpoints = checkpoints
         }
+    }
+
+    struct JournalAuthority: Equatable {
+        enum Entry: Equatable {
+            case directory
+            case regular(Data)
+            case symbolicLink(String)
+        }
+
+        let entries: [String: Entry]
     }
 
     let root: URL
     let account: SyncAccountIdentity
     let records: [SyncRecord]
     let projectID: UUID
-    let checkpoints: SyncCanonicalCheckpointStore
     private let initialHandles: InitialHandles
 
     var store: JSONProjectStore { initialHandles.store! }
     var journal: FileSyncMutationJournal { initialHandles.journal! }
+    var checkpoints: SyncCanonicalCheckpointStore { initialHandles.checkpoints! }
 
     init(
         boundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in },
@@ -75,7 +91,7 @@ struct RemoteBatchFixture {
         let journal = FileSyncMutationJournal(
             url: live.appendingPathComponent("SyncMetadata/pending.json")
         )
-        checkpoints = try SyncCanonicalCheckpointStore(
+        let checkpoints = try SyncCanonicalCheckpointStore(
             liveRoot: live,
             account: account,
             validateOwnership: {}
@@ -90,7 +106,11 @@ struct RemoteBatchFixture {
             syncCanonicalPublicationBoundary: boundary,
             syncMutationSink: JournalSyncMutationSink(journal: journal)
         )
-        initialHandles = InitialHandles(store: store, journal: journal)
+        initialHandles = InitialHandles(
+            store: store,
+            journal: journal,
+            checkpoints: checkpoints
+        )
         try store.activateSyncCanonicalState(
             checkpointStore: checkpoints,
             bootstrap: handoff,
@@ -176,17 +196,78 @@ struct RemoteBatchFixture {
         try journal.acknowledge(Set(try journal.pending().map { .init(recordID: $0.recordID, mutationID: $0.mutationID) }))
     }
 
-    func freshJournal() -> FileSyncMutationJournal {
-        FileSyncMutationJournal(url: journalURL)
+    func freshJournal(at suppliedLiveRoot: URL? = nil) -> FileSyncMutationJournal {
+        let liveRoot = suppliedLiveRoot ?? root.appendingPathComponent("Live")
+        return FileSyncMutationJournal(
+            url: liveRoot.appendingPathComponent("SyncMetadata/pending.json")
+        )
+    }
+
+    func freshCheckpointStore(
+        at suppliedLiveRoot: URL? = nil
+    ) throws -> SyncCanonicalCheckpointStore {
+        try SyncCanonicalCheckpointStore(
+            liveRoot: suppliedLiveRoot ?? root.appendingPathComponent("Live"),
+            account: account,
+            validateOwnership: {}
+        )
+    }
+
+    func journalAuthority(
+        at suppliedLiveRoot: URL? = nil
+    ) throws -> JournalAuthority {
+        let liveRoot = suppliedLiveRoot ?? root.appendingPathComponent("Live")
+        let metadata = liveRoot.appendingPathComponent("SyncMetadata")
+        guard FileManager.default.fileExists(atPath: metadata.path) else {
+            return JournalAuthority(entries: [:])
+        }
+        var entries: [String: JournalAuthority.Entry] = [:]
+        func visit(_ directory: URL) throws {
+            for item in try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [
+                    .isDirectoryKey,
+                    .isRegularFileKey,
+                    .isSymbolicLinkKey,
+                ]
+            ) {
+                let relative = String(item.path.dropFirst(metadata.path.count + 1))
+                let head = relative.split(separator: "/", maxSplits: 1).first.map(String.init) ?? ""
+                let isJournal = head == "pending.json"
+                    || head.hasPrefix("pending.json.")
+                    || head == ".pending.json.attachments"
+                let values = try item.resourceValues(forKeys: [
+                    .isDirectoryKey,
+                    .isRegularFileKey,
+                    .isSymbolicLinkKey,
+                ])
+                if values.isSymbolicLink == true {
+                    if isJournal {
+                        entries[relative] = .symbolicLink(
+                            try FileManager.default.destinationOfSymbolicLink(atPath: item.path)
+                        )
+                    }
+                } else if values.isDirectory == true {
+                    if isJournal { entries[relative] = .directory }
+                    try visit(item)
+                } else if values.isRegularFile == true, isJournal {
+                    entries[relative] = .regular(try SyncDurableFile.readRegularFile(at: item))
+                }
+            }
+        }
+        try visit(metadata)
+        return JournalAuthority(entries: entries)
     }
 
     func dropInitialHandles() {
         initialHandles.store = nil
         initialHandles.journal = nil
+        initialHandles.checkpoints = nil
     }
 
     func reopen() throws -> JSONProjectStore {
         let journal = freshJournal()
+        let checkpoints = try freshCheckpointStore()
         let fresh = JSONProjectStore(url: archiveURL,
             backupService: KnitNoteBackupService(liveRoot: root.appendingPathComponent("Live"),
                 workRoot: root.appendingPathComponent("BackupWork")),

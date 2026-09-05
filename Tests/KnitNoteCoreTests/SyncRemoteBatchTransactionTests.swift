@@ -49,6 +49,20 @@ struct SyncRemoteBatchTransactionTests {
         }
     }
 
+    @Test func retainedReceiptRemainsIdempotentAfterNormalSuccessor() throws {
+        let base = try checkpoint(commitID: uuid(25))
+        let receipt = receipt(accountIDHash: base.accountIDHash, commitID: base.commitID)
+        let retained = try base.insertingRemoteReceipt(receipt)
+        let successor = try retained.successor(
+            commitID: uuid(26),
+            archiveSHA256: retained.archiveSHA256,
+            records: retained.records,
+            legacyRecordIDsToDelete: retained.legacyRecordIDsToDelete
+        )
+
+        #expect(try successor.insertingRemoteReceipt(receipt) == successor)
+    }
+
     @Test func receiptAccountDigestAndCommitMustBindTheCandidate() throws {
         let base = try checkpoint(commitID: uuid(2))
         let valid = receipt(accountIDHash: base.accountIDHash, commitID: base.commitID)

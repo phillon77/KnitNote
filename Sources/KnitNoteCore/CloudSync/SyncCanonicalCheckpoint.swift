@@ -73,13 +73,13 @@ public struct SyncCanonicalCheckpoint: Codable, Equatable, Sendable {
 
     public func insertingRemoteReceipt(_ receipt: SyncRemoteBatchReceipt) throws -> Self {
         _ = try receipt.validated(accountIDHash: accountIDHash)
-        guard receipt.commitID == commitID else { throw SyncRemoteBatchError.invalidBatch }
         if let existing = remoteBatchReceipts.first(where: {
             Self.receiptKey($0) == Self.receiptKey(receipt)
         }) {
             guard existing == receipt else { throw SyncRemoteBatchError.identityCollision }
             return self
         }
+        guard receipt.commitID == commitID else { throw SyncRemoteBatchError.invalidBatch }
         guard remoteBatchReceipts.count < Self.maximumReceiptCount else {
             throw SyncRemoteBatchError.receiptCapacity
         }

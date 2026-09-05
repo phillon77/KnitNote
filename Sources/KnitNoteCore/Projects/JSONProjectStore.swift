@@ -6242,10 +6242,17 @@ final class PatternLibraryDeletionTransaction {
             let archive = domainChanged ? try JSONEncoder().encode(materialized.archive)
                 : try SyncRegularFileReader().read(url, maximumBytes: SyncCanonicalCheckpoint.maximumBytes).data
             let oldAttachments = Dictionary(uniqueKeysWithValues: predecessor.records.filter { $0.id.kind == .attachment }.map { ($0.id, $0) })
+            let predecessorEvidence = try syncAttachmentPublicationEvidenceFile.load()
+            let evidenceAttachments = Dictionary(uniqueKeysWithValues: predecessorEvidence.retainedAttachmentRecords.map { ($0.id.uuid, $0) })
+            let candidateAttachments = Dictionary(uniqueKeysWithValues: merge.records.filter { $0.id.kind == .attachment }.map { ($0.id.uuid, $0) })
             let installedIDs = Set(materialized.files.map { $0.version.versionID })
             guard merge.records.filter({ $0.id.kind == .attachment && oldAttachments[$0.id] != $0 && $0.deletedAt.value == nil })
                 .allSatisfy({ installedIDs.contains($0.id.uuid) }) else { throw SyncRemoteBatchError.missingAuthority }
-            let files = try materialized.files.filter { oldAttachments[.init(kind: .attachment, uuid: $0.version.versionID)]?.payload.attachment != $0.version }.map { file in
+            // Evidence persists the complete record, including a newer live
+            // deletion overlay even when the immutable media payload is equal.
+            let files = try materialized.files.filter {
+                evidenceAttachments[$0.version.versionID] != candidateAttachments[$0.version.versionID]
+            }.map { file in
                 SyncRemoteInstallFile(relativePath: file.relativePath, version: file.version,
                     data: try SyncRegularFileReader().read(file.source.fileURL,
                         maximumBytes: SyncCanonicalCheckpoint.maximumBytes,
@@ -6266,7 +6273,7 @@ final class PatternLibraryDeletionTransaction {
                     attachmentSource: record.id.kind == .attachment && record.deletedAt.value == nil ? installedSources[record.id.uuid] : nil, mutationID: UUID())
             }
             let plan = SyncRemoteBatchDurablePlan(predecessor: predecessor, journalURL: lease.location,
-                predecessorEvidence: try JSONEncoder().encode(syncAttachmentPublicationEvidenceFile.load()), authority: authority,
+                predecessorEvidence: try JSONEncoder().encode(predecessorEvidence), authority: authority,
                 pending: pending, records: batch.records, deletedRecordIDs: batch.deletedRecordIDs,
                 preparedCommands: context.preparedCommands, processedLedger: context.processedLedger, deletionMarkers: markers,
                 archive: archive, files: files)
@@ -6423,6 +6430,7 @@ final class PatternLibraryDeletionTransaction {
     private func executeRemoteTransaction(_ transaction: SyncPublicationTransaction, lease: SyncJournalWriteLease) throws {
         let file = SyncPublicationTransactionFile(archiveURL: url)
         try validateCanonicalTransition(transaction, current: syncCanonicalCheckpoint)
+        _ = try remoteCandidateEvidence(transaction)
         try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
         do {
             try file.write(transaction)
@@ -6448,9 +6456,7 @@ final class PatternLibraryDeletionTransaction {
         guard let plan = transaction.remoteSource?.durablePlan else { throw SyncRemoteBatchError.missingAuthority }
         let root = remoteComparisonURL(url.deletingLastPathComponent())
         let originalEvidence = try JSONDecoder().decode(SyncAttachmentPublicationEvidence.self, from: plan.predecessorEvidence).validated()
-        var expectedEvidence = originalEvidence
-        try expectedEvidence.apply(remoteEvidenceUpdates(transaction))
-        expectedEvidence = try expectedEvidence.canonicalized().validated()
+        let expectedEvidence = try remoteCandidateEvidence(transaction)
         let observedEvidence = try syncAttachmentPublicationEvidenceFile.load()
         guard try originalEvidence.merged(with: observedEvidence) == observedEvidence,
               try observedEvidence.merged(with: expectedEvidence) == expectedEvidence else { throw SyncBootstrapError.sourceChanged }
@@ -6537,6 +6543,13 @@ final class PatternLibraryDeletionTransaction {
             }
             cursor = index + 1
         }
+    }
+
+    private func remoteCandidateEvidence(_ transaction: SyncPublicationTransaction) throws -> SyncAttachmentPublicationEvidence {
+        guard let plan = transaction.remoteSource?.durablePlan else { throw SyncRemoteBatchError.missingAuthority }
+        var evidence = try JSONDecoder().decode(SyncAttachmentPublicationEvidence.self, from: plan.predecessorEvidence).validated()
+        try evidence.apply(remoteEvidenceUpdates(transaction))
+        return try evidence.canonicalized().validated()
     }
 
     private func remoteEvidenceUpdates(_ transaction: SyncPublicationTransaction) throws -> [SyncMutation] {

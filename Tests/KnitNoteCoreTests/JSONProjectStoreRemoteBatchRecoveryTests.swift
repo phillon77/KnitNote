@@ -14,6 +14,140 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func newerLiveAttachmentOverlayRetainsExactAuthoritiesAcrossTwoFreshReopens(
+        interruptAfterIntent: Bool
+    ) throws {
+        var armed = false
+        let fixture = try RemoteBatchFixture {
+            if armed && interruptAfterIntent && $0 == .afterIntent { throw Fault.injected }
+        }
+        defer { fixture.remove() }
+        let project = try #require(fixture.store.project(id: fixture.projectID))
+        try fixture.store.updateProject(id: project.id, name: project.name,
+            toolType: project.toolType, toolSize: project.toolSize, toolNotes: project.toolNotes,
+            photoChange: .replace(BackupFixture.jpegData(red: 0.3)))
+        try fixture.acknowledgeBootstrap()
+        try fixture.renameLocally("Pending local name")
+        let before = try #require(try fixture.checkpoints.load())
+        let original = try #require(before.records.first { $0.id.kind == .attachment })
+        var remote = original
+        remote.deletedAt = .init(value: nil, stamp: .init(logicalRevision: 10_000,
+            modifiedAt: Date(timeIntervalSince1970: 2_200_000_000), deviceID: "remote-live-overlay"))
+        #expect(original.deletedAt.value == nil)
+        #expect(remote.deletedAt.stamp > original.deletedAt.stamp)
+        #expect(try SyncRecordValidator().validate(remote) == remote)
+        #expect(try SyncAttachmentImmutableSnapshot(record: remote)
+            == SyncAttachmentImmutableSnapshot(record: original))
+        let archive = try Data(contentsOf: fixture.archiveURL)
+        let pending = try fixture.journal.pending()
+        #expect(pending.count == 1)
+        let journalAuthority = try fixture.journalAuthority()
+        let photo = fixture.root.appendingPathComponent("Live/ProjectPhotos")
+            .appendingPathComponent(try #require(fixture.store.project(id: project.id)?.photoFilename))
+        let media = try SyncRegularFileReader().read(photo, maximumBytes: 100_000_000)
+        let evidenceFile = SyncAttachmentPublicationEvidenceFile(
+            url: fixture.root.appendingPathComponent("Live/SyncMetadata/attachment-versions.json"))
+        let evidence = try evidenceFile.load()
+        let expectedEvidence = try SyncAttachmentPublicationEvidence(
+            versions: evidence.allVersions, deletedVersionIDs: evidence.deletedVersionIDSet,
+            watchCommandProofs: evidence.watchCommandProofs,
+            attachmentRecords: evidence.retainedAttachmentRecords.map { $0.id == remote.id ? remote : $0 }
+        ).validated()
+        let generation = fixture.store.dataGeneration
+        var notifications = 0
+        fixture.store.onRemoteDomainCommitted = { _ in notifications += 1 }
+        let batch = try fixture.batch(records: [remote], id: UUID())
+        let prepared = try fixture.store.prepareRemoteBatch(batch, attachmentSources: [:])
+        let transaction = try #require(prepared.transaction)
+        let candidate = try #require(transaction.canonicalTransition?.candidate)
+        let receipt = try #require(candidate.remoteBatchReceipts.first { $0.identity == batch.identity })
+        #expect(!receipt.domainChanged)
+        #expect(transaction.mutations.isEmpty)
+        let expected = try SyncCanonicalCheckpoint(accountIDHash: before.accountIDHash,
+            commitID: receipt.commitID, archiveSHA256: before.archiveSHA256,
+            records: before.records.map { $0.id == remote.id ? remote : $0 },
+            legacyRecordIDsToDelete: before.legacyRecordIDsToDelete,
+            remoteBatchReceipts: before.remoteBatchReceipts + [receipt])
+        #expect(candidate == expected)
+        armed = true
+        if interruptAfterIntent {
+            #expect(throws: Fault.injected) { try fixture.store.commitRemoteBatch(prepared) }
+            #expect(try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load() == transaction)
+            #expect(try fixture.checkpoints.load() == before)
+            #expect(try evidenceFile.load() == evidence)
+        } else {
+            #expect(try fixture.store.commitRemoteBatch(prepared) == .committed(receipt))
+            #expect(try fixture.checkpoints.load() == expected)
+            #expect(try evidenceFile.load() == expectedEvidence)
+        }
+        #expect(try Data(contentsOf: fixture.archiveURL) == archive)
+        #expect(try fixture.journal.pending() == pending)
+        #expect(try fixture.journalAuthority() == journalAuthority)
+        #expect(fixture.store.dataGeneration == generation)
+        #expect(notifications == 0)
+        let dropped = WeakBox(fixture.checkpoints)
+        fixture.dropInitialHandles()
+        #expect(dropped.value == nil)
+        for _ in 0..<2 {
+            let reopened = try fixture.reopen()
+            let replay = try reopened.prepareRemoteBatch(batch, attachmentSources: [:])
+            #expect(try reopened.commitRemoteBatch(replay) == .alreadyCommitted(receipt))
+            #expect(try fixture.freshCheckpointStore().load() == expected)
+            #expect(try fixture.freshJournal().pending() == pending)
+            #expect(try fixture.journalAuthority() == journalAuthority)
+            #expect(try evidenceFile.load() == expectedEvidence)
+            #expect(try Data(contentsOf: fixture.archiveURL) == archive)
+            let retainedMedia = try SyncRegularFileReader().read(photo, maximumBytes: 100_000_000)
+            #expect(retainedMedia.data == media.data)
+            #expect(retainedMedia.device == media.device && retainedMedia.inode == media.inode)
+            #expect(reopened.project(id: project.id)?.name == "Pending local name")
+            #expect(try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load() == nil)
+        }
+    }
+
+    @Test
+    func incompleteAttachmentEvidencePlanIsRejectedBeforeDurableIntent() throws {
+        let fixture = try RemoteBatchFixture(); defer { fixture.remove() }
+        let input = try fixture.photoBatch(id: UUID())
+        let prepared = try fixture.store.prepareRemoteBatch(input.batch, attachmentSources: input.attachments)
+        let original = try #require(prepared.transaction)
+        let source = try #require(original.remoteSource)
+        let plan = try #require(source.durablePlan)
+        #expect(!plan.files.isEmpty)
+        let incomplete = SyncRemoteBatchDurablePlan(predecessor: plan.predecessor,
+            journalURL: plan.journalURL, predecessorEvidence: plan.predecessorEvidence,
+            authority: plan.authority, pending: plan.pending, records: plan.records,
+            deletedRecordIDs: plan.deletedRecordIDs, preparedCommands: plan.preparedCommands,
+            processedLedger: plan.processedLedger, deletionMarkers: plan.deletionMarkers,
+            archive: plan.archive, files: [])
+        let transaction = try SyncPublicationTransaction(
+            expectedArchiveSHA256: original.expectedArchiveSHA256, mutations: original.mutations,
+            artifactEvidence: [], revisionReceipts: [], canonicalTransition: original.canonicalTransition,
+            remoteSource: .init(identity: source.identity, predecessor: source.predecessor,
+                receiptAction: source.receiptAction, durablePlan: incomplete))
+        let invalid = SyncRemoteBatchPreparation(liveRoot: prepared.liveRoot,
+            identity: prepared.identity, predecessor: prepared.predecessor,
+            authority: prepared.authority, pending: prepared.pending, transaction: transaction)
+        let archive = try Data(contentsOf: fixture.archiveURL)
+        let pending = try fixture.journal.pending()
+        let journal = try fixture.journalAuthority()
+        let checkpoint = try fixture.checkpoints.load()
+        let evidenceFile = SyncAttachmentPublicationEvidenceFile(
+            url: fixture.root.appendingPathComponent("Live/SyncMetadata/attachment-versions.json"))
+        let evidence = try evidenceFile.load()
+        #expect(throws: SyncRemoteBatchError.missingAuthority) { try fixture.store.commitRemoteBatch(invalid) }
+        #expect(try SyncPublicationTransactionFile(archiveURL: fixture.archiveURL).load() == nil)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archive)
+        #expect(try fixture.checkpoints.load() == checkpoint)
+        #expect(try fixture.journal.pending() == pending)
+        #expect(try fixture.journalAuthority() == journal)
+        #expect(try evidenceFile.load() == evidence)
+        for file in plan.files {
+            #expect(!FileManager.default.fileExists(atPath: prepared.liveRoot.appendingPathComponent(file.relativePath).path))
+        }
+    }
+
     @Test
     func partialRemoteProjectUpdatePreservesSixCounterWatchProofsAndExactFIFO() throws {
         let fixture = try RemoteBatchFixture(); defer { fixture.remove() }

@@ -4,6 +4,34 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncRemoteBatchTransactionTests {
+    @Test func nonemptyFormatOneHistorySurvivesReceiptUpgrade() throws {
+        let live = SyncRecord.remoteTransactionFixture(id: uuid(101), fields: [
+            "name": .init(value: .string("Retained live project"), stamp: .remoteTransactionFixture),
+        ])
+        var tombstone = SyncRecord.remoteTransactionFixture(id: uuid(102), fields: [
+            "name": .init(value: .string("Retained deleted project"), stamp: .remoteTransactionFixture),
+        ])
+        tombstone.deletedAt = .init(value: Date(timeIntervalSince1970: 1), stamp: .remoteTransactionFixture)
+        let legacyID = SyncEntityID(kind: .project, uuid: uuid(103))
+        let bytes = try #require(Data(base64Encoded: Self.nonemptyFormatOneCheckpointFixture))
+        let predecessor = try JSONDecoder().decode(SyncCanonicalCheckpoint.self, from: bytes).validated()
+        #expect(predecessor.formatVersion == 1)
+        #expect(predecessor.records == [live, tombstone])
+        #expect(predecessor.legacyRecordIDsToDelete == [legacyID])
+        #expect(predecessor.remoteBatchReceipts.isEmpty)
+        #expect(try predecessor.encoded() == bytes)
+        let receipt = receipt(accountIDHash: predecessor.accountIDHash, commitID: predecessor.commitID)
+        let upgraded = try JSONDecoder().decode(SyncCanonicalCheckpoint.self,
+            from: predecessor.insertingRemoteReceipt(receipt).encoded()).validated()
+        #expect(upgraded.formatVersion == 2)
+        #expect(upgraded.records == [live, tombstone])
+        #expect(upgraded.legacyRecordIDsToDelete == [legacyID])
+        #expect(upgraded.remoteBatchReceipts == [receipt])
+        #expect(upgraded.accountIDHash == predecessor.accountIDHash)
+        #expect(upgraded.commitID == predecessor.commitID)
+        #expect(upgraded.archiveSHA256 == predecessor.archiveSHA256)
+    }
+
     @Test func retainedFormatOneFixtureRoundTripsExactlyBeforeReceiptUpgrade() throws {
         let bytes = try #require(Data(base64Encoded: Self.formatOneCheckpointFixture))
         let predecessor = try JSONDecoder().decode(SyncCanonicalCheckpoint.self, from: bytes).validated()
@@ -422,6 +450,10 @@ struct SyncRemoteBatchTransactionTests {
             value
         ))!
     }
+
+    // Fixed nonempty bytes in the unchanged legacy format-1 envelope/schema.
+    private static let nonemptyFormatOneCheckpointFixture =
+        "eyJhY2NvdW50SURIYXNoIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsImFyY2hpdmVTSEEyNTYiOiJCd2NIQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCd2NIQndjPSIsImNvbW1pdElEIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDY4IiwiZm9ybWF0VmVyc2lvbiI6MSwiaW50ZWdyaXR5U0hBMjU2IjoiODk1OGU1ZTdhYzQwMmRlYzA4ZTQwYTJkM2ZjMjViYmQzZmU1NDI4M2Q0YmZmZGUwMDkyMzFmM2NjNWY4NTU1YSIsImxlZ2FjeVJlY29yZElEc1RvRGVsZXRlIjpbeyJraW5kIjoicHJvamVjdCIsInV1aWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwNjcifV0sInJlY29yZHMiOlt7ImNyZWF0ZWRBdCI6LTk3ODMwNzE5OSwiZGVsZXRlZEF0Ijp7InN0YW1wIjp7ImRldmljZUlEIjoicmVtb3RlLXRyYW5zYWN0aW9uLWZpeHR1cmUiLCJsb2dpY2FsUmV2aXNpb24iOjEsIm1vZGlmaWVkQXQiOi05NzgzMDcxOTl9LCJ2YWx1ZSI6bnVsbH0sImVudGl0eVJldmlzaW9uIjoxLCJpZCI6eyJraW5kIjoicHJvamVjdCIsInV1aWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwNjUifSwicGF5bG9hZCI6eyJmaWVsZHMiOnsibmFtZSI6eyJzdGFtcCI6eyJkZXZpY2VJRCI6InJlbW90ZS10cmFuc2FjdGlvbi1maXh0dXJlIiwibG9naWNhbFJldmlzaW9uIjoxLCJtb2RpZmllZEF0IjotOTc4MzA3MTk5fSwidmFsdWUiOnsic3RyaW5nIjp7Il8wIjoiUmV0YWluZWQgbGl2ZSBwcm9qZWN0In19fX19LCJyZWxhdGlvbnNoaXBzIjpbXSwic2NoZW1hVmVyc2lvbiI6MX0seyJjcmVhdGVkQXQiOi05NzgzMDcxOTksImRlbGV0ZWRBdCI6eyJzdGFtcCI6eyJkZXZpY2VJRCI6InJlbW90ZS10cmFuc2FjdGlvbi1maXh0dXJlIiwibG9naWNhbFJldmlzaW9uIjoxLCJtb2RpZmllZEF0IjotOTc4MzA3MTk5fSwidmFsdWUiOi05NzgzMDcxOTl9LCJlbnRpdHlSZXZpc2lvbiI6MSwiaWQiOnsia2luZCI6InByb2plY3QiLCJ1dWlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDY2In0sInBheWxvYWQiOnsiZmllbGRzIjp7Im5hbWUiOnsic3RhbXAiOnsiZGV2aWNlSUQiOiJyZW1vdGUtdHJhbnNhY3Rpb24tZml4dHVyZSIsImxvZ2ljYWxSZXZpc2lvbiI6MSwibW9kaWZpZWRBdCI6LTk3ODMwNzE5OX0sInZhbHVlIjp7InN0cmluZyI6eyJfMCI6IlJldGFpbmVkIGRlbGV0ZWQgcHJvamVjdCJ9fX19fSwicmVsYXRpb25zaGlwcyI6W10sInNjaGVtYVZlcnNpb24iOjF9XX0="
 
     private static let formatOneCheckpointFixture =
         "eyJhY2NvdW50SURIYXNoIjoiNWVmNzQxZmY0MDA0MWY2MGUyZTc2MGQzNjlkN2EzMjE0YzI4MGJhZmE2ZTk5MTk4NjM4NTdlOWZjMGYyOTYyOCIsImFyY2hpdmVTSEEyNTYiOiJCd2NIQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCd2NIQndjPSIsImNvbW1pdElEIjoiMjdCNTcxNzUtMTMzNS00MzA5LTkwMkUtMjRCODMxQkQxMDU0IiwiZm9ybWF0VmVyc2lvbiI6MSwiaW50ZWdyaXR5U0hBMjU2IjoiNWM0Y2NiNTZkOGY3MGM5NmZmMjU5ZjYwOWMyYzAxZmMwOGVlODI1YzAwYTY5Y2RmMDRhNjU1NTlhNzk3ZmU3MyIsImxlZ2FjeVJlY29yZElEc1RvRGVsZXRlIjpbXSwicmVjb3JkcyI6W119"

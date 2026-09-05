@@ -4,6 +4,8 @@
 
 ## 結論與邊界
 
+最終 whole-plan review 在 `b672060a82b01abc2963b1a3d45b1b23254b8635` 找到合法 live attachment metadata-only 更新的 Important 問題；本次最終修正已改 production source。**下列原 Task 6 完整 Core／macOS／iOS 成功均為 cf0dd9d 的歷史證據，不能驗證修正後候選。修正後的 scoped re-review、fresh full Core 與平台建置仍待完成。** 最終修正的獨立來源／測試綁定與 focused 結果另列於後段。
+
 本輪已用實際 Core／CloudSync 原始碼、檔案、canonical checkpoint、mutation journal、Watch 證據、刪除保留 ledger 與隔離 attachment staging 完成組合驗收。新增的 3 項 Core 組合測試、1 項無宿主 coordinator 組合測試及 5 組實際來源無宿主回歸均已通過。
 
 第一次完整 Core 在 managed sandbox 中完成但不通過：2,366 tests／174 suites、45 issues。問題只來自 3 個測試：兩個 Xcode build-settings 測試因 sandbox 禁止預設 DerivedData/PIFCache 寫入而得到空 settings（44 issues），一個 Unix socket fixture 在進入 reader assertion 前因 bind 被 sandbox 以 EPERM 拒絕（1 issue）。當前候選的直接對照已證實此分類：相同 3 項測試在 sandbox 外通過，沒有修改 production source。第 22 項 controller 裁決因此允許凍結候選再執行一次 sandbox 外完整 Core；下列結果保留兩次執行的完整證據，不刪除或改寫第一次失敗。
@@ -24,7 +26,7 @@ Controller 核准的 sandbox 外完整 Core 已在未改動候選上通過：2,3
 - Review fix round 1 最終 focused/no-host 快照的 Core 組合測試檔 SHA-256：6094e505ba6b6ad76d75ee6cc6c9ce797d4bcd4d20779cb26a75e778f537fe94
 - Review fix round 1 最終 focused/no-host 快照的 App 組合測試檔 SHA-256：09cc3ad674b786de95d7df9fb4c92eda2be9c1e30304d262dc145b19be3e506a
 - 上述新 test-file hashes 只由 fix-round focused/no-host 執行驗證；不回溯宣稱它們參與既有的完整 Core 執行。完整 Core 仍綁定前兩個原始 hashes 與未改 production source cf0dd9d。
-- Task 6 在 production commit 後只改測試與本報告；Sources、KnitNote、KnitNoteWatch、KnitNoteShare 與 project.pbxproj 對該 commit 沒有 Task 6 diff。後續報告型 commit 改變 HEAD 不會改變被測 source 身分。
+- Task 6 在 production commit 後只改測試與本報告；Sources、KnitNote、KnitNoteWatch、KnitNoteShare 與 project.pbxproj 對該 commit 沒有 Task 6 diff。此敘述限於 Task 6／review fix round 1；本次最終 production 修正另行綁定，不能套用原完整驗證。
 - 版本／build 保持 1.7.0（13）。
 
 ## 組合驗收覆蓋
@@ -91,11 +93,19 @@ Core 組合 filter：
 
     --filter 'partialRemoteProjectUpdatePreservesSixCounterWatchProofsAndExactFIFO|stagedRemoteAttachmentInstallsExactBytesAndPreservesHistoricalHeads|retainedTombstoneCommitsButUnprovenRawDeletePreservesEveryAuthority'
 
-無宿主 discovery／regression 使用 /private/tmp/remote-batch-task6-harness 及獨立 task6-harness cache：
+原 fix round 1 無宿主命令逐字抄自 task-6-report.md 的追加紀錄，working directory 為 `/private/tmp/remote-batch-task6-harness`。單一 App 組合測試：
 
-    /usr/bin/arch -arm64 /usr/bin/swift test ... list
-    /usr/bin/arch -arm64 /usr/bin/swift test ... \
-      --filter 'RemoteBatchCommitterIntegrationTests|KnitNoteCloudSyncCoordinatorTests|CloudSyncEngineTransportTests|CloudAccountTransitionCoordinatorTests|CloudAssetFileStoreTests'
+```zsh
+set -o pipefail
+env CLANG_MODULE_CACHE_PATH=/tmp/daily-canonical-clang-cache /usr/bin/arch -arm64 /usr/bin/swift test --disable-sandbox --no-parallel --cache-path /tmp/task6-harness-cache --config-path /tmp/task6-harness-config --security-path /tmp/task6-harness-security --filter 'saturatedReceiptsNeedAcknowledgedRetirementBeforeDuplicateACKPreservesLocalFIFO' 2>&1 | tee /tmp/remote-batch-task6-fix1-app-final.log
+```
+
+原 fix round 1 必要五組無宿主回歸：
+
+```zsh
+set -o pipefail
+env CLANG_MODULE_CACHE_PATH=/tmp/daily-canonical-clang-cache /usr/bin/arch -arm64 /usr/bin/swift test --disable-sandbox --no-parallel --cache-path /tmp/task6-harness-cache --config-path /tmp/task6-harness-config --security-path /tmp/task6-harness-security --filter 'RemoteBatchCommitterIntegrationTests|KnitNoteCloudSyncCoordinatorTests|CloudSyncEngineTransportTests|CloudAccountTransitionCoordinatorTests|CloudAssetFileStoreTests' 2>&1 | tee /tmp/remote-batch-task6-fix1-nohost-final.log
+```
 
 第一次 full 由 /tmp/task4-run-bounded.py 1800 包住完整 Core 命令。工具逾時時只對自己的 subprocess process group 送 TERM，10 秒後才送 KILL，並以 124 結束；本次沒有 timeout。第 22 項裁決核准的 sandbox 外 full 另加 --skip-build，其餘參數與 1,800 秒邊界不變。
 
@@ -105,9 +115,52 @@ Core 組合 filter：
 
 本輪 scoped self-review 沒有找到需要 Task 6 production source 修正的 Critical／Important 問題。這不取代 controller 之後從 144a1dc 到最終 HEAD 的獨立 task review 與 Astra whole-plan review。
 
+## 最終 whole-plan review 修正快照
+
+修正基準：`b672060a82b01abc2963b1a3d45b1b23254b8635`。Important 1 已以 actual RED 重現：保留同一 immutable attachment snapshot/version/payload/bytes，只把 live `deletedAt = nil` overlay 提高 stamp，正常 commit 與 afterIntent 後 fresh reopen 都拋出 `missingAuthority`。另一個不完整 evidence-plan 測試證明原流程先寫 intent 才拒絕。
+
+最小 production 修正只在 `JSONProjectStore.swift`：媒體計畫與 evidence 更新共用「完整 attachment record 是否改變」的判準，並在 intent 前完整套用／驗證候選 evidence。既有安裝器對相同 bytes 保留原檔與 inode；格式、所有權／CAS、100,000,000-byte 限制均保留。metadata-only 更新需保留的媒體仍受整份 intent 編碼上限限制，超限會在 intent 前安全拒絕。
+
+新增 oracle 比較手動推導的完整 checkpoint、receipt、完整 evidence、archive bytes、非空 exact pending FIFO 與 journal 檔案 authority、媒體 bytes／device／inode。正常 commit 及 afterIntent 兩條路徑都丟棄初始 store/journal/checkpoint handles，再連續重新建立兩次 store/checkpoint/journal；重送只回 alreadyCommitted，沒有 domain generation／callback 增量。不完整 evidence 計畫必須在 intent 前拒絕且全部原 authority 保留。
+
+Minor 2 已補固定非空 format-1 bytes：live project、deleted project 與 legacy deletion ID，驗證 byte-for-byte legacy round trip 及 receipt 升級後完整 records／IDs／account／commit／archive digest 保留。新 fixture 由本輪 legacy-format encoder 產生並固定，對照 `9214e02` 的原 format-1 wire/integrity schema；沒有冒稱是以前執行留存的資料。原先空的歷史 fixture 與 format-5 fixture 完全保留。Minor 3 已將原 no-host 省略命令改成 task-6-report.md 中的兩條實際完整命令。
+
+本次 final-fix snapshot SHA-256（與上方原 full-run hashes 分開）：
+
+- `Sources/KnitNoteCore/Projects/JSONProjectStore.swift`：`9deef7ca8c22cd5e809a23999214bd284cca5230a528542f9f6c6c515d09371c`
+- `Tests/KnitNoteCoreTests/JSONProjectStoreRemoteBatchRecoveryTests.swift`：`4c46c32f0f5ac5bbd65c21166c2bfc9f029ad0bbd3dd564ec3ac9a0f97579231`
+- `Tests/KnitNoteCoreTests/SyncRemoteBatchTransactionTests.swift`：`45ab289f9cc2d7bd207816768c8ed56863ceedefaa0a9d691da26828089a7a2a`
+- 未改動的 App 組合測試檔：`09cc3ad674b786de95d7df9fb4c92eda2be9c1e30304d262dc145b19be3e506a`
+
+| 本次驗證 | 結果 | 日誌 |
+| --- | --- | --- |
+| 合法 live-overlay actual RED，未改 production | exit 1；1 test／2 cases／2 issues；0.752s | /tmp/remote-batch-final-fix-red.log |
+| incomplete evidence actual RED，未改 production | exit 1；1 test／1 issue；0.213s；intent 非 nil | /tmp/remote-batch-final-fix-preflight-red.log |
+| 最小修正 GREEN | exit 0；2 tests／3 cases／1 suite；1.325s | /tmp/remote-batch-final-fix-green.log |
+| 最終涵蓋 Core 回歸 | exit 0；79 tests／6 suites；30.725s | /tmp/remote-batch-final-fix-core.log |
+| 最終實際來源無宿主回歸 | exit 0；136 tests／5 suites；20.732s | /tmp/remote-batch-final-fix-nohost.log |
+
+上述 behavioral RED／GREEN／final logs 均無 compiler warning；初次測試 fixture 曾誤用 fileprivate `canonicalized` 而編譯失敗，修正 fixture 後才取得 actual RED，該編譯失敗不列為行為證據。最終 Core 涵蓋 `SyncRemoteBatch`、`JSONProjectStoreRemoteBatch`、`SyncPublicationEvidenceDurability`、`SyncAttachmentManifest`。no-host harness 已確認 symlinks 仍指向本 worktree 的實際 Core／CloudSync；live CloudKit suite 未執行。
+
+最終 Core literal command，working directory `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-device-sync-design`：
+
+```zsh
+set -o pipefail
+env CLANG_MODULE_CACHE_PATH=/tmp/daily-canonical-clang-cache /usr/bin/arch -arm64 /usr/bin/swift test --disable-sandbox --no-parallel --cache-path /tmp/task6-swift-cache --config-path /tmp/task6-swift-config --security-path /tmp/task6-swift-security --filter 'SyncRemoteBatch|JSONProjectStoreRemoteBatch|SyncPublicationEvidenceDurability|SyncAttachmentManifest' 2>&1 | tee /tmp/remote-batch-final-fix-core.log
+```
+
+最終 no-host literal command，working directory `/private/tmp/remote-batch-task6-harness`：
+
+```zsh
+set -o pipefail
+env CLANG_MODULE_CACHE_PATH=/tmp/daily-canonical-clang-cache /usr/bin/arch -arm64 /usr/bin/swift test --disable-sandbox --no-parallel --cache-path /tmp/task6-harness-cache --config-path /tmp/task6-harness-config --security-path /tmp/task6-harness-security --filter 'RemoteBatchCommitterIntegrationTests|KnitNoteCloudSyncCoordinatorTests|CloudSyncEngineTransportTests|CloudAccountTransitionCoordinatorTests|CloudAssetFileStoreTests' 2>&1 | tee /tmp/remote-batch-final-fix-nohost.log
+```
+
+Self-review 未發現新增 Critical／Important 問題；這是修正者自查，**scoped re-review 及修正候選 fresh full Core／macOS／iOS builds 仍未執行**。production activation／release gates 維持下列限制。
+
 ## Controller 裁決、理由與返工成本
 
-依 ledger 的真正時間順序保留全部 22 項；後來修正早期 ACK／lock 設計的裁決仍保留，沒有從歷史刪除。
+依 ledger 的真正時間順序保留全部 23 項；後來修正早期 ACK／lock 設計的裁決仍保留，沒有從歷史刪除。
 
 1. 將抽出 brief 時遺漏的 shared constraints/contracts 附回。理由：抽取不含前文。成本：若判斷錯誤會造成介面返工。
 2. Task 2 擴到 store 與 deletion/restore carry-forward 測試。理由：receipts 必須在一般 successor 中存活。成本：Task 2 diff 變寬。
@@ -131,6 +184,7 @@ Core 組合 filter：
 20. 使用一個 process-wide incoming NSLock 取代 per-URL registry，保留 parent flock。理由：安全涵蓋 aliases 且無 registry lifecycle。成本：無關 stores 亦被序列化，需後續 latency measurement。
 21. 原子地把 finished ACK identity 轉移進既有 envelope，釋放 standalone proof slot，只 reconcile 未解決 proofs。理由：finished standalone proofs 會使 spillover 死鎖並產生過時 blocker。成本：phase/schema migration 測試；128 unresolved／16 MiB 上限不變。
 22. 凍結未改來源，以 arm64/--skip-build 和同一 1,800 秒邊界新增一次 sandbox 外 full Core。理由：當前診斷證明 sandbox 拒絕 Xcode cache 與 Unix socket；focused green 不能建立 full success。成本：再花一次 full 時間；保留原失敗，不改 signing/source、live system 或開放無界重試。
+23. 最終 production 修正與乾淨 scoped re-review 後，凍結修正候選並重新執行一次有界完整 Core 及停用簽名的 macOS／iOS 建置。理由：production source 改變使舊候選驗證不足。成本：再花一輪完整驗證時間；保留先前失敗與 hashes，不擴展 live-system 行動或無界重試。
 
 ## 未完成關卡與已知限制
 
@@ -141,6 +195,6 @@ Core 組合 filter：
 - 全裝置驗收：iPhone、iPad、Mac、Watch、extension、真實 CloudKit 與真實程序終止／重啟不在本輪隔離測試內。
 - Pre-ACK reset receipt：ACK 前 reset 可能移除 unacknowledged envelope，留下無 durable ACK proof 的有界 Core receipt；現行設計安全 fail closed、不從 absence 偽造 proof，但可能需後續手動／重取協調。
 - Incoming lock granularity：process-wide NSLock 加 parent flock 會序列化不相關 stores；大型 inventory/media transaction latency 尚需實機量測。
-- Deferred Task 2 minor：SyncRemoteBatchTransactionTests.swift 原 line 27 的 legacy format-1 upgrade 使用空 fixture，unchanged-record history 斷言偏弱。最終 reviewer 必須決定是否補非空 retained-history fixture。
+- 最終修正後的 scoped re-review、fresh full Core 與停用簽名 macOS／iOS 建置：尚待 controller 在凍結候選上完成，原 cf0dd9d 完整結果不能替代。
 
 在上述關卡全關閉、controller 完成獨立 task review 與 Astra whole-plan review，並在同一不可變候選完成真機／CloudKit 驗收前，production sync 必須維持停用。

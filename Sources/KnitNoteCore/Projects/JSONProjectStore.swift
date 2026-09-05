@@ -2602,6 +2602,9 @@ final class PatternLibraryDeletionTransaction {
     private var syncCanonicalCheckpointStore: SyncCanonicalCheckpointStore?
     private var syncCanonicalCheckpoint: SyncCanonicalCheckpoint?
     private var syncCanonicalActivationRequired = false
+    private let syncRemoteInstallBeforeDurabilityBoundary: (
+        SyncDurableFileWriteBoundary
+    ) throws -> Void
     private let syncCanonicalPublicationBoundary: (SyncCanonicalPublicationBoundary) throws -> Void
     private var syncHydratedAttachments: [UUID: SyncRecord] = [:]
     private var syncHydratedAttachmentSources: [UUID: SyncAttachmentSource] = [:]
@@ -2682,12 +2685,16 @@ final class PatternLibraryDeletionTransaction {
         syncAttachmentEvidenceBeforeDurabilityBoundary: @escaping (
             SyncDurableFileWriteBoundary
         ) throws -> Void = { _ in },
+        syncRemoteInstallBeforeDurabilityBoundary: @escaping (
+            SyncDurableFileWriteBoundary
+        ) throws -> Void = { _ in },
         syncCanonicalPublicationBoundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in },
         syncMutationSink: any SyncMutationSink = DisabledSyncMutationSink(),
         authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
         commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) {
         self.url = url
+        self.syncRemoteInstallBeforeDurabilityBoundary = syncRemoteInstallBeforeDurabilityBoundary
         self.syncCanonicalPublicationBoundary = syncCanonicalPublicationBoundary
         self.photoService = photoService ?? ProjectPhotoFileService(
             directory: url.deletingLastPathComponent().appendingPathComponent("ProjectPhotos", isDirectory: true)
@@ -6495,7 +6502,11 @@ final class PatternLibraryDeletionTransaction {
             try validateRemoteInstallParent(target)
             if FileManager.default.fileExists(atPath: target.path),
                try SyncRegularFileReader().read(target, maximumBytes: SyncCanonicalCheckpoint.maximumBytes).sha256 == file.version.contentSHA256 { continue }
-            try SyncDurableFile.write(file.data, to: target)
+            try SyncDurableFile.write(
+                file.data,
+                to: target,
+                beforeBoundary: syncRemoteInstallBeforeDurabilityBoundary
+            )
         }
         try syncCanonicalCheckpointStore?.validateBinding(liveRoot: root)
         if current != plan.archive { try archiveWrite(plan.archive, url) }

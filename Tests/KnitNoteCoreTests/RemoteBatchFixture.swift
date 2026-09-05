@@ -3,15 +3,30 @@ import Foundation
 
 @MainActor
 struct RemoteBatchFixture {
+    private final class InitialHandles {
+        var store: JSONProjectStore?
+        var journal: FileSyncMutationJournal?
+
+        init(store: JSONProjectStore, journal: FileSyncMutationJournal) {
+            self.store = store
+            self.journal = journal
+        }
+    }
+
     let root: URL
     let account: SyncAccountIdentity
     let records: [SyncRecord]
     let projectID: UUID
-    let store: JSONProjectStore
-    let journal: FileSyncMutationJournal
     let checkpoints: SyncCanonicalCheckpointStore
+    private let initialHandles: InitialHandles
 
-    init(boundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in }) throws {
+    var store: JSONProjectStore { initialHandles.store! }
+    var journal: FileSyncMutationJournal { initialHandles.journal! }
+
+    init(
+        boundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in },
+        remoteInstallBoundary: @escaping (SyncDurableFileWriteBoundary) throws -> Void = { _ in }
+    ) throws {
         root = FileManager.default.temporaryDirectory
             .resolvingSymlinksInPath()
             .appendingPathComponent("remote-batch-test-" + UUID().uuidString)
@@ -57,7 +72,7 @@ struct RemoteBatchFixture {
         _ = try bootstrap.commit(prepared)
         let handoff = try bootstrap.canonicalHandoff(prepared)
 
-        journal = FileSyncMutationJournal(
+        let journal = FileSyncMutationJournal(
             url: live.appendingPathComponent("SyncMetadata/pending.json")
         )
         checkpoints = try SyncCanonicalCheckpointStore(
@@ -65,15 +80,17 @@ struct RemoteBatchFixture {
             account: account,
             validateOwnership: {}
         )
-        store = JSONProjectStore(
+        let store = JSONProjectStore(
             url: archiveURL,
             backupService: KnitNoteBackupService(
                 liveRoot: live,
                 workRoot: root.appendingPathComponent("BackupWork")
             ),
+            syncRemoteInstallBeforeDurabilityBoundary: remoteInstallBoundary,
             syncCanonicalPublicationBoundary: boundary,
             syncMutationSink: JournalSyncMutationSink(journal: journal)
         )
+        initialHandles = InitialHandles(store: store, journal: journal)
         try store.activateSyncCanonicalState(
             checkpointStore: checkpoints,
             bootstrap: handoff,
@@ -95,6 +112,8 @@ struct RemoteBatchFixture {
     }
 
     var archiveURL: URL { root.appendingPathComponent("Live/projects-v1.json") }
+    var publicationIntentURL: URL { SyncPublicationTransactionFile(archiveURL: archiveURL).url }
+    var journalURL: URL { root.appendingPathComponent("Live/SyncMetadata/pending.json") }
 
     func renamedBatch(_ name: String, id: UUID) throws -> SyncRemoteBatch {
         var archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
@@ -109,6 +128,45 @@ struct RemoteBatchFixture {
         return try batch(records: [record], id: id)
     }
 
+    func photoBatch(
+        id: UUID,
+        sourceDirectoryName: String = "RemoteSource"
+    ) throws -> (batch: SyncRemoteBatch, attachments: [UUID: SyncAttachmentSource]) {
+        let remoteRoot = root.appendingPathComponent(sourceDirectoryName)
+        let service = ProjectPhotoFileService(directory: remoteRoot.appendingPathComponent("ProjectPhotos"))
+        var archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
+        let index = archive.projects.firstIndex { $0.id == projectID }!
+        let filename = try service.save(data: BackupFixture.jpegData(red: 0.75), projectID: projectID)
+        archive.projects[index].setPhotoFilename(filename)
+        let exported = try ProjectArchiveSyncMapper.export(
+            archive: archive,
+            liveRoot: remoteRoot,
+            deviceID: "remote-media"
+        )
+        let stamp = SyncMutationStamp(
+            logicalRevision: 1_000,
+            modifiedAt: Date(timeIntervalSince1970: 2_000_000_000),
+            deviceID: "remote-media"
+        )
+        let records = exported.records.compactMap { original -> SyncRecord? in
+            guard original.id == .init(kind: .project, uuid: projectID)
+                    || original.payload.attachment?.slot.owner == .init(kind: .project, uuid: projectID) else {
+                return nil
+            }
+            var record = original
+            record.entityRevision = 1_000
+            record.payload.fields = record.payload.fields.mapValues {
+                .init(value: $0.value, stamp: stamp)
+            }
+            record.payload.atomicDomain = record.payload.atomicDomain.map {
+                .init(value: $0.value, stamp: stamp)
+            }
+            record.deletedAt = .init(value: nil, stamp: stamp)
+            return record
+        }
+        return (try batch(records: records, id: id), exported.attachments)
+    }
+
     func renameLocally(_ name: String) throws {
         try store.updateProject(id: projectID, name: name, toolType: nil,
             toolSize: nil, toolNotes: nil, photoChange: .unchanged)
@@ -118,7 +176,17 @@ struct RemoteBatchFixture {
         try journal.acknowledge(Set(try journal.pending().map { .init(recordID: $0.recordID, mutationID: $0.mutationID) }))
     }
 
+    func freshJournal() -> FileSyncMutationJournal {
+        FileSyncMutationJournal(url: journalURL)
+    }
+
+    func dropInitialHandles() {
+        initialHandles.store = nil
+        initialHandles.journal = nil
+    }
+
     func reopen() throws -> JSONProjectStore {
+        let journal = freshJournal()
         let fresh = JSONProjectStore(url: archiveURL,
             backupService: KnitNoteBackupService(liveRoot: root.appendingPathComponent("Live"),
                 workRoot: root.appendingPathComponent("BackupWork")),

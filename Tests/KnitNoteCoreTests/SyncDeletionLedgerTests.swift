@@ -4,6 +4,52 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncDeletionLedgerTests {
+    @Test func initializationPreservesLedgerPublishedAfterRootExistenceCheck() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let domain = try makeDomain()
+        let versions = try removalVersions(domain)
+        let before = Data(repeating: 1, count: 32)
+        let after = Data(repeating: 2, count: 32)
+        let witness = Data(repeating: 3, count: 32)
+        var ids: [UUID] = []
+        let resumed = try SyncDeletionLedger(root: root, afterRootExistenceCheck: {
+            // This nested handle installs the same durable authority another
+            // process can publish while the first initializer is suspended.
+            let publisher = try SyncDeletionLedger(root: root)
+            for state in 0..<3 {
+                let id = try publisher.stage(domain: domain, attachments: [:], restoreRelativePaths: [:], deletedAt: .now)
+                ids.append(id)
+                if state > 0 {
+                    try publisher.prepare(id: id, beforeArchiveSHA256: before, afterArchiveSHA256: after,
+                        exactRemovalVersions: versions, publicationSHA256: witness)
+                }
+                if state > 1 { try publisher.activate(id: id, publicationSHA256: witness) }
+            }
+        })
+        #expect(try resumed.recentlyDeleted().map(\.id) == [ids[2]])
+        try resumed.activate(id: ids[1], publicationSHA256: witness)
+        try resumed.prepare(id: ids[0], beforeArchiveSHA256: before, afterArchiveSHA256: after,
+            exactRemovalVersions: versions, publicationSHA256: witness)
+        try resumed.activate(id: ids[0], publicationSHA256: witness)
+        #expect(try Set(SyncDeletionLedger(root: root).recentlyDeleted().map(\.id)) == Set(ids))
+    }
+
+    @Test(arguments: [false, true]) func initializationDoesNotReplaceDamagedExistingLedger(missingManifest: Bool) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let manifest = root.appendingPathComponent("ledger.json")
+        let corrupt = Data("damaged existing authority".utf8)
+        if !missingManifest { try corrupt.write(to: manifest) }
+        #expect(throws: (any Error).self) { _ = try SyncDeletionLedger(root: root) }
+        if missingManifest {
+            #expect(!FileManager.default.fileExists(atPath: manifest.path))
+        } else {
+            #expect(try Data(contentsOf: manifest) == corrupt)
+        }
+    }
+
     @Test(arguments: [0, 1, 2, 3]) func exactRemovalProofSetIsCheckedOnPrepareAndReload(variant: Int) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

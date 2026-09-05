@@ -38,16 +38,24 @@ struct SyncDeletionLedger {
     private var manifestURL: URL { root.appendingPathComponent("ledger.json") }
     private let maximumBytes = 100_000_000
 
-    init(root: URL) throws {
+    init(root: URL, afterRootExistenceCheck: () throws -> Void = {}) throws {
         Self.processLock.lock()
         defer { Self.processLock.unlock() }
         self.root = root.standardizedFileURL
         let existed = FileManager.default.fileExists(atPath: self.root.path)
+        try afterRootExistenceCheck()
         try createDirectory(self.root)
         try locked {
-            if existed {
+            // Another process may have initialized and published the ledger
+            // after the root check. Only the locked manifest lookup decides
+            // whether creating an empty manifest is still safe.
+            var status = stat()
+            let result = lstat(manifestURL.path, &status)
+            let lookupError = errno
+            if result == 0 || existed {
                 _ = try load()
             } else {
+                guard lookupError == ENOENT else { throw SyncDeletionLedgerError.unavailable }
                 try persist(.init(version: 1, groups: []))
             }
         }

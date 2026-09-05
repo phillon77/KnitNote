@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 
 /// Caller holds the domain/journal freeze from prepare through cleanup and close.
-/// This type owns neither runtime freezing nor restore/replay. All filesystem
+/// This type does not own runtime freezing. All filesystem
 /// operations below also hold the storage owner's mutex and account lock.
 public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
     public enum Error: Swift.Error, Equatable { case invalidAuthority, changedInventory, unavailable, tooLarge }
@@ -23,7 +23,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             envelopeSHA256 = Data(SHA256.hash(data: bytes))
         }
     }
-    enum Phase: String, Codable { case sealed, cleanupStarted, cleanupComplete }
+    public enum Phase: String, Codable, Sendable { case sealed, cleanupStarted, cleanupComplete, restoreStarted, replayComplete }
     struct Selection {
         let receipt: Sealed
         let phase: Phase
@@ -84,11 +84,11 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         mutex.lock(); defer { mutex.unlock() }
         try validateConfiguration(now: now)
         // No previous selected recovery can be superseded by another capture.
-        // Task 4 must settle its explicit restoration authority first.
         let root = try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes,
             createControl: true) { access -> (UInt64, UInt64) in
             guard let control = access.controlDescriptor, try read(Self.main, at: control) == nil,
                   try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
+            try synchronize(control); try synchronize(access.accountDescriptor)
             return try identity(access.accountDescriptor)
         }
         let inventory = try SyncAccountRecoveryInventory.capture(storage: storage, paths: paths, account: account,
@@ -139,24 +139,201 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         mutex.lock(); defer { mutex.unlock() }
         try validateConfiguration(now: now)
         let current = try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
-            try authorize(access: access, now: now)?.receipt
+            guard let value = try authorize(access: access, now: now) else { return nil as Sealed? }
+            guard value.intent.phase == .sealed || value.intent.phase == .cleanupStarted || value.intent.phase == .cleanupComplete else { throw Error.invalidAuthority }
+            return value.receipt
         }
         guard let current else { return nil }
         try cleanupLocked(expected: current, now: now)
         return current
     }
 
-    /// Read-only handoff for Task 4. It is an authenticated current selection,
-    /// not install/replay authority; Task 4 must establish its own durable phase.
+    /// Read-only runtime handoff. Install/replay must still enter restore(),
+    /// which establishes its durable phase under account ownership.
     func authenticatedSelection(now: Date) throws -> Selection? {
         mutex.lock(); defer { mutex.unlock() }
         try validateConfiguration(now: now)
         return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
             guard let value = try authorize(access: access, now: now) else { return nil }
-            let remaining = try remainingEntries(value, access: access)
-            guard value.intent.phase != .cleanupComplete || remaining.isEmpty else { throw Error.changedInventory }
+            if value.intent.phase == .restoreStarted || value.intent.phase == .replayComplete {
+                try validateRestored(value, access: access, complete: value.intent.phase == .replayComplete)
+            } else {
+                let remaining = try remainingEntries(value, access: access)
+                guard value.intent.phase != .cleanupComplete || remaining.isEmpty else { throw Error.changedInventory }
+            }
             return Selection(receipt: value.receipt, phase: value.intent.phase, inventory: value.inventory)
         }
+    }
+
+    /// Restores only the current authenticated selection into its original owned
+    /// account. The caller keeps all domain/journal consumers frozen until it
+    /// consumes the completed selection. Repeating completion only verifies it.
+    public func restore(vaultID: UUID, now: Date) throws {
+        mutex.lock(); defer { mutex.unlock() }
+        try validateConfiguration(now: now)
+        try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
+            guard var value = try authorize(access: access, now: now), value.receipt.vaultID == vaultID else { throw Error.invalidAuthority }
+            if value.intent.phase == .cleanupComplete {
+                guard try remainingEntries(value, access: access).isEmpty else { throw Error.changedInventory }
+                guard try vault.synchronizedRecoveryPayload(vaultID, account: account, now: now).sha256 == value.receipt.envelopeSHA256 else { throw Error.invalidAuthority }
+                let started = try transition(value.intent, to: .restoreStarted, access: access)
+                value = Authorized(intent: started, envelope: value.envelope, inventory: value.inventory, receipt: value.receipt)
+            }
+            guard value.intent.phase == .restoreStarted || value.intent.phase == .replayComplete else { throw Error.invalidAuthority }
+            try validateRestored(value, access: access, complete: value.intent.phase == .replayComplete)
+            try barrier(value.intent, access: access)
+            if value.intent.phase == .replayComplete { return }
+            let files = try restoredFiles(value.inventory)
+            // Dependencies are validated with the authenticated packet before
+            // the first file is installed. The manifest is installed last.
+            let manifest = "working-set/.sync-deletions/ledger.json"
+            for file in files where file.relativePath != manifest {
+                try barrier(value.intent, access: access)
+                try install(file, access: access)
+            }
+            try validateRestored(value, access: access, complete: false)
+            try barrier(value.intent, access: access)
+            _ = try journal.validateRecoveryReplay(value.inventory.packet.mutations, maximumBytes: maximumBytes)
+            try journal.enqueue(value.inventory.packet.mutations)
+            for file in files where file.relativePath == manifest {
+                try barrier(value.intent, access: access)
+                try install(file, access: access)
+            }
+            try validateRestored(value, access: access, complete: true)
+            // Reestablish every restored file/directory, including artifacts
+            // readable after a failed journal append or install fsync.
+            for entry in try access.entries() {
+                if entry.isDirectory {
+                    let fd = try openDirectory(entry.relativePath, root: access.accountDescriptor)
+                    defer { Darwin.close(fd) }; try synchronize(fd)
+                } else { try synchronizeRestoredFile(entry.relativePath, access: access) }
+            }
+            try synchronize(access.accountDescriptor)
+            try validateRestored(value, access: access, complete: true)
+            _ = try transition(value.intent, to: .replayComplete, access: access)
+        }
+    }
+
+    /// true means this exact completed selection was verified and consumed.
+    /// false means there is durably no selection; it is NOT proof of replay or
+    /// acknowledgement. This also repairs an interrupted intent-unlink fsync.
+    /// Call under freeze before allowing new account data or a later capture.
+    @discardableResult
+    public func consumeRestoredSelection(vaultID: UUID, now: Date) throws -> Bool {
+        mutex.lock(); defer { mutex.unlock() }
+        try validateConfiguration(now: now)
+        return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
+            guard let value = try authorize(access: access, now: now) else {
+                if let control = access.controlDescriptor { try synchronize(control) }
+                try synchronize(access.accountDescriptor); try access.validate()
+                return false
+            }
+            guard value.receipt.vaultID == vaultID, value.intent.phase == .replayComplete,
+                  let control = access.controlDescriptor, try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
+            try validateRestored(value, access: access, complete: true)
+            try barrier(value.intent, access: access)
+            guard unlinkat(control, Self.main, 0) == 0 else { throw Error.unavailable }
+            try synchronize(control); try synchronize(access.accountDescriptor)
+            try access.validate()
+            return true
+        }
+    }
+
+    private func restoredFiles(_ inventory: SyncAccountRecoveryInventory) throws -> [SyncPendingRecoveryPacket.File] {
+        var files: [String: SyncPendingRecoveryPacket.File] = [:]
+        var selected = inventory.packet.files + inventory.deletionFiles
+        if let manifest = inventory.deletionLedger {
+            selected.append(try SyncDeletionLedger.recoveryManifestFile(manifest, archiveURL: inventory.archiveURL,
+                pending: inventory.packet.mutations, files: inventory.deletionFiles, markers: inventory.pendingMarkerVersions))
+        }
+        for file in selected {
+            if let prior = files[file.relativePath] { guard prior == file else { throw Error.invalidAuthority } }
+            files[file.relativePath] = file
+        }
+        return files.values.sorted { $0.relativePath < $1.relativePath }
+    }
+
+    private func validateRestored(_ value: Authorized, access: SyncAccountStorage.RecoveryAccess, complete: Bool) throws {
+        try access.validate()
+        let files = Dictionary(uniqueKeysWithValues: try restoredFiles(value.inventory).map { ($0.relativePath, $0) })
+        let replay = try journal.validateRecoveryReplay(value.inventory.packet.mutations, maximumBytes: maximumBytes)
+        let segment = value.inventory.journalURL.appendingPathExtension("segment")
+        let segmentPath = String(segment.path.dropFirst(paths.accountRoot.path.count + 1))
+        guard paths.accountRoot.appendingPathComponent(segmentPath) == segment, files[segmentPath] == nil else { throw Error.invalidAuthority }
+        let session = ".decrypted-temporary/" + paths.decryptedTemporary.lastPathComponent
+        let retained = Set(["working-set", "journal", "engine-state", "staging", "quarantine", ".decrypted-temporary", session])
+        let original = Dictionary(uniqueKeysWithValues: value.inventory.entries.map { ($0.relativePath, $0) })
+        var directories = retained
+        for path in Array(files.keys) + [segmentPath] {
+            var parts = path.split(separator: "/"); parts.removeLast()
+            while !parts.isEmpty { directories.insert(parts.joined(separator: "/")); parts.removeLast() }
+        }
+        let current = try access.entries()
+        for entry in current {
+            if entry.isDirectory {
+                guard directories.contains(entry.relativePath) else { throw Error.changedInventory }
+                if retained.contains(entry.relativePath), entry.relativePath != session || session == value.envelope.temporarySession {
+                    guard original[entry.relativePath] == entry else { throw Error.changedInventory }
+                }
+            } else if let file = files[entry.relativePath] {
+                guard entry.byteCount == file.byteCount, entry.sha256 == file.sha256 else { throw Error.changedInventory }
+            } else {
+                guard entry.relativePath == segmentPath, replay.segment == segment else { throw Error.changedInventory }
+            }
+        }
+        guard retained.allSatisfy({ name in current.contains { $0.relativePath == name && $0.isDirectory } }),
+              !current.contains(where: { $0.relativePath.hasPrefix(session + "/") }) else { throw Error.changedInventory }
+        if complete {
+            guard replay.complete, files.keys.allSatisfy({ name in current.contains { $0.relativePath == name && !$0.isDirectory } }) else { throw Error.changedInventory }
+        }
+    }
+
+    private func install(_ file: SyncPendingRecoveryPacket.File, access: SyncAccountStorage.RecoveryAccess) throws {
+        var parent = openat(access.accountDescriptor, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard parent >= 0 else { throw Error.unavailable }
+        defer { Darwin.close(parent) }
+        let parts = file.relativePath.split(separator: "/").map(String.init)
+        for part in parts.dropLast() {
+            if mkdirat(parent, part, S_IRWXU) != 0, errno != EEXIST { throw Error.unavailable }
+            let next = openat(parent, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard next >= 0 else { throw Error.invalidAuthority }
+            do { try synchronize(parent) } catch { Darwin.close(next); throw error }
+            Darwin.close(parent); parent = next
+        }
+        let name = parts.last!
+        let fd = openat(parent, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        if fd < 0 {
+            guard errno == EEXIST else { throw Error.unavailable }
+            let result = try SyncRegularFileReader().read(paths.accountRoot.appendingPathComponent(file.relativePath),
+                maximumBytes: file.bytes.count, expected: .init(byteCount: file.byteCount, sha256: file.sha256))
+            guard result.data == file.bytes else { throw Error.changedInventory }
+        } else {
+            defer { Darwin.close(fd) }
+            try file.bytes.withUnsafeBytes { bytes in
+                var offset = 0
+                while offset < bytes.count {
+                    let count = Darwin.write(fd, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
+                    if count < 0, errno == EINTR { continue }
+                    guard count > 0 else { throw Error.unavailable }; offset += count
+                }
+            }
+            try synchronize(fd)
+        }
+        try synchronizeRestoredFile(file.relativePath, access: access)
+        try synchronize(parent)
+    }
+
+    private func synchronizeRestoredFile(_ path: String, access: SyncAccountStorage.RecoveryAccess) throws {
+        let parent = try openParent(path, root: access.accountDescriptor); defer { Darwin.close(parent) }
+        let name = String(path.split(separator: "/").last!)
+        let fd = openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw Error.unavailable }; defer { Darwin.close(fd) }
+        var opened = stat(), named = stat()
+        guard fstat(fd, &opened) == 0, opened.st_mode & S_IFMT == S_IFREG, opened.st_nlink == 1 else { throw Error.changedInventory }
+        try synchronize(fd); try synchronize(parent)
+        guard fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              opened.st_dev == named.st_dev, opened.st_ino == named.st_ino, named.st_nlink == 1 else { throw Error.changedInventory }
+        try access.validate()
     }
 
     private func cleanupLocked(expected: Sealed, now: Date) throws {
@@ -164,6 +341,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
             guard var authorized = try authorize(access: access, now: now), authorized.receipt == expected,
                   let control = access.controlDescriptor else { throw Error.invalidAuthority }
+            guard authorized.intent.phase == .sealed || authorized.intent.phase == .cleanupStarted || authorized.intent.phase == .cleanupComplete else { throw Error.invalidAuthority }
             let remaining = try remainingEntries(authorized, access: access)
             guard authorized.intent.phase != .cleanupComplete || remaining.isEmpty else { throw Error.changedInventory }
             // Both readable original ciphertext and intent are resynchronized on
@@ -285,6 +463,9 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
               value.temporarySession == ".decrypted-temporary/" + id.uuidString.lowercased() else { throw Error.invalidAuthority }
         let inventory = try SyncAccountRecoveryInventory.decodeRecovery(value.inventory, account: account,
             paths: paths, journalURL: journal.recoveryLocation, maximumBytes: maximumBytes)
+        // All prepare/seal/cleanup/restore authorization decodes pass the same
+        // native enqueue gate before cleanup can destroy original plaintext.
+        try journal.preflightRecoveryReplay(inventory.packet.mutations, maximumBytes: maximumBytes)
         guard value.packetSHA256 == Data(SHA256.hash(data: try inventory.packet.encoded(maximumBytes: maximumBytes))),
               inventory.entries.contains(where: { $0.relativePath == value.temporarySession && $0.isDirectory }),
               inventory.entries.filter({ $0.relativePath.hasPrefix(".decrypted-temporary/") }).allSatisfy({

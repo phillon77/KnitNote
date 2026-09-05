@@ -968,6 +968,15 @@ struct SyncDeletionLedger {
         }
     }
 
+    /// Supplies only the validated selected manifest to the account owner's
+    /// descriptor-relative exact installer. Does not initialize a normal ledger.
+    static func recoveryManifestFile(_ data: Data, archiveURL: URL, pending: [SyncMutation],
+                                     files: [SyncPendingRecoveryPacket.File], markers: [SyncRecordVersion]) throws -> SyncPendingRecoveryPacket.File {
+        try validateRecoveryPayload(data, archiveURL: archiveURL, pending: pending, files: files, markers: markers)
+        return .init(relativePath: "working-set/.sync-deletions/ledger.json", byteCount: Int64(data.count),
+            sha256: Self.hash(data), bytes: data)
+    }
+
     private func decodeManifest(_ data: Data, validateRetainedFiles: Bool) throws -> Manifest {
         guard data.count <= maximumBytes else { throw SyncDeletionLedgerError.corrupt }
         let envelope = try JSONDecoder().decode(Envelope.self, from: data)

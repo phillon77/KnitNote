@@ -1000,6 +1000,52 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     var recoveryLocation: URL { url }
 
+    /// Read-only representability/size gate before a sealed packet may authorize
+    /// removal. Uses the native enqueue encoder; never migrates legacy records.
+    func preflightRecoveryReplay(_ mutations: [SyncMutation], maximumBytes: Int) throws {
+        _ = try recoveryReplayFrames(mutations, maximumBytes: maximumBytes)
+    }
+
+    private func recoveryReplayFrames(_ mutations: [SyncMutation], maximumBytes: Int) throws -> Data {
+        guard maximumBytes >= 0, maximumBytes <= 100_000_000 else { throw SyncMutationJournalError.tooLarge }
+        let limit = min(maximumBytes, Self.maximumEncodedBytes)
+        var expected = Data(), identities = Set<UUID>()
+        for (index, mutation) in mutations.enumerated() {
+            _ = try mutation.validated()
+            guard identities.insert(mutation.mutationID).inserted else { throw SyncMutationJournalError.duplicateMutationID }
+            let frame = try encodeFrames([makeFrame(sequence: UInt64(index + 1), kind: .enqueue, value: mutation)])
+            guard frame.count <= limit - expected.count else { throw SyncMutationJournalError.tooLarge }
+            expected.append(frame)
+        }
+        try Self.validateAttachmentLineage(proofs: mutations.map { try Self.duplicateProof(for: $0) }, failure: .invalidAttachment)
+        return expected
+    }
+
+    /// The account owner retains its freeze throughout installation and replay.
+    /// An empty journal replayed only by enqueue cannot compact: compaction also
+    /// requires acknowledgements. Its sole generated artifact is this segment.
+    /// Compare native encoded frames, including any interrupted final append,
+    /// before allowing the normal journal to truncate/retry a proven suffix.
+    func validateRecoveryReplay(_ mutations: [SyncMutation], maximumBytes: Int) throws
+        -> (complete: Bool, segment: URL?) {
+        try coordinator.lock.withLock {
+            guard maximumBytes >= 0, maximumBytes <= 100_000_000,
+                  !(try pathExists(url)), !(try pathExists(checkpointURL)),
+                  !(try pathExists(migratedURL)) else { throw SyncMutationJournalError.corrupt }
+            let expected = try recoveryReplayFrames(mutations, maximumBytes: maximumBytes)
+            let existing = try readArtifact(segmentURL, maximumBytes: min(maximumBytes, Self.maximumEncodedBytes))
+            guard !mutations.isEmpty || existing == nil else { throw SyncMutationJournalError.corrupt }
+            let bytes = existing ?? Data()
+            guard bytes.count <= expected.count, expected.starts(with: bytes) else { throw SyncMutationJournalError.corrupt }
+            let state = try loadSegmentedStateLocked(readOnly: true, maximumReadBytes: maximumBytes)
+            guard state.pending == Array(mutations.prefix(state.pending.count)),
+                  state.seenByMutationID.count == state.pending.count,
+                  state.cleanupIntentsByMutationID.isEmpty, state.proofShardCount == 0,
+                  state.acknowledgedOperationCount == 0 else { throw SyncMutationJournalError.corrupt }
+            return (bytes == expected, existing == nil ? nil : segmentURL)
+        }
+    }
+
     public func acknowledge(_ identities: Set<SyncMutationIdentity>) throws {
         guard !identities.isEmpty else { return }
         try withJournalCoordination {

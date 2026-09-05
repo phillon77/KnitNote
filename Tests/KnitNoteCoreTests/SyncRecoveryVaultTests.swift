@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import Testing
 @testable import KnitNoteCore
@@ -225,6 +226,76 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: intentURL.path))
         try originalIntent.write(to: intentURL)
         #expect(try f.vault.purgeExpired(account: f.a, now: expiry) == [id])
+    }
+
+    @Test func retryResynchronizesPreparedIntentBeforeDeletingOriginalCiphertext() throws {
+        for point in [PurgeBarrierFault.Point.preparedFile, .preparedDirectory] {
+            let f = try VaultFixture(); defer { f.remove() }
+            let id = try f.vault.seal(Data([1, 2, 3]), account: f.a, now: now)
+            let fault = PurgeBarrierFault(root: f.root, id: id, point: point)
+            let expiry = now.addingTimeInterval(2_592_000)
+            for _ in 0..<2 {
+                let reopened = SyncRecoveryVault(directory: f.root, keychain: f.keys, maximumPayloadBytes: 100_000_000,
+                    synchronize: { try fault.synchronize($0) })
+                #expect(throws: VaultSynchronizationFailure.self) { try reopened.purgeExpired(account: f.a, now: expiry) }
+                #expect(FileManager.default.fileExists(atPath: fault.ciphertext.path))
+                #expect(f.keys.values[id] != nil)
+            }
+            #expect(try f.vault.restore(id, account: f.a, now: now) == Data([1, 2, 3]))
+            #expect(try f.vault.purgeExpired(account: f.a, now: expiry) == [id])
+            #expect(f.keys.values.isEmpty)
+        }
+    }
+
+    @Test func retryResynchronizesRenamedTerminalIntentBeforeRemovingKey() throws {
+        let f = try VaultFixture(); defer { f.remove() }
+        let id = try f.vault.seal(Data([1, 2, 3]), account: f.a, now: now)
+        let fault = PurgeBarrierFault(root: f.root, id: id, point: .terminalDirectory)
+        let expiry = now.addingTimeInterval(2_592_000)
+        for _ in 0..<2 {
+            let reopened = SyncRecoveryVault(directory: f.root, keychain: f.keys, maximumPayloadBytes: 100_000_000,
+                synchronize: { try fault.synchronize($0) })
+            #expect(throws: VaultSynchronizationFailure.self) { try reopened.purgeExpired(account: f.a, now: expiry) }
+            #expect(!FileManager.default.fileExists(atPath: fault.ciphertext.path))
+            #expect(f.keys.values[id] != nil)
+            let object = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fault.intent)) as? [String: Any])
+            #expect(object["phase"] as? String == "ciphertextRemoved")
+        }
+        #expect(try f.vault.purgeExpired(account: f.a, now: expiry) == [id])
+        #expect(f.keys.values.isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: f.root.path).isEmpty)
+    }
+}
+
+private struct PurgeBarrierFault: Sendable {
+    enum Point: Sendable { case preparedFile, preparedDirectory, terminalDirectory }
+    let root: URL
+    let id: UUID
+    let point: Point
+    var ciphertext: URL { root.appendingPathComponent(id.uuidString.lowercased() + ".vault") }
+    var intent: URL { root.appendingPathComponent(id.uuidString.lowercased() + ".purge") }
+
+    func synchronize(_ fd: Int32) throws {
+        var opened = stat(), named = stat()
+        guard fstat(fd, &opened) == 0 else { throw VaultSynchronizationFailure() }
+        if let bytes = try? Data(contentsOf: intent),
+           let object = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] {
+            let phase = object["phase"] as? String
+            let isDirectory = opened.st_mode & S_IFMT == S_IFDIR
+            let isIntent = lstat(intent.path, &named) == 0
+                && named.st_ino == opened.st_ino && named.st_dev == opened.st_dev
+            switch point {
+            case .preparedFile where phase == "prepared" && isIntent:
+                throw VaultSynchronizationFailure()
+            case .preparedDirectory where phase == "prepared" && isDirectory
+                && FileManager.default.fileExists(atPath: ciphertext.path):
+                throw VaultSynchronizationFailure()
+            case .terminalDirectory where phase == "ciphertextRemoved" && isDirectory:
+                throw VaultSynchronizationFailure()
+            default: break
+            }
+        }
+        guard fsync(fd) == 0 else { throw VaultSynchronizationFailure() }
     }
 }
 

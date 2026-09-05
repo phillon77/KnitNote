@@ -138,7 +138,11 @@ public final class SyncRecoveryVault: @unchecked Sendable {
                 try writeExclusive(try Self.encoder().encode(intent), name: intentName, root: root)
             }
             if try exists(Self.name(id), root: root) {
-                guard unlinkat(root, Self.name(id), 0) == 0, fsync(root) == 0 else { throw SyncRecoveryVaultError.unavailable }
+                // An existing readable intent may be left by a failed fsync.
+                // Reestablish its durability before removing the sole original.
+                try synchronizeIntent(named: intentName, root: root)
+                guard unlinkat(root, Self.name(id), 0) == 0 else { throw SyncRecoveryVaultError.unavailable }
+                try synchronize(root)
             }
             if intent.phase != .ciphertextRemoved {
                 intent = try PurgeIntent(id: id, account: account, ciphertext: intent.ciphertext, phase: .ciphertextRemoved)
@@ -147,14 +151,20 @@ public final class SyncRecoveryVault: @unchecked Sendable {
                 // authenticated and its exact original ciphertext is removed.
                 if try exists(next, root: root) {
                     _ = try readBounded(name: next, root: root, maximumBytes: maximumIntentBytes)
-                    guard unlinkat(root, next, 0) == 0, fsync(root) == 0 else { throw SyncRecoveryVaultError.unavailable }
+                    guard unlinkat(root, next, 0) == 0 else { throw SyncRecoveryVaultError.unavailable }
+                    try synchronize(root)
                 }
                 try writeExclusive(try Self.encoder().encode(intent), name: next, root: root)
-                guard renameat(root, next, root, intentName) == 0, fsync(root) == 0 else { throw SyncRecoveryVaultError.unavailable }
+                guard renameat(root, next, root, intentName) == 0 else { throw SyncRecoveryVaultError.unavailable }
+                try synchronize(root)
             }
+            // A visible terminal rename is not proof that its parent fsync
+            // succeeded. This barrier also runs on every terminal-phase retry.
+            try synchronizeIntent(named: intentName, root: root)
             if try keychain.key(for: id) != nil { try keychain.remove(for: id) }
             guard try keychain.key(for: id) == nil else { throw SyncRecoveryVaultError.unavailable }
-            guard unlinkat(root, intentName, 0) == 0, fsync(root) == 0 else { throw SyncRecoveryVaultError.unavailable }
+            guard unlinkat(root, intentName, 0) == 0 else { throw SyncRecoveryVaultError.unavailable }
+            try synchronize(root)
         }
         return expired
     }
@@ -242,6 +252,24 @@ public final class SyncRecoveryVault: @unchecked Sendable {
         if fstatat(root, name, &status, AT_SYMLINK_NOFOLLOW) == 0 { return true }
         guard errno == ENOENT else { throw SyncRecoveryVaultError.unavailable }
         return false
+    }
+
+    private func synchronizeIntent(named name: String, root: Int32) throws {
+        let fd = openat(root, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw SyncRecoveryVaultError.unsafePath }
+        defer { Darwin.close(fd) }
+        var opened = stat(), named = stat()
+        guard fstat(fd, &opened) == 0, opened.st_mode & S_IFMT == S_IFREG,
+              opened.st_nlink == 1, opened.st_size >= 0, opened.st_size <= maximumIntentBytes else {
+            throw SyncRecoveryVaultError.unsafePath
+        }
+        try synchronize(fd)
+        try synchronize(root)
+        guard fstatat(root, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1,
+              named.st_dev == opened.st_dev, named.st_ino == opened.st_ino else {
+            throw SyncRecoveryVaultError.unsafePath
+        }
     }
 
     private func authenticatedPayload(_ id: UUID, account: SyncAccountIdentity, root: Int32)

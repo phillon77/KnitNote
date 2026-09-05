@@ -2,7 +2,7 @@
 
 日期：2026-09-06
 
-狀態：使用者已確認兩段口頭設計；本書面規格待審閱。尚未編寫實作計畫或修改程式。
+狀態：使用者已回覆「確認」，本書面規格已核准；正在編寫實作計畫，尚未修改程式。
 
 文件基準：`8bd1ed785dc7d09ace4b339a91e6d0f4cda9c911`，linked worktree `.worktrees/cross-device-sync-design`，branch `docs/cross-device-sync-design`。版本維持 **1.7.0（13）**。
 

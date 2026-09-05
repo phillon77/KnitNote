@@ -1,20 +1,138 @@
 import Foundation
 
-struct SyncDeletedDomain: Codable, Sendable {
+struct SyncDeletedDomain: Codable, Equatable, Sendable {
     let rootIDs: Set<SyncEntityID>
     let ownedRecords: [SyncRecord]
     let supportingParentIDs: Set<SyncEntityID>
     let removedReminders: [UUID: [KnittingReminder]]
     let removedLegacyPatterns: [UUID: [PatternDocument]]
+    /// Incoming selections preserve exact deleted canonical records. This set
+    /// identifies only records removed by the caller's exact deletion batch;
+    /// nil is the backward-compatible local pre-deletion representation.
+    let restorableRecordIDs: Set<SyncEntityID>?
+    var selectedLiveIDs: Set<SyncEntityID> {
+        restorableRecordIDs ?? Set(ownedRecords.filter { $0.deletedAt.value == nil }.map(\.id))
+    }
+
+    struct Restoration {
+        let records: [SyncRecord]
+        let changedIDs: Set<SyncEntityID>
+        let restoredAttachmentPredecessors: [UUID: UUID]
+    }
+
+    /// This view is validated by the mapper before publication. Only selected
+    /// records receive new overlays; supporting aggregates retain current state.
+    func restoring(into current: [SyncRecord], now: Date, deviceID: String) throws -> Restoration {
+        _ = try SyncRecordValidator().validate(current)
+        var records = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
+        for parent in supportingParentIDs {
+            guard records[parent]?.deletedAt.value == nil, records[parent] != nil else {
+                throw ProjectArchiveSyncMappingError.missingParent(parent)
+            }
+        }
+        let maximum = current.map { max($0.entityRevision, $0.deletedAt.stamp.logicalRevision) }.max() ?? 0
+        guard maximum < UInt64.max, now.timeIntervalSinceReferenceDate.isFinite else {
+            throw SyncDeletionLedgerError.corrupt
+        }
+        let stamp = SyncMutationStamp(logicalRevision: maximum + 1, modifiedAt: now, deviceID: deviceID)
+        var changed = Set<SyncEntityID>()
+        for retained in ownedRecords where retained.id.kind != .attachment && selectedLiveIDs.contains(retained.id) {
+            guard var record = records[retained.id], record.deletedAt.value != nil else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            record.deletedAt = .init(value: nil, stamp: stamp)
+            record.payload.deletionCascade = nil
+            record.entityRevision = stamp.logicalRevision
+            if let atomic = record.payload.atomicDomain {
+                record.payload.atomicDomain = .init(value: atomic.value, stamp: stamp)
+            }
+            records[record.id] = record
+            changed.insert(record.id)
+        }
+        var predecessors: [UUID: UUID] = [:]
+        let heads = try SyncAttachmentLineage(records: ownedRecords).headsBySlot.values.flatMap { $0 }
+        guard UInt64(heads.count) < UInt64.max - maximum else { throw SyncDeletionLedgerError.corrupt }
+        for (index, retained) in heads.enumerated() where selectedLiveIDs.contains(retained.id) {
+            guard let predecessor = records[retained.id], predecessor.deletedAt.value != nil,
+                  let old = predecessor.payload.attachment, old == retained.payload.attachment else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            let child = try SyncAttachmentVersion.issuing(slot: old.slot,
+                contentSHA256: old.contentSHA256, byteCount: old.byteCount,
+                mediaType: old.mediaType, displayFilename: old.displayFilename,
+                replacesVersionID: old.versionID)
+            // Each slot's heads already have the canonical lineage ordering.
+            // Distinct observed revisions preserve its winner after issuance;
+            // fresh UUID lexical order must not choose restored user bytes.
+            let childStamp = SyncMutationStamp(logicalRevision: maximum + UInt64(index) + 1,
+                modifiedAt: now, deviceID: deviceID)
+            let record = SyncRecord(schemaVersion: retained.schemaVersion, id: .init(kind: .attachment, uuid: child.versionID),
+                createdAt: now, entityRevision: childStamp.logicalRevision,
+                payload: .init(fields: retained.payload.fields.mapValues { .init(value: $0.value, stamp: childStamp) }, attachment: child),
+                relationships: retained.relationships, deletedAt: .init(value: nil, stamp: childStamp))
+            records[record.id] = record
+            changed.insert(record.id)
+            predecessors[child.versionID] = old.versionID
+        }
+        var projectReminderIDs: [UUID: [UUID]] = [:]
+        for (counterID, reminders) in removedReminders {
+            let id = SyncEntityID(kind: .projectCounter, uuid: counterID)
+            guard var record = records[id], record.deletedAt.value == nil,
+                  case let .projectCounter(state)? = record.payload.atomicDomain?.value,
+                  let project = record.relationships.first(where: { $0.role == "project" })?.target,
+                  Set(state.reminders.map(\.id)).isDisjoint(with: reminders.map(\.id)) else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            let merged = SyncCounterReminderState(counter: state.counter,
+                reminders: state.reminders + reminders, preparedCommand: state.preparedCommand,
+                processedCommandIDs: state.processedCommandIDs,
+                processedCommandProofs: state.processedCommandProofs, occurrence: state.occurrence)
+            record.payload.atomicDomain = .init(value: .projectCounter(merged), stamp: stamp)
+            record.entityRevision = stamp.logicalRevision
+            record.deletedAt = .init(value: nil, stamp: stamp)
+            records[id] = record
+            changed.insert(id)
+            projectReminderIDs[project.uuid, default: []] += reminders.map(\.id)
+        }
+        for projectID in Set(projectReminderIDs.keys).union(removedLegacyPatterns.keys) {
+            let id = SyncEntityID(kind: .project, uuid: projectID)
+            guard var record = records[id], record.deletedAt.value == nil,
+                  case let .data(data)? = record.payload.fields["domainSnapshot"]?.value,
+                  var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            if let added = projectReminderIDs[projectID] {
+                guard let order = object["reminderOrder"] as? [String] else { throw SyncDeletionLedgerError.corrupt }
+                object["reminderOrder"] = order + added.sorted { $0.uuidString < $1.uuidString }.map(\.uuidString)
+            }
+            if let added = removedLegacyPatterns[projectID] {
+                let projection = try JSONDecoder().decode(SyncProjectProjection.self, from: data)
+                guard Set(projection.legacyPatterns.map(\.id)).isDisjoint(with: added.map(\.id)) else {
+                    throw SyncDeletionLedgerError.witnessMismatch
+                }
+                object["legacyPatterns"] = try JSONSerialization.jsonObject(with:
+                    JSONEncoder().encode(projection.legacyPatterns + added))
+            }
+            record.payload.fields["domainSnapshot"] = .init(value: .data(try JSONSerialization.data(withJSONObject: object, options: .sortedKeys)), stamp: stamp)
+            record.entityRevision = stamp.logicalRevision
+            record.deletedAt = .init(value: nil, stamp: stamp)
+            records[id] = record
+            changed.insert(id)
+        }
+        return .init(records: Array(records.values), changedIDs: changed,
+            restoredAttachmentPredecessors: predecessors)
+    }
 
     init(rootIDs: Set<SyncEntityID>, ownedRecords: [SyncRecord],
          supportingParentIDs: Set<SyncEntityID>, removedReminders: [UUID: [KnittingReminder]],
-         removedLegacyPatterns: [UUID: [PatternDocument]] = [:]) {
+         removedLegacyPatterns: [UUID: [PatternDocument]] = [:],
+         restorableRecordIDs: Set<SyncEntityID>? = nil) {
         self.rootIDs = rootIDs
         self.ownedRecords = ownedRecords
         self.supportingParentIDs = supportingParentIDs
         self.removedReminders = removedReminders
         self.removedLegacyPatterns = removedLegacyPatterns
+        self.restorableRecordIDs = restorableRecordIDs
     }
 
     /// Select only actual removals. Embedded values remain aggregate members;
@@ -68,7 +186,7 @@ struct SyncDeletionFileProof: Codable, Equatable, Sendable {
     let sha256: Data
 }
 
-struct SyncDeletionEntry: Codable, Sendable {
+struct SyncDeletionEntry: Codable, Equatable, Sendable {
     let id: UUID
     let deletedAt: Date
     let domain: SyncDeletedDomain

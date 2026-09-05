@@ -6021,16 +6021,22 @@ final class PatternLibraryDeletionTransaction {
             manifest: syncAttachmentManifest
         )
         let archiveBytes = try Data(contentsOf: url)
+        let metadataMutations = projection.mutations.filter { mutation in
+            if case .delete = mutation,
+               syncProjectionCache?.records[mutation.recordID]?.deletedAt.value != nil { return false }
+            return true
+        }
         try commitArchiveAndPublish(
             data: archiveBytes,
-            mutations: projection.mutations,
+            mutations: metadataMutations,
             observedRevisions: projection.observedRevisions,
             shouldWriteArchive: false,
             onArchiveCommitted: { publishedMutations in
                 self.syncProjectionCache = SyncPublicationProjectionCache(
                     archive: archive,
                     records: syncRecords(
-                        projection.cache.records,
+                        (self.syncProjectionCache?.records.filter { $0.value.deletedAt.value != nil } ?? [:])
+                            .merging(projection.cache.records, uniquingKeysWith: { _, current in current }),
                         applying: publishedMutations.filter {
                             $0.recordID.kind != .attachment
                         }
@@ -6206,7 +6212,8 @@ final class PatternLibraryDeletionTransaction {
                     self.syncProjectionCache = SyncPublicationProjectionCache(
                         archive: committedArchive,
                         records: syncRecords(
-                            publicationProjection.cache.records,
+                            (self.syncProjectionCache?.records.filter { $0.value.deletedAt.value != nil } ?? [:])
+                                .merging(publicationProjection.cache.records, uniquingKeysWith: { _, current in current }),
                             // Attachment records have an immutable versioned
                             // identity and are owned by the manifest plus
                             // durable issuance evidence. The archive snapshot
@@ -6251,6 +6258,7 @@ final class PatternLibraryDeletionTransaction {
         artifactEvidence: [SyncPublicationArtifactEvidence] = [],
         candidateAttachmentManifest: [String: SyncAttachmentManifestEntry]? = nil,
         deletionRetention: (id: UUID, beforeSHA256: Data, removalIDs: Set<SyncEntityID>)? = nil,
+        restorationWitness: SyncRestorationWitness? = nil,
         shouldWriteArchive: Bool = true,
         beforeArchiveWrite: (() throws -> Void)? = nil,
         commitArtifacts: (() throws -> Void)? = nil,
@@ -6294,7 +6302,8 @@ final class PatternLibraryDeletionTransaction {
                 candidateAttachmentManifest: try candidateAttachmentManifest.map {
                     try SyncAttachmentManifestStore.orderedEntries($0)
                 },
-                deletionLedgerID: deletionRetention?.id
+                deletionLedgerID: deletionRetention?.id,
+                restorationWitness: restorationWitness
             )
             if let retention = deletionRetention {
                 try deletionLedger().prepare(id: retention.id, beforeArchiveSHA256: retention.beforeSHA256,
@@ -6304,6 +6313,7 @@ final class PatternLibraryDeletionTransaction {
                     publicationSHA256: SyncDeletionLedger.publicationFingerprint(transaction),
                     commitBoundary: commitBoundary)
             }
+            if restorationWitness != nil { try deletionLedger().beginRestore(publication: transaction) }
             try transactionFile.write(transaction)
         } catch {
             let publicationError = syncPublicationError(for: error)
@@ -6381,6 +6391,109 @@ final class PatternLibraryDeletionTransaction {
 
     private var syncPublicationDeviceID: String {
         syncInstallationID ?? "sync-installation-unavailable"
+    }
+
+    public func restoreRecentlyDeleted(id: UUID, now: Date) throws {
+        try ensureArchiveAvailable()
+        try ensureSyncPublicationReady()
+        guard isSyncPublicationEnabled, syncBootstrapHydrated, let cache = syncProjectionCache else {
+            throw SyncPublicationError.pendingRepair
+        }
+        let bytes = try SyncRegularFileReader().read(url, maximumBytes: 100_000_000).data
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: bytes)
+        let current = ProjectArchive(version: ProjectArchive.currentVersion, projects: projects, yarns: yarns,
+            patternFolders: patternFolders, patternAssets: patternAssets, patterns: patterns, patternUsages: patternUsages)
+        guard syncDeletionArchivesMatch(archive, current), syncDeletionArchivesMatch(cache.archive, current) else {
+            throw SyncPublicationError.pendingRepair
+        }
+        let ledger = try deletionLedger()
+        guard let entry = try ledger.recentlyDeleted().first(where: { $0.id == id }),
+              now >= entry.deletedAt, now < entry.deletedAt.addingTimeInterval(30 * 24 * 60 * 60) else {
+            throw SyncDeletionLedgerError.unavailable
+        }
+        var attachments = syncHydratedAttachments
+        for record in syncAttachmentPublicationEvidence.retainedAttachmentRecords { attachments[record.id.uuid] = record }
+        let canonical = Array(cache.records.values) + Array(attachments.values)
+        // The archive digest alone cannot distinguish two checkpoints whose
+        // live view is equally empty. Retained exact deletion versions are a
+        // lower bound: current canonical authority must already dominate them.
+        // Normalize the current side with the same cascade policy first;
+        // causal parent cascades can legitimately strengthen child overlays.
+        let normalizedCurrent = try SyncMergeEngine().merge(local: canonical, remote: [SyncRecord](), pendingLocal: [])
+        let currentByID = Dictionary(uniqueKeysWithValues: normalizedCurrent.records.map { ($0.id, $0) })
+        let withRetainedAuthority = try SyncMergeEngine().merge(local: canonical,
+            remote: entry.exactRemovalVersions.map(\.record), pendingLocal: [])
+        guard withRetainedAuthority.records.allSatisfy({ currentByID[$0.id] == $0 }) else {
+            throw SyncPublicationError.pendingRepair
+        }
+        let restoration = try entry.domain.restoring(into: canonical, now: now, deviceID: syncPublicationDeviceID)
+        let references = Dictionary(uniqueKeysWithValues: try syncArchiveAttachmentReferences(in: current).map { ($0.slot, $0) })
+        let lineage = try SyncAttachmentLineage(records: canonical)
+        var sources: [UUID: SyncAttachmentSource] = [:]
+        for (slot, record) in lineage.resolvedHeadsBySlot() where record.deletedAt.value == nil {
+            let version = record.payload.attachment!
+            guard let reference = references[deletionReferenceSlot(slot)] else {
+                throw SyncDeletionLedgerError.missingAttachment(record.id.uuid)
+            }
+            sources[record.id.uuid] = try .init(fileURL: reference.sourceURL,
+                contentSHA256: version.contentSHA256, byteCount: version.byteCount)
+        }
+        for (child, predecessor) in restoration.restoredAttachmentPredecessors {
+            guard let proof = entry.files.first(where: { $0.attachmentVersionID == predecessor }) else {
+                throw SyncDeletionLedgerError.missingAttachment(predecessor)
+            }
+            sources[child] = try .init(fileURL: ledger.root.appendingPathComponent(proof.retainedRelativePath),
+                contentSHA256: proof.sha256, byteCount: proof.byteCount)
+        }
+        let staged = try ledger.stageRestoreSources(id: id, sources: sources)
+        let materialized = try ProjectArchiveSyncMapper.materialize(records: restoration.records,
+            attachments: staged, baseArchive: current)
+        let selectedFiles = materialized.files.filter { restoration.changedIDs.contains(.init(kind: .attachment, uuid: $0.version.versionID)) }
+        let liveRoot = url.deletingLastPathComponent()
+        for file in selectedFiles {
+            let destination = liveRoot.appendingPathComponent(file.relativePath)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                _ = try SyncRegularFileReader().read(destination, maximumBytes: 100_000_000,
+                    expected: .init(byteCount: file.version.byteCount, sha256: file.version.contentSHA256))
+            }
+        }
+        let mutations = try restoration.records.filter { restoration.changedIDs.contains($0.id) }.map { record in
+            // Mapper staging is owned by this restore attempt. The mutation
+            // journal must make and verify its own durable copy before finish.
+            let source = try staged[record.id.uuid].map { source in
+                try SyncAttachmentSource(fileURL: source.fileURL,
+                    contentSHA256: source.contentSHA256, byteCount: source.byteCount)
+            }
+            return try SyncMutation.save(recordVersion: SyncRecordVersion(record: record),
+                attachmentSource: record.id.kind == .attachment ? source : nil, mutationID: UUID())
+        }
+        let candidate = materialized.archive
+        let data = try JSONEncoder().encode(candidate)
+        let evidence = try selectedFiles.map { try SyncPublicationArtifactEvidence(relativePath: $0.relativePath,
+            expectedSHA256: $0.version.contentSHA256) }
+        try commitArchiveAndPublish(data: data, mutations: mutations,
+            commitBoundary: data == bytes ? .artifacts : .archive,
+            artifactEvidence: evidence,
+            restorationWitness: .init(entryID: id, attemptID: UUID(), beforeArchiveSHA256: Data(SHA256.hash(data: bytes))),
+            beforeArchiveWrite: {
+                try ledger.installRestoreFiles(selectedFiles, liveRoot: liveRoot)
+            },
+            onArchiveCommitted: { published in
+                self.syncProjectionCache = .init(archive: candidate,
+                    records: syncRecords(cache.records, applying: published.filter { $0.recordID.kind != .attachment }))
+                for record in published.compactMap(\.savedRecordVersion?.record) where record.id.kind == .attachment {
+                    self.syncHydratedAttachments[record.id.uuid] = record
+                    self.syncHydratedAttachmentSources[record.id.uuid] = staged[record.id.uuid]
+                }
+            }, applyCommittedState: {
+                self.projects = candidate.projects
+                self.yarns = candidate.yarns
+                self.patternFolders = candidate.patternFolders
+                self.patternAssets = candidate.patternAssets
+                self.patterns = candidate.patterns
+                self.patternUsages = candidate.patternUsages
+                self.dataGeneration &+= 1
+            })
     }
 
     private func deletionLedger() throws -> SyncDeletionLedger {
@@ -6973,7 +7086,9 @@ final class PatternLibraryDeletionTransaction {
             }
             // Only successful durable sink publication authorizes visibility.
             // Keep the shared witness until the independent ledger acknowledges it.
-            try deletionLedger().activate(publication: transaction)
+            if transaction.restorationWitness != nil {
+                try deletionLedger().finishRestore(publication: transaction)
+            } else { try deletionLedger().activate(publication: transaction) }
             try transactionFile.remove()
         } catch {
             throw SyncPublicationError.pendingRepair

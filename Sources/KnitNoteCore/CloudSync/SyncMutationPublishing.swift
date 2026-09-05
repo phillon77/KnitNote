@@ -86,6 +86,12 @@ struct SyncPublicationArtifactEvidence: Codable, Equatable, Sendable {
     }
 }
 
+struct SyncRestorationWitness: Codable, Equatable, Sendable {
+    let entryID: UUID
+    let attemptID: UUID
+    let beforeArchiveSHA256: Data
+}
+
 struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     static let currentVersion = 4
     private static let causalReceiptVersion = 3
@@ -99,6 +105,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     let revisionReceipts: [SyncRevisionReceipt]
     let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
     let deletionLedgerID: UUID?
+    let restorationWitness: SyncRestorationWitness?
     let integrity: Data
 
     private enum CodingKeys: String, CodingKey {
@@ -110,6 +117,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         case revisionReceipts
         case candidateAttachmentManifest
         case deletionLedgerID
+        case restorationWitness
         case integrity
     }
 
@@ -120,7 +128,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         artifactEvidence: [SyncPublicationArtifactEvidence] = [],
         revisionReceipts: [SyncRevisionReceipt],
         candidateAttachmentManifest: [SyncAttachmentManifestEntry]? = nil,
-        deletionLedgerID: UUID? = nil
+        deletionLedgerID: UUID? = nil,
+        restorationWitness: SyncRestorationWitness? = nil
     ) throws {
         try self.init(
             version: Self.currentVersion,
@@ -130,7 +139,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             artifactEvidence: artifactEvidence,
             revisionReceipts: revisionReceipts,
             candidateAttachmentManifest: candidateAttachmentManifest,
-            deletionLedgerID: deletionLedgerID
+            deletionLedgerID: deletionLedgerID,
+            restorationWitness: restorationWitness
         )
         _ = try validated()
     }
@@ -161,10 +171,12 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         artifactEvidence: [SyncPublicationArtifactEvidence],
         revisionReceipts: [SyncRevisionReceipt],
         candidateAttachmentManifest: [SyncAttachmentManifestEntry]?,
-        deletionLedgerID: UUID? = nil
+        deletionLedgerID: UUID? = nil,
+        restorationWitness: SyncRestorationWitness? = nil
     ) throws {
         self.version = version
         self.deletionLedgerID = deletionLedgerID
+        self.restorationWitness = restorationWitness
         self.expectedArchiveSHA256 = expectedArchiveSHA256
         self.commitBoundary = commitBoundary
         self.artifactEvidence = artifactEvidence.sorted {
@@ -185,7 +197,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             mutations: mutations,
             revisionReceipts: revisionReceipts,
             candidateAttachmentManifest: self.candidateAttachmentManifest,
-            deletionLedgerID: deletionLedgerID
+            deletionLedgerID: deletionLedgerID,
+            restorationWitness: restorationWitness
         )
     }
 
@@ -212,6 +225,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         )
         integrity = try values.decode(Data.self, forKey: .integrity)
         deletionLedgerID = try values.decodeIfPresent(UUID.self, forKey: .deletionLedgerID)
+        restorationWitness = try values.decodeIfPresent(SyncRestorationWitness.self, forKey: .restorationWitness)
     }
 
     func validated() throws -> Self {
@@ -242,6 +256,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
               version != Self.legacyVersion || candidateAttachmentManifest == nil,
               version != Self.causalReceiptVersion || candidateAttachmentManifest == nil,
               deletionLedgerID == nil || version == Self.currentVersion,
+              restorationWitness == nil || (version == Self.currentVersion && deletionLedgerID == nil
+                  && restorationWitness?.beforeArchiveSHA256.count == 32),
               artifactEvidence == artifactEvidence.sorted(by: {
                   $0.relativePath < $1.relativePath
               }),
@@ -257,7 +273,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                   mutations: mutations,
                   revisionReceipts: revisionReceipts,
                   candidateAttachmentManifest: candidateAttachmentManifest,
-                  deletionLedgerID: deletionLedgerID
+                  deletionLedgerID: deletionLedgerID,
+                  restorationWitness: restorationWitness
               )) else {
             throw SyncPublicationTransactionFileError.corrupt
         }
@@ -272,7 +289,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         mutations: [SyncMutation],
         revisionReceipts: [SyncRevisionReceipt],
         candidateAttachmentManifest: [SyncAttachmentManifestEntry]?,
-        deletionLedgerID: UUID?
+        deletionLedgerID: UUID?,
+        restorationWitness: SyncRestorationWitness?
     ) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -303,7 +321,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             mutations: mutations,
             revisionReceipts: revisionReceipts,
             candidateAttachmentManifest: candidateAttachmentManifest,
-            deletionLedgerID: deletionLedgerID
+            deletionLedgerID: deletionLedgerID,
+            restorationWitness: restorationWitness
         ))))
     }
 
@@ -333,6 +352,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         let revisionReceipts: [SyncRevisionReceipt]
         let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
         let deletionLedgerID: UUID?
+        let restorationWitness: SyncRestorationWitness?
     }
 }
 

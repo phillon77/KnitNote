@@ -4,6 +4,218 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct JSONProjectStoreSyncDeletionTests {
+    @Test func restoredMediaPublishesIntoActualJournalBeforeEntryRetirement() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        let journal = FileSyncMutationJournal(url: fixture.root.appendingPathComponent("pending.json"))
+        let store = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        try store.delete(id: project.id)
+        let entry = try #require(try fixture.ledger().recentlyDeleted().first)
+        try store.restoreRecentlyDeleted(id: entry.id, now: .now)
+        #expect(store.syncPublicationError == nil)
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty)
+        let restored = try journal.pending().filter { $0.attachmentSource != nil }
+        #expect(restored.count == entry.files.count)
+        #expect(try restored.allSatisfy { mutation in
+            let source = try #require(mutation.attachmentSource)
+            let bytes = try Data(contentsOf: source.fileURL)
+            return source.isJournalStaged && Data(SHA256.hash(data: bytes)) == source.contentSHA256
+        })
+    }
+
+    @Test func watchMetadataPublicationPreservesCanonicalDeletionForLaterRestore() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let store = fixture.store()
+        try fixture.hydrate(store)
+        try store.delete(id: fixture.projectID)
+        let id = try #require(try fixture.ledger().recentlyDeleted().first?.id)
+        try store.publishWatchSyncMetadata(preparedCommand: nil, processedLedger: .init())
+        try store.restoreRecentlyDeleted(id: id, now: .now)
+        #expect(store.project(id: fixture.projectID)?.name == "Selected project")
+        #expect(store.syncPublicationError == nil)
+    }
+
+    @Test(arguments: ["missing", "stale", "expired"]) func invalidRestoreLeavesArchiveAndManifestExact(reason: String) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        let store = fixture.store()
+        try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        try store.delete(id: project.id)
+        let entry = try #require(try fixture.ledger().recentlyDeleted().first)
+        if reason == "missing" {
+            let proof = try #require(entry.files.first)
+            try FileManager.default.removeItem(at: fixture.ledgerRoot.appendingPathComponent(proof.retainedRelativePath))
+        }
+        if reason == "stale" {
+            let external = JSONProjectStore(url: fixture.url)
+            try external.add(name: "Later unrelated project")
+        }
+        let archive = try Data(contentsOf: fixture.url)
+        let manifest = try Data(contentsOf: fixture.ledgerRoot.appendingPathComponent("ledger.json"))
+        let now = reason == "expired" ? entry.deletedAt.addingTimeInterval(30 * 24 * 60 * 60) : Date.now
+        #expect(throws: (any Error).self) { try store.restoreRecentlyDeleted(id: entry.id, now: now) }
+        #expect(try Data(contentsOf: fixture.url) == archive)
+        #expect(try Data(contentsOf: fixture.ledgerRoot.appendingPathComponent("ledger.json")) == manifest)
+    }
+
+    @Test(arguments: ["before", "after", "journal"]) func restorationInterruptionsKeepGroupUntilDurablePublication(boundary: String) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let sink = DeletionWitnessSink(archiveURL: fixture.url, ledgerRoot: fixture.ledgerRoot)
+        let first = fixture.store(sink: sink)
+        let original = try fixture.hydrate(first)
+        try first.delete(id: fixture.projectID)
+        let entry = try #require(try fixture.ledger().recentlyDeleted().first)
+        let deletion = try #require(sink.transaction)
+        let canonical = syncRecords(Dictionary(uniqueKeysWithValues: original.records.map { ($0.id, $0) }), applying: deletion.mutations)
+        let failing = fixture.store(sink: DeletionSink(fails: boundary == "journal"), writer: { bytes, url in
+            if boundary == "before" {
+                let marker = try #require(try SyncPublicationTransactionFile(archiveURL: url).load())
+                try JSONEncoder().encode(marker).write(to: url.appendingPathExtension("restore-marker"))
+                throw DeletionInjectedFailure()
+            }
+            try bytes.write(to: url, options: .atomic)
+            if boundary == "after" { throw DeletionInjectedFailure() }
+        })
+        try fixture.hydrate(failing, records: Array(canonical.values))
+        if boundary == "before" {
+            #expect(throws: (any Error).self) { try failing.restoreRecentlyDeleted(id: entry.id, now: .now) }
+            #expect(failing.project(id: fixture.projectID) == nil)
+        } else {
+            try failing.restoreRecentlyDeleted(id: entry.id, now: .now)
+            #expect(failing.project(id: fixture.projectID) != nil)
+            #expect(failing.syncPublicationError == .pendingRepair)
+        }
+        #expect(try fixture.ledger().recentlyDeleted().map(\.id) == [entry.id])
+        if boundary == "before" {
+            let marker = try JSONDecoder().decode(SyncPublicationTransaction.self,
+                from: Data(contentsOf: fixture.url.appendingPathExtension("restore-marker")))
+            try SyncPublicationTransactionFile(archiveURL: fixture.url).write(marker)
+        }
+        let reopened = fixture.store()
+        try reopened.repairSyncPublication()
+        #expect((reopened.project(id: fixture.projectID) != nil) == (boundary != "before"))
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty == (boundary != "before"))
+        if boundary == "before" {
+            try fixture.hydrate(reopened, records: Array(canonical.values))
+            try reopened.restoreRecentlyDeleted(id: entry.id, now: .now)
+            #expect(reopened.project(id: fixture.projectID) != nil)
+            #expect(try fixture.ledger().recentlyDeleted().isEmpty)
+        }
+    }
+
+    @Test func completedRestoreWitnessReplaysWithoutReactivatingDeletion() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let sink = DeletionWitnessSink(archiveURL: fixture.url, ledgerRoot: fixture.ledgerRoot)
+        let store = fixture.store(sink: sink)
+        try fixture.hydrate(store)
+        try store.delete(id: fixture.projectID)
+        let id = try #require(try fixture.ledger().recentlyDeleted().first?.id)
+        try store.restoreRecentlyDeleted(id: id, now: .now)
+        let restoration = try #require(sink.transaction)
+        #expect(restoration.deletionLedgerID == nil)
+        #expect(restoration.restorationWitness?.entryID == id)
+        try SyncPublicationTransactionFile(archiveURL: fixture.url).write(restoration)
+        let reopened = fixture.store()
+        try reopened.repairSyncPublication()
+        #expect(reopened.project(id: fixture.projectID) != nil)
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty)
+        #expect(try SyncPublicationTransactionFile(archiveURL: fixture.url).load() == nil)
+    }
+
+    @Test func reminderRestorationPreservesLaterCounterAndWatchProofs() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let sink = DeletionWitnessSink(archiveURL: fixture.url, ledgerRoot: fixture.ledgerRoot)
+        let store = fixture.store(sink: sink)
+        try fixture.hydrate(store)
+        let counterID = try #require(store.projects.first?.counters.first?.id)
+        let reminderID = try store.addKnittingReminder(projectID: fixture.projectID,
+            draft: .oneTime(kind: .cable, target: 12, text: "Restore this"), now: .now)
+        let revision = try #require(store.projects.first?.knittingReminders.first?.mutationRevision)
+        try store.deleteKnittingReminder(projectID: fixture.projectID, reminderID: reminderID, observedRevision: revision)
+        let entry = try #require(try fixture.ledger().recentlyDeleted().first)
+        let command = WatchCounterCommand(id: UUID(), projectID: fixture.projectID, counterID: counterID,
+            operation: .increment, createdAt: .now)
+        let ledgerURL = WatchSyncPaths.processedLedger(in: fixture.root)
+        _ = try store.applyWatchCommandDurably(command, ledgerURL: ledgerURL,
+            preparedCommandURL: WatchSyncPaths.preparedCommand(in: fixture.root), now: .now)
+        let beforeLedger = try Data(contentsOf: ledgerURL)
+        let later = try #require(sink.transaction?.mutations.compactMap(\.savedRecordVersion?.record)
+            .compactMap { record -> SyncCounterReminderState? in
+                guard record.id.uuid == counterID, case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
+                return state
+            }.first)
+        try store.restoreRecentlyDeleted(id: entry.id, now: .now)
+        let restored = try #require(sink.transaction?.mutations.compactMap(\.savedRecordVersion?.record)
+            .compactMap { record -> SyncCounterReminderState? in
+                guard record.id.uuid == counterID, case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
+                return state
+            }.first)
+        #expect(restored.counter == later.counter)
+        #expect(restored.processedCommandIDs == later.processedCommandIDs)
+        #expect(restored.processedCommandProofs == later.processedCommandProofs)
+        #expect(restored.preparedCommand == later.preparedCommand)
+        #expect(restored.occurrence == later.occurrence)
+        #expect(restored.reminders.map(\.id) == [reminderID])
+        #expect(try Data(contentsOf: ledgerURL) == beforeLedger)
+    }
+
+    @Test func missingSharedParentRefusesRestoreAndRetainsEntry() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let store = fixture.store()
+        try fixture.hydrate(store)
+        try store.delete(id: fixture.projectID)
+        let entry = try #require(try fixture.ledger().recentlyDeleted().first)
+        try store.deleteYarn(id: fixture.yarnID)
+        let archive = try Data(contentsOf: fixture.url)
+        let manifest = try Data(contentsOf: fixture.ledgerRoot.appendingPathComponent("ledger.json"))
+        #expect(throws: (any Error).self) { try store.restoreRecentlyDeleted(id: entry.id, now: .now) }
+        #expect(try Data(contentsOf: fixture.url) == archive)
+        #expect(try Data(contentsOf: fixture.ledgerRoot.appendingPathComponent("ledger.json")) == manifest)
+        #expect(try fixture.ledger().recentlyDeleted().contains { $0.id == entry.id })
+    }
+
+    @Test func day29RestoresCompleteProjectAfterReopenFromRetainedBytes() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        let sink = DeletionWitnessSink(archiveURL: fixture.url, ledgerRoot: fixture.ledgerRoot)
+        let store = fixture.store(sink: sink)
+        let original = try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        try store.delete(id: project.id)
+        let entry = try #require(try fixture.ledger().recentlyDeleted().first)
+        let deletion = try #require(sink.transaction)
+        let canonical = syncRecords(Dictionary(uniqueKeysWithValues: original.records.map { ($0.id, $0) }),
+                                    applying: deletion.mutations)
+        for proof in entry.files {
+            let path = fixture.root.appendingPathComponent(proof.restoreRelativePath)
+            if FileManager.default.fileExists(atPath: path.path) { try FileManager.default.removeItem(at: path) }
+        }
+        let reopened = fixture.store()
+        try fixture.hydrate(reopened, records: Array(canonical.values))
+        try reopened.restoreRecentlyDeleted(id: entry.id,
+            now: entry.deletedAt.addingTimeInterval(29 * 24 * 60 * 60))
+        let restored = try #require(reopened.project(id: project.id))
+        #expect(restored == project)
+        #expect(restored.counters.count == 6)
+        for proof in entry.files {
+            #expect(try Data(contentsOf: fixture.root.appendingPathComponent(proof.restoreRelativePath)) ==
+                Data(contentsOf: fixture.ledgerRoot.appendingPathComponent(proof.retainedRelativePath)))
+        }
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty)
+        #expect(fixture.store().project(id: project.id) == project)
+    }
+
     @Test func projectDeletionRetainsSelectedContentAndPreservesSharedYarn() throws {
         let fixture = try DeletionStoreFixture()
         defer { fixture.cleanUp() }
@@ -198,6 +410,14 @@ import Testing
             if kind == "legacy" {
                 #expect(entry.domain.removedLegacyPatterns[project.id]?.first?.id == project.patterns[0].id)
             }
+            let currentParent = try #require(store.project(id: project.id))
+            try store.restoreRecentlyDeleted(id: entry.id, now: .now)
+            let restoredParent = try #require(store.project(id: project.id))
+            #expect(restoredParent.name == currentParent.name)
+            #expect(restoredParent.counters == currentParent.counters)
+            #expect(restoredParent.patterns == project.patterns)
+            #expect(restoredParent.journalEntries == project.journalEntries)
+            #expect(store.yarns.count == 1)
         }
     }
 
@@ -388,6 +608,12 @@ import Testing
                     attachmentRecords: history.reversed()).validated()
                 #expect(evidence.version(for: version.slot) == reversed.version(for: version.slot))
                 #expect(try fixture.ledger().recentlyDeleted().first?.files.count == 6)
+                try store.restoreRecentlyDeleted(id: entry.id, now: .now)
+                let restoredEvidence = try SyncAttachmentPublicationEvidenceFile(url: fixture.root.appendingPathComponent("SyncMetadata/attachment-versions.json")).load()
+                #expect(restoredEvidence.version(for: version.slot)?.contentSHA256 == originalVersion.contentSHA256)
+                #expect(restoredEvidence.retainedAttachmentRecords.filter { $0.payload.attachment?.slot == version.slot }.count == 4)
+                #expect(restoredEvidence.retainedAttachmentRecords.first { $0.id == sibling.id } == history.first { $0.id == sibling.id })
+                #expect(restoredEvidence.retainedAttachmentRecords.first { $0.id == original.id } == history.first { $0.id == original.id })
             } else {
                 #expect(throws: (any Error).self) { try store.delete(id: project.id) }
                 #expect(try Data(contentsOf: fixture.url) == before)
@@ -419,6 +645,19 @@ import Testing
         let entry = try #require(try fixture.ledger().recentlyDeleted().first)
         #expect(!entry.domain.ownedRecords.contains { $0.id == .init(kind: .pattern, uuid: sharedPattern.id) })
         #expect(entry.domain.supportingParentIDs.contains(.init(kind: .pattern, uuid: sharedPattern.id)))
+        try store.rename(id: other.id, to: "Other project edited later")
+        let latestOther = try #require(store.project(id: other.id))
+        let patterns = store.patterns
+        let assets = store.patternAssets
+        let yarnText = store.yarns.map { ($0.id, $0.name) }
+        try store.restoreRecentlyDeleted(id: entry.id, now: .now)
+        #expect(store.project(id: selected.id) == selected)
+        #expect(store.project(id: other.id) == latestOther)
+        #expect(store.patterns == patterns)
+        #expect(store.patternAssets == assets)
+        #expect(store.yarns.map(\.id) == yarnText.map { $0.0 })
+        #expect(store.yarns.map(\.name) == yarnText.map { $0.1 })
+        #expect(try Data(contentsOf: assetURL) == bytes)
     }
 
     @Test func missingWitnessAfterJournalFailureBlocksReopenAndKeepsRetainedMedia() throws {
@@ -514,5 +753,14 @@ private final class DeletionWitnessSink: SyncMutationSink, @unchecked Sendable {
         try store.hydrateSyncBootstrap(.init(archiveSHA256: Data(SHA256.hash(data: data)),
             records: package.records, counterStates: states, legacyRecordIDsToDelete: []))
         return package
+    }
+    func hydrate(_ store: JSONProjectStore, records: [SyncRecord]) throws {
+        let data = try Data(contentsOf: url)
+        let states = Dictionary(uniqueKeysWithValues: records.compactMap { record -> (UUID, SyncCounterReminderState)? in
+            guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
+            return (record.id.uuid, state)
+        })
+        try store.hydrateSyncBootstrap(.init(archiveSHA256: Data(SHA256.hash(data: data)),
+            records: records, counterStates: states, legacyRecordIDsToDelete: []))
     }
 }

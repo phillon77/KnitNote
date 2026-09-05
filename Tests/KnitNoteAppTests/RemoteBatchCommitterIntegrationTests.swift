@@ -1,4 +1,5 @@
 import CloudKit
+import CryptoKit
 import Foundation
 import Testing
 @testable import KnitNote
@@ -436,6 +437,124 @@ import Testing
         #expect(try f.checkpoints.load()?.remoteBatchReceipts.isEmpty == true)
     }
 
+    @Test func saturatedReceiptsNeedAcknowledgedRetirementBeforeDuplicateACKPreservesLocalFIFO() async throws {
+        let f = try AdapterFixture(); defer { f.remove() }
+        let predecessor = try #require(try f.checkpoints.load())
+        let saturatedReceipts = (0..<4_096).map { index in
+            SyncRemoteBatchReceipt(
+                identity: .init(
+                    accountIDHash: predecessor.accountIDHash,
+                    batchID: UUID(uuidString: String(
+                        format: "70000000-0000-4000-8000-%012x",
+                        index
+                    ))!,
+                    contentSHA256: Data(SHA256.hash(data: Data("saturated-\(index)".utf8)))
+                ),
+                commitID: predecessor.commitID,
+                domainChanged: false
+            )
+        }
+        let saturated = try SyncCanonicalCheckpoint(
+            accountIDHash: predecessor.accountIDHash,
+            commitID: predecessor.commitID,
+            archiveSHA256: predecessor.archiveSHA256,
+            records: predecessor.records,
+            legacyRecordIDsToDelete: predecessor.legacyRecordIDsToDelete,
+            remoteBatchReceipts: saturatedReceipts
+        )
+        try f.checkpoints.install(
+            saturated,
+            replacing: Data(SHA256.hash(data: predecessor.encoded()))
+        )
+        let store = try f.freshStore()
+        let transport = AdapterTransport()
+        let adapter = f.adapter(store: store) { identity in
+            guard transport.acknowledged.contains(identity.batchID) else { throw Fault.injected }
+        }
+        let batch = try f.batch()
+        let originalArchive = try Data(contentsOf: f.archiveURL)
+
+        await #expect(throws: SyncRemoteBatchError.receiptCapacity) {
+            try await adapter.commitFetchedBatch(batch: batch, accountEpoch: f.epoch())
+        }
+        #expect(try f.checkpoints.load() == saturated)
+        #expect(try Data(contentsOf: f.archiveURL) == originalArchive)
+        #expect(try f.journal.pending().isEmpty)
+
+        let retired = saturatedReceipts[0]
+        transport.acknowledged = [retired.identity.batchID]
+        try await adapter.didAcknowledgeFetchedBatch(
+            batch: retired.identity,
+            accountEpoch: f.epoch()
+        )
+        let remaining = Array(saturatedReceipts.dropFirst())
+        #expect(try f.checkpoints.load()?.remoteBatchReceipts == remaining)
+
+        transport.acknowledged.removeAll()
+        transport.failAck = true
+        let coordinator = f.coordinator(
+            store: store,
+            adapter: adapter,
+            transport: transport
+        )
+        await coordinator.start()
+        let event = CloudSyncEvent.fetched(
+            batchID: batch.identity.batchID,
+            accountEpoch: f.epoch(),
+            records: batch.records,
+            deleted: []
+        )
+        transport.emit(event)
+        await drain { coordinator.status.phase == .needsAttention }
+        let afterFailedACK = try #require(try f.checkpoints.load())
+        #expect(afterFailedACK.remoteBatchReceipts.count == 4_096)
+        #expect(Set(afterFailedACK.remoteBatchReceipts.map(\.identity.batchID))
+            == Set(remaining.map(\.identity.batchID)).union([batch.identity.batchID]))
+        for receipt in remaining {
+            #expect(afterFailedACK.remoteBatchReceipts.contains(receipt))
+        }
+        let retainedBatchReceipt = try #require(afterFailedACK.remoteBatchReceipts.first {
+            $0.identity == batch.identity
+        })
+        #expect(retainedBatchReceipt.commitID == afterFailedACK.commitID)
+        #expect(retainedBatchReceipt.domainChanged)
+        #expect(transport.acknowledged.isEmpty)
+        #expect(store.project(id: f.projectID)?.name == "Remote")
+
+        try store.updateProject(
+            id: f.projectID,
+            name: "Later local edit",
+            toolType: nil,
+            toolSize: nil,
+            toolNotes: nil,
+            photoChange: .unchanged
+        )
+        let exactPending = try f.journal.pending()
+        #expect(exactPending.count == 1)
+        let localSave = try #require(exactPending.first)
+        #expect(localSave.recordID == .init(kind: .project, uuid: f.projectID))
+        #expect(localSave.intent == .save)
+        #expect(localSave.attachmentSource == nil)
+        let afterLocalEdit = try #require(try f.checkpoints.load())
+        let expectedLocalRecord = try #require(afterLocalEdit.records.first {
+            $0.id == .init(kind: .project, uuid: f.projectID)
+        })
+        #expect(localSave.savedRecordVersion == (try SyncRecordVersion(record: expectedLocalRecord)))
+        let exactArchive = try Data(contentsOf: f.archiveURL)
+
+        transport.failAck = false
+        transport.emit(event)
+        await drain { transport.finished.contains(batch.identity.batchID) }
+        let afterDuplicate = try #require(try f.checkpoints.load())
+        #expect(store.project(id: f.projectID)?.name == "Later local edit")
+        #expect(afterDuplicate.records == afterLocalEdit.records)
+        #expect(afterDuplicate.remoteBatchReceipts == remaining)
+        #expect(try f.journal.pending() == exactPending)
+        #expect(try Data(contentsOf: f.archiveURL) == exactArchive)
+        #expect(transport.acknowledged == [batch.identity.batchID])
+        #expect(transport.finished == [batch.identity.batchID])
+    }
+
     @Test func epochInvalidatedAfterAttachmentAwaitPreventsStoreWrite() async throws {
         let f = try AdapterFixture(); defer { f.remove() }
         let batch = try f.batch()
@@ -474,6 +593,7 @@ import Testing
     let checkpoints: SyncCanonicalCheckpointStore
     let projectID: UUID
     let zone = CKRecordZone.ID(zoneName: "adapter-zone", ownerName: CKCurrentUserDefaultName)
+    var archiveURL: URL { root.appendingPathComponent("Live/projects-v1.json") }
     init(boundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in },
         ownership: @escaping () throws -> Void = {}) throws {
         root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("adapter-" + UUID().uuidString)
@@ -512,11 +632,35 @@ import Testing
         .init(accountIdentifier: "adapter-user", zoneID: zone, generation: 1, containerIdentifier: "test.container")
     }
     func adapter(verify: @escaping (SyncRemoteBatchIdentity) throws -> Void) -> JSONProjectStoreRemoteBatchCommitter {
+        adapter(store: store, verify: verify)
+    }
+    func adapter(store: JSONProjectStore,
+        verify: @escaping (SyncRemoteBatchIdentity) throws -> Void) -> JSONProjectStoreRemoteBatchCommitter {
         .init(store: store, expectedAccount: account, attachmentSources: { _ in [:] }, verifyAcknowledgement: verify)
     }
     func coordinator(adapter: JSONProjectStoreRemoteBatchCommitter, transport: AdapterTransport) -> KnitNoteCloudSyncCoordinator {
+        coordinator(store: store, adapter: adapter, transport: transport)
+    }
+    func coordinator(store: JSONProjectStore, adapter: JSONProjectStoreRemoteBatchCommitter,
+        transport: AdapterTransport) -> KnitNoteCloudSyncCoordinator {
         .init(transport: transport, journal: journal, mergeEngine: SyncMergeEngine(),
             recordProvider: AdapterRecordProvider(), fetchedBatchCommitter: adapter, screenshotMode: false)
+    }
+    func freshStore() throws -> JSONProjectStore {
+        let value = JSONProjectStore(
+            url: archiveURL,
+            backupService: KnitNoteBackupService(
+                liveRoot: root.appendingPathComponent("Live"),
+                workRoot: root.appendingPathComponent("Backup-Fresh")
+            ),
+            syncMutationSink: JournalSyncMutationSink(journal: journal)
+        )
+        try value.activateSyncCanonicalState(
+            checkpointStore: checkpoints,
+            bootstrap: nil,
+            attachmentSources: [:]
+        )
+        return value
     }
 }
 

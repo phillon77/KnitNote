@@ -14,6 +14,288 @@ struct JSONProjectStoreRemoteBatchRecoveryTests {
         }
     }
 
+    @Test
+    func partialRemoteProjectUpdatePreservesSixCounterWatchProofsAndExactFIFO() throws {
+        let fixture = try RemoteBatchFixture(); defer { fixture.remove() }
+        try fixture.acknowledgeBootstrap()
+        let live = fixture.root.appendingPathComponent("Live")
+        let project = try #require(fixture.store.project(id: fixture.projectID))
+        #expect(project.counters.count == 6)
+        let commands = project.counters.enumerated().map { index, counter in
+            WatchCounterCommand(
+                id: UUID(),
+                projectID: project.id,
+                counterID: counter.id,
+                operation: .increment,
+                createdAt: Date(timeIntervalSinceReferenceDate: 900_000_000 + Double(index))
+            )
+        }
+        for (index, command) in commands.enumerated() {
+            let acknowledgement = try fixture.store.applyWatchCommandDurably(
+                command,
+                ledgerURL: WatchSyncPaths.processedLedger(in: live),
+                preparedCommandURL: WatchSyncPaths.preparedCommand(in: live),
+                now: Date(timeIntervalSinceReferenceDate: 900_000_100 + Double(index))
+            )
+            #expect(acknowledgement.rejection == nil)
+        }
+        let watchLedger = try Data(contentsOf: WatchSyncPaths.processedLedger(in: live))
+        let before = try #require(try fixture.checkpoints.load())
+        let exactPending = try fixture.journal.pending()
+        #expect(!exactPending.isEmpty)
+
+        let otherProject = try #require(fixture.store.projects.first { $0.id != project.id })
+        var remote = try #require(before.records.first {
+            $0.id == .init(kind: .project, uuid: otherProject.id)
+        })
+        let remoteStamp = SyncMutationStamp(
+            logicalRevision: 2_000,
+            modifiedAt: Date(timeIntervalSince1970: 2_100_000_000),
+            deviceID: "combined-remote"
+        )
+        remote.payload.fields["name"] = .init(
+            value: .string("Remote Second"),
+            stamp: remoteStamp
+        )
+        let batch = try SyncRemoteBatch(
+            accountIDHash: fixture.account.accountIDHash,
+            batchID: UUID(),
+            records: [remote],
+            deletedRecordIDs: []
+        )
+        let prepared = try fixture.store.prepareRemoteBatch(batch, attachmentSources: [:])
+        guard case .committed = try fixture.store.commitRemoteBatch(prepared) else {
+            Issue.record("Expected combined partial remote commit")
+            return
+        }
+
+        let after = try #require(try fixture.checkpoints.load())
+        let untouchedIDs = Set(before.records.map(\.id)).subtracting([remote.id])
+        #expect(after.records.filter { untouchedIDs.contains($0.id) }
+            == before.records.filter { untouchedIDs.contains($0.id) })
+        #expect(fixture.store.project(id: otherProject.id)?.name == "Remote Second")
+        #expect(fixture.store.project(id: project.id)?.counters.map(\.value) == [1, 1, 1, 1, 1, 1])
+        let counterStates = after.records.compactMap { record -> SyncCounterReminderState? in
+            guard commands.contains(where: { $0.counterID == record.id.uuid }),
+                  case let .projectCounter(state)? = record.payload.atomicDomain?.value else {
+                return nil
+            }
+            return state
+        }
+        #expect(counterStates.count == 6)
+        for command in commands {
+            let state = try #require(counterStates.first { $0.counter.id == command.counterID })
+            #expect(state.counter.value == 1)
+            #expect(state.processedCommandIDs == [command.id])
+            #expect(state.processedCommandProofs.map(\.commandIdentity)
+                == [ProcessedWatchCommandIdentity(command)])
+        }
+        #expect(try fixture.journal.pending() == exactPending)
+        #expect(try Data(contentsOf: WatchSyncPaths.processedLedger(in: live)) == watchLedger)
+    }
+
+    @Test
+    func stagedRemoteAttachmentInstallsExactBytesAndPreservesHistoricalHeads() throws {
+        let fixture = try RemoteBatchFixture(); defer { fixture.remove() }
+        try fixture.acknowledgeBootstrap()
+        let project = try #require(fixture.store.project(id: fixture.projectID))
+        try fixture.store.updateProject(
+            id: project.id,
+            name: project.name,
+            toolType: project.toolType,
+            toolSize: project.toolSize,
+            toolNotes: project.toolNotes,
+            photoChange: .replace(BackupFixture.jpegData(red: 0.2))
+        )
+        try fixture.journal.acknowledge(Set(try fixture.journal.pending().map(\.identity)))
+        let firstPhoto = try #require(fixture.store.project(id: project.id)?.photoFilename)
+        try fixture.store.updateProject(
+            id: project.id,
+            name: project.name,
+            toolType: project.toolType,
+            toolSize: project.toolSize,
+            toolNotes: project.toolNotes,
+            photoChange: .replace(BackupFixture.jpegData(red: 0.4))
+        )
+        try fixture.journal.acknowledge(Set(try fixture.journal.pending().map(\.identity)))
+        let secondPhoto = try #require(fixture.store.project(id: project.id)?.photoFilename)
+        #expect(firstPhoto != secondPhoto)
+        let before = try #require(try fixture.checkpoints.load())
+        let historical = before.records.filter { $0.id.kind == .attachment }
+        #expect(historical.count == 2)
+        #expect(try fixture.journal.pending().isEmpty)
+
+        let remoteRoot = fixture.root.appendingPathComponent("RemoteStaging")
+        let remotePhotos = ProjectPhotoFileService(
+            directory: remoteRoot.appendingPathComponent("ProjectPhotos")
+        )
+        var remoteArchive = try JSONDecoder().decode(
+            ProjectArchive.self,
+            from: Data(contentsOf: fixture.archiveURL)
+        )
+        let remoteIndex = try #require(remoteArchive.projects.firstIndex { $0.id == project.id })
+        let remoteFilename = try remotePhotos.save(
+            data: BackupFixture.jpegData(red: 0.8),
+            projectID: project.id
+        )
+        remoteArchive.projects[remoteIndex].setPhotoFilename(remoteFilename)
+        let exported = try ProjectArchiveSyncMapper.export(
+            archive: remoteArchive,
+            liveRoot: remoteRoot,
+            deviceID: "combined-remote-media",
+            issuedAttachmentRecords: historical
+        )
+        let attachmentID = try #require(exported.attachments.keys.first {
+            candidate in !historical.contains { $0.id.uuid == candidate }
+        })
+        let originalSource = try #require(exported.attachments[attachmentID])
+        var remoteRecords = exported.records.filter {
+            $0.id == .init(kind: .project, uuid: project.id)
+                || $0.id == .init(kind: .attachment, uuid: attachmentID)
+        }
+        let remoteStamp = SyncMutationStamp(
+            logicalRevision: 3_000,
+            modifiedAt: Date(timeIntervalSince1970: 2_200_000_000),
+            deviceID: "combined-remote-media"
+        )
+        let remoteProjectIndex = try #require(remoteRecords.firstIndex {
+            $0.id == .init(kind: .project, uuid: project.id)
+        })
+        remoteRecords[remoteProjectIndex].payload.fields = remoteRecords[remoteProjectIndex]
+            .payload.fields.mapValues { .init(value: $0.value, stamp: remoteStamp) }
+        remoteRecords[remoteProjectIndex].deletedAt = .init(value: nil, stamp: remoteStamp)
+        let incoming = try SyncRemoteBatch(
+            accountIDHash: fixture.account.accountIDHash,
+            batchID: UUID(),
+            records: remoteRecords,
+            deletedRecordIDs: []
+        )
+        let stagedDirectory = fixture.root.appendingPathComponent("VerifiedIncoming")
+        try FileManager.default.createDirectory(at: stagedDirectory, withIntermediateDirectories: true)
+        let stagedURL = stagedDirectory.appendingPathComponent("remote-photo.bin")
+        try FileManager.default.copyItem(at: originalSource.fileURL, to: stagedURL)
+        let stagedBytes = try Data(contentsOf: stagedURL)
+        let stagedSource = try SyncAttachmentSource(
+            fileURL: stagedURL,
+            contentSHA256: originalSource.contentSHA256,
+            byteCount: originalSource.byteCount
+        )
+        let prepared = try fixture.store.prepareRemoteBatch(
+            incoming,
+            attachmentSources: [attachmentID: stagedSource]
+        )
+        let retainedCandidate = try #require(prepared.transaction?.canonicalTransition?.candidate)
+        let expectedDependentRecord = try #require(retainedCandidate.records.first {
+            $0.id == .init(kind: .project, uuid: project.id)
+        })
+        let expectedDependentVersion = try SyncRecordVersion(record: expectedDependentRecord)
+        guard case let .committed(receipt) = try fixture.store.commitRemoteBatch(prepared) else {
+            Issue.record("Expected staged attachment commit")
+            return
+        }
+
+        let after = try #require(try fixture.checkpoints.load())
+        let afterAttachments = after.records.filter { $0.id.kind == .attachment }
+        for prior in historical {
+            let retained = try #require(afterAttachments.first { $0.id == prior.id })
+            #expect(retained.payload.attachment == prior.payload.attachment)
+            if prior.deletedAt.value != nil {
+                #expect(retained == prior)
+            }
+        }
+        #expect(Set(afterAttachments.map(\.id)) == Set(historical.map(\.id)).union([
+            .init(kind: .attachment, uuid: attachmentID),
+        ]))
+        let selectedFilename = try #require(fixture.store.project(id: project.id)?.photoFilename)
+        let installedURL = fixture.root.appendingPathComponent("Live/ProjectPhotos/")
+            .appendingPathComponent(selectedFilename)
+        #expect(try Data(contentsOf: installedURL) == stagedBytes)
+        #expect(try Data(contentsOf: stagedURL) == stagedBytes)
+        let exactPending = try fixture.journal.pending()
+        #expect(exactPending.count == 1)
+        let dependentSave = try #require(exactPending.first)
+        #expect(dependentSave.recordID == .init(kind: .project, uuid: project.id))
+        #expect(dependentSave.intent == .save)
+        #expect(dependentSave.attachmentSource == nil)
+        #expect(dependentSave.savedRecordVersion == expectedDependentVersion)
+        #expect(after.records.first { $0.id == dependentSave.recordID }
+            == expectedDependentRecord)
+        let exactArchive = try Data(contentsOf: fixture.archiveURL)
+        let replay = try fixture.store.prepareRemoteBatch(
+            incoming,
+            attachmentSources: [attachmentID: stagedSource]
+        )
+        #expect(try fixture.store.commitRemoteBatch(replay) == .alreadyCommitted(receipt))
+        #expect(try fixture.journal.pending() == exactPending)
+        #expect(try fixture.checkpoints.load() == after)
+        #expect(try Data(contentsOf: fixture.archiveURL) == exactArchive)
+        #expect(try Data(contentsOf: installedURL) == stagedBytes)
+    }
+
+    @Test
+    func retainedTombstoneCommitsButUnprovenRawDeletePreservesEveryAuthority() throws {
+        let fixture = try RemoteBatchFixture(); defer { fixture.remove() }
+        try fixture.acknowledgeBootstrap()
+        let deletedID = fixture.projectID
+        let unsupportedProject = try #require(
+            fixture.store.projects.first { $0.id != deletedID }
+        )
+        let unsupportedID = unsupportedProject.id
+        try fixture.store.delete(id: deletedID)
+        let ledger = try SyncDeletionLedger(
+            root: SyncDeletionLedger.root(archiveURL: fixture.archiveURL)
+        )
+        let retainedEntry = try #require(try ledger.recentlyDeleted().first)
+        let retainedFiles = try Dictionary(uniqueKeysWithValues: retainedEntry.files.map {
+            ($0.retainedRelativePath, try Data(contentsOf: ledger.root.appendingPathComponent($0.retainedRelativePath)))
+        })
+        let deletedRecordID = SyncEntityID(kind: .project, uuid: deletedID)
+        let tombstones = retainedEntry.exactRemovalVersions.map(\.record)
+        #expect(tombstones.contains { $0.id == deletedRecordID && $0.deletedAt.value != nil })
+        let pending = try fixture.journal.pending()
+        let batch = try SyncRemoteBatch(
+            accountIDHash: fixture.account.accountIDHash,
+            batchID: UUID(),
+            records: tombstones,
+            deletedRecordIDs: []
+        )
+        guard case .committed = try fixture.store.commitRemoteBatch(
+            fixture.store.prepareRemoteBatch(batch, attachmentSources: [:])
+        ) else {
+            Issue.record("Expected retained tombstone commit")
+            return
+        }
+        let accepted = try #require(try fixture.checkpoints.load())
+        for tombstone in tombstones {
+            #expect(accepted.records.first { $0.id == tombstone.id } == tombstone)
+        }
+        #expect(try fixture.journal.pending() == pending)
+        #expect(try ledger.recentlyDeleted().contains { $0.id == retainedEntry.id })
+        for (relativePath, bytes) in retainedFiles {
+            #expect(try Data(contentsOf: ledger.root.appendingPathComponent(relativePath)) == bytes)
+        }
+
+        let archive = try Data(contentsOf: fixture.archiveURL)
+        let journal = try fixture.journalAuthority()
+        let ledgerBytes = try Data(contentsOf: ledger.root.appendingPathComponent("ledger.json"))
+        let unsupported = try SyncRemoteBatch(
+            accountIDHash: fixture.account.accountIDHash,
+            batchID: UUID(),
+            records: [],
+            deletedRecordIDs: [.init(kind: .project, uuid: unsupportedID)]
+        )
+        #expect(throws: SyncRemoteBatchError.unprovenDeletion) {
+            _ = try fixture.store.prepareRemoteBatch(unsupported, attachmentSources: [:])
+        }
+        #expect(try fixture.checkpoints.load() == accepted)
+        #expect(try Data(contentsOf: fixture.archiveURL) == archive)
+        #expect(try fixture.journalAuthority() == journal)
+        #expect(try Data(contentsOf: ledger.root.appendingPathComponent("ledger.json")) == ledgerBytes)
+        for (relativePath, bytes) in retainedFiles {
+            #expect(try Data(contentsOf: ledger.root.appendingPathComponent(relativePath)) == bytes)
+        }
+    }
+
     @Test(arguments: SyncCanonicalPublicationBoundary.allCases)
     func everyPublicationBoundaryRecoversTheRetainedRemoteCandidateExactly(
         boundary: SyncCanonicalPublicationBoundary

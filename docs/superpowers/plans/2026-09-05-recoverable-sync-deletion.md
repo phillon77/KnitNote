@@ -48,6 +48,7 @@ struct SyncDeletedDomain: Codable, Sendable {
     let ownedRecords: [SyncRecord]
     let supportingParentIDs: Set<SyncEntityID>
     let removedReminders: [UUID: [KnittingReminder]]
+    let removedLegacyPatterns: [UUID: [PatternDocument]]
 }
 
 struct SyncDeletionFileProof: Codable, Equatable, Sendable {
@@ -75,21 +76,21 @@ Retain independent verified copies under a dedicated hidden ledger root derived 
 
 Because copies are independent, ordinary collectors may reclaim the removed original after commit. Do not protect the originals forever or modify unrelated collector algorithms. Tests must deliberately remove/replace original files and still restore retained bytes. Startup recovery must run before publication evidence reclamation and collectors; corrupt/ambiguous ledger state blocks synced mutation/cleanup.
 
-## Task 1: Durable retention bound to publication
+## Task 1: Ledger and selected-domain proof storage
 
-**Files:** Create `SyncDeletedDomain.swift`, `SyncDeletionLedger.swift`; modify `JSONProjectStore.swift` and, only for a witness field, `SyncMutationPublishing.swift`; create `Tests/KnitNoteCoreTests/SyncDeletionLedgerTests.swift` and `JSONProjectStoreSyncDeletionTests.swift`.
+**Files:** Create `SyncDeletedDomain.swift`, `SyncDeletionLedger.swift`, and `Tests/KnitNoteCoreTests/SyncDeletionLedgerTests.swift`. Store integration is Task2 and is not part of this task.
 
 **Interfaces:**
 - `SyncDeletionLedger(root: URL)` owns validated ledger storage only.
-- `stage(domain:attachments:deletedAt:) throws -> UUID` creates invisible retained copies before destructive work; sources use existing `[UUID: SyncAttachmentSource]`.
+- `stage(domain:attachments:restoreRelativePaths:deletedAt:) throws -> UUID` creates invisible retained copies; sources use `[UUID: SyncAttachmentSource]` and destinations `[UUID: String]`. Required copies include all unresolved live lineage heads, not just the selected winner; metadata retains ancestors/tombstones without requiring nonexistent historical bytes.
 - `prepare(id:beforeArchiveSHA256:afterArchiveSHA256:exactRemovalVersions:publicationSHA256:) throws` binds a staged group to canonical JSON-encoded existing publication transaction bytes after causal revision allocation.
 - `activate(id:publicationSHA256:) throws` makes a group visible only after archive commit and successful journal publication. A durable per-group witness allows the publication marker to be removed afterward.
 - `recover(archiveSHA256:publication:) throws`, with `publication: SyncPublicationTransaction?`, resolves precommit/committed/pending-repair states before later store mutations and collectors.
 - `recentlyDeleted() throws -> [SyncDeletionEntry]` is durable across process recreation and requires no live canonical cache for reading.
 
 - [ ] Write failing ledger tests for invisible stage, source replacement independence, unsafe source refusal, corrupt manifest, exact witness mismatch, and recreation.
-- [ ] Write failing store tests for project/yarn/pattern/journal/link/reminder removal capture and no-sync compatibility. Use existing complete backup fixture for media rather than fabricated one-byte image files.
-- [ ] Exercise failure immediately before archive write, after rename with thrown writer, after journal failure, and after ledger activation before publication marker removal. Assert original or recent-deleted ownership, never neither; prepared entries must not falsely appear after a failed undelete/uncommitted operation.
+- [ ] Write failing exact-proof tests for owned record tombstones, removed reminders' aggregate counter saves and removed legacy patterns' aggregate project saves. Missing/extra/mismatched removal versions and mismatched required-head file proof sets must fail both preparation and reload, even when the manifest envelope checksum is correct.
+- [ ] Exercise witness transitions with actual encoded `SyncPublicationTransaction` values: wrong fingerprint, same archive but wrong publication, pending repair, durable activation and replay. This verifies the ledger's caller contract; actual sink/archive ordering is Task2.
 
 ```swift
 @Test func newLedgerStartsEmpty() throws {
@@ -101,12 +102,33 @@ Because copies are independent, ordinary collectors may reclaim the removed orig
 }
 ```
 
-- [ ] Run `CLANG_MODULE_CACHE_PATH=/tmp/plan3-clang-cache swift test --disable-sandbox --filter 'SyncDeletionLedgerTests|JSONProjectStoreSyncDeletionTests'`; record missing APIs and then actual behavioral failures before production changes.
-- [ ] Implement selected-domain capture. Use existing ownership validation and actual before/after canonical diff; removed reminders compare their IDs inside atomic counter states. Reject incomplete source/canonical snapshots before touching original files. Stage at existing delete entry points before `PatternLibraryDeletionTransaction.stage`; bind after `allocateCausalRevisions` in `commitArchiveAndPublish`.
-- [ ] Make `publish` activate the ledger after durable mutation sink publication and before `transactionFile.remove()`. Store startup reconciles ledger and publication in that order. Preserve markers on any ambiguous/error path, block later writes until repair, and retain content even when publication is pending.
-- [ ] Run focused tests plus `JSONProjectStoreSyncPublicationTests`, `KnitNoteBackupServiceTests`, `YarnLibraryTests`, and existing project/pattern deletion suites matched from test declarations. Do not rerun release scripts. Commit `feat: retain synchronized deleted content durably`.
+- [ ] Run `CLANG_MODULE_CACHE_PATH=/tmp/plan3-clang-cache swift test --disable-sandbox --filter SyncDeletionLedgerTests`; record actual behavioral RED for each missing invariant. The existing three untracked drafts are incomplete input, not approved implementation.
+- [ ] Implement supplied-domain validation and independent copies, including selected embedded reminder/legacy-pattern shapes; no automatic whole-store domain selector yet. Retain exact immutable metadata, validate required copies on recreation, and bound manifest/file reads. Failed writes cannot lose the last active manifest or retained copies. Serialize cooperating ledger handles consistently with existing durable storage conventions.
+- [ ] Run ledger and affected record-validation/attachment tests. Commit `feat: store verified recoverable deletion entries`. Do not claim actual synced deletion is protected until Task2 passes.
 
-## Task 2: Actual restoration and incoming deleted content
+## Task 2: Connect retention to store publication
+
+**Files:** Modify `SyncDeletedDomain.swift`, `SyncDeletionLedger.swift`, `JSONProjectStore.swift` and, only for a backward-compatible witness field, `SyncMutationPublishing.swift`; create `Tests/KnitNoteCoreTests/JSONProjectStoreSyncDeletionTests.swift` and update affected sync-publication fixtures.
+
+**Interfaces:** Consume Task1 stage/prepare/activate/recover/recentlyDeleted. Add a selected-domain capture helper taking the actual current canonical before/after record sets and existing archive domain values for embedded removals; its output is Task1 `SyncDeletedDomain`. No guessed revisions. Existing recording-sink deletion fixtures must establish explicit known-local bootstrap hydration.
+
+- [ ] Write failing store tests for project/yarn/pattern/journal/link/reminder and legacy-pattern removal capture and no-sync compatibility. Use existing complete backup fixtures for media. Missing/stale hydration must refuse synced deletion without changing originals.
+- [ ] Exercise failure before archive write, after rename with thrown writer, after journal failure, and after ledger activation before publication marker removal. Assert original or retained content, never neither; a prepared entry cannot falsely appear after an uncommitted deletion.
+
+```swift
+let before = try ledger.recentlyDeleted()
+try store.delete(id: projectID)
+let after = try ledger.recentlyDeleted()
+#expect(after.count == before.count + 1)
+#expect(after.last?.domain.rootIDs.contains(.init(kind: .project, uuid: projectID)) == true)
+```
+
+- [ ] Run `CLANG_MODULE_CACHE_PATH=/tmp/plan3-clang-cache swift test --disable-sandbox --filter 'JSONProjectStoreSyncDeletionTests|JSONProjectStoreSyncPublicationTests'` and record RED.
+- [ ] Implement selected-domain capture from actual before/after canonical diff and removed embedded IDs. Stage before any existing `PatternLibraryDeletionTransaction.stage` or other destructive source operation; bind exact versions after `allocateCausalRevisions`.
+- [ ] Make `publish` activate after durable mutation sink publication and before `transactionFile.remove()`. Reconcile ledger/publication before collectors and later writes; retain pending content while journal repair is required. Independent copies let original collectors retain their normal ownership.
+- [ ] Run deletion/publication/backup/yarn and existing pattern deletion suites. Commit `feat: connect deletion retention to store transactions`.
+
+## Task 3: Actual restoration and incoming deleted content
 
 **Files:** Modify `SyncDeletedDomain.swift`, `SyncDeletionLedger.swift`, `JSONProjectStore.swift`; extend `JSONProjectStoreSyncDeletionTests.swift`; create `Tests/KnitNoteCoreTests/SyncDeletedDomainTests.swift`.
 
@@ -134,7 +156,7 @@ try store.restoreRecentlyDeleted(id: deletionID, now: day29)
 - [ ] Incoming materialization validates the complete selected revived view but persists exact deleted canonical records. Record-to-domain mismatches, missing files, account-root escape and counter/Watch regressions fail before activation.
 - [ ] Inject interruptions before/after restored archive, journal publication and group retirement. Reopen must yield either active retained group or complete restoration, never lost content or double effects. Run focused tests plus mapper/publication/counter-reminder suites. Commit `feat: restore retained synchronized content`.
 
-## Task 3: Reference-safe purge and permanent compact markers
+## Task 4: Reference-safe purge and permanent compact markers
 
 **Files:** Create `SyncDeletionPolicy.swift`, `Tests/KnitNoteCoreTests/SyncDeletionPolicyTests.swift`; modify ledger/store/merge engine/record validator and their targeted tests.
 
@@ -164,8 +186,8 @@ public enum SyncDeletionPolicy {
 
 ## Self-review and parent completion gates
 
-- Task1 is independently reviewable for durable retention even before restore exists; Task2 is independently reviewable without any purge; Task3 adds irreversible content cleanup only after the first two gates.
+- Task1 reviews ledger/domain proofs, Task2 reviews actual publication integration, Task3 reviews restoration without purge, and Task4 adds content cleanup after those gates.
 - Selected records and removed reminders are shared interfaces across all tasks; whole-account archive retention is prohibited.
 - Exact publication versions bind capture/restore/purge; neither archive existence nor missing pending operations alone prove cloud acknowledgement.
-- All three tasks and their final review must complete before marking parent Plan3 Task3 complete. Carry every unresolved integration/full-suite gate into parent ledger and final release checklist.
+- All four tasks and their final review must complete before marking parent Plan3 Task3 complete. Carry every unresolved integration/full-suite gate into parent ledger and final release checklist.
 - Continue with the previously selected subagent-driven workflow; no new execution-method choice is needed.

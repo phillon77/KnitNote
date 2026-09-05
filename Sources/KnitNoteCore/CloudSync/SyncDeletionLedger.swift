@@ -182,8 +182,8 @@ struct SyncDeletionLedger {
             var keep: [Group] = []
             for group in manifest.groups {
                 if group.active {
-                    if archiveSHA256 == group.binding?.afterArchiveSHA256, let publication,
-                       publication.commitBoundary == .archive || publication.deletionLedgerID == group.entry.id {
+                    if let publication,
+                       publication.deletionLedgerID == group.entry.id || witness == group.binding?.publicationSHA256 {
                         try validatePublication(publication, group: group)
                     }
                     keep.append(group)

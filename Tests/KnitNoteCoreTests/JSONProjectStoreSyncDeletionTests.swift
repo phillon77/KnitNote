@@ -52,6 +52,38 @@ import Testing
         #expect(try fixture.ledger().recentlyDeleted().isEmpty)
     }
 
+    @Test(arguments: [false, true]) func unrelatedFailedWriteDoesNotBorrowActiveDeletionWitness(deletingYarn: Bool) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let first = fixture.store()
+        try fixture.hydrate(first)
+        try first.setProjectYarns(projectID: fixture.projectID, yarnIDs: [])
+        let retained = try #require(try fixture.ledger().recentlyDeleted().first)
+        let activeID = retained.id
+        let before = try Data(contentsOf: fixture.url)
+        let failing = fixture.store(writer: { _, url in
+            let marker = try #require(try SyncPublicationTransactionFile(archiveURL: url).load())
+            #expect(marker.deletionLedgerID != activeID)
+            #expect((marker.deletionLedgerID != nil) == deletingYarn)
+            throw DeletionInjectedFailure()
+        })
+        try fixture.hydrate(failing)
+        #expect(throws: (any Error).self) {
+            if deletingYarn { try failing.deleteYarn(id: fixture.yarnID) }
+            else { try failing.rename(id: fixture.projectID, to: "Must not commit") }
+        }
+        #expect(try Data(contentsOf: fixture.url) == before)
+        let reopened = fixture.store()
+        #expect(reopened.syncPublicationError == nil)
+        try reopened.repairSyncPublication()
+        #expect(try SyncPublicationTransactionFile(archiveURL: fixture.url).load() == nil)
+        #expect(try fixture.ledger().recentlyDeleted().map(\.id) == [activeID])
+        #expect(reopened.yarn(id: fixture.yarnID) != nil)
+        try reopened.rename(id: fixture.projectID, to: "Subsequent write succeeds")
+        #expect(reopened.project(id: fixture.projectID)?.name == "Subsequent write succeeds")
+        #expect(try fixture.ledger().recentlyDeleted().map(\.id) == [activeID])
+    }
+
     @Test func postRenameFailureAndJournalFailureRetainUntilRepair() throws {
         for renameFailure in [false, true] {
             let fixture = try DeletionStoreFixture()
@@ -196,6 +228,13 @@ import Testing
         let transaction = try #require(sink.transaction)
         #expect(transaction.deletionLedgerID != nil)
         #expect(try fixture.ledger().recentlyDeleted().count == 1)
+        let falseClaim = try SyncPublicationTransaction(expectedArchiveSHA256: transaction.expectedArchiveSHA256,
+            mutations: transaction.mutations,
+            artifactEvidence: [.init(relativePath: "unrelated", expectedSHA256: nil)],
+            revisionReceipts: transaction.revisionReceipts, deletionLedgerID: transaction.deletionLedgerID)
+        #expect(throws: (any Error).self) {
+            try fixture.ledger().recover(archiveSHA256: transaction.expectedArchiveSHA256, publication: falseClaim)
+        }
         // Recreate the exact disk state of a crash after ledger activation but
         // before marker reclamation. Startup must replay and keep one group.
         try SyncPublicationTransactionFile(archiveURL: fixture.url).write(transaction)

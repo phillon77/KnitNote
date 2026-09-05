@@ -146,7 +146,10 @@ struct SyncDeletionLedgerTests {
         let reopened = try SyncDeletionLedger(root: root)
         try reopened.recover(archiveSHA256: after, publication: nil)
         #expect(try reopened.recentlyDeleted().count == 1)
-        #expect(throws: (any Error).self) { try reopened.recover(archiveSHA256: after, publication: wrong) }
+        // Once activated, a different publication without this group's claim
+        // is independent even when it observes the same archive bytes.
+        try reopened.recover(archiveSHA256: after, publication: wrong)
+        #expect(try reopened.recentlyDeleted().count == 1)
     }
 
     @Test(arguments: [0, 1, 2]) func refusesMalformedReminderSelections(variant: Int) throws {

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DC0400000000000000000001 /* SyncCanonicalCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */; };
+		DC0400000000000000000002 /* SyncCanonicalCheckpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */; };
+		DC0400000000000000000003 /* SyncCanonicalCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */; };
+		DC0400000000000000000004 /* SyncCanonicalCheckpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */; };
 		551111111111111111111113 /* CloudAccountTransitionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */; };
 		551111111111111111111115 /* CloudRecoveryVaultKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */; };
 		551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */; };
@@ -490,6 +494,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCanonicalCheckpoint.swift; sourceTree = "<group>"; };
+		DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCanonicalCheckpointStore.swift; sourceTree = "<group>"; };
 		551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountTransitionCoordinator.swift; sourceTree = "<group>"; };
 		551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecoveryVaultKeychain.swift; sourceTree = "<group>"; };
 		551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountTransitionCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -1351,6 +1357,8 @@
 				B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */,
 				A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */,
 				9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */,
+				DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */,
+				DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */,
 				942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */,
 				84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */,
 				81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */,
@@ -1652,6 +1660,8 @@
 				901AB770697033394E528E05 /* SyncDeletionLedger.swift in Sources */,
 				53CC78796FF3718331631302 /* SyncDeletedDomain.swift in Sources */,
 				93C1EFB0EC085F18781FDE9C /* SyncBootstrapTransaction.swift in Sources */,
+				DC0400000000000000000001 /* SyncCanonicalCheckpoint.swift in Sources */,
+				DC0400000000000000000002 /* SyncCanonicalCheckpointStore.swift in Sources */,
 				01D5AB0082A40D41FCD28DFD /* SyncArchiveAttachmentReferences.swift in Sources */,
 				1E85B79E884DC499B8F7E072 /* SyncAccountStorage.swift in Sources */,
 				2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */,
@@ -1904,6 +1914,8 @@
 				86B98132E2BD590EEDB0D822 /* SyncDeletionLedger.swift in Sources */,
 				EB51A862DE7A8E37A7938B61 /* SyncDeletedDomain.swift in Sources */,
 				58ED7EABB995F052A5D10E4D /* SyncBootstrapTransaction.swift in Sources */,
+				DC0400000000000000000003 /* SyncCanonicalCheckpoint.swift in Sources */,
+				DC0400000000000000000004 /* SyncCanonicalCheckpointStore.swift in Sources */,
 				57C6FA575A3A003BAFC84DB5 /* SyncArchiveAttachmentReferences.swift in Sources */,
 				A36A8A3875D4CB670FB285F2 /* SyncAccountStorage.swift in Sources */,
 				9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */,

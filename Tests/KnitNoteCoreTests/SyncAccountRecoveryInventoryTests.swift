@@ -4,6 +4,38 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryInventoryTests {
+    @Test func canonicalCandidateDirectoryCannotAuthorizeCleanup() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let url = f.paths.workingSet.appendingPathComponent("SyncMetadata/.canonical-next.json")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        #expect(throws: SyncAccountRecoveryInventory.Error.unresolvedRecovery) { try f.capture() }
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test func canonicalCheckpointIsBoundButAcknowledgedRecordsStayOutOfPendingPacket() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let canonical = try f.installCanonicalCheckpoint()
+        let mutations = try canonical.records.map { try SyncMutation.save(recordVersion: .init(record: $0), mutationID: UUID()) }
+        try f.journal.enqueue(mutations)
+        try f.journal.acknowledge(Set(mutations.dropFirst().map(\.identity)))
+        let inventory = try f.capture()
+        let entry = try #require(inventory.entries.first { $0.relativePath == "working-set/SyncMetadata/canonical.json" })
+        #expect(entry.sha256 == Data(SHA256.hash(data: try canonical.encoded())))
+        #expect(entry.byteCount == Int64(try canonical.encoded().count))
+        #expect(inventory.packet.mutations == [mutations[0]])
+        #expect(inventory.packet.files.isEmpty)
+        #expect(canonical.records.count == 7)
+    }
+
+    @Test(arguments: [Data("{\"formatVersion\":".utf8), Data("unresolved candidate".utf8)])
+    func canonicalFixedTemporaryRefusesInventoryWithoutChangingBytes(bytes: Data) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        try f.write("working-set/SyncMetadata/.canonical-next.json", bytes)
+        let before = try f.diskBytes()
+        #expect(throws: SyncAccountRecoveryInventory.Error.unresolvedRecovery) { try f.capture() }
+        #expect(try f.diskBytes() == before)
+    }
+
     @Test func capturesExactPendingAndEveryPlaintextRootWithoutChangingFiles() throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let mutation = SyncMutation.delete(.init(kind: .project, uuid: UUID()), mutationID: UUID())
@@ -373,6 +405,17 @@ struct RecoveryInventoryFixture {
     }
     func capture(maximumBytes: Int = 100_000_000) throws -> SyncAccountRecoveryInventory {
         try .capture(storage: storage, paths: paths, account: account, journal: journal, archiveURL: archiveURL, maximumBytes: maximumBytes)
+    }
+    func installCanonicalCheckpoint() throws -> SyncCanonicalCheckpoint {
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "Canonical account A")])
+        let bytes = try JSONEncoder().encode(archive)
+        try bytes.write(to: archiveURL)
+        let exported = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: paths.workingSet, deviceID: "account-fixture")
+        let checkpoint = try SyncCanonicalCheckpoint(accountIDHash: account.accountIDHash, commitID: UUID(),
+            archiveSHA256: Data(SHA256.hash(data: bytes)), records: exported.records, legacyRecordIDsToDelete: [])
+        let store = try SyncCanonicalCheckpointStore(liveRoot: paths.workingSet, account: account, validateOwnership: {})
+        try store.install(checkpoint, replacing: nil)
+        return checkpoint
     }
     func write(_ path: String, _ bytes: Data) throws {
         let file = paths.accountRoot.appendingPathComponent(path)

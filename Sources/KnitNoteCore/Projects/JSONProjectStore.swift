@@ -3,6 +3,10 @@ import CryptoKit
 import Darwin
 import Foundation
 
+enum SyncCanonicalPublicationBoundary: CaseIterable {
+    case afterIntent, afterArchive, afterJournal, afterCheckpoint, beforeIntentRemoval
+}
+
 public struct ProjectArchive: Codable, Sendable {
     public static let minimumSupportedVersion = 1
     public static let patternLibraryIntroducedVersion = 10
@@ -2597,6 +2601,7 @@ final class PatternLibraryDeletionTransaction {
     private var syncCanonicalCheckpointStore: SyncCanonicalCheckpointStore?
     private var syncCanonicalCheckpoint: SyncCanonicalCheckpoint?
     private var syncCanonicalActivationRequired = false
+    private let syncCanonicalPublicationBoundary: (SyncCanonicalPublicationBoundary) throws -> Void
     private var syncHydratedAttachments: [UUID: SyncRecord] = [:]
     private var syncHydratedAttachmentSources: [UUID: SyncAttachmentSource] = [:]
     private var activePreparedWatchCommand: PreparedWatchCommand?
@@ -2676,11 +2681,13 @@ final class PatternLibraryDeletionTransaction {
         syncAttachmentEvidenceBeforeDurabilityBoundary: @escaping (
             SyncDurableFileWriteBoundary
         ) throws -> Void = { _ in },
+        syncCanonicalPublicationBoundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in },
         syncMutationSink: any SyncMutationSink = DisabledSyncMutationSink(),
         authorizeMutation: @escaping MutationAuthorizer = { _ in .allow },
         commitSuccessfulMutation: @escaping MutationSuccessCommitter = { _ in .allow }
     ) {
         self.url = url
+        self.syncCanonicalPublicationBoundary = syncCanonicalPublicationBoundary
         self.photoService = photoService ?? ProjectPhotoFileService(
             directory: url.deletingLastPathComponent().appendingPathComponent("ProjectPhotos", isDirectory: true)
         )
@@ -3768,7 +3775,10 @@ final class PatternLibraryDeletionTransaction {
         guard isSyncPublicationEnabled else { return nil }
         return SyncMutationStamp(
             logicalRevision: 0,
-            modifiedAt: date,
+            // Issue the timestamp once in the Watch codec's persisted Double
+            // representation. Do not round to integral milliseconds or rewrite
+            // retained proofs: their exact immutable identity remains binding.
+            modifiedAt: Date(timeIntervalSince1970: (date.timeIntervalSince1970 * 1_000) / 1_000),
             deviceID: syncPublicationDeviceID
         )
     }
@@ -6201,8 +6211,8 @@ final class PatternLibraryDeletionTransaction {
                 throw SyncPublicationError.corruptTransaction
             }
             // Replaced versions retain their original source identity, even
-            // after local media cleanup. Only selected live versions need bytes
-            // for hydration; their exact content is read by materialize below.
+            // after local media cleanup. All live lineage heads and explicitly
+            // staged supplied sources require verified bytes below.
         }
         let references = try syncArchiveAttachmentReferences(in: archive)
         let lineage = try SyncAttachmentLineage(records: checkpoint.records)
@@ -6547,6 +6557,7 @@ final class PatternLibraryDeletionTransaction {
             if restorationWitness != nil { try deletionLedger().beginRestore(publication: transaction) }
             try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             try transactionFile.write(transaction)
+            if transaction.canonicalTransition != nil { try syncCanonicalPublicationBoundary(.afterIntent) }
         } catch {
             let publicationError = syncPublicationError(for: error)
             syncPublicationError = publicationError
@@ -6563,6 +6574,7 @@ final class PatternLibraryDeletionTransaction {
             }
             try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             try commitArtifacts?()
+            if transaction.canonicalTransition != nil { try syncCanonicalPublicationBoundary(.afterArchive) }
         } catch {
             archiveWriteFailure = error
         }
@@ -7388,6 +7400,7 @@ final class PatternLibraryDeletionTransaction {
             if !transaction.mutations.isEmpty {
                 try syncMutationSink.publish(transaction.mutations)
             }
+            if transaction.canonicalTransition != nil { try syncCanonicalPublicationBoundary(.afterJournal) }
         } catch {
             // The marker covers both the already-durable local authorities and
             // the idempotent journal batch. Retain the whole transaction so a
@@ -7406,6 +7419,7 @@ final class PatternLibraryDeletionTransaction {
                 }
                 let verified = try verifyCanonical(transition.candidate, sources: sources)
                 try checkpoints.install(transition.candidate, replacing: transition.predecessorSHA256)
+                try syncCanonicalPublicationBoundary(.afterCheckpoint)
                 hydrateCanonical(transition.candidate, verified: verified)
             }
             try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
@@ -7423,6 +7437,7 @@ final class PatternLibraryDeletionTransaction {
                 try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
                 try deletionLedger().activate(publication: transaction)
             }
+            if transaction.canonicalTransition != nil { try syncCanonicalPublicationBoundary(.beforeIntentRemoval) }
             try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             try transactionFile.remove()
         } catch {

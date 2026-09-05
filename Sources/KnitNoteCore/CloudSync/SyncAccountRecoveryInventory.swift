@@ -203,8 +203,14 @@ public struct SyncAccountRecoveryInventory: Sendable {
             || path == SyncAccountStorage.recoveryControlName || path.hasPrefix(SyncAccountStorage.recoveryControlName + "/")
     }
     private static func compatibilityGate(_ entries: [Entry]) throws {
-        for entry in entries where !entry.isDirectory {
+        for entry in entries {
             let path = entry.relativePath
+            // This fixed canonical candidate slot is unresolved even when its
+            // bytes are partial or a directory occupies the reserved name.
+            if path == "working-set/SyncMetadata/.canonical-next.json" {
+                throw Error.unresolvedRecovery
+            }
+            guard !entry.isDirectory else { continue }
             if path.hasSuffix(".sync-publication.json")
                 || path.hasSuffix(".transaction.json") || path.hasSuffix(".tmp") {
                 throw Error.unresolvedRecovery

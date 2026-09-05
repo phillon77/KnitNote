@@ -5,6 +5,85 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryTransactionTests {
+    @Test(arguments: [false, true])
+    func canonicalCleanupRequiresUnchangedAuthenticatedSelection(changeAfterSeal: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let canonical = try f.installCanonicalCheckpoint()
+        let url = f.paths.workingSet.appendingPathComponent("SyncMetadata/canonical.json")
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: f.journal)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        #expect(try Data(contentsOf: url) == canonical.encoded())
+        let ciphertext = try f.diskBytes().filter { $0.key.hasPrefix(f.paths.vault.path + "/") }
+        #expect(!ciphertext.isEmpty)
+        if changeAfterSeal {
+            try f.write("working-set/SyncMetadata/.canonical-next.json", Data("partial".utf8))
+            let before = try f.diskBytes()
+            #expect(throws: (any Error).self) { try tx.cleanup(receipt) }
+            #expect(try f.diskBytes() == before)
+        } else {
+            try tx.cleanup(receipt)
+            #expect(!FileManager.default.fileExists(atPath: url.path))
+            #expect(try tx.authenticatedSelection(now: .now)?.phase == .cleanupComplete)
+        }
+        #expect(try f.diskBytes().filter { $0.key.hasPrefix(f.paths.vault.path + "/") } == ciphertext)
+    }
+
+    @Test(arguments: [false, true]) @MainActor func partialPendingReplayCannotActivateWithoutFullCanonicalAuthority(complete: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let canonical = try f.installCanonicalCheckpoint()
+        let mutations = try canonical.records.map { try SyncMutation.save(recordVersion: .init(record: $0), mutationID: UUID()) }
+        try f.journal.enqueue(mutations)
+        try f.journal.acknowledge(Set(mutations.dropFirst().map(\.identity)))
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let failing = FileSyncMutationJournal(url: f.journalURL, appendFrames: { bytes, url in
+            try Data(bytes.dropLast(5)).write(to: url)
+            throw TransactionFailure.injected
+        })
+        var transaction: SyncAccountRecoveryTransaction? = .init(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: failing)
+        let receipt = try transaction!.seal(transaction!.prepare(now: .now), now: .now)
+        try transaction!.cleanup(receipt)
+        #expect(throws: (any Error).self) { try transaction!.restore(vaultID: receipt.vaultID, now: .now) }
+        transaction = nil
+        let ciphertext = try f.diskBytes().filter { $0.key.hasPrefix(f.paths.vault.path + "/") }
+        // A torn replay and a completed pending-only replay are both insufficient.
+        do {
+            let journal = FileSyncMutationJournal(url: f.journalURL)
+            if complete {
+                let fresh = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: journal)
+                try fresh.restore(vaultID: receipt.vaultID, now: .now)
+                #expect(try journal.pending() == [mutations[0]])
+                #expect(try fresh.authenticatedSelection(now: .now)?.phase == .replayComplete)
+            }
+            let checkpoints = try SyncCanonicalCheckpointStore(liveRoot: f.paths.workingSet, account: f.account, validateOwnership: {})
+            let store = JSONProjectStore(url: f.archiveURL, syncMutationSink: JournalSyncMutationSink(journal: journal))
+            #expect(throws: (any Error).self) {
+                try store.activateSyncCanonicalState(checkpointStore: checkpoints, bootstrap: nil, attachmentSources: [:])
+            }
+            #expect(try checkpoints.load() == nil)
+            #expect(try f.diskBytes().filter { $0.key.hasPrefix(f.paths.vault.path + "/") } == ciphertext)
+        }
+    }
+
+    @Test @MainActor func accountBRefusesAccountACanonicalCheckpointWithoutChangingIt() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let checkpoint = try f.installCanonicalCheckpoint()
+        let accountB = try SyncAccountIdentity(containerIdentifier: "test", userRecordName: "B")
+        let ownerB = SyncAccountStorage(baseURL: f.base.appendingPathComponent("B"))
+        let pathsB = try ownerB.open(identity: accountB)
+        defer { try? ownerB.close() }
+        let checkpoints = try SyncCanonicalCheckpointStore(liveRoot: pathsB.workingSet, account: accountB, validateOwnership: {})
+        let url = pathsB.workingSet.appendingPathComponent("SyncMetadata/canonical.json")
+        try checkpoint.encoded().write(to: url)
+        let bytes = try Data(contentsOf: url)
+        let store = JSONProjectStore(url: pathsB.workingSet.appendingPathComponent("projects-v1.json"),
+            syncMutationSink: JournalSyncMutationSink(journal: FileSyncMutationJournal(url: pathsB.journal.appendingPathComponent("pending.json"))))
+        #expect(throws: (any Error).self) {
+            try store.activateSyncCanonicalState(checkpointStore: checkpoints, bootstrap: nil, attachmentSources: [:])
+        }
+        #expect(try Data(contentsOf: url) == bytes)
+    }
+
     @Test func runtimeAbsenceBarrierRefusesSelectedIntentAndSyncFailure() throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())

@@ -4,6 +4,40 @@ import Testing
 @testable import KnitNoteCore
 
 struct JSONProjectStoreCanonicalDurabilityTests {
+    @Test(arguments: SyncCanonicalPublicationBoundary.allCases)
+    @MainActor func everyPublicationBoundaryReopensExactDurableAuthority(boundary: SyncCanonicalPublicationBoundary) throws {
+        let f = try Fixture(); defer { f.remove() }
+        var journal: FileSyncMutationJournal? = f.freshJournal()
+        var fired = false
+        var store: JSONProjectStore? = f.store(journal: journal!, boundary: { reached in
+            if reached == boundary && !fired { fired = true; throw SyncPublicationError.pendingRepair }
+        })
+        try store!.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: f.handoff, attachmentSources: [:])
+        let predecessor = try #require(try f.checkpoints.load())
+        let previousPending = try journal!.pending()
+        if boundary == .afterIntent {
+            #expect(throws: SyncPublicationError.pendingRepair) { try f.rename(store!, "After") }
+        } else { try f.rename(store!, "After") }
+        #expect(fired)
+        let marker = SyncPublicationTransactionFile(archiveURL: f.archiveURL)
+        let transaction = try #require(try marker.load())
+        let expected = boundary == .afterIntent ? predecessor : try #require(transaction.canonicalTransition?.candidate)
+        let expectedPending = boundary == .afterIntent ? previousPending : previousPending + transaction.mutations
+        store = nil; journal = nil
+        for _ in 0..<2 {
+            let journal = f.freshJournal()
+            let reopened = f.store(journal: journal)
+            try reopened.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+            let recovered = try #require(try f.checkpoints.load())
+            #expect(recovered.records == expected.records)
+            #expect(recovered.commitID == expected.commitID)
+            #expect(try journal.pending() == expectedPending)
+            #expect(Set(try journal.pending().map(\.identity)).count == (try journal.pending().count))
+            #expect(reopened.projects.first?.name == (boundary == .afterIntent ? "Before" : "After"))
+            #expect(try marker.load() == nil)
+        }
+    }
+
     @Test(arguments: [false, true]) @MainActor func committedCanonicalSurvivesAcknowledgementAndReopen(remoteRevisions: Bool) throws {
         let f = try Fixture(remoteRevisions: remoteRevisions); defer { f.remove() }
         let store = f.store()
@@ -71,7 +105,7 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         #expect(!FileManager.default.fileExists(atPath: f.live.appendingPathComponent("SyncMetadata/canonical.json").path))
     }
 
-    @Test(arguments: [SyncDurableFileWriteBoundary.beforeRename, .beforeDirectorySync])
+    @Test(arguments: [SyncDurableFileWriteBoundary.beforeFileSync, .beforeRename, .beforeDirectorySync])
     @MainActor func committedFaultRecoversExactCandidate(boundary: SyncDurableFileWriteBoundary) throws {
         let f = try Fixture(); defer { f.remove() }
         let fault = Fault()
@@ -87,12 +121,25 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         let transaction = try #require(try file.load())
         let candidate = try #require(transaction.canonicalTransition?.candidate)
         let pending = try f.journal.pending()
+        // A second durability failure must retain the same marker and journal
+        // identities, including when rename already installed the candidate.
+        let failedRetry = f.store(journal: f.freshJournal())
+        #expect(throws: (any Error).self) {
+            try failedRetry.activateSyncCanonicalState(checkpointStore: checkpoints, bootstrap: nil, attachmentSources: [:])
+        }
+        #expect(try file.load() == transaction)
+        #expect(try f.freshJournal().pending() == pending)
         fault.armed = false
-        let reopened = f.store()
+        let reopened = f.store(journal: f.freshJournal())
         try reopened.activateSyncCanonicalState(checkpointStore: checkpoints, bootstrap: nil, attachmentSources: [:])
         #expect(try checkpoints.load() == candidate)
         #expect(try f.journal.pending() == pending)
         #expect(try file.load() == nil)
+        let second = f.store(journal: f.freshJournal())
+        try second.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+        #expect(try f.checkpoints.load()?.records == candidate.records)
+        #expect(try f.checkpoints.load()?.commitID == candidate.commitID)
+        #expect(Set(try f.freshJournal().pending().map(\.identity)).count == pending.count)
         try f.rename(reopened, "Again")
         #expect(try checkpoints.load()?.commitID != candidate.commitID)
     }
@@ -159,6 +206,136 @@ struct JSONProjectStoreCanonicalDurabilityTests {
     }
 
     private final class Fault { var armed = false }
+
+    @Test(arguments: [false, true]) @MainActor func subsecondWatchProofsSurviveConsecutiveCommands(canonical: Bool) throws {
+        let f = try Fixture(); defer { f.remove() }
+        let store = f.store()
+        if canonical { try store.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: f.handoff, attachmentSources: [:]) }
+        else { try store.hydrateSyncBootstrap(f.handoff.checkpoint) }
+        let counters = try #require(store.projects.first?.counters)
+        for index in 0..<2 {
+            let outgoing = WatchCounterCommand(projectID: f.projectID, counterID: counters[index].id, operation: .increment,
+                createdAt: Date(timeIntervalSinceReferenceDate: 800_000_000.000002 + Double(index)))
+            let command = try WatchSyncCodec.decode(WatchCounterCommand.self, from: WatchSyncCodec.encode(outgoing))
+            var decoded = command
+            for _ in 0..<3 {
+                decoded = try WatchSyncCodec.decode(WatchCounterCommand.self, from: WatchSyncCodec.encode(decoded))
+                #expect(decoded == command)
+            }
+            let now = Date(timeIntervalSinceReferenceDate: 800_000_010.000002 + Double(index))
+            _ = try store.applyWatchCommandDurably(command, ledgerURL: WatchSyncPaths.processedLedger(in: f.live),
+                preparedCommandURL: WatchSyncPaths.preparedCommand(in: f.live), now: now)
+            let ledger = try #require(try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: WatchSyncPaths.processedLedger(in: f.live)).load())
+            let diskProof = try #require(try ledger.entries.compactMap { try SyncProcessedWatchCommandProof(entry: $0) }.first { $0.id == command.id })
+            let issued = try #require(try f.journal.pending().compactMap { mutation -> SyncCounterReminderState? in
+                if case let .projectCounter(state)? = mutation.savedRecordVersion?.record.payload.atomicDomain?.value { return state }; return nil
+            }
+                .flatMap(\.processedCommandProofs).first { $0.id == command.id })
+            #expect(issued == diskProof)
+            #expect(issued.commandIdentity == ProcessedWatchCommandIdentity(command))
+            let stamp = try #require(issued.processingStamp)
+            #expect(stamp.logicalRevision == 0)
+            #expect(!stamp.deviceID.isEmpty)
+            var roundTrip = stamp
+            for _ in 0..<3 {
+                roundTrip = try WatchSyncCodec.decode(SyncMutationStamp.self, from: WatchSyncCodec.encode(roundTrip))
+                #expect(roundTrip == stamp)
+            }
+            let pending = try f.journal.pending()
+            _ = try store.applyWatchCommandDurably(command, ledgerURL: WatchSyncPaths.processedLedger(in: f.live),
+                preparedCommandURL: WatchSyncPaths.preparedCommand(in: f.live), now: now.addingTimeInterval(0.5))
+            #expect(try f.journal.pending() == pending)
+        }
+    }
+
+    @Test @MainActor func allSixCounterWatchStatesKeepExactProofsAcrossTwoReopens() throws {
+        let f = try Fixture(); defer { f.remove() }
+        var store: JSONProjectStore? = f.store()
+        try store!.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: f.handoff, attachmentSources: [:])
+        let counters = try #require(store!.projects.first?.counters)
+        #expect(counters.count == 6)
+        let commands = try counters.enumerated().map {
+            let outgoing = WatchCounterCommand(projectID: f.projectID, counterID: $0.element.id,
+                operation: .increment, createdAt: Date(timeIntervalSinceReferenceDate: 800_000_000.000002 + Double($0.offset) * 2))
+            return try WatchSyncCodec.decode(WatchCounterCommand.self, from: WatchSyncCodec.encode(outgoing))
+        }
+        for (index, command) in commands.enumerated() {
+            let acknowledgement = try store!.applyWatchCommandDurably(command,
+                ledgerURL: WatchSyncPaths.processedLedger(in: f.live),
+                preparedCommandURL: WatchSyncPaths.preparedCommand(in: f.live),
+                now: Date(timeIntervalSinceReferenceDate: 800_000_001.000002 + Double(index) * 2))
+            #expect(acknowledgement.rejection == nil)
+        }
+        let expected = try #require(try f.checkpoints.load())
+        let states = expected.records.compactMap { record -> SyncCounterReminderState? in
+            if case let .projectCounter(state)? = record.payload.atomicDomain?.value { return state }; return nil
+        }
+        #expect(states.count == 6)
+        for command in commands {
+            let state = try #require(states.first { $0.counter.id == command.counterID })
+            #expect(state.counter.value == 1)
+            #expect(state.processedCommandIDs == [command.id])
+            #expect(state.processedCommandProofs.map(\.id) == [command.id])
+        }
+        try f.journal.acknowledge(Set(try f.journal.pending().map(\.identity)))
+        store = nil
+        for _ in 0..<2 {
+            let journal = f.freshJournal()
+            let reopened = f.store(journal: journal)
+            try reopened.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+            let recovered = try #require(try f.checkpoints.load())
+            #expect(recovered.records == expected.records)
+            #expect(recovered.commitID == expected.commitID)
+            #expect(reopened.projects.first?.counters.map(\.value) == [1, 1, 1, 1, 1, 1])
+            #expect(try journal.pending().isEmpty)
+            for command in commands {
+                _ = try reopened.applyWatchCommandDurably(command, ledgerURL: WatchSyncPaths.processedLedger(in: f.live),
+                    preparedCommandURL: WatchSyncPaths.preparedCommand(in: f.live), now: .now)
+            }
+            #expect(reopened.projects.first?.counters.map(\.value) == [1, 1, 1, 1, 1, 1])
+            #expect(try f.checkpoints.load() == expected)
+        }
+    }
+
+    @Test(arguments: [WatchCommandPersistenceBoundary.afterPreparedCommandSave, .afterProjectArchiveSave, .afterLedgerSave])
+    @MainActor func interruptedSubsecondWatchCommandRecoversWithoutReissuingProof(boundary: WatchCommandPersistenceBoundary) throws {
+        let f = try Fixture(); defer { f.remove() }
+        var store: JSONProjectStore? = f.store()
+        try store!.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: f.handoff, attachmentSources: [:])
+        let counterID = try #require(store!.projects.first?.counters.first?.id)
+        let outgoing = WatchCounterCommand(projectID: f.projectID, counterID: counterID, operation: .increment,
+            createdAt: Date(timeIntervalSinceReferenceDate: 800_000_000.000002))
+        let command = try WatchSyncCodec.decode(WatchCounterCommand.self, from: WatchSyncCodec.encode(outgoing))
+        #expect(throws: SyncPublicationError.pendingRepair) {
+            try store!.applyWatchCommandDurably(command, ledgerURL: WatchSyncPaths.processedLedger(in: f.live),
+                preparedCommandURL: WatchSyncPaths.preparedCommand(in: f.live),
+                now: Date(timeIntervalSinceReferenceDate: 800_000_001.000002),
+                failureInjector: { if $0 == boundary { throw SyncPublicationError.pendingRepair } })
+        }
+        store = nil
+        let journal = f.freshJournal(), reopened = f.store(journal: f.freshJournal())
+        try reopened.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+        #expect(try reopened.recoverWatchCommandPersistence(ledgerURL: WatchSyncPaths.processedLedger(in: f.live),
+            preparedCommandURL: WatchSyncPaths.preparedCommand(in: f.live),
+            now: Date(timeIntervalSinceReferenceDate: 800_000_002.000002)) == .ready)
+        let expected = try #require(try f.checkpoints.load())
+        #expect(reopened.projects.first?.counters.first?.value == 1)
+        let states = expected.records.compactMap { record -> SyncCounterReminderState? in
+            if case let .projectCounter(state)? = record.payload.atomicDomain?.value, state.counter.id == counterID { return state }; return nil
+        }
+        let state = try #require(states.first)
+        #expect(state.processedCommandIDs == [command.id])
+        #expect(state.processedCommandProofs.count == 1)
+        #expect(state.processedCommandProofs[0].commandIdentity == ProcessedWatchCommandIdentity(command))
+        let pending = try journal.pending()
+        let second = f.store(journal: f.freshJournal())
+        try second.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+        _ = try second.applyWatchCommandDurably(command, ledgerURL: WatchSyncPaths.processedLedger(in: f.live),
+            preparedCommandURL: WatchSyncPaths.preparedCommand(in: f.live), now: .now)
+        #expect(try f.checkpoints.load() == expected)
+        #expect(try journal.pending() == pending)
+        #expect(second.projects.first?.counters.first?.value == 1)
+    }
 
     @Test @MainActor func watchMetadataAdvancesCanonicalWithIdenticalArchiveAndReopensExactly() throws {
         let f = try Fixture(); defer { f.remove() }
@@ -317,30 +494,50 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         #expect(try f.checkpoints.load()?.records.filter { $0.id.kind == .attachment }.count == 2)
     }
 
-    @Test @MainActor func attachmentOnlyMarkupAdvancesExactCheckpointWithoutArchiveWrite() throws {
-        let f = try Fixture(pattern: true); defer { f.remove() }
+    @Test(arguments: [false, true]) @MainActor func bothMarkupFamiliesPreserveExactSourceAndReopenCheckpoint(usage: Bool) throws {
+        let f = try Fixture(pattern: !usage, usage: usage); defer { f.remove() }
         let store = f.store()
         try store.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: f.handoff, attachmentSources: [:])
         let before = try #require(try f.checkpoints.load())
         let data = try Data(contentsOf: f.archiveURL)
-        let patternID = try #require(store.projects.first?.patterns.first?.id)
+        let patternID = try #require(usage ? store.patternUsages.first?.id : store.projects.first?.patterns.first?.id)
+        let source = try #require(before.records.first { $0.payload.attachment != nil })
+        let originalArchive = try JSONDecoder().decode(ProjectArchive.self, from: data)
+        let sourceURL = usage
+            ? f.live.appendingPathComponent("Patterns/Assets/" + originalArchive.patternAssets[0].storedFilename)
+            : f.live.appendingPathComponent("Patterns/" + f.projectID.uuidString + "/" + originalArchive.projects[0].patterns[0].storedFilename)
+        let sourceBytes = try Data(contentsOf: sourceURL)
         let markup = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.25, y: 0.75)], color: .green, width: 0.008)])
-        try store.savePatternMarkup(markup, projectID: f.projectID, patternID: patternID, pageIndex: 0,
-                                    expectedDataGeneration: store.dataGeneration)
+        func save() throws {
+            if usage { try store.savePatternMarkup(markup, usageID: patternID, pageIndex: 0, expectedDataGeneration: store.dataGeneration) }
+            else { try store.savePatternMarkup(markup, projectID: f.projectID, patternID: patternID, pageIndex: 0, expectedDataGeneration: store.dataGeneration) }
+        }
+        try save()
         #expect(store.syncPublicationError == nil)
         let after = try #require(try f.checkpoints.load())
         #expect(after.commitID != before.commitID)
-        #expect(after.archiveSHA256 == before.archiveSHA256)
-        #expect(try Data(contentsOf: f.archiveURL) == data)
+        if usage {
+            // Usage markup advances the archive's optimistic-lock revision.
+            #expect(after.archiveSHA256 != before.archiveSHA256)
+            #expect(after.archiveSHA256 == Data(SHA256.hash(data: try Data(contentsOf: f.archiveURL))))
+        } else {
+            #expect(after.archiveSHA256 == before.archiveSHA256)
+            #expect(try Data(contentsOf: f.archiveURL) == data)
+        }
         #expect(after.records.count == before.records.count + 1)
-        try store.savePatternMarkup(markup, projectID: f.projectID, patternID: patternID, pageIndex: 0,
-                                    expectedDataGeneration: store.dataGeneration)
+        #expect(after.records.contains(source))
+        try save()
         #expect(try f.checkpoints.load() == after)
         try f.journal.acknowledge(Set(try f.journal.pending().map(\.identity)))
-        let reopened = f.store()
-        try reopened.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
-        #expect(try f.checkpoints.load() == after)
-        #expect(try reopened.loadPatternMarkup(projectID: f.projectID, patternID: patternID, pageIndex: 0) == markup)
+        for _ in 0..<2 {
+            let reopened = f.store(journal: f.freshJournal())
+            try reopened.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+            #expect(try f.checkpoints.load() == after)
+            let loaded = try usage ? reopened.loadPatternMarkup(usageID: patternID, pageIndex: 0)
+                : reopened.loadPatternMarkup(projectID: f.projectID, patternID: patternID, pageIndex: 0)
+            #expect(loaded == markup)
+            #expect(try Data(contentsOf: sourceURL) == sourceBytes)
+        }
     }
 
     @Test @MainActor func committedTransitionCannotInventMetadataOutsideItsExactMutations() throws {
@@ -384,6 +581,8 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         let f = try Fixture(media: true); defer { f.remove() }
         let store = f.store()
         try store.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: f.handoff, attachmentSources: [:])
+        let photo = try #require(store.projects.first?.photoFilename)
+        let photoBytes = try Data(contentsOf: f.live.appendingPathComponent("ProjectPhotos/" + photo))
         try store.delete(id: f.projectID)
         #expect(store.syncPublicationError == nil)
         let deleted = try #require(try f.checkpoints.load())
@@ -395,10 +594,20 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         let reopened = f.store()
         try reopened.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
         #expect(try f.checkpoints.load() == deleted)
-        try reopened.restoreRecentlyDeleted(id: entry.id, now: .now)
+        try reopened.restoreRecentlyDeleted(id: entry.id, now: entry.deletedAt.addingTimeInterval(29 * 24 * 60 * 60))
         #expect(reopened.syncPublicationError == nil)
         #expect(reopened.projects.first?.id == f.projectID)
         #expect(try f.checkpoints.load()?.commitID != deleted.commitID)
+        let expected = try #require(try f.checkpoints.load())
+        let second = f.store(journal: f.freshJournal())
+        try second.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+        #expect(try f.checkpoints.load() == expected)
+        #expect(expected.records.filter { $0.id.kind != .attachment }.allSatisfy { $0.deletedAt.value == nil })
+        let restoredLineage = try SyncAttachmentLineage(records: expected.records)
+        #expect(restoredLineage.resolvedLiveVersionIDs().count == 1)
+        #expect(expected.records.contains { $0.id.kind == .attachment && $0.deletedAt.value != nil })
+        let restoredPhoto = try #require(second.projects.first?.photoFilename)
+        #expect(try Data(contentsOf: f.live.appendingPathComponent("ProjectPhotos/" + restoredPhoto)) == photoBytes)
     }
 
     @Test @MainActor func staleHandoffCannotEraseAcknowledgedMetadataWhenDailyFileIsLost() throws {
@@ -437,7 +646,7 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         let journal: FileSyncMutationJournal
         let account: SyncAccountIdentity
 
-        init(media: Bool = false, conflict: Bool = false, pattern: Bool = false, remoteRevisions: Bool = false) throws {
+        init(media: Bool = false, conflict: Bool = false, pattern: Bool = false, usage: Bool = false, remoteRevisions: Bool = false) throws {
             root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
             live = root.appendingPathComponent("Live")
             try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
@@ -455,7 +664,19 @@ struct JSONProjectStoreCanonicalDurabilityTests {
                 try FileManager.default.createDirectory(at: location.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try makeTestPatternPDF(at: location)
             }
-            let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [project])
+            var archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [project])
+            if usage {
+                let id = UUID(), patternID = UUID()
+                let filename = id.uuidString + ".pdf"
+                let url = live.appendingPathComponent("Patterns/Assets/" + filename)
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try makeTestPatternPDF(at: url)
+                let bytes = try Data(contentsOf: url)
+                archive.patternAssets = [.init(id: id, sha256: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined(),
+                    kind: .pdf, storedFilename: filename, byteCount: Int64(bytes.count), pageCount: 1)]
+                archive.patterns = [.init(id: patternID, assetID: id, displayName: "Usage Pattern")]
+                archive.patternUsages = [.init(id: UUID(), patternID: patternID, projectID: project.id, sortOrder: 0)]
+            }
             projectID = archive.projects[0].id
             try JSONEncoder().encode(archive).write(to: archiveURL)
             let local = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: live, deviceID: "test-device")
@@ -482,8 +703,15 @@ struct JSONProjectStoreCanonicalDurabilityTests {
             checkpoints = try SyncCanonicalCheckpointStore(liveRoot: live, account: account, validateOwnership: {})
             journal = FileSyncMutationJournal(url: live.appendingPathComponent("SyncMetadata/pending.json"))
         }
-        @MainActor func store() -> JSONProjectStore {
-            JSONProjectStore(url: archiveURL, syncMutationSink: JournalSyncMutationSink(journal: journal))
+        func freshJournal() -> FileSyncMutationJournal {
+            FileSyncMutationJournal(url: live.appendingPathComponent("SyncMetadata/pending.json"))
+        }
+        @MainActor func store(journal supplied: FileSyncMutationJournal? = nil,
+            boundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in }) -> JSONProjectStore {
+            JSONProjectStore(url: archiveURL,
+                backupService: KnitNoteBackupService(liveRoot: live, workRoot: root.appendingPathComponent("BackupWork")),
+                syncCanonicalPublicationBoundary: boundary,
+                syncMutationSink: JournalSyncMutationSink(journal: supplied ?? journal))
         }
         @MainActor func rename(_ store: JSONProjectStore, _ name: String) throws {
             try store.updateProject(id: projectID, name: name, toolType: nil, toolSize: nil, toolNotes: nil, photoChange: .unchanged)

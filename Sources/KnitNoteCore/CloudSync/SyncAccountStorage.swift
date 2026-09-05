@@ -40,6 +40,7 @@ public final class SyncAccountStorage: @unchecked Sendable {
     private static let temporaryName = ".decrypted-temporary"
     private static let ownerName = ".owner-v1"
     private static let lockName = ".storage-lock"
+    static let recoveryControlName = ".sealed-recovery-v1"
 
     public init(baseURL: URL) { self.baseURL = baseURL }
 
@@ -111,6 +112,26 @@ public final class SyncAccountStorage: @unchecked Sendable {
     /// These entries are observations, never authorization to remove anything.
     func withRecoveryInventory<T>(paths: Paths, account: SyncAccountIdentity, maximumBytes: Int,
                                   _ body: ([SyncAccountRecoveryInventory.Entry]) throws -> T) throws -> T {
+        try withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
+            let entries = try access.entries()
+            let result = try body(entries)
+            try access.validate()
+            guard try access.entries() == entries else { throw SyncAccountStorageError.unsafePath }
+            return result
+        }
+    }
+
+    /// Internal descriptor scope for the authenticated recovery transaction. The
+    /// descriptors and callbacks must not escape this synchronous ownership body.
+    struct RecoveryAccess {
+        let accountDescriptor: Int32
+        let controlDescriptor: Int32?
+        let entries: () throws -> [SyncAccountRecoveryInventory.Entry]
+        let validate: () throws -> Void
+    }
+
+    func withRecoveryOwnership<T>(paths: Paths, account: SyncAccountIdentity, maximumBytes: Int,
+                                   createControl: Bool = false, _ body: (RecoveryAccess) throws -> T) throws -> T {
         mutex.lock(); defer { mutex.unlock() }
         guard let session, session.paths == paths, session.identity == account else {
             throw SyncAccountStorageError.invalidIdentity
@@ -119,6 +140,11 @@ public final class SyncAccountStorage: @unchecked Sendable {
         let ownerDescriptor = openat(session.temporary.fd, Self.ownerName, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard ownerDescriptor >= 0 else { throw SyncAccountStorageError.unsafePath }
         let owner = Handle(ownerDescriptor)
+        var controlStatus = stat()
+        let controlExists = fstatat(session.account.fd, Self.recoveryControlName, &controlStatus, AT_SYMLINK_NOFOLLOW) == 0
+        guard controlExists || errno == ENOENT else { throw SyncAccountStorageError.unsafePath }
+        let control = controlExists || createControl
+            ? try Self.directory(Self.recoveryControlName, in: session.account, create: createControl).handle : nil
         func validateBindings() throws {
             let currentBase = try Self.openPath(Self.normalized(baseURL), create: false)
             try Self.sameDirectory(currentBase, session.base)
@@ -130,19 +156,35 @@ public final class SyncAccountStorage: @unchecked Sendable {
             try Self.validateEntry(session.decrypted, named: session.name, in: session.temporary)
             try Self.validateEntry(vault, named: "vault", in: session.account)
             try Self.validateTree(vault)
+            if let control {
+                try Self.validateEntry(control, named: Self.recoveryControlName, in: session.account)
+                try Self.validateRecoveryControl(control)
+            } else {
+                var status = stat()
+                guard fstatat(session.account.fd, Self.recoveryControlName, &status, AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else { throw SyncAccountStorageError.unsafePath }
+            }
         }
         try validateBindings()
-        var remaining = maximumBytes
-        let entries = try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining)
-        let result = try body(entries)
+        let result = try body(.init(accountDescriptor: session.account.fd, controlDescriptor: control?.fd,
+            entries: {
+                var remaining = maximumBytes
+                return try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining)
+            }, validate: validateBindings))
         // Rewalking a retained descriptor alone cannot prove accountRoot still
         // names it, nor that excluded control/vault paths retain their bindings.
         try validateBindings()
-        remaining = maximumBytes
-        guard try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining) == entries else {
-            throw SyncAccountStorageError.unsafePath
-        }
         return result
+    }
+
+    private static func validateRecoveryControl(_ control: Handle) throws {
+        for name in try names(in: control) {
+            guard ["intent.json", "intent-next.json"].contains(name) else { throw SyncAccountStorageError.unsafePath }
+            var status = stat()
+            guard fstatat(control.fd, name, &status, AT_SYMLINK_NOFOLLOW) == 0,
+                  status.st_mode & S_IFMT == S_IFREG, status.st_nlink == 1,
+                  status.st_size >= 0, status.st_size <= 8192 else { throw SyncAccountStorageError.unsafePath }
+        }
     }
 
     private static func recoveryEntries(_ parent: Handle, prefix: String, remaining: inout Int,
@@ -153,7 +195,7 @@ public final class SyncAccountStorage: @unchecked Sendable {
             let path = prefix + name
             // Only format-owned controls and the entire encrypted namespace are
             // excluded. Decrypted session contents and bootstrap siblings remain.
-            if path == "vault" || path == lockName || path == temporaryName + "/" + ownerName { continue }
+            if path == "vault" || path == lockName || path == recoveryControlName || path == temporaryName + "/" + ownerName { continue }
             var status = stat()
             guard fstatat(parent.fd, name, &status, AT_SYMLINK_NOFOLLOW) == 0 else { throw SyncAccountStorageError.unsafePath }
             let isDirectory = status.st_mode & S_IFMT == S_IFDIR

@@ -30,6 +30,35 @@ public final class SyncRecoveryVault: @unchecked Sendable {
     private let synchronize: @Sendable (Int32) throws -> Void
     private let mutex = NSLock()
     private static let lifetime: TimeInterval = 2_592_000
+    var recoveryDirectory: URL { directory }
+
+    /// A readable ciphertext left by failed synchronization is not durable proof.
+    /// Reestablish file and parent durability before account plaintext cleanup.
+    func synchronizedRecoveryPayload(_ id: UUID, account: SyncAccountIdentity, now: Date) throws -> Data {
+        mutex.lock(); defer { mutex.unlock() }
+        let root = try openDirectory()
+        defer { Darwin.close(root) }
+        let result = try authenticatedPayload(id, account: account, root: root)
+        guard now.timeIntervalSince1970.isFinite, now.timeIntervalSince1970 >= result.metadata.createdAt,
+              now.timeIntervalSince1970 < result.metadata.expiresAt else { throw SyncRecoveryVaultError.expired }
+        let fd = openat(root, Self.name(id), O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw SyncRecoveryVaultError.unsafePath }
+        defer { Darwin.close(fd) }
+        var opened = stat()
+        guard fstat(fd, &opened) == 0, opened.st_mode & S_IFMT == S_IFREG, opened.st_nlink == 1,
+              opened.st_size >= 0, opened.st_size <= maximumCiphertextBytes else { throw SyncRecoveryVaultError.unsafePath }
+        try synchronize(fd)
+        try synchronize(root)
+        var named = stat()
+        guard fstatat(root, Self.name(id), &named, AT_SYMLINK_NOFOLLOW) == 0,
+              named.st_dev == opened.st_dev, named.st_ino == opened.st_ino, named.st_nlink == 1 else {
+            throw SyncRecoveryVaultError.unsafePath
+        }
+        guard try authenticatedPayload(id, account: account, root: root).payload == result.payload else {
+            throw SyncRecoveryVaultError.authenticationFailed
+        }
+        return result.payload
+    }
 
     public convenience init(directory: URL, keychain: any SyncRecoveryVaultKeychain,
                 maximumPayloadBytes: Int = 100_000_000) {

@@ -120,7 +120,61 @@ public struct SyncAccountRecoveryInventory: Sendable {
         return bytes
     }
 
-    private struct Payload: Encodable {
+    /// Only the transaction calls this after vault authentication. Decode still
+    /// validates every binding and selected dependency; authenticated bytes alone
+    /// are not permission to interpret arbitrary names as cleanup targets.
+    static func decodeRecovery(_ data: Data, account: SyncAccountIdentity, paths: SyncAccountStorage.Paths,
+                               journalURL: URL, maximumBytes: Int) throws -> Self {
+        guard maximumBytes >= 0, maximumBytes <= 100_000_000, data.count <= maximumBytes else { throw Error.tooLarge }
+        let value = try JSONDecoder().decode(Payload.self, from: data)
+        guard value.accountIDHash == account.accountIDHash, value.accountRoot == paths.accountRoot,
+              value.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
+              value.journalURL == journalURL, let packet = value.packet,
+              packet.accountIDHash == account.accountIDHash, packet.accountRoot == paths.accountRoot else { throw Error.unsafeBinding }
+        let archivePath = try relative(value.archiveURL, root: paths.accountRoot)
+        let journalPath = try relative(value.journalURL, root: paths.accountRoot)
+        guard !reserved(journalPath), !reserved(archivePath), !journalPath.hasPrefix(".decrypted-temporary/") else { throw Error.unsafeBinding }
+        var indexed: [String: Entry] = [:]
+        for entry in value.entries {
+            let path = entry.relativePath
+            guard !path.hasPrefix("/"), !path.utf8.contains(0), !path.isEmpty,
+                  path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+                  path != "vault", !path.hasPrefix("vault/"), path != ".storage-lock",
+                  path != SyncAccountStorage.recoveryControlName, !path.hasPrefix(SyncAccountStorage.recoveryControlName + "/"),
+                  path != ".decrypted-temporary/.owner-v1", indexed[path] == nil,
+                  entry.device > 0, entry.inode > 0, entry.byteCount >= 0,
+                  entry.isDirectory ? (entry.byteCount == 0 && entry.sha256.isEmpty) : entry.sha256.count == 32 else { throw Error.unsafeBinding }
+            if path.contains("/") {
+                let parent = path.split(separator: "/").dropLast().joined(separator: "/")
+                guard indexed[parent]?.isDirectory == true else { throw Error.unsafeBinding }
+            }
+            indexed[path] = entry
+        }
+        guard value.fingerprint == Data(SHA256.hash(data: try encoder().encode(value.entries))),
+              indexed[archivePath]?.isDirectory == false,
+              ["working-set", "journal", "engine-state", "staging", "quarantine", ".decrypted-temporary"].allSatisfy({ indexed[$0]?.isDirectory == true }) else { throw Error.unsafeBinding }
+        try compatibilityGate(value.entries)
+        var selectedPaths = Set<String>()
+        for file in packet.files + value.deletionFiles {
+            guard !reserved(file.relativePath), !file.relativePath.hasPrefix(".decrypted-temporary/"),
+                  let observed = indexed[file.relativePath], !observed.isDirectory,
+                  observed.byteCount == file.byteCount, observed.sha256 == file.sha256,
+                  file.byteCount == Int64(file.bytes.count), file.sha256 == Data(SHA256.hash(data: file.bytes)) else { throw Error.unsafeBinding }
+        }
+        for file in value.deletionFiles {
+            guard selectedPaths.insert(file.relativePath).inserted else { throw Error.unsafeBinding }
+        }
+        if let ledger = value.deletionLedger {
+            try SyncDeletionLedger.validateRecoveryPayload(ledger, archiveURL: value.archiveURL,
+                pending: packet.mutations, files: value.deletionFiles, markers: value.pendingMarkerVersions)
+        } else if !value.deletionFiles.isEmpty || !value.pendingMarkerVersions.isEmpty { throw Error.unsafeBinding }
+        _ = try packet.encoded(maximumBytes: maximumBytes)
+        return Self(account: account, accountRoot: value.accountRoot, archiveURL: value.archiveURL,
+            journalURL: value.journalURL, entries: value.entries, fingerprint: value.fingerprint, packet: packet,
+            deletionLedger: value.deletionLedger, deletionFiles: value.deletionFiles, pendingMarkerVersions: value.pendingMarkerVersions)
+    }
+
+    private struct Payload: Codable {
         let accountIDHash: String
         let accountRoot: URL
         let archiveURL: URL
@@ -146,6 +200,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
     private static func reserved(_ path: String) -> Bool {
         path == "vault" || path.hasPrefix("vault/") || path == ".storage-lock"
             || path == ".decrypted-temporary/.owner-v1" || path.hasPrefix(".KnitNote-SyncBootstrap/")
+            || path == SyncAccountStorage.recoveryControlName || path.hasPrefix(SyncAccountStorage.recoveryControlName + "/")
     }
     private static func compatibilityGate(_ entries: [Entry]) throws {
         for entry in entries where !entry.isDirectory {

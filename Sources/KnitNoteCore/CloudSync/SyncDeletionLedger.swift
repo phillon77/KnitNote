@@ -945,6 +945,31 @@ struct SyncDeletionLedger {
 
     private func load(validateRetainedFiles: Bool = true) throws -> Manifest {
         let data = try read(manifestURL)
+        return try decodeManifest(data, validateRetainedFiles: validateRetainedFiles)
+    }
+
+    /// Validate authenticated selected recovery bytes without installing them or
+    /// invoking normal ledger initialization/purge recovery.
+    static func validateRecoveryPayload(_ data: Data, archiveURL: URL, pending: [SyncMutation],
+                                        files: [SyncPendingRecoveryPacket.File], markers: [SyncRecordVersion]) throws {
+        let ledger = Self(readOnlyRoot: root(archiveURL: archiveURL))
+        let manifest = try ledger.decodeManifest(data, validateRetainedFiles: false)
+        let versions = pending.compactMap(\.savedRecordVersion)
+        guard (manifest.purgeIntents ?? []).isEmpty, manifest.pendingMarkerVersions ?? [] == markers,
+              manifest.groups.allSatisfy({ $0.active && $0.restoration == nil && $0.canceled != true
+                  && $0.entry.exactRemovalVersions.contains(where: { versions.contains($0) }) }) else {
+            throw SyncDeletionLedgerError.corrupt
+        }
+        let proofs = manifest.groups.flatMap { $0.entry.files }
+        guard proofs.count == files.count else { throw SyncDeletionLedgerError.corrupt }
+        for proof in proofs {
+            guard files.contains(where: { $0.relativePath == "working-set/.sync-deletions/" + proof.retainedRelativePath
+                && $0.byteCount == proof.byteCount && $0.sha256 == proof.sha256 }) else { throw SyncDeletionLedgerError.corrupt }
+        }
+    }
+
+    private func decodeManifest(_ data: Data, validateRetainedFiles: Bool) throws -> Manifest {
+        guard data.count <= maximumBytes else { throw SyncDeletionLedgerError.corrupt }
         let envelope = try JSONDecoder().decode(Envelope.self, from: data)
         guard Self.hash(envelope.payload) == envelope.sha256 else { throw SyncDeletionLedgerError.corrupt }
         let manifest = try JSONDecoder().decode(Manifest.self, from: envelope.payload)

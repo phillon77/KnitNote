@@ -354,7 +354,7 @@ import Testing
     }
 }
 
-private struct RecoveryInventoryFixture {
+struct RecoveryInventoryFixture {
     let base: URL
     let account = try! SyncAccountIdentity(containerIdentifier: "test", userRecordName: "A")
     let storage: SyncAccountStorage

@@ -45,6 +45,7 @@ struct SyncCanonicalCheckpointTests {
             ("formatVersion", 2 as Any), ("accountIDHash", String(repeating: "0", count: 64)),
             ("commitID", UUID().uuidString), ("archiveSHA256", Data(count: 32).base64EncodedString()),
             ("records", [] as [Any]), ("legacyRecordIDsToDelete", [] as [Any]),
+            ("remoteBatchReceipts", [] as [Any]),
             ("integritySHA256", Data(count: 32).base64EncodedString())
         ] {
             var altered = original; altered[key] = replacement

@@ -130,7 +130,8 @@ struct SyncCanonicalTransition: Codable, Equatable, Sendable {
 }
 
 struct SyncPublicationTransaction: Codable, Equatable, Sendable {
-    static let currentVersion = 5
+    static let currentVersion = 6
+    private static let canonicalTransitionVersion = 5
     private static let attachmentManifestVersion = 4
     private static let causalReceiptVersion = 3
     private static let legacyVersion = 2
@@ -145,6 +146,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     let deletionLedgerID: UUID?
     let restorationWitness: SyncRestorationWitness?
     let canonicalTransition: SyncCanonicalTransition?
+    let remoteSource: SyncRemoteBatchPublicationSource?
     let integrity: Data
 
     private enum CodingKeys: String, CodingKey {
@@ -158,6 +160,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         case deletionLedgerID
         case restorationWitness
         case canonicalTransition
+        case remoteSource
         case integrity
     }
 
@@ -170,7 +173,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         candidateAttachmentManifest: [SyncAttachmentManifestEntry]? = nil,
         deletionLedgerID: UUID? = nil,
         restorationWitness: SyncRestorationWitness? = nil,
-        canonicalTransition: SyncCanonicalTransition? = nil
+        canonicalTransition: SyncCanonicalTransition? = nil,
+        remoteSource: SyncRemoteBatchPublicationSource? = nil
     ) throws {
         try self.init(
             version: Self.currentVersion,
@@ -182,7 +186,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             candidateAttachmentManifest: candidateAttachmentManifest,
             deletionLedgerID: deletionLedgerID,
             restorationWitness: restorationWitness,
-            canonicalTransition: canonicalTransition
+            canonicalTransition: canonicalTransition,
+            remoteSource: remoteSource
         )
         _ = try validated()
     }
@@ -215,12 +220,14 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         candidateAttachmentManifest: [SyncAttachmentManifestEntry]?,
         deletionLedgerID: UUID? = nil,
         restorationWitness: SyncRestorationWitness? = nil,
-        canonicalTransition: SyncCanonicalTransition? = nil
+        canonicalTransition: SyncCanonicalTransition? = nil,
+        remoteSource: SyncRemoteBatchPublicationSource? = nil
     ) throws {
         self.version = version
         self.deletionLedgerID = deletionLedgerID
         self.restorationWitness = restorationWitness
         self.canonicalTransition = canonicalTransition
+        self.remoteSource = remoteSource
         self.expectedArchiveSHA256 = expectedArchiveSHA256
         self.commitBoundary = commitBoundary
         self.artifactEvidence = artifactEvidence.sorted {
@@ -243,7 +250,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             candidateAttachmentManifest: self.candidateAttachmentManifest,
             deletionLedgerID: deletionLedgerID,
             restorationWitness: restorationWitness,
-            canonicalTransition: canonicalTransition
+            canonicalTransition: canonicalTransition,
+            remoteSource: remoteSource
         )
     }
 
@@ -275,6 +283,10 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             SyncCanonicalTransition.self,
             forKey: .canonicalTransition
         )
+        remoteSource = try values.decodeIfPresent(
+            SyncRemoteBatchPublicationSource.self,
+            forKey: .remoteSource
+        )
     }
 
     func validated() throws -> Self {
@@ -287,7 +299,11 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         let validatedCanonicalTransition = try canonicalTransition.map {
             try $0.validated()
         }
+        let validatedRemoteSource = try remoteSource.map { try $0.validated() }
         let supportsAttachmentAuthorities = version == Self.attachmentManifestVersion
+            || version == Self.canonicalTransitionVersion
+            || version == Self.currentVersion
+        let supportsCanonicalTransition = version == Self.canonicalTransitionVersion
             || version == Self.currentVersion
         let receiptsAreComplete = revisionReceipts.count == mutations.count
             && Set(revisionReceipts.map(\.mutationID)).count == revisionReceipts.count
@@ -307,22 +323,29 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                 Self.legacyVersion,
                 Self.causalReceiptVersion,
                 Self.attachmentManifestVersion,
+                Self.canonicalTransitionVersion,
                 Self.currentVersion
               ].contains(version),
               expectedArchiveSHA256.count == SHA256.byteCount,
               !mutations.isEmpty
                 || (supportsAttachmentAuthorities && validatedManifest != nil)
-                || (version == Self.currentVersion && validatedCanonicalTransition != nil),
+                || (supportsCanonicalTransition && validatedCanonicalTransition != nil),
               version != Self.legacyVersion || revisionReceipts.isEmpty,
               version != Self.legacyVersion || candidateAttachmentManifest == nil,
               version != Self.causalReceiptVersion || candidateAttachmentManifest == nil,
-              canonicalTransition == nil || version == Self.currentVersion,
+              canonicalTransition == nil || supportsCanonicalTransition,
               canonicalTransition == validatedCanonicalTransition,
               canonicalTransition == nil
                 || canonicalTransition?.candidate.archiveSHA256 == expectedArchiveSHA256,
               deletionLedgerID == nil || supportsAttachmentAuthorities,
               restorationWitness == nil || (supportsAttachmentAuthorities && deletionLedgerID == nil
                   && restorationWitness?.beforeArchiveSHA256.count == 32),
+              remoteSource == nil || version == Self.currentVersion,
+              remoteSource == validatedRemoteSource,
+              try Self.remoteSourceIsValid(
+                  remoteSource,
+                  transition: validatedCanonicalTransition
+              ),
               artifactEvidence == artifactEvidence.sorted(by: {
                   $0.relativePath < $1.relativePath
               }),
@@ -340,11 +363,39 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                   candidateAttachmentManifest: candidateAttachmentManifest,
                   deletionLedgerID: deletionLedgerID,
                   restorationWitness: restorationWitness,
-                  canonicalTransition: canonicalTransition
+                  canonicalTransition: canonicalTransition,
+                  remoteSource: remoteSource
               )) else {
             throw SyncPublicationTransactionFileError.corrupt
         }
         return self
+    }
+
+    private static func remoteSourceIsValid(
+        _ source: SyncRemoteBatchPublicationSource?,
+        transition: SyncCanonicalTransition?
+    ) throws -> Bool {
+        guard let source else { return true }
+        guard let transition,
+              let predecessorSHA256 = transition.predecessorSHA256,
+              predecessorSHA256 == source.predecessor.checkpointSHA256,
+              source.identity.accountIDHash == transition.candidate.accountIDHash,
+              source.predecessor.accountIDHash == transition.candidate.accountIDHash,
+              source.predecessor.commitID != transition.candidate.commitID,
+              transition.candidate.formatVersion == 2 else {
+            return false
+        }
+        let matching = transition.candidate.remoteBatchReceipts.first {
+            $0.identity.accountIDHash == source.identity.accountIDHash
+                && $0.identity.batchID == source.identity.batchID
+        }
+        switch source.receiptAction {
+        case .insert:
+            return matching?.identity == source.identity
+                && matching?.commitID == transition.candidate.commitID
+        case .retire:
+            return matching == nil
+        }
     }
 
     private static func integrity(
@@ -357,7 +408,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         candidateAttachmentManifest: [SyncAttachmentManifestEntry]?,
         deletionLedgerID: UUID?,
         restorationWitness: SyncRestorationWitness?,
-        canonicalTransition: SyncCanonicalTransition?
+        canonicalTransition: SyncCanonicalTransition?,
+        remoteSource: SyncRemoteBatchPublicationSource?
     ) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -393,7 +445,21 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                 restorationWitness: restorationWitness
             ))))
         }
-        return Data(SHA256.hash(data: try encoder.encode(CanonicalIntegrityPayload(
+        if version == Self.canonicalTransitionVersion {
+            return Data(SHA256.hash(data: try encoder.encode(CanonicalIntegrityPayload(
+                version: version,
+                expectedArchiveSHA256: expectedArchiveSHA256,
+                commitBoundary: commitBoundary,
+                artifactEvidence: artifactEvidence,
+                mutations: mutations,
+                revisionReceipts: revisionReceipts,
+                candidateAttachmentManifest: candidateAttachmentManifest,
+                deletionLedgerID: deletionLedgerID,
+                restorationWitness: restorationWitness,
+                canonicalTransition: canonicalTransition
+            ))))
+        }
+        return Data(SHA256.hash(data: try encoder.encode(RemoteCanonicalIntegrityPayload(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
             commitBoundary: commitBoundary,
@@ -403,7 +469,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             candidateAttachmentManifest: candidateAttachmentManifest,
             deletionLedgerID: deletionLedgerID,
             restorationWitness: restorationWitness,
-            canonicalTransition: canonicalTransition
+            canonicalTransition: canonicalTransition,
+            remoteSource: remoteSource
         ))))
     }
 
@@ -447,6 +514,20 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         let deletionLedgerID: UUID?
         let restorationWitness: SyncRestorationWitness?
         let canonicalTransition: SyncCanonicalTransition?
+    }
+
+    private struct RemoteCanonicalIntegrityPayload: Codable {
+        let version: Int
+        let expectedArchiveSHA256: Data
+        let commitBoundary: SyncPublicationCommitBoundary
+        let artifactEvidence: [SyncPublicationArtifactEvidence]
+        let mutations: [SyncMutation]
+        let revisionReceipts: [SyncRevisionReceipt]
+        let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
+        let deletionLedgerID: UUID?
+        let restorationWitness: SyncRestorationWitness?
+        let canonicalTransition: SyncCanonicalTransition?
+        let remoteSource: SyncRemoteBatchPublicationSource?
     }
 }
 

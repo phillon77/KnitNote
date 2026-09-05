@@ -6525,8 +6525,9 @@ final class PatternLibraryDeletionTransaction {
                 guard try checkpoints.load() == previous else { throw SyncPublicationError.corruptTransaction }
                 let records = syncRecords(Dictionary(uniqueKeysWithValues: previous.records.map { ($0.id, $0) }),
                     applying: causallyStamped.mutations)
-                let candidate = try SyncCanonicalCheckpoint(accountIDHash: previous.accountIDHash,
-                    commitID: UUID(), archiveSHA256: expectedFingerprint, records: Array(records.values),
+                let candidate = try previous.successor(
+                    commitID: UUID(), archiveSHA256: expectedFingerprint,
+                    records: Array(records.values),
                     legacyRecordIDsToDelete: previous.legacyRecordIDsToDelete)
                 transition = try .init(predecessorSHA256: Data(SHA256.hash(data: previous.encoded())), candidate: candidate)
             } else { transition = nil }

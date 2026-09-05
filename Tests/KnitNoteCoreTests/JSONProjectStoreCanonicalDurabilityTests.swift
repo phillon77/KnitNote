@@ -61,6 +61,65 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         #expect(next.records.first { $0.id.uuid == f.projectID }!.entityRevision > committed.records.first { $0.id.uuid == f.projectID }!.entityRevision)
     }
 
+    @Test @MainActor func localEditAfterRemoteCommitCarriesReceiptUnchanged() throws {
+        let f = try Fixture(); defer { f.remove() }
+        let store = f.store()
+        try store.activateSyncCanonicalState(
+            checkpointStore: f.checkpoints,
+            bootstrap: f.handoff,
+            attachmentSources: [:]
+        )
+        let receipt = try f.installRemoteReceipt()
+        let reopened = f.store()
+        try reopened.activateSyncCanonicalState(
+            checkpointStore: f.checkpoints,
+            bootstrap: nil,
+            attachmentSources: [:]
+        )
+
+        try f.rename(reopened, "After remote")
+
+        #expect(try f.checkpoints.load()?.remoteBatchReceipts == [receipt])
+    }
+
+    @Test @MainActor func localDeleteAndRestoreCarryRemoteReceiptUnchanged() throws {
+        let f = try Fixture(); defer { f.remove() }
+        let store = f.store()
+        try store.activateSyncCanonicalState(
+            checkpointStore: f.checkpoints,
+            bootstrap: f.handoff,
+            attachmentSources: [:]
+        )
+        let receipt = try f.installRemoteReceipt()
+        let receiptStore = f.store()
+        try receiptStore.activateSyncCanonicalState(
+            checkpointStore: f.checkpoints,
+            bootstrap: nil,
+            attachmentSources: [:]
+        )
+
+        try receiptStore.delete(id: f.projectID)
+        #expect(try f.checkpoints.load()?.remoteBatchReceipts == [receipt])
+        let ledger = try SyncDeletionLedger(
+            root: SyncDeletionLedger.root(archiveURL: f.archiveURL)
+        )
+        let entry = try #require(try ledger.recentlyDeleted().first)
+        try f.journal.acknowledge(Set(try f.journal.pending().map(\.identity)))
+        let reopened = f.store()
+        try reopened.activateSyncCanonicalState(
+            checkpointStore: f.checkpoints,
+            bootstrap: nil,
+            attachmentSources: [:]
+        )
+
+        try reopened.restoreRecentlyDeleted(
+            id: entry.id,
+            now: entry.deletedAt.addingTimeInterval(29 * 24 * 60 * 60)
+        )
+
+        #expect(try f.checkpoints.load()?.remoteBatchReceipts == [receipt])
+    }
+
     @Test @MainActor func noOpDoesNotReplaceCanonicalOrRepublish() throws {
         let f = try Fixture(); defer { f.remove() }
         let store = f.store()
@@ -715,6 +774,24 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         }
         @MainActor func rename(_ store: JSONProjectStore, _ name: String) throws {
             try store.updateProject(id: projectID, name: name, toolType: nil, toolSize: nil, toolNotes: nil, photoChange: .unchanged)
+        }
+        func installRemoteReceipt() throws -> SyncRemoteBatchReceipt {
+            let predecessor = try #require(try checkpoints.load())
+            let receipt = SyncRemoteBatchReceipt(
+                identity: .init(
+                    accountIDHash: predecessor.accountIDHash,
+                    batchID: UUID(uuidString: "30000000-0000-0000-0000-000000000001")!,
+                    contentSHA256: Data(repeating: 3, count: 32)
+                ),
+                commitID: predecessor.commitID,
+                domainChanged: true
+            )
+            let candidate = try predecessor.insertingRemoteReceipt(receipt)
+            try checkpoints.install(
+                candidate,
+                replacing: Data(SHA256.hash(data: predecessor.encoded()))
+            )
+            return receipt
         }
         func remove() { try? FileManager.default.removeItem(at: root) }
         func checkpointStore(_ boundary: @escaping (SyncDurableFileWriteBoundary) throws -> Void) throws -> SyncCanonicalCheckpointStore {

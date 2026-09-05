@@ -437,8 +437,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             zoneID: zoneID,
             persistedEngineState: durableState
         )
-        let proofs = try acknowledgementIdentities()
-        let provenIDs = Set(proofs.map(\.batchID))
+        let acknowledgements = try acknowledgementSnapshot()
+        let provenIDs = Set(acknowledgements.acknowledged.map(\.batchID))
         // Replay has no CKAsset handles: its immutable versions must still
         // resolve to verified durable bytes before they can be acknowledged.
         for envelope in incoming.batches where !provenIDs.contains(envelope.batchID) {
@@ -481,7 +481,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             await created.addDatabaseChanges([zoneSave])
             try requireCurrentGeneration(operationGeneration)
         }
-        for identity in proofs {
+        for identity in acknowledgements.requiringRetirement {
             eventContinuation.yield(.acknowledgedFetched(identity, accountEpoch: accountEpoch))
         }
         for batch in incoming.batches where !provenIDs.contains(batch.batchID) {
@@ -626,9 +626,13 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     private func acknowledgementIdentities() throws -> [SyncRemoteBatchIdentity] {
-        guard let syncContainerIdentifier else { return [] }
+        try acknowledgementSnapshot().acknowledged
+    }
+
+    private func acknowledgementSnapshot() throws -> CloudIncomingBatchAcknowledgementSnapshot {
+        guard let syncContainerIdentifier else { return .init(acknowledged: [], requiringRetirement: []) }
         let account = try SyncAccountIdentity(containerIdentifier: syncContainerIdentifier, userRecordName: incomingAccountIdentifier)
-        return try incomingBatchStore.acknowledgements(accountIdentifier: incomingAccountIdentifier, zoneID: zoneID, account: account)
+        return try incomingBatchStore.acknowledgementSnapshot(accountIdentifier: incomingAccountIdentifier, zoneID: zoneID, account: account)
     }
 
     func verifyFetchedBatchAcknowledgement(_ batchID: UUID) async throws {

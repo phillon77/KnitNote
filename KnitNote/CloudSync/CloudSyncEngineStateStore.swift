@@ -202,6 +202,9 @@ struct CloudIncomingBatchEnvelope: Codable, Equatable, Sendable {
     let deletedRecordIDs: [SyncEntityID]
     var sourceObservedRecords: [Bool]
     var sourceObservedDeletions: [Bool]
+    // Finished Core retirement travels with its replayable source envelope.
+    // It does not consume a standalone unresolved-ACK proof slot.
+    var retiredAcknowledgement: SyncRemoteBatchIdentity? = nil
 
     init(
         batchID: UUID,
@@ -241,6 +244,7 @@ struct CloudIncomingBatchEnvelope: Codable, Equatable, Sendable {
         case deletedRecordIDs
         case sourceObservedRecords
         case sourceObservedDeletions
+        case retiredAcknowledgement
     }
 
     init(from decoder: any Decoder) throws {
@@ -252,6 +256,7 @@ struct CloudIncomingBatchEnvelope: Codable, Equatable, Sendable {
         deliveryGeneration = try container.decode(UInt64.self, forKey: .deliveryGeneration)
         awaitingSourceRedelivery = try container.decode(Bool.self, forKey: .awaitingSourceRedelivery)
         acknowledged = try container.decode(Bool.self, forKey: .acknowledged)
+        retiredAcknowledgement = try container.decodeIfPresent(SyncRemoteBatchIdentity.self, forKey: .retiredAcknowledgement)
         records = try container.decode([SyncRecord].self, forKey: .records)
         deletedRecordIDs = try container.decode([SyncEntityID].self, forKey: .deletedRecordIDs)
         sourceObservedRecords = try container.decodeIfPresent(
@@ -290,6 +295,11 @@ struct CloudIncomingBatchSourceObservationSnapshot: Sendable {
     let batches: [UUID: Batch]
 }
 
+struct CloudIncomingBatchAcknowledgementSnapshot: Sendable {
+    let acknowledged: [SyncRemoteBatchIdentity]
+    let requiringRetirement: [SyncRemoteBatchIdentity]
+}
+
 /// Durable handoff between CKSyncEngine callbacks and the domain committer.
 /// Entries remain until a covering engine-state update is durably installed.
 struct FileCloudIncomingBatchStore: @unchecked Sendable {
@@ -322,6 +332,7 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
     ) throws -> (generation: UInt64, batches: [CloudIncomingBatchEnvelope]) {
         return try synchronized {
             var store = try load()
+            try migrateFinishedProofs(&store)
             if let staged = store.stagedStateCommit {
                 if staged.engineState == persistedEngineState {
                     let covered = Set(staged.coveredBatchIDs)
@@ -353,7 +364,8 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
             ) {
                 store.batches[index].deliveryGeneration = generation
                 store.batches[index].awaitingSourceRedelivery = true
-                store.batches[index].acknowledged = (store.acknowledgementProofs ?? []).contains { $0.identity.batchID == store.batches[index].batchID }
+                store.batches[index].acknowledged = store.batches[index].retiredAcknowledgement != nil
+                    || (store.acknowledgementProofs ?? []).contains { $0.identity.batchID == store.batches[index].batchID }
                 store.batches[index].sourceObservedRecords = Array(
                     repeating: false,
                     count: store.batches[index].records.count
@@ -668,6 +680,7 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
     ) throws {
         return try synchronized {
             var store = try load()
+            try migrateFinishedProofs(&store)
             guard let index = store.batches.firstIndex(where: {
                 $0.batchID == batchID && $0.belongs(to: accountIdentifier, zoneID: zoneID)
             }) else {
@@ -678,7 +691,9 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
                 let identity = try SyncRemoteBatch(accountIDHash: account.accountIDHash, batchID: batchID,
                     records: envelope.records, deletedRecordIDs: envelope.deletedRecordIDs).identity
                 var proofs = store.acknowledgementProofs ?? []
-                if let existing = proofs.first(where: { $0.identity.batchID == batchID }) {
+                if let retired = envelope.retiredAcknowledgement {
+                    guard retired == identity else { throw CloudIncomingBatchStoreError.corrupt }
+                } else if let existing = proofs.first(where: { $0.identity.batchID == batchID }) {
                     guard existing.identity == identity, existing.scope == scope(accountIdentifier, zoneID) else {
                         throw CloudIncomingBatchStoreError.corrupt
                     }
@@ -694,42 +709,82 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
     }
 
     func acknowledgements(accountIdentifier: String, zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws -> [SyncRemoteBatchIdentity] {
-        return try synchronized(createIfMissing: false) {
+        try acknowledgementSnapshot(accountIdentifier: accountIdentifier, zoneID: zoneID, account: account).acknowledged
+    }
+
+    /// Replay suppression includes finished envelopes, but only unresolved
+    /// proofs may enqueue a new Core retirement attempt.
+    func acknowledgementSnapshot(accountIdentifier: String, zoneID: CKRecordZone.ID,
+        account: SyncAccountIdentity) throws -> CloudIncomingBatchAcknowledgementSnapshot {
+        try synchronized(createIfMissing: false) {
             let store = try load()
-            return try (store.acknowledgementProofs ?? []).filter { $0.scope == scope(accountIdentifier, zoneID) }.map {
-                guard $0.identity.accountIDHash == account.accountIDHash else { throw CloudIncomingBatchStoreError.corrupt }
-                return $0.identity
+            let proofs = (store.acknowledgementProofs ?? []).filter { $0.scope == scope(accountIdentifier, zoneID) }
+            let retired = store.batches.filter { $0.belongs(to: accountIdentifier, zoneID: zoneID) }
+                .compactMap(\.retiredAcknowledgement)
+            let acknowledged = proofs.map(\.identity) + retired
+            guard acknowledged.allSatisfy({ $0.accountIDHash == account.accountIDHash }) else {
+                throw CloudIncomingBatchStoreError.corrupt
             }
+            return .init(acknowledged: acknowledged, requiringRetirement: proofs.filter { !$0.receiptRetired }.map(\.identity))
         }
     }
 
     func verifyAcknowledgement(_ identity: SyncRemoteBatchIdentity, accountIdentifier: String,
         zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws {
-        return try synchronized(createIfMissing: false) {
-            _ = try requiredProof(identity, in: load(), accountIdentifier: accountIdentifier, zoneID: zoneID, account: account)
+        try synchronized(createIfMissing: false) {
+            _ = try requiredAcknowledgement(identity, in: load(), accountIdentifier: accountIdentifier, zoneID: zoneID, account: account)
         }
     }
 
     func finishAcknowledgement(_ identity: SyncRemoteBatchIdentity, accountIdentifier: String,
         zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws {
-        return try synchronized {
+        try synchronized {
             var store = try load()
-            let index = try requiredProof(identity, in: store, accountIdentifier: accountIdentifier, zoneID: zoneID, account: account)
-            store.acknowledgementProofs![index].receiptRetired = true
-            retireFinishedProofs(&store)
+            try migrateFinishedProofs(&store)
+            let location = try requiredAcknowledgement(identity, in: store, accountIdentifier: accountIdentifier, zoneID: zoneID, account: account)
+            if case let .proof(index) = location {
+                if let envelope = store.batches.firstIndex(where: { $0.batchID == identity.batchID }) {
+                    store.batches[envelope].retiredAcknowledgement = identity
+                }
+                // If the envelope is already gone, both authorities are done.
+                // Otherwise the identity marker remains with source redelivery.
+                store.acknowledgementProofs!.remove(at: index)
+            }
             try save(store)
         }
     }
 
-    private func requiredProof(_ identity: SyncRemoteBatchIdentity, in store: CloudIncomingBatchStoreFile,
-        accountIdentifier: String, zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws -> Int {
+    private enum AcknowledgementLocation { case proof(Int), retiredEnvelope }
+
+    private func requiredAcknowledgement(_ identity: SyncRemoteBatchIdentity, in store: CloudIncomingBatchStoreFile,
+        accountIdentifier: String, zoneID: CKRecordZone.ID, account: SyncAccountIdentity) throws -> AcknowledgementLocation {
         guard identity.accountIDHash == account.accountIDHash else { throw CloudIncomingBatchStoreError.corrupt }
-        guard let index = store.acknowledgementProofs?.firstIndex(where: { $0.identity.batchID == identity.batchID }) else {
-            throw CloudSyncTransportError.unknownFetchedBatch
+        if let index = store.acknowledgementProofs?.firstIndex(where: { $0.identity.batchID == identity.batchID }) {
+            let proof = store.acknowledgementProofs![index]
+            guard proof.identity == identity, proof.scope == scope(accountIdentifier, zoneID) else { throw CloudIncomingBatchStoreError.corrupt }
+            return .proof(index)
         }
-        let proof = store.acknowledgementProofs![index]
-        guard proof.identity == identity, proof.scope == scope(accountIdentifier, zoneID) else { throw CloudIncomingBatchStoreError.corrupt }
-        return index
+        if let envelope = store.batches.first(where: { $0.batchID == identity.batchID }),
+            let retired = envelope.retiredAcknowledgement {
+            guard retired == identity, envelope.belongs(to: accountIdentifier, zoneID: zoneID) else {
+                throw CloudIncomingBatchStoreError.corrupt
+            }
+            return .retiredEnvelope
+        }
+        throw CloudSyncTransportError.unknownFetchedBatch
+    }
+
+    /// Only validated old finished proofs can move to a matching envelope.
+    /// The caller persists this transfer with its ordinary atomic JSON write.
+    private func migrateFinishedProofs(_ store: inout CloudIncomingBatchStoreFile) throws {
+        for proof in store.acknowledgementProofs ?? [] where proof.receiptRetired {
+            guard let index = store.batches.firstIndex(where: { $0.batchID == proof.identity.batchID }),
+                store.batches[index].retiredAcknowledgement == nil else {
+                throw CloudIncomingBatchStoreError.corrupt
+            }
+            store.batches[index].retiredAcknowledgement = proof.identity
+        }
+        store.acknowledgementProofs?.removeAll { $0.receiptRetired }
     }
 
     private func scope(_ accountIdentifier: String, _ zoneID: CKRecordZone.ID) -> CloudIncomingBatchScope {
@@ -829,8 +884,22 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
             guard proofs.count <= maximumBatchCount, Set(proofs.map { $0.identity.batchID }).count == proofs.count else {
                 throw CloudIncomingBatchStoreError.corrupt
             }
+            for envelope in decoded.batches {
+                if let retired = envelope.retiredAcknowledgement {
+                    _ = try retired.validated()
+                    guard envelope.acknowledged, retired.batchID == envelope.batchID,
+                        !proofs.contains(where: { $0.identity.batchID == envelope.batchID }),
+                        try SyncRemoteBatch(accountIDHash: retired.accountIDHash, batchID: envelope.batchID,
+                            records: envelope.records, deletedRecordIDs: envelope.deletedRecordIDs).identity == retired else {
+                        throw CloudIncomingBatchStoreError.corrupt
+                    }
+                }
+            }
             for proof in proofs {
                 _ = try proof.identity.validated()
+                guard !proof.receiptRetired || decoded.batches.contains(where: { $0.batchID == proof.identity.batchID }) else {
+                    throw CloudIncomingBatchStoreError.corrupt
+                }
                 if let envelope = decoded.batches.first(where: { $0.batchID == proof.identity.batchID }) {
                     guard envelope.acknowledged, proof.scope == scope(envelope.accountIdentifier,
                         CKRecordZone.ID(zoneName: envelope.zoneName, ownerName: envelope.ownerName)),

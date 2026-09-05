@@ -6,6 +6,153 @@ import Testing
 @MainActor @Suite struct RemoteBatchCommitterIntegrationTests {
     enum Fault: Error { case injected }
 
+    @Test func legacyFinishedProofMigratesToEnvelopeWithoutConsumingUnresolvedCapacity() throws {
+        let f = try AdapterFixture(); defer { f.remove() }
+        let url = f.root.appendingPathComponent("incoming.json")
+        let incoming = FileCloudIncomingBatchStore(url: url, maximumBatchCount: 1)
+        let g = try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil).generation
+        let first = try f.batch()
+        let envelope = try #require(try incoming.record(records: first.records, deletedRecordIDs: [], accountIdentifier: "adapter-user", zoneID: f.zone, generation: g).deliveredEnvelope)
+        let identity = try f.batch(id: envelope.batchID).identity
+        try incoming.acknowledge(envelope.batchID, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        // Reproduce the prior format's atomic finish result exactly: a finished
+        // standalone proof and its still-replayable envelope, without a marker.
+        var old = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        var proofs = try #require(old["acknowledgementProofs"] as? [[String: Any]])
+        proofs[0]["receiptRetired"] = true
+        old["acknowledgementProofs"] = proofs
+        var corruptedOld = old
+        var corruptedProofs = proofs
+        var wrongScope = try #require(corruptedProofs[0]["scope"] as? [String: Any])
+        wrongScope["zoneName"] = "wrong-zone"
+        corruptedProofs[0]["scope"] = wrongScope
+        corruptedOld["acknowledgementProofs"] = corruptedProofs
+        let corruptedBytes = try JSONSerialization.data(withJSONObject: corruptedOld)
+        try corruptedBytes.write(to: url)
+        #expect(throws: CloudIncomingBatchStoreError.corrupt) {
+            try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil)
+        }
+        #expect(try Data(contentsOf: url) == corruptedBytes)
+        try JSONSerialization.data(withJSONObject: old).write(to: url)
+        let restarted = try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil)
+        #expect(restarted.batches.first?.retiredAcknowledgement == identity)
+        #expect(restarted.batches.first?.awaitingSourceRedelivery == true)
+        #expect(try incoming.acknowledgementSnapshot(accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account).requiringRetirement.isEmpty)
+        try incoming.verifyAcknowledgement(identity, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        var second = first.records[0]
+        second.entityRevision += 1
+        let next = try #require(try incoming.record(records: [second], deletedRecordIDs: [], accountIdentifier: "adapter-user", zoneID: f.zone, generation: restarted.generation).deliveredEnvelope)
+        try incoming.acknowledge(next.batchID, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        #expect(try incoming.acknowledgementSnapshot(accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account).requiringRetirement.map(\.batchID) == [next.batchID])
+        // The cap remains one for unresolved proofs even while finished source
+        // evidence is embedded in A. A third legitimate spillover cannot ACK.
+        second.entityRevision += 1
+        let third = try #require(try incoming.record(records: [second], deletedRecordIDs: [], accountIdentifier: "adapter-user", zoneID: f.zone, generation: restarted.generation).deliveredEnvelope)
+        #expect(throws: CloudIncomingBatchStoreError.capacityExceeded) {
+            try incoming.acknowledge(third.batchID, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        }
+    }
+
+    @Test func retiredEnvelopeMarkerCannotBypassContentValidationOrByteCapacity() throws {
+        let f = try AdapterFixture(); defer { f.remove() }
+        let url = f.root.appendingPathComponent("incoming.json")
+        let incoming = FileCloudIncomingBatchStore(url: url)
+        let g = try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil).generation
+        let envelope = try #require(try incoming.record(records: f.batch().records, deletedRecordIDs: [], accountIdentifier: "adapter-user", zoneID: f.zone, generation: g).deliveredEnvelope)
+        let identity = try f.batch(id: envelope.batchID).identity
+        try incoming.acknowledge(envelope.batchID, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        try incoming.finishAcknowledgement(identity, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        let restarted = try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil)
+        let before = try Data(contentsOf: url)
+        let constrained = FileCloudIncomingBatchStore(url: url, maximumEncodedBytes: before.count + 128)
+        var changed = try f.batch().records[0]
+        changed.entityRevision += 1
+        #expect(throws: CloudIncomingBatchStoreError.capacityExceeded) {
+            try constrained.record(records: [changed], deletedRecordIDs: [], accountIdentifier: "adapter-user", zoneID: f.zone, generation: restarted.generation)
+        }
+        #expect(try Data(contentsOf: url) == before)
+        var corrupt = try #require(try JSONSerialization.jsonObject(with: before) as? [String: Any])
+        var batches = try #require(corrupt["batches"] as? [[String: Any]])
+        batches[0]["records"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode([changed]))
+        corrupt["batches"] = batches
+        let corruptBytes = try JSONSerialization.data(withJSONObject: corrupt)
+        try corruptBytes.write(to: url)
+        #expect(throws: CloudIncomingBatchStoreError.corrupt) {
+            try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil)
+        }
+        #expect(try Data(contentsOf: url) == corruptBytes)
+    }
+
+    @Test func boundTransportSpilloverAcknowledgesBeforeCoveringStateCanRetireOldEnvelope() async throws {
+        let f = try AdapterFixture(); defer { f.remove() }
+        let incoming = FileCloudIncomingBatchStore(url: f.root.appendingPathComponent("incoming.json"), maximumBatchCount: 1)
+        let g = try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil).generation
+        let first = try f.batch()
+        let envelope = try #require(try incoming.record(records: first.records, deletedRecordIDs: [], accountIdentifier: "adapter-user", zoneID: f.zone, generation: g).deliveredEnvelope)
+        let batch = try f.batch(id: envelope.batchID)
+        let adapter = f.adapter { try incoming.verifyAcknowledgement($0, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account) }
+        try await adapter.commitFetchedBatch(batch: batch, accountEpoch: f.epoch())
+        try incoming.acknowledge(envelope.batchID, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        try await adapter.didAcknowledgeFetchedBatch(batch: batch.identity, accountEpoch: f.epoch())
+        try incoming.finishAcknowledgement(batch.identity, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        let second = try #require(try f.checkpoints.load()?.records.first { $0.id.kind == .project && $0.id.uuid != f.projectID })
+        let cloudRecords = try (batch.records + [second]).map { try CloudRecordCodec().encode($0, zoneID: f.zone) }
+        let state = try JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: Data(#"{"data":"BA=="}"#.utf8))
+        let stateStore = FileCloudSyncEngineStateStore(url: f.root.appendingPathComponent("engine.json"))
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(zoneID: f.zone, stateStore: stateStore, incomingBatchStore: incoming,
+            initialAccountIdentifier: "adapter-user", containerIdentifier: "test.container", engineFactory: { _, _ in driver })
+        await driver.setFetchAction {
+            await transport.receiveFetchedChanges(records: cloudRecords, deletedRecordIDs: [])
+            await transport.receiveStateUpdate(state)
+        }
+        let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: f.journal, mergeEngine: SyncMergeEngine(),
+            recordProvider: AdapterRecordProvider(), fetchedBatchCommitter: adapter, screenshotMode: false)
+        await coordinator.start()
+        await drain { coordinator.status.phase == .needsAttention || ((try? stateStore.load()) != nil && (try? f.checkpoints.load()?.remoteBatchReceipts.isEmpty) == true) }
+        #expect(coordinator.status.phase != .needsAttention)
+        #expect(try stateStore.load().map { try JSONEncoder().encode($0) } == JSONEncoder().encode(state))
+        #expect(try f.checkpoints.load()?.remoteBatchReceipts.isEmpty == true)
+        #expect(try incoming.sourceObservationSnapshot(accountIdentifier: "adapter-user", zoneID: f.zone, generation: g + 1).batches.isEmpty)
+    }
+
+    @Test func finishedStartupEvidenceDoesNotQueueRetirementAfterConcurrentSourceStateAdvance() async throws {
+        let f = try AdapterFixture(); defer { f.remove() }
+        let incoming = FileCloudIncomingBatchStore(url: f.root.appendingPathComponent("incoming.json"))
+        let g = try incoming.beginGeneration(accountIdentifier: "adapter-user", zoneID: f.zone, persistedEngineState: nil).generation
+        let envelope = try #require(try incoming.record(records: f.batch().records, deletedRecordIDs: [], accountIdentifier: "adapter-user", zoneID: f.zone, generation: g).deliveredEnvelope)
+        let batch = try f.batch(id: envelope.batchID)
+        let adapter = f.adapter { try incoming.verifyAcknowledgement($0, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account) }
+        try await adapter.commitFetchedBatch(batch: batch, accountEpoch: f.epoch())
+        try incoming.acknowledge(envelope.batchID, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        try await adapter.didAcknowledgeFetchedBatch(batch: batch.identity, accountEpoch: f.epoch())
+        try incoming.finishAcknowledgement(batch.identity, accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account)
+        let checkpoint = try f.checkpoints.load()
+        let driver = TestSyncEngineDriver()
+        await driver.suspendNextPendingDatabaseRead()
+        let stateStore = FileCloudSyncEngineStateStore(url: f.root.appendingPathComponent("engine.json"))
+        let transport = CKSyncEngineTransport(zoneID: f.zone, stateStore: stateStore, incomingBatchStore: incoming,
+            initialAccountIdentifier: "adapter-user", containerIdentifier: "test.container", engineFactory: { _, _ in driver })
+        let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: f.journal, mergeEngine: SyncMergeEngine(),
+            recordProvider: AdapterRecordProvider(), fetchedBatchCommitter: adapter, screenshotMode: false)
+        let start = Task { await coordinator.start() }
+        await driver.waitUntilPendingDatabaseReadSuspended()
+        // Startup has captured evidence, but has not enqueued reconciliation.
+        // Actual source observation and covering state now delete finished A.
+        await transport.receiveFetchedChanges(records: try batch.records.map { try CloudRecordCodec().encode($0, zoneID: f.zone) }, deletedRecordIDs: [])
+        let state = try JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: Data(#"{"data":"BA=="}"#.utf8))
+        await transport.receiveStateUpdate(state)
+        #expect(try incoming.sourceObservationSnapshot(accountIdentifier: "adapter-user", zoneID: f.zone, generation: g + 1).batches.isEmpty)
+        await driver.resumePendingDatabaseRead()
+        await start.value
+        await transport.receiveZoneReady(f.zone)
+        await drain { coordinator.status.lastCompleteSuccess != nil || coordinator.status.phase == .needsAttention }
+        #expect(coordinator.status.issue == nil)
+        #expect(coordinator.status.lastCompleteSuccess != nil)
+        #expect(try f.checkpoints.load() == checkpoint)
+        #expect(try f.journal.pending().isEmpty)
+    }
+
     @Test func stalePreparationRetriesOnlyThreeTimes() async throws {
         var armed = false
         var attempts = 0
@@ -167,8 +314,9 @@ import Testing
         let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: f.journal, mergeEngine: SyncMergeEngine(),
             recordProvider: AdapterRecordProvider(), fetchedBatchCommitter: adapter, screenshotMode: false)
         await coordinator.start()
-        // Event handling contains async calls; allow reconciliation to finish.
-        for _ in 0..<100 { await Task.yield() }
+        await drain {
+            (try? incoming.acknowledgementSnapshot(accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account).requiringRetirement.isEmpty) == true
+        }
         #expect(try f.checkpoints.load() == before)
         #expect(try f.journal.pending().isEmpty)
         // Reset cannot create proof, but it can remove an envelope whose proof

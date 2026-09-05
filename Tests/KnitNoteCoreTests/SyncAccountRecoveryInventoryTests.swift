@@ -289,6 +289,69 @@ import Testing
         } else { #expect(throws: (any Error).self) { try f.capture() } }
         #expect(try f.diskBytes() == before)
     }
+
+    @Test func recoveryAttachmentReadCannotExceedRemainingCaptureBudget() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let bytes = Data(repeating: 42, count: 1_048_576)
+        let file = f.paths.staging.appendingPathComponent("large-photo")
+        try bytes.write(to: file)
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let version = try SyncAttachmentVersion.issuing(slot: .init(owner: owner, role: "project-photo", slotID: "cover"),
+            contentSHA256: Data(SHA256.hash(data: bytes)), byteCount: Int64(bytes.count), mediaType: "image/jpeg", displayFilename: "cover.jpg")
+        let stamp = SyncMutationStamp(logicalRevision: 1, modifiedAt: Date(timeIntervalSince1970: 1), deviceID: "fixture")
+        let record = SyncRecord(schemaVersion: 1, id: .init(kind: .attachment, uuid: version.versionID), createdAt: stamp.modifiedAt,
+            entityRevision: 1, payload: .init(fields: [:], attachment: version), relationships: [.init(role: "owner", target: owner)],
+            deletedAt: .init(value: nil, stamp: stamp))
+        try f.journal.enqueue(SyncMutation.save(recordVersion: SyncRecordVersion(record: record),
+            attachmentSource: .init(fileURL: file, contentSHA256: version.contentSHA256, byteCount: version.byteCount), mutationID: UUID()))
+        let counters = SyncRegularFileReaderIOCounters()
+        let observed = FileSyncMutationJournal(url: f.journalURL, reader: SyncRegularFileReader(ioCounters: counters))
+        let before = try f.diskBytes()
+        let budget = 8_192
+        #expect(throws: (any Error).self) {
+            try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account,
+                journal: observed, archiveURL: f.archiveURL, maximumBytes: budget)
+        }
+        // Counters belong to the real regular-file reader, including checkpoint,
+        // segment and attachment reads. Streaming inventory uses bounded chunks.
+        #expect(counters.bytesRead <= budget)
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test(arguments: ["base", "account", "lock", "owner", "temporary", "session", "vault"])
+    func finalInventoryRevalidatesPathAndExcludedControlBindings(target: String) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let location: URL
+        switch target {
+        case "base": location = f.base
+        case "account": location = f.paths.accountRoot
+        case "lock": location = f.paths.accountRoot.appendingPathComponent(".storage-lock")
+        case "owner": location = f.paths.decryptedTemporary.deletingLastPathComponent().appendingPathComponent(".owner-v1")
+        case "temporary": location = f.paths.decryptedTemporary.deletingLastPathComponent()
+        case "session": location = f.paths.decryptedTemporary
+        default: location = f.paths.vault
+        }
+        let moved = f.base.deletingLastPathComponent().appendingPathComponent("recovery-binding-moved-" + UUID().uuidString)
+        let regular = target == "lock" || target == "owner"
+        let original = regular ? try Data(contentsOf: location) : nil
+        var relocated = false
+        defer {
+            if relocated {
+                try? FileManager.default.removeItem(at: location)
+                try? FileManager.default.moveItem(at: moved, to: location)
+            }
+        }
+        #expect(throws: (any Error).self) {
+            try f.storage.withRecoveryInventory(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { _ in
+                try FileManager.default.moveItem(at: location, to: moved)
+                relocated = true
+                if let original { try original.write(to: location) }
+                else { try FileManager.default.createDirectory(at: location, withIntermediateDirectories: true) }
+            }
+        }
+        #expect(FileManager.default.fileExists(atPath: moved.path))
+        if let original { #expect(try Data(contentsOf: moved) == original) }
+    }
 }
 
 private struct RecoveryInventoryFixture {

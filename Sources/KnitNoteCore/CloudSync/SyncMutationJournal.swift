@@ -1102,6 +1102,26 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             if readOnly { remaining -= bytes?.count ?? 0 }
             return bytes
         }
+        var verifiedRecoverySources: [URL: SyncAttachmentSource] = [:]
+        func validateSource(_ mutation: SyncMutation) throws {
+            if readOnly, let source = mutation.attachmentSource {
+                if let previous = verifiedRecoverySources[source.fileURL] {
+                    guard previous == source else { throw SyncMutationJournalError.invalidAttachment }
+                    return
+                }
+                // Source validation materializes Data, so reserve its bytes from
+                // the same remaining budget BEFORE entering that reader. A
+                // checkpoint source repeated after segment replay is read once.
+                guard source.byteCount >= 0, source.byteCount <= Int64(remaining) else {
+                    throw SyncMutationJournalError.tooLarge
+                }
+                remaining -= Int(source.byteCount)
+                try validatePersistedAttachmentSource(in: mutation)
+                verifiedRecoverySources[source.fileURL] = source
+            } else {
+                try validatePersistedAttachmentSource(in: mutation)
+            }
+        }
         var checkpoint = SyncJournalCheckpoint(throughSequence: 0, pending: [])
         var totalBytes = 0
         if let checkpointData = try readSnapshotArtifact(checkpointURL) {
@@ -1186,7 +1206,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 seen[validated.mutationID] = proof
                 unpersistedProofs.append(proof)
             }
-            try validatePersistedAttachmentSource(in: validated)
+            try validateSource(validated)
             pending.append(validated)
         }
         var seenCleanupIntents = Set<SyncAttachmentCleanupIntent>()
@@ -1242,7 +1262,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             failure: .corrupt
         )
         for mutation in state.pending {
-            try validatePersistedAttachmentSource(in: mutation)
+            try validateSource(mutation)
         }
         try validateCleanupCompletion(in: state)
         if readOnly { return state }

@@ -115,17 +115,29 @@ public final class SyncAccountStorage: @unchecked Sendable {
         guard let session, session.paths == paths, session.identity == account else {
             throw SyncAccountStorageError.invalidIdentity
         }
-        let currentBase = try Self.openPath(Self.normalized(baseURL), create: false)
-        try Self.sameDirectory(currentBase, session.base)
-        try Self.validateEntry(session.account, named: account.accountIDHash, in: session.base)
-        try Self.validateEntry(session.lock, named: Self.lockName, in: session.account, regular: true)
-        try Self.validateEntry(session.temporary, named: Self.temporaryName, in: session.account)
-        try Self.validateOwner(session.marker, in: session.temporary)
-        try Self.validateEntry(session.decrypted, named: session.name, in: session.temporary)
+        let vault = try Self.directory("vault", in: session.account, create: false).handle
+        let ownerDescriptor = openat(session.temporary.fd, Self.ownerName, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard ownerDescriptor >= 0 else { throw SyncAccountStorageError.unsafePath }
+        let owner = Handle(ownerDescriptor)
+        func validateBindings() throws {
+            let currentBase = try Self.openPath(Self.normalized(baseURL), create: false)
+            try Self.sameDirectory(currentBase, session.base)
+            try Self.validateEntry(session.account, named: account.accountIDHash, in: session.base)
+            try Self.validateEntry(session.lock, named: Self.lockName, in: session.account, regular: true)
+            try Self.validateEntry(session.temporary, named: Self.temporaryName, in: session.account)
+            try Self.validateEntry(owner, named: Self.ownerName, in: session.temporary, regular: true)
+            try Self.validateOwner(session.marker, in: session.temporary)
+            try Self.validateEntry(session.decrypted, named: session.name, in: session.temporary)
+            try Self.validateEntry(vault, named: "vault", in: session.account)
+            try Self.validateTree(vault)
+        }
+        try validateBindings()
         var remaining = maximumBytes
-        try Self.validateTree(Self.directory("vault", in: session.account, create: false).handle)
         let entries = try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining)
         let result = try body(entries)
+        // Rewalking a retained descriptor alone cannot prove accountRoot still
+        // names it, nor that excluded control/vault paths retain their bindings.
+        try validateBindings()
         remaining = maximumBytes
         guard try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining) == entries else {
             throw SyncAccountStorageError.unsafePath

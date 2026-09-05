@@ -58,6 +58,15 @@ public final class SyncCanonicalCheckpointStore {
         return try read(Self.name)?.value
     }
 
+    /// Verifies the consumer's named live root is this pinned account store.
+    func validateBinding(liveRoot: URL, accountIDHash: String? = nil) throws {
+        try validateBindings()
+        guard try Self.normalized(liveRoot) == parentURL.deletingLastPathComponent(),
+              accountIDHash == nil || accountIDHash == account.accountIDHash else {
+            throw SyncPublicationError.corruptTransaction
+        }
+    }
+
     /// nil is verified absence, never a wildcard. Exact candidate retries repair
     /// both durability barriers and preserve the original commit ID.
     public func install(_ candidate: SyncCanonicalCheckpoint, replacing predecessorSHA256: Data?) throws {

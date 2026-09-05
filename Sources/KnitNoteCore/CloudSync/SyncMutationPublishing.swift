@@ -41,6 +41,19 @@ public struct JournalSyncMutationSink: SyncMutationSink {
     public func publish(_ mutations: [SyncMutation]) throws {
         try journal.enqueue(mutations)
     }
+
+    /// Activation checks pending upload bytes independently from displayed
+    /// media. Acknowledged history remains owned by the journal's cleanup rules.
+    func validatePendingAttachmentSources(validateOwnership: () throws -> Void) throws {
+        try validateOwnership()
+        for mutation in try journal.pending() {
+            guard case let .save(save) = mutation, let source = save.attachmentSource else { continue }
+            try validateOwnership()
+            _ = try SyncRegularFileReader().read(source.fileURL, maximumBytes: 100_000_000,
+                expected: .init(byteCount: source.byteCount, sha256: source.contentSHA256))
+        }
+        try validateOwnership()
+    }
 }
 
 public enum SyncPublicationError: Error, Equatable, Sendable {

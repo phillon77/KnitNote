@@ -4,6 +4,32 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapTransactionTests {
+    @Test func canonicalHandoffRequiresCommitAndRevalidatesOriginalReceiptAndFreeze() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        var frozen = true
+        let transaction = try SyncBootstrapTransaction(liveRoot: fixture.live, context: fixture.context,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard frozen, candidate == fixture.context else { throw SyncBootstrapError.contextChanged }
+            })
+        let prepared = try transaction.prepare(local: fixture.export(), sourceArchive: fixture.archive,
+            remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true))
+        #expect(throws: (any Error).self) { try transaction.canonicalHandoff(prepared) }
+        try transaction.install(prepared)
+        #expect(throws: (any Error).self) { try transaction.canonicalHandoff(prepared) }
+        let receipt = try transaction.commit(prepared)
+        let handoff = try transaction.canonicalHandoff(prepared)
+        #expect(handoff.transactionID == receipt.transactionID)
+        #expect(handoff.accountIDHash == receipt.accountIDHash)
+        try handoff.revalidate()
+        frozen = false
+        #expect(throws: SyncBootstrapError.contextChanged) { try handoff.revalidate() }
+        frozen = true
+        let receiptURL = fixture.live.appendingPathComponent("SyncMetadata/bootstrap-receipt.json")
+        try FileManager.default.removeItem(at: receiptURL)
+        #expect(throws: (any Error).self) { try handoff.revalidate() }
+        #expect(throws: (any Error).self) { try transaction.canonicalHandoff(prepared) }
+    }
+
     @Test(arguments: ["missing-counter", "rollback"])
     func remoteDeletionCannotBypassAuthorityOrOriginalTreeRollback(mode: String) throws {
         let fixture = try Fixture(); defer { fixture.remove() }

@@ -55,6 +55,28 @@ public struct SyncBootstrapCheckpoint: Codable, Sendable {
     public let legacyRecordIDsToDelete: Set<SyncEntityID>
 }
 
+/// Immutable capability issued only by a terminal, frozen bootstrap transaction.
+/// Keeping the validator alive does not keep the caller's freeze alive.
+public struct SyncCanonicalBootstrapHandoff {
+    let accountIDHash: String
+    let liveRoot: URL
+    let liveRootIdentity: SyncRegularFileIdentity
+    let transactionID: UUID
+    let checkpoint: SyncBootstrapCheckpoint
+    let revalidate: () throws -> Void
+
+    fileprivate init(accountIDHash: String, liveRoot: URL, liveRootIdentity: SyncRegularFileIdentity,
+                     transactionID: UUID, checkpoint: SyncBootstrapCheckpoint,
+                     revalidate: @escaping () throws -> Void) {
+        self.accountIDHash = accountIDHash
+        self.liveRoot = liveRoot
+        self.liveRootIdentity = liveRootIdentity
+        self.transactionID = transactionID
+        self.checkpoint = checkpoint
+        self.revalidate = revalidate
+    }
+}
+
 public struct SyncBootstrapPreparation: Sendable {
     public let transactionID: UUID
     public let originalBackupRoot: URL
@@ -393,6 +415,73 @@ public final class SyncBootstrapTransaction {
         guard Self.hash(try read(live.appendingPathComponent("projects-v1.json"))) == checkpoint.archiveSHA256 else { throw SyncBootstrapError.sourceChanged }
         _ = try SyncRecordValidator().validate(checkpoint.records)
         return checkpoint
+    }
+
+    public func canonicalHandoff(_ prepared: SyncBootstrapPreparation) throws -> SyncCanonicalBootstrapHandoff {
+        let manifest = try boundManifest(prepared)
+        guard manifest.phase == .committed else { throw SyncBootstrapError.invalidPhase }
+        let manifestBytes = try read(activeURL)
+        let receipt = try readReceipt(manifest)
+        let value = try checkpoint(prepared)
+        let identity = try liveIdentity()
+        let validate = { [self] in
+            try checkContext()
+            guard try read(activeURL) == manifestBytes,
+                  try liveIdentity() == identity else { throw SyncBootstrapError.sourceChanged }
+            let current = try boundManifest(prepared)
+            guard current.phase == .committed,
+                  try readReceipt(current) == receipt,
+                  try inventory(transactionRoot(current.id).appendingPathComponent("Original")) == current.original else {
+                throw SyncBootstrapError.corrupt
+            }
+            guard try canonicalAuthorityInventory() == current.installed.filter({ Self.isCanonicalAuthority($0.key) }) else {
+                throw SyncBootstrapError.sourceChanged
+            }
+            _ = try checkpoint(prepared)
+            try checkContext()
+        }
+        try validate()
+        return .init(accountIDHash: context.accountIDHash, liveRoot: live,
+                     liveRootIdentity: identity, transactionID: manifest.id, checkpoint: value, revalidate: validate)
+    }
+
+    private func liveIdentity() throws -> SyncRegularFileIdentity {
+        try checkDirectory(live)
+        var status = stat()
+        guard lstat(live.path, &status) == 0, status.st_mode & S_IFMT == S_IFDIR else {
+            throw SyncBootstrapError.unsafePath
+        }
+        return .init(device: UInt64(status.st_dev), inode: UInt64(status.st_ino))
+    }
+
+    private static func isCanonicalAuthority(_ path: String) -> Bool {
+        ["attachment-versions.", "attachment-manifest.", "revision-ledger."].contains {
+            path.hasPrefix("SyncMetadata/" + $0)
+        }
+    }
+
+    /// These namespaces contain durable attachment/Watch and revision authority,
+    /// including immutable receipts absent from the initial manifest. Comparing
+    /// the complete namespace detects daily metadata edits after journal ACK or
+    /// compaction even when the domain archive is byte-for-byte unchanged.
+    private func canonicalAuthorityInventory() throws -> [String: FileProof] {
+        let metadata = live.appendingPathComponent("SyncMetadata")
+        try checkDirectory(metadata)
+        var result: [String: FileProof] = [:]
+        for entry in try fileManager.contentsOfDirectory(at: metadata, includingPropertiesForKeys: nil) {
+            let path = "SyncMetadata/" + entry.lastPathComponent
+            guard Self.isCanonicalAuthority(path) else { continue }
+            var status = stat()
+            guard lstat(entry.path, &status) == 0 else { throw SyncBootstrapError.corrupt }
+            if status.st_mode & S_IFMT == S_IFDIR {
+                result[path + "/"] = .init(bytes: -1, digest: Data())
+                for (relative, proof) in try inventory(entry) { result[path + "/" + relative] = proof }
+            } else {
+                let value = try reader.read(entry, maximumBytes: maximumFileBytes)
+                result[path] = .init(bytes: value.byteCount, digest: value.sha256)
+            }
+        }
+        return result
     }
 
     private func stagedSources(_ local: [UUID: SyncAttachmentSource], _ remote: [UUID: SyncAttachmentSource], root: URL) throws -> [UUID: SyncAttachmentSource] {

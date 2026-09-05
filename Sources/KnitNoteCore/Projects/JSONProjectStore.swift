@@ -2594,6 +2594,9 @@ final class PatternLibraryDeletionTransaction {
     private let syncAttachmentManifestLoadFailed: Bool
     private var syncProjectionCache: SyncPublicationProjectionCache?
     private var syncBootstrapHydrated = false
+    private var syncCanonicalCheckpointStore: SyncCanonicalCheckpointStore?
+    private var syncCanonicalCheckpoint: SyncCanonicalCheckpoint?
+    private var syncCanonicalActivationRequired = false
     private var syncHydratedAttachments: [UUID: SyncRecord] = [:]
     private var syncHydratedAttachmentSources: [UUID: SyncAttachmentSource] = [:]
     private var activePreparedWatchCommand: PreparedWatchCommand?
@@ -2977,6 +2980,12 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func repairSyncPublication() throws {
+        if syncCanonicalActivationRequired || syncCanonicalCheckpointStore != nil {
+            guard let checkpoints = syncCanonicalCheckpointStore else { throw SyncPublicationError.pendingRepair }
+            try activateSyncCanonicalState(checkpointStore: checkpoints, bootstrap: nil,
+                                           attachmentSources: syncHydratedAttachmentSources)
+            return
+        }
         guard !syncAttachmentPublicationEvidenceLoadFailed,
               !syncAttachmentManifestLoadFailed else {
             syncPublicationError = .corruptTransaction
@@ -2986,6 +2995,10 @@ final class PatternLibraryDeletionTransaction {
         let transaction: SyncPublicationTransaction
         do {
             let loadedTransaction = try transactionFile.load()
+            if loadedTransaction?.canonicalTransition != nil {
+                syncCanonicalActivationRequired = true
+                throw SyncPublicationError.pendingRepair
+            }
             try recoverDeletionLedger(publication: loadedTransaction)
             guard let loaded = loadedTransaction else {
                 syncPublicationError = nil
@@ -5959,6 +5972,7 @@ final class PatternLibraryDeletionTransaction {
         preparedCommand: PreparedWatchCommand?,
         processedLedger: ProcessedWatchCommandLedger
     ) throws {
+        try ensureSyncPublicationReady()
         if isSyncPublicationEnabled, syncProjectionCache == nil {
             let archive = ProjectArchive(
                 version: ProjectArchive.currentVersion,
@@ -6045,7 +6059,8 @@ final class PatternLibraryDeletionTransaction {
     /// must advance a durable canonical checkpoint after later publications.
     public func hydrateSyncBootstrap(_ checkpoint: SyncBootstrapCheckpoint,
                                      attachmentSources: [UUID: SyncAttachmentSource] = [:]) throws {
-        guard isSyncPublicationEnabled, syncPublicationError == nil else {
+        guard isSyncPublicationEnabled, syncPublicationError == nil,
+              !syncCanonicalActivationRequired, syncCanonicalCheckpointStore == nil else {
             throw SyncPublicationError.pendingRepair
         }
         let data = try SyncRegularFileReader().read(url, maximumBytes: 100_000_000).data
@@ -6076,6 +6091,187 @@ final class PatternLibraryDeletionTransaction {
         syncHydratedAttachments = attachments
         syncHydratedAttachmentSources = attachmentSources
         syncAttachmentPublicationEvidence = hydratedEvidence
+    }
+
+    /// The caller retains account ownership and its writer freeze for this call
+    /// and every subsequent mutation. No archive/journal reconstruction is used.
+    public func activateSyncCanonicalState(checkpointStore: SyncCanonicalCheckpointStore,
+        bootstrap: SyncCanonicalBootstrapHandoff?, attachmentSources: [UUID: SyncAttachmentSource]) throws {
+        guard isSyncPublicationEnabled else { throw SyncPublicationError.sinkUnavailable }
+        syncCanonicalActivationRequired = true
+        syncPublicationError = .pendingRepair
+        do {
+            try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent())
+            guard !syncAttachmentPublicationEvidenceLoadFailed, !syncAttachmentManifestLoadFailed,
+                  syncRevisionLedger != nil else { throw SyncPublicationError.corruptTransaction }
+            let file = SyncPublicationTransactionFile(archiveURL: url)
+            let transaction = try file.load()
+            var current = try checkpointStore.load()
+            if let journalSink = syncMutationSink as? JournalSyncMutationSink {
+                try journalSink.validatePendingAttachmentSources {
+                    try checkpointStore.validateBinding(liveRoot: self.url.deletingLastPathComponent())
+                }
+            }
+            if let transaction {
+                guard let transition = transaction.canonicalTransition else { throw SyncPublicationError.pendingRepair }
+                try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent(),
+                                                    accountIDHash: transition.candidate.accountIDHash)
+                let currentDigest = try current.map { Data(SHA256.hash(data: try $0.encoded())) }
+                // A daily marker never replaces lost predecessor authority with
+                // bootstrap, even if its candidate archive happens to match.
+                guard current != nil,
+                      current == transition.candidate || currentDigest == transition.predecessorSHA256 else {
+                    throw SyncPublicationError.corruptTransaction
+                }
+                try validateCanonicalTransition(transaction, current: current)
+                switch try file.commitStatus(of: transaction, archiveURL: url) {
+                case .committed:
+                    // Issuance evidence may still need replay, so validate the
+                    // candidate media/archive now and require evidence in publish.
+                    _ = try verifyCanonical(transition.candidate, sources: attachmentSources, requireEvidence: false)
+                    syncCanonicalCheckpointStore = checkpointStore
+                    syncHydratedAttachmentSources = attachmentSources
+                    try publish(transaction, transactionFile: file)
+                    current = transition.candidate
+                case .uncommitted:
+                    guard let predecessor = current, currentDigest == transition.predecessorSHA256 else {
+                        throw SyncPublicationError.corruptTransaction
+                    }
+                    _ = try verifyCanonical(predecessor, sources: attachmentSources)
+                    try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent())
+                    try recoverDeletionLedger(publication: transaction)
+                    try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent())
+                    try file.remove()
+                case .corrupt: throw SyncPublicationError.corruptTransaction
+                }
+            }
+            if current == nil {
+                guard let bootstrap,
+                      bootstrap.liveRoot.standardizedFileURL == url.deletingLastPathComponent().standardizedFileURL else {
+                    throw SyncPublicationError.pendingRepair
+                }
+                try checkpointStore.validateBinding(liveRoot: bootstrap.liveRoot, accountIDHash: bootstrap.accountIDHash)
+                let candidate = try SyncCanonicalCheckpoint(accountIDHash: bootstrap.accountIDHash,
+                    commitID: bootstrap.transactionID, archiveSHA256: bootstrap.checkpoint.archiveSHA256,
+                    records: bootstrap.checkpoint.records, legacyRecordIDsToDelete: bootstrap.checkpoint.legacyRecordIDsToDelete)
+                _ = try verifyCanonical(candidate, sources: attachmentSources)
+                try bootstrap.revalidate()
+                try checkpointStore.install(candidate, replacing: nil)
+                current = candidate
+            }
+            guard let current else { throw SyncPublicationError.pendingRepair }
+            let verified = try verifyCanonical(current, sources: attachmentSources)
+            try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent(), accountIDHash: current.accountIDHash)
+            // Exact installation also repairs an initial handoff interrupted
+            // after rename, and refuses any unproven canonical temporary bytes.
+            try checkpointStore.install(current, replacing: Data(SHA256.hash(data: current.encoded())))
+            syncCanonicalCheckpointStore = checkpointStore
+            try recoverDeletionLedger(publication: nil)
+            loadPendingArchiveReadOnly()
+            guard loadError == nil else { throw SyncPublicationError.corruptTransaction }
+            hydrateCanonical(current, verified: verified)
+            didDeferLoadForSyncPublication = false
+            syncCanonicalActivationRequired = false
+            syncPublicationError = nil
+        } catch {
+            syncPublicationError = syncPublicationError(for: error)
+            throw error
+        }
+    }
+
+    private func verifyCanonical(_ checkpoint: SyncCanonicalCheckpoint,
+        sources supplied: [UUID: SyncAttachmentSource], requireEvidence: Bool = true) throws
+        -> (archive: ProjectArchive, sources: [UUID: SyncAttachmentSource]) {
+        let data = try SyncRegularFileReader().read(url, maximumBytes: SyncCanonicalCheckpoint.maximumBytes).data
+        guard Data(SHA256.hash(data: data)) == checkpoint.archiveSHA256 else { throw SyncBootstrapError.sourceChanged }
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: data)
+        guard ProjectArchive.isSupported(version: archive.version) else { throw SyncPublicationError.corruptTransaction }
+        _ = try checkpoint.validated()
+        let attachments = checkpoint.records.filter { $0.id.kind == .attachment }
+        if requireEvidence {
+            let evidence = try syncAttachmentPublicationEvidenceFile.load()
+            let issued = Dictionary(uniqueKeysWithValues: evidence.retainedAttachmentRecords.map { ($0.id, $0) })
+            guard attachments.allSatisfy({ issued[$0.id] == $0 }) else { throw SyncPublicationError.corruptTransaction }
+        }
+        let byID = Dictionary(uniqueKeysWithValues: attachments.map { ($0.id.uuid, $0) })
+        var sources = supplied
+        for (id, source) in sources {
+            guard let version = byID[id]?.payload.attachment,
+                  version.contentSHA256 == source.contentSHA256, version.byteCount == source.byteCount else {
+                throw SyncPublicationError.corruptTransaction
+            }
+            // Replaced versions retain their original source identity, even
+            // after local media cleanup. Only selected live versions need bytes
+            // for hydration; their exact content is read by materialize below.
+        }
+        let references = try syncArchiveAttachmentReferences(in: archive)
+        let lineage = try SyncAttachmentLineage(records: checkpoint.records)
+        for (slot, id) in lineage.resolvedLiveVersionIDs() {
+            let version = byID[id]!.payload.attachment!
+            if sources[id] == nil, let reference = references.first(where: { deletionReferenceSlot($0.slot) == deletionReferenceSlot(slot) }) {
+                sources[id] = try .init(fileURL: reference.sourceURL, contentSHA256: version.contentSHA256,
+                                       byteCount: version.byteCount)
+            }
+        }
+        let liveHeads = Set(lineage.headsBySlot.values.flatMap { $0 }.filter { $0.deletedAt.value == nil }.map(\.id.uuid))
+        let requiredSources = liveHeads.union(supplied.filter { $0.value.isJournalStaged }.keys)
+        for id in requiredSources {
+            guard let source = sources[id], let version = byID[id]?.payload.attachment else {
+                throw SyncPublicationError.pendingRepair
+            }
+            _ = try SyncRegularFileReader().read(source.fileURL, maximumBytes: SyncCanonicalCheckpoint.maximumBytes,
+                expected: .init(byteCount: version.byteCount, sha256: version.contentSHA256))
+        }
+        // Materialization reads every selected source, then its destination is
+        // separately checked against the live root; supplied upload bytes alone
+        // cannot stand in for a missing or altered live attachment.
+        let materializationSources = sources.mapValues {
+            SyncAttachmentSource(fileURL: $0.fileURL, contentSHA256: $0.contentSHA256,
+                                 byteCount: $0.byteCount, isJournalStaged: true)
+        }
+        let materialized = try ProjectArchiveSyncMapper.materialize(records: checkpoint.records,
+            attachments: materializationSources, baseArchive: archive)
+        guard syncDeletionArchivesMatch(materialized.archive, archive) else { throw SyncPublicationError.corruptTransaction }
+        for file in materialized.files {
+            _ = try SyncRegularFileReader().read(url.deletingLastPathComponent().appendingPathComponent(file.relativePath),
+                maximumBytes: SyncCanonicalCheckpoint.maximumBytes,
+                expected: .init(byteCount: file.version.byteCount, sha256: file.version.contentSHA256))
+        }
+        return (archive, sources)
+    }
+
+    private func hydrateCanonical(_ checkpoint: SyncCanonicalCheckpoint,
+        verified: (archive: ProjectArchive, sources: [UUID: SyncAttachmentSource])) {
+        syncCanonicalCheckpoint = checkpoint
+        syncProjectionCache = .init(archive: verified.archive,
+            records: Dictionary(uniqueKeysWithValues: checkpoint.records.filter { $0.id.kind != .attachment }.map { ($0.id, $0) }))
+        syncHydratedAttachments = Dictionary(uniqueKeysWithValues: checkpoint.records.filter { $0.id.kind == .attachment }.map { ($0.id.uuid, $0) })
+        syncHydratedAttachmentSources = verified.sources
+        syncBootstrapHydrated = true
+    }
+
+    private func validateCanonicalTransition(_ transaction: SyncPublicationTransaction,
+                                             current: SyncCanonicalCheckpoint?) throws {
+        guard let transition = transaction.canonicalTransition, let current else {
+            throw SyncPublicationError.corruptTransaction
+        }
+        let candidate = Dictionary(uniqueKeysWithValues: transition.candidate.records.map { ($0.id, $0) })
+        if current != transition.candidate {
+            let expected = syncRecords(Dictionary(uniqueKeysWithValues: current.records.map { ($0.id, $0) }),
+                                       applying: transaction.mutations)
+            guard expected == candidate,
+                  current.legacyRecordIDsToDelete == transition.candidate.legacyRecordIDsToDelete else {
+                throw SyncPublicationError.corruptTransaction
+            }
+        }
+        for mutation in transaction.mutations {
+            switch mutation {
+            case let .save(save):
+                guard candidate[mutation.recordID] == save.recordVersion.record else { throw SyncPublicationError.corruptTransaction }
+            case .delete:
+                guard candidate[mutation.recordID] == nil else { throw SyncPublicationError.corruptTransaction }
+            }
+        }
     }
 
     private func persist(
@@ -6265,8 +6461,28 @@ final class PatternLibraryDeletionTransaction {
         onArchiveCommitted: (([SyncMutation]) -> Void)? = nil,
         applyCommittedState: () -> Void
     ) throws {
+        // Callers checked readiness before staging deletion/restoration work.
+        // Re-running ledger recovery here would consume that in-flight stage.
+        if syncCanonicalActivationRequired { throw SyncPublicationError.pendingRepair }
+        if let error = syncPublicationError { throw error }
+        try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
+        if let canonical = syncCanonicalCheckpoint, mutations.isEmpty, candidateAttachmentManifest == nil,
+           let cached = syncProjectionCache,
+           syncDeletionArchivesMatch(cached.archive, try JSONDecoder().decode(ProjectArchive.self, from: data)) {
+            // Read-only status probe: reuse the existing checkpoint, including
+            // its commit ID, to prove that artifact-only edits are also no-ops.
+            // This probe is never installed or written to the publication file.
+            let probe = try SyncPublicationTransaction(expectedArchiveSHA256: canonical.archiveSHA256,
+                mutations: [], commitBoundary: commitBoundary, artifactEvidence: artifactEvidence, revisionReceipts: [],
+                canonicalTransition: .init(predecessorSHA256: Data(SHA256.hash(data: canonical.encoded())), candidate: canonical))
+            if try SyncPublicationTransactionFile(archiveURL: url).commitStatus(of: probe, archiveURL: url) == .committed {
+                _ = try verifyCanonical(canonical, sources: syncHydratedAttachmentSources)
+                applyCommittedState()
+                return
+            }
+        }
         guard isSyncPublicationEnabled,
-              !mutations.isEmpty || candidateAttachmentManifest != nil else {
+              !mutations.isEmpty || candidateAttachmentManifest != nil || syncCanonicalCheckpoint != nil else {
             try beforeArchiveWrite?()
             if shouldWriteArchive {
                 try archiveWrite(data, url)
@@ -6293,6 +6509,17 @@ final class PatternLibraryDeletionTransaction {
         let expectedFingerprint = SyncPublicationTransactionFile.fingerprint(of: data)
         let transaction: SyncPublicationTransaction
         do {
+            let transition: SyncCanonicalTransition?
+            if let previous = syncCanonicalCheckpoint, let checkpoints = syncCanonicalCheckpointStore {
+                try checkpoints.validateBinding(liveRoot: url.deletingLastPathComponent(), accountIDHash: previous.accountIDHash)
+                guard try checkpoints.load() == previous else { throw SyncPublicationError.corruptTransaction }
+                let records = syncRecords(Dictionary(uniqueKeysWithValues: previous.records.map { ($0.id, $0) }),
+                    applying: causallyStamped.mutations)
+                let candidate = try SyncCanonicalCheckpoint(accountIDHash: previous.accountIDHash,
+                    commitID: UUID(), archiveSHA256: expectedFingerprint, records: Array(records.values),
+                    legacyRecordIDsToDelete: previous.legacyRecordIDsToDelete)
+                transition = try .init(predecessorSHA256: Data(SHA256.hash(data: previous.encoded())), candidate: candidate)
+            } else { transition = nil }
             transaction = try SyncPublicationTransaction(
                 expectedArchiveSHA256: expectedFingerprint,
                 mutations: causallyStamped.mutations,
@@ -6303,8 +6530,12 @@ final class PatternLibraryDeletionTransaction {
                     try SyncAttachmentManifestStore.orderedEntries($0)
                 },
                 deletionLedgerID: deletionRetention?.id,
-                restorationWitness: restorationWitness
+                restorationWitness: restorationWitness,
+                canonicalTransition: transition
             )
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+            guard try encoder.encode(transaction).count <= 100_000_000 else { throw SyncPublicationError.corruptTransaction }
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             if let retention = deletionRetention {
                 try deletionLedger().prepare(id: retention.id, beforeArchiveSHA256: retention.beforeSHA256,
                     afterArchiveSHA256: expectedFingerprint,
@@ -6314,6 +6545,7 @@ final class PatternLibraryDeletionTransaction {
                     commitBoundary: commitBoundary)
             }
             if restorationWitness != nil { try deletionLedger().beginRestore(publication: transaction) }
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             try transactionFile.write(transaction)
         } catch {
             let publicationError = syncPublicationError(for: error)
@@ -6323,10 +6555,13 @@ final class PatternLibraryDeletionTransaction {
 
         var archiveWriteFailure: (any Error)?
         do {
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             try beforeArchiveWrite?()
             if shouldWriteArchive {
+                try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
                 try archiveWrite(data, url)
             }
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             try commitArtifacts?()
         } catch {
             archiveWriteFailure = error
@@ -6355,7 +6590,13 @@ final class PatternLibraryDeletionTransaction {
                 return
             }
             do {
+                if let canonical = syncCanonicalCheckpoint, let checkpoints = syncCanonicalCheckpointStore {
+                    try checkpoints.validateBinding(liveRoot: url.deletingLastPathComponent())
+                    guard try checkpoints.load() == canonical else { throw SyncPublicationError.corruptTransaction }
+                    _ = try verifyCanonical(canonical, sources: syncHydratedAttachmentSources)
+                }
                 try recoverDeletionLedger(publication: transaction)
+                try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
                 try transactionFile.remove()
             } catch {
                 let publicationError = syncPublicationError(for: error)
@@ -6368,7 +6609,7 @@ final class PatternLibraryDeletionTransaction {
             throw ProjectStoreError.persistenceFailed
         }
 
-        onArchiveCommitted?(causallyStamped.mutations)
+        if transaction.canonicalTransition == nil { onArchiveCommitted?(causallyStamped.mutations) }
         applyCommittedState()
         if archiveWriteFailure != nil {
             // Matching bytes prove the user state reached the destination, but
@@ -7109,7 +7350,19 @@ final class PatternLibraryDeletionTransaction {
         guard isSyncPublicationEnabled else {
             throw SyncPublicationError.sinkUnavailable
         }
+        if let transition = transaction.canonicalTransition {
+            guard let checkpoints = syncCanonicalCheckpointStore else { throw SyncPublicationError.pendingRepair }
+            try checkpoints.validateBinding(liveRoot: url.deletingLastPathComponent(), accountIDHash: transition.candidate.accountIDHash)
+            let current = try checkpoints.load()
+            let currentDigest = try current.map { Data(SHA256.hash(data: try $0.encoded())) }
+            guard current != nil, current == transition.candidate
+                || currentDigest == transition.predecessorSHA256 else {
+                throw SyncPublicationError.corruptTransaction
+            }
+            try validateCanonicalTransition(transaction, current: current)
+        } else if syncCanonicalCheckpointStore != nil { throw SyncPublicationError.pendingRepair }
         do {
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             if !transaction.revisionReceipts.isEmpty {
                 guard let syncRevisionLedger else {
                     throw SyncRevisionLedgerError.unavailable
@@ -7123,6 +7376,7 @@ final class PatternLibraryDeletionTransaction {
             throw syncPublicationError(for: error)
         }
         do {
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             if !transaction.mutations.isEmpty {
                 try persistAttachmentPublicationEvidence(for: transaction.mutations)
             }
@@ -7130,6 +7384,7 @@ final class PatternLibraryDeletionTransaction {
             throw SyncPublicationError.pendingRepair
         }
         do {
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             if !transaction.mutations.isEmpty {
                 try syncMutationSink.publish(transaction.mutations)
             }
@@ -7140,6 +7395,20 @@ final class PatternLibraryDeletionTransaction {
             throw SyncPublicationError.pendingRepair
         }
         do {
+            if let transition = transaction.canonicalTransition {
+                guard let checkpoints = syncCanonicalCheckpointStore else { throw SyncPublicationError.pendingRepair }
+                var sources = syncHydratedAttachmentSources
+                for mutation in transaction.mutations {
+                    if case let .save(save) = mutation, let source = save.attachmentSource {
+                        sources[save.recordVersion.record.id.uuid] = .init(fileURL: source.fileURL,
+                            contentSHA256: source.contentSHA256, byteCount: source.byteCount, isJournalStaged: source.isJournalStaged)
+                    }
+                }
+                let verified = try verifyCanonical(transition.candidate, sources: sources)
+                try checkpoints.install(transition.candidate, replacing: transition.predecessorSHA256)
+                hydrateCanonical(transition.candidate, verified: verified)
+            }
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             if let candidate = transaction.candidateAttachmentManifest {
                 let manifest = try SyncAttachmentManifestStore.dictionary(from: candidate)
                 try syncAttachmentManifestStore.commit(manifest)
@@ -7148,8 +7417,13 @@ final class PatternLibraryDeletionTransaction {
             // Only successful durable sink publication authorizes visibility.
             // Keep the shared witness until the independent ledger acknowledges it.
             if transaction.restorationWitness != nil {
+                try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
                 try deletionLedger().finishRestore(publication: transaction)
-            } else { try deletionLedger().activate(publication: transaction) }
+            } else {
+                try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
+                try deletionLedger().activate(publication: transaction)
+            }
+            try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             try transactionFile.remove()
         } catch {
             throw SyncPublicationError.pendingRepair
@@ -7165,6 +7439,14 @@ final class PatternLibraryDeletionTransaction {
         let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
         do {
             let loaded = try transactionFile.load()
+            if loaded?.canonicalTransition != nil || (isSyncPublicationEnabled &&
+                ["canonical.json", ".canonical-next.json"].contains(where: {
+                    FileManager.default.fileExists(atPath: url.deletingLastPathComponent().appendingPathComponent("SyncMetadata/" + $0).path)
+                })) {
+                syncCanonicalActivationRequired = true
+                syncPublicationError = .pendingRepair
+                return
+            }
             try recoverDeletionLedger(publication: loaded)
             guard let transaction = loaded else {
                 syncPublicationError = nil
@@ -7185,6 +7467,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func ensureSyncPublicationReady() throws {
+        if syncCanonicalActivationRequired { throw SyncPublicationError.pendingRepair }
         if isSyncPublicationEnabled, !syncBootstrapHydrated,
            FileManager.default.fileExists(atPath: url.deletingLastPathComponent()
                 .appendingPathComponent("SyncMetadata/bootstrap-canonical.json").path) {
@@ -7195,6 +7478,11 @@ final class PatternLibraryDeletionTransaction {
         }
         if let syncPublicationError {
             throw syncPublicationError
+        }
+        if let checkpoints = syncCanonicalCheckpointStore {
+            guard syncBootstrapHydrated, let canonical = syncCanonicalCheckpoint else { throw SyncPublicationError.pendingRepair }
+            try checkpoints.validateBinding(liveRoot: url.deletingLastPathComponent(), accountIDHash: canonical.accountIDHash)
+            guard try checkpoints.load() == canonical else { throw SyncPublicationError.corruptTransaction }
         }
         if isSyncPublicationEnabled {
             do { try recoverDeletionLedger(publication: nil) }

@@ -733,7 +733,7 @@ struct SyncCanonicalPublicationSnapshot {
                 if !reuse(
                     counterID,
                     when: previousCounters[counter.id] == counter
-                        && previousRemindersByCounter[counter.id] == reminders
+                        && (previousRemindersByCounter[counter.id] ?? []) == reminders
                         && cachedState?.preparedCommand == prepared
                         && cachedState?.processedCommandIDs == processedIDs
                         && cachedState?.processedCommandProofs == processedProofs

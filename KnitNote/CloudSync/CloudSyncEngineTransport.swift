@@ -577,7 +577,9 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             accountIdentifier: incomingAccountIdentifier,
             zoneID: zoneID
         )
-        committedReceiptBatches.insert(batchID)
+        if requiresInitialFetchReceipt {
+            committedReceiptBatches.insert(batchID)
+        }
         guard unacknowledgedFetchedBatchIDs.contains(batchID) else { return }
         if sourceObservationCycleDepth > 0 {
             unacknowledgedFetchedBatchIDs.removeAll { $0 == batchID }

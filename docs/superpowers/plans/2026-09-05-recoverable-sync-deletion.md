@@ -92,7 +92,7 @@ Because copies are independent, ordinary collectors may reclaim the removed orig
 - [ ] Exercise failure immediately before archive write, after rename with thrown writer, after journal failure, and after ledger activation before publication marker removal. Assert original or recent-deleted ownership, never neither; prepared entries must not falsely appear after a failed undelete/uncommitted operation.
 
 ```swift
-@Test func stagedDeletionIsNotVisible() throws {
+@Test func newLedgerStartsEmpty() throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }

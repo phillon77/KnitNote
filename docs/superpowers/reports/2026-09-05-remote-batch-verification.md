@@ -4,17 +4,33 @@
 
 ## 結論與邊界
 
-最終 whole-plan review 在 `b672060a82b01abc2963b1a3d45b1b23254b8635` 找到合法 live attachment metadata-only 更新的 Important 問題；本次最終修正已改 production source。**下列原 Task 6 完整 Core／macOS／iOS 成功均為 cf0dd9d 的歷史證據，不能驗證修正後候選。修正後的 scoped re-review、fresh full Core 與平台建置仍待完成。** 最終修正的獨立來源／測試綁定與 focused 結果另列於後段。
+遠端批次耐久提交的本階段隔離實作、測試與審查已完成。最終候選 `c7465f8b5282e07852afe6840a7d284c705f83ba` 的 scoped re-review 確認全部 3 項 findings 已解決、沒有新增 Critical／Important；凍結同一來源與測試後，完整 Core **2,369 tests／174 suites**、停用簽名的 macOS build-for-testing 與 generic iOS build 均通過。
+
+最終 whole-plan review 原先在 `b672060` 發現合法 live attachment metadata-only 更新的 Important 問題，已經過 actual RED、最小修正與兩次 fresh reopen 回歸。最終候選有自己的完整驗證；下列原 Task 6 的 `cf0dd9d` 結果仍以歷史證據保留，不拿舊結果替代新候選。
 
 本輪已用實際 Core／CloudSync 原始碼、檔案、canonical checkpoint、mutation journal、Watch 證據、刪除保留 ledger 與隔離 attachment staging 完成組合驗收。新增的 3 項 Core 組合測試、1 項無宿主 coordinator 組合測試及 5 組實際來源無宿主回歸均已通過。
 
-第一次完整 Core 在 managed sandbox 中完成但不通過：2,366 tests／174 suites、45 issues。問題只來自 3 個測試：兩個 Xcode build-settings 測試因 sandbox 禁止預設 DerivedData/PIFCache 寫入而得到空 settings（44 issues），一個 Unix socket fixture 在進入 reader assertion 前因 bind 被 sandbox 以 EPERM 拒絕（1 issue）。當前候選的直接對照已證實此分類：相同 3 項測試在 sandbox 外通過，沒有修改 production source。第 22 項 controller 裁決因此允許凍結候選再執行一次 sandbox 外完整 Core；下列結果保留兩次執行的完整證據，不刪除或改寫第一次失敗。
+歷史 Task 6 第一次完整 Core 在 managed sandbox 中完成但不通過：2,366 tests／174 suites、45 issues。問題只來自 3 個測試：兩個 Xcode build-settings 測試因 sandbox 禁止預設 DerivedData/PIFCache 寫入而得到空 settings（44 issues），一個 Unix socket fixture 在進入 reader assertion 前因 bind 被 sandbox 以 EPERM 拒絕（1 issue）。當時候選的直接對照已證實此分類：相同 3 項測試在 sandbox 外通過，沒有修改 production source。第 22 項 controller 裁決因此允許凍結候選再執行一次 sandbox 外完整 Core；下列結果保留兩次執行的完整證據，不刪除或改寫第一次失敗。
 
-Controller 核准的 sandbox 外完整 Core 已在未改動候選上通過：2,366 tests／174 suites，test time 1,197.455s、runner elapsed 1,198.741s、exit 0、無 timeout。原 managed-sandbox 失敗仍是驗證歷史的一部分；sandbox 外完整綠燈補足本候選的完整 Core 證據，但不把原失敗重寫成成功。
+歷史 Task 6 controller 核准的 sandbox 外完整 Core 在未改動的 `cf0dd9d` 來源上通過：2,366 tests／174 suites，test time 1,197.455s、runner elapsed 1,198.741s、exit 0、無 timeout。原 managed-sandbox 失敗仍是驗證歷史的一部分；sandbox 外完整綠燈補足當時候選的完整 Core 證據，但不把原失敗重寫成成功。
 
 這不是 production-ready 或 release-ready 宣告。正式同步開關維持停用；沒有啟動 App 宿主、連線正式 CloudKit、存取 Keychain／使用者資料、簽章、安裝、archive／export、push、upload 或送審。
 
 ## 驗證候選身分
+
+最終完成驗證的不可變 source/test candidate：
+
+- Commit：`c7465f8b5282e07852afe6840a7d284c705f83ba`
+- 完整 tree：`180dc06674cff1a046858134de193c45d1182b76`
+- Sources tree：`63816e450467e084e2d84f2ba32186665366f5c2`
+- KnitNote/CloudSync tree：`7f395352e5142f8d635af03e7a2c45106986dee2`
+- Tests tree：`b1ced31e4eccb79e5dc015ea8a787e18e90f2933`
+- Core tests tree：`d62f04a04b0fc25bd143ce2437a15555a15e5ade`
+- App tests tree：`be2966e3af827dcfeefb26fa595f7f57fd69d926`
+
+完整 Core 使用 final-fix covering run 從上述同一來源／測試編譯的 binary，`--skip-build` 執行期間沒有重新編譯。驗證期間 source/tests 未變更。此次收尾只提交本報告；後續 docs-only HEAD 雖有不同完整 tree，source/test candidate 仍是上述 `c7465f8`，不需要把報告 commit 誤稱為另一個已重測 binary。
+
+歷史 Task 6／review fix round 1 的獨立身分：
 
 - Task 6 開始 HEAD／production source commit：cf0dd9da5081e6c3922011a4d56dee6e071fccb2
 - 該 commit 的完整 tree：5012c6015a7df014b609036e4ab626c319585a18
@@ -39,7 +55,7 @@ Controller 核准的 sandbox 外完整 Core 已在未改動候選上通過：2,3
 
 這些測試沒有複製 Tasks 1–5 的每個故障案例；它們聚焦多個已審契約同時存在時的真實狀態交互與精確 authority 保留。
 
-## 測試與建置證據
+## 歷史 Task 6 測試與建置證據
 
 | 項目 | 結果 | 證據 |
 | --- | --- | --- |
@@ -109,11 +125,11 @@ env CLANG_MODULE_CACHE_PATH=/tmp/daily-canonical-clang-cache /usr/bin/arch -arm6
 
 第一次 full 由 /tmp/task4-run-bounded.py 1800 包住完整 Core 命令。工具逾時時只對自己的 subprocess process group 送 TERM，10 秒後才送 KILL，並以 124 結束；本次沒有 timeout。第 22 項裁決核准的 sandbox 外 full 另加 --skip-build，其餘參數與 1,800 秒邊界不變。
 
-## 完整來源 diff self-review
+## 歷史 Task 6 完整來源 diff self-review
 
 實作基準 144a1dc 到 production source cf0dd9d 的差異涵蓋 24 個 source/project/test files（4,089 insertions、375 deletions）。Task 6 對照已核准規格 §§1–9 與 Tasks 1–5 審閱報告：partial raw batch 在完整 canonical authority 上重合併；帳號／前驅／journal／Watch／attachment 證據的最終檢查與同步寫入邊界均存在；batch identity 綁定內容 hash；format-6 保留完整恢復證據；4,096 Core receipts 容量、100,000,000-byte authority/file 上限、incoming 128 unresolved proofs／16 MiB 上限及耐久 ACK retirement 均有測試；未支援 server-record-changed adapter 明確失敗並保留 FIFO。
 
-本輪 scoped self-review 沒有找到需要 Task 6 production source 修正的 Critical／Important 問題。這不取代 controller 之後從 144a1dc 到最終 HEAD 的獨立 task review 與 Astra whole-plan review。
+當時 scoped self-review 沒有找到需要 Task 6 production source 修正的 Critical／Important 問題。其後從 144a1dc 進行的 Astra whole-plan review 找到下段所述 attachment overlay 問題；自查未取代該獨立審查，最終已完成修正及 scoped re-review。
 
 ## 最終 whole-plan review 修正快照
 
@@ -156,7 +172,42 @@ set -o pipefail
 env CLANG_MODULE_CACHE_PATH=/tmp/daily-canonical-clang-cache /usr/bin/arch -arm64 /usr/bin/swift test --disable-sandbox --no-parallel --cache-path /tmp/task6-harness-cache --config-path /tmp/task6-harness-config --security-path /tmp/task6-harness-security --filter 'RemoteBatchCommitterIntegrationTests|KnitNoteCloudSyncCoordinatorTests|CloudSyncEngineTransportTests|CloudAccountTransitionCoordinatorTests|CloudAssetFileStoreTests' 2>&1 | tee /tmp/remote-batch-final-fix-nohost.log
 ```
 
-Self-review 未發現新增 Critical／Important 問題；這是修正者自查，**scoped re-review 及修正候選 fresh full Core／macOS／iOS builds 仍未執行**。production activation／release gates 維持下列限制。
+Self-review 之後，獨立 scoped re-review 已確認 Important 1、Minor 2／3 全部 ADDRESSED，沒有新增 Critical／Important。Controller 接續在凍結的 `c7465f8` 候選完成下列完整驗證，關閉本階段審查與隔離驗證關卡。
+
+## 最終凍結候選完整驗證
+
+依裁決 23，由 controller 在 `c7465f8` 的同一 source/test snapshot 依序執行；全部 working directory 為 `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-device-sync-design`，在 managed sandbox 外執行。每個命令都有 1,800 秒的 owned-process-group 邊界；timeout 時 TERM、10 秒後 KILL、exit 124。本次均正常完成，沒有 timeout。macOS 僅 build-for-testing，沒有執行 App host；兩平台皆 `CODE_SIGNING_ALLOWED=NO`。
+
+| 最終候選驗證 | 結果 | 日誌 |
+| --- | --- | --- |
+| 完整 Core | exit 0；2,369 tests／174 suites；test 1,211.876s、runner 1,214.167s | /tmp/remote-batch-final-full-core.log |
+| macOS arm64 build-for-testing | exit 0；22.192s；TEST BUILD SUCCEEDED；2 個 metadata-skipped warnings | /tmp/remote-batch-final-macos-build.log |
+| generic iOS build | exit 0；17.781s；BUILD SUCCEEDED；2 個 metadata-skipped warnings | /tmp/remote-batch-final-ios-build.log |
+
+完整 Core 比原 Task 6 多 3 個測試方法，包含最終修正的 live-overlay、incomplete-evidence 與非空 legacy fixture。Full run 使用 `--skip-build`，因此沒有 compiler invocation；沒有 `warning:` 或 failed summary 不代表重做一次 compiler-warning 檢查。日誌保留 1 行 CoreGraphics PDF diagnostic、4 個 expected missing-artifact 負向檢查產生的 8 個 Traceback headers，以及 3 行 expected provenance inventory mismatch；相關負向案例均通過。macOS 的兩個 AppIntents metadata-skipped warnings 屬 App／AppTests，iOS 的兩個屬 Watch／App；兩次 build 均無 error。原 managed-full 的 82 行 compiler warning 與原平台 build warnings 仍保留於歷史段落。
+
+完整 Core 實際命令：
+
+```zsh
+set -o pipefail
+env CLANG_MODULE_CACHE_PATH=/tmp/daily-canonical-clang-cache /usr/bin/python3 /tmp/task4-run-bounded.py 1800 /usr/bin/arch -arm64 /usr/bin/swift test --skip-build --disable-sandbox --no-parallel --cache-path /tmp/task6-swift-cache --config-path /tmp/task6-swift-config --security-path /tmp/task6-swift-security > /tmp/remote-batch-final-full-core.log 2>&1
+```
+
+macOS 實際命令：
+
+```zsh
+set -o pipefail
+/usr/bin/python3 /tmp/task4-run-bounded.py 1800 /usr/bin/xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/remote-batch-derived CODE_SIGNING_ALLOWED=NO build-for-testing > /tmp/remote-batch-final-macos-build.log 2>&1
+```
+
+iOS 實際命令：
+
+```zsh
+set -o pipefail
+/usr/bin/python3 /tmp/task4-run-bounded.py 1800 /usr/bin/xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/remote-batch-ios-derived CODE_SIGNING_ALLOWED=NO build > /tmp/remote-batch-final-ios-build.log 2>&1
+```
+
+最終日誌 SHA-256：Core `386e5f36a80ab83d6fe110c9192e78dbc269852fd852fd67dcf04ad1684c3003`；macOS `df18dad4cb9c6690223e7d0dc933d6cd3eefcd150d61b77b3a38b58f809afeaa`；iOS `998bc63517cc9d5272c2347dc69f02f6a0f9edea5f32f337f7f9c4b801301761`。
 
 ## Controller 裁決、理由與返工成本
 
@@ -195,6 +246,5 @@ Self-review 未發現新增 Critical／Important 問題；這是修正者自查�
 - 全裝置驗收：iPhone、iPad、Mac、Watch、extension、真實 CloudKit 與真實程序終止／重啟不在本輪隔離測試內。
 - Pre-ACK reset receipt：ACK 前 reset 可能移除 unacknowledged envelope，留下無 durable ACK proof 的有界 Core receipt；現行設計安全 fail closed、不從 absence 偽造 proof，但可能需後續手動／重取協調。
 - Incoming lock granularity：process-wide NSLock 加 parent flock 會序列化不相關 stores；大型 inventory/media transaction latency 尚需實機量測。
-- 最終修正後的 scoped re-review、fresh full Core 與停用簽名 macOS／iOS 建置：尚待 controller 在凍結候選上完成，原 cf0dd9d 完整結果不能替代。
 
-在上述關卡全關閉、controller 完成獨立 task review 與 Astra whole-plan review，並在同一不可變候選完成真機／CloudKit 驗收前，production sync 必須維持停用。
+本階段獨立 task review、whole-plan review、最終 scoped re-review 與凍結候選隔離驗證均已完成。上述正式啟用／整合關卡及同一不可變候選的真機／CloudKit 驗收完成前，production sync 必須維持停用；沒有 merge、push、upload 或 submission，branch/worktree 與 scratch evidence 仍保留。

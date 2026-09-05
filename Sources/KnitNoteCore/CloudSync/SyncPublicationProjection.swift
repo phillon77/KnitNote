@@ -62,6 +62,8 @@ public struct SyncPublicationProjector {
     private let makeUUID: () -> UUID
     private let makeAttachmentVersionID: ((SyncAttachmentReference, SyncRegularFileRead, UUID?) -> UUID)?
     private let issueUnissuedAttachments: Bool
+    private let deletionMarkers: [DeletionMarker]
+    private let allowLinkIncarnationCreation: Bool
 
     public init(
         deviceID: String,
@@ -77,7 +79,9 @@ public struct SyncPublicationProjector {
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
         makeAttachmentVersionID: ((SyncAttachmentReference, SyncRegularFileRead, UUID?) -> UUID)? = nil,
-        issueUnissuedAttachments: Bool = false
+        issueUnissuedAttachments: Bool = false,
+        deletionMarkers: [DeletionMarker] = [],
+        allowLinkIncarnationCreation: Bool = false
     ) {
         self.deviceID = deviceID
         self.preparedWatchCommand = preparedWatchCommand
@@ -93,6 +97,8 @@ public struct SyncPublicationProjector {
         self.makeUUID = makeUUID
         self.makeAttachmentVersionID = makeAttachmentVersionID
         self.issueUnissuedAttachments = issueUnissuedAttachments
+        self.deletionMarkers = deletionMarkers
+        self.allowLinkIncarnationCreation = allowLinkIncarnationCreation
     }
 
     public func project(
@@ -109,7 +115,8 @@ public struct SyncPublicationProjector {
                 deviceID: deviceID,
                 preparedWatchCommand: preparedWatchCommand,
                 processedWatchLedger: processedWatchLedger,
-                processedWatchProofs: processedWatchProofs
+                processedWatchProofs: processedWatchProofs,
+                deletionMarkers: deletionMarkers
             ).records
         }
         let originalCache = SyncPublicationProjectionCache(
@@ -122,7 +129,9 @@ public struct SyncPublicationProjector {
             preparedWatchCommand: preparedWatchCommand,
             processedWatchLedger: processedWatchLedger,
             processedWatchProofs: processedWatchProofs,
-            reusing: originalCache
+            reusing: originalCache,
+            deletionMarkers: deletionMarkers,
+            allowLinkIncarnationCreation: allowLinkIncarnationCreation && reusing != nil
         ).records
         let attachmentProjection = try projectAttachments(
             before: before,
@@ -572,7 +581,9 @@ struct SyncCanonicalPublicationSnapshot {
         preparedWatchCommand: PreparedWatchCommand? = nil,
         processedWatchLedger: ProcessedWatchCommandLedger = .init(),
         processedWatchProofs: [SyncProcessedWatchCommandProof] = [],
-        reusing cache: SyncPublicationProjectionCache? = nil
+        reusing cache: SyncPublicationProjectionCache? = nil,
+        deletionMarkers: [DeletionMarker] = [],
+        allowLinkIncarnationCreation: Bool = true
     ) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -613,14 +624,11 @@ struct SyncCanonicalPublicationSnapshot {
             (cache?.archive.projects ?? []).flatMap(\.journalEntries).map { ($0.id, $0) })
         let previousYarns = Dictionary(uniqueKeysWithValues:
             (cache?.archive.yarns ?? []).map { ($0.id, $0) })
-        let previousLinks = Set((cache?.archive.yarns ?? []).flatMap { yarn in
-            yarn.linkedProjectIDs.map { projectID in
-                deterministicSyncUUID(
-                    kind: .projectYarnLink,
-                    components: [projectID.uuidString, yarn.id.uuidString]
-                )
-            }
-        })
+        let validatedMarkers = try deletionMarkers.map { try $0.validated() }
+        guard Set(validatedMarkers.map(\.targetID)).count == validatedMarkers.count else {
+            throw SyncDeletionLedgerError.corrupt
+        }
+        let markersByTarget = Dictionary(uniqueKeysWithValues: validatedMarkers.map { ($0.targetID, $0) })
         let previousFolders = Dictionary(uniqueKeysWithValues:
             (cache?.archive.patternFolders ?? []).map { ($0.id, $0) })
         let previousPatterns = Dictionary(uniqueKeysWithValues:
@@ -852,18 +860,35 @@ struct SyncCanonicalPublicationSnapshot {
                 )
             }
             for projectID in yarn.linkedProjectIDs {
-                let link = SyncProjectYarnLinkProjection(
-                    projectID: projectID,
-                    yarnID: yarn.id
-                )
-                let linkID = deterministicSyncUUID(
-                    kind: .projectYarnLink,
-                    components: [projectID.uuidString, yarn.id.uuidString]
-                )
-                if reuse(
-                    .init(kind: .projectYarnLink, uuid: linkID),
-                    when: previousLinks.contains(linkID)
-                ) { continue }
+                let live = (cache?.records.values.map { $0 } ?? []).filter {
+                    $0.id.kind == .projectYarnLink && $0.deletedAt.value == nil
+                        && $0.relationships.contains(.init(role: "project", target: .init(kind: .project, uuid: projectID)))
+                        && $0.relationships.contains(.init(role: "yarn", target: .init(kind: .yarn, uuid: yarn.id)))
+                }
+                guard live.count <= 1 else { throw SyncDeletionLedgerError.witnessMismatch }
+                if let current = live.first {
+                    let value = try SyncProjectYarnLinkProjection.validated(current, authority: cache?.records ?? [:])
+                    guard markersByTarget[current.id] == nil else {
+                        throw SyncDeletionLedgerError.witnessMismatch
+                    }
+                    if let prior = value.priorPurge, let known = markersByTarget[prior.targetID], known != prior {
+                        throw SyncDeletionLedgerError.witnessMismatch
+                    }
+                    records[current.id] = current
+                    continue
+                }
+                var link = SyncProjectYarnLinkProjection(projectID: projectID, yarnID: yarn.id)
+                var linkID = try link.identity()
+                var visited = Set<UUID>()
+                while let marker = markersByTarget[.init(kind: .projectYarnLink, uuid: linkID)] {
+                    // Only an explicit unlinked -> linked transition with a
+                    // current canonical cache can issue a new incarnation.
+                    guard allowLinkIncarnationCreation, cache != nil,
+                          previousYarns[yarn.id]?.linkedProjectIDs.contains(projectID) != true,
+                          visited.insert(linkID).inserted else { throw SyncPublicationError.pendingRepair }
+                    link = .init(projectID: projectID, yarnID: yarn.id, priorPurge: marker)
+                    linkID = try link.identity()
+                }
                 try add(
                     link,
                     kind: .projectYarnLink,
@@ -1017,6 +1042,52 @@ struct SyncYarnProjection: Codable, Equatable {
 struct SyncProjectYarnLinkProjection: Codable {
     let projectID: UUID
     let yarnID: UUID
+    let priorPurge: DeletionMarker?
+
+    init(projectID: UUID, yarnID: UUID, priorPurge: DeletionMarker? = nil) {
+        self.projectID = projectID; self.yarnID = yarnID; self.priorPurge = priorPurge
+    }
+
+    func identity() throws -> UUID {
+        var components = [projectID.uuidString, yarnID.uuidString]
+        if let marker = priorPurge {
+            _ = try marker.validated()
+            guard marker.targetID.kind == .projectYarnLink, marker.aggregateParentID == nil else {
+                throw SyncDeletionLedgerError.corrupt
+            }
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+            components += ["after-permanent-purge", try encoder.encode(marker).base64EncodedString()]
+        }
+        return deterministicSyncUUID(kind: .projectYarnLink, components: components)
+    }
+
+    static func validated(_ record: SyncRecord, authority: [SyncEntityID: SyncRecord]) throws -> Self {
+        guard record.id.kind == .projectYarnLink,
+              case let .data(data)? = record.payload.fields["domainSnapshot"]?.value else {
+            throw ProjectArchiveSyncMappingError.invalidDomain(record.id)
+        }
+        let value = try JSONDecoder().decode(Self.self, from: data)
+        let expected = [SyncRelationship(role: "project", target: .init(kind: .project, uuid: value.projectID)),
+            .init(role: "yarn", target: .init(kind: .yarn, uuid: value.yarnID))]
+        guard try value.identity() == record.id.uuid, record.relationships.count == 2,
+              expected.allSatisfy(record.relationships.contains) else {
+            throw ProjectArchiveSyncMappingError.invalidDomain(record.id)
+        }
+        if let marker = value.priorPurge {
+            if let known = authority[marker.id] {
+                guard try DeletionMarker(record: known) == marker else { throw SyncDeletionLedgerError.witnessMismatch }
+            }
+            if let predecessor = authority[marker.targetID] {
+                guard case let .data(bytes)? = predecessor.payload.fields["domainSnapshot"]?.value else {
+                    throw SyncDeletionLedgerError.witnessMismatch
+                }
+                let prior = try JSONDecoder().decode(Self.self, from: bytes)
+                guard prior.projectID == value.projectID, prior.yarnID == value.yarnID,
+                      try prior.identity() == predecessor.id.uuid else { throw SyncDeletionLedgerError.witnessMismatch }
+            }
+        }
+        return value
+    }
 }
 
 private func syncEntityIDIsOrderedBefore(_ lhs: SyncEntityID, _ rhs: SyncEntityID) -> Bool {

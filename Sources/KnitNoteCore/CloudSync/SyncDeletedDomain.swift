@@ -6,6 +6,13 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
     let supportingParentIDs: Set<SyncEntityID>
     let removedReminders: [UUID: [KnittingReminder]]
     let removedLegacyPatterns: [UUID: [PatternDocument]]
+    /// Only the removed owner-to-photo association, never an old owner snapshot.
+    let removedPhotoAssociations: [PhotoAssociation]?
+    struct PhotoAssociation: Codable, Equatable, Sendable {
+        let slot: SyncAttachmentSlot
+        let filename: String
+    }
+    var photoAssociations: [PhotoAssociation] { removedPhotoAssociations ?? [] }
     /// Incoming selections preserve exact deleted canonical records. This set
     /// identifies only records removed by the caller's exact deletion batch;
     /// nil is the backward-compatible local pre-deletion representation.
@@ -26,6 +33,16 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
         _ = try SyncRecordValidator().validate(current)
         var records = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
         for parent in supportingParentIDs {
+            if parent.kind == .pattern, records[parent] == nil {
+                // Legacy documents are embedded in the current owning project.
+                // Validate exact owner and slot below through the mapper too.
+                let owners = try current.filter { $0.id.kind == .project && $0.deletedAt.value == nil }.filter {
+                    guard case let .data(data)? = $0.payload.fields["domainSnapshot"]?.value else { return false }
+                    return try JSONDecoder().decode(SyncProjectProjection.self, from: data).legacyPatterns.contains { $0.id == parent.uuid }
+                }
+                guard owners.count == 1 else { throw ProjectArchiveSyncMappingError.missingParent(parent) }
+                continue
+            }
             guard records[parent]?.deletedAt.value == nil, records[parent] != nil else {
                 throw ProjectArchiveSyncMappingError.missingParent(parent)
             }
@@ -75,6 +92,35 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
             predecessors[child.versionID] = old.versionID
         }
         var projectReminderIDs: [UUID: [UUID]] = [:]
+        for association in photoAssociations {
+            let id = association.slot.owner
+            guard var record = records[id], record.deletedAt.value == nil,
+                  case let .data(data)? = record.payload.fields["domainSnapshot"]?.value,
+                  var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            if association.slot.role == "yarn-label-photo" {
+                guard var names = object["labelPhotoFilenames"] as? [String],
+                      var ids = object["labelPhotoSlotIDs"] as? [String],
+                      let slotID = UUID(uuidString: String(association.slot.slotID.dropFirst("label:".count))),
+                      !ids.compactMap(UUID.init(uuidString:)).contains(slotID),
+                      !names.contains(association.filename), names.count < 2 else {
+                    throw SyncDeletionLedgerError.witnessMismatch
+                }
+                names.append(association.filename); ids.append(slotID.uuidString)
+                object["labelPhotoFilenames"] = names; object["labelPhotoSlotIDs"] = ids
+            } else {
+                guard object["photoFilename"] == nil || object["photoFilename"] is NSNull else {
+                    throw SyncDeletionLedgerError.witnessMismatch
+                }
+                object["photoFilename"] = association.filename
+            }
+            record.payload.fields["domainSnapshot"] = .init(value: .data(try JSONSerialization.data(withJSONObject: object, options: .sortedKeys)), stamp: stamp)
+            record.entityRevision = stamp.logicalRevision
+            record.deletedAt = .init(value: nil, stamp: stamp)
+            records[id] = record
+            changed.insert(id)
+        }
         for (counterID, reminders) in removedReminders {
             let id = SyncEntityID(kind: .projectCounter, uuid: counterID)
             guard var record = records[id], record.deletedAt.value == nil,
@@ -126,12 +172,14 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
     init(rootIDs: Set<SyncEntityID>, ownedRecords: [SyncRecord],
          supportingParentIDs: Set<SyncEntityID>, removedReminders: [UUID: [KnittingReminder]],
          removedLegacyPatterns: [UUID: [PatternDocument]] = [:],
+         removedPhotoAssociations: [PhotoAssociation]? = nil,
          restorableRecordIDs: Set<SyncEntityID>? = nil) {
         self.rootIDs = rootIDs
         self.ownedRecords = ownedRecords
         self.supportingParentIDs = supportingParentIDs
         self.removedReminders = removedReminders
         self.removedLegacyPatterns = removedLegacyPatterns
+        self.removedPhotoAssociations = removedPhotoAssociations
         self.restorableRecordIDs = restorableRecordIDs
     }
 
@@ -149,6 +197,7 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
         let ownedIDs = Set(owned.map(\.id))
         var reminders: [UUID: [KnittingReminder]] = [:]
         var legacy: [UUID: [PatternDocument]] = [:]
+        var photos: [PhotoAssociation] = []
         for project in beforeArchive.projects {
             guard let current = afterArchive.projects.first(where: { $0.id == project.id }) else { continue }
             let currentReminders = Set(current.knittingReminders.map(\.id))
@@ -159,6 +208,19 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
             let currentPatterns = Set(current.patterns.map(\.id))
             let selected = project.patterns.filter { !currentPatterns.contains($0.id) }
             if !selected.isEmpty { legacy[project.id] = selected }
+            if let filename = project.photoFilename, current.photoFilename == nil {
+                photos.append(.init(slot: .init(owner: .init(kind: .project, uuid: project.id), role: "project-photo", slotID: "primary"), filename: filename))
+            }
+        }
+        for yarn in beforeArchive.yarns {
+            guard let current = afterArchive.yarns.first(where: { $0.id == yarn.id }) else { continue }
+            let owner = SyncEntityID(kind: .yarn, uuid: yarn.id)
+            if let filename = yarn.photoFilename, current.photoFilename == nil {
+                photos.append(.init(slot: .init(owner: owner, role: "yarn-photo", slotID: "primary"), filename: filename))
+            }
+            for (index, slotID) in yarn.labelPhotoSlotIDs.enumerated() where !current.labelPhotoSlotIDs.contains(slotID) {
+                photos.append(.init(slot: .init(owner: owner, role: "yarn-label-photo", slotID: "label:\(slotID.uuidString.lowercased())"), filename: yarn.labelPhotoFilenames[index]))
+            }
         }
         guard !owned.isEmpty || !reminders.isEmpty || !legacy.isEmpty else { return nil }
         let legacyIDs = Set(legacy.values.flatMap { $0 }.map { SyncEntityID(kind: .pattern, uuid: $0.id) })
@@ -174,7 +236,8 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
         roots.formUnion(reminders.keys.map { .init(kind: .projectCounter, uuid: $0) })
         roots.formUnion(legacy.values.flatMap { $0 }.map { .init(kind: .pattern, uuid: $0.id) })
         return .init(rootIDs: roots, ownedRecords: owned, supportingParentIDs: supporting,
-                     removedReminders: reminders, removedLegacyPatterns: legacy)
+                     removedReminders: reminders, removedLegacyPatterns: legacy,
+                     removedPhotoAssociations: photos.isEmpty ? nil : photos)
     }
 }
 

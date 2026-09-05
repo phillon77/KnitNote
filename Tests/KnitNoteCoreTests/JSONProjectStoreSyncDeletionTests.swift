@@ -4,6 +4,280 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct JSONProjectStoreSyncDeletionTests {
+    @Test(arguments: ["project", "yarn", "label"])
+    func independentPhotoRemovalRestoresAssociationAfterLaterEditAndReopen(kind: String) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        var archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: fixture.url))
+        if kind == "label" {
+            let filename = "\(archive.yarns[0].id.uuidString)-label-1-\(UUID().uuidString).jpg"
+            try archive.yarns[0].setLabelPhotoFilenames([filename])
+            let directory = fixture.root.appendingPathComponent("YarnLabelPhotos")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data("label bytes".utf8).write(to: directory.appendingPathComponent(filename))
+            try JSONEncoder().encode(archive).write(to: fixture.url)
+        }
+        let journal = FileSyncMutationJournal(url: fixture.root.appendingPathComponent("pending.json"))
+        let store = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        let original = try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        let yarn = try #require(store.yarns.first)
+        if kind == "project" {
+            try store.updateProject(id: project.id, name: project.name, toolType: project.toolType,
+                toolSize: project.toolSize, toolNotes: project.toolNotes, photoChange: .remove)
+        } else {
+            try store.updateYarn(yarn, photoChange: kind == "yarn" ? .remove : .unchanged,
+                labelPhotoChange: kind == "label" ? .removeAll : .unchanged)
+        }
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        let ownerID = SyncEntityID(kind: kind == "project" ? .project : .yarn,
+            uuid: kind == "project" ? project.id : yarn.id)
+        #expect(entry.exactRemovalVersions.contains { $0.record.id == ownerID })
+        #expect(throws: (any Error).self) {
+            try SyncDeletionLedger.validateRemovalVersions(entry.exactRemovalVersions.filter { $0.record.id != ownerID }, domain: entry.domain)
+        }
+        let attachmentAck = Set(entry.exactRemovalVersions.filter { $0.record.id.kind == .attachment }.map(\.versionID))
+        #expect(SyncDeletionPolicy.evaluate(now: entry.deletedAt.addingTimeInterval(2592000), records: [entry],
+            references: .init(acknowledgedRemovalVersionIDs: attachmentAck)).eligibleEntryIDs.isEmpty)
+        try store.rename(id: project.id, to: "Later name")
+        let canonical = syncRecords(Dictionary(uniqueKeysWithValues: original.records.map { ($0.id, $0) }),
+            applying: try journal.pending())
+        let reopened = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        try fixture.hydrate(reopened, records: Array(canonical.values))
+        try reopened.restoreRecentlyDeleted(id: entry.id, now: .now)
+        #expect(reopened.project(id: project.id)?.name == "Later name")
+        #expect(reopened.project(id: project.id)?.photoFilename == project.photoFilename)
+        #expect(reopened.yarn(id: yarn.id)?.photoFilename == yarn.photoFilename)
+        #expect(reopened.yarn(id: yarn.id)?.labelPhotoFilenames == yarn.labelPhotoFilenames)
+        #expect(reopened.yarn(id: yarn.id)?.labelPhotoSlotIDs == yarn.labelPhotoSlotIDs)
+        for file in entry.files {
+            #expect(try Data(contentsOf: fixture.root.appendingPathComponent(file.restoreRelativePath)) ==
+                Data(contentsOf: fixture.ledgerRoot.appendingPathComponent(file.retainedRelativePath)))
+        }
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty)
+        #expect(fixture.store().projects == reopened.projects)
+        #expect(fixture.store().yarns == reopened.yarns)
+    }
+
+    @Test(arguments: ["project", "yarn", "label"])
+    func laterPhotoAssociationRefusesRestoreWithoutChangingOwnerOrLedger(kind: String) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        let setup = JSONProjectStore(url: fixture.url)
+        if kind == "label" {
+            try setup.updateYarn(#require(setup.yarns.first), photoChange: .unchanged,
+                labelPhotoChange: .replace(first: BackupFixture.jpegData(red: 0.2), second: nil))
+        }
+        let store = fixture.store()
+        try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        let yarn = try #require(store.yarns.first)
+        func changeProject(_ change: ProjectPhotoChange) throws {
+            try store.updateProject(id: project.id, name: "Current name", toolType: project.toolType,
+                toolSize: project.toolSize, toolNotes: "Current notes", photoChange: change)
+        }
+        if kind == "project" { try changeProject(.remove) }
+        else { try store.updateYarn(yarn, photoChange: kind == "yarn" ? .remove : .unchanged,
+            labelPhotoChange: kind == "label" ? .removeAll : .unchanged) }
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        if kind == "project" { try changeProject(.replace(BackupFixture.jpegData(red: 0.6))) }
+        else { try store.updateYarn(#require(store.yarns.first),
+            photoChange: kind == "yarn" ? .replace(BackupFixture.jpegData(red: 0.6)) : .unchanged,
+            labelPhotoChange: kind == "label" ? .replace(first: BackupFixture.jpegData(red: 0.5), second: BackupFixture.jpegData(red: 0.7)) : .unchanged) }
+        let before = try Data(contentsOf: fixture.url)
+        let retained = try fixture.ledger().recentlyDeleted()
+        let ledgerBytes = try Data(contentsOf: fixture.ledgerRoot.appendingPathComponent("ledger.json"))
+        #expect(throws: (any Error).self) { try store.restoreRecentlyDeleted(id: entry.id, now: .now) }
+        #expect(try Data(contentsOf: fixture.url) == before)
+        #expect(try Data(contentsOf: fixture.ledgerRoot.appendingPathComponent("ledger.json")) == ledgerBytes)
+        #expect(try fixture.ledger().recentlyDeleted() == retained)
+        #expect(fixture.store().projects == store.projects)
+        #expect(fixture.store().yarns == store.yarns)
+    }
+
+    @Test func clearedLegacyMarkupWithMissingActualParentRetainsGroup() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        let store = fixture.store()
+        try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        let pattern = try #require(project.patterns.first)
+        let drawing = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.2, y: 0.3)], color: .red, width: 0.01)])
+        try store.savePatternMarkup(drawing, projectID: project.id, patternID: pattern.id,
+            pageIndex: 4, expectedDataGeneration: store.dataGeneration)
+        try store.savePatternMarkup(.init(), projectID: project.id, patternID: pattern.id,
+            pageIndex: 4, expectedDataGeneration: store.dataGeneration)
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        try store.deletePattern(projectID: project.id, id: pattern.id)
+        let before = try Data(contentsOf: fixture.url)
+        let retained = try fixture.ledger().recentlyDeleted()
+        #expect(throws: ProjectArchiveSyncMappingError.missingParent(.init(kind: .pattern, uuid: pattern.id))) {
+            try store.restoreRecentlyDeleted(id: entry.id, now: .now)
+        }
+        #expect(try Data(contentsOf: fixture.url) == before)
+        #expect(try fixture.ledger().recentlyDeleted() == retained)
+    }
+
+    @Test(arguments: ["legacy", "usage"], ["clear-new", "delete-new", "clear-existing", "delete-existing"])
+    func actualMarkupProducerRestoresClearedOrDeletedProjectContent(kind: String, operation: String) throws {
+        let deleteProject = operation.hasPrefix("delete")
+        let page = operation.hasSuffix("existing") ? (kind == "legacy" ? 0 : 2) : 4
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        if kind == "legacy" { try fixture.installCompleteArchive() }
+        else {
+            _ = try BackupFixture.writePatternLibraryArchive(to: fixture.root)
+            let setup = JSONProjectStore(url: fixture.url)
+            _ = try setup.linkPattern(patternID: #require(setup.patterns.first?.id), to: #require(setup.projects.first?.id))
+        }
+        let journal = FileSyncMutationJournal(url: fixture.root.appendingPathComponent("pending.json"))
+        let store = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        let original = try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        let owner = try kind == "legacy" ? #require(project.patterns.first?.id) : #require(store.patternUsages.first?.id)
+        let drawing = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.2, y: 0.3)], color: .red, width: 0.01)])
+        func save(_ value: PatternMarkupDocument) throws {
+            if kind == "legacy" {
+                try store.savePatternMarkup(value, projectID: project.id, patternID: owner,
+                    pageIndex: page, expectedDataGeneration: store.dataGeneration)
+            } else {
+                try store.savePatternMarkup(value, usageID: owner, pageIndex: page, expectedDataGeneration: store.dataGeneration)
+            }
+        }
+        try save(drawing)
+        try store.rename(id: project.id, to: "Later markup owner")
+        if deleteProject { try store.delete(id: project.id) } else { try save(.init()) }
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        let role = operation.hasSuffix("existing")
+            ? (kind == "legacy" ? "legacy-pattern-markup" : "pattern-markup")
+            : (kind == "legacy" ? "legacy-markup" : "usage-markup")
+        #expect(entry.domain.ownedRecords.contains { $0.payload.attachment?.slot.role == role })
+        let canonical = syncRecords(Dictionary(uniqueKeysWithValues: original.records.map { ($0.id, $0) }),
+            applying: try journal.pending())
+        let reopened = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        try fixture.hydrate(reopened, records: Array(canonical.values))
+        try reopened.restoreRecentlyDeleted(id: entry.id, now: .now)
+        let restored = try kind == "legacy"
+            ? reopened.loadPatternMarkup(projectID: project.id, patternID: owner, pageIndex: page)
+            : reopened.loadPatternMarkup(usageID: owner, pageIndex: page)
+        #expect(restored == drawing)
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty)
+    }
+
+    @Test func explicitRelinkAfterPurgeUsesNewDurableIdentityAndRejectsOldReplay() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        let journal = FileSyncMutationJournal(url: fixture.root.appendingPathComponent("pending.json"))
+        let store = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        let original = try fixture.hydrate(store)
+        let old = try #require(original.records.first { $0.id.kind == .projectYarnLink })
+        try store.setProjectYarns(projectID: fixture.projectID, yarnIDs: [])
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        let ack = Set(entry.exactRemovalVersions.map(\.versionID))
+        try journal.acknowledge(Set(try journal.pending().map(\.identity)))
+        try store.purgeRecentlyDeleted(now: entry.deletedAt.addingTimeInterval(2592000), acknowledgedVersions: ack) {
+            .init(acknowledgedRemovalVersionIDs: ack)
+        }
+        let markers = try fixture.ledger().deletionMarkers()
+        let unlinkedBytes = try Data(contentsOf: fixture.url)
+        let cold = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        #expect(throws: (any Error).self) {
+            try cold.setProjectYarns(projectID: fixture.projectID, yarnIDs: [fixture.yarnID])
+        }
+        #expect(try Data(contentsOf: fixture.url) == unlinkedBytes)
+        try store.setProjectYarns(projectID: fixture.projectID, yarnIDs: [fixture.yarnID])
+        let fresh = try #require(journal.pending().compactMap { $0.savedRecordVersion?.record }
+            .first { $0.id.kind == .projectYarnLink && $0.deletedAt.value == nil })
+        #expect(fresh.id != old.id)
+        let current = original.records.filter { $0.id != old.id } + [fresh]
+        _ = try SyncMergeEngine().merge(local: current, remote: [SyncRecord](), pendingLocal: [], deletionMarkers: markers)
+        #expect(throws: (any Error).self) {
+            try SyncMergeEngine().merge(local: current, remote: [old], pendingLocal: [], deletionMarkers: markers)
+        }
+        let reopened = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        try fixture.hydrate(reopened, records: current)
+        try journal.acknowledge(Set(try journal.pending().map(\.identity)))
+        try reopened.rename(id: fixture.projectID, to: "Later project")
+        #expect(try journal.pending().allSatisfy { $0.recordID.kind != .projectYarnLink })
+        #expect(reopened.yarn(id: fixture.yarnID)?.linkedProjectIDs == [fixture.projectID])
+        #expect(try fixture.ledger().deletionMarkers() == markers)
+        try reopened.setProjectYarns(projectID: fixture.projectID, yarnIDs: [])
+        let second = try #require(fixture.ledger().recentlyDeleted().first)
+        let secondAck = Set(second.exactRemovalVersions.map(\.versionID))
+        try journal.acknowledge(Set(try journal.pending().map(\.identity)))
+        try reopened.purgeRecentlyDeleted(now: second.deletedAt.addingTimeInterval(2592000), acknowledgedVersions: secondAck) {
+            .init(acknowledgedRemovalVersionIDs: secondAck)
+        }
+        let secondMarkers = try fixture.ledger().deletionMarkers()
+        #expect(secondMarkers.count == 2)
+        try reopened.setProjectYarns(projectID: fixture.projectID, yarnIDs: [fixture.yarnID])
+        let third = try #require(journal.pending().compactMap { $0.savedRecordVersion?.record }.first { $0.id.kind == .projectYarnLink })
+        #expect(third.id != old.id && third.id != fresh.id)
+        _ = try SyncMergeEngine().merge(local: [third], remote: [SyncRecord](), pendingLocal: [], deletionMarkers: secondMarkers)
+        #expect(throws: (any Error).self) {
+            try SyncMergeEngine().merge(local: [third], remote: [fresh], pendingLocal: [], deletionMarkers: secondMarkers)
+        }
+        let linked = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: fixture.url))
+        var unlinked = linked
+        unlinked.yarns[0].setLinkedProjectIDs([])
+        let parents = original.records.filter { $0.id.kind != .projectYarnLink }
+        let cache = SyncPublicationProjectionCache(archive: unlinked, records: Dictionary(uniqueKeysWithValues: parents.map { ($0.id, $0) }))
+        let independent = try SyncCanonicalPublicationSnapshot(archive: linked, deviceID: "independent-device",
+            reusing: cache, deletionMarkers: secondMarkers)
+        #expect(independent.records.values.filter { $0.id.kind == .projectYarnLink }.map(\.id) == [third.id])
+        #expect(throws: (any Error).self) {
+            try SyncCanonicalPublicationSnapshot(archive: linked, deviceID: "cold-start", deletionMarkers: secondMarkers)
+        }
+        let thirdCanonical = parents + [third]
+        _ = try ProjectArchiveSyncMapper.materialize(records: thirdCanonical, attachments: [:], baseArchive: linked)
+        var malformed = third
+        malformed.relationships = fresh.relationships.filter { $0.role != "yarn" }
+        #expect(throws: (any Error).self) {
+            try ProjectArchiveSyncMapper.materialize(records: parents + [malformed], attachments: [:], baseArchive: linked)
+        }
+        let priorMarker = try #require(secondMarkers.first { $0.targetID == fresh.id })
+        let conflictingMarker = DeletionMarker(targetID: priorMarker.targetID,
+            removalStamp: priorMarker.removalStamp, removalVersionID: UUID())
+        #expect(throws: (any Error).self) {
+            try ProjectArchiveSyncMapper.materialize(records: thirdCanonical + [conflictingMarker.record()],
+                attachments: [:], baseArchive: linked)
+        }
+    }
+
+    @Test func ambiguousExistingMarkupAliasesRefuseProducerBeforeChangingBytes() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        let store = fixture.store()
+        let package = try fixture.hydrate(store)
+        let original = try #require(package.records.first { $0.payload.attachment?.slot.role == "legacy-pattern-markup" })
+        let old = try #require(original.payload.attachment)
+        let version = try SyncAttachmentVersion.issuing(slot: .init(owner: old.slot.owner, role: "legacy-markup", slotID: old.slot.slotID),
+            contentSHA256: old.contentSHA256, byteCount: old.byteCount, mediaType: old.mediaType, displayFilename: old.displayFilename)
+        var payload = original.payload
+        payload.attachment = version
+        payload.fields["role"] = .init(value: .string("legacy-markup"), stamp: original.deletedAt.stamp)
+        let alias = SyncRecord(schemaVersion: original.schemaVersion, id: .init(kind: .attachment, uuid: version.versionID),
+            createdAt: original.createdAt, entityRevision: original.entityRevision, payload: payload,
+            relationships: original.relationships, deletedAt: original.deletedAt)
+        try fixture.hydrate(store, records: package.records + [alias])
+        let project = try #require(store.projects.first)
+        let pattern = try #require(project.patterns.first)
+        let before = try store.loadPatternMarkup(projectID: project.id, patternID: pattern.id, pageIndex: 0)
+        let archiveBytes = try Data(contentsOf: fixture.url)
+        let drawing = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.2, y: 0.3)], color: .red, width: 0.01)])
+        #expect(throws: SyncPublicationError.pendingRepair) {
+            try store.savePatternMarkup(drawing, projectID: project.id, patternID: pattern.id,
+                pageIndex: 0, expectedDataGeneration: store.dataGeneration)
+        }
+        #expect(try store.loadPatternMarkup(projectID: project.id, patternID: pattern.id, pageIndex: 0) == before)
+        #expect(try Data(contentsOf: fixture.url) == archiveBytes)
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty)
+    }
+
     @Test(arguments: ["reminder", "legacy"], ["none", "existing", "explicit"])
     func pendingParentRetainsEmbeddedRemovalWhileLiveParentAloneAllowsPurge(kind: String, protection: String) throws {
         let fixture = try DeletionStoreFixture()

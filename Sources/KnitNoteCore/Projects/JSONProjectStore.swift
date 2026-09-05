@@ -4808,22 +4808,16 @@ final class PatternLibraryDeletionTransaction {
         case .missing: originalPageData = nil
         case let .bytes(data): originalPageData = data
         }
+        let markupSlot = try canonicalMarkupSlot(owner: .init(kind: .patternUsage, uuid: usageID),
+            preferredRole: "usage-markup", compatibleRole: "pattern-markup", slotID: "page:\(page)")
         let mutation = try syncAttachmentMutation(
-            owner: .init(kind: .patternUsage, uuid: usageID),
-            role: "usage-markup",
-            slotID: "page:\(page)",
+            owner: markupSlot.owner,
+            role: markupSlot.role,
+            slotID: markupSlot.slotID,
             originalData: originalPageData,
             committedData: encodedPage,
-            replacesVersion: syncAttachmentPublicationEvidence.version(for: .init(
-                owner: .init(kind: .patternUsage, uuid: usageID),
-                role: "usage-markup",
-                slotID: "page:\(page)"
-            )),
-            replacesRecord: syncAttachmentPublicationEvidence.record(for: .init(
-                owner: .init(kind: .patternUsage, uuid: usageID),
-                role: "usage-markup",
-                slotID: "page:\(page)"
-            )),
+            replacesVersion: syncAttachmentPublicationEvidence.version(for: markupSlot),
+            replacesRecord: syncAttachmentPublicationEvidence.record(for: markupSlot),
             sourceURL: pageURL,
             mediaType: "application/json",
             displayFilename: "\(page).json",
@@ -4979,22 +4973,17 @@ final class PatternLibraryDeletionTransaction {
         case .missing: originalPageData = nil
         case let .bytes(data): originalPageData = data
         }
+        let markupSlot = try canonicalMarkupSlot(owner: .init(kind: .pattern, uuid: patternID),
+            preferredRole: "legacy-markup", compatibleRole: "legacy-pattern-markup",
+            slotID: "project:\(projectID.uuidString)/page:\(page)")
         let mutation = try syncAttachmentMutation(
-            owner: .init(kind: .pattern, uuid: patternID),
-            role: "legacy-markup",
-            slotID: "project:\(projectID.uuidString)/page:\(page)",
+            owner: markupSlot.owner,
+            role: markupSlot.role,
+            slotID: markupSlot.slotID,
             originalData: originalPageData,
             committedData: encodedPage,
-            replacesVersion: syncAttachmentPublicationEvidence.version(for: .init(
-                owner: .init(kind: .pattern, uuid: patternID),
-                role: "legacy-markup",
-                slotID: "project:\(projectID.uuidString)/page:\(page)"
-            )),
-            replacesRecord: syncAttachmentPublicationEvidence.record(for: .init(
-                owner: .init(kind: .pattern, uuid: patternID),
-                role: "legacy-markup",
-                slotID: "project:\(projectID.uuidString)/page:\(page)"
-            )),
+            replacesVersion: syncAttachmentPublicationEvidence.version(for: markupSlot),
+            replacesRecord: syncAttachmentPublicationEvidence.record(for: markupSlot),
             sourceURL: pageURL,
             mediaType: "application/json",
             displayFilename: "\(page).json",
@@ -5986,7 +5975,8 @@ final class PatternLibraryDeletionTransaction {
                     archive: archive,
                     deviceID: syncPublicationDeviceID,
                     preparedWatchCommand: activePreparedWatchCommand,
-                    processedWatchLedger: activeProcessedWatchLedger
+                    processedWatchLedger: activeProcessedWatchLedger,
+                    deletionMarkers: try deletionLedger().deletionMarkers()
                 ).records
             )
         }
@@ -6014,7 +6004,9 @@ final class PatternLibraryDeletionTransaction {
             },
             issuedAttachmentVersions: syncAttachmentPublicationEvidence.versionsBySlot(),
             issuedAttachmentRecords: syncAttachmentPublicationEvidence.recordsBySlot(),
-            deletedAttachmentVersionIDs: syncAttachmentPublicationEvidence.deletedVersionIDSet
+            deletedAttachmentVersionIDs: syncAttachmentPublicationEvidence.deletedVersionIDSet,
+            deletionMarkers: try deletionLedger().deletionMarkers(),
+            allowLinkIncarnationCreation: syncBootstrapHydrated
         ).project(
             before: syncProjectionCache?.archive ?? archive,
             after: archive,
@@ -6147,6 +6139,12 @@ final class PatternLibraryDeletionTransaction {
             )
             let publicationProjection: SyncPublicationProjection?
             if isSyncPublicationEnabled {
+                // Explicit artifact mutations own their slots and commit bytes
+                // after projection. Do not cache or republish the pre-write
+                // bytes as that slot's current immutable version.
+                let explicitSlots = Set(additionalSyncMutations.compactMap {
+                    $0.savedRecordVersion?.record.payload.attachment.map { deletionReferenceSlot($0.slot) }
+                })
                 publicationProjection = try SyncPublicationProjector(
                     deviceID: syncPublicationDeviceID,
                     preparedWatchCommand: activePreparedWatchCommand,
@@ -6154,18 +6152,20 @@ final class PatternLibraryDeletionTransaction {
                     processedWatchProofs: syncAttachmentPublicationEvidence.watchCommandProofs,
                     reusing: syncProjectionCache,
                     attachmentReferences: { archive in
-                        try self.syncArchiveAttachmentReferences(in: archive)
+                        try self.syncArchiveAttachmentReferences(in: archive).filter { !explicitSlots.contains(self.deletionReferenceSlot($0.slot)) }
                     },
                     issuedAttachmentVersions: syncAttachmentPublicationEvidence
                         .versionsBySlot(),
                     issuedAttachmentRecords: syncAttachmentPublicationEvidence
                         .recordsBySlot(),
                     deletedAttachmentVersionIDs: syncAttachmentPublicationEvidence
-                        .deletedVersionIDSet
+                        .deletedVersionIDSet,
+                    deletionMarkers: try deletionLedger().deletionMarkers(),
+                    allowLinkIncarnationCreation: syncBootstrapHydrated
                 ).project(
                     before: originalArchive,
                     after: committedArchive,
-                    manifest: syncAttachmentManifest
+                    manifest: syncAttachmentManifest.filter { !explicitSlots.contains(deletionReferenceSlot($0.value.slot)) }
                 )
             } else {
                 publicationProjection = nil
@@ -6659,9 +6659,21 @@ final class PatternLibraryDeletionTransaction {
         let id = try deletionLedger().stage(domain: domain, attachments: sources,
             restoreRelativePaths: paths, deletedAt: .now)
         let removalIDs = Set(domain.ownedRecords.filter { $0.deletedAt.value == nil }.map(\.id))
+            .union(domain.photoAssociations.map { $0.slot.owner })
             .union(domain.removedReminders.keys.map { .init(kind: .projectCounter, uuid: $0) })
             .union(domain.removedLegacyPatterns.keys.map { .init(kind: .project, uuid: $0) })
         return (id, Data(SHA256.hash(data: bytes)), removalIDs)
+    }
+
+    private func canonicalMarkupSlot(owner: SyncEntityID, preferredRole: String,
+        compatibleRole: String, slotID: String) throws -> SyncAttachmentSlot {
+        let slots = Set(syncAttachmentPublicationEvidence.versions.map(\.slot).filter {
+            $0.owner == owner && $0.slotID == slotID && [preferredRole, compatibleRole].contains($0.role)
+        })
+        // Existing parallel aliases are ambiguous histories. Never rewrite
+        // immutable roles or guess which one supersedes the other.
+        guard slots.count <= 1 else { throw SyncPublicationError.pendingRepair }
+        return slots.first ?? .init(owner: owner, role: preferredRole, slotID: slotID)
     }
 
     private func deletionReferenceSlot(_ slot: SyncAttachmentSlot) -> SyncAttachmentSlot {

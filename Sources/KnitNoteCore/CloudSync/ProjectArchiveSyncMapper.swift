@@ -260,13 +260,14 @@ public enum ProjectArchiveSyncMapper {
             let projection = try decode(SyncYarnProjection.self, record: record)
             guard projection.id == record.id.uuid else { throw ProjectArchiveSyncMappingError.invalidDomain(record.id) }
             let links = try live.filter { $0.id.kind == .projectYarnLink && parent($0, "yarn") == record.id }.map { link -> UUID in
-                let value = try decode(SyncProjectYarnLinkProjection.self, record: link)
-                guard value.yarnID == projection.id, parent(link, "project")?.uuid == value.projectID,
-                      link.id.uuid == deterministicSyncUUID(kind: .projectYarnLink, components: [value.projectID.uuidString, value.yarnID.uuidString]) else {
+                let value = try SyncProjectYarnLinkProjection.validated(link,
+                    authority: Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) }))
+                guard value.yarnID == projection.id, parent(link, "project")?.uuid == value.projectID else {
                     throw ProjectArchiveSyncMappingError.invalidDomain(link.id)
                 }
                 return value.projectID
             }
+            guard Set(links).count == links.count else { throw ProjectArchiveSyncMappingError.invalidDomain(record.id) }
             var object = try dictionary(projection)
             object["linkedProjectIDs"] = try jsonValue(links)
             // Link-only edits intentionally do not republish yarn metadata.
@@ -443,11 +444,11 @@ public enum ProjectArchiveSyncMapper {
                   asset.sha256.lowercased() == version.contentSHA256.map({ String(format: "%02x", $0) }).joined() else { throw ProjectArchiveSyncMappingError.unsafePath }
             try require(asset.storedFilename, "source")
             return try assetPath(asset)
-        case "pattern-markup":
+        case "pattern-markup", "usage-markup":
             guard archive.patternUsages.contains(where: { $0.id == owner }), let page = pageIndex(slot.slotID, prefix: "page:") else { throw ProjectArchiveSyncMappingError.unsafePath }
             try require("\(page).json", "page:\(page)")
             return "Patterns/UsageMarkup/\(owner.uuidString)/\(name)"
-        case "legacy-pattern-source", "legacy-pattern-markup":
+        case "legacy-pattern-source", "legacy-pattern-markup", "legacy-markup":
             let matches = archive.projects.filter { $0.patterns.contains(where: { $0.id == owner }) }
             guard matches.count == 1, let project = matches.first,
                   let pattern = project.patterns.first(where: { $0.id == owner }) else { throw ProjectArchiveSyncMappingError.unsafePath }

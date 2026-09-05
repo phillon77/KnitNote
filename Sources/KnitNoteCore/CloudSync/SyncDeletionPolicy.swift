@@ -139,7 +139,8 @@ public enum SyncDeletionPolicy {
                   now >= retentionDeadline(deletedAt: entry.deletedAt),
                   let candidates = try? markerCandidates(entry),
                   !candidates.isEmpty,
-                  Set(candidates.map(\.removalVersionID)).isSubset(of: references.acknowledgedRemovalVersionIDs),
+                  Set(candidates.map(\.removalVersionID)).union(entry.exactRemovalVersions.map(\.versionID))
+                    .isSubset(of: references.acknowledgedRemovalVersionIDs),
                   Set(candidates.map(\.targetID)).isDisjoint(with: protectedTargets),
                   Set(candidates.compactMap(\.aggregateParentID))
                     .union(entry.exactRemovalVersions.map { $0.record.id }).isDisjoint(with: pendingOrExternal),

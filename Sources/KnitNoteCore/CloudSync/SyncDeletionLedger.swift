@@ -254,6 +254,7 @@ struct SyncDeletionLedger {
             let merged = try SyncMergeEngine().merge(local: old, remote: domain.ownedRecords, pendingLocal: [])
             let selectedIDs = prior.domain.selectedLiveIDs.union(domain.selectedLiveIDs)
             guard prior.domain.removedReminders == domain.removedReminders,
+                  prior.domain.photoAssociations == domain.photoAssociations,
                   prior.domain.removedLegacyPatterns == domain.removedLegacyPatterns else {
                 // Embedded values have no standalone merge authority. Their
                 // caller must supply an identical selected removal set.
@@ -262,6 +263,7 @@ struct SyncDeletionLedger {
             selected = .init(rootIDs: domain.rootIDs, ownedRecords: merged.records,
                 supportingParentIDs: prior.domain.supportingParentIDs.union(domain.supportingParentIDs),
                 removedReminders: domain.removedReminders, removedLegacyPatterns: domain.removedLegacyPatterns,
+                removedPhotoAssociations: domain.removedPhotoAssociations,
                 restorableRecordIDs: selectedIDs)
             let mergedProofs = try SyncMergeEngine().merge(local: prior.exactRemovalVersions.map(\.record),
                 remote: exactRemovalVersions.map(\.record), pendingLocal: [])
@@ -441,6 +443,7 @@ struct SyncDeletionLedger {
         let projects = Set(saved.filter { counters.contains($0.id) }.flatMap(\.relationships)
             .filter { $0.role == "project" }.map(\.target))
         let structural = domain.selectedLiveIDs.filter { $0.kind != .attachment }.union(counters)
+            .union(domain.photoAssociations.map { $0.slot.owner })
             .union(projects).union(domain.removedLegacyPatterns.keys.map { .init(kind: .project, uuid: $0) })
         guard Set(saved.filter { $0.id.kind != .attachment }.map(\.id)) == structural else {
             throw SyncDeletionLedgerError.witnessMismatch
@@ -462,6 +465,12 @@ struct SyncDeletionLedger {
             guard let record = saved.first(where: { $0.id == .init(kind: .projectCounter, uuid: id) }),
                   case let .projectCounter(state)? = record.payload.atomicDomain?.value,
                   reminders.allSatisfy({ state.reminders.contains($0) }) else { throw SyncDeletionLedgerError.witnessMismatch }
+        }
+        for association in domain.photoAssociations {
+            guard let record = saved.first(where: { $0.id == association.slot.owner }),
+                  try Self.photoAssociation(association, isPresentIn: record) else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
         }
     }
 
@@ -668,6 +677,7 @@ struct SyncDeletionLedger {
             domain.selectedLiveIDs.contains($0.id)
         }.map { ($0.id, $0) })
         let expected = Set(owned.keys)
+            .union(domain.photoAssociations.map { $0.slot.owner })
             .union(domain.removedReminders.keys.map { .init(kind: .projectCounter, uuid: $0) })
             .union(domain.removedLegacyPatterns.keys.map { .init(kind: .project, uuid: $0) })
         guard Set(versions.map { $0.record.id }) == expected, versions.count == expected.count else {
@@ -675,6 +685,12 @@ struct SyncDeletionLedger {
         }
         for version in versions {
             let record = try version.validated().record
+            for association in domain.photoAssociations where association.slot.owner == record.id {
+                guard record.deletedAt.value == nil,
+                      try !Self.photoAssociation(association, isPresentIn: record, requireVacant: true) else {
+                    throw SyncDeletionLedgerError.witnessMismatch
+                }
+            }
             if let original = owned[record.id] {
                 if domain.restorableRecordIDs != nil {
                     guard record == original, record.deletedAt.value != nil else {
@@ -711,12 +727,58 @@ struct SyncDeletionLedger {
                       Set(project.legacyPatterns.map(\.id)).isDisjoint(with: patterns.map(\.id)) else {
                     throw SyncDeletionLedgerError.witnessMismatch
                 }
-            } else { throw SyncDeletionLedgerError.witnessMismatch }
+            } else if !domain.photoAssociations.contains(where: { $0.slot.owner == record.id }) {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+        }
+    }
+
+    private static func photoAssociation(_ association: SyncDeletedDomain.PhotoAssociation,
+        isPresentIn record: SyncRecord, requireVacant: Bool = false) throws -> Bool {
+        guard case let .data(data)? = record.payload.fields["domainSnapshot"]?.value else {
+            throw SyncDeletionLedgerError.witnessMismatch
+        }
+        if record.id.kind == .project {
+            let owner = try JSONDecoder().decode(SyncProjectProjection.self, from: data)
+            guard owner.id == record.id.uuid, !requireVacant || owner.photoFilename == nil else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            return owner.photoFilename == association.filename
+        }
+        let owner = try JSONDecoder().decode(SyncYarnProjection.self, from: data)
+        guard owner.id == record.id.uuid else { throw SyncDeletionLedgerError.witnessMismatch }
+        if association.slot.role == "yarn-photo" {
+            guard !requireVacant || owner.photoFilename == nil else { throw SyncDeletionLedgerError.witnessMismatch }
+            return owner.photoFilename == association.filename
+        }
+        let id = UUID(uuidString: String(association.slot.slotID.dropFirst("label:".count)))
+        if requireVacant {
+            guard !owner.labelPhotoFilenames.contains(association.filename),
+                  !owner.labelPhotoSlotIDs.contains(where: { $0 == id }) else { throw SyncDeletionLedgerError.witnessMismatch }
+        }
+        return zip(owner.labelPhotoFilenames, owner.labelPhotoSlotIDs).contains {
+            $0 == association.filename && $1 == id
         }
     }
 
     static func validateDomain(_ domain: SyncDeletedDomain) throws {
         _ = try SyncRecordValidator().validate(domain.ownedRecords)
+        var slots = Set<SyncAttachmentSlot>()
+        for association in domain.photoAssociations {
+            let slot = association.slot
+            guard slots.insert(slot).inserted,
+                  domain.supportingParentIDs.contains(slot.owner),
+                  association.filename == URL(fileURLWithPath: association.filename).lastPathComponent,
+                  Self.safePath(association.filename),
+                  (slot.role == "project-photo" && slot.owner.kind == .project && slot.slotID == "primary")
+                    || (slot.role == "yarn-photo" && slot.owner.kind == .yarn && slot.slotID == "primary")
+                    || (slot.role == "yarn-label-photo" && slot.owner.kind == .yarn
+                        && slot.slotID.hasPrefix("label:") && UUID(uuidString: String(slot.slotID.dropFirst(6))) != nil),
+                  domain.ownedRecords.contains(where: {
+                      domain.selectedLiveIDs.contains($0.id) && $0.payload.attachment?.slot == slot
+                        && $0.payload.attachment?.displayFilename == association.filename
+                  }) else { throw SyncDeletionLedgerError.corrupt }
+        }
         var selectedReminderIDs = Set<UUID>()
         for (counterID, reminders) in domain.removedReminders {
             guard !reminders.isEmpty,

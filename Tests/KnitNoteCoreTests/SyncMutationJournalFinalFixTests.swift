@@ -5,6 +5,55 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncMutationJournalFinalFixTests {
+    @Test(arguments: [false, true])
+    func exclusivePendingRejectsMissingOrDifferentRetainedMutationProof(differentPayload: Bool) throws {
+        let fixture = try FinalFixJournalFixture()
+        let original = try projectSave(mutationID: UUID())
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        if differentPayload {
+            var alteredRecord = try #require(original.savedRecordVersion?.record)
+            let stamp = try #require(alteredRecord.payload.fields["name"]?.stamp)
+            alteredRecord.payload.fields["name"] = .init(value: .string("Different immutable payload"), stamp: stamp)
+            let altered = try SyncMutation.save(recordVersion: .init(record: alteredRecord), mutationID: original.mutationID)
+            try journal.enqueue(altered)
+            try journal.acknowledge([altered.identity])
+        }
+        let reopened = FileSyncMutationJournal(url: fixture.url)
+        try reopened.withExclusivePending { lease in
+            let pending = try lease.pending()
+            #expect(pending.isEmpty)
+            #expect(throws: SyncMutationJournalError.corrupt) {
+                _ = try lease.pending(requiringRetainedProofsFor: [original])
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func exclusivePendingAcceptsRetainedAttachmentProofAfterACKAndByteCleanup(compacted: Bool) throws {
+        let fixture = try FinalFixJournalFixture()
+        let source = fixture.directory.appendingPathComponent("source.json")
+        let bytes = Data("acknowledged immutable bytes".utf8)
+        try bytes.write(to: source)
+        let original = try attachmentSave(slot: .init(owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo", slotID: "primary"), bytes: bytes, source: source)
+        let mutations = [original] + (compacted ? try (0..<127).map { _ in try projectSave(mutationID: UUID()) } : [])
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        try journal.enqueue(mutations)
+        let predecessor = try journal.pending()
+        let staged = try #require(predecessor.first?.attachmentSource?.fileURL)
+        try journal.acknowledge(Set(mutations.map(\.identity)))
+        if compacted {
+            #expect(FileManager.default.fileExists(atPath: fixture.url.appendingPathExtension("checkpoint").path))
+        }
+        try FileManager.default.removeItem(at: source)
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
+        let reopened = FileSyncMutationJournal(url: fixture.url)
+        try reopened.withExclusivePending { lease in
+            let pending = try lease.pending(requiringRetainedProofsFor: predecessor)
+            #expect(pending.isEmpty)
+        }
+    }
+
     @Test func saveReplaceRestoreBytesRestartRetainsEachImmutableRecordAndStagedBytes() throws {
         let fixture = try FinalFixJournalFixture()
         let owner = SyncEntityID(kind: .patternUsage, uuid: UUID())

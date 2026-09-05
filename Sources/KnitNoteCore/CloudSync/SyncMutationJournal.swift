@@ -208,10 +208,10 @@ final class SyncJournalWriteLease {
     let location: URL
     private var active = true
     private let thread = pthread_self()
-    private let readPending: () throws -> [SyncMutation]
+    private let readPending: ([SyncMutation]) throws -> [SyncMutation]
     private let append: ([SyncMutation]) throws -> Void
 
-    fileprivate init(location: URL, pending: @escaping () throws -> [SyncMutation],
+    fileprivate init(location: URL, pending: @escaping ([SyncMutation]) throws -> [SyncMutation],
                      enqueue: @escaping ([SyncMutation]) throws -> Void) {
         self.location = location; readPending = pending; append = enqueue
     }
@@ -221,7 +221,13 @@ final class SyncJournalWriteLease {
             throw SyncMutationJournalError.corrupt
         }
     }
-    func pending() throws -> [SyncMutation] { try validateLifetime(); return try readPending() }
+    func pending() throws -> [SyncMutation] { try pending(requiringRetainedProofsFor: []) }
+    /// Absence from pending counts as an ACK only while the native journal
+    /// still retains the exact immutable mutation proof from the predecessor.
+    func pending(requiringRetainedProofsFor mutations: [SyncMutation]) throws -> [SyncMutation] {
+        try validateLifetime()
+        return try readPending(mutations)
+    }
     func enqueue(_ mutations: [SyncMutation]) throws { try validateLifetime(); try append(mutations) }
 }
 
@@ -823,11 +829,16 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     /// then publication/checkpoint/evidence locks. Never reenter a public journal API.
     func withExclusivePending<T>(_ body: (SyncJournalWriteLease) throws -> T) throws -> T {
         try withJournalCoordination {
-            let lease = SyncJournalWriteLease(location: url, pending: {
+            let lease = SyncJournalWriteLease(location: url, pending: { requiredMutations in
                 guard !(try self.pathExists(self.url)) else { throw SyncMutationJournalError.corrupt }
                 let state = try self.loadSegmentedStateLocked(readOnly: true)
                 guard !state.hasPartialFinalFrame, state.cleanupIntentsByMutationID.isEmpty else {
                     throw SyncMutationJournalError.corrupt
+                }
+                for mutation in requiredMutations {
+                    let expected = try Self.duplicateProof(for: mutation.validatedForJournalLoad())
+                    guard let retained = state.seenByMutationID[mutation.mutationID],
+                          Self.proofsMatch(retained, expected) else { throw SyncMutationJournalError.corrupt }
                 }
                 return state.pending
             }, enqueue: { try self.enqueueLocked($0) })

@@ -124,6 +124,54 @@ struct JSONProjectStoreRemoteBatchTests {
         #expect(try SyncPublicationTransactionFile(archiveURL: f.archiveURL).load() != nil)
     }
 
+    @Test(arguments: [false, true])
+    func recoveryRetainsIntentWhenJournalPredecessorProofsAreLost(restoreOlderEmptyJournal: Bool) throws {
+        var armed = false
+        let f = try RemoteBatchFixture { if armed && $0 == .afterIntent { throw Fault.injected } }
+        defer { f.remove() }
+        try f.acknowledgeBootstrap()
+        let metadata = f.root.appendingPathComponent("Live/SyncMetadata")
+        func journalFiles() throws -> [URL] {
+            try FileManager.default.contentsOfDirectory(at: metadata, includingPropertiesForKeys: nil)
+                .filter { $0.lastPathComponent.hasPrefix("pending.json") }
+        }
+        let olderEmpty = try Dictionary(uniqueKeysWithValues: journalFiles().map { ($0.lastPathComponent, try Data(contentsOf: $0)) })
+        try f.renameLocally("Unacknowledged local edit")
+        #expect(try f.journal.pending().count == 1)
+        let batch = try f.batch(records: [], id: UUID())
+        let p = try f.store.prepareRemoteBatch(batch, attachmentSources: [:])
+        let archive = try Data(contentsOf: f.archiveURL)
+        let checkpoint = try f.checkpoints.load()
+        armed = true
+        #expect(throws: Fault.injected) { try f.store.commitRemoteBatch(p) }
+        let intent = try SyncPublicationTransactionFile(archiveURL: f.archiveURL).load()
+        for file in try journalFiles() { try FileManager.default.removeItem(at: file) }
+        if restoreOlderEmptyJournal {
+            for (name, bytes) in olderEmpty { try bytes.write(to: metadata.appendingPathComponent(name)) }
+        }
+        #expect(try f.journal.pending().isEmpty)
+        #expect(throws: (any Error).self) { _ = try f.reopen() }
+        #expect(try Data(contentsOf: f.archiveURL) == archive)
+        #expect(try f.checkpoints.load() == checkpoint)
+        #expect(try SyncPublicationTransactionFile(archiveURL: f.archiveURL).load() == intent)
+    }
+
+    @Test func recoveryAcceptsProvenJournalACKAfterIntentWithoutReenqueuing() throws {
+        let f = try RemoteBatchFixture { if $0 == .afterIntent { throw Fault.injected } }
+        defer { f.remove() }
+        let pending = try f.journal.pending()
+        #expect(!pending.isEmpty)
+        let batch = try f.batch(records: [], id: UUID())
+        let p = try f.store.prepareRemoteBatch(batch, attachmentSources: [:])
+        #expect(throws: Fault.injected) { try f.store.commitRemoteBatch(p) }
+        try f.journal.acknowledge(Set(pending.map(\.identity)))
+        let reopened = try f.reopen()
+        let receipt = try #require(try f.checkpoints.load()?.remoteBatchReceipts.first)
+        #expect(try f.journal.pending().isEmpty)
+        #expect(try SyncPublicationTransactionFile(archiveURL: f.archiveURL).load() == nil)
+        #expect(try reopened.commitRemoteBatch(reopened.prepareRemoteBatch(batch, attachmentSources: [:])) == .alreadyCommitted(receipt))
+    }
+
     @Test func recoveryRefusesChangedWatchAuthorityAfterIntent() throws {
         let f = try RemoteBatchFixture { if $0 == .afterIntent { throw Fault.injected } }
         defer { f.remove() }

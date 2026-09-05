@@ -6140,7 +6140,7 @@ final class PatternLibraryDeletionTransaction {
                     syncCanonicalCheckpointStore = checkpointStore
                     try sink.withExclusivePending { lease in
                         guard transaction.remoteSource?.durablePlan?.journalURL == lease.location else { throw SyncRemoteBatchError.missingAuthority }
-                        try validateRemotePending(transaction, pending: lease.pending())
+                        try validateRemotePending(transaction, lease: lease)
                         try installRemoteCandidate(transaction)
                         try publish(transaction, transactionFile: file, journalLease: lease)
                     }
@@ -6501,8 +6501,9 @@ final class PatternLibraryDeletionTransaction {
         if current != plan.archive { try archiveWrite(plan.archive, url) }
     }
 
-    private func validateRemotePending(_ transaction: SyncPublicationTransaction, pending: [SyncMutation]) throws {
+    private func validateRemotePending(_ transaction: SyncPublicationTransaction, lease: SyncJournalWriteLease) throws {
         guard let plan = transaction.remoteSource?.durablePlan else { throw SyncRemoteBatchError.missingAuthority }
+        let pending = try lease.pending(requiringRetainedProofsFor: plan.pending)
         let expected = plan.pending + transaction.mutations
         var cursor = 0
         for mutation in pending {

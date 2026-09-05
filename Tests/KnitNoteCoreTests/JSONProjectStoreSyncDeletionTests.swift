@@ -84,6 +84,58 @@ import Testing
         #expect(try fixture.ledger().recentlyDeleted().map(\.id) == [activeID])
     }
 
+    @Test(arguments: [false, true]) func canceledDeletionWitnessSurvivesInterruptionBeforeMarkerReclamation(artifact: Bool) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        _ = try BackupFixture.writePatternLibraryArchive(to: fixture.root, includeLinkedYarn: true)
+        let first = fixture.store()
+        try fixture.hydrate(first)
+        let projectID = try #require(first.projects.first?.id)
+        let yarnID = try #require(first.yarns.first?.id)
+        let usageID = try #require(first.patternUsages.first?.id)
+        _ = try first.linkPattern(patternID: #require(first.patterns.first?.id), to: projectID)
+        try first.setProjectYarns(projectID: projectID, yarnIDs: [])
+        let activeID = try #require(try fixture.ledger().recentlyDeleted().first?.id)
+        let before = try Data(contentsOf: fixture.url)
+        let failing = fixture.store(writer: { _, url in
+            let marker = SyncPublicationTransactionFile(archiveURL: url)
+            try Data(contentsOf: marker.url).write(to: url.appendingPathExtension("interrupted-marker"))
+            throw DeletionInjectedFailure()
+        })
+        try fixture.hydrate(failing)
+        #expect(throws: (any Error).self) {
+            if artifact {
+                try failing.savePatternMarkup(PatternMarkupDocument(), usageID: usageID, pageIndex: 2,
+                    expectedDataGeneration: failing.dataGeneration)
+            } else { try failing.deleteYarn(id: yarnID) }
+        }
+        let canceled = try JSONDecoder().decode(SyncPublicationTransaction.self,
+            from: Data(contentsOf: fixture.url.appendingPathExtension("interrupted-marker")))
+        #expect(canceled.deletionLedgerID != nil && canceled.deletionLedgerID != activeID)
+        #expect(canceled.commitBoundary == (artifact ? .artifacts : .archive))
+        #expect(try Data(contentsOf: fixture.url) == before)
+        // Recreate exactly the crash point after durable ledger cancellation
+        // but before the original publication marker was reclaimed.
+        try SyncPublicationTransactionFile(archiveURL: fixture.url).write(canceled)
+        let reopened = fixture.store()
+        #expect(reopened.syncPublicationError == nil)
+        try reopened.repairSyncPublication()
+        #expect(try SyncPublicationTransactionFile(archiveURL: fixture.url).load() == nil)
+        #expect(try fixture.ledger().recentlyDeleted().map(\.id) == [activeID])
+        #expect(reopened.yarn(id: yarnID) != nil)
+        #expect(!(try reopened.loadPatternMarkup(usageID: usageID, pageIndex: 2)).strokes.isEmpty)
+        try reopened.rename(id: projectID, to: "Cancellation replay completed")
+        #expect(reopened.project(id: projectID)?.name == "Cancellation replay completed")
+        let unknown = try SyncPublicationTransaction(expectedArchiveSHA256: canceled.expectedArchiveSHA256,
+            mutations: canceled.mutations, commitBoundary: canceled.commitBoundary,
+            artifactEvidence: canceled.artifactEvidence, revisionReceipts: canceled.revisionReceipts,
+            candidateAttachmentManifest: canceled.candidateAttachmentManifest, deletionLedgerID: UUID())
+        #expect(throws: (any Error).self) {
+            try fixture.ledger().recover(archiveSHA256: Data(SHA256.hash(data: before)), publication: unknown,
+                publicationStatus: .uncommitted)
+        }
+    }
+
     @Test func postRenameFailureAndJournalFailureRetainUntilRepair() throws {
         for renameFailure in [false, true] {
             let fixture = try DeletionStoreFixture()
@@ -269,6 +321,8 @@ import Testing
         let fixture = try DeletionStoreFixture()
         defer { fixture.cleanUp() }
         _ = try BackupFixture.writePatternLibraryArchive(to: fixture.root)
+        let setup = JSONProjectStore(url: fixture.url)
+        _ = try setup.linkPattern(patternID: #require(setup.patterns.first?.id), to: #require(setup.projects.first?.id))
         let store = fixture.store(writer: { _, _ in throw DeletionInjectedFailure() })
         try fixture.hydrate(store)
         let usage = try #require(store.patternUsages.first)

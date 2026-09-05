@@ -25,6 +25,7 @@ struct SyncDeletionLedger {
         var entry: SyncDeletionEntry
         var binding: Binding?
         var active: Bool
+        var canceled: Bool? = nil
     }
     private struct Manifest: Codable {
         let version: Int
@@ -142,7 +143,8 @@ struct SyncDeletionLedger {
         try locked {
             var manifest = try load()
             guard let index = manifest.groups.firstIndex(where: { $0.entry.id == id }),
-                  manifest.groups[index].binding?.publicationSHA256 == publicationSHA256 else {
+                  manifest.groups[index].binding?.publicationSHA256 == publicationSHA256,
+                  manifest.groups[index].canceled != true else {
                 throw SyncDeletionLedgerError.witnessMismatch
             }
             manifest.groups[index].active = true
@@ -163,6 +165,7 @@ struct SyncDeletionLedger {
             }
             for index in manifest.groups.indices where manifest.groups[index].binding?.publicationSHA256 == witness {
                 try validatePublication(publication, group: manifest.groups[index])
+                guard manifest.groups[index].canceled != true else { throw SyncDeletionLedgerError.witnessMismatch }
                 manifest.groups[index].active = true
                 changed = true
             }
@@ -180,7 +183,8 @@ struct SyncDeletionLedger {
                 throw SyncDeletionLedgerError.witnessMismatch
             }
             var keep: [Group] = []
-            for group in manifest.groups {
+            var changed = false
+            for var group in manifest.groups {
                 if group.active {
                     if let publication,
                        publication.deletionLedgerID == group.entry.id || witness == group.binding?.publicationSHA256 {
@@ -190,6 +194,21 @@ struct SyncDeletionLedger {
                     continue
                 }
                 guard let binding = group.binding else { continue }
+                if group.canceled == true {
+                    // Keep the exact cancellation witness while its marker
+                    // can still be replayed. Absence/a different marker proves
+                    // reclamation; no attachment bytes are removed here.
+                    if witness == binding.publicationSHA256, let publication {
+                        try validatePublication(publication, group: group)
+                        guard binding.commitBoundary == .artifacts
+                            ? publicationStatus == .uncommitted
+                            : archiveSHA256 == binding.beforeArchiveSHA256 else {
+                            throw SyncDeletionLedgerError.pendingRepair
+                        }
+                        keep.append(group)
+                    }
+                    continue
+                }
                 if binding.commitBoundary == .artifacts {
                     guard let publication, witness == binding.publicationSHA256 else {
                         throw SyncDeletionLedgerError.pendingRepair
@@ -197,7 +216,10 @@ struct SyncDeletionLedger {
                     try validatePublication(publication, group: group)
                     switch publicationStatus {
                     case .committed: keep.append(group)
-                    case .uncommitted: break
+                    case .uncommitted:
+                        group.canceled = true
+                        changed = true
+                        keep.append(group)
                     default: throw SyncDeletionLedgerError.pendingRepair
                     }
                     continue
@@ -205,6 +227,11 @@ struct SyncDeletionLedger {
                 if archiveSHA256 == binding.beforeArchiveSHA256 {
                     guard witness == nil || witness == binding.publicationSHA256 else {
                         throw SyncDeletionLedgerError.witnessMismatch
+                    }
+                    if witness != nil {
+                        group.canceled = true
+                        changed = true
+                        keep.append(group)
                     }
                     continue
                 }
@@ -217,7 +244,7 @@ struct SyncDeletionLedger {
                 // Never interpret committed archive bytes as journal durability.
                 keep.append(group)
             }
-            if keep.count != manifest.groups.count {
+            if changed || keep.count != manifest.groups.count {
                 manifest.groups = keep
                 try persist(manifest)
             }
@@ -355,7 +382,8 @@ struct SyncDeletionLedger {
         for group in manifest.groups {
             try validate(group.entry.domain)
             guard group.entry.deletedAt.timeIntervalSinceReferenceDate.isFinite,
-                  !group.active || group.binding != nil else { throw SyncDeletionLedgerError.corrupt }
+                  !group.active || (group.binding != nil && group.canceled != true),
+                  group.canceled != true || group.binding != nil else { throw SyncDeletionLedgerError.corrupt }
             if let binding = group.binding {
                 guard binding.beforeArchiveSHA256.count == 32,
                       binding.afterArchiveSHA256.count == 32,

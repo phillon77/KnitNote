@@ -71,6 +71,9 @@ enum SyncBootstrapBoundary: CaseIterable {
 /// Core-only bootstrap. No CloudKit/network, account service, UI, or automatic
 /// publication. All operations run while the caller's freeze remains held.
 public final class SyncBootstrapTransaction {
+    /// Fresh account namespace shared by bootstrap and the runtime. Explicit
+    /// legacy paths remain readable by their original transaction owner only.
+    public static let defaultJournalRelativePath = "SyncMetadata/pending.json"
     private enum Phase: String, Codable { case prepared, installed, committed, rollingBack, rolledBack }
     private struct FileProof: Codable, Equatable { let bytes: Int64; let digest: Data }
     private struct Manifest: Codable {
@@ -157,7 +160,8 @@ public final class SyncBootstrapTransaction {
         }
     }
 
-    public convenience init(liveRoot: URL, context: SyncBootstrapContext, journalRelativePath: String,
+    public convenience init(liveRoot: URL, context: SyncBootstrapContext,
+        journalRelativePath: String = SyncBootstrapTransaction.defaultJournalRelativePath,
         patternFolderNameContext: PatternFolderNameContext? = nil,
         validateContext: @escaping (SyncBootstrapContext) throws -> Void) throws {
         try self.init(liveRoot: liveRoot, context: context, journalRelativePath: journalRelativePath,
@@ -245,8 +249,17 @@ public final class SyncBootstrapTransaction {
         }
         let archiveData = try Self.encode(result.archive)
         try write(archiveData, to: stage.appendingPathComponent("projects-v1.json"))
+        try retainIncomingDeletions(remote: remote.records, result: result, stage: stage,
+            sources: sources, sourceRoot: transactionDirectory,
+            counterReminderContext: counterReminderContext)
+        // Hydration validates all canonical aggregates, including the exact
+        // deleted counter state required by recently-deleted restoration.
+        let canonicalCounterStates = Dictionary(uniqueKeysWithValues: result.records.compactMap { record -> (UUID, SyncCounterReminderState)? in
+            guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
+            return (record.id.uuid, state)
+        })
         let checkpoint = SyncBootstrapCheckpoint(archiveSHA256: Self.hash(archiveData), records: result.records,
-            counterStates: result.counterStates, legacyRecordIDsToDelete: merged.legacyRecordIDsToDelete)
+            counterStates: canonicalCounterStates, legacyRecordIDsToDelete: merged.legacyRecordIDsToDelete)
         try write(Self.encode(checkpoint), to: stage.appendingPathComponent("SyncMetadata/bootstrap-canonical.json"))
         let attachmentRecords = result.records.filter { $0.id.kind == .attachment }
         let proofs = result.records.compactMap { record -> SyncProcessedWatchCommandProof? in
@@ -395,6 +408,50 @@ public final class SyncBootstrapTransaction {
             result[id] = .init(fileURL: destination, contentSHA256: source.contentSHA256, byteCount: source.byteCount, isJournalStaged: true)
         }
         return result
+    }
+
+    /// Ordinary media-free project removals have complete restore authority in
+    /// their exact project/counter cascade. Install their independent retained
+    /// domain with the staged tree; rollback restores the original ledger too.
+    /// Other incoming removals need an explicit retained-domain/media contract
+    /// and must fail before any live replacement, never silently disappear.
+    private func retainIncomingDeletions(remote: [SyncRecord], result: ProjectArchiveSyncMaterialization,
+        stage: URL, sources: [UUID: SyncAttachmentSource], sourceRoot: URL,
+        counterReminderContext: SyncCounterReminderMergeContext) throws {
+        let incomingIDs = Set(remote.filter { $0.deletedAt.value != nil }.map(\.id))
+        let deleted = result.records.filter { incomingIDs.contains($0.id) && $0.deletedAt.value != nil }
+        guard !deleted.isEmpty else { return }
+        let byID = Dictionary(uniqueKeysWithValues: result.records.map { ($0.id, $0) })
+        let liveAttachmentIDs = Set(result.files.map { $0.version.versionID })
+        let supportingSources = sources.filter { liveAttachmentIDs.contains($0.key) }
+        var covered = Set<SyncEntityID>()
+        let ledger = try SyncDeletionLedger(root: SyncDeletionLedger.root(archiveURL: stage.appendingPathComponent("projects-v1.json")))
+        for project in deleted where project.id.kind == .project {
+            guard case let .data(bytes)? = project.payload.fields["domainSnapshot"]?.value,
+                  let cascade = project.payload.deletionCascade?.value else { throw SyncDeletionLedgerError.witnessMismatch }
+            let projection = try JSONDecoder().decode(SyncProjectProjection.self, from: bytes)
+            let selected = Set(cascade).union([project.id])
+            guard projection.photoFilename == nil, projection.legacyPatterns.isEmpty,
+                  cascade.count == 6, Set(cascade).count == 6,
+                  cascade.allSatisfy({ id in
+                      id.kind == .projectCounter && byID[id]?.deletedAt.value != nil
+                          && byID[id]?.relationships.contains(.init(role: "project", target: project.id)) == true
+                  }), covered.isDisjoint(with: selected) else { throw SyncDeletionLedgerError.witnessMismatch }
+            let records = try selected.sorted { $0.uuid.uuidString < $1.uuid.uuidString }.map { id -> SyncRecord in
+                guard let record = byID[id] else { throw SyncDeletionLedgerError.witnessMismatch }
+                return record
+            }
+            let domain = SyncDeletedDomain(rootIDs: [project.id], ownedRecords: records,
+                supportingParentIDs: [], removedReminders: [:], restorableRecordIDs: selected)
+            _ = try ledger.captureIncomingDeleted(domain: domain,
+                exactRemovalVersions: records.map { try SyncRecordVersion(record: $0) },
+                attachments: [:], restoreRelativePaths: [:], deletedAt: project.deletedAt.value!,
+                currentRecords: result.records, currentArchive: result.archive,
+                supportingAttachments: supportingSources, sourceRoots: [sourceRoot],
+                counterReminderContext: counterReminderContext)
+            covered.formUnion(selected)
+        }
+        guard Set(deleted.map(\.id)).isSubset(of: covered) else { throw SyncDeletionLedgerError.witnessMismatch }
     }
 
     private func verifiedSource(_ source: SyncAttachmentSource) throws -> Data {

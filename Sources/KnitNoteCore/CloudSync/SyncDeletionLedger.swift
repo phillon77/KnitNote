@@ -370,12 +370,30 @@ struct SyncDeletionLedger {
         let revived = try selected.restoring(into: Array(authority.values), now: deletedAt, deviceID: "incoming-validation")
         var validationSources = supportingAttachments
         for (child, predecessor) in revived.restoredAttachmentPredecessors { validationSources[child] = retainedSources[predecessor] }
-        let stagedSources = try stageRestoreSources(id: stagedID, sources: validationSources)
+        // These are validation copies, not a restoration publication's stable
+        // upload sources. Keep them in this attempt's private scratch directory
+        // and retire it before activating the incoming group. Never scan or
+        // remove a historical restore-* namespace owned by another operation.
+        let validationDirectory = root.appendingPathComponent(".incoming-restoration-validation-\(UUID())")
+        var stagedSources: [UUID: SyncAttachmentSource] = [:]
+        if !validationSources.isEmpty { try createDirectory(validationDirectory) }
+        defer { if !validationSources.isEmpty { try? FileManager.default.removeItem(at: validationDirectory) } }
+        for (id, source) in validationSources {
+            let bytes = try read(source.fileURL, expected: .init(byteCount: source.byteCount, sha256: source.contentSHA256))
+            let destination = validationDirectory.appendingPathComponent(id.uuidString)
+            guard try SyncDurableFile.createNoClobber(bytes, at: destination) else { throw SyncDeletionLedgerError.corrupt }
+            stagedSources[id] = .init(fileURL: destination, contentSHA256: source.contentSHA256,
+                byteCount: source.byteCount, isJournalStaged: true)
+        }
         let materialization = try ProjectArchiveSyncMapper.materialize(records: revived.records,
             attachments: stagedSources, baseArchive: currentArchive)
         let bySlot = Dictionary(uniqueKeysWithValues: materialization.files.map { ($0.version.slot, $0.relativePath) })
         guard required.allSatisfy({ paths[$0.key] == bySlot[$0.value.slot] }) else {
             throw SyncDeletionLedgerError.witnessMismatch
+        }
+        if !validationSources.isEmpty {
+            try FileManager.default.removeItem(at: validationDirectory)
+            try SyncDurableFile.synchronizeDirectory(root)
         }
         return try locked {
             var manifest = try load()

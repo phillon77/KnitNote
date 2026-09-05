@@ -121,6 +121,8 @@ struct CloudAccountDomainInstallation {
             } else {
                 try destination.transaction.synchronizeSelectionAbsence(now: now)
             }
+            try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
+                account: new.identity, validateBootstrap: true)
             // Only after restore/verified consumption (or synchronized fresh
             // absence) may domain initialization or normal asset stores write.
             let installation = try await lifecycle.install(account: new, paths: destination.paths, journal: destination.journal)
@@ -168,7 +170,8 @@ struct CloudAccountDomainInstallation {
     private func open(_ account: CloudAccountBinding) throws -> Session {
         let storage = SyncAccountStorage(baseURL: baseURL)
         let paths = try storage.open(identity: account.identity)
-        let journal = FileSyncMutationJournal(url: paths.journal.appendingPathComponent("pending.json"))
+        try storage.validateRuntimeJournalNamespace(paths: paths, account: account.identity, validateBootstrap: false)
+        let journal = FileSyncMutationJournal(url: paths.mutationJournalURL)
         let vault = SyncRecoveryVault(directory: paths.vault, keychain: keychain)
         return Session(account: account, storage: storage, paths: paths, journal: journal,
             transaction: SyncAccountRecoveryTransaction(storage: storage, paths: paths, account: account.identity,

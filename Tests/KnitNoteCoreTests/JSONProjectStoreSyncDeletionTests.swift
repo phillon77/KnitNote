@@ -121,6 +121,67 @@ import Testing
         #expect(try fixture.ledger().recentlyDeleted() == retained)
     }
 
+    @Test(arguments: ["legacy", "usage"])
+    func runtimeNewMarkupExportsBootstrapsAndRestoresOneImmutableRole(kind: String) throws {
+        let fixture = try DeletionStoreFixture(); defer { fixture.cleanUp() }
+        if kind == "legacy" { try fixture.installCompleteArchive() }
+        else {
+            _ = try BackupFixture.writePatternLibraryArchive(to: fixture.root)
+            let setup = JSONProjectStore(url: fixture.url)
+            _ = try setup.linkPattern(patternID: #require(setup.patterns.first?.id), to: #require(setup.projects.first?.id))
+        }
+        let journal = FileSyncMutationJournal(url: fixture.root.appendingPathComponent("pending.json"))
+        let store = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        let initial = try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        let owner = try kind == "legacy" ? #require(project.patterns.first?.id) : #require(store.patternUsages.first?.id)
+        let role = kind == "legacy" ? "legacy-markup" : "usage-markup"
+        let drawing = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.2, y: 0.3)], color: .red, width: 0.01)])
+        func save(_ value: PatternMarkupDocument, into target: JSONProjectStore) throws {
+            if kind == "legacy" {
+                try target.savePatternMarkup(value, projectID: project.id, patternID: owner,
+                    pageIndex: 4, expectedDataGeneration: target.dataGeneration)
+            } else {
+                try target.savePatternMarkup(value, usageID: owner, pageIndex: 4, expectedDataGeneration: target.dataGeneration)
+            }
+        }
+        try save(drawing, into: store)
+        let first = try #require(journal.pending().compactMap(\.savedRecordVersion?.record).first { $0.payload.attachment?.slot.role == role })
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: fixture.url))
+        let canonical = syncRecords(Dictionary(uniqueKeysWithValues: initial.records.map { ($0.id, $0) }), applying: try journal.pending())
+        let exported = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: fixture.root, deviceID: "known-local",
+            reusing: .init(archive: archive, records: canonical))
+        let samePage = exported.records.filter { $0.payload.attachment?.slot.owner.uuid == owner && $0.payload.attachment?.slot.slotID == first.payload.attachment?.slot.slotID }
+        #expect(samePage == [first])
+        #expect(exported.attachments[first.id.uuid] != nil)
+        let context = SyncBootstrapContext(accountIDHash: String(repeating: "a", count: 64), epoch: UUID(), freezeID: UUID())
+        let bootstrap = try SyncBootstrapTransaction(liveRoot: fixture.root, context: context,
+            journalRelativePath: "pending.json", validateContext: { _ in })
+        let prepared = try bootstrap.prepare(local: exported, sourceArchive: archive,
+            remote: .init(context: context, records: [], attachments: [:], isComplete: true),
+            pendingSnapshot: .init(mutations: try journal.pending(), sourceTreeFingerprint: try bootstrap.sourceFingerprint()))
+        defer { for root in prepared.accountOwnedRoots { try? FileManager.default.removeItem(at: root) } }
+        try bootstrap.install(prepared); _ = try bootstrap.commit(prepared)
+        let checkpoint = try bootstrap.checkpoint(prepared)
+        let reopened = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        try reopened.hydrateSyncBootstrap(checkpoint)
+        let edited = PatternMarkupDocument(strokes: [.init(points: [.init(x: 0.7, y: 0.8)], color: .red, width: 0.02)])
+        try save(edited, into: reopened)
+        let second = try #require(journal.pending().compactMap(\.savedRecordVersion?.record).last { $0.payload.attachment?.slot.role == role && $0.deletedAt.value == nil })
+        #expect(second.payload.attachment?.replacesVersionID == first.id.uuid)
+        try save(.init(), into: reopened)
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        let afterDeletion = syncRecords(Dictionary(uniqueKeysWithValues: checkpoint.records.map { ($0.id, $0) }), applying: try journal.pending())
+        let restored = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        try fixture.hydrate(restored, records: Array(afterDeletion.values))
+        try restored.restoreRecentlyDeleted(id: entry.id, now: .now)
+        let actual = try kind == "legacy" ? restored.loadPatternMarkup(projectID: project.id, patternID: owner, pageIndex: 4)
+            : restored.loadPatternMarkup(usageID: owner, pageIndex: 4)
+        #expect(actual == edited)
+        let child = try #require(journal.pending().compactMap(\.savedRecordVersion?.record).last { $0.payload.attachment?.slot.role == role && $0.deletedAt.value == nil })
+        #expect(child.payload.attachment?.replacesVersionID == second.id.uuid)
+    }
+
     @Test(arguments: ["legacy", "usage"], ["clear-new", "delete-new", "clear-existing", "delete-existing"])
     func actualMarkupProducerRestoresClearedOrDeletedProjectContent(kind: String, operation: String) throws {
         let deleteProject = operation.hasPrefix("delete")

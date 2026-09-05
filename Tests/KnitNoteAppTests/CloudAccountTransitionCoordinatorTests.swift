@@ -6,6 +6,86 @@ import Testing
 @testable import KnitNote
 
 @Suite @MainActor struct CloudAccountTransitionCoordinatorTests {
+    @Test func bootstrappedAccountUsesActualRuntimeJournalAndRestoresExactPendingSources() async throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let account = try CloudAccountBinding(containerIdentifier: "test", userRecordName: "bootstrap-runtime")
+        let storage = SyncAccountStorage(baseURL: root), keys = TransitionMemoryKeys()
+        let paths = try storage.open(identity: account.identity)
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "Bootstrap runtime")])
+        try JSONEncoder().encode(archive).write(to: paths.workingSet.appendingPathComponent("projects-v1.json"))
+        let context = SyncBootstrapContext(accountIDHash: account.identity.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let bootstrap = try SyncBootstrapTransaction(liveRoot: paths.workingSet, context: context,
+            validateContext: { _ in })
+        let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: paths.workingSet, deviceID: "fixture")
+        let prepared = try bootstrap.prepare(local: package, sourceArchive: archive,
+            remote: .init(context: context, records: [], attachments: [:], isComplete: true))
+        try bootstrap.install(prepared); _ = try bootstrap.commit(prepared)
+        let journal = FileSyncMutationJournal(url: paths.mutationJournalURL)
+        try journal.enqueue(integrationAttachment(root: paths.staging))
+        let pending = try journal.pending()
+        let originalSource = try #require(pending.compactMap(\.attachmentSource).first)
+        let originalBytes = try Data(contentsOf: originalSource.fileURL)
+        try storage.close()
+        let driver = TestSyncEngineDriver(), domain = TransitionDomainFixture()
+        let runtime = CloudAccountTransitionCoordinator(baseURL: root, keychain: keys, zoneID: testZoneID(),
+            lifecycle: domain, engineFactory: { _, _ in driver })
+        try await runtime.transition(from: account, to: nil, now: .now)
+        #expect(runtime.completed && runtime.phase == .cleaned)
+        #expect(!FileManager.default.fileExists(atPath: originalSource.fileURL.path))
+        await driver.suspendNextFetch()
+        let restore = Task { try await runtime.transition(from: nil, to: account, now: .now) }
+        try await waitForFetch(runtime, driver: driver, task: restore)
+        #expect(try runtime.currentJournal?.pending() == pending)
+        #expect(try Data(contentsOf: originalSource.fileURL) == originalBytes)
+        #expect(await driver.sendCallCount() == 0)
+        await driver.resumeFetch(); try await restore.value
+        #expect(runtime.completed && runtime.phase == .ready)
+        #expect(domain.committedAccounts == [account.identity])
+    }
+
+    @Test(arguments: ["pending.json.segment", ".pending.json.attachments/immutable", "noncanonical-bootstrap", "working-set-journal-without-manifest"])
+    func oldJournalAuthorityRefusesRuntimeWithoutRelocation(layout: String) async throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let account = try CloudAccountBinding(containerIdentifier: "test", userRecordName: "old-layout")
+        let storage = SyncAccountStorage(baseURL: root)
+        let paths = try storage.open(identity: account.identity)
+        let archiveURL = paths.workingSet.appendingPathComponent("projects-v1.json")
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "Preserve original")])
+        try JSONEncoder().encode(archive).write(to: archiveURL)
+        let protectedURL: URL
+        if layout == "noncanonical-bootstrap" {
+            let context = SyncBootstrapContext(accountIDHash: account.identity.accountIDHash, epoch: UUID(), freezeID: UUID())
+            let bootstrap = try SyncBootstrapTransaction(liveRoot: paths.workingSet, context: context,
+                journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { _ in })
+            let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: paths.workingSet, deviceID: "old")
+            let prepared = try bootstrap.prepare(local: package, sourceArchive: archive,
+                remote: .init(context: context, records: [], attachments: [:], isComplete: true))
+            try bootstrap.install(prepared); _ = try bootstrap.commit(prepared)
+            protectedURL = paths.workingSet.appendingPathComponent("SyncMetadata/bootstrap-journal.segment")
+        } else if layout == "working-set-journal-without-manifest" {
+            let old = paths.workingSet.appendingPathComponent("SyncMetadata/bootstrap-journal")
+            try FileSyncMutationJournal(url: old).enqueue(.delete(.init(kind: .project, uuid: UUID()), mutationID: UUID()))
+            protectedURL = old.appendingPathExtension("segment")
+        } else {
+            protectedURL = paths.journal.appendingPathComponent(layout)
+            try FileManager.default.createDirectory(at: protectedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("original immutable journal authority".utf8).write(to: protectedURL)
+        }
+        let protectedBytes = try Data(contentsOf: protectedURL), archiveBytes = try Data(contentsOf: archiveURL)
+        try storage.close()
+        let driver = TestSyncEngineDriver()
+        let runtime = CloudAccountTransitionCoordinator(baseURL: root, keychain: TransitionMemoryKeys(), zoneID: testZoneID(),
+            lifecycle: TransitionDomainFixture(), engineFactory: { _, _ in driver })
+        await #expect(throws: (any Error).self) { try await runtime.transition(from: nil, to: account, now: .now) }
+        #expect(runtime.phase == .blocked && !runtime.completed)
+        #expect(try Data(contentsOf: protectedURL) == protectedBytes)
+        #expect(try Data(contentsOf: archiveURL) == archiveBytes)
+        #expect(!FileManager.default.fileExists(atPath: paths.mutationJournalURL.appendingPathExtension("segment").path))
+        #expect(await driver.sendCallCount() == 0)
+    }
+
     @Test func sendFailureAfterFirstCommitCannotReportCompletedTransition() async throws {
         let seed = try TransitionSeed(); defer { seed.remove() }
         let driver = TestSyncEngineDriver()
@@ -150,7 +230,7 @@ import Testing
         let b = try CloudAccountBinding(containerIdentifier: "test", userRecordName: "B")
         let storage = SyncAccountStorage(baseURL: root)
         let paths = try storage.open(identity: a.identity)
-        let journal = FileSyncMutationJournal(url: paths.journal.appendingPathComponent("pending.json"))
+        let journal = FileSyncMutationJournal(url: paths.mutationJournalURL)
         let attachment = try integrationAttachment(root: paths.staging)
         try journal.enqueue(attachment)
         let exact = try journal.pending()
@@ -286,7 +366,7 @@ private struct TransitionSeed {
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let storage = SyncAccountStorage(baseURL: root)
         let paths = try storage.open(identity: account.identity)
-        journalURL = paths.journal.appendingPathComponent("pending.json")
+        journalURL = paths.mutationJournalURL
         archiveURL = paths.workingSet.appendingPathComponent("projects-v1.json")
         vaultURL = paths.vault
         try Data("canonical A".utf8).write(to: archiveURL)

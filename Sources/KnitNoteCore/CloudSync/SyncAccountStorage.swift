@@ -18,6 +18,9 @@ public final class SyncAccountStorage: @unchecked Sendable {
         public let accountRoot: URL
         public let workingSet: URL
         public let journal: URL
+        public var mutationJournalURL: URL {
+            workingSet.appendingPathComponent(SyncBootstrapTransaction.defaultJournalRelativePath)
+        }
         public let engineState: URL
         /// Persistent upload sources: never removed by open/close.
         public let staging: URL
@@ -43,6 +46,29 @@ public final class SyncAccountStorage: @unchecked Sendable {
     static let recoveryControlName = ".sealed-recovery-v1"
 
     public init(baseURL: URL) { self.baseURL = baseURL }
+
+    /// Compatibility gate only: never relocate a journal or reinterpret its
+    /// absolute attachment URLs. Bootstrap terminal proofs are checked after
+    /// selected recovery has finished, since cleanup may have removed only part
+    /// of the original bootstrap tree at an interruption.
+    public func validateRuntimeJournalNamespace(paths: Paths, account: SyncAccountIdentity,
+                                               validateBootstrap: Bool) throws {
+        try withRecoveryInventory(paths: paths, account: account, maximumBytes: 100_000_000) { entries in
+            let oldBootstrapJournal = "working-set/SyncMetadata/bootstrap-journal"
+            guard !entries.contains(where: {
+                let path = $0.relativePath
+                return path.hasPrefix("journal/") || path == oldBootstrapJournal
+                    || path.hasPrefix(oldBootstrapJournal + ".")
+                    || path.hasPrefix("working-set/SyncMetadata/.bootstrap-journal")
+            }) else {
+                throw SyncAccountStorageError.unsafePath
+            }
+            if validateBootstrap {
+                try SyncBootstrapTransaction.validateTerminalRecovery(account: account, accountRoot: paths.accountRoot,
+                    liveRoot: paths.workingSet, journalURL: paths.mutationJournalURL, entries: entries)
+            }
+        }
+    }
 
     /// Opens an account and recovers abandoned, positively owned temporary copies.
     /// Missing/corrupt ownership markers fail closed without deleting their tree.

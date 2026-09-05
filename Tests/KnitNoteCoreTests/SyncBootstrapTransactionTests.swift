@@ -4,6 +4,142 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapTransactionTests {
+    @Test(arguments: ["missing-counter", "rollback"])
+    func remoteDeletionCannotBypassAuthorityOrOriginalTreeRollback(mode: String) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let local = try fixture.export()
+        let project = try #require(local.records.first { $0.id.kind == .project })
+        let stamp = SyncMutationStamp(logicalRevision: 100, modifiedAt: .now, deviceID: "remote")
+        var deleted = local.records.map { value -> SyncRecord in
+            var value = value
+            value.deletedAt = .init(value: stamp.modifiedAt, stamp: stamp)
+            if value.id == project.id {
+                value.payload.deletionCascade = .init(value: local.records.filter { $0.id != project.id }.map(\.id), stamp: stamp)
+            }
+            return value
+        }
+        let transaction = try fixture.transaction(boundary: { boundary in
+            if mode == "rollback" && boundary == .afterJournal { throw SyncBootstrapError.contextChanged }
+        })
+        let original = try transaction.sourceFingerprint()
+        if mode == "missing-counter" {
+            deleted.removeAll { $0.id == project.id }
+            #expect(throws: (any Error).self) {
+                try transaction.prepare(local: local, sourceArchive: fixture.archive,
+                    remote: .init(context: fixture.context, records: deleted, attachments: [:], isComplete: true))
+            }
+        } else {
+            let prepared = try transaction.prepare(local: local, sourceArchive: fixture.archive,
+                remote: .init(context: fixture.context, records: deleted, attachments: [:], isComplete: true))
+            try transaction.install(prepared)
+            #expect(try SyncDeletionLedger(root: SyncDeletionLedger.root(archiveURL: fixture.live.appendingPathComponent("projects-v1.json"))).recentlyDeleted().count == 1)
+            #expect(throws: (any Error).self) { try transaction.commit(prepared) }
+        }
+        #expect(try transaction.sourceFingerprint() == original)
+        #expect(try fixture.readArchive().projects == fixture.archive.projects)
+        #expect(!FileManager.default.fileExists(atPath: fixture.live.appendingPathComponent(".sync-deletions").path))
+    }
+
+    @Test @MainActor func remoteProjectDeletionIsRetainedBeforeReceiptAndRestoresOnDay29() throws {
+        try verifyRemoteDeletionRetention(localRename: false)
+    }
+
+    @Test @MainActor func mergedRemoteDeletionSelectsOnlyItsRealPendingRecoveryDependency() throws {
+        try verifyRemoteDeletionRetention(localRename: true)
+    }
+
+    @Test @MainActor func remoteDeletionRetainsItsGroupBesideVerifiedLiveProjectMedia() throws {
+        try verifyRemoteDeletionRetention(localRename: false, liveMedia: true)
+    }
+
+    @MainActor private func verifyRemoteDeletionRetention(localRename: Bool, liveMedia: Bool = false) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let project = try StoredProject(name: "Remote project")
+        let original = ProjectArchive(version: ProjectArchive.currentVersion, projects: [project])
+        let remoteLive = try ProjectArchiveSyncMapper.export(archive: original, liveRoot: f.paths.workingSet, deviceID: "remote")
+        let deletedAt = Date.now
+        let stamp = SyncMutationStamp(logicalRevision: 100, modifiedAt: deletedAt, deviceID: "remote")
+        let rootID = SyncEntityID(kind: .project, uuid: project.id)
+        var remote = remoteLive.records.map { input -> SyncRecord in
+            var record = input
+            record.deletedAt = .init(value: deletedAt, stamp: stamp)
+            if record.id == rootID {
+                record.payload.deletionCascade = .init(value: remoteLive.records.filter { $0.id != rootID }.map(\.id), stamp: stamp)
+            }
+            return record
+        }
+        var remoteAttachments: [UUID: SyncAttachmentSource] = [:]
+        var photo: URL?
+        var photoBytes: Data?
+        if liveMedia {
+            var other = try StoredProject(name: "Unrelated live project")
+            let service = ProjectPhotoFileService(directory: f.paths.workingSet.appendingPathComponent("ProjectPhotos"))
+            let filename = try service.save(data: BackupFixture.jpegData(red: 0.4), projectID: other.id)
+            other.setPhotoFilename(filename)
+            photo = service.url(filename: filename)
+            photoBytes = try Data(contentsOf: #require(photo))
+            let media = try ProjectArchiveSyncMapper.export(archive: .init(version: ProjectArchive.currentVersion, projects: [other]),
+                liveRoot: f.paths.workingSet, deviceID: "remote")
+            remote += media.records; remoteAttachments = media.attachments
+        }
+        let journal = FileSyncMutationJournal(url: f.paths.workingSet.appendingPathComponent("SyncMetadata/pending.json"))
+        var archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: localRename ? [project] : [])
+        try JSONEncoder().encode(archive).write(to: f.archiveURL)
+        var cache: SyncPublicationProjectionCache?
+        if localRename {
+            let data = try Data(contentsOf: f.archiveURL)
+            let store = JSONProjectStore(url: f.archiveURL, syncMutationSink: JournalSyncMutationSink(journal: journal))
+            let states = Dictionary(uniqueKeysWithValues: remoteLive.records.compactMap { record -> (UUID, SyncCounterReminderState)? in
+                guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
+                return (record.id.uuid, state)
+            })
+            try store.hydrateSyncBootstrap(.init(archiveSHA256: Data(SHA256.hash(data: data)), records: remoteLive.records,
+                counterStates: states, legacyRecordIDsToDelete: []))
+            try store.rename(id: project.id, to: "Locally renamed")
+            archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: f.archiveURL))
+            cache = .init(archive: archive, records: syncRecords(Dictionary(uniqueKeysWithValues: remoteLive.records.map { ($0.id, $0) }), applying: try journal.pending()))
+        }
+        let local = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: f.paths.workingSet, deviceID: "local", reusing: cache)
+        let context = SyncBootstrapContext(accountIDHash: f.account.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let bootstrap = try SyncBootstrapTransaction(liveRoot: f.paths.workingSet, context: context,
+            journalRelativePath: "SyncMetadata/pending.json", validateContext: { _ in })
+        let pending = try journal.pending()
+        let prepared = try bootstrap.prepare(local: local, sourceArchive: archive,
+            remote: .init(context: context, records: remote, attachments: remoteAttachments, isComplete: true),
+            pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: try bootstrap.sourceFingerprint()))
+        try bootstrap.install(prepared)
+        let installed = try SyncDeletionLedger(root: f.ledgerRoot).recentlyDeleted()
+        #expect(installed.count == 1)
+        _ = try bootstrap.commit(prepared)
+        let entry = try #require(SyncDeletionLedger(root: f.ledgerRoot).recentlyDeleted().first)
+        #expect(entry.domain.rootIDs == [rootID])
+        #expect(entry.domain.ownedRecords.count == 7 && entry.exactRemovalVersions.count == 7)
+        #expect(entry.files.isEmpty && entry.deletedAt == deletedAt)
+        let inventory = try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account,
+            journal: journal, archiveURL: f.archiveURL)
+        #expect(inventory.entries.contains { $0.relativePath == "working-set/.sync-deletions/ledger.json" })
+        let captured = try #require(inventory.deletionLedger)
+        let copy = f.base.appendingPathComponent("selected-ledger")
+        try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
+        try captured.write(to: copy.appendingPathComponent("ledger.json"))
+        let selected = try SyncDeletionLedger(root: copy).recentlyDeleted()
+        #expect(selected.count == (localRename ? 1 : 0))
+        if localRename {
+            #expect(selected.first == entry)
+            #expect(entry.exactRemovalVersions.contains { version in inventory.packet.mutations.contains { $0.savedRecordVersion == version } })
+        } else { #expect(inventory.packet.mutations.isEmpty) }
+        #expect(inventory.packet.files.isEmpty && inventory.deletionFiles.isEmpty)
+        let reopened = JSONProjectStore(url: f.archiveURL, syncMutationSink: JournalSyncMutationSink(journal: journal))
+        #expect(try bootstrap.checkpoint(prepared).counterStates.count == (liveMedia ? 12 : 6))
+        try reopened.hydrateSyncBootstrap(bootstrap.checkpoint(prepared))
+        try reopened.restoreRecentlyDeleted(id: entry.id, now: deletedAt.addingTimeInterval(29 * 86_400))
+        #expect(reopened.projects.count == (liveMedia ? 2 : 1))
+        let restored = try #require(reopened.projects.first { $0.id == project.id })
+        #expect(restored.name == (localRename ? "Locally renamed" : "Remote project"))
+        #expect(restored.counters.map(\.id) == project.counters.map(\.id))
+        if let photo { #expect(try Data(contentsOf: photo) == photoBytes) }
+    }
+
     @Test func consumedRemoteLegacyReminderHasDurableExactDeleteIntent() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }

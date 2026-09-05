@@ -104,7 +104,25 @@ public enum ProjectArchiveSyncMapper {
             processedWatchProofs: processedWatchProofs + evidence.watchCommandProofs,
             reusing: cache,
             attachmentReferences: { candidate in
-                try SyncArchiveAttachmentReferences(liveRoot: root).references(in: candidate)
+                try SyncArchiveAttachmentReferences(liveRoot: root).references(in: candidate).map { reference in
+                    let compatibleRole: String
+                    switch reference.slot.role {
+                    case "pattern-markup": compatibleRole = "usage-markup"
+                    case "legacy-pattern-markup": compatibleRole = "legacy-markup"
+                    default: return reference
+                    }
+                    let slots = versions.keys.filter {
+                        $0.owner == reference.slot.owner && $0.slotID == reference.slot.slotID
+                            && [reference.slot.role, compatibleRole].contains($0.role)
+                    }
+                    // A role is part of an immutable identity. Resolve the
+                    // existing owner/page history before any initial issuance.
+                    // Parallel aliases remain an explicit repair gate.
+                    guard slots.count <= 1 else { throw SyncPublicationError.pendingRepair }
+                    return SyncAttachmentReference(slot: slots.first ?? reference.slot,
+                        sourceURL: reference.sourceURL, mediaType: reference.mediaType,
+                        displayFilename: reference.displayFilename)
+                }
             },
             issuedAttachmentVersions: versions,
             issuedAttachmentRecords: issuedBySlot,

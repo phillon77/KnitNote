@@ -232,7 +232,9 @@ struct SyncAttachmentPublicationEvidence: Codable, Equatable {
         } catch {
             throw SyncPublicationTransactionFileError.corrupt
         }
-        guard lineage.headsBySlot.values.allSatisfy({ $0.count == 1 }),
+        guard lineage.headsBySlot.values.allSatisfy({ heads in
+                  heads.count == 1 || heads.allSatisfy { issuedRecordByVersionID[$0.id.uuid] != nil }
+              }),
               Set(watchCommandProofs.map(\.id)).count == watchCommandProofs.count,
               watchCommandProofs.allSatisfy({ (try? $0.validated()) != nil }) else {
             throw SyncPublicationTransactionFileError.corrupt
@@ -242,7 +244,11 @@ struct SyncAttachmentPublicationEvidence: Codable, Equatable {
 
     func version(for slot: SyncAttachmentSlot) -> SyncAttachmentVersion? {
         let replaced = Set(versions.compactMap(\.replacesVersionID))
-        return versions.first { $0.slot == slot && !replaced.contains($0.versionID) }
+        let heads = versions.filter { $0.slot == slot && !replaced.contains($0.versionID) }
+        if heads.count == 1 { return heads[0] }
+        guard heads.allSatisfy({ head in attachmentRecords.contains { $0.id.uuid == head.versionID } }),
+              let lineage = try? SyncAttachmentLineage(records: attachmentRecords) else { return nil }
+        return lineage.resolvedHeadsBySlot()[slot]?.payload.attachment
     }
 
     func versionID(for slot: SyncAttachmentSlot) -> UUID? {
@@ -287,11 +293,18 @@ struct SyncAttachmentPublicationEvidence: Codable, Equatable {
                     }), existing != attachment {
                         throw SyncPublicationTransactionFileError.corrupt
                     }
-                    if let existingRecord = attachmentRecords.first(where: {
+                    if let index = attachmentRecords.firstIndex(where: {
                         $0.id.uuid == attachment.versionID
                     }) {
+                        let existingRecord = attachmentRecords[index]
                         guard try SyncAttachmentImmutableSnapshot(record: existingRecord).sha256
                                 == SyncAttachmentImmutableSnapshot(record: record).sha256 else {
+                            throw SyncPublicationTransactionFileError.corrupt
+                        }
+                        if record.deletedAt.stamp > existingRecord.deletedAt.stamp {
+                            attachmentRecords[index] = record
+                        } else if record.deletedAt.stamp == existingRecord.deletedAt.stamp,
+                                  record.deletedAt.value != existingRecord.deletedAt.value {
                             throw SyncPublicationTransactionFileError.corrupt
                         }
                     } else {
@@ -381,6 +394,12 @@ struct SyncAttachmentPublicationEvidence: Codable, Equatable {
                         == SyncAttachmentImmutableSnapshot(record: record).sha256 else {
                     throw SyncPublicationTransactionFileError.corrupt
                 }
+                if record.deletedAt.stamp > existing.deletedAt.stamp {
+                    recordByID[record.id.uuid] = record
+                } else if record.deletedAt.stamp == existing.deletedAt.stamp,
+                          record.deletedAt.value != existing.deletedAt.value {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
             } else {
                 recordByID[record.id.uuid] = record
             }
@@ -396,9 +415,19 @@ struct SyncAttachmentPublicationEvidence: Codable, Equatable {
             proofByID[proof.id] = proof
         }
 
+        // Restoration of an attachment uses a new child UUID. A newer live
+        // overlay cannot clear an existing immutable version's reservation.
+        let reserved = deletedVersionIDs.union(other.deletedVersionIDs)
+        for record in recordByID.values where record.deletedAt.value == nil && reserved.contains(record.id.uuid) {
+            let knownTombstones = (attachmentRecords + other.attachmentRecords).filter {
+                $0.id == record.id && $0.deletedAt.value != nil
+            }
+            if !knownTombstones.isEmpty { throw SyncPublicationTransactionFileError.corrupt }
+        }
+
         return try SyncAttachmentPublicationEvidence(
             versions: Array(versionByID.values),
-            deletedVersionIDs: deletedVersionIDs.union(other.deletedVersionIDs),
+            deletedVersionIDs: reserved.union(recordByID.values.filter { $0.deletedAt.value != nil }.map(\.id.uuid)),
             watchCommandProofs: Array(proofByID.values),
             attachmentRecords: Array(recordByID.values),
             storageVersion: 2
@@ -2565,6 +2594,8 @@ final class PatternLibraryDeletionTransaction {
     private let syncAttachmentManifestLoadFailed: Bool
     private var syncProjectionCache: SyncPublicationProjectionCache?
     private var syncBootstrapHydrated = false
+    private var syncHydratedAttachments: [UUID: SyncRecord] = [:]
+    private var syncHydratedAttachmentSources: [UUID: SyncAttachmentSource] = [:]
     private var activePreparedWatchCommand: PreparedWatchCommand?
     private var activeProcessedWatchLedger = ProcessedWatchCommandLedger()
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
@@ -2954,7 +2985,9 @@ final class PatternLibraryDeletionTransaction {
         let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
         let transaction: SyncPublicationTransaction
         do {
-            guard let loaded = try transactionFile.load() else {
+            let loadedTransaction = try transactionFile.load()
+            try recoverDeletionLedger(publication: loadedTransaction)
+            guard let loaded = loadedTransaction else {
                 syncPublicationError = nil
                 completeDeferredLoadAfterSyncPublicationIfNeeded()
                 return
@@ -3105,13 +3138,13 @@ final class PatternLibraryDeletionTransaction {
             asset: nil,
             fileService: files
         )
-        try deletion.stage()
         do {
             try persist(
                 projects: projects.filter { $0.id != id },
                 yarns: stagedYarns,
                 patternUsages: remainingUsages,
-                additionalSyncMutations: markupDeleteMutations
+                additionalSyncMutations: markupDeleteMutations,
+                beforeArchiveWrite: { try deletion.stage() }
             )
         } catch {
             try deletion.rollback()
@@ -4488,7 +4521,6 @@ final class PatternLibraryDeletionTransaction {
             asset: asset,
             fileService: files
         )
-        try deletion.stage()
         do {
             try persist(
                 projects: projects,
@@ -4498,7 +4530,8 @@ final class PatternLibraryDeletionTransaction {
                     : patternAssets,
                 patterns: patterns.filter { $0.id != id },
                 patternUsages: patternUsages.filter { $0.patternID != id },
-                additionalSyncMutations: markupDeleteMutations
+                additionalSyncMutations: markupDeleteMutations,
+                beforeArchiveWrite: { try deletion.stage() }
             )
         } catch {
             try deletion.rollback()
@@ -4973,12 +5006,17 @@ final class PatternLibraryDeletionTransaction {
         )
         let archiveData = try Data(contentsOf: url)
         let markupService = patternMarkupFileService
+        var mutations = mutation.map { [$0] } ?? []
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: archiveData)
+        let retention = try stageSyncDeletion(before: archive, after: archive, mutations: &mutations,
+            artifactRemovals: encodedPage == nil ? [evidence.relativePath] : [])
         do {
             try commitArchiveAndPublish(
                 data: archiveData,
-                mutations: mutation.map { [$0] } ?? [],
+                mutations: mutations,
                 commitBoundary: .artifacts,
                 artifactEvidence: [evidence],
+                deletionRetention: retention,
                 shouldWriteArchive: false,
                 commitArtifacts: {
                     try markupService.save(
@@ -5462,6 +5500,9 @@ final class PatternLibraryDeletionTransaction {
     }
     private func load() {
         syncProjectionCache = nil
+        syncBootstrapHydrated = false
+        syncHydratedAttachments = [:]
+        syncHydratedAttachmentSources = [:]
         do {
             try refreshPatternStorageDependencies()
         } catch {
@@ -5492,6 +5533,9 @@ final class PatternLibraryDeletionTransaction {
 
     private func loadPendingArchiveReadOnly() {
         syncProjectionCache = nil
+        syncBootstrapHydrated = false
+        syncHydratedAttachments = [:]
+        syncHydratedAttachmentSources = [:]
         guard FileManager.default.fileExists(atPath: url.path) else {
             loadError = nil
             return
@@ -5519,6 +5563,9 @@ final class PatternLibraryDeletionTransaction {
 
     private func reloadFromDiskDuringDataOperation() throws {
         syncProjectionCache = nil
+        syncBootstrapHydrated = false
+        syncHydratedAttachments = [:]
+        syncHydratedAttachmentSources = [:]
         do {
             try refreshPatternStorageDependencies()
         } catch {
@@ -5998,7 +6045,8 @@ final class PatternLibraryDeletionTransaction {
     /// reopen and hydration. This seeds exact remote revisions rather than
     /// reconstructing them from local archive timestamps. Lifecycle integration
     /// must advance a durable canonical checkpoint after later publications.
-    public func hydrateSyncBootstrap(_ checkpoint: SyncBootstrapCheckpoint) throws {
+    public func hydrateSyncBootstrap(_ checkpoint: SyncBootstrapCheckpoint,
+                                     attachmentSources: [UUID: SyncAttachmentSource] = [:]) throws {
         guard isSyncPublicationEnabled, syncPublicationError == nil else {
             throw SyncPublicationError.pendingRepair
         }
@@ -6007,15 +6055,29 @@ final class PatternLibraryDeletionTransaction {
             throw SyncBootstrapError.sourceChanged
         }
         let records = try SyncRecordValidator().validate(checkpoint.records)
+        let attachments = Dictionary(uniqueKeysWithValues: records.filter { $0.id.kind == .attachment }.map { ($0.id.uuid, $0) })
+        for (id, source) in attachmentSources {
+            guard let version = attachments[id]?.payload.attachment,
+                  source.contentSHA256 == version.contentSHA256,
+                  source.byteCount == version.byteCount else { throw SyncBootstrapError.corrupt }
+            _ = try source.validated()
+        }
         let states = Dictionary(uniqueKeysWithValues: records.compactMap { record -> (UUID, SyncCounterReminderState)? in
             guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
             return (record.id.uuid, state)
         })
         guard states == checkpoint.counterStates else { throw SyncBootstrapError.corrupt }
         let archive = try JSONDecoder().decode(ProjectArchive.self, from: data)
+        let hydratedEvidence = try syncAttachmentPublicationEvidence.merged(with: .init(
+            versions: attachments.values.compactMap { $0.payload.attachment },
+            deletedVersionIDs: Set(attachments.values.filter { $0.deletedAt.value != nil }.map(\.id.uuid)),
+            attachmentRecords: Array(attachments.values)))
         syncProjectionCache = .init(archive: archive,
             records: Dictionary(uniqueKeysWithValues: records.filter { $0.id.kind != .attachment }.map { ($0.id, $0) }))
         syncBootstrapHydrated = true
+        syncHydratedAttachments = attachments
+        syncHydratedAttachmentSources = attachmentSources
+        syncAttachmentPublicationEvidence = hydratedEvidence
     }
 
     private func persist(
@@ -6029,6 +6091,7 @@ final class PatternLibraryDeletionTransaction {
         additionalSyncMutations: [SyncMutation] = [],
         syncCommitBoundary: SyncPublicationCommitBoundary = .archive,
         additionalArtifactEvidence: [SyncPublicationArtifactEvidence] = [],
+        beforeArchiveWrite: (() throws -> Void)? = nil,
         commitArtifacts: (() throws -> Void)? = nil
     ) throws {
         try ensureArchiveAvailable()
@@ -6101,10 +6164,19 @@ final class PatternLibraryDeletionTransaction {
             } else {
                 publicationProjection = nil
             }
-            let archiveMutations = publicationProjection?.mutations ?? []
-            let mutations = archiveMutations + (isSyncPublicationEnabled
+            let archiveMutations = (publicationProjection?.mutations ?? []).filter { mutation in
+                // Already-published tombstones are absent from the live archive;
+                // that absence is not another user deletion or transport cleanup.
+                if case .delete = mutation,
+                   syncProjectionCache?.records[mutation.recordID]?.deletedAt.value != nil { return false }
+                return true
+            }
+            var mutations = archiveMutations + (isSyncPublicationEnabled
                 ? additionalSyncMutations
                 : [])
+            let retention = try stageSyncDeletion(before: originalArchive, after: committedArchive,
+                mutations: &mutations,
+                artifactRemovals: Set(additionalArtifactEvidence.filter { $0.expectedSHA256 == nil }.map(\.relativePath)))
             let automaticArtifactEvidence = isSyncPublicationEnabled
                 ? try syncArtifactEvidence(
                     for: archiveMutations,
@@ -6123,9 +6195,14 @@ final class PatternLibraryDeletionTransaction {
                 commitBoundary: syncCommitBoundary,
                 artifactEvidence: automaticArtifactEvidence + additionalArtifactEvidence,
                 candidateAttachmentManifest: candidateAttachmentManifest,
+                deletionRetention: retention,
+                beforeArchiveWrite: beforeArchiveWrite,
                 commitArtifacts: commitArtifacts,
                 onArchiveCommitted: { publishedMutations in
                     guard let publicationProjection else { return }
+                    for record in publishedMutations.compactMap(\.savedRecordVersion?.record) where record.id.kind == .attachment {
+                        self.syncHydratedAttachments[record.id.uuid] = record
+                    }
                     self.syncProjectionCache = SyncPublicationProjectionCache(
                         archive: committedArchive,
                         records: syncRecords(
@@ -6173,13 +6250,16 @@ final class PatternLibraryDeletionTransaction {
         commitBoundary: SyncPublicationCommitBoundary = .archive,
         artifactEvidence: [SyncPublicationArtifactEvidence] = [],
         candidateAttachmentManifest: [String: SyncAttachmentManifestEntry]? = nil,
+        deletionRetention: (id: UUID, beforeSHA256: Data, removalIDs: Set<SyncEntityID>)? = nil,
         shouldWriteArchive: Bool = true,
+        beforeArchiveWrite: (() throws -> Void)? = nil,
         commitArtifacts: (() throws -> Void)? = nil,
         onArchiveCommitted: (([SyncMutation]) -> Void)? = nil,
         applyCommittedState: () -> Void
     ) throws {
         guard isSyncPublicationEnabled,
               !mutations.isEmpty || candidateAttachmentManifest != nil else {
+            try beforeArchiveWrite?()
             if shouldWriteArchive {
                 try archiveWrite(data, url)
             }
@@ -6213,8 +6293,17 @@ final class PatternLibraryDeletionTransaction {
                 revisionReceipts: causallyStamped.receipts,
                 candidateAttachmentManifest: try candidateAttachmentManifest.map {
                     try SyncAttachmentManifestStore.orderedEntries($0)
-                }
+                },
+                deletionLedgerID: deletionRetention?.id
             )
+            if let retention = deletionRetention {
+                try deletionLedger().prepare(id: retention.id, beforeArchiveSHA256: retention.beforeSHA256,
+                    afterArchiveSHA256: expectedFingerprint,
+                    exactRemovalVersions: causallyStamped.mutations.compactMap(\.savedRecordVersion)
+                        .filter { retention.removalIDs.contains($0.record.id) },
+                    publicationSHA256: SyncDeletionLedger.publicationFingerprint(transaction),
+                    commitBoundary: commitBoundary)
+            }
             try transactionFile.write(transaction)
         } catch {
             let publicationError = syncPublicationError(for: error)
@@ -6224,6 +6313,7 @@ final class PatternLibraryDeletionTransaction {
 
         var archiveWriteFailure: (any Error)?
         do {
+            try beforeArchiveWrite?()
             if shouldWriteArchive {
                 try archiveWrite(data, url)
             }
@@ -6255,6 +6345,7 @@ final class PatternLibraryDeletionTransaction {
                 return
             }
             do {
+                try recoverDeletionLedger(publication: transaction)
                 try transactionFile.remove()
             } catch {
                 let publicationError = syncPublicationError(for: error)
@@ -6290,6 +6381,144 @@ final class PatternLibraryDeletionTransaction {
 
     private var syncPublicationDeviceID: String {
         syncInstallationID ?? "sync-installation-unavailable"
+    }
+
+    private func deletionLedger() throws -> SyncDeletionLedger {
+        try SyncDeletionLedger(root: SyncDeletionLedger.root(archiveURL: url))
+    }
+
+    private func recoverDeletionLedger(publication: SyncPublicationTransaction?) throws {
+        guard isSyncPublicationEnabled else { return }
+        let bytes = FileManager.default.fileExists(atPath: url.path)
+            ? try SyncRegularFileReader().read(url, maximumBytes: 100_000_000).data : Data()
+        let status = try publication.map { try SyncPublicationTransactionFile(archiveURL: url).commitStatus(of: $0, archiveURL: url) }
+        try deletionLedger().recover(archiveSHA256: Data(SHA256.hash(data: bytes)), publication: publication,
+                                     publicationStatus: status)
+    }
+
+    private func stageSyncDeletion(before: ProjectArchive, after: ProjectArchive,
+                                   mutations: inout [SyncMutation], artifactRemovals: Set<String> = []) throws
+        -> (id: UUID, beforeSHA256: Data, removalIDs: Set<SyncEntityID>)? {
+        guard isSyncPublicationEnabled else { return nil }
+        let removedStructural = mutations.contains {
+            if case .delete = $0 { return $0.recordID.kind != .attachment }
+            return $0.recordID.kind != .attachment && $0.savedRecordVersion?.record.deletedAt.value != nil
+        }
+        let beforeReferences = try syncArchiveAttachmentReferences(in: before)
+        let afterSlots = Set(try syncArchiveAttachmentReferences(in: after).map(\.slot))
+        let removedReferences = try beforeReferences.filter {
+            if !afterSlots.contains($0.slot) { return true }
+            return try artifactRemovals.contains(syncArtifactRelativePath(for: $0.sourceURL))
+        }
+        let removedEmbedded = before.projects.contains { project in
+            guard let current = after.projects.first(where: { $0.id == project.id }) else { return false }
+            return !Set(project.knittingReminders.map(\.id)).isSubset(of: Set(current.knittingReminders.map(\.id)))
+                || !Set(project.patterns.map(\.id)).isSubset(of: Set(current.patterns.map(\.id)))
+        }
+        guard removedStructural || removedEmbedded || !removedReferences.isEmpty else { return nil }
+        guard syncBootstrapHydrated, let cache = syncProjectionCache,
+              syncDeletionArchivesMatch(cache.archive, before) else {
+            throw SyncPublicationError.pendingRepair
+        }
+        let bytes = try SyncRegularFileReader().read(url, maximumBytes: 100_000_000).data
+        let disk = try JSONDecoder().decode(ProjectArchive.self, from: bytes)
+        guard syncDeletionArchivesMatch(disk, before) else {
+            throw SyncPublicationError.pendingRepair
+        }
+        var attachmentRecords = syncHydratedAttachments
+        for record in syncAttachmentPublicationEvidence.retainedAttachmentRecords {
+            attachmentRecords[record.id.uuid] = record
+        }
+        mutations = try mutations.map { mutation in
+            guard case let .delete(deletion) = mutation else { return mutation }
+            guard var record = cache.records[deletion.recordID] ?? attachmentRecords[deletion.recordID.uuid] else {
+                throw SyncPublicationError.pendingRepair
+            }
+            let revision = max(record.entityRevision, record.deletedAt.stamp.logicalRevision)
+            guard revision < UInt64.max else { throw SyncPublicationError.pendingRepair }
+            record.deletedAt = .init(value: .now, stamp: .init(logicalRevision: revision + 1,
+                modifiedAt: .now, deviceID: syncPublicationDeviceID))
+            return try .save(recordVersion: SyncRecordVersion(record: record), mutationID: deletion.mutationID)
+        }
+        let removedSlots = Set(removedReferences.map(\.slot))
+        let selectedAttachments = attachmentRecords.values.filter { $0.payload.attachment.map { removedSlots.contains(deletionReferenceSlot($0.slot)) } == true }
+        guard removedSlots.isSubset(of: Set(selectedAttachments.compactMap { $0.payload.attachment.map { deletionReferenceSlot($0.slot) } })) else {
+            throw SyncPublicationError.pendingRepair
+        }
+        // The projector normally emits the selected active head. Removing an
+        // entire slot must also publish the exact remaining live lineage records.
+        let existingIDs = Set(mutations.map(\.recordID))
+        for var record in selectedAttachments where record.deletedAt.value == nil && !existingIDs.contains(record.id) {
+            let revision = record.deletedAt.stamp.logicalRevision
+            guard revision < UInt64.max else { throw SyncPublicationError.pendingRepair }
+            record.deletedAt = .init(value: .now, stamp: .init(logicalRevision: revision + 1,
+                modifiedAt: .now, deviceID: syncPublicationDeviceID))
+            mutations.append(try .save(recordVersion: SyncRecordVersion(record: record), mutationID: UUID()))
+        }
+        let original = Array(cache.records.values) + selectedAttachments
+        let current = syncRecords(Dictionary(uniqueKeysWithValues: original.map { ($0.id, $0) }), applying: mutations)
+        guard let domain = try SyncDeletedDomain.capture(before: original, after: Array(current.values),
+                beforeArchive: before, afterArchive: after) else { return nil }
+        mutations = try mutations.map { mutation in
+            guard case let .save(save) = mutation, save.recordVersion.record.deletedAt.value != nil,
+                  save.recordVersion.record.id.kind != .attachment else { return mutation }
+            var record = save.recordVersion.record
+            let dependents = domain.ownedRecords.filter { child in
+                child.id != record.id && child.relationships.contains {
+                    $0.target == record.id && ["project", "owner"].contains($0.role)
+                }
+            }.map(\.id).sorted { ($0.kind.rawValue, $0.uuid.uuidString) < ($1.kind.rawValue, $1.uuid.uuidString) }
+            if !dependents.isEmpty {
+                record.payload.deletionCascade = .init(value: dependents, stamp: record.deletedAt.stamp)
+            }
+            return try .save(recordVersion: SyncRecordVersion(record: record), mutationID: save.mutationID)
+        }
+        let lineage = try SyncAttachmentLineage(records: domain.ownedRecords)
+        let resolved = lineage.resolvedHeadsBySlot()
+        let references = Dictionary(uniqueKeysWithValues: beforeReferences.map { ($0.slot, $0) })
+        // Restore destinations are archive-owned slots even when bytes come
+        // from an explicitly supplied frozen journal source.
+        let standardReferences = try SyncArchiveAttachmentReferences(liveRoot: url.deletingLastPathComponent()).references(in: before)
+        let destinations = Dictionary(uniqueKeysWithValues: standardReferences.map { ($0.slot, $0.sourceURL) })
+        var sources: [UUID: SyncAttachmentSource] = [:]
+        var paths: [UUID: String] = [:]
+        for record in lineage.headsBySlot.values.flatMap({ $0 }) where record.deletedAt.value == nil {
+            let version = record.payload.attachment!
+            let referenceSlot = deletionReferenceSlot(version.slot)
+            guard let destination = destinations[referenceSlot] else { throw SyncDeletionLedgerError.missingAttachment(record.id.uuid) }
+            paths[record.id.uuid] = try syncArtifactRelativePath(for: destination)
+            if resolved[version.slot]?.id == record.id, let reference = references[referenceSlot] {
+                sources[record.id.uuid] = try SyncAttachmentSource(fileURL: reference.sourceURL,
+                    contentSHA256: version.contentSHA256, byteCount: version.byteCount)
+            } else if let source = syncHydratedAttachmentSources[record.id.uuid] {
+                sources[record.id.uuid] = source
+            } else { throw SyncDeletionLedgerError.missingAttachment(record.id.uuid) }
+        }
+        let id = try deletionLedger().stage(domain: domain, attachments: sources,
+            restoreRelativePaths: paths, deletedAt: .now)
+        let removalIDs = Set(domain.ownedRecords.filter { $0.deletedAt.value == nil }.map(\.id))
+            .union(domain.removedReminders.keys.map { .init(kind: .projectCounter, uuid: $0) })
+            .union(domain.removedLegacyPatterns.keys.map { .init(kind: .project, uuid: $0) })
+        return (id, Data(SHA256.hash(data: bytes)), removalIDs)
+    }
+
+    private func deletionReferenceSlot(_ slot: SyncAttachmentSlot) -> SyncAttachmentSlot {
+        let role: String
+        switch slot.role {
+        case "usage-markup": role = "pattern-markup"
+        case "legacy-markup": role = "legacy-pattern-markup"
+        default: role = slot.role
+        }
+        return .init(owner: slot.owner, role: role, slotID: slot.slotID)
+    }
+
+    private func syncDeletionArchivesMatch(_ lhs: ProjectArchive, _ rhs: ProjectArchive) -> Bool {
+        lhs.projects.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.projects.sorted { $0.id.uuidString < $1.id.uuidString }
+            && lhs.yarns.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.yarns.sorted { $0.id.uuidString < $1.id.uuidString }
+            && lhs.patternFolders.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.patternFolders.sorted { $0.id.uuidString < $1.id.uuidString }
+            && lhs.patternAssets.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.patternAssets.sorted { $0.id.uuidString < $1.id.uuidString }
+            && lhs.patterns.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.patterns.sorted { $0.id.uuidString < $1.id.uuidString }
+            && lhs.patternUsages.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.patternUsages.sorted { $0.id.uuidString < $1.id.uuidString }
     }
 
     private func allocateCausalRevisions(
@@ -6742,6 +6971,9 @@ final class PatternLibraryDeletionTransaction {
                 try syncAttachmentManifestStore.commit(manifest)
                 syncAttachmentManifest = manifest
             }
+            // Only successful durable sink publication authorizes visibility.
+            // Keep the shared witness until the independent ledger acknowledges it.
+            try deletionLedger().activate(publication: transaction)
             try transactionFile.remove()
         } catch {
             throw SyncPublicationError.pendingRepair
@@ -6756,7 +6988,9 @@ final class PatternLibraryDeletionTransaction {
         }
         let transactionFile = SyncPublicationTransactionFile(archiveURL: url)
         do {
-            guard let transaction = try transactionFile.load() else {
+            let loaded = try transactionFile.load()
+            try recoverDeletionLedger(publication: loaded)
+            guard let transaction = loaded else {
                 syncPublicationError = nil
                 return
             }
@@ -6785,6 +7019,10 @@ final class PatternLibraryDeletionTransaction {
         }
         if let syncPublicationError {
             throw syncPublicationError
+        }
+        if isSyncPublicationEnabled {
+            do { try recoverDeletionLedger(publication: nil) }
+            catch { throw syncPublicationError(for: error) }
         }
     }
 

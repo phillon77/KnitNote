@@ -541,14 +541,14 @@ import Testing
 
     private func tombstoneMutation(_ version: SyncAttachmentVersion) throws -> SyncMutation {
         let stamp = SyncMutationStamp(
-            logicalRevision: 1,
-            modifiedAt: Date(timeIntervalSince1970: 1),
+            logicalRevision: 2,
+            modifiedAt: Date(timeIntervalSince1970: 2),
             deviceID: "evidence-test"
         )
         let record = SyncRecord(
             schemaVersion: 1,
             id: .init(kind: .attachment, uuid: version.versionID),
-            createdAt: stamp.modifiedAt,
+            createdAt: Date(timeIntervalSince1970: 1),
             entityRevision: 1,
             payload: .init(fields: [:], attachment: version),
             relationships: [.init(role: "owner", target: version.slot.owner)],

@@ -1289,11 +1289,12 @@ import UniformTypeIdentifiers
         let fixture = try SyncPublicationFixture(linkYarn: true)
         let sink = RecordingSyncMutationSink()
         let store = fixture.store(sink: sink)
+        try fixture.hydrateKnownLocal(store)
 
         try store.setYarnProjects(yarnID: fixture.yarnID, projectIDs: [])
 
         #expect(sink.mutations.count == 1)
-        #expect(sink.mutations.map(\.operation) == [.delete])
+        #expect(sink.mutations.allSatisfy { $0.savedRecordVersion?.record.deletedAt.value != nil })
         #expect(sink.mutations.map(\.recordKind) == [.projectYarnLink])
         #expect(store.yarn(id: fixture.yarnID) != nil)
         #expect(store.yarn(id: fixture.yarnID)?.linkedProjectIDs.isEmpty == true)
@@ -1482,6 +1483,7 @@ import UniformTypeIdentifiers
         let secondSink = RecordingSyncMutationSink()
         let second = fixture.store(sink: secondSink)
         let committed = try #require(second.project(id: fixture.projectID))
+        try fixture.hydrateKnownLocal(second)
         try second.updateProject(
             id: committed.id,
             name: committed.name,
@@ -1623,6 +1625,7 @@ import UniformTypeIdentifiers
 
         let thirdJournal = FileSyncMutationJournal(url: journalURL)
         let thirdStore = fixture.store(sink: JournalSyncMutationSink(journal: thirdJournal))
+        try fixture.hydrateKnownLocal(thirdStore)
         let withReplacement = try #require(thirdStore.project(id: fixture.projectID))
         try thirdStore.updateProject(
             id: withReplacement.id,
@@ -1640,7 +1643,7 @@ import UniformTypeIdentifiers
         #expect(restartedPending.contains {
             $0.isAttachmentTombstone && $0.recordID == replacement.recordID
         })
-        #expect(!restartedPending.contains {
+        #expect(restartedPending.contains {
             $0.isAttachmentTombstone && $0.recordID == firstSave.recordID
         })
         #expect(try Data(contentsOf: firstSource.fileURL) == firstCommittedBytes)
@@ -1673,6 +1676,7 @@ import UniformTypeIdentifiers
         let secondSink = RecordingSyncMutationSink()
         let second = fixture.store(sink: secondSink)
         let committed = try #require(second.yarn(id: fixture.yarnID))
+        try fixture.hydrateKnownLocal(second)
         try second.updateYarn(
             committed,
             photoChange: .remove,
@@ -1718,6 +1722,7 @@ import UniformTypeIdentifiers
         let secondSink = RecordingSyncMutationSink()
         let restarted = fixture.store(sink: secondSink)
         let restartedYarn = try #require(restarted.yarn(id: fixture.yarnID))
+        try fixture.hydrateKnownLocal(restarted)
         try restarted.updateYarn(
             restartedYarn,
             photoChange: .unchanged,
@@ -1755,6 +1760,7 @@ import UniformTypeIdentifiers
 
         let secondSink = RecordingSyncMutationSink()
         let second = fixture.store(sink: secondSink)
+        try fixture.hydrateKnownLocal(second)
         try second.deleteJournalEntry(projectID: fixture.projectID, entryID: entry.id)
 
         let deletedAttachmentIDs = Set(secondSink.mutations.compactMap {
@@ -1785,6 +1791,7 @@ import UniformTypeIdentifiers
 
         let secondSink = RecordingSyncMutationSink()
         let second = fixture.store(sink: secondSink)
+        try fixture.hydrateKnownLocal(second)
         try second.savePatternMarkup(
             PatternMarkupDocument(),
             usageID: usageID,
@@ -1831,6 +1838,7 @@ import UniformTypeIdentifiers
 
         let secondSink = RecordingSyncMutationSink()
         let second = fixture.store(sink: secondSink)
+        try fixture.hydrateKnownLocal(second)
         try second.savePatternMarkup(
             PatternMarkupDocument(),
             projectID: fixture.projectID,
@@ -1964,6 +1972,7 @@ import UniformTypeIdentifiers
 
         let deletionSink = RecordingSyncMutationSink()
         let deleting = fixture.store(sink: deletionSink)
+        try fixture.hydrateKnownLocal(deleting)
         try deleting.delete(id: fixture.projectID)
 
         #expect(deletionSink.mutations.contains {
@@ -1974,7 +1983,7 @@ import UniformTypeIdentifiers
         ))
     }
 
-    @Test func deletingLegacyPatternDeletesIssuedMarkupWithoutInventingAnUnissuedSourceVersion() throws {
+    @Test func deletingLegacyPatternDeletesExactKnownLocalBootstrapSourceAndMarkupVersions() throws {
         let fixture = try SyncPublicationFixture()
         let patternID = try fixture.installLegacyPattern()
         let setupSink = RecordingSyncMutationSink()
@@ -1990,12 +1999,13 @@ import UniformTypeIdentifiers
 
         let deletionSink = RecordingSyncMutationSink()
         let deleting = fixture.store(sink: deletionSink)
+        let canonical = try fixture.hydrateKnownLocal(deleting)
         try deleting.deletePattern(projectID: fixture.projectID, id: patternID)
 
         let attachmentDeletes = deletionSink.mutations.filter {
             $0.isAttachmentTombstone
         }
-        #expect(attachmentDeletes.count == 1)
+        #expect(Set(attachmentDeletes.map(\.recordID)) == Set(canonical.records.filter { $0.id.kind == .attachment }.map(\.id)))
         #expect(attachmentDeletes.contains { $0.recordID == markupID })
         #expect(!FileManager.default.fileExists(
             atPath: fixture.legacyMarkupURL(
@@ -2488,6 +2498,7 @@ import UniformTypeIdentifiers
         let sink = BatchRecordingSyncMutationSink()
         let store = fixture.store(sink: sink)
         let clock = ContinuousClock()
+        try fixture.hydrateKnownLocal(store)
 
         let firstStart = clock.now
         try store.deleteYarn(id: yarns[0].id)
@@ -2500,7 +2511,7 @@ import UniformTypeIdentifiers
         #expect(secondDuration < .seconds(3))
         #expect(sink.batchCount == 2)
         #expect(sink.mutations.filter {
-            $0.intent == .delete && $0.recordKind == .yarn
+            $0.savedRecordVersion?.record.deletedAt.value != nil && $0.recordKind == .yarn
         }.count == 2)
     }
 
@@ -2769,6 +2780,41 @@ private extension Array where Element == SyncMutation {
 
     func archive() throws -> ProjectArchive {
         try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
+    }
+
+    /// These fixtures contain only known-local data. Seed canonical authority
+    /// explicitly; production must obtain the current account checkpoint.
+    @discardableResult func hydrateKnownLocal(_ store: JSONProjectStore) throws -> SyncExportPackage {
+        let bytes = try Data(contentsOf: archiveURL)
+        let deviceID = try SyncInstallationIdentityStore(url: liveRoot.appendingPathComponent("SyncMetadata/installation.json")).loadOrCreate()
+        let exported = try ProjectArchiveSyncMapper.export(archive: archive(), liveRoot: liveRoot, deviceID: deviceID)
+        // Existing artifact adapters use their original slot roles. Bootstrap
+        // keeps those exact issued identities instead of adding alias records.
+        let existingSlots = Set(exported.records.compactMap { $0.payload.attachment?.slot })
+        let records = exported.records.filter { record in
+            guard let slot = record.payload.attachment?.slot else { return true }
+            let oldRole: String
+            switch slot.role {
+            case "pattern-markup": oldRole = "usage-markup"
+            case "legacy-pattern-markup": oldRole = "legacy-markup"
+            default: return true
+            }
+            return !existingSlots.contains(.init(owner: slot.owner, role: oldRole, slotID: slot.slotID))
+        }
+        let package = SyncExportPackage(records: records, attachments: exported.attachments,
+            possibleDuplicates: exported.possibleDuplicates, localOnlyPatternAssets: exported.localOnlyPatternAssets,
+            localOnlyRelativePaths: exported.localOnlyRelativePaths)
+        let attachments = records.filter { $0.id.kind == .attachment }
+        try SyncAttachmentPublicationEvidenceFile(url: liveRoot.appendingPathComponent("SyncMetadata/attachment-versions.json")).save(
+            .init(versions: attachments.compactMap { $0.payload.attachment },
+                deletedVersionIDs: Set(attachments.filter { $0.deletedAt.value != nil }.map(\.id.uuid)), attachmentRecords: attachments))
+        let states = Dictionary(uniqueKeysWithValues: package.records.compactMap { record -> (UUID, SyncCounterReminderState)? in
+            guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
+            return (record.id.uuid, state)
+        })
+        try store.hydrateSyncBootstrap(.init(archiveSHA256: Data(SHA256.hash(data: bytes)), records: package.records,
+            counterStates: states, legacyRecordIDsToDelete: []))
+        return package
     }
 
     func installPatternUsage() throws -> UUID {

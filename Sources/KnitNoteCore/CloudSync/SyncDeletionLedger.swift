@@ -19,6 +19,7 @@ struct SyncDeletionLedger {
         let beforeArchiveSHA256: Data
         let afterArchiveSHA256: Data
         let publicationSHA256: Data
+        let commitBoundary: SyncPublicationCommitBoundary?
     }
     private struct Group: Codable {
         var entry: SyncDeletionEntry
@@ -35,6 +36,9 @@ struct SyncDeletionLedger {
     }
 
     let root: URL
+    static func root(archiveURL: URL) -> URL {
+        archiveURL.deletingLastPathComponent().appendingPathComponent(".sync-deletions", isDirectory: true)
+    }
     private var manifestURL: URL { root.appendingPathComponent("ledger.json") }
     private let maximumBytes = 100_000_000
 
@@ -112,13 +116,14 @@ struct SyncDeletionLedger {
     }
 
     func prepare(id: UUID, beforeArchiveSHA256: Data, afterArchiveSHA256: Data,
-                 exactRemovalVersions: [SyncRecordVersion], publicationSHA256: Data) throws {
+                 exactRemovalVersions: [SyncRecordVersion], publicationSHA256: Data,
+                 commitBoundary: SyncPublicationCommitBoundary = .archive) throws {
         try locked {
             var manifest = try load()
             guard let index = manifest.groups.firstIndex(where: { $0.entry.id == id }),
                   manifest.groups[index].binding == nil,
                   beforeArchiveSHA256.count == 32, afterArchiveSHA256.count == 32,
-                  beforeArchiveSHA256 != afterArchiveSHA256, publicationSHA256.count == 32 else {
+                  (beforeArchiveSHA256 != afterArchiveSHA256 || commitBoundary == .artifacts), publicationSHA256.count == 32 else {
                 throw SyncDeletionLedgerError.witnessMismatch
             }
             let entry = manifest.groups[index].entry
@@ -127,7 +132,8 @@ struct SyncDeletionLedger {
             manifest.groups[index].entry = .init(id: entry.id, deletedAt: entry.deletedAt,
                 domain: entry.domain, exactRemovalVersions: versions, files: entry.files)
             manifest.groups[index].binding = .init(beforeArchiveSHA256: beforeArchiveSHA256,
-                afterArchiveSHA256: afterArchiveSHA256, publicationSHA256: publicationSHA256)
+                afterArchiveSHA256: afterArchiveSHA256, publicationSHA256: publicationSHA256,
+                commitBoundary: commitBoundary)
             try persist(manifest)
         }
     }
@@ -151,6 +157,10 @@ struct SyncDeletionLedger {
         try locked {
             var manifest = try load()
             var changed = false
+            if let expected = publication.deletionLedgerID,
+               !manifest.groups.contains(where: { $0.entry.id == expected && $0.binding?.publicationSHA256 == witness }) {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
             for index in manifest.groups.indices where manifest.groups[index].binding?.publicationSHA256 == witness {
                 try validatePublication(publication, group: manifest.groups[index])
                 manifest.groups[index].active = true
@@ -160,20 +170,38 @@ struct SyncDeletionLedger {
         }
     }
 
-    func recover(archiveSHA256: Data, publication: SyncPublicationTransaction?) throws {
+    func recover(archiveSHA256: Data, publication: SyncPublicationTransaction?,
+                 publicationStatus: SyncPublicationCommitStatus? = nil) throws {
         try locked {
             var manifest = try load()
             let witness = try publication.map(Self.publicationFingerprint)
+            if let expected = publication?.deletionLedgerID,
+               !manifest.groups.contains(where: { $0.entry.id == expected && $0.binding?.publicationSHA256 == witness }) {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
             var keep: [Group] = []
             for group in manifest.groups {
                 if group.active {
-                    if archiveSHA256 == group.binding?.afterArchiveSHA256, let publication {
+                    if archiveSHA256 == group.binding?.afterArchiveSHA256, let publication,
+                       publication.commitBoundary == .archive || publication.deletionLedgerID == group.entry.id {
                         try validatePublication(publication, group: group)
                     }
                     keep.append(group)
                     continue
                 }
                 guard let binding = group.binding else { continue }
+                if binding.commitBoundary == .artifacts {
+                    guard let publication, witness == binding.publicationSHA256 else {
+                        throw SyncDeletionLedgerError.pendingRepair
+                    }
+                    try validatePublication(publication, group: group)
+                    switch publicationStatus {
+                    case .committed: keep.append(group)
+                    case .uncommitted: break
+                    default: throw SyncDeletionLedgerError.pendingRepair
+                    }
+                    continue
+                }
                 if archiveSHA256 == binding.beforeArchiveSHA256 {
                     guard witness == nil || witness == binding.publicationSHA256 else {
                         throw SyncDeletionLedgerError.witnessMismatch
@@ -205,6 +233,7 @@ struct SyncDeletionLedger {
     private func validatePublication(_ publication: SyncPublicationTransaction, group: Group) throws {
         guard let binding = group.binding,
               publication.expectedArchiveSHA256 == binding.afterArchiveSHA256,
+              publication.commitBoundary == (binding.commitBoundary ?? .archive),
               try Self.publicationFingerprint(publication) == binding.publicationSHA256 else {
             throw SyncDeletionLedgerError.witnessMismatch
         }
@@ -331,7 +360,7 @@ struct SyncDeletionLedger {
                 guard binding.beforeArchiveSHA256.count == 32,
                       binding.afterArchiveSHA256.count == 32,
                       binding.publicationSHA256.count == 32,
-                      binding.beforeArchiveSHA256 != binding.afterArchiveSHA256 else {
+                      (binding.beforeArchiveSHA256 != binding.afterArchiveSHA256 || binding.commitBoundary == .artifacts) else {
                     throw SyncDeletionLedgerError.corrupt
                 }
                 try validateRemovalVersions(group.entry.exactRemovalVersions, domain: group.entry.domain)

@@ -97,13 +97,23 @@ public struct DeletionMarker: Codable, Equatable, Sendable {
 
 public struct SyncDeletionReferences: Sendable {
     public var acknowledgedRemovalVersionIDs: Set<UUID>
+    /// Caller-provided references conservatively protect both target identities
+    /// and removal-owning aggregates, preserving the original pending contract.
     public var protectedRecordIDs: Set<SyncEntityID>
+    /// Include every frozen pending save/delete record identity, especially the
+    /// counter/project that owns an embedded reminder/legacy-pattern removal.
+    public var protectedPendingRecordIDs: Set<SyncEntityID>
     public var protectedAttachmentVersionIDs: Set<UUID>
     public var protectedLedgerRelativePaths: Set<String>
+    /// Store-derived live relationships protect actual targets without treating
+    /// an otherwise live supporting aggregate as pending publication authority.
+    var currentLiveRecordIDs: Set<SyncEntityID> = []
     public init(acknowledgedRemovalVersionIDs: Set<UUID>, protectedRecordIDs: Set<SyncEntityID> = [],
-                protectedAttachmentVersionIDs: Set<UUID> = [], protectedLedgerRelativePaths: Set<String> = []) {
+                protectedAttachmentVersionIDs: Set<UUID> = [], protectedLedgerRelativePaths: Set<String> = [],
+                protectedPendingRecordIDs: Set<SyncEntityID> = []) {
         self.acknowledgedRemovalVersionIDs = acknowledgedRemovalVersionIDs
         self.protectedRecordIDs = protectedRecordIDs
+        self.protectedPendingRecordIDs = protectedPendingRecordIDs
         self.protectedAttachmentVersionIDs = protectedAttachmentVersionIDs
         self.protectedLedgerRelativePaths = protectedLedgerRelativePaths
     }
@@ -122,13 +132,17 @@ public enum SyncDeletionPolicy {
         guard now.timeIntervalSinceReferenceDate.isFinite else { return .init(eligibleEntryIDs: [], markers: []) }
         var ids: Set<UUID> = []
         var markers: [DeletionMarker] = []
+        let pendingOrExternal = references.protectedPendingRecordIDs.union(references.protectedRecordIDs)
+        let protectedTargets = pendingOrExternal.union(references.currentLiveRecordIDs)
         for entry in records {
             guard entry.deletedAt.timeIntervalSinceReferenceDate.isFinite,
                   now >= retentionDeadline(deletedAt: entry.deletedAt),
                   let candidates = try? markerCandidates(entry),
                   !candidates.isEmpty,
                   Set(candidates.map(\.removalVersionID)).isSubset(of: references.acknowledgedRemovalVersionIDs),
-                  Set(candidates.map(\.targetID)).isDisjoint(with: references.protectedRecordIDs),
+                  Set(candidates.map(\.targetID)).isDisjoint(with: protectedTargets),
+                  Set(candidates.compactMap(\.aggregateParentID))
+                    .union(entry.exactRemovalVersions.map { $0.record.id }).isDisjoint(with: pendingOrExternal),
                   Set(candidates.filter { $0.targetID.kind == .attachment }.map { $0.targetID.uuid })
                     .isDisjoint(with: references.protectedAttachmentVersionIDs),
                   Set(entry.files.map(\.attachmentVersionID)).isDisjoint(with: references.protectedAttachmentVersionIDs),

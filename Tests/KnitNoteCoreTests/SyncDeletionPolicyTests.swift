@@ -3,6 +3,35 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncDeletionPolicyTests {
+    @Test(arguments: ["reminder", "legacy"]) func pendingEmbeddedRemovalParentPreventsPurge(kind: String) throws {
+        let source = try fixture()
+        var parent = source.domain.ownedRecords.first { $0.id.kind == (kind == "reminder" ? .projectCounter : .project) }!
+        let stamp = source.exactRemovalVersions.first!.record.deletedAt.stamp
+        parent.entityRevision = stamp.logicalRevision
+        parent.deletedAt = .init(value: nil, stamp: stamp)
+        parent.payload.fields = parent.payload.fields.mapValues { .init(value: $0.value, stamp: stamp) }
+        if let atomic = parent.payload.atomicDomain { parent.payload.atomicDomain = .init(value: atomic.value, stamp: stamp) }
+        let pattern = PatternDocument(displayName: "Deleted pattern", kind: .pdf, storedFilename: "deleted.pdf")
+        let reminder = KnittingReminder(counterID: parent.id.uuid,
+            draft: .oneTime(kind: .increase, target: 3, text: "Deleted reminder"), createdAt: .now)!
+        let domain = SyncDeletedDomain(rootIDs: kind == "reminder" ? [parent.id] : [.init(kind: .pattern, uuid: pattern.id)],
+            ownedRecords: [], supportingParentIDs: [parent.id],
+            removedReminders: kind == "reminder" ? [parent.id.uuid: [reminder]] : [:],
+            removedLegacyPatterns: kind == "legacy" ? [parent.id.uuid: [pattern]] : [:])
+        let version = try SyncRecordVersion(record: parent)
+        let entry = SyncDeletionEntry(id: UUID(), deletedAt: source.deletedAt, domain: domain, exactRemovalVersions: [version], files: [])
+        let now = entry.deletedAt.addingTimeInterval(2592000)
+        #expect(SyncDeletionPolicy.evaluate(now: now, records: [entry],
+            references: .init(acknowledgedRemovalVersionIDs: [version.versionID])).eligibleEntryIDs == [entry.id])
+        #expect(SyncDeletionPolicy.evaluate(now: now, records: [entry],
+            references: .init(acknowledgedRemovalVersionIDs: [version.versionID], protectedRecordIDs: [parent.id])).eligibleEntryIDs.isEmpty)
+        #expect(SyncDeletionPolicy.evaluate(now: now, records: [entry],
+            references: .init(acknowledgedRemovalVersionIDs: [version.versionID], protectedPendingRecordIDs: [parent.id])).eligibleEntryIDs.isEmpty)
+        var liveOnly = SyncDeletionReferences(acknowledgedRemovalVersionIDs: [version.versionID])
+        liveOnly.currentLiveRecordIDs = [parent.id]
+        #expect(SyncDeletionPolicy.evaluate(now: now, records: [entry], references: liveOnly).eligibleEntryIDs == [entry.id])
+    }
+
     @Test func malformedFileProofCannotAuthorizePurge() throws {
         let original = try fixture()
         let entry = SyncDeletionEntry(id: original.id, deletedAt: original.deletedAt, domain: original.domain,

@@ -6395,7 +6395,10 @@ final class PatternLibraryDeletionTransaction {
 
     /// The caller must hold its account/journal freeze across this entire
     /// synchronous call and capture every pending record, byte and ledger path
-    /// in `references`. MainActor alone is not that cross-process freeze.
+    /// in `references`. Pending aggregate identities (the counter/project owning
+    /// an embedded removal) belong in protectedPendingRecordIDs. Existing caller
+    /// protectedRecordIDs also conservatively protects those aggregates.
+    /// MainActor alone is not that cross-process freeze.
     public func purgeRecentlyDeleted(now: Date, acknowledgedVersions: Set<UUID>,
         references: () throws -> SyncDeletionReferences) throws {
         try ensureArchiveAvailable()
@@ -6417,16 +6420,16 @@ final class PatternLibraryDeletionTransaction {
         for record in syncAttachmentPublicationEvidence.retainedAttachmentRecords { attachments[record.id.uuid] = record }
         let canonical = Array(cache.records.values) + Array(attachments.values)
         let live = canonical.filter { $0.deletedAt.value == nil }
-        protected.protectedRecordIDs.formUnion(live.map(\.id))
-        protected.protectedRecordIDs.formUnion(live.flatMap { $0.relationships.map(\.target) })
+        protected.currentLiveRecordIDs.formUnion(live.map(\.id))
+        protected.currentLiveRecordIDs.formUnion(live.flatMap { $0.relationships.map(\.target) })
         for record in live {
             if case let .projectCounter(state)? = record.payload.atomicDomain?.value {
-                protected.protectedRecordIDs.formUnion(state.reminders.map { .init(kind: .knittingReminder, uuid: $0.id) })
+                protected.currentLiveRecordIDs.formUnion(state.reminders.map { .init(kind: .knittingReminder, uuid: $0.id) })
             }
             if record.id.kind == .project, case let .data(bytes)? = record.payload.fields["domainSnapshot"]?.value {
                 let projection = try JSONDecoder().decode(SyncProjectProjection.self, from: bytes)
-                protected.protectedRecordIDs.formUnion(projection.legacyPatterns.map { .init(kind: .pattern, uuid: $0.id) })
-                protected.protectedRecordIDs.formUnion((projection.reminderOrder ?? []).map { .init(kind: .knittingReminder, uuid: $0) })
+                protected.currentLiveRecordIDs.formUnion(projection.legacyPatterns.map { .init(kind: .pattern, uuid: $0.id) })
+                protected.currentLiveRecordIDs.formUnion((projection.reminderOrder ?? []).map { .init(kind: .knittingReminder, uuid: $0) })
             }
         }
         protected.protectedAttachmentVersionIDs.formUnion(live.compactMap { $0.payload.attachment?.versionID })

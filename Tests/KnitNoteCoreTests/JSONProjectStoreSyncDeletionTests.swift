@@ -4,6 +4,38 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct JSONProjectStoreSyncDeletionTests {
+    @Test(arguments: ["reminder", "legacy"], ["none", "existing", "explicit"])
+    func pendingParentRetainsEmbeddedRemovalWhileLiveParentAloneAllowsPurge(kind: String, protection: String) throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        if kind == "legacy" { try fixture.installCompleteArchive() }
+        let store = fixture.store()
+        try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        let parent: SyncEntityID
+        if kind == "reminder" {
+            let id = try store.addKnittingReminder(projectID: project.id,
+                draft: .oneTime(kind: .cable, target: 3, text: "Keep pending reminder"), now: .now)
+            let reminder = try #require(store.project(id: project.id)?.knittingReminders.first)
+            parent = .init(kind: .projectCounter, uuid: reminder.counterID)
+            try store.deleteKnittingReminder(projectID: project.id, reminderID: id, observedRevision: reminder.mutationRevision)
+        } else {
+            parent = .init(kind: .project, uuid: project.id)
+            try store.deletePattern(projectID: project.id, id: project.patterns[0].id)
+        }
+        let entry = try #require(fixture.ledger().recentlyDeleted().first)
+        let before = try #require(store.project(id: project.id))
+        let ack = Set(entry.exactRemovalVersions.map(\.versionID))
+        try store.purgeRecentlyDeleted(now: entry.deletedAt.addingTimeInterval(2592000), acknowledgedVersions: ack) {
+            .init(acknowledgedRemovalVersionIDs: ack, protectedRecordIDs: protection == "existing" ? [parent] : [],
+                protectedPendingRecordIDs: protection == "explicit" ? [parent] : [])
+        }
+        let pending = protection != "none"
+        #expect(try fixture.ledger().recentlyDeleted().isEmpty == !pending)
+        #expect(try fixture.ledger().deletionMarkers().isEmpty == pending)
+        #expect(store.project(id: project.id) == before)
+    }
+
     @Test(arguments: ["purge", "throw", "missingAck", "protected"]) func purgeCapturesFreshReferencesInsideOperation(reason: String) throws {
         let fixture = try DeletionStoreFixture()
         defer { fixture.cleanUp() }

@@ -524,6 +524,149 @@ import Testing
         #expect(restarted.record(for: issued.slot)?.payload.attachment == issued)
     }
 
+    @Test func transactionFormatsTwoThreeAndFourRetainTheirValidatedBytesAndNoCanonicalClaim() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = SyncPublicationTransactionFile(
+            archiveURL: root.appendingPathComponent("projects.json")
+        )
+        let deletionLedgerID = compatibilityUUID(30)
+        let restorationWitness = SyncRestorationWitness(
+            entryID: compatibilityUUID(31),
+            attemptID: compatibilityUUID(32),
+            beforeArchiveSHA256: Data(repeating: 3, count: 32)
+        )
+        let fixtures = [
+            try compatibilityTransactionData(version: 2),
+            try compatibilityTransactionData(version: 3),
+            try compatibilityTransactionData(
+                version: 4,
+                candidateAttachmentManifest: [],
+                deletionLedgerID: deletionLedgerID
+            ),
+            try compatibilityTransactionData(
+                version: 4,
+                candidateAttachmentManifest: [],
+                restorationWitness: restorationWitness
+            )
+        ]
+
+        var decoded: [SyncPublicationTransaction] = []
+        for bytes in fixtures {
+            try bytes.write(to: file.url)
+            let loaded = try file.load()
+            decoded.append(try #require(loaded))
+        }
+
+        #expect(decoded.map(\.version) == [2, 3, 4, 4])
+        #expect(decoded.allSatisfy { $0.canonicalTransition == nil })
+        #expect(decoded[2].candidateAttachmentManifest == [])
+        #expect(decoded[2].deletionLedgerID == deletionLedgerID)
+        #expect(decoded[3].candidateAttachmentManifest == [])
+        #expect(decoded[3].restorationWitness == restorationWitness)
+    }
+
+    private func compatibilityTransactionData(
+        version: Int,
+        candidateAttachmentManifest: [SyncAttachmentManifestEntry]? = nil,
+        deletionLedgerID: UUID? = nil,
+        restorationWitness: SyncRestorationWitness? = nil
+    ) throws -> Data {
+        let entityID = SyncEntityID(kind: .project, uuid: compatibilityUUID(33))
+        let mutationID = compatibilityUUID(34)
+        let mutations: [SyncMutation] = version == 4
+            ? []
+            : [.delete(entityID, mutationID: mutationID)]
+        let receipts = version == 2
+            ? []
+            : mutations.map {
+                SyncRevisionReceipt(
+                    entityID: $0.recordID,
+                    mutationID: $0.mutationID,
+                    logicalRevision: 1,
+                    deviceID: "compatibility-device"
+                )
+            }
+        let expectedArchiveSHA256 = Data(repeating: UInt8(version), count: 32)
+        let integrity = try compatibilityIntegrity(
+            version: version,
+            expectedArchiveSHA256: expectedArchiveSHA256,
+            mutations: mutations,
+            revisionReceipts: receipts,
+            candidateAttachmentManifest: candidateAttachmentManifest,
+            deletionLedgerID: deletionLedgerID,
+            restorationWitness: restorationWitness
+        )
+        let wire = PublicationTransactionCompatibilityWire(
+            version: version,
+            expectedArchiveSHA256: expectedArchiveSHA256,
+            commitBoundary: .archive,
+            artifactEvidence: [],
+            mutations: mutations,
+            revisionReceipts: receipts,
+            candidateAttachmentManifest: candidateAttachmentManifest,
+            deletionLedgerID: deletionLedgerID,
+            restorationWitness: restorationWitness,
+            integrity: integrity
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(wire)
+    }
+
+    private func compatibilityIntegrity(
+        version: Int,
+        expectedArchiveSHA256: Data,
+        mutations: [SyncMutation],
+        revisionReceipts: [SyncRevisionReceipt],
+        candidateAttachmentManifest: [SyncAttachmentManifestEntry]?,
+        deletionLedgerID: UUID?,
+        restorationWitness: SyncRestorationWitness?
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let bytes: Data
+        switch version {
+        case 2:
+            bytes = try encoder.encode(PublicationTransactionV2IntegrityFixture(
+                version: version,
+                expectedArchiveSHA256: expectedArchiveSHA256,
+                commitBoundary: .archive,
+                artifactEvidence: [],
+                mutations: mutations
+            ))
+        case 3:
+            bytes = try encoder.encode(PublicationTransactionV3IntegrityFixture(
+                version: version,
+                expectedArchiveSHA256: expectedArchiveSHA256,
+                commitBoundary: .archive,
+                artifactEvidence: [],
+                mutations: mutations,
+                revisionReceipts: revisionReceipts
+            ))
+        default:
+            bytes = try encoder.encode(PublicationTransactionV4IntegrityFixture(
+                version: version,
+                expectedArchiveSHA256: expectedArchiveSHA256,
+                commitBoundary: .archive,
+                artifactEvidence: [],
+                mutations: mutations,
+                revisionReceipts: revisionReceipts,
+                candidateAttachmentManifest: candidateAttachmentManifest,
+                deletionLedgerID: deletionLedgerID,
+                restorationWitness: restorationWitness
+            ))
+        }
+        return Data(SHA256.hash(data: bytes))
+    }
+
+    private func compatibilityUUID(_ value: Int) -> UUID {
+        UUID(uuidString: String(
+            format: "00000000-0000-0000-0000-%012x",
+            value
+        ))!
+    }
+
     private func version(
         slot: SyncAttachmentSlot,
         bytes: Data,
@@ -650,3 +793,45 @@ import Testing
 }
 
 private struct InjectedEvidenceFailure: Error {}
+
+private struct PublicationTransactionCompatibilityWire: Codable {
+    let version: Int
+    let expectedArchiveSHA256: Data
+    let commitBoundary: SyncPublicationCommitBoundary
+    let artifactEvidence: [SyncPublicationArtifactEvidence]
+    let mutations: [SyncMutation]
+    let revisionReceipts: [SyncRevisionReceipt]
+    let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
+    let deletionLedgerID: UUID?
+    let restorationWitness: SyncRestorationWitness?
+    let integrity: Data
+}
+
+private struct PublicationTransactionV2IntegrityFixture: Codable {
+    let version: Int
+    let expectedArchiveSHA256: Data
+    let commitBoundary: SyncPublicationCommitBoundary
+    let artifactEvidence: [SyncPublicationArtifactEvidence]
+    let mutations: [SyncMutation]
+}
+
+private struct PublicationTransactionV3IntegrityFixture: Codable {
+    let version: Int
+    let expectedArchiveSHA256: Data
+    let commitBoundary: SyncPublicationCommitBoundary
+    let artifactEvidence: [SyncPublicationArtifactEvidence]
+    let mutations: [SyncMutation]
+    let revisionReceipts: [SyncRevisionReceipt]
+}
+
+private struct PublicationTransactionV4IntegrityFixture: Codable {
+    let version: Int
+    let expectedArchiveSHA256: Data
+    let commitBoundary: SyncPublicationCommitBoundary
+    let artifactEvidence: [SyncPublicationArtifactEvidence]
+    let mutations: [SyncMutation]
+    let revisionReceipts: [SyncRevisionReceipt]
+    let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
+    let deletionLedgerID: UUID?
+    let restorationWitness: SyncRestorationWitness?
+}

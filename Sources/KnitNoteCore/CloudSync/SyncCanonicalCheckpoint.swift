@@ -56,7 +56,7 @@ public struct SyncCanonicalCheckpoint: Codable, Equatable, Sendable {
     }
 
     public func encode(to encoder: any Encoder) throws {
-        // Enforce the same cap even when callers use JSONEncoder directly.
+        // Require the canonical envelope to fit before permitting direct encoding.
         _ = try encoded()
         try envelope().encode(to: encoder)
     }

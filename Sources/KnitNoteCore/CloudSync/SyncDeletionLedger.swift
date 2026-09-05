@@ -58,6 +58,89 @@ struct SyncDeletionLedger {
     private var manifestURL: URL { root.appendingPathComponent("ledger.json") }
     private let maximumBytes = 100_000_000
 
+    struct RecoveryExport {
+        let manifest: Data
+        let files: [SyncDeletionFileProof]
+        let pendingMarkerVersions: [SyncRecordVersion]
+        let knownRetainedPaths: Set<String>
+        let terminalSources: [String: SyncAttachmentSource]
+    }
+
+    /// No directory creation, lock-file creation, recovery, purge or source write.
+    /// Called only inside the account owner's frozen read-only capture boundary.
+    private init(readOnlyRoot: URL) { root = readOnlyRoot }
+
+    static func recoveryExport(archiveURL: URL, pending: [SyncMutation],
+                               maximumBytes: Int) throws -> RecoveryExport {
+        let ledger = Self(readOnlyRoot: root(archiveURL: archiveURL))
+        // A current publication file is replay authority, including when its
+        // ledger witness says completed/canceled. It must be settled by its owner.
+        var status = stat()
+        let publication = SyncPublicationTransactionFile(archiveURL: archiveURL).url
+        guard lstat(publication.path, &status) != 0, errno == ENOENT else { throw SyncDeletionLedgerError.pendingRepair }
+        var manifest = try ledger.load(validateRetainedFiles: false)
+        guard (manifest.purgeIntents ?? []).isEmpty else { throw SyncDeletionLedgerError.pendingRepair }
+        let known = Set(manifest.groups.flatMap { $0.entry.files.map(\.retainedRelativePath) })
+        let versions = pending.compactMap(\.savedRecordVersion)
+        var selected: [Group] = []
+        var terminalSources: [String: SyncAttachmentSource] = [:]
+        for var group in manifest.groups {
+            if let restoration = group.restoration {
+                if restoration.phase == "completed" || restoration.phase == "canceled" {
+                    for mutation in restoration.publication.mutations {
+                        guard let source = mutation.attachmentSource else { continue }
+                        func posixPath(_ url: URL) -> String {
+                            let path = url.path
+                            return path.hasPrefix("/var/") || path.hasPrefix("/tmp/") ? "/private" + path : path
+                        }
+                        let prefix = posixPath(ledger.root) + "/"
+                        let path = posixPath(source.fileURL)
+                        // Other stores own sources outside this ledger. Inside,
+                        // only this exact validated restoration's staging path
+                        // and descriptor may classify a historical source.
+                        guard path.hasPrefix(prefix) else { continue }
+                        let relative = String(path.dropFirst(prefix.count))
+                        let parts = relative.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+                        guard parts.count == 3, parts[0] == group.entry.id.uuidString,
+                              parts[1].hasPrefix("restore-"), UUID(uuidString: String(parts[1].dropFirst(8))) != nil,
+                              parts[2] == mutation.recordID.uuid.uuidString,
+                              terminalSources[relative] == nil || terminalSources[relative] == source else {
+                            throw SyncDeletionLedgerError.witnessMismatch
+                        }
+                        terminalSources[relative] = source
+                    }
+                }
+                switch restoration.phase {
+                case "completed": continue
+                case "canceled": group.restoration = nil
+                default: throw SyncDeletionLedgerError.pendingRepair
+                }
+            }
+            if group.active {
+                if group.entry.exactRemovalVersions.contains(where: { versions.contains($0) }) { selected.append(group) }
+                continue
+            }
+            // These are the existing recover(nil publication) terminal rules.
+            // An unbound abandoned stage and a canceled operation have no live
+            // replay authority. Bound artifact operations cannot be guessed.
+            guard let binding = group.binding else { continue }
+            if group.canceled == true { continue }
+            guard binding.commitBoundary != .artifacts,
+                  try Self.hash(ledger.read(archiveURL)) == binding.beforeArchiveSHA256 else {
+                throw SyncDeletionLedgerError.pendingRepair
+            }
+        }
+        manifest.groups = selected
+        manifest.purgeIntents = []
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let payload = try encoder.encode(manifest)
+        let bytes = try encoder.encode(Envelope(payload: payload, sha256: Self.hash(payload)))
+        guard bytes.count <= maximumBytes else { throw SyncAccountRecoveryInventory.Error.tooLarge }
+        return .init(manifest: bytes, files: selected.flatMap { $0.entry.files },
+            pendingMarkerVersions: manifest.pendingMarkerVersions ?? [], knownRetainedPaths: known,
+            terminalSources: terminalSources)
+    }
+
     init(root: URL, afterRootExistenceCheck: () throws -> Void = {}) throws {
         Self.processLock.lock()
         defer { Self.processLock.unlock() }
@@ -860,7 +943,7 @@ struct SyncDeletionLedger {
         return try SyncDurableFile.withExclusiveFileLock(for: manifestURL, body)
     }
 
-    private func load() throws -> Manifest {
+    private func load(validateRetainedFiles: Bool = true) throws -> Manifest {
         let data = try read(manifestURL)
         let envelope = try JSONDecoder().decode(Envelope.self, from: data)
         guard Self.hash(envelope.payload) == envelope.sha256 else { throw SyncDeletionLedgerError.corrupt }
@@ -939,8 +1022,10 @@ struct SyncDeletionLedger {
                     throw SyncDeletionLedgerError.corrupt
                 }
                 let file = root.appendingPathComponent(proof.retainedRelativePath)
-                _ = try read(file,
-                    expected: .init(byteCount: proof.byteCount, sha256: proof.sha256))
+                if validateRetainedFiles {
+                    _ = try read(file,
+                        expected: .init(byteCount: proof.byteCount, sha256: proof.sha256))
+                }
             }
         }
         return manifest

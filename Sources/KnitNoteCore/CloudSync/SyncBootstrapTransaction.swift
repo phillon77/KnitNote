@@ -98,6 +98,65 @@ public final class SyncBootstrapTransaction {
     private let maximumFileBytes = 100_000_000
     private var activeURL: URL { work.appendingPathComponent("active.json") }
 
+    /// Read-only terminal validation for frozen account recovery. This uses the
+    /// existing manifest/receipt format, never runs installation or rollback.
+    /// Every byte remains in the caller's complete plaintext inventory.
+    static func validateTerminalRecovery(account: SyncAccountIdentity, accountRoot: URL,
+                                         liveRoot: URL, journalURL: URL,
+                                         entries: [SyncAccountRecoveryInventory.Entry]) throws {
+        let prefix = ".KnitNote-SyncBootstrap/"
+        let owned = entries.filter { $0.relativePath.hasPrefix(prefix) && !$0.isDirectory }
+        guard !owned.isEmpty else { return }
+        let live = liveRoot.standardizedFileURL
+        let liveKey = hash(Data(live.path.utf8)).map { String(format: "%02x", $0) }.joined()
+        let namespace = prefix + account.accountIDHash + "/" + liveKey + "/"
+        let activePath = namespace + "active.json"
+        guard owned.contains(where: { $0.relativePath == activePath }) else { throw SyncBootstrapError.corrupt }
+        func read(_ path: String) throws -> Data {
+            guard let proof = entries.first(where: { $0.relativePath == path && !$0.isDirectory }),
+                  proof.byteCount >= 0, proof.byteCount <= 100_000_000 else { throw SyncBootstrapError.corrupt }
+            let value = try SyncRegularFileReader().read(accountRoot.appendingPathComponent(path),
+                maximumBytes: Int(proof.byteCount), expected: .init(byteCount: proof.byteCount, sha256: proof.sha256))
+            guard value.device == proof.device, value.inode == proof.inode else { throw SyncBootstrapError.unsafePath }
+            return value.data
+        }
+        let envelope = try JSONDecoder().decode(Envelope.self, from: read(activePath))
+        guard hash(envelope.payload) == envelope.digest else { throw SyncBootstrapError.corrupt }
+        let manifest = try JSONDecoder().decode(Manifest.self, from: envelope.payload)
+        func posixPath(_ url: URL) -> String {
+            let path = url.path
+            return path.hasPrefix("/var/") || path.hasPrefix("/tmp/") ? "/private" + path : path
+        }
+        guard manifest.version == 1, manifest.context.accountIDHash == account.accountIDHash,
+              manifest.livePath == live.path, safeRelativePath(manifest.journalPath),
+              posixPath(live.appendingPathComponent(manifest.journalPath)) == posixPath(journalURL),
+              manifest.original.keys.allSatisfy(safeRelativePath), manifest.installed.keys.allSatisfy(safeRelativePath),
+              manifest.sourceArchiveFingerprint.count == 32,
+              manifest.original["projects-v1.json"]?.digest == manifest.sourceArchiveFingerprint,
+              manifest.phase == .committed || manifest.phase == .rolledBack else { throw SyncBootstrapError.invalidPhase }
+        let transactionPrefix = namespace + manifest.id.uuidString + "/"
+        guard owned.allSatisfy({ $0.relativePath == activePath || $0.relativePath.hasPrefix(transactionPrefix) }) else {
+            throw SyncBootstrapError.corrupt
+        }
+        func proofs(under path: String) -> [String: FileProof] {
+            var result: [String: FileProof] = [:]
+            for entry in entries where entry.relativePath.hasPrefix(path) {
+                let relative = String(entry.relativePath.dropFirst(path.count)) + (entry.isDirectory ? "/" : "")
+                result[relative] = .init(bytes: entry.isDirectory ? -1 : entry.byteCount, digest: entry.sha256)
+            }
+            return result
+        }
+        guard proofs(under: transactionPrefix + "Original/") == manifest.original else { throw SyncBootstrapError.corrupt }
+        if manifest.phase == .committed {
+            let receipt = try JSONDecoder().decode(SyncBootstrapReceipt.self,
+                from: read("working-set/SyncMetadata/bootstrap-receipt.json"))
+            guard receipt.transactionID == manifest.id, receipt.accountIDHash == account.accountIDHash,
+                  receipt.sourceArchiveFingerprint == manifest.sourceArchiveFingerprint else { throw SyncBootstrapError.corrupt }
+        } else {
+            guard proofs(under: "working-set/") == manifest.original else { throw SyncBootstrapError.sourceChanged }
+        }
+    }
+
     public convenience init(liveRoot: URL, context: SyncBootstrapContext, journalRelativePath: String,
         patternFolderNameContext: PatternFolderNameContext? = nil,
         validateContext: @escaping (SyncBootstrapContext) throws -> Void) throws {

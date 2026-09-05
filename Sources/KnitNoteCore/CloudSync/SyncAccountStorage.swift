@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -103,6 +104,90 @@ public final class SyncAccountStorage: @unchecked Sendable {
         // follows removal of the now-empty session directory, so an error always
         // leaves a retryable session name and retained ownership lock.
         self.session = nil
+    }
+
+    /// Read-only inventory under this owner's mutex and retained account lock.
+    /// The caller must also freeze domain/journal writers for the whole call.
+    /// These entries are observations, never authorization to remove anything.
+    func withRecoveryInventory<T>(paths: Paths, account: SyncAccountIdentity, maximumBytes: Int,
+                                  _ body: ([SyncAccountRecoveryInventory.Entry]) throws -> T) throws -> T {
+        mutex.lock(); defer { mutex.unlock() }
+        guard let session, session.paths == paths, session.identity == account else {
+            throw SyncAccountStorageError.invalidIdentity
+        }
+        let currentBase = try Self.openPath(Self.normalized(baseURL), create: false)
+        try Self.sameDirectory(currentBase, session.base)
+        try Self.validateEntry(session.account, named: account.accountIDHash, in: session.base)
+        try Self.validateEntry(session.lock, named: Self.lockName, in: session.account, regular: true)
+        try Self.validateEntry(session.temporary, named: Self.temporaryName, in: session.account)
+        try Self.validateOwner(session.marker, in: session.temporary)
+        try Self.validateEntry(session.decrypted, named: session.name, in: session.temporary)
+        var remaining = maximumBytes
+        try Self.validateTree(Self.directory("vault", in: session.account, create: false).handle)
+        let entries = try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining)
+        let result = try body(entries)
+        remaining = maximumBytes
+        guard try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining) == entries else {
+            throw SyncAccountStorageError.unsafePath
+        }
+        return result
+    }
+
+    private static func recoveryEntries(_ parent: Handle, prefix: String, remaining: inout Int,
+                                        depth: Int = 0) throws -> [SyncAccountRecoveryInventory.Entry] {
+        guard depth < 128 else { throw SyncAccountStorageError.unsafePath }
+        var result: [SyncAccountRecoveryInventory.Entry] = []
+        for name in try names(in: parent).sorted() {
+            let path = prefix + name
+            // Only format-owned controls and the entire encrypted namespace are
+            // excluded. Decrypted session contents and bootstrap siblings remain.
+            if path == "vault" || path == lockName || path == temporaryName + "/" + ownerName { continue }
+            var status = stat()
+            guard fstatat(parent.fd, name, &status, AT_SYMLINK_NOFOLLOW) == 0 else { throw SyncAccountStorageError.unsafePath }
+            let isDirectory = status.st_mode & S_IFMT == S_IFDIR
+            let digest: Data
+            if isDirectory {
+                digest = Data()
+            } else {
+                guard status.st_mode & S_IFMT == S_IFREG, status.st_nlink == 1 else { throw SyncAccountStorageError.unsafePath }
+                let descriptor = openat(parent.fd, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else { throw SyncAccountStorageError.unsafePath }
+                let handle = Handle(descriptor)
+                try validateEntry(handle, named: name, in: parent, regular: true)
+                var hasher = SHA256(), count: Int64 = 0
+                var buffer = [UInt8](repeating: 0, count: 65_536)
+                while true {
+                    let readCount = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, $0.count) }
+                    if readCount < 0, errno == EINTR { continue }
+                    guard readCount >= 0 else { throw SyncAccountStorageError.unavailable }
+                    if readCount == 0 { break }
+                    count += Int64(readCount)
+                    guard count <= status.st_size else { throw SyncAccountStorageError.unsafePath }
+                    hasher.update(data: Data(buffer.prefix(readCount)))
+                }
+                var after = stat()
+                guard fstat(descriptor, &after) == 0, count == status.st_size,
+                      after.st_size == status.st_size, after.st_dev == status.st_dev, after.st_ino == status.st_ino,
+                      after.st_mtimespec.tv_sec == status.st_mtimespec.tv_sec,
+                      after.st_mtimespec.tv_nsec == status.st_mtimespec.tv_nsec,
+                      after.st_ctimespec.tv_sec == status.st_ctimespec.tv_sec,
+                      after.st_ctimespec.tv_nsec == status.st_ctimespec.tv_nsec else { throw SyncAccountStorageError.unsafePath }
+                try validateEntry(handle, named: name, in: parent, regular: true)
+                digest = Data(hasher.finalize())
+            }
+            let entry = SyncAccountRecoveryInventory.Entry(relativePath: path, isDirectory: isDirectory,
+                byteCount: isDirectory ? 0 : Int64(status.st_size), sha256: digest,
+                device: UInt64(status.st_dev), inode: UInt64(status.st_ino))
+            let cost = try JSONEncoder().encode(entry).count + 1
+            guard cost <= remaining else { throw SyncAccountRecoveryInventory.Error.tooLarge }
+            remaining -= cost
+            result.append(entry)
+            if isDirectory {
+                result += try recoveryEntries(directory(name, in: parent, create: false).handle,
+                    prefix: path + "/", remaining: &remaining, depth: depth + 1)
+            }
+        }
+        return result
     }
 
     // Releasing an unclosed owner releases descriptors/lock only. Next open uses

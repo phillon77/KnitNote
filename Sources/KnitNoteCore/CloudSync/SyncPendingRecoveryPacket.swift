@@ -32,7 +32,17 @@ public struct SyncPendingRecoveryPacket: Codable, Equatable, Sendable {
         try validateRoot(accountRoot, hash: account.accountIDHash)
         let root = try openDirectory(accountRoot)
         defer { Darwin.close(root) }
-        let mutations = try journal.pending()
+        return try capture(account: account, accountRoot: accountRoot, mutations: journal.pending(), maximumBytes: maximumBytes)
+    }
+
+    /// The account-locked recovery reader supplies an already validated snapshot
+    /// so capture never calls a journal reader which can repair persistent state.
+    static func capture(account: SyncAccountIdentity, accountRoot: URL,
+                        mutations: [SyncMutation], maximumBytes: Int) throws -> Self {
+        try checkLimit(maximumBytes)
+        try validateRoot(accountRoot, hash: account.accountIDHash)
+        let root = try openDirectory(accountRoot)
+        defer { Darwin.close(root) }
         try validateMutations(mutations)
         var sources: [String: SyncAttachmentSource] = [:]
         for source in mutations.compactMap(\.attachmentSource) {
@@ -182,7 +192,7 @@ public struct SyncPendingRecoveryPacket: Codable, Equatable, Sendable {
         guard hash.count == 64, hash.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
               root.isFileURL, root.path.hasPrefix("/"), root.lastPathComponent == hash,
               root.query == nil, root.fragment == nil, root.host == nil || root.host == "",
-              !root.path.utf8.contains(0), root.standardizedFileURL.path == root.path else {
+              !root.path.utf8.contains(0) else {
             throw SyncPendingRecoveryPacketError.unsafeSource
         }
         try validateRelative(String(root.path.dropFirst()))

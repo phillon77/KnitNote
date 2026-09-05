@@ -984,6 +984,22 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         try withJournalCoordination { try preparedStateLocked().pending }
     }
 
+    /// Only used while the caller retains exclusive account ownership/freeze.
+    /// No parent creation, legacy migration, durability repair or acknowledged
+    /// source reclamation occurs here. The concrete URL binds replay ownership.
+    func recoverySnapshot(maximumBytes: Int = 100_000_000) throws -> (url: URL, mutations: [SyncMutation]) {
+        try coordinator.lock.withLock {
+            guard maximumBytes >= 0, maximumBytes <= 100_000_000 else { throw SyncMutationJournalError.tooLarge }
+            guard !(try pathExists(url)) else { throw SyncMutationJournalError.corrupt }
+            let state = try loadSegmentedStateLocked(readOnly: true, maximumReadBytes: maximumBytes)
+            guard !state.hasPartialFinalFrame,
+                  state.cleanupIntentsByMutationID.isEmpty else { throw SyncMutationJournalError.corrupt }
+            return (url, state.pending)
+        }
+    }
+
+    var recoveryLocation: URL { url }
+
     public func acknowledge(_ identities: Set<SyncMutationIdentity>) throws {
         guard !identities.isEmpty else { return }
         try withJournalCoordination {
@@ -1078,10 +1094,17 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         return try migrateLegacyEnvelopeLocked()
     }
 
-    private func loadSegmentedStateLocked() throws -> LoadedState {
+    private func loadSegmentedStateLocked(readOnly: Bool = false,
+                                         maximumReadBytes: Int = FileSyncMutationJournal.maximumEncodedBytes) throws -> LoadedState {
+        var remaining = maximumReadBytes
+        func readSnapshotArtifact(_ location: URL) throws -> Data? {
+            let bytes = try readArtifact(location, maximumBytes: readOnly ? min(remaining, Self.maximumEncodedBytes) : Self.maximumEncodedBytes)
+            if readOnly { remaining -= bytes?.count ?? 0 }
+            return bytes
+        }
         var checkpoint = SyncJournalCheckpoint(throughSequence: 0, pending: [])
         var totalBytes = 0
-        if let checkpointData = try readArtifact(checkpointURL) {
+        if let checkpointData = try readSnapshotArtifact(checkpointURL) {
             totalBytes += checkpointData.count
             checkpoint = try decodeCheckpoint(checkpointData)
         }
@@ -1120,7 +1143,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             }
         } else {
             for index in 0..<checkpoint.proofShardCount {
-                guard let shardData = try readArtifact(proofShardURL(index)) else {
+                guard let shardData = try readSnapshotArtifact(proofShardURL(index)) else {
                     throw SyncMutationJournalError.corrupt
                 }
                 proofShardRoot = Self.proofShardRoot(
@@ -1207,7 +1230,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             hasPartialFinalFrame: false
         )
 
-        if let segmentData = try readArtifact(segmentURL) {
+        if let segmentData = try readSnapshotArtifact(segmentURL) {
             totalBytes += segmentData.count
             guard totalBytes <= Self.maximumEncodedBytes else {
                 throw SyncMutationJournalError.tooLarge
@@ -1222,6 +1245,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             try validatePersistedAttachmentSource(in: mutation)
         }
         try validateCleanupCompletion(in: state)
+        if readOnly { return state }
         if checkpoint.version == 1 {
             try replaceLegacyHistoryCheckpointLocked(&state)
         } else if checkpoint.version < 4 {
@@ -1927,12 +1951,12 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         try synchronizeDirectory(url.deletingLastPathComponent())
     }
 
-    private func readArtifact(_ artifactURL: URL) throws -> Data? {
+    private func readArtifact(_ artifactURL: URL, maximumBytes: Int = FileSyncMutationJournal.maximumEncodedBytes) throws -> Data? {
         guard try pathExists(artifactURL) else { return nil }
         do {
             let read = try reader.read(
                 artifactURL,
-                maximumBytes: Self.maximumEncodedBytes
+                maximumBytes: maximumBytes
             )
             counters.recordBytesRead(read.data.count)
             return read.data

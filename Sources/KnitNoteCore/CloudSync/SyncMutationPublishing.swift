@@ -42,6 +42,13 @@ public struct JournalSyncMutationSink: SyncMutationSink {
         try journal.enqueue(mutations)
     }
 
+    func withExclusivePending<T>(_ body: (SyncJournalWriteLease) throws -> T) throws -> T {
+        guard let fileJournal = journal as? FileSyncMutationJournal else {
+            throw SyncRemoteBatchError.missingAuthority
+        }
+        return try fileJournal.withExclusivePending(body)
+    }
+
     /// Activation checks pending upload bytes independently from displayed
     /// media. Acknowledged history remains owned by the journal's cleanup rules.
     func validatePendingAttachmentSources(validateOwnership: () throws -> Void) throws {
@@ -351,7 +358,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
               }),
               Set(validatedEvidence.map(\.relativePath)).count == validatedEvidence.count,
               commitBoundary != .artifacts || !artifactEvidence.isEmpty,
-              version == Self.legacyVersion || receiptsAreComplete,
+              version == Self.legacyVersion
+                || (remoteSource != nil ? revisionReceipts.isEmpty : receiptsAreComplete),
               candidateAttachmentManifest == validatedManifest,
               integrity == (try Self.integrity(
                   version: version,

@@ -229,6 +229,24 @@ struct SyncDeletionLedger {
         try locked { try load().markers ?? [] }
     }
 
+    /// Existing activated stores own an initialized ledger. Preparation may
+    /// validate it under the existing locks, but must never initialize or repair
+    /// it (initialization can finish a purge and remove retained files).
+    static func remoteBatchMarkers(archiveURL: URL) throws -> [DeletionMarker] {
+        let ledger = Self(readOnlyRoot: root(archiveURL: archiveURL))
+        let lockURL = ledger.root.appendingPathComponent(".ledger.json.lock")
+        _ = try SyncRegularFileReader().read(lockURL, maximumBytes: 0)
+        return try ledger.locked {
+            let manifest = try ledger.load()
+            guard (manifest.purgeIntents ?? []).isEmpty,
+                  manifest.groups.allSatisfy({ group in
+                      let terminalRestore = group.restoration.map { ["completed", "canceled"].contains($0.phase) } ?? false
+                      return group.canceled == true || terminalRestore || (group.active && group.restoration == nil)
+                  }) else { throw SyncDeletionLedgerError.pendingRepair }
+            return manifest.markers ?? []
+        }
+    }
+
     /// Exact immutable publication queue; a future transport must consume this
     /// authority explicitly. Its absence never acknowledges a removal.
     func pendingDeletionMarkerVersions() throws -> [SyncRecordVersion] {

@@ -154,17 +154,20 @@ struct SyncRemoteBatchPublicationSource: Codable, Equatable, Sendable {
     let identity: SyncRemoteBatchIdentity
     let predecessor: SyncRemoteBatchPredecessorCommitment
     let receiptAction: SyncRemoteBatchReceiptAction
+    let durablePlan: SyncRemoteBatchDurablePlan?
 
     init(
         formatVersion: Int = Self.currentFormatVersion,
         identity: SyncRemoteBatchIdentity,
         predecessor: SyncRemoteBatchPredecessorCommitment,
-        receiptAction: SyncRemoteBatchReceiptAction
+        receiptAction: SyncRemoteBatchReceiptAction,
+        durablePlan: SyncRemoteBatchDurablePlan? = nil
     ) throws {
         self.formatVersion = formatVersion
         self.identity = identity
         self.predecessor = predecessor
         self.receiptAction = receiptAction
+        self.durablePlan = durablePlan
         _ = try validated()
     }
 
@@ -185,7 +188,45 @@ struct SyncRemoteBatchPublicationSource: Codable, Equatable, Sendable {
     }
 }
 
-public struct SyncRemoteBatchPreparation: Sendable {}
+struct SyncRemoteAuthorityFile: Codable, Equatable, Sendable {
+    let path: String
+    let device: UInt64
+    let inode: UInt64
+    let bytes: Int64
+    let digest: Data
+}
+
+struct SyncRemoteInstallFile: Codable, Equatable, Sendable {
+    let relativePath: String
+    let version: SyncAttachmentVersion
+    let data: Data
+}
+
+/// Embedded in the existing bounded publication intent. Retains every byte
+/// necessary to finish a remote installation after archive replacement.
+struct SyncRemoteBatchDurablePlan: Codable, Equatable, Sendable {
+    let predecessor: SyncCanonicalCheckpoint
+    let journalURL: URL
+    let predecessorEvidence: Data
+    let authority: [SyncRemoteAuthorityFile]
+    let pending: [SyncMutation]
+    let records: [SyncRecord]
+    let deletedRecordIDs: [SyncEntityID]
+    let preparedCommands: [PreparedWatchCommand]
+    let processedLedger: ProcessedWatchCommandLedger
+    let deletionMarkers: [DeletionMarker]
+    let archive: Data
+    let files: [SyncRemoteInstallFile]
+}
+
+public struct SyncRemoteBatchPreparation: Sendable {
+    let liveRoot: URL
+    let identity: SyncRemoteBatchIdentity
+    let predecessor: SyncCanonicalCheckpoint
+    let authority: [SyncRemoteAuthorityFile]
+    let pending: [SyncMutation]
+    let transaction: SyncPublicationTransaction?
+}
 
 public enum SyncRemoteBatchCommitResult: Equatable, Sendable {
     case committed(SyncRemoteBatchReceipt)

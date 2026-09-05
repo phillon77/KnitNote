@@ -204,6 +204,27 @@ public enum SyncMutation: Codable, Equatable, Sendable {
     }
 }
 
+final class SyncJournalWriteLease {
+    let location: URL
+    private var active = true
+    private let thread = pthread_self()
+    private let readPending: () throws -> [SyncMutation]
+    private let append: ([SyncMutation]) throws -> Void
+
+    fileprivate init(location: URL, pending: @escaping () throws -> [SyncMutation],
+                     enqueue: @escaping ([SyncMutation]) throws -> Void) {
+        self.location = location; readPending = pending; append = enqueue
+    }
+    fileprivate func invalidate() { active = false }
+    private func validateLifetime() throws {
+        guard pthread_equal(thread, pthread_self()) != 0, active else {
+            throw SyncMutationJournalError.corrupt
+        }
+    }
+    func pending() throws -> [SyncMutation] { try validateLifetime(); return try readPending() }
+    func enqueue(_ mutations: [SyncMutation]) throws { try validateLifetime(); try append(mutations) }
+}
+
 public enum SyncMutationJournalError: Error, Equatable, Sendable {
     case corrupt
     case unsafeFile
@@ -750,7 +771,11 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     public func enqueue(_ mutations: [SyncMutation]) throws {
         guard !mutations.isEmpty else { return }
-        try withJournalCoordination {
+        try withJournalCoordination { try enqueueLocked(mutations) }
+    }
+
+    private func enqueueLocked(_ mutations: [SyncMutation]) throws {
+        guard !mutations.isEmpty else { return }
             var candidate = try preparedStateLocked()
             let validatedRequests = try mutations.map { try $0.validated() }
             var preflightProofs = candidate.proofsByShard.flatMap { $0 }
@@ -792,6 +817,22 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 return
             }
             try appendReconcilingMemoryLocked(frames, candidate: candidate)
+    }
+
+    /// Lock order: account ownership, process coordinator, journal parent flock,
+    /// then publication/checkpoint/evidence locks. Never reenter a public journal API.
+    func withExclusivePending<T>(_ body: (SyncJournalWriteLease) throws -> T) throws -> T {
+        try withJournalCoordination {
+            let lease = SyncJournalWriteLease(location: url, pending: {
+                guard !(try self.pathExists(self.url)) else { throw SyncMutationJournalError.corrupt }
+                let state = try self.loadSegmentedStateLocked(readOnly: true)
+                guard !state.hasPartialFinalFrame, state.cleanupIntentsByMutationID.isEmpty else {
+                    throw SyncMutationJournalError.corrupt
+                }
+                return state.pending
+            }, enqueue: { try self.enqueueLocked($0) })
+            defer { lease.invalidate() }
+            return try body(lease)
         }
     }
 

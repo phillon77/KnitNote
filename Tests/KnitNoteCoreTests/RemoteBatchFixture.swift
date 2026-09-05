@@ -11,7 +11,7 @@ struct RemoteBatchFixture {
     let journal: FileSyncMutationJournal
     let checkpoints: SyncCanonicalCheckpointStore
 
-    init() throws {
+    init(boundary: @escaping (SyncCanonicalPublicationBoundary) throws -> Void = { _ in }) throws {
         root = FileManager.default.temporaryDirectory
             .resolvingSymlinksInPath()
             .appendingPathComponent("remote-batch-test-" + UUID().uuidString)
@@ -71,6 +71,7 @@ struct RemoteBatchFixture {
                 liveRoot: live,
                 workRoot: root.appendingPathComponent("BackupWork")
             ),
+            syncCanonicalPublicationBoundary: boundary,
             syncMutationSink: JournalSyncMutationSink(journal: journal)
         )
         try store.activateSyncCanonicalState(
@@ -91,6 +92,39 @@ struct RemoteBatchFixture {
             records: records,
             deletedRecordIDs: []
         )
+    }
+
+    var archiveURL: URL { root.appendingPathComponent("Live/projects-v1.json") }
+
+    func renamedBatch(_ name: String, id: UUID) throws -> SyncRemoteBatch {
+        var archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
+        let index = archive.projects.firstIndex { $0.id == projectID }!
+        archive.projects[index].name = name
+        let exported = try ProjectArchiveSyncMapper.export(archive: archive,
+            liveRoot: root.appendingPathComponent("Live"), deviceID: "remote")
+        var record = exported.records.first { $0.id == .init(kind: .project, uuid: projectID) }!
+        let stamp = SyncMutationStamp(logicalRevision: 1000, modifiedAt: Date(timeIntervalSince1970: 2_000_000_000), deviceID: "remote")
+        record.payload.fields = record.payload.fields.mapValues { .init(value: $0.value, stamp: stamp) }
+        record.deletedAt = .init(value: nil, stamp: stamp)
+        return try batch(records: [record], id: id)
+    }
+
+    func renameLocally(_ name: String) throws {
+        try store.updateProject(id: projectID, name: name, toolType: nil,
+            toolSize: nil, toolNotes: nil, photoChange: .unchanged)
+    }
+
+    func acknowledgeBootstrap() throws {
+        try journal.acknowledge(Set(try journal.pending().map { .init(recordID: $0.recordID, mutationID: $0.mutationID) }))
+    }
+
+    func reopen() throws -> JSONProjectStore {
+        let fresh = JSONProjectStore(url: archiveURL,
+            backupService: KnitNoteBackupService(liveRoot: root.appendingPathComponent("Live"),
+                workRoot: root.appendingPathComponent("BackupWork")),
+            syncMutationSink: JournalSyncMutationSink(journal: journal))
+        try fresh.activateSyncCanonicalState(checkpointStore: checkpoints, bootstrap: nil, attachmentSources: [:])
+        return fresh
     }
 
     func remove() {

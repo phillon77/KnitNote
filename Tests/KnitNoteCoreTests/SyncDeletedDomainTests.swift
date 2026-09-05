@@ -4,6 +4,69 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct SyncDeletedDomainTests {
+    @Test func incomingLiveContextMustMatchCurrentArchiveBeforeRetentionChanges() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("incoming-context-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let deletedProject = try StoredProject(name: "Deleted A")
+        var liveProject = try StoredProject(name: "Live B")
+        let rootID = SyncEntityID(kind: .project, uuid: deletedProject.id)
+        let package = try ProjectArchiveSyncMapper.export(archive: .init(version: ProjectArchive.currentVersion,
+            projects: [deletedProject]), liveRoot: root, deviceID: "sender")
+        let stamp = SyncMutationStamp(logicalRevision: 10, modifiedAt: Date(timeIntervalSince1970: 100), deviceID: "sender")
+        let deleted = package.records.map { original -> SyncRecord in
+            var record = original
+            record.deletedAt = .init(value: stamp.modifiedAt, stamp: stamp)
+            if record.id == rootID {
+                record.payload.deletionCascade = .init(value: package.records.filter { $0.id != rootID }.map(\.id), stamp: stamp)
+            }
+            return record
+        }
+        let before = ProjectArchive(version: ProjectArchive.currentVersion, projects: [liveProject])
+        let live = try ProjectArchiveSyncMapper.export(archive: before, liveRoot: root, deviceID: "local")
+        let records = deleted + live.records
+        let domain = SyncDeletedDomain(rootIDs: [rootID], ownedRecords: deleted,
+            supportingParentIDs: [], removedReminders: [:], restorableRecordIDs: Set(deleted.map(\.id)))
+        let versions = try deleted.map { try SyncRecordVersion(record: $0) }
+        let ledger = try SyncDeletionLedger(root: root.appendingPathComponent("ledger"))
+        let id = try ledger.captureIncomingDeleted(domain: domain, exactRemovalVersions: versions,
+            attachments: [:], restoreRelativePaths: [:], deletedAt: stamp.modifiedAt,
+            currentRecords: records, currentArchive: before, sourceRoots: [root])
+        let entries = try ledger.recentlyDeleted()
+        let manifest = try Data(contentsOf: ledger.root.appendingPathComponent("ledger.json"))
+        let counterID = try #require(liveProject.counters.first?.id)
+        let command = WatchCounterCommand(id: UUID(), projectID: liveProject.id, counterID: counterID,
+            operation: .increment, createdAt: stamp.modifiedAt)
+        let prepared = PreparedWatchCommand(command: command,
+            expectedCounterRevision: try #require(liveProject.counters.first?.mutationRevision), expectedCounterValue: 0)
+        var watchLedger = ProcessedWatchCommandLedger()
+        watchLedger.record(command.id, preparedCommand: prepared, at: stamp.modifiedAt.addingTimeInterval(1))
+        #expect(throws: (any Error).self) {
+            try ledger.captureIncomingDeleted(domain: domain, exactRemovalVersions: versions,
+                attachments: [:], restoreRelativePaths: [:], deletedAt: stamp.modifiedAt,
+                currentRecords: records, currentArchive: before, sourceRoots: [root],
+                counterReminderContext: .init(processedLedger: watchLedger))
+        }
+        #expect(try ledger.recentlyDeleted() == entries)
+        #expect(try Data(contentsOf: ledger.root.appendingPathComponent("ledger.json")) == manifest)
+        _ = liveProject.incrementCounter(id: counterID, now: stamp.modifiedAt.addingTimeInterval(10))
+        let current = ProjectArchive(version: ProjectArchive.currentVersion, projects: [liveProject])
+        #expect(liveProject.counters.first?.value == 1)
+        #expect(throws: (any Error).self) {
+            try ledger.captureIncomingDeleted(domain: domain, exactRemovalVersions: versions,
+                attachments: [:], restoreRelativePaths: [:], deletedAt: stamp.modifiedAt.addingTimeInterval(50),
+                currentRecords: records, currentArchive: current, sourceRoots: [root])
+        }
+        #expect(try ledger.recentlyDeleted() == entries)
+        #expect(try Data(contentsOf: ledger.root.appendingPathComponent("ledger.json")) == manifest)
+        #expect(try ledger.recentlyDeleted().first?.id == id)
+        let updated = try ProjectArchiveSyncMapper.export(archive: current, liveRoot: root, deviceID: "local")
+        #expect(try ledger.captureIncomingDeleted(domain: domain, exactRemovalVersions: versions,
+            attachments: [:], restoreRelativePaths: [:], deletedAt: stamp.modifiedAt.addingTimeInterval(50),
+            currentRecords: deleted + updated.records, currentArchive: current, sourceRoots: [root]) == id)
+        #expect(try ledger.recentlyDeleted().first?.deletedAt == stamp.modifiedAt)
+    }
+
     @Test func incomingMediaRequiresCompleteBoundSourcesAndRejectsRetiredHistorySelection() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("incoming-media-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

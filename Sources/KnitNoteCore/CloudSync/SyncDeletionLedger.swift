@@ -125,7 +125,8 @@ struct SyncDeletionLedger {
     func captureIncomingDeleted(domain: SyncDeletedDomain, exactRemovalVersions: [SyncRecordVersion],
         attachments: [UUID: SyncAttachmentSource], restoreRelativePaths: [UUID: String], deletedAt: Date,
         currentRecords: [SyncRecord], currentArchive: ProjectArchive,
-        supportingAttachments: [UUID: SyncAttachmentSource] = [:], sourceRoots: [URL]) throws -> UUID {
+        supportingAttachments: [UUID: SyncAttachmentSource] = [:], sourceRoots: [URL],
+        counterReminderContext: SyncCounterReminderMergeContext = .init()) throws -> UUID {
         try validate(domain)
         guard domain.restorableRecordIDs != nil else { throw SyncDeletionLedgerError.corrupt }
         try validateRemovalVersions(exactRemovalVersions, domain: domain)
@@ -148,6 +149,8 @@ struct SyncDeletionLedger {
             }) else { throw SyncDeletionLedgerError.unsafePath }
             _ = try read(source.fileURL, expected: .init(byteCount: source.byteCount, sha256: source.contentSHA256))
         }
+        try validateIncomingLiveContext(records: currentRecords, archive: currentArchive,
+            attachments: supportingAttachments, counterReminderContext: counterReminderContext)
         let prior = try recentlyDeleted().first { $0.domain.rootIDs == domain.rootIDs }
         var selected = domain
         var versions = exactRemovalVersions
@@ -228,6 +231,40 @@ struct SyncDeletionLedger {
                 domain: selected, exactRemovalVersions: versions, files: proofs), binding: nil, active: true, incoming: true))
             try persist(manifest)
             return id
+        }
+    }
+
+    private func validateIncomingLiveContext(records: [SyncRecord], archive: ProjectArchive,
+        attachments: [UUID: SyncAttachmentSource], counterReminderContext: SyncCounterReminderMergeContext) throws {
+        // Archive JSON cannot encode prepared/processed Watch authority. The
+        // frozen caller supplies that external context when present; use the
+        // existing merge validator to reject canonical states that regress it.
+        _ = try SyncMergeEngine().merge(local: records, remote: [SyncRecord](), pendingLocal: [],
+            counterReminderContext: counterReminderContext)
+        let directory = root.appendingPathComponent(".incoming-validation-\(UUID())")
+        var staged: [UUID: SyncAttachmentSource] = [:]
+        defer {
+            if !attachments.isEmpty { try? FileManager.default.removeItem(at: directory) }
+        }
+        if !attachments.isEmpty { try createDirectory(directory) }
+        for (id, source) in attachments {
+            let bytes = try read(source.fileURL, expected: .init(byteCount: source.byteCount, sha256: source.contentSHA256))
+            let destination = directory.appendingPathComponent(id.uuidString)
+            guard try SyncDurableFile.createNoClobber(bytes, at: destination) else { throw SyncDeletionLedgerError.corrupt }
+            staged[id] = .init(fileURL: destination, contentSHA256: source.contentSHA256,
+                byteCount: source.byteCount, isJournalStaged: true)
+        }
+        // Validate the unrevived live projection, not the restoration candidate.
+        // This precedes all deletion-group staging and manifest changes.
+        let projected = try ProjectArchiveSyncMapper.materialize(records: records,
+            attachments: staged, baseArchive: archive).archive
+        func same<T: Identifiable & Equatable>(_ lhs: [T], _ rhs: [T]) -> Bool where T.ID == UUID {
+            lhs.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.sorted { $0.id.uuidString < $1.id.uuidString }
+        }
+        guard same(projected.projects, archive.projects), same(projected.yarns, archive.yarns),
+              same(projected.patternFolders, archive.patternFolders), same(projected.patternAssets, archive.patternAssets),
+              same(projected.patterns, archive.patterns), same(projected.patternUsages, archive.patternUsages) else {
+            throw SyncDeletionLedgerError.witnessMismatch
         }
     }
 

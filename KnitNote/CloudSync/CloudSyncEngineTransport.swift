@@ -1,4 +1,5 @@
 import CloudKit
+import CryptoKit
 import Foundation
 
 protocol CloudSyncTransport: AnyObject, Sendable {
@@ -15,9 +16,22 @@ protocol CloudSyncTransport: AnyObject, Sendable {
     ) async throws
     func fetchNow(completionID: UUID?) async throws
     func sendNow(completionID: UUID?) async throws
+    func committedFetchReceipt(requestID: UUID) async throws -> CloudInitialFetchReceipt
+}
+
+struct CloudInitialFetchReceipt: Sendable {
+    let requestID: UUID
+    let batchIDs: Set<UUID>
+    let epoch: CloudSyncAccountEpoch
+    fileprivate init(requestID: UUID, batchIDs: Set<UUID>, epoch: CloudSyncAccountEpoch) {
+        self.requestID = requestID; self.batchIDs = batchIDs; self.epoch = epoch
+    }
 }
 
 extension CloudSyncTransport {
+    func committedFetchReceipt(requestID: UUID) async throws -> CloudInitialFetchReceipt {
+        throw CloudSyncTransportError.unknownFetchedBatch
+    }
     func acknowledgeSentMutation(_ identity: SyncMutationIdentity) async throws {}
     func resolveFailedMutation(_ mutationID: UUID, replacement: SyncMutation?) async throws {
         try await resolveFailedMutation(
@@ -267,6 +281,13 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var deleteCallbackBarriers: Set<SyncEntityID> = []
     private var currentAccountIdentifier: String?
     private var accountResetBlocksRestart = false
+    private let requiresInitialFetchReceipt: Bool
+    private var fetchedBatchSequence: UInt64 = 0
+    private var activeReceiptFetch: UUID?
+    private var receiptFetchBatches: [UUID: Set<UUID>] = [:]
+    private var completedReceiptFetches: Set<UUID> = []
+    private var committedReceiptBatches: Set<UUID> = []
+    private var sendReadinessReceipt: CloudInitialFetchReceipt?
     /// The first entry is the mutation currently represented in CKSyncEngine.
     /// Later entries stay here until their predecessor is acknowledged.
     private var queues: [SyncEntityID: [SyncMutation]] = [:]
@@ -327,6 +348,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         initialAccountIdentifier: String? = nil,
         assetStaging: CloudAssetStagingService? = nil,
         recordMaterializer: RecordMaterializer? = nil,
+        requiresInitialFetchReceipt: Bool = false,
         engineFactory: @escaping EngineFactory
     ) {
         let pair = AsyncStream<CloudSyncEvent>.makeStream()
@@ -335,6 +357,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         eventContinuation = pair.continuation
         self.terminalLatch = terminalLatch
         self.zoneID = zoneID
+        self.requiresInitialFetchReceipt = requiresInitialFetchReceipt
         self.stateStore = stateStore
         self.incomingBatchStore = incomingBatchStore ?? FileCloudIncomingBatchStore(
             url: stateStore.relatedURL(pathExtension: "incoming-batches")
@@ -373,6 +396,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
 
     func start() async throws {
         try requireNotTerminated()
+        guard !accountResetBlocksRestart else { throw CloudSyncTransportError.accountResetIncomplete }
         if let assetStaging, assetStaging.accountIdentifier != currentAccountIdentifier {
             throw CloudSyncTransportError.missingAccountIdentity
         }
@@ -478,6 +502,14 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         try requireNotTerminated()
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
+        let observedSequence = fetchedBatchSequence
+        if requiresInitialFetchReceipt {
+            guard let completionID, activeReceiptFetch == nil else { throw CloudSyncTransportError.staleOperation }
+            receiptFetchBatches.removeAll(); completedReceiptFetches.removeAll(); committedReceiptBatches.removeAll()
+            activeReceiptFetch = completionID
+            receiptFetchBatches[completionID] = []
+        }
+        defer { if requiresInitialFetchReceipt { activeReceiptFetch = nil } }
         do {
             try beginSourceObservationCycle()
         } catch {
@@ -487,9 +519,16 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
         do {
             try await engine.fetchChanges(.init(scope: .zoneIDs([zoneID])))
+            try Task.checkCancellation()
             try requireCurrentGeneration(operationGeneration)
+            if requiresInitialFetchReceipt, fetchedBatchSequence == observedSequence {
+                // This is the successful current fetch's empty result. Give it
+                // the same durable incoming/merge/ACK chain as a populated batch.
+                receiveFetchedChanges(records: [], deletedRecordIDs: [])
+            }
             completeSourceObservationCycle(succeeded: true)
             if let completionID {
+                if requiresInitialFetchReceipt { completedReceiptFetches.insert(completionID) }
                 eventContinuation.yield(.fetchRequestCompleted(completionID))
             }
         } catch let error as CKError {
@@ -509,6 +548,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     func finishMutationReplay(completionID: UUID?) async throws {
         try requireNotTerminated()
         guard engine != nil else { throw CloudSyncTransportError.notStarted }
+        if requiresInitialFetchReceipt {
+            guard let sendReadinessReceipt else { throw CloudSyncTransportError.unknownFetchedBatch }
+            try sendReadinessReceipt.epoch.requireCurrent()
+        }
         mutationReplayFinished = true
         try await sendNow(completionID: completionID)
     }
@@ -534,6 +577,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             accountIdentifier: incomingAccountIdentifier,
             zoneID: zoneID
         )
+        committedReceiptBatches.insert(batchID)
         guard unacknowledgedFetchedBatchIDs.contains(batchID) else { return }
         if sourceObservationCycleDepth > 0 {
             unacknowledgedFetchedBatchIDs.removeAll { $0 == batchID }
@@ -621,6 +665,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
 
     private func sendConfiguredZoneChanges(completionID: UUID? = nil) async throws {
         guard let engine else { throw CloudSyncTransportError.notStarted }
+        if requiresInitialFetchReceipt {
+            guard mutationReplayFinished, let sendReadinessReceipt else { throw CloudSyncTransportError.unknownFetchedBatch }
+            try sendReadinessReceipt.epoch.requireCurrent()
+        }
         for identity in acknowledgedUploadsAwaitingCleanup {
             try cleanupAcknowledgedUpload(identity)
         }
@@ -662,6 +710,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveStateUpdate(_ serialization: CKSyncEngine.State.Serialization) {
+        guard !accountResetBlocksRestart else { return }
         guard !terminalLatch.isTerminated else { return }
         guard !inboundDurabilityBlocked else { return }
         let coveredBatchIDs = sourceObservedFetchedBatchIDs
@@ -759,6 +808,19 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveAccountChange(previous: String?, current: String?) async {
+        let cancellation = invalidateForAccountTransition()
+        eventContinuation.yield(.accountChanged(previous: previous, current: current))
+        await cancellation?.value
+    }
+
+    /// Detaches before cancellation can suspend. Durable files remain untouched
+    /// until the account owner's authenticated recovery transaction cleans them.
+    func invalidateForAccountTransition() -> Task<Void, Never>? {
+        guard !accountResetBlocksRestart else { return nil }
+        accountResetBlocksRestart = true
+        activeReceiptFetch = nil
+        receiptFetchBatches.removeAll(); completedReceiptFetches.removeAll(); committedReceiptBatches.removeAll()
+        sendReadinessReceipt = nil
         accountEpoch.invalidate()
         awaitingJournalAcknowledgement.removeAll()
         acknowledgedUploadsAwaitingCleanup.removeAll()
@@ -792,30 +854,61 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
-        currentAccountIdentifier = current
-        do {
-            try stateStore.beginAccountReset(previous: previous, current: current)
-            accountResetBlocksRestart = true
-            try completePendingAccountResetIfNeeded()
-        } catch {
-            accountResetBlocksRestart = true
-            eventContinuation.yield(.failed(.statePersistence))
-        }
-        eventContinuation.yield(.accountChanged(previous: previous, current: current))
-        await detachedEngine?.cancelOperations()
+        return detachedEngine.map { driver in Task { await driver.cancelOperations() } }
     }
 
-    private func completePendingAccountResetIfNeeded() throws {
-        guard try stateStore.hasPendingAccountReset() else { return }
-        try stateStore.clear()
-        try incomingBatchStore.retireAllAfterEngineStateReset()
-        try stateStore.clearAccountOwner()
-        try stateStore.completeAccountReset()
-        accountResetBlocksRestart = false
+    func committedFetchReceipt(requestID: UUID) async throws -> CloudInitialFetchReceipt {
+        try accountEpoch.requireCurrent()
+        guard requiresInitialFetchReceipt, completedReceiptFetches.contains(requestID),
+              let batches = receiptFetchBatches[requestID], !batches.isEmpty,
+              batches.isSubset(of: committedReceiptBatches), !inboundDurabilityBlocked else {
+            throw CloudSyncTransportError.unknownFetchedBatch
+        }
+        let receipt = CloudInitialFetchReceipt(requestID: requestID, batchIDs: batches, epoch: accountEpoch)
+        sendReadinessReceipt = receipt
+        return receipt
+    }
+
+    func validateRecoveryBinding(account: CloudAccountBinding, paths: SyncAccountStorage.Paths) throws {
+        guard currentAccountIdentifier == account.userRecordName,
+              paths.accountRoot.lastPathComponent == account.identity.accountIDHash else {
+            throw CloudSyncTransportError.accountResetIncomplete
+        }
+        let expected = paths.engineState.appendingPathComponent("engine.json")
+        guard stateStore.recoveryURLs == [expected, expected.appendingPathExtension("account-reset"), expected.appendingPathExtension("account-owner")],
+              incomingBatchStore.recoveryURL == expected.appendingPathExtension("incoming-batches"),
+              systemFieldsStore?.recoveryURL == paths.engineState.appendingPathComponent("system-fields.json") else {
+            throw CloudSyncTransportError.accountResetIncomplete
+        }
+        if let assetStaging {
+            // The legacy asset hash is nested explicitly under this account's
+            // staging root. It is never treated as the identity namespace.
+            let token = SHA256.hash(data: Data(account.userRecordName.utf8)).map { String(format: "%02x", $0) }.joined()
+            guard assetStaging.accountIdentifier == account.userRecordName,
+                  assetStaging.accountRootURL.standardizedFileURL.path == paths.staging.appendingPathComponent("cloud-assets/Accounts/" + token).standardizedFileURL.path else {
+                throw CloudSyncTransportError.accountResetIncomplete
+            }
+        }
+    }
+
+    func retireAfterSealedCleanup(transaction: SyncAccountRecoveryTransaction, account: CloudAccountBinding,
+                                  paths: SyncAccountStorage.Paths, now: Date) throws {
+        guard accountResetBlocksRestart, engine == nil else { throw CloudSyncTransportError.accountResetIncomplete }
+        try validateRecoveryBinding(account: account, paths: paths)
+        guard let current = try transaction.lifecycleSnapshot(now: now), current.phase == .cleanupComplete,
+              current.account == account.identity, current.accountRoot == paths.accountRoot else {
+            throw CloudSyncTransportError.accountResetIncomplete
+        }
+        // The transaction has already removed and synchronized every captured
+        // engine/incoming/system-field/asset file. Do not recreate reset files.
+        terminalLatch.terminate()
+        eventContinuation.finish()
     }
 
     private func prepareAccountScope() throws {
-        try completePendingAccountResetIfNeeded()
+        guard !accountResetBlocksRestart, try !stateStore.hasPendingAccountReset() else {
+            throw CloudSyncTransportError.accountResetIncomplete
+        }
         let accountIdentifier = incomingAccountIdentifier
         let durableOwner = try stateStore.loadAccountOwner()
         let storedState = try stateStore.load()
@@ -827,12 +920,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             || hasUnboundState
             || durableOwner.map({ $0 != accountIdentifier }) == true
             || hasForeignIncomingWork {
-            try stateStore.beginAccountReset(
-                previous: durableOwner,
-                current: accountIdentifier
-            )
-            accountResetBlocksRestart = true
-            try completePendingAccountResetIfNeeded()
+            throw CloudSyncTransportError.accountResetIncomplete
         }
         try stateStore.bindAccountOwner(accountIdentifier)
         accountResetBlocksRestart = false
@@ -953,6 +1041,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveFetchedChanges(records: [CKRecord], deletedRecordIDs: [CKRecord.ID]) {
+        guard !accountResetBlocksRestart else { return }
         guard !inboundDurabilityBlocked else {
             eventContinuation.yield(.failed(.statePersistence))
             return
@@ -1047,6 +1136,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         let batchID = envelope.batchID
         activeFetchedBatchIDs.append(batchID)
         unacknowledgedFetchedBatchIDs.append(batchID)
+        fetchedBatchSequence &+= 1
+        if let activeReceiptFetch { receiptFetchBatches[activeReceiptFetch, default: []].insert(batchID) }
         eventContinuation.yield(.fetched(
             batchID: batchID,
             accountEpoch: accountEpoch,
@@ -1056,6 +1147,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveZoneReady(_ readyZoneID: CKRecordZone.ID) async {
+        guard !accountResetBlocksRestart else { return }
         guard readyZoneID == zoneID,
               !configuredZoneIsReady,
               !zoneResetInProgress,
@@ -1067,6 +1159,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveDeletedZones(_ deletedZoneIDs: [CKRecordZone.ID]) async {
+        guard !accountResetBlocksRestart else { return }
         guard deletedZoneIDs.contains(zoneID), !zoneResetInProgress else { return }
         zoneResetInProgress = true
         configuredZoneIsReady = false
@@ -1113,6 +1206,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveSentChanges(savedRecords: [CKRecord], deletedRecordIDs: [CKRecord.ID]) async {
+        guard !accountResetBlocksRestart else { return }
         let operationGeneration = generation
         for record in savedRecords {
             guard generation == operationGeneration else { return }
@@ -1171,6 +1265,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveFailedSave(_ record: CKRecord, error: CKError) async {
+        guard !accountResetBlocksRestart else { return }
         guard let entityID = Self.entityID(for: record.recordID),
               let mutationID = Self.uuidField("syncMutationID", in: record),
               let attemptID = Self.uuidField("syncAttemptID", in: record),
@@ -1208,6 +1303,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     }
 
     func receiveFailedDelete(_ recordID: CKRecord.ID, error: CKError) {
+        guard !accountResetBlocksRestart else { return }
         guard let entityID = Self.entityID(for: recordID),
               let attempt = sendAttempts[entityID],
               attempt.intent == .delete else { return }

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		551111111111111111111113 /* CloudAccountTransitionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */; };
+		551111111111111111111115 /* CloudRecoveryVaultKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */; };
+		551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */; };
 		0067BD647A5C8F1074C2BF40 /* YarnLabelObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF29A3759BFD3D7AEB014EBA /* YarnLabelObservation.swift */; };
 		00A2D6DB94985BEAF42649BA /* ProjectJournalPhotoFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A48FCA1639875053B46568C /* ProjectJournalPhotoFileService.swift */; };
 		00FD4B24B3DBF01EC47189B7 /* StoredProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7908B2ED4E0DCD00EBF868 /* StoredProject.swift */; };
@@ -402,6 +405,32 @@
 		FEA79EA51C57895443D3B574 /* KnitNoteBackupDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F9AB70EA6020F2BECF5EFD /* KnitNoteBackupDocument.swift */; };
 		FF37BEFDE0C26708962E792F /* WatchConnectivityEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926C002CC977A56CD9D4B192 /* WatchConnectivityEnvelope.swift */; };
 		FFD485B0C62243EAB74CCCF0 /* PatternPageThumbnailPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3663DE46B0C7E8EF38A0358 /* PatternPageThumbnailPolicy.swift */; };
+		A38B0E3DFCB11F14083DC16E /* PossibleDuplicateDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */; };
+		10D155FB064880436BE35E85 /* ProjectArchiveSyncMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */; };
+		97BD0F222A3EE351E759D141 /* SyncAccountIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748C2CAD5F5BC8DED7F9F4E4 /* SyncAccountIdentity.swift */; };
+		900A1153B0BD4CF7E21FBFBB /* SyncAccountRecoveryInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */; };
+		2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755FD88F5ED9D3992C620EDE /* SyncAccountRecoveryTransaction.swift */; };
+		1E85B79E884DC499B8F7E072 /* SyncAccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */; };
+		01D5AB0082A40D41FCD28DFD /* SyncArchiveAttachmentReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */; };
+		93C1EFB0EC085F18781FDE9C /* SyncBootstrapTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */; };
+		53CC78796FF3718331631302 /* SyncDeletedDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */; };
+		901AB770697033394E528E05 /* SyncDeletionLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */; };
+		37617BAD6FE017B213578A68 /* SyncDeletionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 297F4F4B4BE51A487ADB7BCD /* SyncDeletionPolicy.swift */; };
+		C5371931566A044284DD732C /* SyncPendingRecoveryPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB2059792EFF2B3512159E2 /* SyncPendingRecoveryPacket.swift */; };
+		251026E9A3A8DA0C5B5FEC58 /* SyncRecoveryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */; };
+		5EDEA4D56A24E39115C65BA3 /* PossibleDuplicateDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */; };
+		84BC496EC7C20597245D5C08 /* ProjectArchiveSyncMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */; };
+		079C1719375AA00D3704FD79 /* SyncAccountIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748C2CAD5F5BC8DED7F9F4E4 /* SyncAccountIdentity.swift */; };
+		26826884EB1921DBAFBBDAF4 /* SyncAccountRecoveryInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */; };
+		9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755FD88F5ED9D3992C620EDE /* SyncAccountRecoveryTransaction.swift */; };
+		A36A8A3875D4CB670FB285F2 /* SyncAccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */; };
+		57C6FA575A3A003BAFC84DB5 /* SyncArchiveAttachmentReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */; };
+		58ED7EABB995F052A5D10E4D /* SyncBootstrapTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */; };
+		EB51A862DE7A8E37A7938B61 /* SyncDeletedDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */; };
+		86B98132E2BD590EEDB0D822 /* SyncDeletionLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */; };
+		3AE51DF46F0FE6E58FDF7BA5 /* SyncDeletionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 297F4F4B4BE51A487ADB7BCD /* SyncDeletionPolicy.swift */; };
+		5EBDAB5EE8B7C8B12D14BDC8 /* SyncPendingRecoveryPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB2059792EFF2B3512159E2 /* SyncPendingRecoveryPacket.swift */; };
+		6466CE9C8C5E1DFE0BFCC062 /* SyncRecoveryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -461,6 +490,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountTransitionCoordinator.swift; sourceTree = "<group>"; };
+		551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecoveryVaultKeychain.swift; sourceTree = "<group>"; };
+		551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountTransitionCoordinatorTests.swift; sourceTree = "<group>"; };
 		00EBACED64349D218A8F4356 /* YarnLabelFieldParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelFieldParser.swift; sourceTree = "<group>"; };
 		02A9FBF7FCB06E26E6EA71D3 /* YarnPhotoFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnPhotoFileService.swift; sourceTree = "<group>"; };
 		0466DF092F15BAB89DF8D382 /* PatternInboxPublicationReceiptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxPublicationReceiptService.swift; sourceTree = "<group>"; };
@@ -746,6 +778,19 @@
 		FD56893C10E9FF664C6B6F3B /* MacYarnLabelFileImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacYarnLabelFileImporter.swift; sourceTree = "<group>"; };
 		FDD8E68618E9A00B0005E722 /* PatternThumbnailFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternThumbnailFileService.swift; sourceTree = "<group>"; };
 		FE75A4BC6F25D9138B684ADF /* RowNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowNote.swift; sourceTree = "<group>"; };
+		297F4F4B4BE51A487ADB7BCD /* SyncDeletionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeletionPolicy.swift; sourceTree = "<group>"; };
+		3EB2059792EFF2B3512159E2 /* SyncPendingRecoveryPacket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPendingRecoveryPacket.swift; sourceTree = "<group>"; };
+		748C2CAD5F5BC8DED7F9F4E4 /* SyncAccountIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountIdentity.swift; sourceTree = "<group>"; };
+		755FD88F5ED9D3992C620EDE /* SyncAccountRecoveryTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountRecoveryTransaction.swift; sourceTree = "<group>"; };
+		81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PossibleDuplicateDetector.swift; sourceTree = "<group>"; };
+		84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectArchiveSyncMapper.swift; sourceTree = "<group>"; };
+		942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountStorage.swift; sourceTree = "<group>"; };
+		9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapTransaction.swift; sourceTree = "<group>"; };
+		A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncArchiveAttachmentReferences.swift; sourceTree = "<group>"; };
+		B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeletedDomain.swift; sourceTree = "<group>"; };
+		BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountRecoveryInventory.swift; sourceTree = "<group>"; };
+		D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecoveryVault.swift; sourceTree = "<group>"; };
+		FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeletionLedger.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -910,6 +955,8 @@
 		2A0467EE3ABAB49B19A460A0 /* CloudSync */ = {
 			isa = PBXGroup;
 			children = (
+				551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */,
+				551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */,
 				4312CABCB2407EF0B7CEA064 /* CloudAssetFileStore.swift */,
 				CA868BA403CC9D70C96E744E /* CloudAssetManifestStore.swift */,
 				C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */,
@@ -944,6 +991,7 @@
 		491A1A35F59A29BF49F08ADE /* KnitNoteAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */,
 				BC4ED73108C3002C14F305FB /* CloudAssetDownloadStagingTests.swift */,
 				900C0FC5920D203F4AC599B6 /* CloudAssetFileStoreTests.swift */,
 				5E1C904636D06C5F9F3085E1 /* CloudAssetManifestStoreTests.swift */,
@@ -1297,6 +1345,19 @@
 		E1F3F2411C1DBE9B4E20F94B /* CloudSync */ = {
 			isa = PBXGroup;
 			children = (
+				FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */,
+				D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */,
+				BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */,
+				B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */,
+				A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */,
+				9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */,
+				942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */,
+				84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */,
+				81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */,
+				755FD88F5ED9D3992C620EDE /* SyncAccountRecoveryTransaction.swift */,
+				748C2CAD5F5BC8DED7F9F4E4 /* SyncAccountIdentity.swift */,
+				3EB2059792EFF2B3512159E2 /* SyncPendingRecoveryPacket.swift */,
+				297F4F4B4BE51A487ADB7BCD /* SyncDeletionPolicy.swift */,
 				C7566DB749ED0266182EB98E /* SyncAttachmentManifest.swift */,
 				E6035C578ADF8D6DF0D15AE0 /* SyncDurableFile.swift */,
 				CCF071059A4592DF3DE45298 /* SyncIdentity.swift */,
@@ -1583,6 +1644,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				551111111111111111111113 /* CloudAccountTransitionCoordinator.swift in Sources */,
+				551111111111111111111115 /* CloudRecoveryVaultKeychain.swift in Sources */,
+				251026E9A3A8DA0C5B5FEC58 /* SyncRecoveryVault.swift in Sources */,
+				C5371931566A044284DD732C /* SyncPendingRecoveryPacket.swift in Sources */,
+				37617BAD6FE017B213578A68 /* SyncDeletionPolicy.swift in Sources */,
+				901AB770697033394E528E05 /* SyncDeletionLedger.swift in Sources */,
+				53CC78796FF3718331631302 /* SyncDeletedDomain.swift in Sources */,
+				93C1EFB0EC085F18781FDE9C /* SyncBootstrapTransaction.swift in Sources */,
+				01D5AB0082A40D41FCD28DFD /* SyncArchiveAttachmentReferences.swift in Sources */,
+				1E85B79E884DC499B8F7E072 /* SyncAccountStorage.swift in Sources */,
+				2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */,
+				900A1153B0BD4CF7E21FBFBB /* SyncAccountRecoveryInventory.swift in Sources */,
+				97BD0F222A3EE351E759D141 /* SyncAccountIdentity.swift in Sources */,
+				10D155FB064880436BE35E85 /* ProjectArchiveSyncMapper.swift in Sources */,
+				A38B0E3DFCB11F14083DC16E /* PossibleDuplicateDetector.swift in Sources */,
 				1AD7B53B4775C300883D13E8 /* AddYouTubePatternView.swift in Sources */,
 				E670667E131CAEC693AFEE22 /* AllNotesView.swift in Sources */,
 				CA6698DA0F29B9ABFEBCA6E9 /* AppLanguage.swift in Sources */,
@@ -1822,6 +1898,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6466CE9C8C5E1DFE0BFCC062 /* SyncRecoveryVault.swift in Sources */,
+				5EBDAB5EE8B7C8B12D14BDC8 /* SyncPendingRecoveryPacket.swift in Sources */,
+				3AE51DF46F0FE6E58FDF7BA5 /* SyncDeletionPolicy.swift in Sources */,
+				86B98132E2BD590EEDB0D822 /* SyncDeletionLedger.swift in Sources */,
+				EB51A862DE7A8E37A7938B61 /* SyncDeletedDomain.swift in Sources */,
+				58ED7EABB995F052A5D10E4D /* SyncBootstrapTransaction.swift in Sources */,
+				57C6FA575A3A003BAFC84DB5 /* SyncArchiveAttachmentReferences.swift in Sources */,
+				A36A8A3875D4CB670FB285F2 /* SyncAccountStorage.swift in Sources */,
+				9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */,
+				26826884EB1921DBAFBBDAF4 /* SyncAccountRecoveryInventory.swift in Sources */,
+				079C1719375AA00D3704FD79 /* SyncAccountIdentity.swift in Sources */,
+				84BC496EC7C20597245D5C08 /* ProjectArchiveSyncMapper.swift in Sources */,
+				5EDEA4D56A24E39115C65BA3 /* PossibleDuplicateDetector.swift in Sources */,
 				3C6BE637ADCCABE03A6E9540 /* AppLanguage.swift in Sources */,
 				816E08F2B937791F0F1FF8C7 /* AtomicWatchSyncFile.swift in Sources */,
 				5967A246A135737FB7B89795 /* BackupHistory.swift in Sources */,
@@ -1938,6 +2027,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */,
 				D441E394F6FDEFAEA92674F9 /* CloudAssetDownloadStagingTests.swift in Sources */,
 				0939455BBB049947CF911E2F /* CloudAssetFileStoreTests.swift in Sources */,
 				985412EA06A42B2247DAD9C4 /* CloudAssetManifestStoreTests.swift in Sources */,

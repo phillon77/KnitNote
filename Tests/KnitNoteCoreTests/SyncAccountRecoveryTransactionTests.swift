@@ -5,6 +5,18 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryTransactionTests {
+    @Test func runtimeAbsenceBarrierRefusesSelectedIntentAndSyncFailure() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: f.journal)
+        try tx.synchronizeSelectionAbsence(now: .now)
+        let faulted = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: f.journal, synchronize: { _ in throw TransactionFailure.injected })
+        #expect(throws: (any Error).self) { try faulted.synchronizeSelectionAbsence(now: .now) }
+        let sealed = try tx.seal(tx.prepare(now: .now), now: .now)
+        #expect(try tx.lifecycleSnapshot(now: .now)?.receipt == sealed)
+        #expect(throws: (any Error).self) { try tx.synchronizeSelectionAbsence(now: .now) }
+        #expect(try tx.lifecycleSnapshot(now: .now)?.phase == .sealed)
+    }
     @Test func legacyStandaloneReminderCannotAuthorizeCleanupOrNativeReplay() throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         var project = try StoredProject(name: "legacy")

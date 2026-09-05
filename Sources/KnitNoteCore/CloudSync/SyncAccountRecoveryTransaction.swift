@@ -29,6 +29,18 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         let phase: Phase
         let inventory: SyncAccountRecoveryInventory
     }
+    /// Authenticated observation for runtime lifecycle routing. This value does
+    /// not authorize deletion or replay; those methods always reauthenticate.
+    public struct LifecycleSnapshot: Sendable {
+        public let receipt: Sealed
+        public let phase: Phase
+        public let account: SyncAccountIdentity
+        public let accountRoot: URL
+        fileprivate init(selection: Selection, account: SyncAccountIdentity, root: URL) {
+            receipt = selection.receipt; phase = selection.phase
+            self.account = account; accountRoot = root
+        }
+    }
     fileprivate struct Envelope: Codable {
         let formatVersion: Int
         let captureID: UUID
@@ -86,9 +98,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         // No previous selected recovery can be superseded by another capture.
         let root = try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes,
             createControl: true) { access -> (UInt64, UInt64) in
-            guard let control = access.controlDescriptor, try read(Self.main, at: control) == nil,
-                  try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
-            try synchronize(control); try synchronize(access.accountDescriptor)
+            try synchronizeAbsence(access)
             return try identity(access.accountDescriptor)
         }
         let inventory = try SyncAccountRecoveryInventory.capture(storage: storage, paths: paths, account: account,
@@ -165,6 +175,28 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         }
     }
 
+    public func lifecycleSnapshot(now: Date) throws -> LifecycleSnapshot? {
+        try authenticatedSelection(now: now).map { LifecycleSnapshot(selection: $0, account: account, root: paths.accountRoot) }
+    }
+
+    /// Durable absence only. It proves neither replay nor journal acknowledgement.
+    public func synchronizeSelectionAbsence(now: Date) throws {
+        mutex.lock(); defer { mutex.unlock() }
+        try validateConfiguration(now: now)
+        try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) {
+            try synchronizeAbsence($0)
+        }
+    }
+
+    private func synchronizeAbsence(_ access: SyncAccountStorage.RecoveryAccess) throws {
+        if let control = access.controlDescriptor {
+            guard try read(Self.main, at: control) == nil, try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
+            try synchronize(control)
+        }
+        try synchronize(access.accountDescriptor)
+        try access.validate()
+    }
+
     /// Restores only the current authenticated selection into its original owned
     /// account. The caller keeps all domain/journal consumers frozen until it
     /// consumes the completed selection. Repeating completion only verifies it.
@@ -224,8 +256,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         try validateConfiguration(now: now)
         return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
             guard let value = try authorize(access: access, now: now) else {
-                if let control = access.controlDescriptor { try synchronize(control) }
-                try synchronize(access.accountDescriptor); try access.validate()
+                try synchronizeAbsence(access)
                 return false
             }
             guard value.receipt.vaultID == vaultID, value.intent.phase == .replayComplete,

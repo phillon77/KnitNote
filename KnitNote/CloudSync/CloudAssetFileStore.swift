@@ -876,10 +876,13 @@ final class CloudAssetAccountFileStore: @unchecked Sendable {
 
     private static func trustedParent(for rootURL: URL) throws -> URL {
         let rootComponents = rootURL.pathComponents
-        let candidates = [
-            FileManager.default.temporaryDirectory.standardizedFileURL,
+        let temporary = FileManager.default.temporaryDirectory.standardizedFileURL
+        let systemAlias: URL? = temporary.path.hasPrefix("/var/") || temporary.path.hasPrefix("/tmp/")
+            ? URL(fileURLWithPath: "/private" + temporary.path, isDirectory: true) : nil
+        let candidates = ([
+            temporary,
             URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).standardizedFileURL,
-        ].filter { candidate in
+        ] + [systemAlias].compactMap { $0 }).filter { candidate in
             let components = candidate.pathComponents
             return rootComponents.count > components.count
                 && Array(rootComponents.prefix(components.count)) == components

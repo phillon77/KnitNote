@@ -59,7 +59,7 @@ import Testing
         #expect(try restartedStaging.assetForUpload(versionID: version.versionID, mutationID: next.mutationID).fileURL == nextURL)
         await restarted.receiveAccountChange(previous: "account", current: "different-account")
         do { try await restarted.start(); Issue.record("old-account staging must not rebind") }
-        catch { #expect(error as? CloudSyncTransportError == .missingAccountIdentity) }
+        catch { #expect(error as? CloudSyncTransportError == .accountResetIncomplete) }
         #expect(FileManager.default.fileExists(atPath: nextURL.path))
     }
 
@@ -2156,7 +2156,7 @@ import Testing
         #expect(try encodedState(fixture.store.load()) == encodedState(states[2]))
     }
 
-    @Test func accountSwitchRetiresSaturatedOldAccountSpoolWithoutReplayLeak() async throws {
+    @Test func accountSwitchPreservesSaturatedOldSpoolAndBlocksForeignReplay() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
         let zoneID = testZoneID()
@@ -2180,12 +2180,8 @@ import Testing
             records: [try CloudRecordCodec().encode(oldRecord, zoneID: zoneID)],
             deletedRecordIDs: []
         )
+        let before = try Data(contentsOf: incomingStore.recoveryURL)
         await oldTransport.receiveAccountChange(previous: "account-a", current: "account-b")
-
-        let newRecord = try testRecord(
-            uuid: "00000000-0000-0000-0000-000000000057",
-            revision: 57
-        )
         let newTransport = CKSyncEngineTransport(
             zoneID: zoneID,
             stateStore: fixture.store,
@@ -2193,21 +2189,12 @@ import Testing
             initialAccountIdentifier: "account-b",
             engineFactory: { _, _ in TestSyncEngineDriver() }
         )
-        var newEvents = newTransport.events.makeAsyncIterator()
-        try await newTransport.start()
-        await newTransport.receiveFetchedChanges(
-            records: [try CloudRecordCodec().encode(newRecord, zoneID: zoneID)],
-            deletedRecordIDs: []
-        )
-
-        guard case let .fetched(batchID, epoch, records, _)? = await newEvents.next() else {
-            Issue.record("Expected new account batch despite saturated old account spool")
-            return
+        await #expect(throws: CloudSyncTransportError.accountResetIncomplete) {
+            try await newTransport.start()
         }
-        #expect(epoch.accountIdentifier == "account-b")
-        #expect(records == [newRecord])
-        #expect(!records.contains(oldRecord))
-        try await newTransport.acknowledgeFetchedBatch(batchID)
+        await newTransport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
+        #expect(try Data(contentsOf: incomingStore.recoveryURL) == before)
+        #expect(try fixture.store.loadAccountOwner() == "account-a")
     }
 
     @Test func streamTerminationCancelsEngineWithoutPersistingHeldFetchedState() async throws {
@@ -2267,10 +2254,11 @@ import Testing
         await driver.resumeCancellation()
     }
 
-    @Test func accountChangeClearsOnlyEngineStateAndLeavesMutationJournal() async throws {
+    @Test func accountChangePreservesDurableStateUntilSealedCleanupAndBlocksRestart() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
         try fixture.store.save(try stateSerialization(base64: "AQ=="))
+        try fixture.store.bindAccountOwner("old-user")
         let journalURL = fixture.root.appendingPathComponent("mutation-journal")
         let journal = FileSyncMutationJournal(url: journalURL)
         let mutation = SyncMutation.delete(
@@ -2281,6 +2269,7 @@ import Testing
         let transport = CKSyncEngineTransport(
             zoneID: testZoneID(),
             stateStore: fixture.store,
+            initialAccountIdentifier: "old-user",
             engineFactory: { _, _ in TestSyncEngineDriver() }
         )
         var iterator = transport.events.makeAsyncIterator()
@@ -2294,8 +2283,11 @@ import Testing
         }
         #expect(previous == "old-user")
         #expect(current == "new-user")
-        #expect(try fixture.store.load() == nil)
+        #expect(try fixture.store.load() != nil)
         #expect(try journal.pending() == [mutation])
+        await #expect(throws: CloudSyncTransportError.accountResetIncomplete) {
+            try await transport.start()
+        }
     }
 
     @Test func accountChangeDetachesEngineBeforeSuspendedCancellationCompletes() async throws {
@@ -2359,7 +2351,7 @@ import Testing
         #expect(await driver.pendingChanges().isEmpty)
     }
 
-    @Test func failedAccountStateClearRemainsTransactionalAcrossReconstruction() async throws {
+    @Test func accountSwitchPreservesOldStateAcrossReconstructionAndSameAccountReopen() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
         let zoneID = testZoneID()
@@ -2431,27 +2423,9 @@ import Testing
 
         try FileManager.default.removeItem(at: fixture.url)
         try persistedOldStateBytes.write(to: fixture.url)
-        try await newTransport.start()
+        await #expect(throws: CloudSyncTransportError.accountResetIncomplete) { try await newTransport.start() }
         #expect(crossAccountSerialization.value == 0)
-
-        var newEvents = newTransport.events.makeAsyncIterator()
-        let newRecord = try testRecord(
-            uuid: "00000000-0000-0000-0000-000000000062",
-            revision: 62
-        )
-        await newTransport.receiveFetchedChanges(
-            records: [try CloudRecordCodec().encode(newRecord, zoneID: zoneID)],
-            deletedRecordIDs: []
-        )
-        guard case let .fetched(newBatchID, epoch, records, _)? = await newEvents.next() else {
-            Issue.record("Expected successful reset to free new-account spool capacity")
-            return
-        }
-        #expect(epoch.accountIdentifier == "account-b")
-        #expect(records == [newRecord])
-        try await newTransport.acknowledgeFetchedBatch(newBatchID)
-
-        await newTransport.receiveAccountChange(previous: "account-b", current: "account-a")
+        #expect(try Data(contentsOf: fixture.url) == persistedOldStateBytes)
         let returningDriver = TestSyncEngineDriver()
         let returningSerialization = LockedCounter()
         let returningTransport = CKSyncEngineTransport(
@@ -2475,15 +2449,15 @@ import Testing
         }
         try await returningTransport.fetchNow()
         guard case let .fetched(_, epoch, records, _)? = await returningEvents.next() else {
-            Issue.record("Expected returning old account to refetch from cleared state")
+            Issue.record("Expected original account to replay its preserved incoming data")
             return
         }
-        #expect(returningSerialization.value == 0)
+        #expect(returningSerialization.value == 1)
         #expect(epoch.accountIdentifier == "account-a")
         #expect(records == [oldRecord])
     }
 
-    @Test func coldLaunchAccountMismatchClearsOwnedStateAndForeignSpoolBeforeEngineCreation() async throws {
+    @Test func coldLaunchAccountMismatchPreservesOwnedStateAndForeignSpool() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
         let zoneID = testZoneID()
@@ -2530,24 +2504,12 @@ import Testing
                 return TestSyncEngineDriver()
             }
         )
-        var newEvents = newTransport.events.makeAsyncIterator()
-        try await newTransport.start()
-
+        let before = try Data(contentsOf: incomingStore.recoveryURL)
+        await #expect(throws: CloudSyncTransportError.accountResetIncomplete) { try await newTransport.start() }
         #expect(crossAccountSerialization.value == 0)
-        let newRecord = try testRecord(
-            uuid: "00000000-0000-0000-0000-000000000069",
-            revision: 69
-        )
-        await newTransport.receiveFetchedChanges(
-            records: [try CloudRecordCodec().encode(newRecord, zoneID: zoneID)],
-            deletedRecordIDs: []
-        )
-        guard case let .fetched(_, epoch, records, _)? = await newEvents.next() else {
-            Issue.record("Expected foreign spool retirement to free bounded capacity")
-            return
-        }
-        #expect(epoch.accountIdentifier == "account-b")
-        #expect(records == [newRecord])
+        #expect(try Data(contentsOf: incomingStore.recoveryURL) == before)
+        #expect(try fixture.store.load() != nil)
+        #expect(try fixture.store.loadAccountOwner() == "account-a")
     }
 
     @Test func resetMarkerCreationFailureCannotLoseAccountMismatchAcrossReconstruction() async throws {
@@ -2598,8 +2560,10 @@ import Testing
         #expect(crossAccountSerialization.value == 0)
 
         try FileManager.default.removeItem(at: resetMarkerURL)
-        try await newTransport.start()
+        await #expect(throws: CloudSyncTransportError.accountResetIncomplete) { try await newTransport.start() }
         #expect(crossAccountSerialization.value == 0)
+        #expect(try fixture.store.load() != nil)
+        #expect(try fixture.store.loadAccountOwner() == "account-a")
     }
 
     @Test func batchSuspendedDuringRecordMaterializationReturnsNilAfterAccountReset() async throws {
@@ -3430,6 +3394,7 @@ actor TestSyncEngineDriver: CKSyncEngineDriving {
         sendScopes.last?.contains(CKRecord.ID(recordName: "scope-probe", zoneID: zoneID)) ?? false
     }
     func suspendNextFetch() { shouldSuspendFetch = true }
+    func isFetchSuspended() -> Bool { fetchResume != nil }
     func setFetchAction(_ action: @escaping @Sendable () async -> Void) {
         fetchAction = action
     }

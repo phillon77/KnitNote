@@ -9,10 +9,12 @@ enum CloudRecordSystemFieldsStoreError: Error, Equatable {
 }
 
 struct FileCloudRecordSystemFieldsStore: @unchecked Sendable {
+    let recoveryURL: URL
     private let file: DescriptorRelativeAtomicFile
     private let zoneID: CKRecordZone.ID
 
     init(url: URL, zoneID: CKRecordZone.ID) {
+        recoveryURL = url
         file = DescriptorRelativeAtomicFile(url: url)
         self.zoneID = zoneID
     }

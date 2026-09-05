@@ -1,6 +1,8 @@
 import Combine
 import Foundation
 
+private enum CloudSyncIssueError: Error { case failed }
+
 enum CloudSyncIssue: Equatable, Sendable {
     case transport(CloudSyncFailure)
     case missingLocalRecord(SyncEntityID)
@@ -54,7 +56,6 @@ struct SyncFailedMutationResolution: Equatable, Sendable {
     let replacement: SyncMutation
     let followingReplacements: [SyncMutation]
 }
-
 enum SyncFailedMutationCommitResult: Equatable, Sendable {
     case committed(SyncFailedMutationResolution)
     case staleRecordQueue
@@ -87,6 +88,35 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private var blockingConflictMutations: [SyncMutationIdentity: CloudSyncIssue] = [:]
     private var blockingConflictMutationOrder: [SyncMutationIdentity] = []
     private var resolvedFailedAttempts: [SyncMutationIdentity: Set<UUID>] = [:]
+    private var transitionWaiter: CheckedContinuation<Void, any Error>?
+    private var transitionReady: ((CloudInitialFetchReceipt) throws -> Void)?
+    var accountChangeHandler: ((String?, String?) -> Void)?
+
+    func startForAccountTransition(onReady: @escaping (CloudInitialFetchReceipt) throws -> Void) async throws {
+        guard !started else { throw CloudSyncIssueError.failed }
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                transitionWaiter = continuation
+                transitionReady = onReady
+                Task { await self.start() }
+            }
+        } onCancel: {
+            Task { @MainActor in self.stopForAccountTransition() }
+        }
+    }
+
+    func stopForAccountTransition() {
+        accountInvalidated = true
+        activeCycle = nil
+        eventLoopTask?.cancel()
+        finishTransitionWaiter(.failure(CancellationError()))
+    }
+
+    private func finishTransitionWaiter(_ result: Result<Void, any Error>) {
+        let waiter = transitionWaiter
+        transitionWaiter = nil; transitionReady = nil
+        waiter?.resume(with: result)
+    }
 
     init(
         transport: any CloudSyncTransport,
@@ -166,10 +196,11 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
             guard case .accountChanged = event else { return }
         }
         switch event {
-        case .accountChanged:
+        case let .accountChanged(previous, current):
             accountInvalidated = true
             activeCycle = nil
             fail(.accountChanged)
+            accountChangeHandler?(previous, current)
         case let .fetched(batchID, accountEpoch, records, deleted):
             await handleFetched(
                 batchID: batchID,
@@ -494,6 +525,14 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private func handleFetchRequestCompleted(_ requestID: UUID) async {
         guard let cycle = activeCycle, cycle.id == requestID else { return }
         do {
+            if let transitionReady {
+                guard blockingFetchedBatches.isEmpty else {
+                    throw CloudSyncIssueError.failed
+                }
+                let receipt = try await transport.committedFetchReceipt(requestID: requestID)
+                try receipt.epoch.requireCurrent()
+                try transitionReady(receipt)
+            }
             let pending = try journal.pending()
             if !pending.isEmpty {
                 try await transport.schedule(pending)
@@ -504,6 +543,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
             case .manual:
                 try await transport.sendNow(completionID: cycle.id)
             }
+            finishTransitionWaiter(.success(()))
         } catch {
             handleOperationError(error)
         }
@@ -586,6 +626,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     }
 
     private func fail(_ issue: CloudSyncIssue) {
+        finishTransitionWaiter(.failure(CloudSyncIssueError.failed))
         activeCycle = nil
         publish(
             phase: .needsAttention,
@@ -629,6 +670,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     }
 
     private func handleOperationError(_ error: Error) {
+        finishTransitionWaiter(.failure(error))
         activeCycle = nil
         if let failure = error as? CloudSyncFailure {
             handleTransportFailure(failure)

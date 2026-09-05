@@ -15,6 +15,7 @@ struct FileCloudSyncEngineStateStore: @unchecked Sendable {
     private let accountResetFile: DescriptorRelativeAtomicFile
     private let accountOwnerFile: DescriptorRelativeAtomicFile
     private let url: URL
+    var recoveryURLs: [URL] { [url, url.appendingPathExtension("account-reset"), url.appendingPathExtension("account-owner")] }
 
     init(url: URL) {
         self.init(url: url, beforeWriteBoundary: { _ in })
@@ -289,6 +290,7 @@ struct CloudIncomingBatchSourceObservationSnapshot: Sendable {
 /// Durable handoff between CKSyncEngine callbacks and the domain committer.
 /// Entries remain until a covering engine-state update is durably installed.
 struct FileCloudIncomingBatchStore: @unchecked Sendable {
+    let recoveryURL: URL
     private static let version = 1
     private static let defaultMaximumBatchCount = 128
     private static let defaultMaximumEncodedBytes = 16 * 1_024 * 1_024
@@ -302,6 +304,7 @@ struct FileCloudIncomingBatchStore: @unchecked Sendable {
         maximumBatchCount: Int = Self.defaultMaximumBatchCount,
         maximumEncodedBytes: Int = Self.defaultMaximumEncodedBytes
     ) {
+        recoveryURL = url
         file = DescriptorRelativeAtomicFile(url: url)
         self.maximumBatchCount = maximumBatchCount
         self.maximumEncodedBytes = maximumEncodedBytes

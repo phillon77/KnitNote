@@ -82,6 +82,18 @@ public enum ProjectArchiveSyncMapper {
             versions[slot] = record.payload.attachment!
             issuedBySlot[slot] = record
         }
+        var successorStamps: [SyncAttachmentSlot: SyncMutationStamp] = [:]
+        var exhaustedSlots: Set<SyncAttachmentSlot> = []
+        for (slot, history) in Dictionary(grouping: issued, by: { $0.payload.attachment!.slot }) {
+            let revision = history.map { $0.deletedAt.stamp.logicalRevision }.max()!
+            let dates = history.map { $0.deletedAt.stamp.modifiedAt }
+            guard revision < UInt64.max, dates.allSatisfy({ $0.timeIntervalSinceReferenceDate.isFinite }) else {
+                exhaustedSlots.insert(slot)
+                continue
+            }
+            successorStamps[slot] = .init(logicalRevision: revision + 1,
+                modifiedAt: dates.max()!, deviceID: deviceID)
+        }
         // Bootstrap has no issued identity yet. A frozen source produces the
         // same initial issuance on retry; later replacements reuse the durable
         // canonical issuance supplied by the transaction owner.
@@ -99,12 +111,13 @@ public enum ProjectArchiveSyncMapper {
             deletedAttachmentVersionIDs: Set(issued.filter { $0.deletedAt.value != nil }.map(\.id.uuid)),
             now: { Date(timeIntervalSinceReferenceDate: 0) },
             makeAttachmentVersionID: { reference, read, parent in
-                deterministicSyncUUID(kind: .attachment, components: [
+                let stamp = successorStamps[reference.slot]
+                return deterministicSyncUUID(kind: .attachment, components: [
                     "archive-bootstrap-v1", deviceID, reference.slot.owner.kind.rawValue,
                     reference.slot.owner.uuid.uuidString, reference.slot.role, reference.slot.slotID,
                     read.sha256.base64EncodedString(), String(read.byteCount), reference.mediaType,
                     reference.displayFilename, parent?.uuidString ?? ""
-                ])
+                ] + (stamp.map { [String($0.logicalRevision), String($0.modifiedAt.timeIntervalSinceReferenceDate)] } ?? []))
             },
             issueUnissuedAttachments: true
         ).project(before: cache?.archive ?? .init(version: archive.version, projects: []), after: archive, manifest: [:])
@@ -116,7 +129,23 @@ public enum ProjectArchiveSyncMapper {
         for record in issued { records[record.id] = record }
         for mutation in projection.mutations {
             if case let .save(save) = mutation, save.recordVersion.record.id.kind == .attachment {
-                records[save.recordVersion.record.id] = save.recordVersion.record
+                let record = save.recordVersion.record
+                // Deletions retain the immutable issued record and its own
+                // causal tombstone. Only a newly issued live version gets the
+                // deterministic bootstrap successor stamp.
+                if record.deletedAt.value != nil {
+                    records[record.id] = record
+                    continue
+                }
+                guard !exhaustedSlots.contains(record.payload.attachment!.slot) else {
+                    throw SyncMergeError.corruptAttachmentVersion(record.id.uuid)
+                }
+                if let stamp = successorStamps[record.payload.attachment!.slot] {
+                    records[record.id] = SyncRecord(schemaVersion: record.schemaVersion, id: record.id,
+                        createdAt: stamp.modifiedAt, entityRevision: stamp.logicalRevision,
+                        payload: .init(fields: record.payload.fields.mapValues { .init(value: $0.value, stamp: stamp) }, attachment: record.payload.attachment),
+                        relationships: record.relationships, deletedAt: .init(value: nil, stamp: stamp))
+                } else { records[record.id] = record }
             }
         }
         var attachments: [UUID: SyncAttachmentSource] = [:]

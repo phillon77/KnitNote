@@ -2564,6 +2564,7 @@ final class PatternLibraryDeletionTransaction {
     private var syncAttachmentManifest: [String: SyncAttachmentManifestEntry]
     private let syncAttachmentManifestLoadFailed: Bool
     private var syncProjectionCache: SyncPublicationProjectionCache?
+    private var syncBootstrapHydrated = false
     private var activePreparedWatchCommand: PreparedWatchCommand?
     private var activeProcessedWatchLedger = ProcessedWatchCommandLedger()
     private let patternStorageLocationsProvider: (() throws -> PatternStorageLocations)?
@@ -5993,6 +5994,30 @@ final class PatternLibraryDeletionTransaction {
         )
     }
 
+    /// Bootstrap's caller must hold its account/publication freeze through
+    /// reopen and hydration. This seeds exact remote revisions rather than
+    /// reconstructing them from local archive timestamps. Lifecycle integration
+    /// must advance a durable canonical checkpoint after later publications.
+    public func hydrateSyncBootstrap(_ checkpoint: SyncBootstrapCheckpoint) throws {
+        guard isSyncPublicationEnabled, syncPublicationError == nil else {
+            throw SyncPublicationError.pendingRepair
+        }
+        let data = try SyncRegularFileReader().read(url, maximumBytes: 100_000_000).data
+        guard Data(SHA256.hash(data: data)) == checkpoint.archiveSHA256 else {
+            throw SyncBootstrapError.sourceChanged
+        }
+        let records = try SyncRecordValidator().validate(checkpoint.records)
+        let states = Dictionary(uniqueKeysWithValues: records.compactMap { record -> (UUID, SyncCounterReminderState)? in
+            guard case let .projectCounter(state)? = record.payload.atomicDomain?.value else { return nil }
+            return (record.id.uuid, state)
+        })
+        guard states == checkpoint.counterStates else { throw SyncBootstrapError.corrupt }
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: data)
+        syncProjectionCache = .init(archive: archive,
+            records: Dictionary(uniqueKeysWithValues: records.filter { $0.id.kind != .attachment }.map { ($0.id, $0) }))
+        syncBootstrapHydrated = true
+    }
+
     private func persist(
         projects stagedProjects: [StoredProject],
         yarns stagedYarns: [StoredYarn],
@@ -6750,6 +6775,11 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func ensureSyncPublicationReady() throws {
+        if isSyncPublicationEnabled, !syncBootstrapHydrated,
+           FileManager.default.fileExists(atPath: url.deletingLastPathComponent()
+                .appendingPathComponent("SyncMetadata/bootstrap-canonical.json").path) {
+            throw SyncPublicationError.pendingRepair
+        }
         if isSyncPublicationEnabled, syncRevisionLedger == nil {
             throw SyncPublicationError.transactionUnavailable
         }

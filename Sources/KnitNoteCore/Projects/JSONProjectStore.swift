@@ -2638,11 +2638,11 @@ final class PatternLibraryDeletionTransaction {
         }
     }
 
-    // Internal until the producer inventory is wired in Tasks 2 and 3.
-    func waitForTrackedBackgroundWritesAfterRevocation() async throws {
-        try await sessionWork.waitUntilClosedAndIdle(
-            for: Set(StoreSessionWorkTracker.Kind.allCases)
-        )
+    /// Waits for this store's registered backup, pattern, journal-photo and thumbnail
+    /// operations after revocation. Completion proves termination only, not durable
+    /// health, complete App freeze, cleanup authority, or account readiness.
+    public func waitForTrackedBackgroundWritesAfterRevocation() async throws {
+        try await sessionWork.waitUntilClosedAndIdle(for: Set(StoreSessionWorkTracker.Kind.allCases))
     }
 
     private func requireSessionWriteAccess() throws {

@@ -3,6 +3,30 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite @MainActor struct YouTubePatternThumbnailLoaderTests {
+    @Test func metadataGateBuffersPreobservedStartAndCancellation() async {
+        let gate = MetadataFetchGate()
+        gate.recordStarted()
+        gate.recordCancellation()
+        #expect(await gate.waitUntilStarted())
+        #expect(await gate.waitUntilCancelled())
+        gate.release()
+    }
+
+    @Test func metadataGateReportsRequestCompletionWithoutExpectedEvents() async {
+        let gate = MetadataFetchGate()
+        gate.finishStartObservation(started: false)
+        gate.finishCancellationObservation(cancelled: false)
+        #expect(await gate.waitUntilStarted() == false)
+        #expect(await gate.waitUntilCancelled() == false)
+        gate.release()
+    }
+
+    @Test func metadataGateBuffersReleaseWithoutPolling() async throws {
+        let gate = MetadataFetchGate()
+        gate.release()
+        _ = try await gate.waitForRelease()
+    }
+
     @Test func cancellingTheRowRequestCancelsTheInFlightMetadataFetchAndDoesNotCache() async {
         let gate = MetadataFetchGate()
         let tracker = ThumbnailLoaderTracker()
@@ -17,23 +41,21 @@ import Testing
         )
 
         let request = Task { @MainActor in
-            await loader.thumbnailURL(patternID: patternID, assetID: assetID)
+            defer {
+                gate.finishStartObservation(started: false)
+                gate.finishCancellationObservation(cancelled: false)
+            }
+            return await loader.thumbnailURL(patternID: patternID, assetID: assetID)
         }
-        guard await gate.waitUntilStarted(timeout: .seconds(10)) else {
-            request.cancel()
-            await gate.release()
-            Issue.record("The utility-priority metadata fetch did not start within 10 seconds")
-            return
-        }
-
+        let didStartMetadataFetch = await gate.waitUntilStarted()
         request.cancel()
-        let didCancelMetadataFetch = await gate.waitUntilCancelled(timeout: .seconds(1))
-        #expect(didCancelMetadataFetch)
-        // If cancellation propagation regresses, release the fetch explicitly
-        // so this test reports its failed expectation instead of hanging.
-        await gate.release()
+        gate.release()
+        let result = await request.value
+        let didCancelMetadataFetch = await gate.waitUntilCancelled()
 
-        #expect(await request.value == nil)
+        #expect(didStartMetadataFetch)
+        #expect(didCancelMetadataFetch)
+        #expect(result == nil)
         #expect(await tracker.cacheCallCount() == 0)
         #expect(await tracker.cachedURLReadCount() == 1)
     }
@@ -71,11 +93,12 @@ private final class BlockingMetadataFetcher: YouTubePatternMetadataFetching {
     }
 
     func fetch(for url: URL) async throws -> YouTubePatternPresentationMetadata {
-        await gate.recordStarted()
+        let gate = gate
+        gate.recordStarted()
         return try await withTaskCancellationHandler {
             try await gate.waitForRelease()
         } onCancel: {
-            Task { await self.gate.recordCancellation() }
+            gate.recordCancellation()
         }
     }
 }
@@ -89,50 +112,92 @@ private struct ImmediateMetadataFetcher: YouTubePatternMetadataFetching {
     }
 }
 
-private actor MetadataFetchGate {
-    private var started = false
-    private var cancelled = false
-    private var released = false
+private final class MetadataFetchGate: @unchecked Sendable {
+    private let startEvents: AsyncStream<Bool>
+    private let startContinuation: AsyncStream<Bool>.Continuation
+    private let cancellationEvents: AsyncStream<Bool>
+    private let cancellationContinuation: AsyncStream<Bool>.Continuation
+    private let releaseEvents: AsyncStream<Void>
+    private let releaseContinuation: AsyncStream<Void>.Continuation
+    private let lock = NSLock()
+    private var startObservationFinished = false
+    private var cancellationObservationFinished = false
+    private var releaseFinished = false
+
+    init() {
+        let start = AsyncStream<Bool>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        startEvents = start.stream
+        startContinuation = start.continuation
+        let cancellation = AsyncStream<Bool>.makeStream(
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        cancellationEvents = cancellation.stream
+        cancellationContinuation = cancellation.continuation
+        let release = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        releaseEvents = release.stream
+        releaseContinuation = release.continuation
+    }
 
     func recordStarted() {
-        started = true
+        finishStartObservation(started: true)
     }
 
     func recordCancellation() {
-        cancelled = true
+        finishCancellationObservation(cancelled: true)
     }
 
-    func waitUntilStarted(timeout: Duration) async -> Bool {
-        await waitUntil(timeout: timeout) { started }
+    func finishStartObservation(started: Bool) {
+        lock.lock()
+        guard !startObservationFinished else {
+            lock.unlock()
+            return
+        }
+        startObservationFinished = true
+        lock.unlock()
+        startContinuation.yield(started)
+        startContinuation.finish()
     }
 
-    func waitUntilCancelled(timeout: Duration) async -> Bool {
-        await waitUntil(timeout: timeout) { cancelled }
+    func waitUntilStarted() async -> Bool {
+        for await started in startEvents { return started }
+        return false
+    }
+
+    func finishCancellationObservation(cancelled: Bool) {
+        lock.lock()
+        guard !cancellationObservationFinished else {
+            lock.unlock()
+            return
+        }
+        cancellationObservationFinished = true
+        lock.unlock()
+        cancellationContinuation.yield(cancelled)
+        cancellationContinuation.finish()
+    }
+
+    func waitUntilCancelled() async -> Bool {
+        for await cancelled in cancellationEvents { return cancelled }
+        return false
     }
 
     func release() {
-        released = true
+        lock.lock()
+        guard !releaseFinished else {
+            lock.unlock()
+            return
+        }
+        releaseFinished = true
+        lock.unlock()
+        releaseContinuation.yield(())
+        releaseContinuation.finish()
     }
 
     func waitForRelease() async throws -> YouTubePatternPresentationMetadata {
-        while !released {
+        for await _ in releaseEvents {
             try Task.checkCancellation()
-            await Task.yield()
+            return YouTubePatternPresentationMetadata(title: nil, thumbnailData: nil)
         }
-        return YouTubePatternPresentationMetadata(title: nil, thumbnailData: nil)
-    }
-
-    private func waitUntil(
-        timeout: Duration,
-        condition: () -> Bool
-    ) async -> Bool {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
-        while true {
-            guard clock.now < deadline else { return false }
-            guard !condition() else { return true }
-            try? await Task.sleep(for: .milliseconds(5))
-        }
+        throw CancellationError()
     }
 }
 

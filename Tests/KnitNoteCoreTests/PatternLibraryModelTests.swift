@@ -53,15 +53,23 @@ import Testing
     let generationBeforeRequest = harness.store.dataGeneration
 
     let request = Task { @MainActor in
-        await harness.store.patternPDFPageThumbnailURL(assetID: harness.asset.id, pageIndex: 1)
+        defer { harness.blocker.finishObservation(reachedBlock: false) }
+        return await harness.store.patternPDFPageThumbnailURL(
+            assetID: harness.asset.id,
+            pageIndex: 1
+        )
     }
-    #expect(await Task.detached { harness.blocker.waitUntilBlocked() }.value)
-
-    try harness.store.reloadFromDisk()
-    #expect(harness.store.dataGeneration > generationBeforeRequest)
-    harness.blocker.resume()
-
-    #expect(await request.value == harness.sourceURL)
+    do {
+        try #require(await harness.blocker.waitForObservedBlock())
+        try harness.store.reloadFromDisk()
+        #expect(harness.store.dataGeneration > generationBeforeRequest)
+        harness.blocker.resume()
+        #expect(await request.value == harness.sourceURL)
+    } catch {
+        harness.blocker.resume()
+        _ = await request.value
+        throw error
+    }
 }
 
 @MainActor @Test func storeSuppressesPageThumbnailWhenAssetRevisionChangesDuringRendering() async throws {
@@ -69,26 +77,34 @@ import Testing
     defer { harness.cleanup() }
 
     let request = Task { @MainActor in
-        await harness.store.patternPDFPageThumbnailURL(assetID: harness.asset.id, pageIndex: 1)
+        defer { harness.blocker.finishObservation(reachedBlock: false) }
+        return await harness.store.patternPDFPageThumbnailURL(
+            assetID: harness.asset.id,
+            pageIndex: 1
+        )
     }
-    #expect(await Task.detached { harness.blocker.waitUntilBlocked() }.value)
-
-    try FileManager.default.removeItem(at: harness.sourceURL)
-    try makeTestPatternPDF(at: harness.sourceURL, pageCount: 4)
-    let revisedMetadata = try harness.fileService.inspect(harness.sourceURL)
-    let revisedAsset = PatternAsset(
-        id: harness.asset.id,
-        sha256: revisedMetadata.sha256,
-        kind: revisedMetadata.kind,
-        storedFilename: harness.asset.storedFilename,
-        byteCount: revisedMetadata.byteCount,
-        pageCount: revisedMetadata.pageCount
-    )
-    try harness.writeArchive(assets: [revisedAsset])
-    try harness.store.reloadFromDisk()
-    harness.blocker.resume()
-
-    #expect(await request.value == nil)
+    do {
+        try #require(await harness.blocker.waitForObservedBlock())
+        try FileManager.default.removeItem(at: harness.sourceURL)
+        try makeTestPatternPDF(at: harness.sourceURL, pageCount: 4)
+        let revisedMetadata = try harness.fileService.inspect(harness.sourceURL)
+        let revisedAsset = PatternAsset(
+            id: harness.asset.id,
+            sha256: revisedMetadata.sha256,
+            kind: revisedMetadata.kind,
+            storedFilename: harness.asset.storedFilename,
+            byteCount: revisedMetadata.byteCount,
+            pageCount: revisedMetadata.pageCount
+        )
+        try harness.writeArchive(assets: [revisedAsset])
+        try harness.store.reloadFromDisk()
+        harness.blocker.resume()
+        #expect(await request.value == nil)
+    } catch {
+        harness.blocker.resume()
+        _ = await request.value
+        throw error
+    }
 }
 
 @MainActor @Test func storeSuppressesPageThumbnailWhenAssetIsDeletedDuringRendering() async throws {
@@ -96,15 +112,23 @@ import Testing
     defer { harness.cleanup() }
 
     let request = Task { @MainActor in
-        await harness.store.patternPDFPageThumbnailURL(assetID: harness.asset.id, pageIndex: 1)
+        defer { harness.blocker.finishObservation(reachedBlock: false) }
+        return await harness.store.patternPDFPageThumbnailURL(
+            assetID: harness.asset.id,
+            pageIndex: 1
+        )
     }
-    #expect(await Task.detached { harness.blocker.waitUntilBlocked() }.value)
-
-    try harness.writeArchive(assets: [])
-    try harness.store.reloadFromDisk()
-    harness.blocker.resume()
-
-    #expect(await request.value == nil)
+    do {
+        try #require(await harness.blocker.waitForObservedBlock())
+        try harness.writeArchive(assets: [])
+        try harness.store.reloadFromDisk()
+        harness.blocker.resume()
+        #expect(await request.value == nil)
+    } catch {
+        harness.blocker.resume()
+        _ = await request.value
+        throw error
+    }
 }
 
 @MainActor @Test func cancellingStoreRequestCancelsStartedDetachedPageThumbnailRender() async throws {
@@ -150,15 +174,21 @@ import Testing
     defer { blocker.resume() }
 
     let request = Task { @MainActor in
-        await store.patternPDFPageThumbnailURL(assetID: asset.id, pageIndex: 1)
+        defer { blocker.finishObservation(reachedBlock: false) }
+        return await store.patternPDFPageThumbnailURL(assetID: asset.id, pageIndex: 1)
     }
-    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
-
-    request.cancel()
-    blocker.resume()
-
-    #expect(await request.value == nil)
-    #expect(!FileManager.default.fileExists(atPath: staleCacheURL.path))
+    do {
+        try #require(await blocker.waitForObservedBlock())
+        request.cancel()
+        blocker.resume()
+        #expect(await request.value == nil)
+        #expect(!FileManager.default.fileExists(atPath: staleCacheURL.path))
+    } catch {
+        request.cancel()
+        blocker.resume()
+        _ = await request.value
+        throw error
+    }
 }
 
 @Test func usageRestoresItsIndependentReadingState() throws {
@@ -596,10 +626,18 @@ private func invalidSnapshotCases() -> [InvalidSnapshotCase] {
 }
 
 private final class PageThumbnailRenderBlocker: @unchecked Sendable {
-    private let blocked = DispatchSemaphore(value: 0)
+    private let observedBlock: AsyncStream<Bool>
+    private let observation: AsyncStream<Bool>.Continuation
     private let continuation = DispatchSemaphore(value: 0)
     private let lock = NSLock()
     private var hasBlocked = false
+    private var observationFinished = false
+
+    init() {
+        let stream = AsyncStream<Bool>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        observedBlock = stream.stream
+        observation = stream.continuation
+    }
 
     func blockOnce() {
         lock.lock()
@@ -609,17 +647,46 @@ private final class PageThumbnailRenderBlocker: @unchecked Sendable {
         }
         hasBlocked = true
         lock.unlock()
-        blocked.signal()
+        finishObservation(reachedBlock: true)
         continuation.wait()
     }
 
-    func waitUntilBlocked() -> Bool {
-        blocked.wait(timeout: .now() + 10) == .success
+    func waitForObservedBlock() async -> Bool {
+        for await result in observedBlock { return result }
+        return false
+    }
+
+    func finishObservation(reachedBlock: Bool) {
+        lock.lock()
+        guard !observationFinished else {
+            lock.unlock()
+            return
+        }
+        observationFinished = true
+        lock.unlock()
+        observation.yield(reachedBlock)
+        observation.finish()
     }
 
     func resume() {
         continuation.signal()
     }
+}
+
+@Test func pageRenderBlockObservationBuffersTheFirstTerminalEvent() async {
+    let blocker = PageThumbnailRenderBlocker()
+    blocker.finishObservation(reachedBlock: true)
+    blocker.finishObservation(reachedBlock: false)
+    #expect(await blocker.waitForObservedBlock())
+    blocker.resume()
+}
+
+@Test func pageRenderCompletionBeforeStartIsObservedAsFailure() async {
+    let blocker = PageThumbnailRenderBlocker()
+    blocker.finishObservation(reachedBlock: false)
+    blocker.finishObservation(reachedBlock: true)
+    #expect(await blocker.waitForObservedBlock() == false)
+    blocker.resume()
 }
 
 @MainActor

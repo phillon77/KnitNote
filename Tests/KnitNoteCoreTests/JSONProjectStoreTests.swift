@@ -3543,6 +3543,228 @@ private enum StoreMediaNativeTestError: Error, Equatable {
     }
 }
 
+enum StoreBackgroundTerminalFailure: CaseIterable, Sendable {
+    case journalPhoto
+    case patternInbox
+}
+
+@Suite(.serialized) @MainActor struct StoreBackgroundDrainIntegrationTests {
+    @Test func aggregateWaitIncludesBothNativeProducers() async throws {
+        let photo = StoreOperationBlocker()
+        let pattern = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(
+            journalBlocker: photo,
+            patternBlocker: pattern
+        )
+        let other = try StoreBackupFixture.make()
+        defer { photo.resume(); pattern.resume(); fixture.cleanup(); other.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let source = fixture.root.appendingPathComponent("mixed-source.png")
+        try makeStorePNG(at: source, red: 0.4)
+        let photoData = try makeStoreJPEG(red: 0.6)
+        let before = try backupEvidenceBytes(fixture.root)
+        let otherBefore = try backupEvidenceBytes(other.root)
+        let photoTask = Task { @MainActor in
+            photo.startObservingOperation()
+            defer { photo.finishObservation(reachedBlock: false) }
+            try await fixture.store.addJournalEntry(
+                projectID: projectID,
+                photoData: photoData,
+                caption: nil
+            )
+        }
+        let patternTask = Task { @MainActor in
+            pattern.startObservingOperation()
+            defer { pattern.finishObservation(reachedBlock: false) }
+            return try await fixture.store.importPattern(
+                from: source,
+                projectID: projectID
+            )
+        }
+
+        do {
+            try #require(await photo.waitForObservedBlock())
+            try #require(await pattern.waitForObservedBlock())
+            fixture.store.revokeSessionWrites()
+            try await fixture.store.waitForBackupOperationsAfterRevocation()
+            let ready = AsyncStream<Void>.makeStream()
+            var ended = false
+            let all = Task { @MainActor in
+                ready.continuation.yield(())
+                try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+                ended = true
+            }
+            var iterator = ready.stream.makeAsyncIterator()
+            _ = await iterator.next()
+            #expect(!ended)
+            photo.resume()
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                try await photoTask.value
+            }
+            #expect(!ended)
+            pattern.resume()
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                try await patternTask.value
+            }
+            try await all.value
+            #expect(ended)
+            #expect(try backupEvidenceBytes(fixture.root) == before)
+            #expect(try backupEvidenceBytes(other.root) == otherBefore)
+            try other.store.add(name: "Other session remains writable")
+        } catch {
+            photo.resume()
+            pattern.resume()
+            _ = try? await photoTask.value
+            _ = try? await patternTask.value
+            throw error
+        }
+    }
+
+    @Test func cancellingOneAggregateWaiterDoesNotCancelItsPeerOrNativeWork() async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(patternBlocker: blocker)
+        defer { blocker.resume(); fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let source = fixture.root.appendingPathComponent("cancelled-wait-source.png")
+        try makeStorePNG(at: source, red: 0.7)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            return try await fixture.store.importPattern(
+                from: source,
+                projectID: projectID
+            )
+        }
+
+        do {
+            try #require(await blocker.waitForObservedBlock())
+            fixture.store.revokeSessionWrites()
+            let ready = AsyncStream<Int>.makeStream()
+            var peerEnded = false
+            let cancelled = Task { @MainActor in
+                ready.continuation.yield(1)
+                try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            }
+            let peer = Task { @MainActor in
+                ready.continuation.yield(2)
+                try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+                peerEnded = true
+            }
+
+            do {
+                var iterator = ready.stream.makeAsyncIterator()
+                let registered = Set([
+                    try #require(await iterator.next()),
+                    try #require(await iterator.next()),
+                ])
+                #expect(registered == [1, 2])
+                cancelled.cancel()
+                await #expect(throws: CancellationError.self) {
+                    try await cancelled.value
+                }
+                #expect(!peerEnded)
+                blocker.resume()
+                await #expect(throws: StoreSessionAccessError.revoked) {
+                    try await operation.value
+                }
+                try await peer.value
+                #expect(peerEnded)
+            } catch {
+                cancelled.cancel()
+                peer.cancel()
+                blocker.resume()
+                _ = try? await operation.value
+                _ = try? await cancelled.value
+                _ = try? await peer.value
+                throw error
+            }
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+    }
+
+    @Test func publicAggregateWaitRejectsAnOpenSession() async throws {
+        let fixture = try StoreBackupFixture.make()
+        defer { fixture.cleanup() }
+        await #expect(throws: StoreSessionDrainError.sessionStillActive) {
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+        }
+    }
+
+    @Test func publicAggregateWaitReturnsForAnEmptyClosedSession() async throws {
+        let fixture = try StoreBackupFixture.make()
+        defer { fixture.cleanup() }
+        fixture.store.revokeSessionWrites()
+        try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+    }
+
+    @Test(arguments: StoreBackgroundTerminalFailure.allCases)
+    func aggregateWaitRetainsTerminalNativeFailureEvidence(
+        _ failure: StoreBackgroundTerminalFailure
+    ) async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture: StoreBackupFixture
+        switch failure {
+        case .journalPhoto:
+            fixture = try StoreBackupFixture.make(
+                journalBlocker: blocker,
+                failJournalThumbnailWrite: true
+            )
+        case .patternInbox:
+            fixture = try StoreBackupFixture.make(
+                patternInboxBlocker: blocker,
+                failPatternInboxMove: true
+            )
+        }
+        defer { blocker.resume(); fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let source = fixture.root.appendingPathComponent("terminal-failure-source.png")
+        try makeStorePNG(at: source, red: 0.8)
+        let sourceBefore = try Data(contentsOf: source)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            switch failure {
+            case .journalPhoto:
+                try await fixture.store.addJournalEntry(
+                    projectID: projectID,
+                    photoData: try makeStoreJPEG(red: 0.9),
+                    caption: "terminal failure"
+                )
+            case .patternInbox:
+                _ = try await fixture.store.importPatternFromLibrary(source)
+            }
+        }
+
+        do {
+            try #require(await blocker.waitForObservedBlock())
+            fixture.store.revokeSessionWrites()
+            blocker.resume()
+            switch failure {
+            case .journalPhoto:
+                await #expect(throws: StoreMediaNativeTestError.journalThumbnailWrite) {
+                    try await operation.value
+                }
+            case .patternInbox:
+                await #expect(throws: StorePatternNativeTestError.injected) {
+                    try await operation.value
+                }
+            }
+
+            let beforeWait = try backupEvidenceBytes(fixture.root)
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            #expect(try backupEvidenceBytes(fixture.root) == beforeWait)
+            #expect(try Data(contentsOf: source) == sourceBefore)
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+    }
+}
+
 private enum BackupEvidenceError: Error {
     case enumerationFailed(URL)
 }

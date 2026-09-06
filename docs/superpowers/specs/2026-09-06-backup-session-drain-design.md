@@ -2,7 +2,7 @@
 
 日期：2026-09-06
 
-狀態：使用者已確認本節設計方向；本書面規格待確認，尚未實作。
+狀態：使用者已確認本書面規格；實作計畫已建立，尚未實作。計畫：`docs/superpowers/plans/2026-09-06-backup-session-drain.md`。
 
 基準：`74c850237d7ea7f84846c3f7229d785e9925e313`；工作樹 `.worktrees/cross-device-sync-design`，分支 `docs/cross-device-sync-design`，版本 **1.7.0 (13)**。
 

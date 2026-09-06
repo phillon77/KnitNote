@@ -1477,6 +1477,12 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 record["syncAttemptID"] = attempt.attemptID.uuidString.lowercased() as NSString
                 materializedRecords[recordID] = record
             } catch {
+                guard batchContextIsCurrent(
+                    entityID: entityID,
+                    mutation: mutation,
+                    generation: operationGeneration,
+                    zoneEpoch: operationZoneEpoch
+                ) else { return nil }
                 failedMutationIDs.insert(mutation.mutationID)
                 eventContinuation.yield(.failed(.invalidRecord(recordID: entityID)))
             }

@@ -34,12 +34,14 @@ import Testing
         await h.transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
         _ = try await h.adapter.commitServerRecordChanged(input: h.input(attempted: issued, attemptID: UUID()), accountEpoch: h.f.epoch())
         let rebased = try h.f.journal.pendingVersioned()
-        let coordinator = h.coordinator()
+        let probe = ConflictTransportProbe(h.transport)
+        let coordinator = h.coordinator(transport: probe)
         await coordinator.start()
-        for _ in 0..<20 { try? await Task.sleep(for: .milliseconds(2)) }
+        await until { probe.verificationAttempts == 1 }
         #expect(try h.f.journal.pendingVersioned() == rebased)
         #expect(rebased.first?.token.journalRevision == 1)
         #expect(coordinator.status.lastCompleteSuccess == nil)
+        #expect(probe.cleanups == 0)
     }
 
     @Test(arguments: [false, true]) func oneSharedThreeAttemptBudget(exhaust: Bool) async throws {

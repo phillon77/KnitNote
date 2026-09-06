@@ -2546,6 +2546,68 @@ import Testing
         #expect(try fixture.store.loadAccountOwner() == "account-a")
     }
 
+    @Test(arguments: ["newerRevision", "accountReset", "zoneReset", "current"])
+    func suspendedThrowingMaterializerCannotPoisonInvalidatedContext(invalidation: String) async throws {
+        let fixture = try StateStoreFixture()
+        defer { fixture.remove() }
+        let driver = TestSyncEngineDriver()
+        let materializer = SuspendingRecordMaterializer(zoneID: testZoneID())
+        let transport = CKSyncEngineTransport(
+            zoneID: testZoneID(), stateStore: fixture.store,
+            recordMaterializer: { mutation, baseRecord in
+                try await materializer.materialize(mutation, baseRecord: baseRecord)
+            }, engineFactory: { _, _ in driver }
+        )
+        var events = transport.events.makeAsyncIterator()
+        try await transport.start()
+        let mutation = try testSaveMutation(revision: 1, mutationSuffix: 34)
+        try await transport.scheduleIssued([mutation])
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(testZoneID())
+        guard case .zoneReady? = await events.next() else { Issue.record("Expected ready"); return }
+        let recordID = cloudRecordID(kind: mutation.recordID.kind,
+            uuid: mutation.recordID.uuid.uuidString, zoneID: testZoneID())
+        await materializer.suspendNextMaterialization(throwOnResume: true)
+        let batching = Task {
+            await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(recordID)], scope: .all)
+        }
+        await materializer.waitUntilSuspended()
+        if invalidation == "newerRevision" {
+            let replacement = try testSaveMutation(revision: 2, mutationSuffix: 34)
+            try await transport.schedule([SyncVersionedMutation(mutation: replacement, journalRevision: 1)])
+        } else if invalidation == "accountReset" {
+            await transport.receiveAccountChange(previous: "account-a", current: "account-b")
+            guard case .accountChanged? = await events.next() else { Issue.record("Expected account reset"); return }
+        } else if invalidation == "zoneReset" {
+            await transport.receiveDeletedZones([testZoneID()])
+            guard case .zoneDeleted? = await events.next() else { Issue.record("Expected zone reset"); return }
+        }
+        await materializer.resume()
+        _ = await batching.value
+        if invalidation == "current" {
+            guard case .failed(.invalidRecord(recordID: mutation.recordID))? = await events.next() else {
+                Issue.record("Current materialization failure must retain invalid-record classification"); return
+            }
+            #expect(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(recordID)], scope: .all) == nil)
+        } else if invalidation != "accountReset" {
+            if invalidation == "zoneReset" { await transport.receiveZoneReady(testZoneID()) }
+            let retry = await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(recordID)], scope: .all)
+            #expect(retry?.recordsToSave.count == 1)
+            if invalidation == "newerRevision", let record = retry?.recordsToSave.first {
+                #expect(try CloudRecordCodec().decode(record).entityRevision == 2)
+            }
+            if invalidation == "zoneReset" {
+                guard case .zoneReady? = await events.next() else { Issue.record("Obsolete failure preceded zone readiness"); return }
+            }
+        }
+        // A synchronously enqueued sentinel makes absence of obsolete failures observable,
+        // without a sleep or a read that can wait for an event which never arrives.
+        await transport.receiveAccountChange(previous: "sentinel", current: nil)
+        guard case .accountChanged(previous: "sentinel", current: nil)? = await events.next() else {
+            Issue.record("Obsolete materialization failure was published after invalidation"); return
+        }
+    }
+
     @Test func batchSuspendedDuringRecordMaterializationReturnsNilAfterAccountReset() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -3529,6 +3591,7 @@ private final class LockedCounter: @unchecked Sendable {
 private actor SuspendingRecordMaterializer {
     private let zoneID: CKRecordZone.ID
     private var shouldSuspend = false
+    private var throwOnResume = false
     private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
     private var resumeContinuation: CheckedContinuation<Void, Never>?
 
@@ -3536,15 +3599,20 @@ private actor SuspendingRecordMaterializer {
         self.zoneID = zoneID
     }
 
-    func suspendNextMaterialization() { shouldSuspend = true }
+    func suspendNextMaterialization(throwOnResume: Bool = false) {
+        shouldSuspend = true
+        self.throwOnResume = throwOnResume
+    }
 
     func materialize(_ mutation: SyncMutation, baseRecord: CKRecord?) async throws -> CKRecord {
         if shouldSuspend {
             shouldSuspend = false
+            let shouldThrow = throwOnResume
             let waiters = enteredWaiters
             enteredWaiters.removeAll()
             for waiter in waiters { waiter.resume() }
             await withCheckedContinuation { resumeContinuation = $0 }
+            if shouldThrow { throw CloudSyncTransportError.invalidReplacement }
         }
         guard case let .save(save) = mutation else {
             throw CloudSyncTransportError.invalidReplacement

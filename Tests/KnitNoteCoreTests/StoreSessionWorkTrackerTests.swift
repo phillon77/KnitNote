@@ -100,6 +100,45 @@ import Testing
         try await peer.value
     }
 
+    @Test func twoRegisteredUncancelledWaitersBothReceiveFinalCompletion() async throws {
+        let tracker = StoreSessionWorkTracker()
+        let work = try tracker.begin(
+            kind: .backup,
+            protecting: URL(fileURLWithPath: "/tmp/unused-backup-root")
+        )
+        tracker.close()
+        let ready = AsyncStream<Int>.makeStream()
+        let first = Task { @MainActor in
+            ready.continuation.yield(1)
+            try await tracker.waitUntilClosedAndIdle(for: [.backup])
+        }
+        let second = Task { @MainActor in
+            ready.continuation.yield(2)
+            try await tracker.waitUntilClosedAndIdle(for: [.backup])
+        }
+
+        do {
+            var iterator = ready.stream.makeAsyncIterator()
+            let registered = Set([
+                try #require(await iterator.next()),
+                try #require(await iterator.next()),
+            ])
+            #expect(registered == [1, 2])
+
+            tracker.finish(work)
+
+            try await first.value
+            try await second.value
+        } catch {
+            tracker.finish(work)
+            first.cancel()
+            second.cancel()
+            _ = await first.result
+            _ = await second.result
+            throw error
+        }
+    }
+
     @Test func overlappingWaitersCompleteOnlyWhenTheirScopesAreIdle() async throws {
         let tracker = StoreSessionWorkTracker()
         let backup = try tracker.begin(kind: .backup)

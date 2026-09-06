@@ -1,5 +1,55 @@
 # Store background write drain verification
 
+## Final controller result — 2026-09-07
+
+**Current store-background-drain plan complete; whole-product sync/release not complete.** Four implementation tasks passed independent review. Final whole-plan review found one missing retained simultaneous-broadcast regression; the single consolidated fix wave restored it, and scoped rereview found it addressed with no new Critical/Important issue. No production change was needed for that fix. All existing overlapping-scope assertions remain.
+
+Final code candidate: **`81305f62af3e0eedc34de31a9097330ae05b3cc0`**, version **1.7.0 (13)**, branch `docs/cross-device-sync-design`, worktree `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-device-sync-design`.
+
+| Frozen identity | Value |
+| --- | --- |
+| HEAD | `81305f62af3e0eedc34de31a9097330ae05b3cc0` |
+| Sources tree | `e95550a541be26609812713062a5dfe0fc5dd166` |
+| Tests tree | `d0f62d164076d830d9b074d4be71c25d30ac7cf0` |
+| PBX blob | `98f479e08dc76824bc97aa5669ebbc7d95542efb` |
+
+All tracked content and HEAD were held unchanged from before the full Core command through completion of both serial platform commands. The controller re-read each identity and clean status after each command. This report update occurs only after all three commands completed; its subsequent documentation-only commit is not a new tested code candidate.
+
+### Frozen complete validation
+
+| Command | Result | Bounded elapsed | Raw log SHA-256 |
+| --- | --- | --- | --- |
+| `arch -arm64 swift test --no-parallel` | **2520 tests / 186 suites passed, exit 0**; test runtime 1359.066 s | 1362.482 s | `f7abc1af7299cc8847981ce20a72f7fc6b95d3606e54e4c434e1fca0cd7b4ef4` |
+| `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/store-background-drain-macos-derived CODE_SIGNING_ALLOWED=NO build-for-testing` | **TEST BUILD SUCCEEDED, exit 0** | 68.715 s | `242a9ecd1a63d0978dd687f10c2e0ec97eb6a83e7193e5feeebd24a6e70ec75e` |
+| `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/store-background-drain-ios-derived CODE_SIGNING_ALLOWED=NO build` | **BUILD SUCCEEDED, exit 0**; includes Watch-dependent compilation | 43.992 s | `c6539d43d0555625cd82d62a618bb010d419ca91e51d288315a5a414a798fd29` |
+
+All used the inspected `/tmp/task4-run-bounded.py` with limits 3600/900/900 seconds respectively, unique no-clobber logs, and no parallel heavy validation. No timeout occurred. Raw logs:
+
+- `/tmp/store-background-drain-final-core-20260907-01.log` (actual start 2026-09-07 05:28:30 local)
+- `/tmp/store-background-drain-final-macos-20260907-01.log`
+- `/tmp/store-background-drain-final-ios-20260907-01.log`
+
+Core emitted no compiler warning/error or recorded test issue. Its known invalid-PDF diagnostic occurs at line 768. Eight Python traceback headers at lines 4085–4159 represent four deliberately absent archive/Info.plist variants in `provenanceRequiresBothRetainedArchivesAndTheirInfoPlists`, which passed in 1.944 s. Inventory-mismatch messages likewise belong to passing negative provenance cases. These expected diagnostics are disclosed, not suppressed or described as pristine output.
+
+Each Xcode build emitted three instances of `Metadata extraction skipped. No AppIntents.framework dependency found.`; neither emitted an error. The earlier Task4 focused rebuild also emitted the pre-existing `HighlightOverlayContractTests.swift:92` deprecation warning; that remains a deferred minor, even though the final incremental Core command did not repeat it. The builds did not run App/test hosts, perform real-device acceptance, sign, install, archive/export, or upload a candidate.
+
+### Final correction evidence
+
+`StoreSessionWorkTrackerTests.twoRegisteredUncancelledWaitersBothReceiveFinalCompletion` was restored in commit `81305f6`. The new API is used by two uncancelled registered waiters before one final token finish; both actual successful outcomes are awaited, with finish/cancel/join cleanup on failure. Existing production behavior passed; no artificial RED is claimed.
+
+- Focused one-test pass, exit 0, elapsed 21.238 s: `/tmp/store-background-final-fix-focused-20260907-a2.log`, SHA-256 `2caed16c37b32853fb745f99b5e6a529f659c2731b6e2efb062d455607c677a4`.
+- Corrected narrow filter `StoreSessionWorkTrackerTests|StoreBackupSessionDrainTests`: 16 tests / 2 suites passed, exit 0, elapsed 1.291 s: `/tmp/store-background-final-fix-covering-actual-suite-20260907-a1.log`, SHA-256 `1268852bb603f9b9776a8096fc93658df47eab5feb6e38d2c007970284f6e8f6`.
+- The brief's literal nonexistent `StoreBackupSessionTests` selected only 9 tracker tests; this separate pass is not represented as backup coverage. Initial sandbox cache denial is environment-only evidence. Both are preserved in the ignored fix report.
+- Final tracker test SHA-256 `b27e24251e9015e16309f1a3b1b3c2d9afc111fce2b9ec175051d31c36d97839`, Git blob `4ef91d07d42ff2916dbe2a6fe6c445b15830f51a`. The report initially transcribed an incomplete blob; fresh command readback corrected it without code or test changes. Production tracker SHA-256 remained `90f28b6a8b3c7e11165d76ed1fb7f7ef2a664cbab621a0768ece9e0840c3bd40`.
+
+### Remaining product gates and disposition
+
+The exact post-prepare/pre-publication deterministic regression remains missing; the actual guard was independently source-reviewed before synchronous publication. That is a disclosed local-plan validation substitution, not a behavioral pass or permission for activation.
+
+App session owner/startup/account switching, old UI/external producers, Watch session protocol and device behavior, actual authority/recovery integration, live CloudKit, real devices, metadata/IAP/pricing/candidate binding and store submission remain separate unfinished gates. No push, merge, signing, installation, upload, submission or live activation was performed. Keep this named development branch, worktree and SDD evidence; do not infer a base branch or release-ready candidate from this result.
+
+The following sections retain Task4's historical precommit evidence. Their then-pending controller review/full-validation status is superseded only by the exact final results above; historical failed and diagnostic runs are not relabeled green.
+
 ## Result and boundary
 
 The store now exposes `waitForTrackedBackgroundWritesAfterRevocation() async throws` as the aggregate wait for the four registered categories: backup, pattern, journal-photo, and thumbnail. The API documentation intentionally limits the termination result: successful return proves those registered operations have terminated after revocation. It is not a health or account-readiness receipt and does not prove durable health, a complete store or App freeze, cleanup authority, CloudKit or Watch acceptance, or release readiness.
@@ -133,7 +183,7 @@ The exact original broad command above, with no skip, timeout change, serializat
 - Task 2 is committed as `f99a990` and wired pattern/inbox lifetimes. Its 261-test / 20-suite affected run predates the latest test-only cleanup fix and is not represented as final frozen evidence. The authoritative fix1 evidence is the command-backed 1 test / 2 argument cases plus the 6-test suite rerun. The known CoreGraphics invalid-PDF diagnostic and the missing exact deterministic regression between `PatternImportCoordinator.prepare` completion and synchronous MainActor publication remain open before real-sync activation.
 - Task 3 is committed as `60649e8` and wired journal-photo and thumbnail lifetimes. Its corrected command-backed test identity is `43ca7522ccc959c477a0606abfacbe776af30088a9f4617061dcc888b5dd31bb`; its frozen affected result was 131 tests in 17 suites passing. The earlier unsourced `43f82a...` report line is superseded.
 
-## Pending controller and release gates
+## Historical Task4 pending controller and release gates
 
 The independent precommit review is pending. The controller-owned frozen full Core suite and platform build/test validation are pending until the controller supplies actual evidence; they were deliberately not run during Task 4. The exact affected default-concurrent Task 4 filter is green, but it is not a substitute for those controller-owned gates.
 

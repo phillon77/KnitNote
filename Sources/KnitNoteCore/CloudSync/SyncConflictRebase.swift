@@ -344,6 +344,130 @@ public enum SyncVersionedAcknowledgementResult: Equatable, Sendable {
     case staleVersion
 }
 
+struct SyncConflictPublicationSource: Codable, Equatable, Sendable {
+    private static let currentVersion = 1
+
+    let version: Int
+    let input: SyncConflictInput
+    let transition: SyncJournalRebaseTransition
+    let plan: SyncRemoteBatchDurablePlan
+    let beforePending: [SyncMutation]
+    let afterPending: [SyncMutation]
+    let beforeVersions: [SyncMutationVersionToken]
+    let afterVersions: [SyncMutationVersionToken]
+
+    init(
+        version: Int = Self.currentVersion,
+        input: SyncConflictInput,
+        transition: SyncJournalRebaseTransition,
+        plan: SyncRemoteBatchDurablePlan,
+        beforePending: [SyncMutation],
+        afterPending: [SyncMutation],
+        beforeVersions: [SyncMutationVersionToken],
+        afterVersions: [SyncMutationVersionToken]
+    ) throws {
+        self.version = version
+        self.input = input
+        self.transition = transition
+        self.plan = plan
+        self.beforePending = beforePending
+        self.afterPending = afterPending
+        self.beforeVersions = beforeVersions
+        self.afterVersions = afterVersions
+        _ = try validated()
+    }
+
+    func validated() throws -> Self {
+        do {
+            guard version == Self.currentVersion,
+                  transition.input == input,
+                  transition.before == input.expectedRecordQueue,
+                  beforePending.count == afterPending.count,
+                  beforePending.count == beforeVersions.count,
+                  afterPending.count == afterVersions.count,
+                  plan.pending == beforePending,
+                  plan.records == [input.serverRecord],
+                  plan.deletedRecordIDs.isEmpty,
+                  plan.journalURL.isFileURL,
+                  !plan.journalURL.path.isEmpty,
+                  plan.archive.count <= SyncCanonicalCheckpoint.maximumBytes,
+                  plan.predecessorEvidence.count <= SyncCanonicalCheckpoint.maximumBytes,
+                  transition.recordPositions.allSatisfy(beforePending.indices.contains),
+                  transition.recordPositions.map({ beforePending[$0] }) == transition.before,
+                  transition.recordPositions.map({ afterPending[$0] }) == transition.after,
+                  transition.recordPositions.map({ beforeVersions[$0] })
+                    == transition.beforeVersions,
+                  transition.recordPositions.map({ afterVersions[$0] })
+                    == transition.afterVersions,
+                  beforePending.indices.filter({
+                      beforePending[$0].recordID == input.serverRecord.id
+                  }) == transition.recordPositions else {
+                throw SyncPublicationError.corruptTransaction
+            }
+            _ = try input.validated()
+            _ = try transition.validated()
+
+            let beforeVersioned = try zip(beforePending, beforeVersions).map {
+                try SyncVersionedMutation(mutation: $0.0, token: $0.1)
+            }
+            let afterVersioned = try zip(afterPending, afterVersions).map {
+                try SyncVersionedMutation(mutation: $0.0, token: $0.1)
+            }
+            guard transition.predecessorPendingSHA256
+                    == (try SyncConflictRebaseCoding.pendingDigest(beforeVersioned)) else {
+                throw SyncPublicationError.corruptTransaction
+            }
+            let selected = Set(transition.recordPositions)
+            for index in beforePending.indices where !selected.contains(index) {
+                guard beforeVersioned[index] == afterVersioned[index] else {
+                    throw SyncPublicationError.corruptTransaction
+                }
+            }
+
+            _ = try plan.predecessor.validated()
+            _ = try SyncRecordValidator().validate(plan.records)
+            _ = try JSONDecoder().decode(
+                SyncAttachmentPublicationEvidence.self,
+                from: plan.predecessorEvidence
+            ).validated()
+            guard !plan.authority.isEmpty,
+                  Set(plan.authority.map(\.path)).count == plan.authority.count,
+                  plan.authority.allSatisfy({
+                      !$0.path.isEmpty && $0.device > 0 && $0.inode > 0 && $0.bytes >= 0
+                        && (($0.bytes == 0 && $0.digest.isEmpty)
+                            || $0.digest.count == SHA256.byteCount)
+                  }),
+                  plan.authority.contains(where: {
+                      $0.digest == plan.predecessor.archiveSHA256
+                  }),
+                  Set(plan.files.map(\.relativePath)).count == plan.files.count,
+                  Set(plan.files.map(\.version.versionID)).count == plan.files.count else {
+                throw SyncPublicationError.corruptTransaction
+            }
+            for file in plan.files {
+                _ = try file.version.validated()
+                _ = try SyncPublicationArtifactEvidence(
+                    relativePath: file.relativePath,
+                    expectedSHA256: file.version.contentSHA256
+                )
+                guard file.data.count <= SyncCanonicalCheckpoint.maximumBytes,
+                      Int64(file.data.count) == file.version.byteCount,
+                      Data(SHA256.hash(data: file.data)) == file.version.contentSHA256 else {
+                    throw SyncPublicationError.corruptTransaction
+                }
+            }
+            for marker in plan.deletionMarkers {
+                _ = try marker.validated()
+            }
+            return self
+        } catch let error as SyncPublicationError {
+            throw error
+        } catch {
+            throw SyncPublicationError.corruptTransaction
+        }
+    }
+}
+
 struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
     private static let currentVersion = 1
 

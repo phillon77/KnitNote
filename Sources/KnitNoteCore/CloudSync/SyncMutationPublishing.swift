@@ -137,7 +137,8 @@ struct SyncCanonicalTransition: Codable, Equatable, Sendable {
 }
 
 struct SyncPublicationTransaction: Codable, Equatable, Sendable {
-    static let currentVersion = 6
+    static let currentVersion = 7
+    private static let remoteCanonicalVersion = 6
     private static let canonicalTransitionVersion = 5
     private static let attachmentManifestVersion = 4
     private static let causalReceiptVersion = 3
@@ -154,6 +155,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     let restorationWitness: SyncRestorationWitness?
     let canonicalTransition: SyncCanonicalTransition?
     let remoteSource: SyncRemoteBatchPublicationSource?
+    let conflictSource: SyncConflictPublicationSource?
     let integrity: Data
 
     private enum CodingKeys: String, CodingKey {
@@ -168,6 +170,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         case restorationWitness
         case canonicalTransition
         case remoteSource
+        case conflictSource
         case integrity
     }
 
@@ -181,7 +184,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         deletionLedgerID: UUID? = nil,
         restorationWitness: SyncRestorationWitness? = nil,
         canonicalTransition: SyncCanonicalTransition? = nil,
-        remoteSource: SyncRemoteBatchPublicationSource? = nil
+        remoteSource: SyncRemoteBatchPublicationSource? = nil,
+        conflictSource: SyncConflictPublicationSource? = nil
     ) throws {
         try self.init(
             version: Self.currentVersion,
@@ -194,7 +198,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             deletionLedgerID: deletionLedgerID,
             restorationWitness: restorationWitness,
             canonicalTransition: canonicalTransition,
-            remoteSource: remoteSource
+            remoteSource: remoteSource,
+            conflictSource: conflictSource
         )
         _ = try validated()
     }
@@ -228,13 +233,15 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         deletionLedgerID: UUID? = nil,
         restorationWitness: SyncRestorationWitness? = nil,
         canonicalTransition: SyncCanonicalTransition? = nil,
-        remoteSource: SyncRemoteBatchPublicationSource? = nil
+        remoteSource: SyncRemoteBatchPublicationSource? = nil,
+        conflictSource: SyncConflictPublicationSource? = nil
     ) throws {
         self.version = version
         self.deletionLedgerID = deletionLedgerID
         self.restorationWitness = restorationWitness
         self.canonicalTransition = canonicalTransition
         self.remoteSource = remoteSource
+        self.conflictSource = conflictSource
         self.expectedArchiveSHA256 = expectedArchiveSHA256
         self.commitBoundary = commitBoundary
         self.artifactEvidence = artifactEvidence.sorted {
@@ -258,7 +265,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             deletionLedgerID: deletionLedgerID,
             restorationWitness: restorationWitness,
             canonicalTransition: canonicalTransition,
-            remoteSource: remoteSource
+            remoteSource: remoteSource,
+            conflictSource: conflictSource
         )
     }
 
@@ -294,6 +302,10 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             SyncRemoteBatchPublicationSource.self,
             forKey: .remoteSource
         )
+        conflictSource = try values.decodeIfPresent(
+            SyncConflictPublicationSource.self,
+            forKey: .conflictSource
+        )
     }
 
     func validated() throws -> Self {
@@ -307,10 +319,13 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             try $0.validated()
         }
         let validatedRemoteSource = try remoteSource.map { try $0.validated() }
+        let validatedConflictSource = try conflictSource.map { try $0.validated() }
         let supportsAttachmentAuthorities = version == Self.attachmentManifestVersion
             || version == Self.canonicalTransitionVersion
+            || version == Self.remoteCanonicalVersion
             || version == Self.currentVersion
         let supportsCanonicalTransition = version == Self.canonicalTransitionVersion
+            || version == Self.remoteCanonicalVersion
             || version == Self.currentVersion
         let receiptsAreComplete = revisionReceipts.count == mutations.count
             && Set(revisionReceipts.map(\.mutationID)).count == revisionReceipts.count
@@ -331,6 +346,7 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                 Self.causalReceiptVersion,
                 Self.attachmentManifestVersion,
                 Self.canonicalTransitionVersion,
+                Self.remoteCanonicalVersion,
                 Self.currentVersion
               ].contains(version),
               expectedArchiveSHA256.count == SHA256.byteCount,
@@ -347,11 +363,24 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
               deletionLedgerID == nil || supportsAttachmentAuthorities,
               restorationWitness == nil || (supportsAttachmentAuthorities && deletionLedgerID == nil
                   && restorationWitness?.beforeArchiveSHA256.count == 32),
-              remoteSource == nil || version == Self.currentVersion,
+              remoteSource == nil
+                || version == Self.remoteCanonicalVersion
+                || version == Self.currentVersion,
               remoteSource == validatedRemoteSource,
+              conflictSource == nil || version == Self.currentVersion,
+              conflictSource == validatedConflictSource,
+              remoteSource == nil || conflictSource == nil,
               try Self.remoteSourceIsValid(
                   remoteSource,
                   transition: validatedCanonicalTransition
+              ),
+              try Self.conflictSourceIsValid(
+                  conflictSource,
+                  transition: validatedCanonicalTransition,
+                  expectedArchiveSHA256: expectedArchiveSHA256,
+                  artifactEvidence: artifactEvidence,
+                  mutations: mutations,
+                  revisionReceipts: revisionReceipts
               ),
               artifactEvidence == artifactEvidence.sorted(by: {
                   $0.relativePath < $1.relativePath
@@ -359,7 +388,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
               Set(validatedEvidence.map(\.relativePath)).count == validatedEvidence.count,
               commitBoundary != .artifacts || !artifactEvidence.isEmpty,
               version == Self.legacyVersion
-                || (remoteSource != nil ? revisionReceipts.isEmpty : receiptsAreComplete),
+                || (remoteSource != nil || conflictSource != nil
+                    ? revisionReceipts.isEmpty : receiptsAreComplete),
               candidateAttachmentManifest == validatedManifest,
               integrity == (try Self.integrity(
                   version: version,
@@ -372,7 +402,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                   deletionLedgerID: deletionLedgerID,
                   restorationWitness: restorationWitness,
                   canonicalTransition: canonicalTransition,
-                  remoteSource: remoteSource
+                  remoteSource: remoteSource,
+                  conflictSource: conflictSource
               )) else {
             throw SyncPublicationTransactionFileError.corrupt
         }
@@ -406,6 +437,83 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         }
     }
 
+    private static func conflictSourceIsValid(
+        _ source: SyncConflictPublicationSource?,
+        transition: SyncCanonicalTransition?,
+        expectedArchiveSHA256: Data,
+        artifactEvidence: [SyncPublicationArtifactEvidence],
+        mutations: [SyncMutation],
+        revisionReceipts: [SyncRevisionReceipt]
+    ) throws -> Bool {
+        guard let source else { return true }
+        guard let transition,
+              let predecessorSHA256 = transition.predecessorSHA256,
+              source.input.accountIDHash == source.plan.predecessor.accountIDHash,
+              transition.candidate.accountIDHash == source.input.accountIDHash,
+              transition.candidate.commitID == source.transition.transactionID,
+              transition.candidate.commitID != source.plan.predecessor.commitID,
+              predecessorSHA256
+                == Data(SHA256.hash(data: try source.plan.predecessor.encoded())),
+              transition.candidate.archiveSHA256 == expectedArchiveSHA256,
+              transition.candidate.archiveSHA256
+                == Data(SHA256.hash(data: source.plan.archive)),
+              transition.candidate.legacyRecordIDsToDelete
+                == source.plan.predecessor.legacyRecordIDsToDelete,
+              transition.candidate.remoteBatchReceipts
+                == source.plan.predecessor.remoteBatchReceipts,
+              mutations.isEmpty,
+              revisionReceipts.isEmpty else {
+            return false
+        }
+
+        var projected = Dictionary(
+            uniqueKeysWithValues: source.plan.predecessor.records.map { ($0.id, $0) }
+        )
+        for mutation in source.transition.after {
+            switch mutation {
+            case let .save(save):
+                projected[mutation.recordID] = save.recordVersion.record
+            case .delete:
+                projected.removeValue(forKey: mutation.recordID)
+            }
+        }
+        guard transition.candidate.records == projected.values.sorted(by: {
+            Self.entityPrecedes($0.id, $1.id)
+        }) else {
+            return false
+        }
+
+        let expectedEvidence = try source.plan.files.map {
+            try SyncPublicationArtifactEvidence(
+                relativePath: $0.relativePath,
+                expectedSHA256: $0.version.contentSHA256
+            )
+        }.sorted { $0.relativePath < $1.relativePath }
+        guard artifactEvidence == expectedEvidence,
+              source.plan.files.allSatisfy({ file in
+                  transition.candidate.records.contains {
+                      $0.deletedAt.value == nil && $0.payload.attachment == file.version
+                  }
+              }) else {
+            return false
+        }
+        for record in source.plan.records
+            where record.deletedAt.value == nil && record.payload.attachment != nil {
+            guard let version = record.payload.attachment,
+                  source.plan.files.contains(where: { $0.version == version }) else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func entityPrecedes(_ lhs: SyncEntityID, _ rhs: SyncEntityID) -> Bool {
+        if lhs.kind.rawValue != rhs.kind.rawValue {
+            return lhs.kind.rawValue < rhs.kind.rawValue
+        }
+        return lhs.uuid.uuidString < rhs.uuid.uuidString
+    }
+
     private static func integrity(
         version: Int,
         expectedArchiveSHA256: Data,
@@ -417,7 +525,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         deletionLedgerID: UUID?,
         restorationWitness: SyncRestorationWitness?,
         canonicalTransition: SyncCanonicalTransition?,
-        remoteSource: SyncRemoteBatchPublicationSource?
+        remoteSource: SyncRemoteBatchPublicationSource?,
+        conflictSource: SyncConflictPublicationSource?
     ) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -467,7 +576,22 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                 canonicalTransition: canonicalTransition
             ))))
         }
-        return Data(SHA256.hash(data: try encoder.encode(RemoteCanonicalIntegrityPayload(
+        if version == Self.remoteCanonicalVersion {
+            return Data(SHA256.hash(data: try encoder.encode(RemoteCanonicalIntegrityPayload(
+                version: version,
+                expectedArchiveSHA256: expectedArchiveSHA256,
+                commitBoundary: commitBoundary,
+                artifactEvidence: artifactEvidence,
+                mutations: mutations,
+                revisionReceipts: revisionReceipts,
+                candidateAttachmentManifest: candidateAttachmentManifest,
+                deletionLedgerID: deletionLedgerID,
+                restorationWitness: restorationWitness,
+                canonicalTransition: canonicalTransition,
+                remoteSource: remoteSource
+            ))))
+        }
+        return Data(SHA256.hash(data: try encoder.encode(ConflictCanonicalIntegrityPayload(
             version: version,
             expectedArchiveSHA256: expectedArchiveSHA256,
             commitBoundary: commitBoundary,
@@ -478,7 +602,8 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
             deletionLedgerID: deletionLedgerID,
             restorationWitness: restorationWitness,
             canonicalTransition: canonicalTransition,
-            remoteSource: remoteSource
+            remoteSource: remoteSource,
+            conflictSource: conflictSource
         ))))
     }
 
@@ -537,6 +662,21 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
         let canonicalTransition: SyncCanonicalTransition?
         let remoteSource: SyncRemoteBatchPublicationSource?
     }
+
+    private struct ConflictCanonicalIntegrityPayload: Codable {
+        let version: Int
+        let expectedArchiveSHA256: Data
+        let commitBoundary: SyncPublicationCommitBoundary
+        let artifactEvidence: [SyncPublicationArtifactEvidence]
+        let mutations: [SyncMutation]
+        let revisionReceipts: [SyncRevisionReceipt]
+        let candidateAttachmentManifest: [SyncAttachmentManifestEntry]?
+        let deletionLedgerID: UUID?
+        let restorationWitness: SyncRestorationWitness?
+        let canonicalTransition: SyncCanonicalTransition?
+        let remoteSource: SyncRemoteBatchPublicationSource?
+        let conflictSource: SyncConflictPublicationSource?
+    }
 }
 
 enum SyncPublicationCommitStatus: Equatable {
@@ -577,6 +717,27 @@ struct SyncPublicationTransactionFile {
     }
 
     func write(_ transaction: SyncPublicationTransaction) throws {
+        guard transaction.conflictSource == nil else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        try atomicWrite(try encoded(transaction))
+    }
+
+    func write(
+        _ transaction: SyncPublicationTransaction,
+        preflightingWith lease: SyncJournalWriteLease
+    ) throws {
+        guard let source = transaction.conflictSource,
+              Self.comparisonPath(source.plan.journalURL)
+                == Self.comparisonPath(lease.location) else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        let data = try encoded(transaction)
+        try lease.preflightRebase(source.transition)
+        try atomicWrite(data)
+    }
+
+    private func encoded(_ transaction: SyncPublicationTransaction) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data: Data
@@ -584,13 +745,28 @@ struct SyncPublicationTransactionFile {
             data = try encoder.encode(transaction.validated())
         } catch let error as SyncPublicationTransactionFileError {
             throw error
+        } catch is SyncPublicationError {
+            throw SyncPublicationTransactionFileError.corrupt
+        } catch is SyncConflictError {
+            throw SyncPublicationTransactionFileError.corrupt
         } catch {
             throw SyncPublicationTransactionFileError.unavailable
         }
         guard data.count <= Self.maximumEncodedBytes else {
             throw SyncPublicationTransactionFileError.corrupt
         }
-        try atomicWrite(data)
+        return data
+    }
+
+    /// Match the established publication authority normalization without
+    /// resolving arbitrary symlinks supplied by decoded evidence.
+    private static func comparisonPath(_ url: URL) -> String {
+        let standardized = url.standardizedFileURL.path
+        if standardized == "/var" || standardized.hasPrefix("/var/")
+            || standardized == "/tmp" || standardized.hasPrefix("/tmp/") {
+            return "/private" + standardized
+        }
+        return standardized
     }
 
     func remove() throws {

@@ -23,6 +23,8 @@ import Testing
         ).validated()
 
         #expect(decoded.canonicalTransition == transition)
+        #expect(decoded.version == 7)
+        #expect(decoded.conflictSource == nil)
         #expect(decoded.mutations.isEmpty)
         #expect(decoded.revisionReceipts.isEmpty)
     }
@@ -155,6 +157,7 @@ import Testing
 
         #expect(decoded.mutations == mutations)
         #expect(decoded.revisionReceipts == receipts)
+        #expect(decoded.conflictSource == nil)
     }
 
     @Test func versionFiveRetainsManifestDeletionAndRestorationEligibility() throws {

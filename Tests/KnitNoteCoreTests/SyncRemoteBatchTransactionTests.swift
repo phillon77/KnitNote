@@ -241,7 +241,7 @@ struct SyncRemoteBatchTransactionTests {
         #expect(try encoder.encode(transaction) == bytes)
     }
 
-    @Test func formatSixBindsRemoteInsertToExactPredecessorAndSuccessorReceipt() throws {
+    @Test func formatSevenBindsRemoteInsertWithoutConflictSource() throws {
         let predecessor = try checkpoint(commitID: uuid(6))
         let successor = try checkpoint(commitID: uuid(7))
         let receipt = receipt(
@@ -271,12 +271,13 @@ struct SyncRemoteBatchTransactionTests {
             from: JSONEncoder().encode(transaction)
         ).validated()
 
-        #expect(decoded.version == 6)
+        #expect(decoded.version == 7)
         #expect(decoded.remoteSource == source)
+        #expect(decoded.conflictSource == nil)
         #expect(decoded.canonicalTransition?.candidate.remoteBatchReceipts == [receipt])
     }
 
-    @Test func formatSixSupportsMetadataOnlyReceiptRetirement() throws {
+    @Test func formatSevenSupportsMetadataOnlyReceiptRetirement() throws {
         let predecessorBase = try checkpoint(commitID: uuid(9))
         let receipt = receipt(
             accountIDHash: predecessorBase.accountIDHash,
@@ -307,6 +308,7 @@ struct SyncRemoteBatchTransactionTests {
         )
 
         #expect(try transaction.validated().remoteSource?.receiptAction == .retire)
+        #expect(transaction.conflictSource == nil)
         #expect(candidate.archiveSHA256 == predecessor.archiveSHA256)
         #expect(candidate.records == predecessor.records)
         #expect(candidate.remoteBatchReceipts.isEmpty)

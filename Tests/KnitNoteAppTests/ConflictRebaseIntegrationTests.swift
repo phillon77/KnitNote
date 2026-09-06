@@ -1,9 +1,159 @@
 import CloudKit
+import Combine
 import Foundation
 import Testing
 @testable import KnitNote
 
 @MainActor @Suite struct ConflictRebaseIntegrationTests {
+    @Test(arguments: [false, true])
+    func resolverThrowAfterAwaitCannotMaintainJournalOrBlockStaleEpoch(invalidate: Bool) async throws {
+        let h = try ConflictHarness(); defer { h.f.remove() }
+        let gate = ConflictContinuationGate()
+        let adapter = JSONProjectStoreRemoteBatchCommitter(store: h.f.store, expectedAccount: h.f.account,
+            attachmentSources: { _ in try await gate.suspend(); throw ConflictContinuationFault.injected },
+            verifyAcknowledgement: { _ in })
+        let committer = ConflictCommitProbe(adapter)
+        let io = SyncJournalIOCounters()
+        let observedJournal = FileSyncMutationJournal(url: h.f.journal.recoveryLocation, counters: io)
+        let coordinator = h.coordinator(committer: committer, journal: observedJournal)
+        var issues: [CloudSyncIssue] = []
+        let observation = coordinator.$status.sink { if let issue = $0.issue { issues.append(issue) } }
+        defer { observation.cancel() }
+        await coordinator.start(); await h.transport.receiveZoneReady(h.f.zone)
+        let outgoing = try await h.outgoing()
+        await h.transport.receiveFailedSave(outgoing, error: h.conflict())
+        await until { gate.isSuspended }
+        let epoch = try #require(committer.firstAttempt?.epoch)
+        let residue = try ConflictCleanupResidue(h.f)
+        let frozen = try residue.snapshot()
+        let metadataReads = io.metadataReadCount
+        if invalidate { epoch.invalidate() }
+        gate.resume()
+        if !invalidate {
+            await until { issues.contains(.durableCommit) }
+            #expect(coordinator.status.pendingCount == 1)
+        }
+        await finishContinuation(coordinator, transport: h.transport)
+        #expect(issues.contains(.durableCommit) == !invalidate)
+        #expect(!issues.contains(.journal) && !issues.contains(.operation))
+        #expect(try residue.snapshot() == frozen)
+        #expect(io.metadataReadCount == metadataReads)
+        #expect(FileManager.default.fileExists(atPath: residue.staged.path))
+        #expect(h.f.store.project(id: h.f.projectID)?.name == "Local")
+    }
+
+    @Test(arguments: ["stale-success", "stale-error", "current-error"])
+    func cleanupContinuationCannotMaintainJournalAfterInvalidation(mode: String) async throws {
+        let h = try ConflictHarness(); defer { h.f.remove() }
+        let gate = ConflictContinuationGate()
+        let probe = ConflictTransportProbe(h.transport)
+        var epoch: CloudSyncAccountEpoch?
+        probe.afterVerification = { epoch = $0 }
+        probe.afterCleanup = {
+            try await gate.suspend()
+            if mode != "stale-success" { throw ConflictContinuationFault.injected }
+        }
+        let io = SyncJournalIOCounters()
+        let observedJournal = FileSyncMutationJournal(url: h.f.journal.recoveryLocation, counters: io)
+        let coordinator = h.coordinator(transport: probe, journal: observedJournal)
+        var issues: [CloudSyncIssue] = []
+        let observation = coordinator.$status.sink { if let issue = $0.issue { issues.append(issue) } }
+        defer { observation.cancel() }
+        await coordinator.start(); await h.transport.receiveZoneReady(h.f.zone)
+        let outgoing = try await h.outgoing()
+        await h.transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
+        await until { gate.isSuspended }
+        // The real exact journal ACK and real transport cleanup already ran.
+        #expect(try h.f.journal.pendingVersioned().isEmpty)
+        let residue = try ConflictCleanupResidue(h.f)
+        let frozen = try residue.snapshot()
+        let metadataReads = io.metadataReadCount
+        if mode != "current-error" { try #require(epoch).invalidate() }
+        gate.resume()
+        if mode == "current-error" {
+            await until { issues.contains(.assetCleanup) }
+            #expect(coordinator.status.pendingCount == 0)
+        }
+        await finishContinuation(coordinator, transport: h.transport)
+        #expect(issues.contains(.assetCleanup) == (mode == "current-error"))
+        #expect(!issues.contains(.journal) && !issues.contains(.durableCommit))
+        #expect(try residue.snapshot() == frozen)
+        #expect(io.metadataReadCount == metadataReads)
+        #expect(FileManager.default.fileExists(atPath: residue.staged.path))
+    }
+
+    @Test(arguments: [false, true])
+    func handoffThrowAfterAwaitCannotMaintainJournalOrBlockStaleEpoch(invalidate: Bool) async throws {
+        let h = try ConflictHarness(); defer { h.f.remove() }
+        let gate = ConflictContinuationGate()
+        let committer = ConflictCommitProbe(h.adapter)
+        let probe = ConflictTransportProbe(h.transport)
+        probe.afterHandoff = { try await gate.suspend(); throw ConflictContinuationFault.injected }
+        let io = SyncJournalIOCounters()
+        let observedJournal = FileSyncMutationJournal(url: h.f.journal.recoveryLocation, counters: io)
+        let coordinator = h.coordinator(transport: probe, committer: committer, journal: observedJournal)
+        var issues: [CloudSyncIssue] = []
+        let observation = coordinator.$status.sink { if let issue = $0.issue { issues.append(issue) } }
+        defer { observation.cancel() }
+        await coordinator.start(); await h.transport.receiveZoneReady(h.f.zone)
+        let outgoing = try await h.outgoing()
+        await h.transport.receiveFailedSave(outgoing, error: h.conflict())
+        await until { gate.isSuspended }
+        #expect(h.f.store.project(id: h.f.projectID)?.name == "Remote")
+        let residue = try ConflictCleanupResidue(h.f)
+        let frozen = try residue.snapshot()
+        let metadataReads = io.metadataReadCount
+        if invalidate { try #require(committer.firstAttempt?.epoch).invalidate() }
+        gate.resume()
+        if !invalidate {
+            await until { issues.contains(.operation) }
+            #expect(coordinator.status.pendingCount == 1)
+        }
+        await finishContinuation(coordinator, transport: h.transport)
+        #expect(issues.contains(.operation) == !invalidate)
+        #expect(!issues.contains(.durableCommit) && !issues.contains(.journal))
+        #expect(try residue.snapshot() == frozen)
+        #expect(io.metadataReadCount == metadataReads)
+        #expect(FileManager.default.fileExists(atPath: residue.staged.path))
+    }
+
+    // A real queued lifecycle event is handled only after the suspended event's
+    // continuation. This observes completion without sleeping to infer absence.
+    private func finishContinuation(_ coordinator: KnitNoteCloudSyncCoordinator,
+        transport: CKSyncEngineTransport) async {
+        var finished = false
+        coordinator.accountChangeHandler = { _, _ in finished = true }
+        await transport.receiveAccountChange(previous: "adapter-user", current: "sentinel-account")
+        await until { finished }
+    }
+
+    @Test func committedResultAfterInvalidationCannotReadJournalOrReachHandoff() async throws {
+        let h = try ConflictHarness(); defer { h.f.remove() }
+        let io = SyncJournalIOCounters()
+        let observedJournal = FileSyncMutationJournal(url: h.f.journal.recoveryLocation, counters: io)
+        let committer = ConflictCommitProbe(h.adapter)
+        let probe = ConflictTransportProbe(h.transport)
+        let coordinator = h.coordinator(transport: probe, committer: committer, journal: observedJournal)
+        var residue: ConflictCleanupResidue?
+        var frozen: [String: Data] = [:]
+        var metadataReads = 0
+        committer.afterFirstCommit = {
+            residue = try ConflictCleanupResidue(h.f)
+            frozen = try #require(residue).snapshot()
+            metadataReads = io.metadataReadCount
+            try #require(committer.firstAttempt?.epoch).invalidate()
+        }
+        await coordinator.start(); await h.transport.receiveZoneReady(h.f.zone)
+        let outgoing = try await h.outgoing()
+        await h.transport.receiveFailedSave(outgoing, error: h.conflict())
+        await until { residue != nil }
+        await finishContinuation(coordinator, transport: h.transport)
+        #expect(h.f.store.project(id: h.f.projectID)?.name == "Remote")
+        #expect(probe.handoffs == 0)
+        #expect(io.metadataReadCount == metadataReads)
+        #expect(try #require(residue).snapshot() == frozen)
+    }
+
     // Catches identity-only ACK, lost later edits, a reset retry budget, or
     // unrelated FIFO/media mutation across a real Core/transport handoff retry.
     @Test func combinedConflictHandoffEditRetryAndExactACKs() async throws {
@@ -458,6 +608,53 @@ private final class FixtureTagArchiver: NSKeyedArchiver {
     }
 }
 
+private enum ConflictContinuationFault: Error { case injected }
+
+@MainActor private final class ConflictContinuationGate {
+    private var continuation: CheckedContinuation<Void, any Error>?
+    var isSuspended: Bool { continuation != nil }
+    func suspend() async throws {
+        try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+    func resume() { let pending = continuation; continuation = nil; pending?.resume() }
+}
+
+// Real kind-5 ACK append succeeds durably, then its IO boundary throws before
+// native cleanup. A later pending() would remove this file and append kind 3.
+@MainActor private struct ConflictCleanupResidue {
+    let root: URL
+    let staged: URL
+    init(_ fixture: AdapterFixture) throws {
+        root = fixture.journal.recoveryLocation.deletingLastPathComponent()
+        let mutation = try integrationAttachment(root: fixture.root)
+        try fixture.journal.enqueue(mutation)
+        let current = try #require(try fixture.journal.pendingVersioned().first {
+            $0.mutation.identity == mutation.identity
+        })
+        staged = try #require(current.mutation.attachmentSource?.fileURL)
+        let interrupted = FileSyncMutationJournal(url: fixture.journal.recoveryLocation, appendFrames: { bytes, url in
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd(); try handle.write(contentsOf: bytes); try handle.synchronize()
+            throw ConflictContinuationFault.injected
+        })
+        #expect(throws: ConflictContinuationFault.injected) {
+            _ = try interrupted.acknowledgeCurrentVersion(current.token)
+        }
+        #expect(FileManager.default.fileExists(atPath: staged.path))
+    }
+    func snapshot() throws -> [String: Data] {
+        let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]))
+        var result: [String: Data] = [:]
+        for case let url as URL in files {
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
+            if values.isDirectory == true { result[url.path + "/"] = Data() }
+            if values.isRegularFile == true { result[url.path] = try Data(contentsOf: url) }
+        }
+        return result
+    }
+}
+
 @MainActor private final class ConflictHarness {
     let f: AdapterFixture
     let system: FileCloudRecordSystemFieldsStore
@@ -493,8 +690,9 @@ private final class FixtureTagArchiver: NSKeyedArchiver {
         let queue = try f.journal.pendingVersioned()
         return try .init(accountIDHash: f.account.accountIDHash, failedAttemptID: attemptID, failedMutation: attempted.mutation, failedVersion: attempted.token, serverRecord: CloudRecordCodec().decode(server), expectedRecordQueue: queue.map(\.mutation), expectedVersions: queue.map(\.token))
     }
-    func coordinator(transport overrideTransport: (any CloudSyncTransport)? = nil, committer: (any SyncFetchedBatchCommitting)? = nil) -> KnitNoteCloudSyncCoordinator {
-        KnitNoteCloudSyncCoordinator(transport: overrideTransport ?? transport, journal: f.journal, mergeEngine: SyncMergeEngine(), recordProvider: AdapterRecordProvider(), fetchedBatchCommitter: committer ?? adapter, screenshotMode: false)
+    func coordinator(transport overrideTransport: (any CloudSyncTransport)? = nil,
+        committer: (any SyncFetchedBatchCommitting)? = nil, journal: FileSyncMutationJournal? = nil) -> KnitNoteCloudSyncCoordinator {
+        KnitNoteCloudSyncCoordinator(transport: overrideTransport ?? transport, journal: journal ?? f.journal, mergeEngine: SyncMergeEngine(), recordProvider: AdapterRecordProvider(), fetchedBatchCommitter: committer ?? adapter, screenshotMode: false)
     }
 }
 
@@ -535,13 +733,19 @@ private final class FixtureTagArchiver: NSKeyedArchiver {
     var verifications = 0
     var verificationAttempts = 0
     var cleanups = 0
+    var afterCleanup: (() async throws -> Void)?
+    var afterHandoff: (() async throws -> Void)?
     func verifySentMutation(_ token: SyncMutationVersionToken, attemptID: UUID, accountEpoch: CloudSyncAccountEpoch) async throws {
         verificationAttempts += 1
         try await base.verifySentMutation(token, attemptID: attemptID, accountEpoch: accountEpoch)
         if let action = afterVerification { afterVerification = nil; try await action(accountEpoch) }
         verifications += 1
     }
-    func acknowledgeSentMutation(_ token: SyncMutationVersionToken, attemptID: UUID) async throws { cleanups += 1; try await base.acknowledgeSentMutation(token, attemptID: attemptID) }
+    func acknowledgeSentMutation(_ token: SyncMutationVersionToken, attemptID: UUID) async throws {
+        cleanups += 1
+        try await base.acknowledgeSentMutation(token, attemptID: attemptID)
+        if let action = afterCleanup { afterCleanup = nil; try await action() }
+    }
     func resolveFailedMutation(_ resolution: SyncConflictResolution, accountEpoch: CloudSyncAccountEpoch, expectedQueue: [SyncVersionedMutation]) async throws -> CloudConflictHandoffResult {
         handoffs += 1
         if staleCount > 0 {
@@ -550,6 +754,7 @@ private final class FixtureTagArchiver: NSKeyedArchiver {
             return .stale
         }
         let result = try await base.resolveFailedMutation(resolution, accountEpoch: accountEpoch, expectedQueue: expectedQueue)
+        if let action = afterHandoff { afterHandoff = nil; try await action() }
         if result == .accepted { accepted += 1 }; return result
     }
     func fetchNow(completionID: UUID?) async throws { try await base.fetchNow(completionID: completionID) }

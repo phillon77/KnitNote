@@ -5,6 +5,54 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncMutationJournalFinalFixTests {
+    @Test func ordinaryVersionedSchedulingAndACKAcceptAggregateMediaAboveJournalEncodingLimit() throws {
+        let fixture = try FinalFixJournalFixture()
+        var bytes = Data(repeating: 32, count: 40_000_000)
+        bytes.replaceSubrange(0..<2, with: [123, 125]) // Valid JSON plus whitespace.
+        let source = fixture.directory.appendingPathComponent("large-source.asset")
+        try bytes.write(to: source)
+        let mutations = try (0..<2).map { _ in
+            try attachmentSave(slot: .init(owner: .init(kind: .project, uuid: UUID()),
+                role: "project-photo", slotID: "primary"), bytes: bytes, source: source)
+        }
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        try journal.enqueue(mutations)
+        // Canonical activation first performs this ordinary validation/migration.
+        let pending = try journal.pending()
+        #expect(pending.count == 2)
+        let staged = pending.compactMap(\.attachmentSource)
+        #expect(staged.map(\.byteCount).reduce(0, +) == 80_000_000)
+        let segment = fixture.url.appendingPathExtension("segment")
+        let before = try Data(contentsOf: segment)
+        let readerCounters = SyncRegularFileReaderIOCounters()
+        let observed = FileSyncMutationJournal(url: fixture.url,
+            reader: SyncRegularFileReader(ioCounters: readerCounters))
+        // Explicit recovery capture keeps its aggregate budget and rejects
+        // before reading the second file. Ordinary read-only scheduling does not.
+        #expect(throws: SyncMutationJournalError.tooLarge) {
+            _ = try observed.recoverySnapshot(maximumBytes: 64 * 1_024 * 1_024)
+        }
+        #expect(readerCounters.bytesRead <= 64 * 1_024 * 1_024)
+        #expect(try Data(contentsOf: segment) == before)
+        #expect(try observed.recoverySnapshot(maximumBytes: 100_000_000).mutations == pending)
+        let versioned = try journal.pendingVersioned()
+        #expect(versioned.map(\.mutation) == pending)
+        #expect(versioned.map(\.token.journalRevision) == [0, 0])
+        #expect(try Data(contentsOf: segment) == before)
+        #expect(try journal.acknowledgeCurrentVersion(versioned[0].token) == .acknowledged)
+        #expect(!FileManager.default.fileExists(atPath: staged[0].fileURL.path))
+        #expect(try Data(contentsOf: staged[1].fileURL) == bytes)
+        let reopened = FileSyncMutationJournal(url: fixture.url)
+        #expect(try reopened.pendingVersioned() == [versioned[1]])
+        #expect(try reopened.acknowledgeCurrentVersion(versioned[0].token) == .alreadyAcknowledged)
+        #expect(try reopened.acknowledgeCurrentVersion(versioned[1].token) == .acknowledged)
+        #expect(!FileManager.default.fileExists(atPath: staged[1].fileURL.path))
+        let fresh = FileSyncMutationJournal(url: fixture.url)
+        #expect(try fresh.pending().isEmpty)
+        #expect(try fresh.pendingVersioned().isEmpty)
+        #expect(try fresh.acknowledgeCurrentVersion(versioned[1].token) == .alreadyAcknowledged)
+    }
+
     @Test func exactVersionedACKRetryRepairsDurabilityAndCompletesCleanup() throws {
         let fixture = try FinalFixJournalFixture()
         let source = fixture.directory.appendingPathComponent("retry-source.asset")

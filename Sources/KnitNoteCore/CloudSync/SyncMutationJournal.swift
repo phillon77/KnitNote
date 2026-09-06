@@ -1447,16 +1447,23 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func loadSegmentedStateLocked(readOnly: Bool = false,
-                                         maximumReadBytes: Int = FileSyncMutationJournal.maximumEncodedBytes) throws -> LoadedState {
+                                         maximumReadBytes: Int? = nil) throws -> LoadedState {
+        // Nonmutating journal reads retain the encoded-authority bound. Only
+        // explicit recovery capture also reserves media against a total budget.
+        var remainingEncoded = Self.maximumEncodedBytes
         var remaining = maximumReadBytes
         func readSnapshotArtifact(_ location: URL) throws -> Data? {
-            let bytes = try readArtifact(location, maximumBytes: readOnly ? min(remaining, Self.maximumEncodedBytes) : Self.maximumEncodedBytes)
-            if readOnly { remaining -= bytes?.count ?? 0 }
+            let limit = readOnly ? min(remainingEncoded, remaining ?? Self.maximumEncodedBytes) : Self.maximumEncodedBytes
+            let bytes = try readArtifact(location, maximumBytes: limit)
+            if readOnly {
+                remainingEncoded -= bytes?.count ?? 0
+                if let budget = remaining { remaining = budget - (bytes?.count ?? 0) }
+            }
             return bytes
         }
         var verifiedRecoverySources: [URL: SyncAttachmentSource] = [:]
         func validateSource(_ mutation: SyncMutation) throws {
-            if readOnly, let source = mutation.attachmentSource {
+            if readOnly, let budget = remaining, let source = mutation.attachmentSource {
                 if let previous = verifiedRecoverySources[source.fileURL] {
                     guard previous == source else { throw SyncMutationJournalError.invalidAttachment }
                     return
@@ -1464,10 +1471,10 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 // Source validation materializes Data, so reserve its bytes from
                 // the same remaining budget BEFORE entering that reader. A
                 // checkpoint source repeated after segment replay is read once.
-                guard source.byteCount >= 0, source.byteCount <= Int64(remaining) else {
+                guard source.byteCount >= 0, source.byteCount <= Int64(budget) else {
                     throw SyncMutationJournalError.tooLarge
                 }
-                remaining -= Int(source.byteCount)
+                remaining = budget - Int(source.byteCount)
                 try validatePersistedAttachmentSource(in: mutation)
                 verifiedRecoverySources[source.fileURL] = source
             } else {

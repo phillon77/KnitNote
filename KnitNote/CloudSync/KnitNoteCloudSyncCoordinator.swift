@@ -64,6 +64,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private var started = false
     private var activeCycle: SyncCycle?
     private var accountInvalidated = false
+    private var lastObservedPendingCount = 0
     private var acknowledgedBatchIDs: Set<UUID> = []
     private var committedFetchedBatches: [UUID: SyncRemoteBatchIdentity] = [:]
     private var blockingFetchedBatches: [UUID: CloudSyncIssue] = [:]
@@ -138,6 +139,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
         do {
             try await transport.start()
             let pending = try journal.pendingVersioned()
+            lastObservedPendingCount = pending.count
             publish(phase: .waiting, pendingCount: pending.count, issue: nil)
             if !pending.isEmpty {
                 try await transport.schedule(pending)
@@ -243,6 +245,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
             }
             try accountEpoch.requireCurrent()
             let stagedPending = try journal.pendingVersioned()
+            lastObservedPendingCount = stagedPending.count
             if !stagedPending.isEmpty {
                 try await transport.schedule(stagedPending)
             }
@@ -298,24 +301,39 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 try await transport.verifySentMutation(token, attemptID: attemptID, accountEpoch: accountEpoch)
             } catch CloudSyncAccountEpochError.stale { return }
               catch CloudSyncTransportError.staleOperation { return }
-            let result = try accountEpoch.withCurrent { try journal.acknowledgeCurrentVersion(token) }
+            let result = try accountEpoch.withCurrent {
+                guard !accountInvalidated else { throw CloudSyncAccountEpochError.stale }
+                let result = try journal.acknowledgeCurrentVersion(token)
+                if result != .staleVersion {
+                    lastObservedPendingCount = try journal.pendingVersioned().count
+                }
+                return result
+            }
             guard result != .staleVersion else { return }
             do {
                 try await transport.acknowledgeSentMutation(token, attemptID: attemptID)
-            } catch { fail(.assetCleanup); return }
-            let remaining = try journal.pending()
-            let hasBlocker = !blockingFetchedBatches.isEmpty || !blockingConflictMutations.isEmpty
+            } catch { fail(.assetCleanup, accountEpoch: accountEpoch); return }
+            let (remainingCount, hasBlocker) = try accountEpoch.withCurrent {
+                guard !accountInvalidated else { throw CloudSyncAccountEpochError.stale }
+                // pending() may repair durability and reclaim acknowledged files.
+                // Keep that maintenance within the current account's ownership.
+                let remaining = try journal.pending()
+                lastObservedPendingCount = remaining.count
+                return (remaining.count, !blockingFetchedBatches.isEmpty || !blockingConflictMutations.isEmpty)
+            }
             publish(phase: hasBlocker ? .needsAttention : (activeCycle == nil ? .waiting : .syncing),
-                pendingCount: remaining.count, issue: hasBlocker ? status.issue : nil)
+                pendingCount: remainingCount, issue: hasBlocker ? status.issue : nil)
         } catch CloudSyncAccountEpochError.stale { return }
-          catch { fail(.journal) }
+          catch { fail(.journal, accountEpoch: accountEpoch) }
     }
 
     private func handleMutationFailure(recordID: SyncEntityID, mutationID: UUID,
         failure: CloudSyncFailure, accountEpoch: CloudSyncAccountEpoch, attemptID: UUID,
         attempted: SyncVersionedMutation) async {
         guard attempted.mutation.identity == SyncMutationIdentity(recordID: recordID, mutationID: mutationID),
-              attempted.token.identity == attempted.mutation.identity else { fail(.inconsistentEvent); return }
+              attempted.token.identity == attempted.mutation.identity else {
+            fail(.inconsistentEvent, accountEpoch: accountEpoch); return
+        }
         guard case let .serverRecordChanged(serverRecordID, serverRecord) = failure else {
             handleTransportFailure(failure); return
         }
@@ -323,12 +341,16 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
         do {
             try accountEpoch.requireCurrent()
             guard serverRecordID == recordID, let serverRecord, serverRecord.id == recordID else {
-                fail(.inconsistentEvent); return
+                fail(.inconsistentEvent, accountEpoch: accountEpoch); return
             }
             let account = try accountEpoch.verifiedAccountIdentity()
             for _ in 0..<3 {
-                try accountEpoch.requireCurrent()
-                let queue = try journal.pendingVersioned().filter { $0.mutation.recordID == recordID }
+                let queue = try accountEpoch.withCurrent {
+                    guard !accountInvalidated else { throw CloudSyncAccountEpochError.stale }
+                    let pending = try journal.pendingVersioned()
+                    lastObservedPendingCount = pending.count
+                    return pending.filter { $0.mutation.recordID == recordID }
+                }
                 guard queue.first?.mutation.identity == failedIdentity else { return }
                 let input = try SyncConflictInput(accountIDHash: account.accountIDHash,
                     failedAttemptID: attemptID, failedMutation: attempted.mutation, failedVersion: attempted.token,
@@ -336,28 +358,36 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 let result: SyncConflictCommitResult
                 do { result = try await fetchedBatchCommitter.commitServerRecordChanged(input: input, accountEpoch: accountEpoch) }
                 catch CloudSyncAccountEpochError.stale { return }
-                catch { failConflict(failedIdentity, issue: .durableCommit); return }
+                catch { failConflict(failedIdentity, issue: .durableCommit, accountEpoch: accountEpoch); return }
+                try accountEpoch.requireCurrent()
                 switch result {
                 case .stalePredecessor: continue
                 case .obsoleteFailure: return
                 case let .committed(resolution):
-                    let current = try journal.pendingVersioned().filter { $0.mutation.recordID == recordID }
+                    let current = try accountEpoch.withCurrent {
+                        guard !accountInvalidated else { throw CloudSyncAccountEpochError.stale }
+                        let pending = try journal.pendingVersioned()
+                        lastObservedPendingCount = pending.count
+                        return pending.filter { $0.mutation.recordID == recordID }
+                    }
                     guard current.map(\.mutation) == [resolution.replacement] + resolution.followingReplacements,
                           current.map(\.token) == resolution.versions else { continue }
                     do {
                         guard try await transport.resolveFailedMutation(resolution,
                             accountEpoch: accountEpoch, expectedQueue: current) == .accepted else { continue }
                     } catch CloudSyncAccountEpochError.stale { return }
-                      catch { failConflict(failedIdentity, issue: .operation); return }
-                    try accountEpoch.requireCurrent()
-                    clearConflictBlocker(failedIdentity)
+                      catch { failConflict(failedIdentity, issue: .operation, accountEpoch: accountEpoch); return }
+                    try accountEpoch.withCurrent {
+                        guard !accountInvalidated else { throw CloudSyncAccountEpochError.stale }
+                        clearConflictBlocker(failedIdentity)
+                    }
                     publish(phase: activeCycle == nil ? .waiting : .syncing, pendingCount: currentPendingCount(), issue: nil)
                     return
                 }
             }
-            failConflict(failedIdentity, issue: .durableCommit)
+            failConflict(failedIdentity, issue: .durableCommit, accountEpoch: accountEpoch)
         } catch CloudSyncAccountEpochError.stale { return }
-          catch { failConflict(failedIdentity, issue: .journal) }
+          catch { failConflict(failedIdentity, issue: .journal, accountEpoch: accountEpoch) }
     }
 
     private func handleTransportFailure(_ failure: CloudSyncFailure) {
@@ -385,6 +415,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 try transitionReady(receipt)
             }
             let pending = try journal.pendingVersioned()
+            lastObservedPendingCount = pending.count
             if !pending.isEmpty {
                 try await transport.schedule(pending)
             }
@@ -412,6 +443,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
 
     private func markCompleteIfPossible() throws {
         let pending = try journal.pending()
+        lastObservedPendingCount = pending.count
         guard pending.isEmpty,
               blockingFetchedBatches.isEmpty,
               blockingConflictMutations.isEmpty else {
@@ -433,7 +465,9 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     }
 
     private func currentPendingCount() -> Int {
-        (try? journal.pending().count) ?? status.pendingCount
+        // Diagnostics report the last successful authorized read. They must not
+        // open the journal: even pending() can repair and delete staged files.
+        lastObservedPendingCount
     }
 
     private func publish(
@@ -477,8 +511,23 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     }
 
     private func fail(_ issue: CloudSyncIssue) {
-        finishTransitionWaiter(.failure(CloudSyncIssueError.failed))
         activeCycle = nil
+        publishFailure(issue)
+    }
+
+    private func fail(_ issue: CloudSyncIssue, accountEpoch: CloudSyncAccountEpoch) {
+        do {
+            try accountEpoch.withCurrent {
+                guard !accountInvalidated else { throw CloudSyncAccountEpochError.stale }
+                activeCycle = nil
+            }
+        } catch { return }
+        publishFailure(issue)
+    }
+
+    private func publishFailure(_ issue: CloudSyncIssue) {
+        // Waiter and Combine callbacks run after ownership has been released.
+        finishTransitionWaiter(.failure(CloudSyncIssueError.failed))
         publish(
             phase: .needsAttention,
             pendingCount: currentPendingCount(),
@@ -500,13 +549,20 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
 
     private func failConflict(
         _ identity: SyncMutationIdentity,
-        issue: CloudSyncIssue
+        issue: CloudSyncIssue,
+        accountEpoch: CloudSyncAccountEpoch
     ) {
-        if blockingConflictMutations[identity] == nil {
-            blockingConflictMutationOrder.append(identity)
-        }
-        blockingConflictMutations[identity] = issue
-        fail(issue)
+        do {
+            try accountEpoch.withCurrent {
+                guard !accountInvalidated else { throw CloudSyncAccountEpochError.stale }
+                if blockingConflictMutations[identity] == nil {
+                    blockingConflictMutationOrder.append(identity)
+                }
+                blockingConflictMutations[identity] = issue
+                activeCycle = nil
+            }
+        } catch { return }
+        publishFailure(issue)
     }
 
     private func clearConflictBlocker(_ identity: SyncMutationIdentity) {

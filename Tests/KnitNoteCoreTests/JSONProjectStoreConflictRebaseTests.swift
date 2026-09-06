@@ -196,6 +196,29 @@ struct JSONProjectStoreConflictRebaseTests {
         #expect(!FileManager.default.fileExists(atPath: f.base.publicationIntentURL.path))
     }
 
+    @Test func revocationInsideConflictCommitOwnershipStopsBeforeAuthorityUse() throws {
+        let f = try ConflictRebaseFixture(); defer { f.remove() }
+        let preparation = try f.base.store.prepareConflictRebase(
+            f.input(),
+            attachmentSources: [:]
+        )
+        let archive = try Data(contentsOf: f.base.archiveURL)
+        let checkpoint = try f.base.checkpoints.load()
+        let journal = try f.base.journalAuthority()
+
+        #expect(throws: StoreSessionAccessError.revoked) {
+            try f.base.store.commitConflictRebase(preparation) { commit in
+                f.base.store.revokeSessionWrites()
+                return try commit()
+            }
+        }
+
+        #expect(try Data(contentsOf: f.base.archiveURL) == archive)
+        #expect(try f.base.checkpoints.load() == checkpoint)
+        #expect(try f.base.journalAuthority() == journal)
+        #expect(!FileManager.default.fileExists(atPath: f.base.publicationIntentURL.path))
+    }
+
     @Test(arguments: [false, true])
     func liveOverlayPreparesExactEvidenceAndPreservesAttemptSource(relocatedAttempt: Bool) throws {
         let f = try ConflictAttachmentFixture(deleted: false, relocatedAttempt: relocatedAttempt)

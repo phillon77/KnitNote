@@ -31,6 +31,29 @@ struct JSONProjectStoreRemoteBatchTests {
         #expect(try f.journal.pending() == pending)
     }
 
+    @Test func revocationInsideRemoteCommitOwnershipStopsBeforeAuthorityUse() throws {
+        let f = try RemoteBatchFixture(); defer { f.remove() }
+        let preparation = try f.store.prepareRemoteBatch(
+            f.renamedBatch("Remote", id: UUID()),
+            attachmentSources: [:]
+        )
+        let archive = try Data(contentsOf: f.archiveURL)
+        let checkpoint = try f.checkpoints.load()
+        let journal = try f.journalAuthority()
+
+        #expect(throws: StoreSessionAccessError.revoked) {
+            try f.store.commitRemoteBatch(preparation) { commit in
+                f.store.revokeSessionWrites()
+                return try commit()
+            }
+        }
+
+        #expect(try Data(contentsOf: f.archiveURL) == archive)
+        #expect(try f.checkpoints.load() == checkpoint)
+        #expect(try f.journalAuthority() == journal)
+        #expect(!FileManager.default.fileExists(atPath: f.publicationIntentURL.path))
+    }
+
     @Test func ackChangesPredecessor() throws {
         let f = try RemoteBatchFixture(); defer { f.remove() }
         let p = try f.store.prepareRemoteBatch(f.renamedBatch("Remote", id: UUID()), attachmentSources: [:])
@@ -93,6 +116,39 @@ struct JSONProjectStoreRemoteBatchTests {
         #expect(verified == 2)
         #expect(try f.checkpoints.load()?.remoteBatchReceipts.isEmpty == true)
         #expect(notifications == 0)
+    }
+
+    @Test(arguments: [1, 2])
+    func revocationInsideAcknowledgementStopsBeforeReceiptRetirement(
+        revocationCall: Int
+    ) throws {
+        let f = try RemoteBatchFixture(); defer { f.remove() }
+        try f.acknowledgeBootstrap()
+        let batch = try f.batch(records: [], id: UUID())
+        let preparation = try f.store.prepareRemoteBatch(batch, attachmentSources: [:])
+        guard case .committed = try f.store.commitRemoteBatch(preparation) else {
+            Issue.record("Expected commit")
+            return
+        }
+        let archive = try Data(contentsOf: f.archiveURL)
+        let checkpoint = try f.checkpoints.load()
+        let journal = try f.journalAuthority()
+        var acknowledgements = 0
+
+        #expect(throws: StoreSessionAccessError.revoked) {
+            try f.store.retireRemoteBatchReceipt(batch.identity) {
+                acknowledgements += 1
+                if acknowledgements == revocationCall {
+                    f.store.revokeSessionWrites()
+                }
+            }
+        }
+
+        #expect(acknowledgements == revocationCall)
+        #expect(try Data(contentsOf: f.archiveURL) == archive)
+        #expect(try f.checkpoints.load() == checkpoint)
+        #expect(try f.journalAuthority() == journal)
+        #expect(!FileManager.default.fileExists(atPath: f.publicationIntentURL.path))
     }
 
     @Test(arguments: [SyncCanonicalPublicationBoundary.afterIntent, .afterArchive, .afterJournal, .afterCheckpoint])

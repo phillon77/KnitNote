@@ -2620,8 +2620,19 @@ final class PatternLibraryDeletionTransaction {
     private var activePatternTransactions = 0
     private let authorizeMutation: MutationAuthorizer
     private let commitSuccessfulMutation: MutationSuccessCommitter
+    public private(set) var isSessionWriteRevoked = false
     private var patternFolderNameContext: PatternFolderNameContext?
     private var didDeferLoadForSyncPublication = false
+
+    public func revokeSessionWrites() {
+        isSessionWriteRevoked = true
+    }
+
+    private func requireSessionWriteAccess() throws {
+        guard !isSessionWriteRevoked else {
+            throw StoreSessionAccessError.revoked
+        }
+    }
 
     public convenience init(
         url: URL,
@@ -2976,6 +2987,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func retryLoad() {
+        guard !isSessionWriteRevoked else { return }
         guard loadError != nil else { return }
         reconcileSyncPublicationTransactionAtStartup()
         guard syncPublicationError == nil else { return }
@@ -2988,6 +3000,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func reloadFromDisk() throws {
+        try requireSessionWriteAccess()
         guard !isDataOperationInProgress else {
             throw KnitNoteBackupError.operationInProgress
         }
@@ -3000,6 +3013,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func repairSyncPublication() throws {
+        try requireSessionWriteAccess()
         if syncCanonicalActivationRequired || syncCanonicalCheckpointStore != nil {
             guard let checkpoints = syncCanonicalCheckpointStore else { throw SyncPublicationError.pendingRepair }
             try activateSyncCanonicalState(checkpointStore: checkpoints, bootstrap: nil,
@@ -6082,6 +6096,7 @@ final class PatternLibraryDeletionTransaction {
     /// must advance a durable canonical checkpoint after later publications.
     public func hydrateSyncBootstrap(_ checkpoint: SyncBootstrapCheckpoint,
                                      attachmentSources: [UUID: SyncAttachmentSource] = [:]) throws {
+        try requireSessionWriteAccess()
         guard isSyncPublicationEnabled, syncPublicationError == nil,
               !syncCanonicalActivationRequired, syncCanonicalCheckpointStore == nil else {
             throw SyncPublicationError.pendingRepair
@@ -6120,6 +6135,7 @@ final class PatternLibraryDeletionTransaction {
     /// and every subsequent mutation. No archive/journal reconstruction is used.
     public func activateSyncCanonicalState(checkpointStore: SyncCanonicalCheckpointStore,
         bootstrap: SyncCanonicalBootstrapHandoff?, attachmentSources: [UUID: SyncAttachmentSource]) throws {
+        try requireSessionWriteAccess()
         guard isSyncPublicationEnabled else { throw SyncPublicationError.sinkUnavailable }
         syncCanonicalActivationRequired = true
         syncPublicationError = .pendingRepair
@@ -6351,8 +6367,10 @@ final class PatternLibraryDeletionTransaction {
     public func commitConflictRebase(_ preparation: SyncConflictPreparation,
         withCommitOwnership: (_ work: () throws -> SyncConflictCommitResult) throws -> SyncConflictCommitResult = { try $0() }
     ) throws -> SyncConflictCommitResult {
+        try requireSessionWriteAccess()
         var notifyID: UUID?
         let result = try withCommitOwnership {
+            try requireSessionWriteAccess()
             let (_, current, sink) = try remoteBatchAuthority(account: preparation.input.accountIDHash)
             guard preparation.liveRoot == url.deletingLastPathComponent() else { throw SyncConflictError.missingAuthority }
             return try sink.withExclusivePending { lease in
@@ -6569,7 +6587,9 @@ final class PatternLibraryDeletionTransaction {
     public func commitRemoteBatch(_ preparation: SyncRemoteBatchPreparation,
         withCommitOwnership: (_ commit: () throws -> SyncRemoteBatchCommitResult) throws -> SyncRemoteBatchCommitResult = { try $0() }
     ) throws -> SyncRemoteBatchCommitResult {
+        try requireSessionWriteAccess()
         let result = try withCommitOwnership {
+            try requireSessionWriteAccess()
             let (_, current, sink) = try remoteBatchAuthority(account: preparation.identity.accountIDHash)
             guard preparation.liveRoot == url.deletingLastPathComponent() else { throw SyncRemoteBatchError.missingAuthority }
             return try sink.withExclusivePending { lease in
@@ -6605,8 +6625,10 @@ final class PatternLibraryDeletionTransaction {
 
     public func retireRemoteBatchReceipt(_ identity: SyncRemoteBatchIdentity,
         verifyTransportAcknowledgement: () throws -> Void) throws {
+        try requireSessionWriteAccess()
         let (checkpoints, current, sink) = try remoteBatchAuthority(account: identity.accountIDHash)
         try verifyTransportAcknowledgement()
+        try requireSessionWriteAccess()
         // A crash can follow canonical retirement but precede the incoming
         // store's retirement marker. Only a validated durable ACK permits this
         // idempotent absence; authority and identity collisions still fail.
@@ -6625,6 +6647,7 @@ final class PatternLibraryDeletionTransaction {
             let candidate = try current.retiringRemoteReceipt(identity, successorCommitID: UUID())
             let transaction = try remoteTransaction(identity: identity, plan: plan, candidate: candidate, mutations: [], action: .retire)
             try verifyTransportAcknowledgement()
+            try requireSessionWriteAccess()
             try checkpoints.validateBinding(liveRoot: url.deletingLastPathComponent(), accountIDHash: identity.accountIDHash)
             guard try checkpoints.load() == current, try lease.pending() == pending,
                   try remoteAuthoritySnapshot(additional: []) == authority else { throw SyncBootstrapError.sourceChanged }
@@ -7264,6 +7287,8 @@ final class PatternLibraryDeletionTransaction {
             throw error
         } catch let error as SyncPublicationError {
             throw error
+        } catch let error as StoreSessionAccessError {
+            throw error
         } catch {
             throw ProjectStoreError.persistenceFailed
         }
@@ -7284,6 +7309,7 @@ final class PatternLibraryDeletionTransaction {
         onArchiveCommitted: (([SyncMutation]) -> Void)? = nil,
         applyCommittedState: () -> Void
     ) throws {
+        try requireSessionWriteAccess()
         // Callers checked readiness before staging deletion/restoration work.
         // Re-running ledger recovery here would consume that in-flight stage.
         if syncCanonicalActivationRequired { throw SyncPublicationError.pendingRepair }
@@ -7468,6 +7494,7 @@ final class PatternLibraryDeletionTransaction {
     /// MainActor alone is not that cross-process freeze.
     public func purgeRecentlyDeleted(now: Date, acknowledgedVersions: Set<UUID>,
         references: () throws -> SyncDeletionReferences) throws {
+        try requireSessionWriteAccess()
         try ensureArchiveAvailable()
         try ensureSyncPublicationReady()
         guard isSyncPublicationEnabled, syncBootstrapHydrated, let cache = syncProjectionCache else {
@@ -7510,6 +7537,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func restoreRecentlyDeleted(id: UUID, now: Date) throws {
+        try requireSessionWriteAccess()
         try ensureArchiveAvailable()
         try ensureSyncPublicationReady()
         guard isSyncPublicationEnabled, syncBootstrapHydrated, let cache = syncProjectionCache else {
@@ -8337,6 +8365,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func ensureSyncPublicationReady() throws {
+        try requireSessionWriteAccess()
         if syncCanonicalActivationRequired { throw SyncPublicationError.pendingRepair }
         if isSyncPublicationEnabled, !syncBootstrapHydrated,
            FileManager.default.fileExists(atPath: url.deletingLastPathComponent()
@@ -8491,8 +8520,10 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func preflightAccess(_ mutation: FeatureMutation) throws -> FeatureAccessDecision {
+        try requireSessionWriteAccess()
         try ensureSyncPublicationReady()
         let decision = authorizeMutation(mutation)
+        try requireSessionWriteAccess()
         guard decision != .requiresUnlock else {
             throw ProjectStoreError.accessRestricted
         }
@@ -8503,6 +8534,7 @@ final class PatternLibraryDeletionTransaction {
         _ decision: FeatureAccessDecision,
         mutation: FeatureMutation
     ) throws {
+        try requireSessionWriteAccess()
         switch decision {
         case .allow:
             return
@@ -8514,12 +8546,16 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func commitSuccessfulAccess(_ mutation: FeatureMutation) throws {
-        guard commitSuccessfulMutation(mutation) != .requiresUnlock else {
+        try requireSessionWriteAccess()
+        let decision = commitSuccessfulMutation(mutation)
+        try requireSessionWriteAccess()
+        guard decision != .requiresUnlock else {
             throw ProjectStoreError.accessRestricted
         }
     }
 
     private func beginDataOperation() throws {
+        try requireSessionWriteAccess()
         guard !isDataOperationInProgress,
               activeJournalPhotoTransactions == 0,
               activePatternTransactions == 0 else {

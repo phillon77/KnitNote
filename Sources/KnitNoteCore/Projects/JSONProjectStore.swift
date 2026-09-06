@@ -4123,6 +4123,8 @@ final class PatternLibraryDeletionTransaction {
     }
     public func importPattern(from source: URL, projectID: UUID) async throws -> PatternDocument {
         let access = try preflightAccess(.importPattern)
+        let work = try sessionWork.begin(kind: .pattern)
+        defer { sessionWork.finish(work) }
         try ensureArchiveAvailable()
         guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
         let service = try requiredPatternFileService()
@@ -4135,6 +4137,7 @@ final class PatternLibraryDeletionTransaction {
         }.value
         do {
             try Task.checkCancellation()
+            try requireSessionWriteAccess()
             guard project(id: projectID) != nil else { throw ProjectStoreError.patternNotFound }
             try addPatternWithoutAuthorization(projectID: projectID, pattern: pattern)
         } catch {
@@ -4175,6 +4178,7 @@ final class PatternLibraryDeletionTransaction {
     ) async throws -> PatternImportOutcome {
         try ensureArchiveAvailable()
         try await reconcilePublishedPatternInboxItems()
+        try requireSessionWriteAccess()
         let inbox = try requiredPatternInboxFileService()
         let files = try requiredPatternFileService()
         guard let item = try inbox.item(id: id) else {
@@ -4188,6 +4192,7 @@ final class PatternLibraryDeletionTransaction {
             return try coordinator.prepare(item: item, inbox: inbox, fileService: files)
         }.value
         try Task.checkCancellation()
+        try requireSessionWriteAccess()
 
         // A completed detached read may have raced with another published mutation.
         // Resolve from the current arrays either way; this branch makes that contract explicit.
@@ -4210,10 +4215,13 @@ final class PatternLibraryDeletionTransaction {
         try await withActivePatternTransaction {
             try ensureArchiveAvailable()
             try await reconcilePublishedPatternInboxItems()
+            try requireSessionWriteAccess()
             let inbox = try requiredPatternInboxFileService()
-            return try await Task.detached(priority: .utility) {
+            let items = try await Task.detached(priority: .utility) {
                 try inbox.items()
             }.value
+            try requireSessionWriteAccess()
+            return items
         }
     }
 
@@ -4490,6 +4498,7 @@ final class PatternLibraryDeletionTransaction {
                 )
             }.value
             try Task.checkCancellation()
+            try requireSessionWriteAccess()
             return try await processPatternInboxItemWithoutTransaction(
                 id: item.id,
                 duplicateResolution: .automatic,
@@ -8597,7 +8606,10 @@ final class PatternLibraryDeletionTransaction {
 
     private func withActivePatternTransaction<Result>(
         _ operation: () async throws -> Result
-    ) async rethrows -> Result {
+    ) async throws -> Result {
+        try requireSessionWriteAccess()
+        let work = try sessionWork.begin(kind: .pattern)
+        defer { sessionWork.finish(work) }
         activePatternTransactions += 1
         defer { activePatternTransactions -= 1 }
         return try await operation()

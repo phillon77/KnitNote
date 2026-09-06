@@ -2841,8 +2841,413 @@ private struct StoreLaunchRecoveryFixture {
     }
 }
 
+enum StorePatternRevokedEntry: CaseIterable, Sendable {
+    case directImport
+    case libraryImport
+    case projectImport
+    case processInbox
+    case pendingInbox
+    case discardInbox
+    case addYouTube
+}
+
+private enum StorePatternNativeTestError: Error, Equatable {
+    case injected
+}
+
+@Suite(.serialized) @MainActor struct StorePatternSessionDrainTests {
+    @Test(arguments: StorePatternRevokedEntry.allCases)
+    func revokedEntriesLeavePatternEvidenceUntouched(_ entry: StorePatternRevokedEntry) async throws {
+        let fixture = try StoreBackupFixture.make()
+        defer { fixture.cleanup() }
+        let source = fixture.liveRoot.appendingPathComponent("Revoked source.png")
+        try makeStorePNG(at: source, red: 0.25)
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let setupInbox = PatternInboxFileService(
+            root: fixture.liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
+        )
+        let item = try setupInbox.enqueue(
+            source: source,
+            origin: .shareExtension,
+            targetProjectID: projectID,
+            now: Date(timeIntervalSince1970: 100)
+        )
+        let before = try backupEvidenceBytes(fixture.root)
+
+        fixture.store.revokeSessionWrites()
+        switch entry {
+        case .directImport:
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                _ = try await fixture.store.importPattern(from: source, projectID: projectID)
+            }
+        case .libraryImport:
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                _ = try await fixture.store.importPatternFromLibrary(source)
+            }
+        case .projectImport:
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                _ = try await fixture.store.importPatternFromProject(source, projectID: projectID)
+            }
+        case .processInbox:
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                _ = try await fixture.store.processPatternInboxItem(id: item.id)
+            }
+        case .pendingInbox:
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                _ = try await fixture.store.pendingPatternInboxItems()
+            }
+        case .discardInbox:
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                try await fixture.store.discardPatternInboxItem(id: item.id)
+            }
+        case .addYouTube:
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                _ = try await fixture.store.addYouTubePattern(
+                    link: YouTubePatternLink(videoID: "dQw4w9WgXcQ"),
+                    title: "Revoked video",
+                    targetProjectID: projectID
+                )
+            }
+        }
+
+        #expect(try backupEvidenceBytes(fixture.root) == before)
+        #expect(try Data(contentsOf: source).isEmpty == false)
+        try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+    }
+
+    @Test func directImportRemainsTrackedUntilNativeCopyEnds() async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(patternBlocker: blocker)
+        let other = try StoreBackupFixture.make()
+        defer { blocker.resume(); fixture.cleanup(); other.cleanup() }
+        let source = fixture.liveRoot.appendingPathComponent("source.png")
+        try makeStorePNG(at: source, red: 0.5)
+        let original = try Data(contentsOf: source)
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let otherBefore = try backupEvidenceBytes(other.root)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            return try await fixture.store.importPattern(from: source, projectID: projectID)
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            try await operation.value
+        }
+        try await drain.value
+        #expect(try Data(contentsOf: source) == original)
+        #expect(fixture.store.projects.first?.patterns.isEmpty == true)
+        #expect(try backupEvidenceBytes(other.root) == otherBefore)
+        try other.store.add(name: "Other session remains writable")
+    }
+
+    @Test(arguments: [false, true])
+    func inboxEnqueueRemainsTrackedAndPreservesNativeMoveResult(failMove: Bool) async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(
+            patternInboxBlocker: blocker,
+            failPatternInboxMove: failMove
+        )
+        defer { blocker.resume(); fixture.cleanup() }
+        let source = fixture.liveRoot.appendingPathComponent("enqueue.png")
+        try makeStorePNG(at: source, red: 0.35)
+        let original = try Data(contentsOf: source)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            return try await fixture.store.importPatternFromLibrary(source)
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+        if failMove {
+            do {
+                _ = try await operation.value
+                Issue.record("Expected the injected native move failure")
+            } catch {
+                #expect(error as? StorePatternNativeTestError == .injected)
+            }
+        } else {
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                try await operation.value
+            }
+        }
+        try await drain.value
+        #expect(try Data(contentsOf: source) == original)
+        #expect(fixture.store.patterns.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func processRechecksRevocationBeforePrepareAndPreservesRecoveryFailure(
+        failReconciliation: Bool
+    ) async throws {
+        let blocker = StoreOperationBlocker()
+        let removal = StorePatternInboxRemovalSequence(
+            mode: .blockReconciliation(blocker, fail: failReconciliation)
+        )
+        let fixture = try StoreBackupFixture.make(patternInboxRemove: { try removal.remove($0) })
+        defer { blocker.resume(); fixture.cleanup() }
+        let source = fixture.liveRoot.appendingPathComponent("reconcile.png")
+        try makeStorePNG(at: source, red: 0.45)
+        let setupInbox = PatternInboxFileService(
+            root: fixture.liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
+        )
+        let published = try setupInbox.enqueue(
+            source: source,
+            origin: .library,
+            targetProjectID: nil,
+            now: Date(timeIntervalSince1970: 200)
+        )
+        let pending = try setupInbox.enqueue(
+            source: source,
+            origin: .library,
+            targetProjectID: nil,
+            now: Date(timeIntervalSince1970: 201)
+        )
+        _ = try await fixture.store.processPatternInboxItem(id: published.id)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            return try await fixture.store.processPatternInboxItem(id: pending.id)
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+            try Data("invalidated after reconciliation began".utf8).write(
+                to: setupInbox.stagedURL(for: pending),
+                options: .atomic
+            )
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+        if failReconciliation {
+            do {
+                _ = try await operation.value
+                Issue.record("Expected unresolved native recovery evidence")
+            } catch {
+                #expect(error as? PatternInboxError == .invalidItem)
+            }
+        } else {
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                try await operation.value
+            }
+        }
+        try await drain.value
+    }
+
+    @Test func pendingItemsRejectsResultCompletedAfterRevocation() async throws {
+        let blocker = StoreOperationBlocker()
+        let removal = StorePatternInboxRemovalSequence(mode: .blockItems(blocker))
+        let fixture = try StoreBackupFixture.make(patternInboxRemove: { try removal.remove($0) })
+        defer { blocker.resume(); fixture.cleanup() }
+        let source = fixture.liveRoot.appendingPathComponent("pending.png")
+        try makeStorePNG(at: source, red: 0.65)
+        let setupInbox = PatternInboxFileService(
+            root: fixture.liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
+        )
+        let published = try setupInbox.enqueue(
+            source: source,
+            origin: .library,
+            targetProjectID: nil,
+            now: Date(timeIntervalSince1970: 400)
+        )
+        _ = try await fixture.store.processPatternInboxItem(id: published.id)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            return try await fixture.store.pendingPatternInboxItems()
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            try await operation.value
+        }
+        try await drain.value
+    }
+
+    @Test(arguments: [false, true])
+    func acceptedDiscardFinishesWithItsNativeResult(failRemoval: Bool) async throws {
+        let blocker = StoreOperationBlocker()
+        let removal = StorePatternDiscardRemoval(blocker: blocker, fail: failRemoval)
+        let fixture = try StoreBackupFixture.make(patternInboxRemove: { try removal.remove($0) })
+        defer { blocker.resume(); fixture.cleanup() }
+        let source = fixture.liveRoot.appendingPathComponent("discard.png")
+        try makeStorePNG(at: source, red: 0.75)
+        let inbox = PatternInboxFileService(
+            root: fixture.liveRoot.appendingPathComponent("PatternInbox", isDirectory: true)
+        )
+        let item = try inbox.enqueue(
+            source: source,
+            origin: .shareExtension,
+            targetProjectID: nil,
+            now: Date(timeIntervalSince1970: 500)
+        )
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            try await fixture.store.discardPatternInboxItem(id: item.id)
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+        if failRemoval {
+            do {
+                try await operation.value
+                Issue.record("Expected the injected native removal failure")
+            } catch {
+                #expect(error as? StorePatternNativeTestError == .injected)
+            }
+        } else {
+            try await operation.value
+        }
+        try await drain.value
+    }
+}
+
 private enum BackupEvidenceError: Error {
     case enumerationFailed(URL)
+}
+
+private final class StorePatternDiscardRemoval: @unchecked Sendable {
+    private let blocker: StoreOperationBlocker
+    private let fail: Bool
+
+    init(blocker: StoreOperationBlocker, fail: Bool) {
+        self.blocker = blocker
+        self.fail = fail
+    }
+
+    func remove(_ url: URL) throws {
+        blocker.blockOnce()
+        if fail { throw StorePatternNativeTestError.injected }
+        try FileManager.default.removeItem(at: url)
+    }
+}
+
+private final class StorePatternInboxRemovalSequence: @unchecked Sendable {
+    enum Mode {
+        case blockReconciliation(StoreOperationBlocker, fail: Bool)
+        case blockItems(StoreOperationBlocker)
+    }
+
+    private let mode: Mode
+    private let lock = NSLock()
+    private var callCount = 0
+
+    init(mode: Mode) {
+        self.mode = mode
+    }
+
+    func remove(_ url: URL) throws {
+        lock.lock()
+        callCount += 1
+        let call = callCount
+        lock.unlock()
+
+        if call == 1 {
+            throw StorePatternNativeTestError.injected
+        }
+        switch mode {
+        case let .blockReconciliation(blocker, fail):
+            if call == 2 {
+                blocker.blockOnce()
+                if fail { throw StorePatternNativeTestError.injected }
+            }
+        case let .blockItems(blocker):
+            if call == 3 {
+                try FileManager.default.removeItem(at: url)
+                let candidate = url
+                    .deletingLastPathComponent()
+                    .deletingLastPathComponent()
+                    .appendingPathComponent(".Candidates", isDirectory: true)
+                    .appendingPathComponent(UUID().uuidString)
+                try Data("late candidate".utf8).write(to: candidate)
+                return
+            }
+            if call == 4 { blocker.blockOnce() }
+        }
+        try FileManager.default.removeItem(at: url)
+    }
 }
 
 private func backupEvidenceBytes(_ root: URL) throws -> [String: Data] {
@@ -2904,6 +3309,7 @@ private final class TwoStageBlocks: @unchecked Sendable {
         patternBlocker: StoreOperationBlocker? = nil,
         patternInboxBlocker: StoreOperationBlocker? = nil,
         failPatternInboxMove: Bool = false,
+        patternInboxRemove: (@Sendable (URL) throws -> Void)? = nil,
         replacementBlocker: StoreOperationBlocker? = nil,
         blockedReplacementStep: KnitNoteBackupReplacementStep = .afterStagedMove,
         corruptInstalledArchive: Bool = false,
@@ -3011,17 +3417,17 @@ private final class TwoStageBlocks: @unchecked Sendable {
             patternService = nil
         }
         let patternInboxService: PatternInboxFileService?
-        if let patternInboxBlocker {
+        if patternInboxBlocker != nil || patternInboxRemove != nil {
             patternInboxService = PatternInboxFileService(
                 root: liveRoot.appendingPathComponent("PatternInbox"),
                 moveItem: { source, destination in
-                    patternInboxBlocker.blockOnce()
+                    patternInboxBlocker?.blockOnce()
                     if failPatternInboxMove {
-                        throw InjectedFailure()
+                        throw StorePatternNativeTestError.injected
                     }
                     try FileManager.default.moveItem(at: source, to: destination)
                 },
-                removeItem: { try FileManager.default.removeItem(at: $0) },
+                removeItem: patternInboxRemove ?? { try FileManager.default.removeItem(at: $0) },
                 writeData: { try $0.write(to: $1, options: .atomic) }
             )
         } else {

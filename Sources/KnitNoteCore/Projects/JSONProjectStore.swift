@@ -789,7 +789,8 @@ struct SyncAttachmentPublicationEvidenceFile {
     /// active attachment heads may rewrite the compact sidecar.
     func applying(
         _ mutations: [SyncMutation],
-        retaining retainedEvidence: SyncAttachmentPublicationEvidence? = nil
+        retaining retainedEvidence: SyncAttachmentPublicationEvidence? = nil,
+        validatingOnly: Bool = false
     ) throws -> SyncAttachmentPublicationEvidence {
         try mappedOperation {
             try SyncDurableFile.withExclusiveFileLock(for: url) {
@@ -848,6 +849,10 @@ struct SyncAttachmentPublicationEvidenceFile {
                     tombstones: tombstones,
                     proofs: allProofs
                 )
+                guard try deterministicEncoder().encode(compactHead).count <= Self.maximumEncodedBytes else {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+                if validatingOnly { return candidate }
                 for authority in authorities { try install(authority) }
                 for tombstone in tombstones { try install(tombstone) }
                 for proof in allProofs { try install(proof) }
@@ -6142,7 +6147,16 @@ final class PatternLibraryDeletionTransaction {
                     throw SyncPublicationError.corruptTransaction
                 }
                 try validateCanonicalTransition(transaction, current: current)
-                if transaction.remoteSource != nil {
+                if transaction.conflictSource != nil {
+                    guard let sink = syncMutationSink as? JournalSyncMutationSink else { throw SyncConflictError.missingAuthority }
+                    syncCanonicalCheckpointStore = checkpointStore
+                    try sink.withExclusivePending { lease in
+                        try validateConflictPending(transaction, lease: lease)
+                        try installRemoteCandidate(transaction)
+                        try publish(transaction, transactionFile: file, journalLease: lease)
+                    }
+                    current = transition.candidate
+                } else if transaction.remoteSource != nil {
                     guard let sink = syncMutationSink as? JournalSyncMutationSink else { throw SyncRemoteBatchError.missingAuthority }
                     syncCanonicalCheckpointStore = checkpointStore
                     try sink.withExclusivePending { lease in
@@ -6205,6 +6219,270 @@ final class PatternLibraryDeletionTransaction {
             syncPublicationError = syncPublicationError(for: error)
             throw error
         }
+    }
+
+    public func prepareConflictRebase(_ input: SyncConflictInput,
+        attachmentSources: [UUID: SyncAttachmentSource]) throws -> SyncConflictPreparation {
+        _ = try input.validated()
+        let (checkpoints, predecessor, sink) = try remoteBatchAuthority(account: input.accountIDHash)
+        return try sink.withExclusivePending { lease in
+            let pending = try lease.pendingVersioned()
+            let head = try lease.rebaseHistoryHeadSHA256()
+            let sourceURLs = attachmentSources.values.map(\.fileURL)
+                + (input.failedMutation.attachmentSource.map { [$0.fileURL] } ?? [])
+            let authority = try remoteAuthoritySnapshot(additional: sourceURLs)
+            let verified = try verifyCanonical(predecessor, sources: syncHydratedAttachmentSources)
+            let context = try remoteWatchContext()
+            let markers = try SyncDeletionLedger.remoteBatchMarkers(archiveURL: url)
+            if let source = input.failedMutation.attachmentSource {
+                _ = try SyncRegularFileReader().read(source.fileURL,
+                    maximumBytes: SyncCanonicalCheckpoint.maximumBytes,
+                    expected: .init(byteCount: source.byteCount, sha256: source.contentSHA256))
+            }
+            @MainActor func preparation(_ transaction: SyncPublicationTransaction? = nil,
+                previous: SyncConflictResolution? = nil) -> SyncConflictPreparation {
+                .init(liveRoot: url.deletingLastPathComponent(), input: input, predecessor: predecessor,
+                    authority: authority, pending: pending, rebaseHistoryHeadSHA256: head,
+                    watchContext: context,
+                    transaction: transaction, previousResolution: previous)
+            }
+            let selected = pending.filter { $0.mutation.recordID == input.serverRecord.id }
+            let retained = try lease.retainedRebases(for: input)
+            guard let first = selected.first, first.mutation.identity == input.failedMutation.identity else {
+                return preparation()
+            }
+            if let previous = retained.last {
+                // A different event's rewrite cannot be authorized by this old
+                // failure, even when the mutation identity remains unchanged.
+                guard selected.count >= previous.after.count,
+                      Array(selected.prefix(previous.after.count)).map(\.mutation) == previous.after,
+                      Array(selected.prefix(previous.after.count)).map(\.token) == previous.afterVersions else {
+                    return preparation()
+                }
+                if selected.count == previous.after.count {
+                    return preparation(previous: try conflictResolution(previous))
+                }
+            } else {
+                guard first.token == input.failedVersion,
+                      selected.map(\.mutation) == input.expectedRecordQueue,
+                      selected.map(\.token) == input.expectedVersions else { return preparation() }
+            }
+            let effectiveInput = try SyncConflictInput(accountIDHash: input.accountIDHash,
+                failedAttemptID: input.failedAttemptID, failedMutation: input.failedMutation,
+                failedVersion: input.failedVersion, serverRecord: input.serverRecord,
+                expectedRecordQueue: selected.map(\.mutation), expectedVersions: selected.map(\.token))
+            let replacements = try conflictReplacements(effectiveInput, predecessor: predecessor,
+                context: context, markers: markers)
+            let records = conflictRecords(predecessor.records, applying: replacements)
+            var sources = verified.sources
+            for (id, source) in attachmentSources { sources[id] = source }
+            let staged = sources.mapValues { SyncAttachmentSource(fileURL: $0.fileURL,
+                contentSHA256: $0.contentSHA256, byteCount: $0.byteCount, isJournalStaged: true) }
+            let materialized = try ProjectArchiveSyncMapper.materialize(records: records,
+                attachments: staged, baseArchive: verified.archive)
+            let domainChanged = !syncDeletionArchivesMatch(materialized.archive, verified.archive)
+            let archive = domainChanged ? try JSONEncoder().encode(materialized.archive)
+                : try SyncRegularFileReader().read(url, maximumBytes: SyncCanonicalCheckpoint.maximumBytes).data
+            let evidence = try syncAttachmentPublicationEvidenceFile.load()
+            let evidenceByID = Dictionary(uniqueKeysWithValues: evidence.retainedAttachmentRecords.map { ($0.id, $0) })
+            var files = try materialized.files.filter { file in
+                evidenceByID[.init(kind: .attachment, uuid: file.version.versionID)]
+                    != records.first { $0.id == .init(kind: .attachment, uuid: file.version.versionID) }
+                    || input.serverRecord.payload.attachment == file.version
+            }.map { file in
+                SyncRemoteInstallFile(relativePath: file.relativePath, version: file.version,
+                    data: try SyncRegularFileReader().read(file.source.fileURL,
+                        maximumBytes: SyncCanonicalCheckpoint.maximumBytes,
+                        expected: .init(byteCount: file.version.byteCount, sha256: file.version.contentSHA256)).data)
+            }
+            if input.serverRecord.deletedAt.value == nil, let raw = input.serverRecord.payload.attachment,
+               !files.contains(where: { $0.version == raw }) {
+                guard let source = sources[raw.versionID], source.byteCount == raw.byteCount,
+                      source.contentSHA256 == raw.contentSHA256 else { throw SyncConflictError.missingAuthority }
+                files.append(.init(relativePath: "SyncMetadata/conflict-source-attachments/"
+                    + input.accountIDHash + "/" + raw.versionID.uuidString.lowercased(), version: raw,
+                    data: try SyncRegularFileReader().read(source.fileURL,
+                        maximumBytes: SyncCanonicalCheckpoint.maximumBytes,
+                        expected: .init(byteCount: raw.byteCount, sha256: raw.contentSHA256)).data))
+            }
+            files.sort { $0.relativePath < $1.relativePath }
+            try preflightConflictFiles(files, authority: authority)
+            let commitID = UUID()
+            let versions = try zip(replacements, selected).map {
+                guard $0.1.token.journalRevision < UInt64.max else { throw SyncConflictError.capacity }
+                return try SyncMutationVersionToken(mutation: $0.0, journalRevision: $0.1.token.journalRevision + 1)
+            }
+            let positions = pending.indices.filter { pending[$0].mutation.recordID == input.serverRecord.id }
+            let journalTransition = try SyncJournalRebaseTransition(transactionID: commitID, input: effectiveInput,
+                predecessorPendingSHA256: SyncConflictRebaseCoding.pendingDigest(pending),
+                predecessorRebaseHeadSHA256: head, recordPositions: positions,
+                before: selected.map(\.mutation), after: replacements,
+                beforeVersions: selected.map(\.token), afterVersions: versions)
+            var afterPending = pending.map(\.mutation), afterVersions = pending.map(\.token)
+            for (index, position) in positions.enumerated() {
+                afterPending[position] = replacements[index]; afterVersions[position] = versions[index]
+            }
+            let candidate = try predecessor.successor(commitID: commitID,
+                archiveSHA256: Data(SHA256.hash(data: archive)), records: records,
+                legacyRecordIDsToDelete: predecessor.legacyRecordIDsToDelete)
+            let plan = SyncRemoteBatchDurablePlan(predecessor: predecessor, journalURL: lease.location,
+                predecessorEvidence: try JSONEncoder().encode(evidence), authority: authority,
+                pending: pending.map(\.mutation), records: [input.serverRecord], deletedRecordIDs: [],
+                preparedCommands: context.preparedCommands, processedLedger: context.processedLedger,
+                deletionMarkers: markers, archive: archive, files: files)
+            let source = try SyncConflictPublicationSource(input: effectiveInput, transition: journalTransition,
+                plan: plan, beforePending: pending.map(\.mutation), afterPending: afterPending,
+                beforeVersions: pending.map(\.token), afterVersions: afterVersions)
+            let transaction = try SyncPublicationTransaction(expectedArchiveSHA256: candidate.archiveSHA256,
+                mutations: [], artifactEvidence: files.map { try .init(relativePath: $0.relativePath,
+                    expectedSHA256: $0.version.contentSHA256) }, revisionReceipts: [],
+                canonicalTransition: .init(predecessorSHA256: Data(SHA256.hash(data: predecessor.encoded())),
+                    candidate: candidate), conflictSource: source)
+            try preflightConflictTransaction(transaction)
+            try lease.preflightRebase(journalTransition)
+            try checkpoints.validateBinding(liveRoot: url.deletingLastPathComponent(), accountIDHash: input.accountIDHash)
+            guard authority == (try remoteAuthoritySnapshot(additional: sourceURLs)) else {
+                throw SyncBootstrapError.sourceChanged
+            }
+            return preparation(transaction)
+        }
+    }
+
+    public func commitConflictRebase(_ preparation: SyncConflictPreparation,
+        withCommitOwnership: (_ work: () throws -> SyncConflictCommitResult) throws -> SyncConflictCommitResult = { try $0() }
+    ) throws -> SyncConflictCommitResult {
+        var notifyID: UUID?
+        let result = try withCommitOwnership {
+            let (_, current, sink) = try remoteBatchAuthority(account: preparation.input.accountIDHash)
+            guard preparation.liveRoot == url.deletingLastPathComponent() else { throw SyncConflictError.missingAuthority }
+            return try sink.withExclusivePending { lease in
+                let root = remoteComparisonURL(preparation.liveRoot)
+                let additional = preparation.authority.map { URL(fileURLWithPath: $0.path) }.filter {
+                    $0 != root && !$0.path.hasPrefix(root.path + "/")
+                }
+                guard current == preparation.predecessor,
+                      try lease.pendingVersioned() == preparation.pending,
+                      try lease.rebaseHistoryHeadSHA256() == preparation.rebaseHistoryHeadSHA256,
+                      try remoteAuthoritySnapshot(additional: additional) == preparation.authority else { return .stalePredecessor }
+                let context = try remoteWatchContext()
+                guard context.preparedCommands == preparation.watchContext.preparedCommands,
+                      context.processedLedger == preparation.watchContext.processedLedger else { return .stalePredecessor }
+                guard let transaction = preparation.transaction else {
+                    return preparation.previousResolution.map(SyncConflictCommitResult.committed) ?? .obsoleteFailure
+                }
+                guard let source = transaction.conflictSource, source.plan.journalURL == lease.location else {
+                    throw SyncConflictError.missingAuthority
+                }
+                guard context.preparedCommands == source.plan.preparedCommands,
+                      context.processedLedger == source.plan.processedLedger else { return .stalePredecessor }
+                try preflightConflictTransaction(transaction)
+                let file = SyncPublicationTransactionFile(archiveURL: url)
+                do {
+                    try file.write(transaction, preflightingWith: lease)
+                    try syncCanonicalPublicationBoundary(.afterIntent)
+                    try installRemoteCandidate(transaction)
+                    try syncCanonicalPublicationBoundary(.afterArchive)
+                    try publish(transaction, transactionFile: file, journalLease: lease)
+                    if source.plan.predecessor.archiveSHA256 != transaction.expectedArchiveSHA256 {
+                        guard let checkpoint = syncCanonicalCheckpoint else { throw SyncConflictError.missingAuthority }
+                        let verified = try verifyCanonical(checkpoint, sources: [:])
+                        loadPendingArchiveReadOnly()
+                        guard loadError == nil else { throw SyncPublicationError.corruptTransaction }
+                        hydrateCanonical(checkpoint, verified: verified)
+                        notifyID = source.transition.transactionID
+                    }
+                } catch {
+                    syncPublicationError = .pendingRepair
+                    throw error
+                }
+                return .committed(try conflictResolution(source.transition))
+            }
+        }
+        if let notifyID { onRemoteDomainCommitted?(notifyID) }
+        return result
+    }
+
+    private func conflictResolution(_ transition: SyncJournalRebaseTransition) throws -> SyncConflictResolution {
+        try .init(transactionID: transition.transactionID, input: transition.input,
+            replacement: transition.after[0], followingReplacements: Array(transition.after.dropFirst()),
+            versions: transition.afterVersions)
+    }
+
+    private func conflictRecords(_ records: [SyncRecord], applying mutations: [SyncMutation]) -> [SyncRecord] {
+        var byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        for mutation in mutations {
+            if let record = mutation.savedRecordVersion?.record { byID[record.id] = record }
+            else { byID.removeValue(forKey: mutation.recordID) }
+        }
+        return byID.values.sorted {
+            $0.id.kind.rawValue == $1.id.kind.rawValue ? $0.id.uuid.uuidString < $1.id.uuid.uuidString
+                : $0.id.kind.rawValue < $1.id.kind.rawValue
+        }
+    }
+
+    private func conflictReplacements(_ input: SyncConflictInput, predecessor: SyncCanonicalCheckpoint,
+        context: SyncCounterReminderMergeContext, markers: [DeletionMarker]) throws -> [SyncMutation] {
+        let original = predecessor.records.first { $0.id == input.serverRecord.id }
+        guard input.serverRecord.deletedAt.value == nil || original?.deletedAt.value != nil else {
+            throw SyncRemoteBatchError.unprovenDeletion
+        }
+        var rolling = input.serverRecord
+        var replacements: [SyncMutation] = []
+        for mutation in input.expectedRecordQueue {
+            switch mutation {
+            case let .save(save):
+                let full = predecessor.records.filter { $0.id != input.serverRecord.id } + [save.recordVersion.record]
+                let merge = try SyncMergeEngine().merge(local: full, remote: [rolling], pendingLocal: [],
+                    counterReminderContext: context, deletionMarkers: markers)
+                guard merge.legacyRecordIDsToDelete.isSubset(of: predecessor.legacyRecordIDsToDelete),
+                      let merged = merge.records.first(where: { $0.id == input.serverRecord.id }),
+                      merged.deletedAt.value == nil || original?.deletedAt.value != nil else {
+                    throw SyncRemoteBatchError.unprovenDeletion
+                }
+                rolling = merged
+                replacements.append(try .save(recordVersion: .init(record: merged),
+                    attachmentSource: merged.deletedAt.value == nil ? save.attachmentSource : nil,
+                    mutationID: mutation.mutationID))
+            case .delete:
+                guard original?.deletedAt.value != nil || (original == nil
+                    && predecessor.legacyRecordIDsToDelete.contains(mutation.recordID)) else {
+                    throw SyncRemoteBatchError.unprovenDeletion
+                }
+                replacements.append(mutation)
+            }
+        }
+        return replacements
+    }
+
+    private func preflightConflictFiles(_ files: [SyncRemoteInstallFile], authority: [SyncRemoteAuthorityFile]) throws {
+        let root = remoteComparisonURL(url.deletingLastPathComponent())
+        for file in files {
+            let target = root.appendingPathComponent(file.relativePath)
+            _ = try SyncPublicationArtifactEvidence(relativePath: file.relativePath, expectedSHA256: file.version.contentSHA256)
+            var parent = target.deletingLastPathComponent()
+            while parent != root {
+                if let proof = authority.first(where: { $0.path == parent.path }), !proof.digest.isEmpty {
+                    throw SyncConflictError.missingAuthority
+                }
+                guard parent.path.hasPrefix(root.path + "/") else { throw SyncConflictError.missingAuthority }
+                parent.deleteLastPathComponent()
+            }
+            if file.relativePath.hasPrefix("SyncMetadata/conflict-source-attachments/"),
+               let old = authority.first(where: { $0.path == target.path }),
+               old.digest != file.version.contentSHA256 || old.bytes != file.version.byteCount {
+                throw SyncConflictError.identityCollision
+            }
+        }
+    }
+
+    private func preflightConflictTransaction(_ transaction: SyncPublicationTransaction) throws {
+        try validateCanonicalTransition(transaction, current: syncCanonicalCheckpoint)
+        _ = try remoteCandidateEvidence(transaction)
+        _ = try syncAttachmentPublicationEvidenceFile.applying(remoteEvidenceUpdates(transaction),
+            retaining: syncAttachmentPublicationEvidence, validatingOnly: true)
+        guard try SyncConflictRebaseCoding.encoder().encode(transaction).count <= SyncCanonicalCheckpoint.maximumBytes,
+              let candidate = transaction.canonicalTransition?.candidate,
+              try candidate.encoded().count <= SyncCanonicalCheckpoint.maximumBytes else { throw SyncConflictError.capacity }
     }
 
     public func prepareRemoteBatch(_ batch: SyncRemoteBatch,
@@ -6453,7 +6731,7 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func installRemoteCandidate(_ transaction: SyncPublicationTransaction) throws {
-        guard let plan = transaction.remoteSource?.durablePlan else { throw SyncRemoteBatchError.missingAuthority }
+        guard let plan = transaction.durableCandidatePlan else { throw SyncRemoteBatchError.missingAuthority }
         let root = remoteComparisonURL(url.deletingLastPathComponent())
         let originalEvidence = try JSONDecoder().decode(SyncAttachmentPublicationEvidence.self, from: plan.predecessorEvidence).validated()
         let expectedEvidence = try remoteCandidateEvidence(transaction)
@@ -6476,6 +6754,22 @@ final class PatternLibraryDeletionTransaction {
         let archivePath = root.appendingPathComponent(url.lastPathComponent).path
         let intent = root.appendingPathComponent(SyncPublicationTransactionFile(archiveURL: url).url.lastPathComponent).path
         let targets = Set(plan.files.map { root.appendingPathComponent($0.relativePath).path })
+        if transaction.conflictSource != nil {
+            let observed = Dictionary(uniqueKeysWithValues: currentAuthority.map { ($0.path, $0) })
+            let retainedTargets = Set(plan.files.filter {
+                $0.relativePath.hasPrefix("SyncMetadata/conflict-source-attachments/")
+            }.map { root.appendingPathComponent($0.relativePath).path })
+            for captured in plan.authority {
+                let existingParent = captured.digest.isEmpty
+                    && targets.contains(where: { $0.hasPrefix(captured.path + "/") })
+                // The writer creates missing parents, but never replaces an
+                // existing directory or an already-identical raw-only file.
+                // Such replacements therefore cannot be claimed as self-replay.
+                if existingParent || retainedTargets.contains(captured.path) {
+                    guard observed[captured.path] == captured else { throw SyncBootstrapError.sourceChanged }
+                }
+            }
+        }
         let journal = remoteComparisonURL(plan.journalURL).path
         let journalAttachments = remoteComparisonURL(plan.journalURL.deletingLastPathComponent())
             .appendingPathComponent(".\(plan.journalURL.lastPathComponent).attachments").path
@@ -6525,6 +6819,28 @@ final class PatternLibraryDeletionTransaction {
         if current != plan.archive { try archiveWrite(plan.archive, url) }
     }
 
+    private func validateConflictPending(_ transaction: SyncPublicationTransaction, lease: SyncJournalWriteLease) throws {
+        guard let source = transaction.conflictSource,
+              remoteComparisonURL(source.plan.journalURL) == remoteComparisonURL(lease.location) else {
+            throw SyncConflictError.missingAuthority
+        }
+        let retained = try lease.retainedRebases(for: source.input)
+        if retained.contains(source.transition) {
+            // Native v5 replay has already validated the ordered rebase chain
+            // and exact receipts for every missing rebased version. Requiring
+            // both snapshots also refuses a replaced or rolled-back journal.
+            _ = try lease.pending(requiringRetainedProofsFor: source.beforePending + source.afterPending)
+            _ = try lease.pendingVersioned()
+        } else {
+            guard try lease.pendingVersioned() == zip(source.beforePending, source.beforeVersions).map({
+                try SyncVersionedMutation(mutation: $0.0, token: $0.1)
+            }), try lease.rebaseHistoryHeadSHA256() == source.transition.predecessorRebaseHeadSHA256 else {
+                throw SyncConflictError.missingAuthority
+            }
+            try lease.preflightRebase(source.transition)
+        }
+    }
+
     private func validateRemotePending(_ transaction: SyncPublicationTransaction, lease: SyncJournalWriteLease) throws {
         guard let plan = transaction.remoteSource?.durablePlan else { throw SyncRemoteBatchError.missingAuthority }
         let pending = try lease.pending(requiringRetainedProofsFor: plan.pending)
@@ -6546,14 +6862,14 @@ final class PatternLibraryDeletionTransaction {
     }
 
     private func remoteCandidateEvidence(_ transaction: SyncPublicationTransaction) throws -> SyncAttachmentPublicationEvidence {
-        guard let plan = transaction.remoteSource?.durablePlan else { throw SyncRemoteBatchError.missingAuthority }
+        guard let plan = transaction.durableCandidatePlan else { throw SyncRemoteBatchError.missingAuthority }
         var evidence = try JSONDecoder().decode(SyncAttachmentPublicationEvidence.self, from: plan.predecessorEvidence).validated()
         try evidence.apply(remoteEvidenceUpdates(transaction))
         return try evidence.canonicalized().validated()
     }
 
     private func remoteEvidenceUpdates(_ transaction: SyncPublicationTransaction) throws -> [SyncMutation] {
-        guard let plan = transaction.remoteSource?.durablePlan, let candidate = transaction.canonicalTransition?.candidate else {
+        guard let plan = transaction.durableCandidatePlan, let candidate = transaction.canonicalTransition?.candidate else {
             throw SyncRemoteBatchError.missingAuthority
         }
         let before = try JSONDecoder().decode(SyncAttachmentPublicationEvidence.self, from: plan.predecessorEvidence).validated()
@@ -6699,6 +7015,17 @@ final class PatternLibraryDeletionTransaction {
                                              current: SyncCanonicalCheckpoint?) throws {
         guard let transition = transaction.canonicalTransition, let current else {
             throw SyncPublicationError.corruptTransaction
+        }
+        if let source = transaction.conflictSource {
+            _ = try transaction.validated()
+            guard current == source.plan.predecessor || current == transition.candidate,
+                  source.transition.after == (try conflictReplacements(source.input,
+                    predecessor: source.plan.predecessor,
+                    context: .init(preparedCommands: source.plan.preparedCommands,
+                        processedLedger: source.plan.processedLedger), markers: source.plan.deletionMarkers)) else {
+                throw SyncPublicationError.corruptTransaction
+            }
+            return
         }
         if let source = transaction.remoteSource {
             try validateRemoteTransition(transaction, source: source, current: current)
@@ -7442,13 +7769,35 @@ final class PatternLibraryDeletionTransaction {
         guard let syncRevisionLedger else {
             throw SyncRevisionLedgerError.unavailable
         }
+        // Accepted records may carry a field/deletion stamp above the legacy
+        // entityRevision summary. Once that canonical state has been observed,
+        // the next local edit must advance beyond every causal stamp it owns.
+        let canonicalRevisions = Dictionary(uniqueKeysWithValues: (syncCanonicalCheckpoint?.records ?? []).map { record in
+            var revision = max(record.entityRevision, record.deletedAt.stamp.logicalRevision)
+            for field in record.payload.fields.values { revision = max(revision, field.stamp.logicalRevision) }
+            revision = max(revision, record.payload.deletionCascade?.stamp.logicalRevision ?? 0)
+            if let atomic = record.payload.atomicDomain {
+                revision = max(revision, atomic.stamp.logicalRevision)
+                switch atomic.value {
+                case let .projectCounter(state):
+                    for proof in state.processedCommandProofs {
+                        revision = max(revision, proof.processingStamp?.logicalRevision ?? 0)
+                    }
+                case let .orphanWatchCommandProof(proof):
+                    revision = max(revision, proof.proof.processingStamp?.logicalRevision ?? 0)
+                case .knittingReminder: break
+                }
+            }
+            return (record.id, revision)
+        })
         let receipts = try syncRevisionLedger.allocate(mutations.map { mutation in
             SyncRevisionRequest(
                 entityID: mutation.recordID,
                 mutationID: mutation.mutationID,
                 observedRemoteRevision: max(
                     observedRevisions[mutation.recordID] ?? 0,
-                    mutation.savedRecordVersion?.record.entityRevision ?? 0
+                    mutation.savedRecordVersion?.record.entityRevision ?? 0,
+                    canonicalRevisions[mutation.recordID] ?? 0
                 )
             )
         })
@@ -7861,6 +8210,11 @@ final class PatternLibraryDeletionTransaction {
             }
             try validateCanonicalTransition(transaction, current: current)
         } else if syncCanonicalCheckpointStore != nil { throw SyncPublicationError.pendingRepair }
+        if transaction.conflictSource != nil {
+            guard case .committed = try transactionFile.commitStatus(of: transaction, archiveURL: url) else {
+                throw SyncPublicationError.corruptTransaction
+            }
+        }
         do {
             try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
             if !transaction.revisionReceipts.isEmpty {
@@ -7877,7 +8231,7 @@ final class PatternLibraryDeletionTransaction {
         }
         do {
             try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
-            if transaction.remoteSource != nil {
+            if transaction.durableCandidatePlan != nil {
                 try persistAttachmentPublicationEvidence(for: remoteEvidenceUpdates(transaction))
             }
             if !transaction.mutations.isEmpty {
@@ -7888,7 +8242,16 @@ final class PatternLibraryDeletionTransaction {
         }
         do {
             try syncCanonicalCheckpointStore?.validateBinding(liveRoot: url.deletingLastPathComponent())
-            if !transaction.mutations.isEmpty {
+            if let source = transaction.conflictSource {
+                guard let journalLease else { throw SyncConflictError.missingAuthority }
+                try validateConflictPending(transaction, lease: journalLease)
+                let replaced = try journalLease.rebase(source.transition)
+                if !replaced {
+                    guard try journalLease.retainedRebases(for: source.input).contains(source.transition) else {
+                        throw SyncConflictError.missingAuthority
+                    }
+                }
+            } else if !transaction.mutations.isEmpty {
                 if let journalLease { try journalLease.enqueue(transaction.mutations) }
                 else { try syncMutationSink.publish(transaction.mutations) }
             }
@@ -7902,7 +8265,7 @@ final class PatternLibraryDeletionTransaction {
         do {
             if let transition = transaction.canonicalTransition {
                 guard let checkpoints = syncCanonicalCheckpointStore else { throw SyncPublicationError.pendingRepair }
-                var sources = transaction.remoteSource == nil ? syncHydratedAttachmentSources : [:]
+                var sources = transaction.durableCandidatePlan == nil ? syncHydratedAttachmentSources : [:]
                 for mutation in transaction.mutations {
                     if case let .save(save) = mutation, let source = save.attachmentSource {
                         sources[save.recordVersion.record.id.uuid] = .init(fileURL: source.fileURL,

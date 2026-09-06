@@ -237,6 +237,8 @@ public struct SyncConflictPreparation: Sendable {
     let predecessor: SyncCanonicalCheckpoint
     let authority: [SyncRemoteAuthorityFile]
     let pending: [SyncVersionedMutation]
+    let rebaseHistoryHeadSHA256: Data
+    let watchContext: SyncCounterReminderMergeContext
     let transaction: SyncPublicationTransaction?
     let previousResolution: SyncConflictResolution?
 }

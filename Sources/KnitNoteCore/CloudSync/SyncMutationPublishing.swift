@@ -156,6 +156,10 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     let canonicalTransition: SyncCanonicalTransition?
     let remoteSource: SyncRemoteBatchPublicationSource?
     let conflictSource: SyncConflictPublicationSource?
+
+    var durableCandidatePlan: SyncRemoteBatchDurablePlan? {
+        conflictSource?.plan ?? remoteSource?.durablePlan
+    }
     let integrity: Data
 
     private enum CodingKeys: String, CodingKey {

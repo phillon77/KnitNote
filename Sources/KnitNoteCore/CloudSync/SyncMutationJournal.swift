@@ -1194,6 +1194,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     private func validateVersionedReceipts(in state: LoadedState) throws {
         let pendingIDs = Set(state.pending.map(\.mutationID))
+        // Issued proof plus absence (even a completed cleanup offset) cannot
+        // authorize removal of a rebased version. Require its exact receipt;
+        // checkpoint pending may instead be removed by a later kind-5 frame.
+        for id in state.rebasedMutations.keys where !pendingIDs.contains(id) {
+            guard state.versionedAcknowledgements[id] != nil else {
+                throw SyncMutationJournalError.corrupt
+            }
+        }
         for (id, receipt) in state.versionedAcknowledgements {
             guard id == receipt.mutation.mutationID, !pendingIDs.contains(id),
                   let proof = effectiveProof(for: id, in: state),

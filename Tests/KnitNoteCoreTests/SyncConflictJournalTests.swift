@@ -291,6 +291,84 @@ import Testing
         #expect(try f.authority() == bytes)
     }
 
+    @Test(arguments: [false, true]) @MainActor func missingRebasedACKReceiptRejectsBeforeCleanup(completed: Bool) throws {
+        let f = try JournalConflictFixture(); defer { f.remove() }
+        let remote = try f.base.base.photoBatch(id: UUID())
+        let record = try #require(remote.batch.records.first { $0.id.kind == .attachment })
+        let source = try #require(remote.attachments[record.id.uuid])
+        let original = try SyncMutation.save(recordVersion: SyncRecordVersion(record: record), attachmentSource: source, mutationID: UUID())
+        try f.journal.enqueue(original)
+        let current = try #require(f.journal.pendingVersioned().last?.mutation)
+        let staged = try #require(current.attachmentSource?.fileURL)
+        let stagedBytes = try Data(contentsOf: staged)
+        let transition = try f.transition(after: [current], server: record)
+        #expect(try f.journal.withExclusivePending { try $0.rebase(transition) })
+        try f.compact()
+        if completed {
+            #expect(try f.journal.acknowledgeCurrentVersion(transition.afterVersions[0]) == .acknowledged)
+            // A valid later segment ACK supplies the receipt before source-byte
+            // validation even though the older checkpoint still has pending.
+            #expect(try f.reopen().pending().contains { $0.mutationID == original.mutationID } == false)
+            try f.compact()
+        }
+        // The control is a real, freshly loaded journal with valid retained history.
+        #expect(try f.reopen().pendingVersioned().contains { $0.mutation.mutationID == original.mutationID } == !completed)
+        var checkpoint = try f.checkpoint()
+        let encodedPending = try #require(checkpoint["pending"] as? [Any])
+        let pending = try JSONDecoder().decode([SyncMutation].self,
+            from: JSONSerialization.data(withJSONObject: encodedPending))
+        let omitted = pending.filter { $0.mutationID != original.mutationID }
+        try #require(omitted.count == 5)
+        try #require(pending.count == (completed ? 5 : 6))
+        checkpoint["pending"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(omitted))
+        checkpoint["versionedAcknowledgements"] = []
+        // Recompute only the outer checksum; issued shards, transition integrity,
+        // linked history head, and any completed cleanup offsets remain untouched.
+        try f.writeCheckpoint(checkpoint)
+        let authority = try f.authority()
+        #expect(throws: SyncMutationJournalError.corrupt) { _ = try f.reopen().pending() }
+        let unchanged = try f.authority() == authority
+        #expect(unchanged)
+        if completed {
+            #expect(!FileManager.default.fileExists(atPath: staged.path))
+        } else {
+            #expect((try? Data(contentsOf: staged)) == stagedBytes)
+        }
+    }
+
+    @Test(arguments: [1, 2, 3, 4]) @MainActor func legacyCheckpointExactACKReceiptSurvivesMigration(version: Int) throws {
+        let f = try JournalConflictFixture(); defer { f.remove() }
+        let remote = try f.base.base.photoBatch(id: UUID())
+        let record = try #require(remote.batch.records.first { $0.id.kind == .attachment })
+        let source = try #require(remote.attachments[record.id.uuid])
+        let original = try SyncMutation.save(recordVersion: SyncRecordVersion(record: record), attachmentSource: source, mutationID: UUID())
+        try f.journal.enqueue(original)
+        try f.compact()
+        var checkpoint = try f.checkpoint()
+        checkpoint["version"] = version
+        if version == 1 {
+            checkpoint["history"] = checkpoint["pending"]; checkpoint["proofShardCount"] = 0
+            checkpoint["cleanupCompletion"] = ["completedShardCount": 0, "partialShards": []] as [String: Any]
+        }
+        if version < 4 { checkpoint.removeValue(forKey: "proofShardRoot") }
+        try f.writeCheckpoint(checkpoint)
+        let exact = try #require(f.reopen().pendingVersioned().last)
+        let staged = try #require(exact.mutation.attachmentSource?.fileURL)
+        #expect(exact.token.journalRevision == 0)
+        #expect(try f.reopen().acknowledgeCurrentVersion(exact.token) == .acknowledged)
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
+        // Later kind-5 segment replay must establish the receipt before loading
+        // source bytes or migrating the older checkpoint.
+        #expect(try f.reopen().pending().contains { $0.mutationID == original.mutationID } == false)
+        try f.compact(using: f.reopen())
+        #expect(try f.checkpoint()["version"] as? Int == 5)
+        #expect(try f.reopen().acknowledgeCurrentVersion(exact.token) == .alreadyAcknowledged)
+        let wrong = try SyncMutationVersionToken(mutation: exact.mutation, journalRevision: 1)
+        let authority = try f.authority()
+        #expect(try f.reopen().acknowledgeCurrentVersion(wrong) == .staleVersion)
+        #expect(try f.authority() == authority)
+    }
+
     @Test @MainActor func attachmentTombstoneRebaseCleansIssuedBytesAndRetainsHistoryAfterACK() throws {
         let f = try JournalConflictFixture(); defer { f.remove() }
         let remote = try f.base.base.photoBatch(id: UUID())

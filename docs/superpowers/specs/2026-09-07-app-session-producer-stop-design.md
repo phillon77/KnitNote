@@ -26,7 +26,9 @@ App層`@MainActor AppSessionProducer`具備同步`stopForSessionTransition()`與
 
 stop時清除本身pendingSelection、failure、notice，保存並取消operationTask／noticeTask。所有新process／resolve／retry／discard操作在停止後無副作用；每個operation完成及catch發布錯誤前都檢查停止狀態。停止後不再呼叫backup reminder的accept，不再顯示舊選取或成功通知。
 
-`PatternBackupReminderPresenter`原樣搬到獨立App來源檔以供實際來源no-host測試組裝；不改其BackupHistory或使用者dismiss語意。processor停止不冒充整個SwiftUI子樹、其他匯入畫面或既有reminder已被owner移除；那是後續generation隱藏邊界。
+`PatternBackupReminderPresenter`搬到獨立App來源檔以供實際來源no-host測試組裝；只允許獨立審查要求的重入／發布記帳，不改其BackupHistory或使用者dismiss／close語意。同步publisher可能在外層setter完成前呼叫stop；processor需在callout後恢復自身停止狀態、禁止新增工作。若回復被中斷匯入的reminder狀態，必須辨別之後的presenter變更，不得覆蓋使用者剛完成的dismiss／開啟備份設定，也不得回滾持久history。processor停止不冒充整個SwiftUI子樹、其他匯入畫面或既有reminder已被owner移除；那是後續generation隱藏邊界。
+
+通知Task被替換時，取消不代表終結；所有尚未結束的舊通知工作仍須保留到completion，並納入drain。可用窄範圍delay注入驗證忽略取消的工作，但正式三秒通知計時不變。
 
 ## PhoneWatchSyncCoordinator
 
@@ -35,6 +37,8 @@ stop時清除本身pendingSelection、failure、notice，保存並取消operatio
 stop同步設關閉狀態、解除project／entitlement訂閱，清除transport四個callback屬性，保存serialTask與三種retry／expiry Task後取消。已被transport或Combine另存的舊callback仍須檢查關閉狀態；僅把callback設nil不足以攔住它們。
 
 Combine訂閱先經thread-safe callback gate登記，再建立跳到MainActor的Task；Task以defer解除登記，即使self已釋放。stop先close gate，拒絕之後的新登記；drain也等待先前已接受的callback完成。這個gate只用短同步鎖保護非同步排程前的登記與等待者，不跨await持鎖，不代替store或account權威。不能只在MainActor Task開始後登記，否則stop可能漏掉尚未排到的工作。
+
+同一gate也涵蓋三種計時器的完整Task生命期；被取消／替換的舊計時器必須到實際終結才finish token。gate的非同步wait使用MainActor隔離，begin／close／finish仍可跨執行緒同步使用。同步transport callout可能重入stop，後續傳送／重試／recovery亦須拒絕。一般測試使用隔離screenshot entitlement；試用到期測試則使用真實coordinator的既有依賴注入入口與記憶體purchase／trial假實作，無live factory或授權API擴張。
 
 所有新start／receive／publish及內部activate／send／recover／timer continuation，在關閉後不再傳送、建立timer或更動store／ledger。已排隊工作在`await previous.value`之後重新檢查關閉狀態。等待涵蓋停用前接受的serial尾端及timer；保留原串列順序。
 

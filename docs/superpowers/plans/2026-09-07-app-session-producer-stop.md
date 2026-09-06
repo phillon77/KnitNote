@@ -25,7 +25,7 @@
 
 ## Shared file map and test harness
 
-`AppSessionProducerLifecycle.swift` owns the small protocol/error only. `PatternBackupReminderPresenter.swift` holds the class moved verbatim from RootView. Existing producers keep their responsibilities and own stop state. Task2 `AppSessionCallbackGate.swift` tracks Combine work admitted before its MainActor hop. `AppSessionProducerGroup.swift` contains only fixed local stop/drain composition.
+`AppSessionProducerLifecycle.swift` owns the small protocol/error only. `PatternBackupReminderPresenter.swift` holds the class extracted from RootView, with only the review-required reentry bookkeeping described below. Existing producers keep their responsibilities and own stop state. Task2 `AppSessionCallbackGate.swift` tracks Combine work admitted before its MainActor hop and accepted timer lifetimes. `AppSessionProducerGroup.swift` contains only fixed local stop/drain composition.
 
 New App test files are `AppSessionProducerFixtures.swift`, `PatternInboxProcessorSessionTests.swift`, `PhoneWatchSessionProducerTests.swift`, `AppSessionProducerGroupTests.swift`; add each to existing KnitNoteAppTests PBX source membership. Production files belong to KnitNote App only, not the Watch app. No new shipping target or entitlement.
 
@@ -47,6 +47,18 @@ let package = Package(name: "AppSessionProducerTests", defaultLocalization: "en"
 Create only directories and symlinks with shell tools; verify each target with readlink before testing. `Sources/KnitNote/KnitNoteCore` links this checkout's entire `Sources/KnitNoteCore`; `App` contains individual links to current-task App sources listed below, never RootView or KnitNoteApp. Test folder links only this plan's actual App test files. Do not compile live CloudKit development tests. Task2 adds exact entitlement source links `EntitlementCoordinator.swift`, `PurchaseService.swift`, `StoreKitPurchaseService.swift`, `KeychainTrialStore.swift` (declarations compile, no live factory invoked), and PhoneWatchSyncCoordinator. Task3 adds group source/test. If actual symbol dependencies require an additional existing source, inspect it first and record a controller scope ruling; never stub a production type to hide missing code.
 
 From the recorded harness directory run `python3 /tmp/task4-run-bounded.py 600 arch -arm64 swift test --filter PatternInboxProcessorSessionTests` for Task1, the named Task2 filters below for Task2, and the unfiltered package for Task3, with unique no-clobber logs and scoped cache permission when needed. The inspected runner is reused as tooling, not test evidence. Cache denial is environment failure, not behavioral RED. No heavy tests in parallel.
+
+## Review-driven amendments before downstream execution
+
+These requirements supersede the minimal task sketches where they differ; they do not claim implementation or acceptance is complete.
+
+- Task1 must retain cancelled/replaced notice tasks until their actual completion, not just the current handle at stop. A narrowly injected notice-delay closure may support deterministic cancellation-ignoring tests; production remains the same three-second timer.
+- Task1 must handle synchronous `@Published` and presenter callouts that reenter stop. Restore stopped processor state after callouts and prohibit subsequent task creation. Presenter bookkeeping may depart from verbatim extraction only to preserve normal accept/dismiss/close semantics and newer synchronous user actions. An interrupted import cannot unconditionally roll back a later dismissal/settings request or any persistent reminder-history write. Add the corresponding real Combine regressions.
+- Task2's existing gate must register all three timer kinds before task creation and finish their tokens only at actual task termination, including retired/replaced timers. The stop-time current-handle snapshot is not complete by itself. Preserve the serial tail; use a narrow production-equivalent sleep injection only if needed to prove retired-timer lifetime deterministically. Test synchronous transport reentry during activation/publication and reject subsequent work after closure.
+- Task2 gate `waitUntilClosedAndIdle()` is `@MainActor`; synchronous begin/close/finish remain thread-safe. Actual production drain callers already use MainActor, and direct tests observe same-actor waiter registration before the first suspension. Never substitute an unrelated empty task for registration or completion.
+- Ordinary Task2 cases retain `.configured(screenshotMode: true)`. The expiry/replacement fixture instead uses the actual entitlement coordinator's existing injected purchase/trial initializer, in-memory protocol fakes, a fixed `TrialRecord`/clock, an explicitly finished purchase-update stream, and real `prepare()`. A permanently legacy-paid screenshot fixture cannot exercise trial expiry. No live factories or widened purchase authorization APIs are allowed.
+
+Costs: additional internal ownership/presenter bookkeeping and controlled fixtures; possible actor hop for future non-UI waiters. Data formats, production timer durations, authority and user-history semantics remain unchanged. Controller rulings and review evidence are retained in this plan's SDD workspace and must be summarized in the durable final report.
 
 ### Task 1: Irreversible inbox producer closure and actual-source tests
 

@@ -2546,6 +2546,323 @@ private struct StoreLaunchRecoveryFixture {
     }
 }
 
+@Suite(.serialized) @MainActor struct StoreBackupSessionDrainTests {
+    @Test func revokedBackupEntriesAndCleanupLeaveOwnedDataUntouched() async throws {
+        let fixture = try StoreBackupFixture.make()
+        defer { fixture.cleanup() }
+        let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+        let before = try Data(contentsOf: fixture.archiveURL)
+        let workBefore = try backupEvidenceBytes(fixture.workRoot)
+        fixture.store.revokeSessionWrites()
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            _ = try await fixture.store.exportBackup(appVersion: "1.0")
+        }
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            _ = try await fixture.store.prepareBackupRestore(from: fixture.replacementPackage)
+        }
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            try await fixture.store.restoreBackup(staged)
+        }
+        fixture.store.cancelBackupRestore(staged)
+        fixture.store.cleanupBackupArtifact(at: fixture.replacementPackage)
+        #expect(FileManager.default.fileExists(atPath: staged.root.path))
+        #expect(FileManager.default.fileExists(atPath: fixture.replacementPackage.path))
+        #expect(try Data(contentsOf: fixture.archiveURL) == before)
+        #expect(try backupEvidenceBytes(fixture.workRoot) == workBefore)
+        try await fixture.store.waitForBackupOperationsAfterRevocation()
+    }
+
+    @Test(arguments: [false, true])
+    func lateBackupArtifactsStayOwnedAndAreNotReturned(prepare: Bool) async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(
+            metadataBlocker: prepare ? nil : blocker,
+            stageBlocker: prepare ? blocker : nil
+        )
+        defer { blocker.resume(); fixture.cleanup() }
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            if prepare {
+                _ = try await fixture.store.prepareBackupRestore(from: fixture.replacementPackage)
+            } else {
+                _ = try await fixture.store.exportBackup(appVersion: "1.0")
+            }
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForBackupOperationsAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        operation.cancel()
+        #expect(!ended)
+        blocker.resume()
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            try await operation.value
+        }
+        try await drain.value
+        #expect(ended)
+        #expect(FileManager.default.fileExists(atPath: fixture.replacementPackage.path))
+        let artifacts = try FileManager.default.contentsOfDirectory(
+            at: fixture.workRoot,
+            includingPropertiesForKeys: nil
+        )
+        #expect(artifacts.contains {
+            prepare ? $0.lastPathComponent.hasPrefix("Staged-") :
+                ($0.pathExtension == "knitnote-backup" && $0 != fixture.replacementPackage)
+        })
+    }
+
+    @Test(arguments: [KnitNoteBackupReplacementStep.beforeLiveMove,
+                      .afterLiveMove, .afterStagedMove, .beforeCommitCleanup])
+    func restoreCannotDrainWhileNativeReplacementIsBlocked(
+        step: KnitNoteBackupReplacementStep
+    ) async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(
+            replacementBlocker: blocker,
+            blockedReplacementStep: step
+        )
+        let other = try StoreBackupFixture.make()
+        defer { blocker.resume(); fixture.cleanup(); other.cleanup() }
+        let otherBytes = try Data(contentsOf: other.archiveURL)
+        let otherBackupEvidence = try backupEvidenceBytes(other.root)
+        let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            try await fixture.store.restoreBackup(staged)
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.cancelBackupRestore(staged)
+        if step == .beforeLiveMove || step == .afterLiveMove {
+            #expect(FileManager.default.fileExists(atPath: staged.root.path))
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let waiter = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForBackupOperationsAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+        try await operation.value
+        try await waiter.value
+        #expect(ended)
+        #expect(try fixture.diskProjectName() == "replacement")
+        #expect(!fixture.store.isDataOperationInProgress)
+        #expect(try Data(contentsOf: other.archiveURL) == otherBytes)
+        #expect(try backupEvidenceBytes(other.root) == otherBackupEvidence)
+        try other.store.add(name: "Other session remains open")
+    }
+
+    @Test(arguments: ["reload", "rollback", "commit-cleanup"])
+    func drainPreservesNativeFailureEvidence(mode: String) async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(
+            replacementBlocker: blocker,
+            corruptInstalledArchive: mode != "commit-cleanup",
+            failRollback: mode == "rollback",
+            partialCommitCleanupFailure: mode == "commit-cleanup"
+        )
+        defer { blocker.resume(); fixture.cleanup() }
+        let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            try await fixture.store.restoreBackup(staged)
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        blocker.resume()
+        if mode == "reload" {
+            await #expect(throws: KnitNoteBackupError.installFailedOriginalPreserved) {
+                try await operation.value
+            }
+            #expect(try fixture.diskProjectName() == "original")
+        } else if mode == "rollback" {
+            await #expect(throws: KnitNoteBackupError.rollbackFailed) {
+                try await operation.value
+            }
+            #expect(try fixture.rollbackRoots().count == 1)
+        } else {
+            try await operation.value
+            #expect(try fixture.diskProjectName() == "replacement")
+            #expect(try fixture.cleanupRoots().count == 1)
+        }
+        let before = try backupEvidenceBytes(fixture.workRoot)
+        try await fixture.store.waitForBackupOperationsAfterRevocation()
+        #expect(try backupEvidenceBytes(fixture.workRoot) == before)
+    }
+
+    @Test func twoPrepareOperationsMustBothEndBeforeDrain() async throws {
+        let gates = TwoStageBlocks()
+        let fixture = try StoreBackupFixture.make(stageObserver: { gates.visit($0) })
+        defer { gates.first.resume(); gates.second.resume(); fixture.cleanup() }
+        let one = Task { @MainActor in
+            gates.first.startObservingOperation()
+            return try await fixture.store.prepareBackupRestore(
+                from: fixture.replacementPackage
+            )
+        }
+        do {
+            try #require(await gates.first.waitForObservedBlock())
+        } catch {
+            gates.first.resume()
+            _ = try? await one.value
+            throw error
+        }
+        let two = Task { @MainActor in
+            gates.second.startObservingOperation()
+            return try await fixture.store.prepareBackupRestore(
+                from: fixture.replacementPackage
+            )
+        }
+        do {
+            try #require(await gates.second.waitForObservedBlock())
+        } catch {
+            gates.first.resume()
+            gates.second.resume()
+            _ = try? await one.value
+            _ = try? await two.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let waiter = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForBackupOperationsAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        gates.first.resume()
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            _ = try await one.value
+        }
+        #expect(!ended)
+        gates.second.resume()
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            _ = try await two.value
+        }
+        try await waiter.value
+        #expect(ended)
+    }
+
+    @Test func drainIncludesRollbackAfterReloadFailure() async throws {
+        let gate = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(
+            corruptInstalledArchive: true,
+            rollbackBlocker: gate
+        )
+        defer { gate.resume(); fixture.cleanup() }
+        let staged = try fixture.service.stagePackage(at: fixture.replacementPackage)
+        let operation = Task { @MainActor in
+            gate.startObservingOperation()
+            defer { gate.finishObservation(reachedBlock: false) }
+            try await fixture.store.restoreBackup(staged)
+        }
+        do {
+            try #require(await gate.waitForObservedBlock())
+        } catch {
+            gate.resume()
+            _ = try? await operation.value
+            throw error
+        }
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let waiter = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForBackupOperationsAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        gate.resume()
+        await #expect(throws: KnitNoteBackupError.installFailedOriginalPreserved) {
+            try await operation.value
+        }
+        try await waiter.value
+        #expect(try fixture.diskProjectName() == "original")
+    }
+}
+
+private enum BackupEvidenceError: Error {
+    case enumerationFailed(URL)
+}
+
+private func backupEvidenceBytes(_ root: URL) throws -> [String: Data] {
+    var enumerationError: Error?
+    guard let files = FileManager.default.enumerator(
+        at: root,
+        includingPropertiesForKeys: [.isRegularFileKey],
+        options: [],
+        errorHandler: { _, error in
+            enumerationError = error
+            return false
+        }
+    ) else {
+        throw BackupEvidenceError.enumerationFailed(root)
+    }
+    var result: [String: Data] = [:]
+    while let file = files.nextObject() as? URL {
+        if try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true {
+            result[file.path] = try Data(contentsOf: file)
+        }
+    }
+    if let enumerationError {
+        throw enumerationError
+    }
+    return result
+}
+
+private final class TwoStageBlocks: @unchecked Sendable {
+    let first = StoreOperationBlocker()
+    let second = StoreOperationBlocker()
+    private let lock = NSLock()
+    private var count = 0
+
+    func visit(_ url: URL) {
+        lock.lock()
+        count += 1
+        let index = count
+        lock.unlock()
+        (index == 1 ? first : second).blockOnce()
+    }
+}
+
 @MainActor private struct StoreBackupFixture {
     private struct InjectedFailure: Error {}
 
@@ -2560,6 +2877,7 @@ private struct StoreLaunchRecoveryFixture {
     static func make(
         metadataBlocker: StoreOperationBlocker? = nil,
         stageBlocker: StoreOperationBlocker? = nil,
+        stageObserver: (@Sendable (URL) -> Void)? = nil,
         journalBlocker: StoreOperationBlocker? = nil,
         patternBlocker: StoreOperationBlocker? = nil,
         patternInboxBlocker: StoreOperationBlocker? = nil,
@@ -2568,7 +2886,8 @@ private struct StoreLaunchRecoveryFixture {
         blockedReplacementStep: KnitNoteBackupReplacementStep = .afterStagedMove,
         corruptInstalledArchive: Bool = false,
         failRollback: Bool = false,
-        partialCommitCleanupFailure: Bool = false
+        partialCommitCleanupFailure: Bool = false,
+        rollbackBlocker: StoreOperationBlocker? = nil
     ) throws -> Self {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -2600,11 +2919,14 @@ private struct StoreLaunchRecoveryFixture {
                     return try backupMetadata(for: url)
                 }
             )
-        } else if let stageBlocker {
+        } else if stageBlocker != nil || stageObserver != nil {
             service = KnitNoteBackupService(
                 liveRoot: liveRoot,
                 workRoot: workRoot,
-                afterStageCopy: { _ in stageBlocker.blockOnce() }
+                afterStageCopy: { url in
+                    stageObserver?(url)
+                    stageBlocker?.blockOnce()
+                }
             )
         } else {
             service = KnitNoteBackupService(
@@ -2620,8 +2942,11 @@ private struct StoreLaunchRecoveryFixture {
                         }
                         replacementBlocker?.blockOnce()
                     }
-                    if step == .beforeRollback, failRollback {
-                        throw InjectedFailure()
+                    if step == .beforeRollback {
+                        rollbackBlocker?.blockOnce()
+                        if failRollback {
+                            throw InjectedFailure()
+                        }
                     }
                 },
                 cleanupItem: { cleanupRoot in

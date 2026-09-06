@@ -2590,6 +2590,7 @@ final class PatternLibraryDeletionTransaction {
     private let afterYouTubeThumbnailStage: @Sendable () async -> Void
     private let patternPDFPageThumbnailURLGenerator: @Sendable (PatternAsset, URL, Int) -> URL?
     private let backupService: KnitNoteBackupService
+    private let backupSessionWork = BackupSessionWorkTracker()
     private let archiveWrite: @Sendable (Data, URL) throws -> Void
     private let syncMutationSink: any SyncMutationSink
     private var remoteDomainCommitted: ((UUID) -> Void)?
@@ -2626,6 +2627,11 @@ final class PatternLibraryDeletionTransaction {
 
     public func revokeSessionWrites() {
         isSessionWriteRevoked = true
+        backupSessionWork.close()
+    }
+
+    public func waitForBackupOperationsAfterRevocation() async throws {
+        try await backupSessionWork.waitUntilClosedAndIdle()
     }
 
     private func requireSessionWriteAccess() throws {
@@ -3075,15 +3081,23 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func exportBackup(appVersion: String) async throws -> URL {
+        try requireSessionWriteAccess()
+        let work = try backupSessionWork.begin(protecting: backupService.workRoot)
+        defer { backupSessionWork.finish(work) }
         try beginDataOperation()
         defer { isDataOperationInProgress = false }
         let service = backupService
-        return try await Task.detached(priority: .userInitiated) {
+        let artifact = try await Task.detached(priority: .userInitiated) {
             try service.createPackage(appVersion: appVersion)
         }.value
+        try requireSessionWriteAccess()
+        return artifact
     }
 
     public func prepareBackupRestore(from packageURL: URL) async throws -> StagedKnitNoteBackup {
+        try requireSessionWriteAccess()
+        let work = try backupSessionWork.begin(protecting: backupService.workRoot)
+        defer { backupSessionWork.finish(work) }
         let accessedSecurityScope = packageURL.startAccessingSecurityScopedResource()
         defer {
             if accessedSecurityScope {
@@ -3091,9 +3105,11 @@ final class PatternLibraryDeletionTransaction {
             }
         }
         let service = backupService
-        return try await Task.detached(priority: .userInitiated) {
+        let staged = try await Task.detached(priority: .userInitiated) {
             try service.stagePackage(at: packageURL)
         }.value
+        try requireSessionWriteAccess()
+        return staged
     }
 
     public func cancelBackupRestore(_ backup: StagedKnitNoteBackup) {
@@ -3105,6 +3121,9 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func restoreBackup(_ backup: StagedKnitNoteBackup) async throws {
+        try requireSessionWriteAccess()
+        let work = try backupSessionWork.begin(protecting: backupService.workRoot)
+        defer { backupSessionWork.finish(work) }
         try requireAccess(.restoreBackup)
         try ensureSyncPublicationReady()
         try beginDataOperation()
@@ -8595,6 +8614,8 @@ final class PatternLibraryDeletionTransaction {
         at artifact: URL,
         kind: OwnedBackupArtifactKind
     ) {
+        guard !isSessionWriteRevoked,
+              !backupSessionWork.protects(artifact) else { return }
         let standardizedArtifact = artifact.standardizedFileURL
         guard standardizedArtifact.deletingLastPathComponent().path
                 == backupService.workRoot.standardizedFileURL.path,

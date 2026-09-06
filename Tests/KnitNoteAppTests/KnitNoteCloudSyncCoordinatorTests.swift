@@ -1110,6 +1110,10 @@ private final class FakeCoordinatorJournal: SyncMutationJournalProtocol, @unchec
     }
 
     func pending() throws -> [SyncMutation] { pendingMutations }
+    func pendingVersioned() throws -> [SyncVersionedMutation] { throw SyncConflictError.missingAuthority }
+    func acknowledgeCurrentVersion(_ token: SyncMutationVersionToken) throws -> SyncVersionedAcknowledgementResult {
+        throw SyncConflictError.missingAuthority
+    }
 
     func acknowledge(_ identities: Set<SyncMutationIdentity>) throws {
         lock.lock()

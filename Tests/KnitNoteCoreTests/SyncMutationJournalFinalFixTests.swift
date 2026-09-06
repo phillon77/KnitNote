@@ -5,6 +5,55 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncMutationJournalFinalFixTests {
+    @Test func exactVersionedACKRetryRepairsDurabilityAndCompletesCleanup() throws {
+        let fixture = try FinalFixJournalFixture()
+        let source = fixture.directory.appendingPathComponent("retry-source.asset")
+        let bytes = Data("retry cleanup".utf8)
+        try bytes.write(to: source)
+        let original = try attachmentSave(slot: .init(owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo", slotID: "primary"), bytes: bytes, source: source)
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        try journal.enqueue(original)
+        let current = try #require(journal.pendingVersioned().first)
+        let staged = try #require(current.mutation.attachmentSource?.fileURL)
+        let interrupted = FileSyncMutationJournal(url: fixture.url, appendFrames: { data, url in
+            try appendFinalFixJournalData(data, to: url)
+            throw FinalFixWriteThenThrow()
+        })
+        #expect(throws: FinalFixWriteThenThrow.self) { _ = try interrupted.acknowledgeCurrentVersion(current.token) }
+        #expect(FileManager.default.fileExists(atPath: staged.path))
+        let reopened = FileSyncMutationJournal(url: fixture.url)
+        #expect(try reopened.acknowledgeCurrentVersion(current.token) == .alreadyAcknowledged)
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
+    }
+
+    @Test func versionedAttachmentACKRemainsReadableAfterCompactedPendingSourceCleanup() throws {
+        let fixture = try FinalFixJournalFixture()
+        let source = fixture.directory.appendingPathComponent("versioned-source.asset")
+        let bytes = Data("versioned cleanup".utf8)
+        try bytes.write(to: source)
+        let original = try attachmentSave(slot: .init(owner: .init(kind: .project, uuid: UUID()),
+            role: "project-photo", slotID: "primary"), bytes: bytes, source: source)
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        try journal.enqueue(original)
+        // Establish v5 with a different ACK, then compact while this source is pending.
+        let other = try projectSave(mutationID: UUID())
+        try journal.enqueue(other)
+        #expect(try journal.acknowledgeCurrentVersion(SyncMutationVersionToken(mutation: other)) == .acknowledged)
+        for _ in 0..<130 {
+            let mutation = try projectSave(mutationID: UUID())
+            try journal.enqueue(mutation)
+            try journal.acknowledge([mutation.identity])
+        }
+        let current = try #require(journal.pendingVersioned().first)
+        let staged = try #require(current.mutation.attachmentSource?.fileURL)
+        #expect(try journal.acknowledgeCurrentVersion(current.token) == .acknowledged)
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
+        let reopened = FileSyncMutationJournal(url: fixture.url)
+        #expect(try reopened.pendingVersioned().isEmpty)
+        #expect(try reopened.acknowledgeCurrentVersion(current.token) == .alreadyAcknowledged)
+    }
+
     @Test(arguments: [false, true])
     func exclusivePendingRejectsMissingOrDifferentRetainedMutationProof(differentPayload: Bool) throws {
         let fixture = try FinalFixJournalFixture()

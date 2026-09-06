@@ -210,10 +210,23 @@ final class SyncJournalWriteLease {
     private let thread = pthread_self()
     private let readPending: ([SyncMutation]) throws -> [SyncMutation]
     private let append: ([SyncMutation]) throws -> Void
+    private let readVersioned: () throws -> [SyncVersionedMutation]
+    private let readRebaseHead: () throws -> Data
+    private let preflight: (SyncJournalRebaseTransition) throws -> Void
+    private let replace: (SyncJournalRebaseTransition) throws -> Bool
+    private let retained: (SyncConflictInput) throws -> [SyncJournalRebaseTransition]
 
     fileprivate init(location: URL, pending: @escaping ([SyncMutation]) throws -> [SyncMutation],
-                     enqueue: @escaping ([SyncMutation]) throws -> Void) {
+                     enqueue: @escaping ([SyncMutation]) throws -> Void,
+                     pendingVersioned: @escaping () throws -> [SyncVersionedMutation],
+                     rebaseHistoryHeadSHA256: @escaping () throws -> Data,
+                     preflightRebase: @escaping (SyncJournalRebaseTransition) throws -> Void,
+                     rebase: @escaping (SyncJournalRebaseTransition) throws -> Bool,
+                     retainedRebases: @escaping (SyncConflictInput) throws -> [SyncJournalRebaseTransition]) {
         self.location = location; readPending = pending; append = enqueue
+        readVersioned = pendingVersioned; preflight = preflightRebase
+        readRebaseHead = rebaseHistoryHeadSHA256
+        replace = rebase; retained = retainedRebases
     }
     fileprivate func invalidate() { active = false }
     private func validateLifetime() throws {
@@ -229,6 +242,13 @@ final class SyncJournalWriteLease {
         return try readPending(mutations)
     }
     func enqueue(_ mutations: [SyncMutation]) throws { try validateLifetime(); try append(mutations) }
+    func pendingVersioned() throws -> [SyncVersionedMutation] { try validateLifetime(); return try readVersioned() }
+    func rebaseHistoryHeadSHA256() throws -> Data { try validateLifetime(); return try readRebaseHead() }
+    func preflightRebase(_ transition: SyncJournalRebaseTransition) throws { try validateLifetime(); try preflight(transition) }
+    func rebase(_ transition: SyncJournalRebaseTransition) throws -> Bool { try validateLifetime(); return try replace(transition) }
+    func retainedRebases(for input: SyncConflictInput) throws -> [SyncJournalRebaseTransition] {
+        try validateLifetime(); return try retained(input)
+    }
 }
 
 public enum SyncMutationJournalError: Error, Equatable, Sendable {
@@ -242,7 +262,9 @@ public enum SyncMutationJournalError: Error, Equatable, Sendable {
 public protocol SyncMutationJournalProtocol: Sendable {
     func enqueue(_ mutations: [SyncMutation]) throws
     func pending() throws -> [SyncMutation]
+    func pendingVersioned() throws -> [SyncVersionedMutation]
     func acknowledge(_ identities: Set<SyncMutationIdentity>) throws
+    func acknowledgeCurrentVersion(_ token: SyncMutationVersionToken) throws -> SyncVersionedAcknowledgementResult
 }
 
 public extension SyncMutationJournalProtocol {
@@ -259,6 +281,8 @@ enum SyncJournalFrameKind: UInt8, Codable, Sendable {
     case enqueue = 1
     case acknowledge = 2
     case cleanupCompletion = 3
+    case rebase = 4
+    case versionedAcknowledgement = 5
 }
 
 struct SyncJournalFrame: Codable, Sendable {
@@ -373,10 +397,13 @@ struct SyncJournalCheckpoint: Codable, Sendable {
     let cleanupIntents: [SyncAttachmentCleanupIntent]
     let cleanupCompletion: SyncCleanupCompletion
     let legacyHistory: [SyncMutation]?
+    let rebaseHistory: [SyncJournalRebaseTransition]
+    let rebaseHistoryHeadSHA256: Data
+    let versionedAcknowledgements: [SyncVersionedMutation]
 
     private enum CodingKeys: String, CodingKey {
         case version, throughSequence, pending, proofShardCount, proofShardRoot, cleanupIntents
-        case cleanupCompletion, history
+        case cleanupCompletion, history, rebaseHistory, rebaseHistoryHeadSHA256, versionedAcknowledgements
     }
 
     init(
@@ -386,7 +413,10 @@ struct SyncJournalCheckpoint: Codable, Sendable {
         proofShardCount: Int = 0,
         proofShardRoot: Data? = SyncJournalCheckpoint.emptyProofShardRoot,
         cleanupIntents: [SyncAttachmentCleanupIntent] = [],
-        cleanupCompletion: SyncCleanupCompletion = .empty
+        cleanupCompletion: SyncCleanupCompletion = .empty,
+        rebaseHistory: [SyncJournalRebaseTransition] = [],
+        rebaseHistoryHeadSHA256: Data = SyncConflictRebaseCoding.emptyRebaseHistoryHeadSHA256,
+        versionedAcknowledgements: [SyncVersionedMutation] = []
     ) {
         self.version = version
         self.throughSequence = throughSequence
@@ -395,6 +425,9 @@ struct SyncJournalCheckpoint: Codable, Sendable {
         self.proofShardRoot = proofShardRoot
         self.cleanupIntents = cleanupIntents
         self.cleanupCompletion = cleanupCompletion
+        self.rebaseHistory = rebaseHistory
+        self.rebaseHistoryHeadSHA256 = rebaseHistoryHeadSHA256
+        self.versionedAcknowledgements = versionedAcknowledgements
         legacyHistory = nil
     }
 
@@ -420,6 +453,18 @@ struct SyncJournalCheckpoint: Codable, Sendable {
             [SyncMutation].self,
             forKey: .history
         )
+        if version == 5 {
+            rebaseHistory = try container.decode([SyncJournalRebaseTransition].self, forKey: .rebaseHistory)
+            rebaseHistoryHeadSHA256 = try container.decode(Data.self, forKey: .rebaseHistoryHeadSHA256)
+            versionedAcknowledgements = try container.decode([SyncVersionedMutation].self, forKey: .versionedAcknowledgements)
+        } else {
+            guard !container.contains(.rebaseHistory), !container.contains(.rebaseHistoryHeadSHA256),
+                  !container.contains(.versionedAcknowledgements) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            rebaseHistory = []; versionedAcknowledgements = []
+            rebaseHistoryHeadSHA256 = SyncConflictRebaseCoding.emptyRebaseHistoryHeadSHA256
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -431,6 +476,13 @@ struct SyncJournalCheckpoint: Codable, Sendable {
         try container.encodeIfPresent(proofShardRoot, forKey: .proofShardRoot)
         try container.encode(cleanupIntents, forKey: .cleanupIntents)
         try container.encode(cleanupCompletion, forKey: .cleanupCompletion)
+        if version == 5 {
+            try container.encode(rebaseHistory, forKey: .rebaseHistory)
+            try container.encode(rebaseHistoryHeadSHA256, forKey: .rebaseHistoryHeadSHA256)
+            try container.encode(versionedAcknowledgements, forKey: .versionedAcknowledgements)
+        } else if !rebaseHistory.isEmpty || !versionedAcknowledgements.isEmpty {
+            throw SyncMutationJournalError.corrupt
+        }
     }
 }
 
@@ -786,9 +838,10 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             let validatedRequests = try mutations.map { try $0.validated() }
             var preflightProofs = candidate.proofsByShard.flatMap { $0 }
                 + candidate.unpersistedProofs
+                + (try candidate.rebaseHistory.flatMap(\.after).map(Self.duplicateProof(for:)))
             for requested in validatedRequests {
                 let requestedProof = try Self.duplicateProof(for: requested)
-                if let existing = candidate.seenByMutationID[requested.mutationID] {
+                if let existing = effectiveProof(for: requested.mutationID, in: candidate) {
                     guard Self.proofsMatch(existing, requestedProof) else {
                         throw SyncMutationJournalError.duplicateMutationID
                     }
@@ -801,15 +854,16 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 failure: .invalidAttachment
             )
             var frames: [SyncJournalFrame] = []
+            var staging: [SyncMutation] = []
             for requested in validatedRequests {
                 let requestedProof = try Self.duplicateProof(for: requested)
-                if let existing = candidate.seenByMutationID[requested.mutationID] {
+                if let existing = effectiveProof(for: requested.mutationID, in: candidate) {
                     guard Self.proofsMatch(existing, requestedProof) else {
                         throw SyncMutationJournalError.duplicateMutationID
                     }
                     continue
                 }
-                let staged = try stageAttachmentIfNeeded(for: requested)
+                let staged = try stagedAttachmentMetadata(for: requested)
                 let frame = try makeFrame(
                     sequence: candidate.nextSequence,
                     kind: .enqueue,
@@ -817,11 +871,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 )
                 try apply(frame, to: &candidate)
                 frames.append(frame)
+                staging.append(requested)
             }
             guard !frames.isEmpty else {
                 try compactIfNeededLocked()
                 return
             }
+            if candidate.usesCheckpointV5 { try preflightConflictPersistence(candidate, frames: frames) }
+            for requested in staging { _ = try stageAttachmentIfNeeded(for: requested) }
             try appendReconcilingMemoryLocked(frames, candidate: candidate)
     }
 
@@ -837,11 +894,36 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 }
                 for mutation in requiredMutations {
                     let expected = try Self.duplicateProof(for: mutation.validatedForJournalLoad())
-                    guard let retained = state.seenByMutationID[mutation.mutationID],
-                          Self.proofsMatch(retained, expected) else { throw SyncMutationJournalError.corrupt }
+                    let proofs = [state.seenByMutationID[mutation.mutationID]].compactMap { $0 }
+                        + (try state.rebaseHistory.flatMap(\.after).filter { $0.mutationID == mutation.mutationID }
+                            .map(Self.duplicateProof(for:)))
+                    guard proofs.contains(where: { Self.proofsMatch($0, expected) }) else { throw SyncMutationJournalError.corrupt }
                 }
                 return state.pending
-            }, enqueue: { try self.enqueueLocked($0) })
+            }, enqueue: { try self.enqueueLocked($0) }, pendingVersioned: {
+                try self.versionedPending(in: self.conflictStateLocked())
+            }, rebaseHistoryHeadSHA256: {
+                try self.conflictStateLocked().rebaseHistoryHeadSHA256
+            }, preflightRebase: {
+                guard let candidate = try self.rebaseCandidate($0, state: self.conflictStateLocked()) else {
+                    throw SyncConflictError.missingAuthority
+                }
+                try self.preflightConflictPersistence(candidate.state, frames: [candidate.frame])
+            }, rebase: { transition in
+                guard let candidate = try self.rebaseCandidate(transition, state: self.conflictStateLocked()) else { return false }
+                try self.preflightConflictPersistence(candidate.state, frames: [candidate.frame])
+                for mutation in transition.after { try self.validatePersistedAttachmentSource(in: mutation) }
+                try self.repairDurabilityIfNeededLocked(candidate.state)
+                try self.appendReconcilingMemoryLocked([candidate.frame], candidate: candidate.state)
+                return true
+            }, retainedRebases: { input in
+                _ = try input.validated()
+                return try self.conflictStateLocked().rebaseHistory.filter {
+                    $0.input.accountIDHash == input.accountIDHash && $0.input.failedAttemptID == input.failedAttemptID
+                        && $0.input.failedMutation == input.failedMutation && $0.input.failedVersion == input.failedVersion
+                        && $0.input.serverRecord == input.serverRecord
+                }
+            })
             defer { lease.invalidate() }
             return try body(lease)
         }
@@ -1036,6 +1118,167 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         try withJournalCoordination { try preparedStateLocked().pending }
     }
 
+    public func pendingVersioned() throws -> [SyncVersionedMutation] {
+        try withJournalCoordination { try versionedPending(in: conflictStateLocked()) }
+    }
+
+    /// Conflict decisions are pure reads until exact authority and all projected
+    /// sizes pass. Incomplete tails must be recovered by their original writer.
+    private func conflictStateLocked() throws -> LoadedState {
+        guard !(try pathExists(url)) else { throw SyncConflictError.missingAuthority }
+        let state = try loadSegmentedStateLocked(readOnly: true)
+        guard !state.hasPartialFinalFrame else { throw SyncMutationJournalError.corrupt }
+        loadedState = state
+        return state
+    }
+
+    private func effectiveProof(for id: UUID, in state: LoadedState) -> SyncMutationDuplicateProof? {
+        state.rebasedProofs[id] ?? state.seenByMutationID[id]
+    }
+
+    private func versionedPending(in state: LoadedState) throws -> [SyncVersionedMutation] {
+        try state.pending.map {
+            try SyncVersionedMutation(mutation: $0, journalRevision: state.revisions[$0.mutationID] ?? 0)
+        }
+    }
+
+    private func rebaseCandidate(_ transition: SyncJournalRebaseTransition, state: LoadedState) throws
+        -> (state: LoadedState, frame: SyncJournalFrame)? {
+        _ = try transition.validated()
+        if let retained = state.rebaseHistory.first(where: { $0.transactionID == transition.transactionID }) {
+            guard retained == transition else { throw SyncConflictError.identityCollision }
+            return nil
+        }
+        let current = try versionedPending(in: state)
+        guard state.rebaseHistoryHeadSHA256 == transition.predecessorRebaseHeadSHA256,
+              try SyncConflictRebaseCoding.pendingDigest(current) == transition.predecessorPendingSHA256,
+              current.indices.filter({ current[$0].mutation.recordID == transition.input.serverRecord.id }) == transition.recordPositions,
+              transition.recordPositions.allSatisfy({ current.indices.contains($0) }),
+              transition.recordPositions.map({ current[$0].mutation }) == transition.before,
+              transition.recordPositions.map({ current[$0].token }) == transition.beforeVersions else { return nil }
+        let frame = try makeFrame(sequence: state.nextSequence, kind: .rebase, value: transition)
+        var candidate = state
+        try apply(frame, to: &candidate)
+        return (candidate, frame)
+    }
+
+    /// Reconstruct effective authority without altering issued immutable shards.
+    /// Always run before pending/ACK/cleanup checks, even for completed offsets.
+    private func applyRebaseHistory(_ transition: SyncJournalRebaseTransition, to state: inout LoadedState) throws {
+        _ = try transition.validated()
+        guard transition.predecessorRebaseHeadSHA256 == state.rebaseHistoryHeadSHA256,
+              !state.rebaseHistory.contains(where: { $0.transactionID == transition.transactionID }) else {
+            throw SyncMutationJournalError.corrupt
+        }
+        for index in transition.before.indices {
+            let before = transition.before[index]
+            let after = transition.after[index]
+            guard state.versionedAcknowledgements[before.mutationID] == nil,
+                  let prior = effectiveProof(for: before.mutationID, in: state),
+                  Self.proofsMatch(prior, try Self.duplicateProof(for: before)),
+                  state.rebasedMutations[before.mutationID].map({ $0 == before }) ?? true,
+                  transition.beforeVersions[index].journalRevision == (state.revisions[before.mutationID] ?? 0),
+                  after.attachmentSource == nil || after.attachmentSource == before.attachmentSource else {
+                throw SyncMutationJournalError.corrupt
+            }
+            state.rebasedProofs[after.mutationID] = try Self.duplicateProof(for: after)
+            state.rebasedMutations[after.mutationID] = after
+            state.revisions[after.mutationID] = transition.afterVersions[index].journalRevision
+        }
+        state.rebaseHistory.append(transition)
+        state.usesCheckpointV5 = true
+        try Self.validateAttachmentLineage(
+            proofs: state.proofsByShard.flatMap { $0 } + state.unpersistedProofs
+                + (try state.rebaseHistory.flatMap(\.after).map(Self.duplicateProof(for:))), failure: .corrupt)
+    }
+
+    private func validateVersionedReceipts(in state: LoadedState) throws {
+        let pendingIDs = Set(state.pending.map(\.mutationID))
+        for (id, receipt) in state.versionedAcknowledgements {
+            guard id == receipt.mutation.mutationID, !pendingIDs.contains(id),
+                  let proof = effectiveProof(for: id, in: state),
+                  Self.proofsMatch(proof, try Self.duplicateProof(for: receipt.mutation)),
+                  state.rebasedMutations[id].map({ $0 == receipt.mutation }) ?? true,
+                  receipt.token == (try SyncMutationVersionToken(mutation: receipt.mutation,
+                    journalRevision: state.revisions[id] ?? 0)) else {
+                throw SyncMutationJournalError.corrupt
+            }
+        }
+    }
+
+    /// Size both the append state and the eventual compacted checkpoint before
+    /// any durable intent. Project new shards in memory with their exact roots.
+    private func preflightConflictPersistence(_ state: LoadedState, frames: [SyncJournalFrame]) throws {
+        var projected = state
+        var shardBytes = 0
+        for index in 0..<state.proofShardCount {
+            guard let data = try readArtifact(proofShardURL(index), maximumBytes: Self.maximumEncodedBytes) else {
+                throw SyncMutationJournalError.corrupt
+            }
+            shardBytes += data.count
+            guard shardBytes <= Self.maximumEncodedBytes else { throw SyncMutationJournalError.tooLarge }
+        }
+        for start in stride(from: 0, to: state.unpersistedProofs.count, by: Self.proofShardEntryLimit) {
+            guard projected.proofShardCount < Self.maximumProofShardCount else { throw SyncMutationJournalError.tooLarge }
+            let proofs = Array(state.unpersistedProofs[start..<min(start + Self.proofShardEntryLimit, state.unpersistedProofs.count)])
+            let data = try encodeProofShard(index: projected.proofShardCount, proofs: proofs)
+            shardBytes += data.count
+            guard shardBytes <= Self.maximumEncodedBytes else { throw SyncMutationJournalError.tooLarge }
+            for (offset, proof) in proofs.enumerated() {
+                projected.proofLocationsByMutationID[proof.mutationID] = .init(shardIndex: projected.proofShardCount, offset: offset)
+            }
+            projected.proofShardRoot = Self.proofShardRoot(appending: data, index: projected.proofShardCount, to: projected.proofShardRoot)
+            projected.proofsByShard.append(proofs)
+            projected.proofShardCount += 1
+        }
+        for id in state.cleanupCompletion.completedUnpersistedMutationIDs {
+            guard let location = projected.proofLocationsByMutationID[id] else { throw SyncMutationJournalError.corrupt }
+            Self.markCleanupCompleted(location, completion: &projected.cleanupCompletion, counters: SyncJournalIOCounters())
+        }
+        projected.cleanupCompletion.completedUnpersistedMutationIDs = []
+        let checkpoint = try encodeCheckpoint(conflictCheckpoint(for: projected))
+        let appended = try encodeFrames(frames)
+        let existingCheckpointBytes = try readArtifact(checkpointURL, maximumBytes: Self.maximumEncodedBytes)?.count ?? 0
+        guard checkpoint.count <= Self.maximumEncodedBytes - shardBytes,
+              state.validSegmentByteCount <= Self.maximumEncodedBytes - appended.count,
+              checkpoint.count + shardBytes <= Self.maximumEncodedBytes - state.validSegmentByteCount - appended.count,
+              existingCheckpointBytes + shardBytes <= Self.maximumEncodedBytes - state.validSegmentByteCount - appended.count else {
+            throw SyncMutationJournalError.tooLarge
+        }
+    }
+
+    private func conflictCheckpoint(for state: LoadedState) throws -> SyncJournalCheckpoint {
+        SyncJournalCheckpoint(version: state.usesCheckpointV5 ? 5 : 4,
+            throughSequence: state.nextSequence - 1, pending: state.pending,
+            proofShardCount: state.proofShardCount, proofShardRoot: state.proofShardRoot,
+            cleanupCompletion: try checkpointCleanupCompletion(from: state.cleanupCompletion),
+            rebaseHistory: state.rebaseHistory,
+            rebaseHistoryHeadSHA256: state.rebaseHistoryHeadSHA256,
+            versionedAcknowledgements: state.versionedAcknowledgements.values.sorted {
+                Self.identityPrecedes($0.mutation.identity, $1.mutation.identity)
+            })
+    }
+
+    public func acknowledgeCurrentVersion(_ token: SyncMutationVersionToken) throws -> SyncVersionedAcknowledgementResult {
+        try withJournalCoordination {
+            var state = try conflictStateLocked()
+            guard let current = try versionedPending(in: state).first(where: { $0.mutation.identity == token.identity }) else {
+                guard state.versionedAcknowledgements[token.identity.mutationID]?.token == token else { return .staleVersion }
+                try repairDurabilityIfNeededLocked(state)
+                try reconcileAcknowledgedAttachmentsLocked()
+                return .alreadyAcknowledged
+            }
+            guard current.token == token else { return .staleVersion }
+            let frame = try makeFrame(sequence: state.nextSequence, kind: .versionedAcknowledgement, value: token)
+            try apply(frame, to: &state)
+            try preflightConflictPersistence(state, frames: [frame])
+            try repairDurabilityIfNeededLocked(state)
+            try appendReconcilingMemoryLocked([frame], candidate: state)
+            try reconcileAcknowledgedAttachmentsLocked()
+            return .acknowledged
+        }
+    }
+
     /// Only used while the caller retains exclusive account ownership/freeze.
     /// No parent creation, legacy migration, durability repair or acknowledged
     /// source reclamation occurs here. The concrete URL binds replay ownership.
@@ -1102,6 +1345,9 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         guard !identities.isEmpty else { return }
         try withJournalCoordination {
             var candidate = try preparedStateLocked()
+            guard !identities.contains(where: { candidate.revisions[$0.mutationID] != nil }) else {
+                throw SyncConflictError.missingAuthority
+            }
             let removed = candidate.pending.filter { identities.contains($0.identity) }
             guard !removed.isEmpty else {
                 try compactIfNeededLocked()
@@ -1226,7 +1472,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             totalBytes += checkpointData.count
             checkpoint = try decodeCheckpoint(checkpointData)
         }
-        guard (1...4).contains(checkpoint.version),
+        guard (1...5).contains(checkpoint.version),
               checkpoint.throughSequence < UInt64.max,
               checkpoint.proofShardCount >= 0,
               checkpoint.proofShardCount <= Self.maximumProofShardCount,
@@ -1288,23 +1534,39 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                     )
                 }
             }
-            if checkpoint.version == 4, checkpoint.proofShardRoot != proofShardRoot {
+            if checkpoint.version >= 4, checkpoint.proofShardRoot != proofShardRoot {
                 throw SyncMutationJournalError.corrupt
             }
         }
+        var historyState = LoadedState.empty
+        historyState.seenByMutationID = seen
+        historyState.proofsByShard = proofsByShard
+        historyState.unpersistedProofs = unpersistedProofs
+        for transition in checkpoint.rebaseHistory { try applyRebaseHistory(transition, to: &historyState) }
+        guard checkpoint.rebaseHistoryHeadSHA256 == historyState.rebaseHistoryHeadSHA256 else {
+            throw SyncMutationJournalError.corrupt
+        }
         var pending: [SyncMutation] = []
+        var uniquePendingIDs = Set<UUID>()
         for mutation in checkpoint.pending {
             let validated = try mutation.validatedForJournalLoad()
             let proof = try Self.duplicateProof(for: validated)
-            if let historical = seen[validated.mutationID] {
+            guard uniquePendingIDs.insert(validated.mutationID).inserted else { throw SyncMutationJournalError.corrupt }
+            guard historyState.rebasedMutations[validated.mutationID].map({ $0 == validated }) ?? true else {
+                throw SyncMutationJournalError.corrupt
+            }
+            if let historical = historyState.rebasedProofs[validated.mutationID] ?? seen[validated.mutationID] {
                 guard Self.proofsMatch(historical, proof) else {
                     throw SyncMutationJournalError.corrupt
                 }
             } else {
+                guard checkpoint.version < 5 else { throw SyncMutationJournalError.corrupt }
                 seen[validated.mutationID] = proof
                 unpersistedProofs.append(proof)
             }
-            try validateSource(validated)
+            // Frames may durably ACK this checkpoint entry and remove its
+            // staged bytes. Verify only the effective pending sources below,
+            // after replay has validated that exact ACK authority.
             pending.append(validated)
         }
         var seenCleanupIntents = Set<SyncAttachmentCleanupIntent>()
@@ -1347,6 +1609,22 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             validSegmentByteCount: 0,
             hasPartialFinalFrame: false
         )
+        state.rebaseHistory = historyState.rebaseHistory
+        state.rebasedProofs = historyState.rebasedProofs
+        state.rebasedMutations = historyState.rebasedMutations
+        state.revisions = historyState.revisions
+        state.usesCheckpointV5 = checkpoint.version == 5
+        var previousReceiptIdentity: SyncMutationIdentity?
+        for receipt in checkpoint.versionedAcknowledgements {
+            let identity = receipt.mutation.identity
+            guard state.versionedAcknowledgements[identity.mutationID] == nil,
+                  previousReceiptIdentity.map({ Self.identityPrecedes($0, identity) }) ?? true else {
+                throw SyncMutationJournalError.corrupt
+            }
+            state.versionedAcknowledgements[identity.mutationID] = receipt
+            previousReceiptIdentity = identity
+        }
+        try validateVersionedReceipts(in: state)
 
         if let segmentData = try readSnapshotArtifact(segmentURL) {
             totalBytes += segmentData.count
@@ -1356,12 +1634,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             try replaySegment(segmentData, after: checkpoint.throughSequence, into: &state)
         }
         try Self.validateAttachmentLineage(
-            proofs: state.proofsByShard.flatMap { $0 } + state.unpersistedProofs,
+            proofs: state.proofsByShard.flatMap { $0 } + state.unpersistedProofs
+                + (try state.rebaseHistory.flatMap(\.after).map(Self.duplicateProof(for:))),
             failure: .corrupt
         )
         for mutation in state.pending {
             try validateSource(mutation)
         }
+        try validateVersionedReceipts(in: state)
         try validateCleanupCompletion(in: state)
         if readOnly { return state }
         if checkpoint.version == 1 {
@@ -1375,6 +1655,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func replaceLegacyHistoryCheckpointLocked(_ state: inout LoadedState) throws {
+        if state.usesCheckpointV5 { try preflightConflictPersistence(state, frames: []) }
         let persistedProofs = state.unpersistedProofs
         var proofShardCount = 0
         var proofShardRoot = SyncJournalCheckpoint.emptyProofShardRoot
@@ -1401,11 +1682,17 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
         let throughSequence = state.nextSequence - 1
         try atomicWrite(try encodeCheckpoint(SyncJournalCheckpoint(
+            version: state.usesCheckpointV5 ? 5 : 4,
             throughSequence: throughSequence,
             pending: state.pending,
             proofShardCount: proofShardCount,
             proofShardRoot: proofShardRoot,
-            cleanupIntents: []
+            cleanupIntents: [],
+            rebaseHistory: state.rebaseHistory,
+            rebaseHistoryHeadSHA256: state.rebaseHistoryHeadSHA256,
+            versionedAcknowledgements: state.versionedAcknowledgements.values.sorted {
+                Self.identityPrecedes($0.mutation.identity, $1.mutation.identity)
+            }
         )), checkpointURL)
         counters.recordCheckpointRewrite()
         try atomicWrite(Data(), segmentURL)
@@ -1518,6 +1805,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     ) throws {
         var appendWasAttempted = false
         do {
+            if candidate.usesCheckpointV5 { try preflightConflictPersistence(candidate, frames: frames) }
             let encoded = try encodeFrames(frames)
             let current = try stateLocked()
             if current.hasPartialFinalFrame {
@@ -1651,17 +1939,11 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func persistCheckpointLocked(_ state: inout LoadedState) throws {
+        if state.usesCheckpointV5 { try preflightConflictPersistence(state, frames: []) }
         try publishUnpersistedProofShardsLocked(&state)
         normalizeCleanupCompletion(in: &state)
         let throughSequence = state.nextSequence - 1
-        let checkpoint = SyncJournalCheckpoint(
-            throughSequence: throughSequence,
-            pending: state.pending,
-            proofShardCount: state.proofShardCount,
-            proofShardRoot: state.proofShardRoot,
-            cleanupIntents: [],
-            cleanupCompletion: try checkpointCleanupCompletion(from: state.cleanupCompletion)
-        )
+        let checkpoint = try conflictCheckpoint(for: state)
         try atomicWrite(try encodeCheckpoint(checkpoint), checkpointURL)
         counters.recordCheckpointRewrite()
         try atomicWrite(Data(), segmentURL)
@@ -1689,7 +1971,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func apply(_ frame: SyncJournalFrame, to state: inout LoadedState) throws {
-        guard frame.sequence == state.nextSequence else {
+        guard frame.sequence == state.nextSequence, state.nextSequence < UInt64.max else {
             throw SyncMutationJournalError.corrupt
         }
         switch frame.kind {
@@ -1704,7 +1986,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 throw SyncMutationJournalError.corrupt
             }
             let proof = try Self.duplicateProof(for: mutation)
-            if let existing = state.seenByMutationID[mutation.mutationID] {
+            if let existing = effectiveProof(for: mutation.mutationID, in: state) {
                 guard Self.proofsMatch(existing, proof) else {
                     throw SyncMutationJournalError.corrupt
                 }
@@ -1725,7 +2007,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             } catch {
                 throw SyncMutationJournalError.corrupt
             }
-            guard let index = state.pending.firstIndex(where: { $0.identity == identity }) else {
+            guard state.revisions[identity.mutationID] == nil,
+                  let index = state.pending.firstIndex(where: { $0.identity == identity }) else {
                 throw SyncMutationJournalError.corrupt
             }
             if let cleanup = Self.cleanupIntent(for: state.pending[index]) {
@@ -1738,6 +2021,45 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 }
             }
             state.pending.remove(at: index)
+            state.acknowledgedOperationCount += 1
+            state.framesSinceCheckpoint += 1
+        case .rebase:
+            let transition: SyncJournalRebaseTransition
+            do { transition = try JSONDecoder().decode(SyncJournalRebaseTransition.self, from: frame.payload) }
+            catch { throw SyncMutationJournalError.corrupt }
+            let current = try versionedPending(in: state)
+            guard try SyncConflictRebaseCoding.pendingDigest(current) == transition.predecessorPendingSHA256,
+                  current.indices.filter({ current[$0].mutation.recordID == transition.input.serverRecord.id }) == transition.recordPositions,
+                  transition.recordPositions.allSatisfy({ current.indices.contains($0) }),
+                  transition.recordPositions.map({ current[$0].mutation }) == transition.before,
+                  transition.recordPositions.map({ current[$0].token }) == transition.beforeVersions else {
+                throw SyncMutationJournalError.corrupt
+            }
+            try applyRebaseHistory(transition, to: &state)
+            for (index, position) in transition.recordPositions.enumerated() {
+                state.pending[position] = transition.after[index]
+            }
+            state.framesSinceCheckpoint += 1
+        case .versionedAcknowledgement:
+            let token: SyncMutationVersionToken
+            do { token = try JSONDecoder().decode(SyncMutationVersionToken.self, from: frame.payload) }
+            catch { throw SyncMutationJournalError.corrupt }
+            guard let index = state.pending.firstIndex(where: { $0.identity == token.identity }),
+                  token == (try SyncMutationVersionToken(mutation: state.pending[index],
+                    journalRevision: state.revisions[token.identity.mutationID] ?? 0)),
+                  state.versionedAcknowledgements[token.identity.mutationID] == nil else {
+                throw SyncMutationJournalError.corrupt
+            }
+            let current = try SyncVersionedMutation(mutation: state.pending[index], token: token)
+            state.versionedAcknowledgements[token.identity.mutationID] = current
+            // The issued proof retains the staged-file obligation even when
+            // a rebase adds a tombstone whose effective payload has no source.
+            if let issued = state.seenByMutationID[token.identity.mutationID],
+               let cleanup = Self.cleanupIntent(for: issued) {
+                state.cleanupIntentsByMutationID[cleanup.mutationID] = cleanup
+            }
+            state.pending.remove(at: index)
+            state.usesCheckpointV5 = true
             state.acknowledgedOperationCount += 1
             state.framesSinceCheckpoint += 1
         case .cleanupCompletion:
@@ -2219,6 +2541,15 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         var acknowledgedOperationCount: Int
         var validSegmentByteCount: Int
         var hasPartialFinalFrame: Bool
+        var rebaseHistory: [SyncJournalRebaseTransition] = []
+        var rebasedProofs: [UUID: SyncMutationDuplicateProof] = [:]
+        var rebasedMutations: [UUID: SyncMutation] = [:]
+        var revisions: [UUID: UInt64] = [:]
+        var versionedAcknowledgements: [UUID: SyncVersionedMutation] = [:]
+        var usesCheckpointV5 = false
+        var rebaseHistoryHeadSHA256: Data {
+            rebaseHistory.last?.integrity ?? SyncConflictRebaseCoding.emptyRebaseHistoryHeadSHA256
+        }
 
         static let empty = LoadedState(
             pending: [],
@@ -2476,6 +2807,17 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         static let currentVersion = 2
         let version: Int
         let mutations: [SyncMutation]
+    }
+
+    /// Determines the exact staged authority without creating a directory or
+    /// copying bytes, so projected v5 capacity is checked before staging.
+    private func stagedAttachmentMetadata(for mutation: SyncMutation) throws -> SyncMutation {
+        guard let source = mutation.attachmentSource, !source.isJournalStaged else { return mutation }
+        let versionID = try requiredAttachmentVersionID(in: mutation)
+        let destination = attachmentsDirectory.appendingPathComponent(
+            "\(mutation.mutationID.uuidString)-\(versionID.uuidString).asset", isDirectory: false)
+        return try mutation.replacingAttachmentSource(.init(fileURL: destination,
+            contentSHA256: source.contentSHA256, byteCount: source.byteCount, isJournalStaged: true))
     }
 
     private func stageAttachmentIfNeeded(for mutation: SyncMutation) throws -> SyncMutation {

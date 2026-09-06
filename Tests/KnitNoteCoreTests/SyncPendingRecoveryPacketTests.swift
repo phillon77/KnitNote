@@ -187,6 +187,10 @@ private final class PacketVaultKeys: SyncRecoveryVaultKeychain, @unchecked Senda
 private struct PacketJournalSnapshot: SyncMutationJournalProtocol {
     let mutations: [SyncMutation]
     func pending() throws -> [SyncMutation] { mutations }
+    func pendingVersioned() throws -> [SyncVersionedMutation] { throw SyncConflictError.missingAuthority }
+    func acknowledgeCurrentVersion(_ token: SyncMutationVersionToken) throws -> SyncVersionedAcknowledgementResult {
+        throw SyncConflictError.missingAuthority
+    }
     func enqueue(_ mutations: [SyncMutation]) throws { throw SyncMutationJournalError.corrupt }
     func acknowledge(_ identities: Set<SyncMutationIdentity>) throws { throw SyncMutationJournalError.corrupt }
 }

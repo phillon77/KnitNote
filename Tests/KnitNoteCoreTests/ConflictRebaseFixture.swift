@@ -14,21 +14,19 @@ struct ConflictRebaseFixture {
     }
 
     func input(attemptID: UUID = UUID()) throws -> SyncConflictInput {
-        let pending = try base.journal.pending()
-        guard let failedMutation = pending.first else {
+        let versioned = try base.journal.pendingVersioned()
+        guard let failed = versioned.first else {
             throw ConflictRebaseFixtureError.missingPendingMutation
         }
         let serverRecord = try base.renamedBatch("Server", id: UUID()).records[0]
         return try SyncConflictInput(
             accountIDHash: base.account.accountIDHash,
             failedAttemptID: attemptID,
-            failedMutation: failedMutation,
-            failedVersion: SyncMutationVersionToken(mutation: failedMutation),
+            failedMutation: failed.mutation,
+            failedVersion: failed.token,
             serverRecord: serverRecord,
-            expectedRecordQueue: pending,
-            expectedVersions: try pending.map {
-                try SyncMutationVersionToken(mutation: $0)
-            }
+            expectedRecordQueue: versioned.map(\.mutation),
+            expectedVersions: versioned.map(\.token)
         )
     }
 

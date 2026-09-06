@@ -5,6 +5,22 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncMutationJournalSegmentTests {
+    @Test func revisionZeroVersionedACKRetainsExactProofThroughCompaction() throws {
+        let fixture = try SegmentedJournalFixture()
+        let original = fixture.mutation(index: 900_000)
+        try fixture.journal.enqueue(original)
+        let token = try #require(fixture.journal.pendingVersioned().first?.token)
+        #expect(try fixture.journal.acknowledgeCurrentVersion(token) == .acknowledged)
+        for index in 0..<130 {
+            let mutation = fixture.mutation(index: index)
+            try fixture.journal.enqueue(mutation)
+            try fixture.journal.acknowledge([mutation.identity])
+        }
+        #expect(try fixture.reopened().acknowledgeCurrentVersion(token) == .alreadyAcknowledged)
+        #expect(try fixture.reopened().acknowledgeCurrentVersion(SyncMutationVersionToken(
+            mutation: original, journalRevision: 1)) == .staleVersion)
+    }
+
     @Test func twoThousandSequentialOperationsDoNotRewriteEverySuffix() throws {
         let fixture = try SegmentedJournalFixture()
         for index in 0..<2_000 {
@@ -59,7 +75,7 @@ import Testing
         try fixture.journal.acknowledge([tombstone.identity])
         let staleLive = try SyncMutation.save(
             recordVersion: try #require(live.savedRecordVersion),
-            attachmentSource: try #require(live.attachmentSource),
+            attachmentSource: live.attachmentSource,
             mutationID: UUID()
         )
 

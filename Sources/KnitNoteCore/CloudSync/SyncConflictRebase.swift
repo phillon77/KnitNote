@@ -351,6 +351,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
     let transactionID: UUID
     let input: SyncConflictInput
     let predecessorPendingSHA256: Data
+    let predecessorRebaseHeadSHA256: Data
     let recordPositions: [Int]
     let before: [SyncMutation]
     let after: [SyncMutation]
@@ -362,6 +363,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
         transactionID: UUID,
         input: SyncConflictInput,
         predecessorPendingSHA256: Data,
+        predecessorRebaseHeadSHA256: Data = SyncConflictRebaseCoding.emptyRebaseHistoryHeadSHA256,
         recordPositions: [Int],
         before: [SyncMutation],
         after: [SyncMutation],
@@ -372,6 +374,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
         self.transactionID = transactionID
         self.input = input
         self.predecessorPendingSHA256 = predecessorPendingSHA256
+        self.predecessorRebaseHeadSHA256 = predecessorRebaseHeadSHA256
         self.recordPositions = recordPositions
         self.before = before
         self.after = after
@@ -382,6 +385,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
             transactionID: transactionID,
             input: input,
             predecessorPendingSHA256: predecessorPendingSHA256,
+            predecessorRebaseHeadSHA256: predecessorRebaseHeadSHA256,
             recordPositions: recordPositions,
             before: before,
             after: after,
@@ -393,7 +397,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case version, transactionID, input, predecessorPendingSHA256
+        case version, transactionID, input, predecessorPendingSHA256, predecessorRebaseHeadSHA256
         case recordPositions, before, after, beforeVersions, afterVersions, integrity
     }
 
@@ -407,6 +411,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
                 Data.self,
                 forKey: .predecessorPendingSHA256
             )
+            predecessorRebaseHeadSHA256 = try container.decode(Data.self, forKey: .predecessorRebaseHeadSHA256)
             recordPositions = try container.decode([Int].self, forKey: .recordPositions)
             before = try container.decode([SyncMutation].self, forKey: .before)
             after = try container.decode([SyncMutation].self, forKey: .after)
@@ -425,6 +430,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
                 transactionID: transactionID,
                 input: input,
                 predecessorPendingSHA256: predecessorPendingSHA256,
+                predecessorRebaseHeadSHA256: predecessorRebaseHeadSHA256,
                 recordPositions: recordPositions,
                 before: before,
                 after: after,
@@ -448,6 +454,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
             transactionID: transactionID,
             input: input,
             predecessorPendingSHA256: predecessorPendingSHA256,
+            predecessorRebaseHeadSHA256: predecessorRebaseHeadSHA256,
             recordPositions: recordPositions,
             before: before,
             after: after,
@@ -462,6 +469,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
         try container.encode(transactionID, forKey: .transactionID)
         try container.encode(input, forKey: .input)
         try container.encode(predecessorPendingSHA256, forKey: .predecessorPendingSHA256)
+        try container.encode(predecessorRebaseHeadSHA256, forKey: .predecessorRebaseHeadSHA256)
         try container.encode(recordPositions, forKey: .recordPositions)
         try container.encode(before, forKey: .before)
         try container.encode(after, forKey: .after)
@@ -472,7 +480,8 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
 
     func validated() throws -> Self {
         guard version == Self.currentVersion,
-              predecessorPendingSHA256.count == SHA256.byteCount else {
+              predecessorPendingSHA256.count == SHA256.byteCount,
+              predecessorRebaseHeadSHA256.count == SHA256.byteCount else {
             throw SyncConflictError.invalidInput
         }
         _ = try input.validated()
@@ -512,6 +521,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
             transactionID: transactionID,
             input: input,
             predecessorPendingSHA256: predecessorPendingSHA256,
+            predecessorRebaseHeadSHA256: predecessorRebaseHeadSHA256,
             recordPositions: recordPositions,
             before: before,
             after: after,
@@ -530,6 +540,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
         transactionID: UUID,
         input: SyncConflictInput,
         predecessorPendingSHA256: Data,
+        predecessorRebaseHeadSHA256: Data,
         recordPositions: [Int],
         before: [SyncMutation],
         after: [SyncMutation],
@@ -541,6 +552,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
             transactionID: transactionID,
             input: input,
             predecessorPendingSHA256: predecessorPendingSHA256,
+            predecessorRebaseHeadSHA256: predecessorRebaseHeadSHA256,
             recordPositions: recordPositions,
             before: before,
             after: after,
@@ -557,6 +569,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
         let transactionID: UUID
         let input: SyncConflictInput
         let predecessorPendingSHA256: Data
+        let predecessorRebaseHeadSHA256: Data
         let recordPositions: [Int]
         let before: [SyncMutation]
         let after: [SyncMutation]
@@ -569,6 +582,7 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
         let transactionID: UUID
         let input: SyncConflictInput
         let predecessorPendingSHA256: Data
+        let predecessorRebaseHeadSHA256: Data
         let recordPositions: [Int]
         let before: [SyncMutation]
         let after: [SyncMutation]
@@ -579,6 +593,9 @@ struct SyncJournalRebaseTransition: Codable, Equatable, Sendable {
 }
 
 enum SyncConflictRebaseCoding {
+    static let emptyRebaseHistoryHeadSHA256 = Data(SHA256.hash(
+        data: Data("KnitNote.SyncMutationJournal.RebaseHistory.v1".utf8)))
+
     private struct MutationContent: Codable {
         let version: Int
         let identity: SyncMutationIdentity

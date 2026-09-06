@@ -4,10 +4,10 @@
 
 - Worktree: `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-device-sync-design`
 - Branch: `docs/cross-device-sync-design`
-- Task 2 base/current HEAD: `8abc55889bb1958dcf183d64a9f5955618be9e6c`; Task 2 changes are intentionally unstaged and uncommitted pending independent review.
+- Implementation commits: tracker `8abc55889bb1958dcf183d64a9f5955618be9e6c`, store integration `ef29ca2d4b4baa04f7f8ae72539c4ee2b0c3c43d`, final test hardening `7a1964b24e8eab1af4092a54194c9a1bb99d2558`.
 - Version: **1.7.0 (13)**.
-- Current file blob IDs before review: tracker `85bbd4e4430332b789ae89655c9a0c926ec09f47`; store `c2083730e887761518ceae2ab6569d76b43c5165`; tests `cbb7b97d735769031e996a65a289b3c0f1934647`; PBX `d447febe20840068521375df32234cb5d9963b78`.
-- Frozen source SHA, Sources tree, Tests tree, PBX identity, reviewer outcome, and final-candidate validation fields are **pending controller review/commit**.
+- Verified source content: Sources tree `ad88f139a76cfb6db371a583b9441a72963b428f`; Tests tree `895c72fcfb6e5ec1ad7778dd1fd5a47240d3dcde`; PBX blob `d447febe20840068521375df32234cb5d9963b78`. Tracker blob `85bbd4e4430332b789ae89655c9a0c926ec09f47`; store blob `c2083730e887761518ceae2ab6569d76b43c5165`; store tests blob `b846a3977917ed3a5636e5a045b727fd0c4bc39c`.
+- Full Core started at `7a1964b24e8eab1af4092a54194c9a1bb99d2558`. While the controller considered that job active, it saved the next-phase design in documentation-only commit `619e1bab7e3c9bd54ec1d8b5c3703cce9e02648f`. Source/test/PBX identities remained unchanged and were read back after both builds. This is evidence for the unchanged implementation content, **not an immutable release-candidate HEAD run**. Both platform builds used `619e1ba` with unchanged implementation content.
 - Scope is only per-store backup admission closure, accepted-work lifetime tracking, late-result rejection, and owned-artifact cleanup protection. The wait is not a health, cleanup, freeze, inventory, or account-opening receipt.
 
 ## TDD and focused evidence
@@ -35,15 +35,16 @@
 - A second independent store's complete fixture-root bytes remain unchanged until its explicit post-check edit.
 - Termination does not establish durable health or authorize recovery, cleanup, inventory capture, account switch, or new account opening.
 
-## Pending frozen-candidate validation
+## Controller validation completed 2026-09-07
 
-- Independent Task 1 and Task 2 precommit reviews: approved with no Critical/Important findings. Task 1's direct simultaneous-uncancelled-waiter coverage and Task 2's deterministic post-cancellation handshake coverage are non-blocking minors for final integration review triage.
-- Task 2 source commit: pending; expected controller message `feat(backup): drain accepted work after session revocation` after findings are resolved.
-- `swift test --no-parallel`: not run by Task 2 implementer; pending controller-owned final validation.
-- Unsigned macOS build-for-testing: not run by Task 2 implementer; pending controller-owned final validation.
-- Unsigned generic iOS build: not run by Task 2 implementer; pending controller-owned final validation.
-- Final immutable source/tree identity readback: pending controller commit and validation.
-- App/test-host execution, live service activation, physical-device acceptance, signing, installation, merge, push, upload, and submission: not run and not authorized.
+- Independent Task 1/Task 2/final integration review: approved with no Critical/Important findings. One consolidated tests-only fix wave addressed both deferred minors; scoped rereview approved with no residual finding.
+- Full `swift test --no-parallel`: **exit 0, 2,493 tests / 183 suites passed**, 1401.393 seconds test time, 1403.126 seconds total. Log `/tmp/backup-session-drain-final-core.log`; SHA256 `958ed414bfddb16c43b18ace2c441efed1a8961a4032dc3f8a27ca21acdb1837`.
+- Unsigned macOS `build-for-testing`: **exit 0, TEST BUILD SUCCEEDED**, 32.839 seconds total. Log `/tmp/backup-session-drain-final-macos.log`; SHA256 `c6a5593115325a8a2b91b25856836287563f45340c2014b83aae76d9a7c8486e`.
+- Unsigned generic iOS `build`: **exit 0, BUILD SUCCEEDED**, 41.835 seconds total; includes embedded Watch build. Log `/tmp/backup-session-drain-final-ios.log`; SHA256 `7efd421a77e3f7403cee7e363f1c9af2872fcc1b24a82daf1c61e985d8507b47`.
+- Toolchain: Xcode 26.6 (17F113), Apple Swift 6.3.3, arm64 macOS. Core and builds ran serially with 3600/900/900-second outer bounds; none timed out. No App/test-host execution occurred.
+- Diagnostic accounting: Core has no compiler `warning:` or Swift Testing failure lines, but four intentional missing-artifact provenance cases emit chained Python FileNotFoundError/ValueError tracebacks (eight traceback headers). Both platform logs contain three AppIntents metadata-extraction-skipped warnings; no compile errors. These are passing runs with retained diagnostic noise, not pristine logs.
+- Post-build HEAD `619e1bab7e3c9bd54ec1d8b5c3703cce9e02648f` and all source/test/PBX identities above were read back; worktree was clean before this report update.
+- App/test-host execution, live CloudKit/Keychain/Watch activation, physical-device acceptance, signing, installation, merge, push, upload and submission: **not performed**. This backup-only subplan does not complete phase 4 App integration or release acceptance.
 
 ## Final review test-hardening fix wave
 
@@ -58,4 +59,10 @@
 - Final focused covering GREEN: `swift test --filter 'BackupSessionWorkTrackerTests|StoreBackupSessionDrainTests'`; exit 0, 11 tests / 2 suites in 0.355 seconds, 10.454 seconds total. Log `/tmp/backup-session-drain-final-fix-covering-green.log`; SHA256 `b6979637c032d749f40afd5eb80d178322ddc628c7e27abd5b97893be62f9109`.
 - Final test blob identities before scoped rereview: `BackupSessionWorkTrackerTests.swift` `99407221ded452eee4dc5bb8f2bcbc27bd4995dd`; `JSONProjectStoreTests.swift` `b846a3977917ed3a5636e5a045b727fd0c4bc39c`.
 - The final focused log has zero warning/error/issue/timeout lines. No bounded run timed out. No affected/full Core or platform build was repeated in this fix wave.
-- Pending: controller scoped rereview, test/report commit, source freeze identity readback, then controller-owned full Core and unsigned platform validation. No release action occurred.
+- Completed: scoped rereview, test/report commit `7a1964b`, source-content identity readback and controller validation above. No release action occurred.
+
+## Integration disposition and next step
+
+Keep `docs/cross-device-sync-design` and its worktree/evidence intact. The user delegated routine overnight decisions; keep-as-is is the safe disposition while overall App session, background writer, UI, Watch, localization, real cloud/device and candidate/store gates remain incomplete. No base-branch merge target or release candidate is inferred.
+
+Next safe work is the implementation plan for `docs/superpowers/specs/2026-09-06-store-background-write-drain-design.md`, then its scoped TDD/review cycle. The new specification is design only. Same-task overnight continuation stops starting new work at 2026-09-07 08:00 Asia/Taipei.

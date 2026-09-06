@@ -214,6 +214,9 @@ import Testing
 
     @Test(arguments: ["completed", "canceled", "prepared", "publication"])
     func ledgerRestorationHistoryRequiresTerminalDiskAuthority(state: String) throws {
+        // Exercise construction, file encoding, validation and ledger recovery
+        // on the native cooperative worker, where nested value copies overflowed.
+        #expect(!Thread.isMainThread)
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let ledger = try SyncDeletionLedger(root: f.ledgerRoot)
         let deleted = try f.addDeletion(ledger: ledger, name: "restored project")
@@ -225,6 +228,7 @@ import Testing
             restorationWitness: .init(entryID: deleted.id, attemptID: UUID(), beforeArchiveSHA256: beforeHash))
         let publicationFile = SyncPublicationTransactionFile(archiveURL: f.archiveURL)
         try publicationFile.write(publication)
+        #expect(try publicationFile.load() == publication)
         try ledger.beginRestore(publication: publication)
         if state == "completed" || state == "publication" { try ledger.finishRestore(publication: publication) }
         if state == "canceled" {

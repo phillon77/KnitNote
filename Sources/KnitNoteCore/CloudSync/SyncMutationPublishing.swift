@@ -313,6 +313,31 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
     }
 
     func validated() throws -> Self {
+        try validateContents()
+        guard integrity == (try Self.integrity(
+            version: version,
+            expectedArchiveSHA256: expectedArchiveSHA256,
+            commitBoundary: commitBoundary,
+            artifactEvidence: artifactEvidence,
+            mutations: mutations,
+            revisionReceipts: revisionReceipts,
+            candidateAttachmentManifest: candidateAttachmentManifest,
+            deletionLedgerID: deletionLedgerID,
+            restorationWitness: restorationWitness,
+            canonicalTransition: canonicalTransition,
+            remoteSource: remoteSource,
+            conflictSource: conflictSource
+        )) else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        return self
+    }
+
+    // Release the large value-validation temporaries before integrity's nested
+    // encoding begins. Ledger recovery already holds its own publication copies
+    // on a bounded worker stack; these two phases must not share a stack frame.
+    @inline(never)
+    private func validateContents() throws {
         let validatedEvidence = try artifactEvidence.map { try $0.validated() }
         let validatedManifest = try candidateAttachmentManifest.map {
             try SyncAttachmentManifestStore.orderedEntries(
@@ -394,24 +419,9 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
               version == Self.legacyVersion
                 || (remoteSource != nil || conflictSource != nil
                     ? revisionReceipts.isEmpty : receiptsAreComplete),
-              candidateAttachmentManifest == validatedManifest,
-              integrity == (try Self.integrity(
-                  version: version,
-                  expectedArchiveSHA256: expectedArchiveSHA256,
-                  commitBoundary: commitBoundary,
-                  artifactEvidence: artifactEvidence,
-                  mutations: mutations,
-                  revisionReceipts: revisionReceipts,
-                  candidateAttachmentManifest: candidateAttachmentManifest,
-                  deletionLedgerID: deletionLedgerID,
-                  restorationWitness: restorationWitness,
-                  canonicalTransition: canonicalTransition,
-                  remoteSource: remoteSource,
-                  conflictSource: conflictSource
-              )) else {
+              candidateAttachmentManifest == validatedManifest else {
             throw SyncPublicationTransactionFileError.corrupt
         }
-        return self
     }
 
     private static func remoteSourceIsValid(

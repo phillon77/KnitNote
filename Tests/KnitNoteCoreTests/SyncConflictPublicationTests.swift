@@ -4,6 +4,51 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncConflictPublicationTests {
+    @Test(arguments: ["conflict", "remote", "restoration"])
+    func formatSevenWorkerEncodingRetainsPreStackFixIntegrity(shape: String) throws {
+        #expect(!Thread.isMainThread)
+        let transaction: SyncPublicationTransaction
+        switch shape {
+        case "conflict": transaction = try publicationFixture().transaction
+        case "remote":
+            let old = try JSONDecoder().decode(SyncPublicationTransaction.self,
+                from: #require(Data(base64Encoded: Self.preFormatSevenFixtures.last!.1)))
+            transaction = try SyncPublicationTransaction(expectedArchiveSHA256: old.expectedArchiveSHA256,
+                mutations: old.mutations, revisionReceipts: old.revisionReceipts,
+                canonicalTransition: old.canonicalTransition, remoteSource: old.remoteSource)
+        default:
+            let mutation = SyncMutation.delete(.init(kind: .project,
+                uuid: UUID(uuidString: "50000000-0000-0000-0000-000000000001")!),
+                mutationID: UUID(uuidString: "50000000-0000-0000-0000-000000000002")!)
+            transaction = try SyncPublicationTransaction(expectedArchiveSHA256: Data(repeating: 5, count: 32),
+                mutations: [mutation], revisionReceipts: [.init(entityID: mutation.recordID,
+                    mutationID: mutation.mutationID, logicalRevision: 1, deviceID: "stack-fixture")],
+                candidateAttachmentManifest: [], restorationWitness: .init(
+                    entryID: UUID(uuidString: "50000000-0000-0000-0000-000000000003")!,
+                    attemptID: UUID(uuidString: "50000000-0000-0000-0000-000000000004")!,
+                    beforeArchiveSHA256: Data(repeating: 4, count: 32)))
+        }
+        let bytes = try sortedEncoder().encode(transaction)
+        // Captured from the actual eee4af4 native writer before its private
+        // integrity payload storage changed; these are not recomputed oracles.
+        let expected = [
+            "conflict": ("NiKLsP9RFS6GhLVWkuKJ4A9M3C2dcGh5fYkloV1zKko=", "VEnQWiadW+45NzerLdRdPwJzYoc/75Sz4I3yMpqt368="),
+            "remote": ("3RWGhhdXdPIcvkkwJJgxa3m5FOiljP7Bcm8foJQPZQI=", "QqvhzUd1ptebTFhl0IfFRuvAwS7Zh1dtdeRW+GyvPI0="),
+            "restoration": ("cUqbEfqFGp6pWFHE3PnwIRAgCs5MDrA3tmp6+AMxWiM=", "Ml+FXt9NP6DDlxAoCGcnnPs50GZEBt0y7SHNKqknrK8=")
+        ][shape]!
+        #expect(transaction.integrity.base64EncodedString() == expected.0)
+        #expect(Data(SHA256.hash(data: bytes)).base64EncodedString() == expected.1)
+        let decoded = try JSONDecoder().decode(SyncPublicationTransaction.self, from: bytes).validated()
+        #expect(decoded == transaction)
+        #expect(try sortedEncoder().encode(decoded) == bytes)
+        var changed = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        changed["expectedArchiveSHA256"] = Data(repeating: 8, count: 32).base64EncodedString()
+        #expect(throws: (any Error).self) {
+            _ = try JSONDecoder().decode(SyncPublicationTransaction.self,
+                from: JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys])).validated()
+        }
+    }
+
     @Test func conflictFormatRoundTripsReconstructableGlobalFIFO() throws {
         let fixture = try publicationFixture()
 

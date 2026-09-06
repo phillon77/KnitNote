@@ -5,6 +5,83 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncMutationJournalFinalFixTests {
+    @Test(arguments: ["pendingVersioned", "acknowledge", "pending"])
+    func oversizedPersistedSourceRejectsBeforeReadingOrAcknowledging(operation: String) throws {
+        let fixture = try FinalFixJournalFixture()
+        let (bytes, original) = try independentCapAttachment(fixture, byteCount: 100_000_001)
+        let attachmentRoot = fixture.directory.appendingPathComponent(".journal.json.attachments")
+        try FileManager.default.createDirectory(at: attachmentRoot, withIntermediateDirectories: false)
+        let source = try #require(original.attachmentSource)
+        let stagedURL = attachmentRoot.appendingPathComponent("\(original.mutationID.uuidString)-\(original.recordID.uuid.uuidString).asset")
+        try bytes.write(to: stagedURL)
+        let staged = try original.replacingAttachmentSource(.init(fileURL: stagedURL,
+            contentSHA256: source.contentSHA256, byteCount: source.byteCount, isJournalStaged: true))
+        let segment = try nativeIssuedAttachmentFrame(staged)
+        try segment.write(to: fixture.url.appendingPathExtension("segment"))
+        let before = try fixture.authorityFingerprint()
+        let reads = LockedCounter()
+        let io = SyncRegularFileReaderIOCounters()
+        let journal = FileSyncMutationJournal(url: fixture.url,
+            reader: SyncRegularFileReader(beforeRead: { reads.increment() }, ioCounters: io))
+        #expect(throws: SyncMutationJournalError.invalidAttachment) {
+            switch operation {
+            case "acknowledge": _ = try journal.acknowledgeCurrentVersion(SyncMutationVersionToken(mutation: staged))
+            case "pending": _ = try journal.pending()
+            default: _ = try journal.pendingVersioned()
+            }
+        }
+        // This fresh fixture has exactly one metadata artifact, the native
+        // segment. All counted bytes beyond it would be attachment bytes.
+        #expect(reads.value == 1)
+        #expect(io.bytesRead - segment.count == 0)
+        #expect(try fixture.authorityFingerprint() == before)
+        #expect(FileManager.default.fileExists(atPath: stagedURL.path))
+    }
+
+    @Test func attachmentAtIndependentFileLimitCanScheduleAndAcknowledge() throws {
+        let fixture = try FinalFixJournalFixture()
+        let (bytes, original) = try independentCapAttachment(fixture, byteCount: 100_000_000)
+        let journal = FileSyncMutationJournal(url: fixture.url)
+        try journal.enqueue(original)
+        let current = try #require(journal.pendingVersioned().first)
+        let staged = try #require(current.mutation.attachmentSource?.fileURL)
+        let segment = try Data(contentsOf: fixture.url.appendingPathExtension("segment"))
+        // Ongoing valid control: the persisted-input fixture encoder is exactly
+        // the actual native writer, including mutation/source/checksum/trailer.
+        #expect(segment == (try nativeIssuedAttachmentFrame(current.mutation)))
+        #expect(try Data(contentsOf: staged) == bytes)
+        let io = SyncRegularFileReaderIOCounters()
+        let recovery = FileSyncMutationJournal(url: fixture.url, reader: SyncRegularFileReader(ioCounters: io))
+        #expect(throws: SyncMutationJournalError.tooLarge) {
+            _ = try recovery.recoverySnapshot(maximumBytes: 100_000_000)
+        }
+        // The file fits its independent limit, but file plus journal metadata
+        // exceeds explicit aggregate recovery capacity before source reading.
+        #expect(io.bytesRead - segment.count == 0)
+        #expect(try journal.acknowledgeCurrentVersion(current.token) == .acknowledged)
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
+        let reopened = FileSyncMutationJournal(url: fixture.url)
+        #expect(try reopened.pendingVersioned().isEmpty)
+        #expect(try reopened.acknowledgeCurrentVersion(current.token) == .alreadyAcknowledged)
+    }
+
+    @Test func oversizedNewSourceRejectsBeforeReadingOrCopying() throws {
+        let fixture = try FinalFixJournalFixture()
+        let (bytes, original) = try independentCapAttachment(fixture, byteCount: 100_000_001)
+        let reads = LockedCounter()
+        let io = SyncRegularFileReaderIOCounters()
+        let journal = FileSyncMutationJournal(url: fixture.url,
+            reader: SyncRegularFileReader(beforeRead: { reads.increment() }, ioCounters: io))
+        #expect(throws: SyncMutationJournalError.invalidAttachment) { try journal.enqueue(original) }
+        #expect(reads.value == 0 && io.bytesRead == 0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.url.appendingPathExtension("segment").path))
+        let attachmentRoot = fixture.directory.appendingPathComponent(".journal.json.attachments")
+        if FileManager.default.fileExists(atPath: attachmentRoot.path) {
+            #expect(try FileManager.default.contentsOfDirectory(atPath: attachmentRoot.path).isEmpty)
+        }
+        #expect(try Data(contentsOf: #require(original.attachmentSource).fileURL) == bytes)
+    }
+
     @Test func ordinaryVersionedSchedulingAndACKAcceptAggregateMediaAboveJournalEncodingLimit() throws {
         let fixture = try FinalFixJournalFixture()
         var bytes = Data(repeating: 32, count: 40_000_000)
@@ -473,6 +550,54 @@ private final class FinalFixJournalFixture {
     }
 
     deinit { try? FileManager.default.removeItem(at: directory) }
+
+    func authorityFingerprint() throws -> [String: String] {
+        let files = try #require(FileManager.default.enumerator(at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey]))
+        var result: [String: String] = [:]
+        for case let file as URL in files {
+            let attrs = try FileManager.default.attributesOfItem(atPath: file.path)
+            let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey])
+            let digest = values.isRegularFile == true
+                ? Data(SHA256.hash(data: try Data(contentsOf: file))).base64EncodedString() : "directory"
+            result[file.path] = "\(attrs[.systemFileNumber]!)|\(attrs[.size]!)|\(digest)"
+        }
+        return result
+    }
+}
+
+private func independentCapAttachment(_ fixture: FinalFixJournalFixture, byteCount: Int) throws -> (Data, SyncMutation) {
+    var bytes = Data(repeating: 32, count: byteCount)
+    bytes.replaceSubrange(0..<2, with: [123, 125]) // Valid JSON with a real matching digest.
+    let source = fixture.directory.appendingPathComponent("independent-cap.json")
+    try bytes.write(to: source)
+    return (bytes, try attachmentSave(slot: .init(owner: .init(kind: .project, uuid: UUID()),
+        role: "project-photo", slotID: "primary"), bytes: bytes, source: source))
+}
+
+// Native kind-1 format from c94d109's makeFrame/encodeFrames. Before the cap fix,
+// this helper was byte-compared with its actual 100,000,001-byte enqueue output.
+// It reconstructs that formerly accepted persisted input without bypassing any
+// production guard. The exact 100,000,000-byte control compares it with today's
+// actual native writer. Full staged mutation authority, not a fake hash, is used.
+private func nativeIssuedAttachmentFrame(_ mutation: SyncMutation) throws -> Data {
+    let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+    let payload = try encoder.encode(mutation)
+    var sequence = UInt64(1).bigEndian
+    var material = Data([1])
+    withUnsafeBytes(of: &sequence) { material.append(contentsOf: $0) }
+    material.append(SyncJournalFrameKind.enqueue.rawValue)
+    material.append(payload)
+    let frame = SyncJournalFrame(sequence: 1, kind: .enqueue, payload: payload,
+        checksum: Data(SHA256.hash(data: material)))
+    let body = try encoder.encode(frame)
+    var length = UInt64(body.count).bigEndian
+    var segment = Data()
+    withUnsafeBytes(of: &length) { segment.append(contentsOf: $0) }
+    segment.append(body)
+    withUnsafeBytes(of: &length) { segment.append(contentsOf: $0) }
+    segment.append(Data([0x4b, 0x4e, 0x4a, 0x46, 0x52, 0x4d, 0x31, 0x21]))
+    return segment
 }
 
 private func projectSave(

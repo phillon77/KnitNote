@@ -2959,8 +2959,10 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         expectedByteCount: Int64,
         expectedSHA256: Data
     ) throws -> Data {
+        // A caller's declared length cannot enlarge the independent file limit.
         guard expectedByteCount >= 0,
-              expectedByteCount <= Int64(Int.max) else {
+              expectedByteCount <= Int64(Int.max),
+              expectedByteCount <= Int64(SyncPublicationFileLimits.maximumAttachmentBytes) else {
             throw SyncMutationJournalError.invalidAttachment
         }
         do {

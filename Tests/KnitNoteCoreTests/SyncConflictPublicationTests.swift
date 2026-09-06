@@ -316,6 +316,145 @@ struct SyncConflictPublicationTests {
         }
     }
 
+    @Test @MainActor
+    func liveRawAttachmentDeleteSurvivesRoundTripAndRealLeaseWrite() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let journalURL = root.appendingPathComponent("pending.json")
+        let journal = FileSyncMutationJournal(url: journalURL)
+        let fixture = try attachmentPublicationFixture(
+            outcome: .delete,
+            journal: journal,
+            journalURL: journalURL
+        )
+        let result = try await Task.detached {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let encoded = try encoder.encode(fixture.transaction)
+            let decoded = try JSONDecoder().decode(
+                SyncPublicationTransaction.self,
+                from: encoded
+            ).validated()
+            let file = SyncPublicationTransactionFile(
+                archiveURL: root.appendingPathComponent("projects.json")
+            )
+            try journal.withExclusivePending { lease in
+                try file.write(decoded, preflightingWith: lease)
+            }
+            return (encoded: encoded, decoded: decoded, written: try Data(contentsOf: file.url))
+        }.value
+
+        #expect(result.decoded == fixture.transaction)
+        #expect(result.decoded.conflictSource?.plan.files.count == 1)
+        #expect(result.decoded.artifactEvidence.count == 1)
+        #expect(result.decoded.conflictSource?.plan.records.first?.payload.attachment
+            == result.decoded.conflictSource?.plan.files.first?.version)
+        #expect(result.decoded.canonicalTransition?.candidate.records.isEmpty == true)
+        #expect(result.written == result.encoded)
+        #expect(try journal.pendingVersioned() == fixture.before)
+    }
+
+    @Test @MainActor
+    func liveRawAttachmentTombstoneSurvivesRoundTripAndRealLeaseWrite() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let journalURL = root.appendingPathComponent("pending.json")
+        let journal = FileSyncMutationJournal(url: journalURL)
+        let fixture = try attachmentPublicationFixture(
+            outcome: .tombstone,
+            journal: journal,
+            journalURL: journalURL
+        )
+        let result = try await Task.detached {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let encoded = try encoder.encode(fixture.transaction)
+            let decoded = try JSONDecoder().decode(
+                SyncPublicationTransaction.self,
+                from: encoded
+            ).validated()
+            let file = SyncPublicationTransactionFile(
+                archiveURL: root.appendingPathComponent("projects.json")
+            )
+            try journal.withExclusivePending { lease in
+                try file.write(decoded, preflightingWith: lease)
+            }
+            return (encoded: encoded, decoded: decoded, written: try Data(contentsOf: file.url))
+        }.value
+
+        #expect(result.decoded == fixture.transaction)
+        #expect(result.decoded.conflictSource?.plan.files.count == 1)
+        #expect(result.decoded.artifactEvidence.count == 1)
+        #expect(result.decoded.conflictSource?.plan.records.first?.payload.attachment
+            == result.decoded.conflictSource?.plan.files.first?.version)
+        #expect(result.decoded.canonicalTransition?.candidate.records.count == 1)
+        #expect(result.decoded.canonicalTransition?.candidate.records.first?.deletedAt.value != nil)
+        #expect(result.written == result.encoded)
+        #expect(try journal.pendingVersioned() == fixture.before)
+    }
+
+    @Test func conflictMediaPlanRejectsFileWithNoRawOrLiveCandidatePurpose() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let journalURL = root.appendingPathComponent("pending.json")
+        let journal = FileSyncMutationJournal(url: journalURL)
+        let fixture = try attachmentPublicationFixture(
+            outcome: .delete,
+            journal: journal,
+            journalURL: journalURL
+        )
+        let bytes = Data("unreferenced media".utf8)
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let version = try SyncAttachmentVersion.issuing(
+            slot: .init(owner: owner, role: "project-photo", slotID: "unreferenced"),
+            contentSHA256: Data(SHA256.hash(data: bytes)),
+            byteCount: Int64(bytes.count),
+            mediaType: "image/jpeg",
+            displayFilename: "unreferenced.jpg"
+        )
+        let unreferenced = SyncRemoteInstallFile(
+            relativePath: "Photos/\(version.versionID.uuidString).jpg",
+            version: version,
+            data: bytes
+        )
+        let changedPlan = copy(
+            fixture.source.plan,
+            files: fixture.source.plan.files + [unreferenced]
+        )
+        let changedSource = try SyncConflictPublicationSource(
+            input: fixture.source.input,
+            transition: fixture.source.transition,
+            plan: changedPlan,
+            beforePending: fixture.source.beforePending,
+            afterPending: fixture.source.afterPending,
+            beforeVersions: fixture.source.beforeVersions,
+            afterVersions: fixture.source.afterVersions
+        )
+        let candidate = try #require(fixture.transaction.canonicalTransition?.candidate)
+        let evidence = try changedPlan.files.map {
+            try SyncPublicationArtifactEvidence(
+                relativePath: $0.relativePath,
+                expectedSHA256: $0.version.contentSHA256
+            )
+        }
+
+        #expect(throws: (any Error).self) {
+            _ = try SyncPublicationTransaction(
+                expectedArchiveSHA256: candidate.archiveSHA256,
+                mutations: [],
+                artifactEvidence: evidence,
+                revisionReceipts: [],
+                canonicalTransition: .init(
+                    predecessorSHA256: Data(SHA256.hash(
+                        data: try changedPlan.predecessor.encoded()
+                    )),
+                    candidate: candidate
+                ),
+                conflictSource: changedSource
+            )
+        }
+    }
+
     @Test func changedTransitionDigestIsRejectedOnDecode() throws {
         let fixture = try publicationFixture()
         var object = try #require(
@@ -410,13 +549,15 @@ struct SyncConflictPublicationTests {
         let journal = FileSyncMutationJournal(url: journalURL)
         let empty = try publicationFixture(journalURL: journalURL, archive: Data())
         let overhead = try sortedEncoder().encode(empty.transaction).count
-        let archiveByteCount = ((100_000_000 - overhead) / 4) * 3 + 1
+        let estimatedLimitArchiveByteCount = ((100_000_000 - overhead) / 4) * 3 + 1
+        let belowArchiveByteCount = estimatedLimitArchiveByteCount - 32
         let below = try publicationFixture(
             journalURL: journalURL,
-            archive: Data(repeating: 1, count: archiveByteCount)
+            archive: Data(repeating: 1, count: belowArchiveByteCount)
         )
         let belowBytes = try sortedEncoder().encode(below.transaction)
-        #expect(belowBytes.count == 99_999_999)
+        #expect(belowBytes.count < 100_000_000)
+        #expect(belowBytes.count >= 99_999_900)
         try journal.enqueue(below.before.map(\.mutation))
         let file = SyncPublicationTransactionFile(
             archiveURL: root.appendingPathComponent("projects.json")
@@ -430,7 +571,7 @@ struct SyncConflictPublicationTests {
 
         let over = try publicationFixture(
             journalURL: journalURL,
-            archive: Data(repeating: 1, count: archiveByteCount + 100)
+            archive: Data(repeating: 1, count: estimatedLimitArchiveByteCount + 100)
         )
         #expect(try sortedEncoder().encode(over.transaction).count > 100_000_000)
         #expect(throws: (any Error).self) {
@@ -617,6 +758,169 @@ struct SyncConflictPublicationTests {
         )
     }
 
+    private func attachmentPublicationFixture(
+        outcome: AttachmentConflictOutcome,
+        journal: FileSyncMutationJournal,
+        journalURL: URL
+    ) throws -> ConflictPublicationFixture {
+        let bytes = Data("required raw conflict media".utf8)
+        let digest = Data(SHA256.hash(data: bytes))
+        let owner = SyncEntityID(kind: .project, uuid: UUID())
+        let version = try SyncAttachmentVersion.issuing(
+            slot: .init(owner: owner, role: "project-photo", slotID: "cover"),
+            contentSHA256: digest,
+            byteCount: Int64(bytes.count),
+            mediaType: "image/jpeg",
+            displayFilename: "cover.jpg"
+        )
+        let stamp = SyncMutationStamp(
+            logicalRevision: 1,
+            modifiedAt: Date(timeIntervalSinceReferenceDate: 1),
+            deviceID: "conflict-media"
+        )
+        let serverRecord = SyncRecord(
+            schemaVersion: 1,
+            id: .init(kind: .attachment, uuid: version.versionID),
+            createdAt: stamp.modifiedAt,
+            entityRevision: 1,
+            payload: .init(fields: [:], attachment: version),
+            relationships: [.init(role: "owner", target: owner)],
+            deletedAt: .init(value: nil, stamp: stamp)
+        )
+        let mutationID = UUID()
+        let requested: SyncMutation
+        switch outcome {
+        case .delete:
+            requested = .delete(serverRecord.id, mutationID: mutationID)
+        case .tombstone:
+            var tombstone = serverRecord
+            let deletionStamp = SyncMutationStamp(
+                logicalRevision: 2,
+                modifiedAt: Date(timeIntervalSinceReferenceDate: 2),
+                deviceID: "conflict-media"
+            )
+            tombstone.entityRevision = 2
+            tombstone.deletedAt = .init(value: deletionStamp.modifiedAt, stamp: deletionStamp)
+            requested = try .save(
+                recordVersion: .init(record: tombstone),
+                mutationID: mutationID
+            )
+        }
+        try journal.enqueue(requested)
+        let before = try journal.pendingVersioned()
+        guard before.count == 1, let beforeEntry = before.first else {
+            throw SyncPublicationError.corruptTransaction
+        }
+        let replacement = beforeEntry.mutation
+        let afterEntry = try SyncVersionedMutation(
+            mutation: replacement,
+            journalRevision: beforeEntry.token.journalRevision + 1
+        )
+        let input = try SyncConflictInput(
+            accountIDHash: String(repeating: "a", count: 64),
+            failedAttemptID: UUID(),
+            failedMutation: beforeEntry.mutation,
+            failedVersion: beforeEntry.token,
+            serverRecord: serverRecord,
+            expectedRecordQueue: [beforeEntry.mutation],
+            expectedVersions: [beforeEntry.token]
+        )
+        let transition = try SyncJournalRebaseTransition(
+            transactionID: UUID(),
+            input: input,
+            predecessorPendingSHA256: SyncConflictRebaseCoding.pendingDigest(before),
+            recordPositions: [0],
+            before: [beforeEntry.mutation],
+            after: [replacement],
+            beforeVersions: [beforeEntry.token],
+            afterVersions: [afterEntry.token]
+        )
+        let predecessor = try SyncCanonicalCheckpoint(
+            accountIDHash: input.accountIDHash,
+            commitID: UUID(),
+            archiveSHA256: Data(repeating: 1, count: 32),
+            records: [serverRecord],
+            legacyRecordIDsToDelete: []
+        )
+        let archive = Data("attachment outcome candidate".utf8)
+        let candidateRecords: [SyncRecord] = switch outcome {
+        case .delete: []
+        case .tombstone: [try #require(replacement.savedRecordVersion?.record)]
+        }
+        let candidate = try predecessor.successor(
+            commitID: transition.transactionID,
+            archiveSHA256: Data(SHA256.hash(data: archive)),
+            records: candidateRecords,
+            legacyRecordIDsToDelete: []
+        )
+        let file = SyncRemoteInstallFile(
+            relativePath: "Photos/\(version.versionID.uuidString).jpg",
+            version: version,
+            data: bytes
+        )
+        let plan = SyncRemoteBatchDurablePlan(
+            predecessor: predecessor,
+            journalURL: journalURL,
+            predecessorEvidence: try sortedEncoder().encode(
+                SyncAttachmentPublicationEvidence()
+            ),
+            authority: [
+                .init(
+                    path: journalURL.deletingLastPathComponent().path,
+                    device: 1,
+                    inode: 1,
+                    bytes: 0,
+                    digest: Data()
+                ),
+                .init(
+                    path: journalURL.deletingLastPathComponent()
+                        .appendingPathComponent("projects.json").path,
+                    device: 1,
+                    inode: 2,
+                    bytes: 1,
+                    digest: predecessor.archiveSHA256
+                ),
+            ],
+            pending: before.map(\.mutation),
+            records: [serverRecord],
+            deletedRecordIDs: [],
+            preparedCommands: [],
+            processedLedger: .init(),
+            deletionMarkers: [],
+            archive: archive,
+            files: [file]
+        )
+        let source = try SyncConflictPublicationSource(
+            input: input,
+            transition: transition,
+            plan: plan,
+            beforePending: before.map(\.mutation),
+            afterPending: [replacement],
+            beforeVersions: before.map(\.token),
+            afterVersions: [afterEntry.token]
+        )
+        let transaction = try SyncPublicationTransaction(
+            expectedArchiveSHA256: candidate.archiveSHA256,
+            mutations: [],
+            artifactEvidence: [try .init(
+                relativePath: file.relativePath,
+                expectedSHA256: file.version.contentSHA256
+            )],
+            revisionReceipts: [],
+            canonicalTransition: .init(
+                predecessorSHA256: Data(SHA256.hash(data: predecessor.encoded())),
+                candidate: candidate
+            ),
+            conflictSource: source
+        )
+        return ConflictPublicationFixture(
+            transaction: transaction,
+            source: source,
+            before: before,
+            after: [afterEntry]
+        )
+    }
+
     private func publicationRecord(id: SyncEntityID, name: String) -> SyncRecord {
         let stamp = SyncMutationStamp(
             logicalRevision: 1,
@@ -680,4 +984,9 @@ private struct ConflictPublicationFixture {
     let source: SyncConflictPublicationSource
     let before: [SyncVersionedMutation]
     let after: [SyncVersionedMutation]
+}
+
+private enum AttachmentConflictOutcome {
+    case delete
+    case tombstone
 }

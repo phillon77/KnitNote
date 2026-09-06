@@ -489,18 +489,24 @@ struct SyncPublicationTransaction: Codable, Equatable, Sendable {
                 expectedSHA256: $0.version.contentSHA256
             )
         }.sorted { $0.relativePath < $1.relativePath }
+        let liveRawAttachmentVersions = source.plan.records.compactMap { record in
+            record.deletedAt.value == nil ? record.payload.attachment : nil
+        }
+        let liveCandidateAttachmentVersions = transition.candidate.records.compactMap { record in
+            record.deletedAt.value == nil ? record.payload.attachment : nil
+        }
         guard artifactEvidence == expectedEvidence,
               source.plan.files.allSatisfy({ file in
-                  transition.candidate.records.contains {
-                      $0.deletedAt.value == nil && $0.payload.attachment == file.version
-                  }
+                  // A raw-only file remains recovery/source evidence when the
+                  // selected result deletes or tombstones its domain record.
+                  // This role carries no deletion authority of its own.
+                  liveRawAttachmentVersions.contains(file.version)
+                    || liveCandidateAttachmentVersions.contains(file.version)
               }) else {
             return false
         }
-        for record in source.plan.records
-            where record.deletedAt.value == nil && record.payload.attachment != nil {
-            guard let version = record.payload.attachment,
-                  source.plan.files.contains(where: { $0.version == version }) else {
+        for version in liveRawAttachmentVersions {
+            guard source.plan.files.contains(where: { $0.version == version }) else {
                 return false
             }
         }

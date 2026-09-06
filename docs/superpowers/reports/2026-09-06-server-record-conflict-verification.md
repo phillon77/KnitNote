@@ -1,10 +1,118 @@
-# Server-record conflict durable rebase — final validation blocked
+# Server-record conflict durable rebase — disabled-feature validation passed
 
-Status: **Task 7 INCOMPLETE / BLOCKED: full Core exited 1 with SIGBUS.** Both independent unsigned platform builds passed, but the real ledger-recovery validation crash remains open under ruling 12. The user-authorized additional cap correction passed its scoped review; ruling 10's historical pause was satisfied through authorization, correction and review, not waived. Those closed review findings do not waive the subsequently discovered full-validation blocker. No disabled-feature completion, activation, integration or release is claimed.
+Status: **Task 7 complete for disabled-feature validation only**, on reviewed source/test freeze **0860960270db87f23a1f4c238f84241599e10da1**. Full Core **2,467 tests / 179 suites**, unsigned macOS build-for-testing and unsigned generic iOS build all passed with separately captured exit **0**. Existing compiler/metadata warnings are disclosed. The previous d9bb2a9 full-Core SIGBUS, failed class experiment and blocked report remain historical evidence below. No universal small-stack safety, physical/live acceptance, activation, integration or release is claimed or authorized.
 
-Frozen source/test commit: **`d9bb2a9d85d0581b19bc617666236c47a0136c15`**, `fix(sync): bound verified journal attachments before reading`. Covering evidence remains Core **275/275 in 12 suites** and no-host App **155/155 in six suites**; nine live declarations were compiled/discovered only. Actual full Core failed after **1266.057 s**, not timeout; macOS build-for-testing and generic iOS build each exited **0**. This report-only finalization preserves the frozen source/test trees and retains worktree/scratch. A frozen test identity is not a validated release candidate.
+Historical prior freeze: **`d9bb2a9d85d0581b19bc617666236c47a0136c15`**, `fix(sync): bound verified journal attachments before reading`. Its covering Core **275/275 in 12 suites**, no-host App **155/155 in six suites** and both unsigned builds did not override full-Core exit 1 after **1266.057 s**. Nine live declarations were compiled/discovered only. That blocked result is preserved, not relabeled as the new candidate's validation.
 
-## Frozen source/test identity
+## Current reviewed freeze and stack-recovery correction
+
+Frozen source/test SHA **0860960270db87f23a1f4c238f84241599e10da1**, clean before testing at **2026-09-06 15:05:41 Asia/Taipei**, version **1.7.0 (13)**. Trees: Sources `f962ba68ea07e73b4492a3e58c1c5aadba2fccf3`; KnitNote/CloudSync `503ae68f6dacb6a79dd16b4a1fcb9350e7d26c6b`; Tests `858e3a3077a8bb38cafc64db0f4e2fbfc11c860e`. Execution base/workdir/branch remain those recorded below. No source/test change is allowed during this report-only run.
+
+After the historical full-Core failure, the user explicitly authorized focused recovery-stack correction and refrozen full validation. `stack-recovery-fix-report.md` (SHA-256 `f05b6e8b640eb4881793c3ec27142dcece833335425eb06b162f8938d80ef17c`) records the native-worker baseline and strengthened regression RED, both exit 1/SIGBUS in actual canceled ledger recovery. `stack-recovery-fix-review.md` (`ec351852c9ef3407c30315a8908ac63319c755af9173b2dc304c706db62406f5`) independently approved `eee4af4..0860960`, all findings addressed, no new Critical/Important breakage. It checked worker semantics, literal old-writer oracles and affected evidence without rerunning tests. This closes ruling 12's diagnosed defect through a reviewed correction, not a constructor-context waiver; complete frozen validation is still separate.
+
+Experiment 1 under ruling 13 changed the private format-7 payload to an immutable class but **failed**, exit 1/SIGBUS after 24.22 s build. `conflict-rebase-stack-fix-focused-green.log` is a planned-phase filename, **not a green result**. Disassembly and native LLDB SP measurement then identified the 142,112-byte publication-validation frame retained during encoding, larger than the 9,312-byte class-experiment integrity frame. An initial unprivileged debugger launch failed; the first authorized launch lacked framework paths and stopped at a loader error (LLDB exit 0 is not a test pass). Correctly configured breakpoint runs were diagnostics only.
+
+Experiment 2 under ruling 14 fully restored the original payload struct and extracted unchanged structural checks into synchronous `@inline(never) validateContents() -> Void`. That temporary frame returns before the identical final integrity comparison. Check order, short-circuit/error behavior, digest and returned transaction remain unchanged; no IO, await, executor shift, wire/limit/authority change or skipped check is introduced. At the same canceled-recovery integrity entry, measured `validated` frame shrank **142,112 → 288 B**, integrity grew **9,312 → 15,968 B** with the original struct restored, net **135,168 B less live stack**. Existing recover closure **206,960 B**, decodeManifest **36,560 B** and validateRestoration **20,896 B** remain. This is measured local stack improvement, not universal worker/release-stack safety or a performance benchmark; a non-inlined call and compiler-frame dependence are retained costs.
+
+Phase-split focused GREEN: **3 tests / 2 suites / 8 cases**, exit 0, **0.172 s**, build **27.20 s**, including all four native-worker restoration outcomes and unchanged disk authority. Literal format-7 integrity/full-wire hashes were captured from the actual **eee4af4 pre-edit writer** for conflict, remote and restoration (9,025 / 1,463 / 777 bytes), then asserted for constructor output, worker decode/validation/re-encode equality and tamper rejection; existing literal formats 2–6 also passed. These are old-current-writer provenance, not historical release artifacts.
+
+Final affected evidence on exact 0860960 hashes: Core **382/382 in 16 suites**, exit 0, **322.653 s**, build **5.32 s**; actual-source no-host App **155/155 in six suites**, exit 0, **31.393 s**, build **0.17 s**; discovery exit 0/build **9.84 s**, 155 required plus nine live declarations compiled/discovered only. All three logs have no warning/error/issue lines. They are affected selections, not the full result. The seven test symlinks/two source symlinks point to this worktree; no harness copies or edits were made.
+
+Fresh changed-file SHA-256 manifest against execution base (27 source/test/Xcode files):
+
+```text
+7f2ef0a9409c132900527d725c1e8c0a54da934dcc9d0dfd181e41478f73576d  KnitNote.xcodeproj/project.pbxproj
+75402d3916d8a5cc0e50fe145a87beee8cee7f3c3ca5466d270ae1fbd0659409  KnitNote/CloudSync/CloudRecordSystemFieldsStore.swift
+9e32195769735fd74706ebb9ce756fdfff1f13813d1eb5b81fcd775196468263  KnitNote/CloudSync/CloudSyncEngineTransport.swift
+5f9adc562de2eb73c50003d7a492660bd2291e9a9ffd869535abb861238a016d  KnitNote/CloudSync/JSONProjectStoreRemoteBatchCommitter.swift
+72c9fcd4a828e7bffaef63cdc830047026be442d3b642500eab52634171ef589  KnitNote/CloudSync/KnitNoteCloudSyncCoordinator.swift
+b8cb12cad246690232114235db05fee81679f0d82b5b38ddf328f7261cb8124f  Sources/KnitNoteCore/CloudSync/SyncConflictRebase.swift
+cb63600a8e2128da9ab8de341e4519e3f688437b2ea3036ccf04379569bd40b9  Sources/KnitNoteCore/CloudSync/SyncMutationJournal.swift
+3030a8c2e8f492df0f7a9eeeaf53789bdaa86565ca4382c082446d4af0833391  Sources/KnitNoteCore/CloudSync/SyncMutationPublishing.swift
+92ea1b1efffef3989cc4f629c8979c90333e2b11401f2ac50b8c64810eb0ea12  Sources/KnitNoteCore/Projects/JSONProjectStore.swift
+9f05ebd00e2788c8a8199294abbe7d3bc2655a78da67eec238d0aa1bb6e2ce5e  Tests/KnitNoteAppTests/CloudAccountTransitionCoordinatorTests.swift
+d837cc325958131553c1609564f8ffadf1c6b997220308c78c10deae211054ab  Tests/KnitNoteAppTests/CloudKitDevelopmentIntegrationTests.swift
+8a8f4ab5d02dc3de6ac6a71d1c315ec55509b9a2b04be4ed5c7a0006a0abd14e  Tests/KnitNoteAppTests/CloudSyncEngineTransportTests.swift
+e751256e413615a5005ff0cde7d44fe7d2088e97dfc7c842aa57d9e0c7a8a2be  Tests/KnitNoteAppTests/ConflictRebaseIntegrationTests.swift
+f1690d7b9158f9202bd90096db8c4385a240779f49b3a8a2832cd3a22b9331a2  Tests/KnitNoteAppTests/KnitNoteCloudSyncCoordinatorTests.swift
+7901808914f5b291539de29029d09f76120574a1007d8c035d3974853787a677  Tests/KnitNoteAppTests/RemoteBatchCommitterIntegrationTests.swift
+52d598f0ed1143a5d25d286b9befa700f900ecaf353c4fc97954fbab39738467  Tests/KnitNoteCoreTests/ConflictRebaseFixture.swift
+cd6016a3d39f99b52fed847ba7261ae1d789835a8325e2d61270387ba2be7ff5  Tests/KnitNoteCoreTests/JSONProjectStoreConflictRebaseTests.swift
+e4233235f1139052f90c2c9c04aea07473411870a7f8016e31e9e192bfa578ef  Tests/KnitNoteCoreTests/JSONProjectStoreConflictRecoveryTests.swift
+ce3c97606e244e1a9234bc8139d190f712d1f7704039203686949242642a9386  Tests/KnitNoteCoreTests/SyncAccountRecoveryInventoryTests.swift
+7b1b8f39d266e4fc5d02c39b566a0e3f5c45354cf86d2855505f319154313706  Tests/KnitNoteCoreTests/SyncCanonicalPublicationTransactionTests.swift
+e958aea6da68ee479e9c6f5238da1383fde7d0cb59e357e31b2c39086026604a  Tests/KnitNoteCoreTests/SyncConflictInputTests.swift
+58146245979c76b0eb927062b157e0cfc3bad1d8af9ce36b12a11f794726020d  Tests/KnitNoteCoreTests/SyncConflictJournalTests.swift
+5750ff51578851a47255ea110e043d2df7bb20033c135b52398eb5c7f85fad0c  Tests/KnitNoteCoreTests/SyncConflictPublicationTests.swift
+38f5b0647dd1ec533424c989e6a6303d91db64b75c971756354c717f64516437  Tests/KnitNoteCoreTests/SyncMutationJournalFinalFixTests.swift
+befecd24c529ac69187df3db9aac48dbc78d2ec122bd95e9353045ceea83af78  Tests/KnitNoteCoreTests/SyncMutationJournalSegmentTests.swift
+0db798e86ac543bf99e6f23480aee087b5bc30ff308b257863feb326bf7ed26d  Tests/KnitNoteCoreTests/SyncPendingRecoveryPacketTests.swift
+9482693aa18c3fbe0a2db78fd9307198e733235b2846786be607c96d24cbd34b  Tests/KnitNoteCoreTests/SyncRemoteBatchTransactionTests.swift
+```
+
+Stack-correction log SHA-256 (all `/tmp/`; full commands, debugger setup failures and literal oracles are retained in `stack-recovery-fix-report.md`):
+
+```text
+a98722be9d90f72f28406d813dd1bb5648d169deba2a9b0ca13e0de3f0bb38b3  conflict-rebase-stack-fix-baseline.log
+f39ee45a71e6fe83101321e2c770f26541da19e427e1462e6e998328460f4802  conflict-rebase-stack-fix-old-writer.log
+6d34897cc065d95e964e4a1337f9753de61580628997d22ed91ab9c4b5e60f2e  conflict-rebase-stack-fix-regression-red.log
+819b57ed4c99de7bb11291f36abbc046f4312103d8fd955df19eb99679e0e397  conflict-rebase-stack-fix-focused-green.log (FAILED experiment 1)
+dd938a1fcc33cec322c4ae180620356cee2fe4258d313f850d942c5b9e19086d  conflict-rebase-stack-fix-layout-diagnostic.log
+3e025b70986f87d5e8858253cbe17d41d07f1afc99d7d93806d4d361015a045a  conflict-rebase-stack-fix-phase-split.log
+5207baf5d69b022509112c54947f96e39ac55e6c1d9a2bf74c0dcf86647adc97  conflict-rebase-stack-fix-experiment1-disassembly.log
+8a8ddfa1d3994811722bb6e180426c692547788cdd4b945caec3daea2a772d9d  conflict-rebase-stack-fix-lldb-diagnostic.log
+762868043136ea4b32f509fac55bc2f2bedd8bf3f5ef1ab26661eeff42ab2bde  conflict-rebase-stack-fix-lldb-authorized.log
+f5fd769f98dca161312276623fccd9fd8c5ab6d7d3499428c9b332d48f3b4119  conflict-rebase-stack-fix-lldb-frames.log
+9d456754ad26fc55890d28e47505cd1078f0c760fd88bd731cf2e6c5313bec1d  conflict-rebase-stack-fix-lldb-phase-split.log
+bc70da1a395147eefb4b4a11635bb0f0b8ee9bc5e482aea441907c7e750bff66  conflict-rebase-stack-fix-core-covering.log
+170549a0dddb3c4a3a577a94b59319895ead6d47834b22c3534caef97513b126  conflict-rebase-stack-fix-discovery.log
+00780db18902621638c963ab025fdfffe5ed7cf187086e24689b5edf683ad6e9  conflict-rebase-stack-fix-nohost.log
+```
+
+### Current frozen commands
+
+Each command is separate, serial, outside the managed sandbox, with `set -o noclobber` before redirection; all three log paths were confirmed absent. The unchanged runner hash/safety are recorded below. Ruling 15 authorizes one **3600-second** Core bound, not repeated attempts.
+
+```zsh
+set -o noclobber
+env CLANG_MODULE_CACHE_PATH=/tmp/conflict-rebase-clang-cache /usr/bin/python3 /tmp/task4-run-bounded.py 3600 /usr/bin/arch -arm64 /usr/bin/swift test --disable-sandbox --no-parallel --cache-path /tmp/conflict-rebase-swift-cache --config-path /tmp/conflict-rebase-swift-config --security-path /tmp/conflict-rebase-swift-security > /tmp/stack-fix-full-core.log 2>&1
+# Separate captured command:
+set -o noclobber
+/usr/bin/time -p /usr/bin/xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/conflict-rebase-macos-derived CODE_SIGNING_ALLOWED=NO build-for-testing > /tmp/stack-fix-macos-build.log 2>&1
+# Separate captured command:
+set -o noclobber
+/usr/bin/time -p /usr/bin/xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/conflict-rebase-ios-derived CODE_SIGNING_ALLOWED=NO build > /tmp/stack-fix-ios-build.log 2>&1
+```
+
+### Current frozen validation results
+
+Full Core completed **PASS, exit 0: 2,467 tests in 179 suites**, Swift Testing duration **1406.753 s**, runner total **1487.754 s**, compilation **78.53 s**. Start **2026-09-06 15:06:12.163574 Asia/Taipei**. The one 3,600-second run did not time out or send TERM/KILL; there was no filter, skip-build or rerun. The previously crashing actual-worker restoration test passed **all four cases in 0.130 s**, and its full inventory suite passed **0.864 s**. The largest completed localization suite took **929.211 s**.
+
+Full compilation retained **one unique existing deprecation** at `HighlightOverlayContractTests.swift:92:20`: 42 textual warning occurrences = 21 primary compiler diagnostics + 21 excerpt echoes. Ruling 11 applies; this run is not warning-free. Eight Python traceback headings are the two chained tracebacks for each of four deliberate missing-archive/Info.plist negative fixtures; `provenanceRequiresBothRetainedArchivesAndTheirInfoPlists` expects nonzero child exit (test lines1195–1205) and passed in **2.045 s**. They are not eight test failures. No Swift test failure, unexpected signal, timeout or compiler-error line appears in the completed log.
+
+Full-Core log `/tmp/stack-fix-full-core.log` SHA-256: `ae2f15e12ab0f7c7a503b33fddd4b6ab8a49eeb7f7bf3f783c78da351f89d463`.
+
+Both independent unsigned builds completed **PASS, captured exit 0**, after full Core, without overlapping builds or test-host execution:
+
+| Command | Exact result | `time -p` seconds | Warnings |
+| --- | --- | --- | --- |
+| macOS arm64 build-for-testing | `** TEST BUILD SUCCEEDED **` | real **45.44**, user **0.97**, sys **0.80** | Two metadata-skip occurrences: KnitNote, KnitNoteAppTests |
+| Generic iOS build | `** BUILD SUCCEEDED **` | real **15.61**, user **0.92**, sys **0.38** | Two metadata-skip occurrences: KnitNoteWatch, KnitNote |
+
+Both incremental Xcode builds used their separately named existing derived-data directories; they were fresh commands on the new frozen source, not claims of clean-room compilation. Each emitted the same single unique diagnostic, `Metadata extraction skipped. No AppIntents.framework dependency found.`, and no error line. This optional metadata warning is disclosed, not a warning-free claim. Builds did not sign, install, archive/export or execute the generated test bundles.
+
+- `/tmp/stack-fix-macos-build.log` SHA-256: `6c722e893084cdd91c42f422cc296eb9b6ae94ce1c6aca95e7faad09790f2efc`
+- `/tmp/stack-fix-ios-build.log` SHA-256: `98397d2e7474bb5d1d8a03606cb8e1cebd78cad0394a6a4e004f4a20baf7a632`
+
+All three required final gates passed on **0860960**. The actual full-run restoration pass closes the previously diagnosed blocker together with its reviewed correction. **Task 7 is complete for disabled-feature validation only**; the scope limits below remain.
+
+### Scope and remaining gates
+
+The reviewed correction plus this actual former-crash-path pass supports the tested disabled-feature recovery path, **not general small-stack safety**. Large ledger caller frames remain; arbitrary deeper worker contexts, optimized/release-stack behavior and real-device performance are not established. Historical MainActor constructor ownership remains a documented restriction, not a universal stack fix. Retained rebase history/ACK evidence is conservatively preserved within the existing 64 MiB bound; exhaustion fails closed. Raw-source media retention grants no new cleanup authority; capacity, storage lifetime and latency remain activation gates.
+
+Lifecycle/account-switch/deletion end-to-end acceptance, UI/Watch activation, physical devices, live CloudKit/Keychain/user-data flows and release acceptance remain unpassed. Nine live suite declarations were compile/discover-only, never executed. No App test-host execution, signing, install, archive/export, release, merge/push or worktree/scratch cleanup is authorized by these results. Final report-only commit must preserve current Sources/CloudSync/Tests trees and clean checkout.
+
+## Historical d9bb2a9 freeze and blocked validation
 
 Workdir: `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-device-sync-design`.
 Branch: `docs/cross-device-sync-design`.
@@ -15,7 +123,7 @@ Accepted Tasks 1–6 base: `47e9db6647d822ae18c277590b6ee06fdce3e517`. Phase-1 a
 - `KnitNote/CloudSync`: `503ae68f6dacb6a79dd16b4a1fcb9350e7d26c6b`
 - `Tests`: `537b3126ed936a95df6537d61b15b3692db15fc5`
 
-The frozen changed-file manifest appears below. The report-only commit identity and report hash are recorded in scratch `task-7-report.md`; source/test equality with `d9bb2a9` is required after commit. Freezing identifies what is tested; it is not a claim that pending commands passed.
+The historical frozen manifest appears below. Report-only commit `eee4af4bfba7e1b1558fcc961cf1ac623c662aaa` preserved these d9bb2a9 source/test trees; its report hash/readback are retained in scratch `task-7-report.md`. Current 0860960 identity and results are recorded above.
 
 ## Review chain and resolved additional finding
 
@@ -110,7 +218,7 @@ Phase-1 self-review read the entire two-test diff and checked every brief item. 
 
 ## Controller rulings, chronologically
 
-The source of these decisions is this plan's `.superpowers/sdd/2026-09-06-server-record-conflict-durable-rebase/progress.md`. Its headings interleave the numbered entries; all twelve are retained here in decision order, including the superseded first ruling, historical pause, warning ruling and new full-validation blocker.
+The source of these decisions is this plan's `.superpowers/sdd/2026-09-06-server-record-conflict-durable-rebase/progress.md`. Its headings interleave the numbered entries; all fifteen are retained here in decision order, including superseded rulings, historical pauses, failed experiment and approved measured correction/full-validation bound.
 
 1. Checkpoint 5 initially required sorted unique `versionedAcknowledgements: [SyncMutationVersionToken]` alongside history, because compaction would otherwise lose exact kind-5 ACK proof. Validation had to require absent pending and effective issued/history authority; identity-only legacy ACK could not count. Cost if wrong: v5 migration/recovery rework and bounded metadata/latency. **Superseded by ruling 2.**
 2. The final field is `[SyncVersionedMutation]`, retaining full acknowledged mutation and exact token. Issued shards retain a record digest, not enough full data to recompute a revision-0 portable token. Receipts validate against issued/effective proof, remain loadable after authorized staged cleanup, and retained paths do not grant new cleanup. All bytes remain under 64 MiB, with no pruning or legacy-format/shard changes. Cost: larger checkpoints, earlier fail-closed capacity exhaustion and v5 validation work.
@@ -127,6 +235,10 @@ The source of these decisions is this plan's `.superpowers/sdd/2026-09-06-server
 Task 6 operational clarifications are separate from these wire rulings. A local suffix not yet scheduled to transport must fail full-queue handoff; three attempts terminate with a durable-commit blocker and retained data until normal scheduling/retry or restart. Prefix matches cannot authorize it. Keep the existing single configured-zone send kick after an accepted handoff and recheck epoch/generation after awaits; add no nested retry loop or unconditional self-scheduling. Omitting the kick risks stalled progress; missing post-await checks risks obsolete success. These limitations remain visible to activation planning.
 
 12. Ruling: The final full-Core SIGBUS is not covered by ruling 7's accepted constructor-only restriction. The actual IPS locates a 544 KiB cooperative worker stack guard in ConflictCanonicalIntegrityPayload.encode during SyncDeletionLedger.recover/validation; SyncAccountRecoveryInventoryTests.swift:223 construction had returned before recover at :231. This is an open full-validation blocker, not a passing environmental waiver. Cost: separately authorize focused correction, refreeze and full verification. Adding MainActor to this test, enlarging its stack or skipping it is not a product correction. Preserve crash/log evidence; current scope is independent unsigned builds and report only, no code changes or reruns.
+
+13. Ruling: Authorize a narrow private immutable format-7 payload struct-to-class experiment with unchanged Codable keys/values, digest and checks, aiming to reduce inline stack copies. Cost if wrong: allocation/ARC overhead and residual deep-stack risk; require old-writer compatibility, actual-worker semantic regressions, review and full validation. **The experiment failed with SIGBUS and was fully reverted**, not accepted as the correction.
+14. Ruling: After native LLDB measured the retained 142,112-byte validation frame, authorize a non-inlined synchronous Void helper for existing structural checks, followed by the unchanged last integrity comparison after that helper returns. Restore the original struct; preserve check order, errors and return self. Cost: compiler-frame dependence and residual stack peak, plus a synchronous call; require actual-worker semantics, tamper/literal old-writer compatibility, measured improvement, affected/full verification and scoped review. No IO/await/lock/wire change or validation bypass.
+15. Ruling: Authorize one monitored 3,600-second full-Core bound after scoped review/freeze, with fresh noclobber logs and timed unsigned builds. Prior failed full run consumed 1,266.057 s including 901.232 s localization, leaving only 533.943 s under the former 1,800-second bound; remaining full duration cannot be reliably estimated. Cost: up to 30 additional minutes of bounded compute/time, not guaranteed completion or retry permission. Keep own-process-group TERM/10-second/KILL safety, serial builds, no filtering/skip-build and separately captured exits.
 
 ## Prior evidence and review provenance
 
@@ -230,7 +342,7 @@ Scope: every source/test/Xcode file changed between execution base `c1b96789e2e1
 | Tests/KnitNoteCoreTests/SyncPendingRecoveryPacketTests.swift | 0db798e86ac543bf99e6f23480aee087b5bc30ff308b257863feb326bf7ed26d |
 | Tests/KnitNoteCoreTests/SyncRemoteBatchTransactionTests.swift | 9482693aa18c3fbe0a2db78fd9307198e733235b2846786be607c96d24cbd34b |
 
-## Frozen final commands and remaining gates
+## Historical d9bb2a9 final commands and then-remaining gates
 
 The following exact commands run serially outside the managed sandbox from the workdir, with each exit captured separately. Before starting, `/tmp/task4-run-bounded.py` was completely re-read and its SHA-256 rechecked as `c9fbdb35fa3743e27a7fbf63a1a0cbabfb02ca10e299167c214841a915faec0b`: child owns a new session/process group; 1800-second timeout sends TERM only to that group, waits ten seconds, then KILL if needed, returning 124. It does not kill unrelated builds. The Core command includes compilation, no test filter and no `--skip-build`.
 
@@ -240,7 +352,7 @@ env CLANG_MODULE_CACHE_PATH=/tmp/conflict-rebase-clang-cache /usr/bin/python3 /t
 /usr/bin/xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/conflict-rebase-ios-derived CODE_SIGNING_ALLOWED=NO build > /tmp/conflict-rebase-ios-build.log 2>&1
 ```
 
-### Actual captured results on the frozen candidate
+### Historical actual results on d9bb2a9
 
 All three commands completed once, serially, with separate captured process exits. No full rerun or source/test edit followed the failure.
 
@@ -261,7 +373,7 @@ Raw SHA-256 evidence:
 - `/tmp/conflict-rebase-ios-build.log`: `2b97ae1947b1770fb4152aec838e9c45c27a10afe7002a6fb970df6760633b81`
 - `/tmp/conflict-rebase-macos-derived/Logs/Build/LogStoreManifest.plist`: `a5c155819519deab6116772eb19a56b246c5b1485ceed78a779112492fb0bca9`
 
-### Open full-Core crash: actual ledger recovery, not constructor-only
+### Historical blocking crash: actual ledger recovery, not constructor-only
 
 The actual crash report was read, not inferred from the last test line: `/Users/longzhenzhong/Library/Logs/DiagnosticReports/swiftpm-testing-helper-2026-09-06-141758.ips`, SHA-256 `a1ac17d5ce7be537f91105a14a45f4ebe80fd58d37ae3908bf9d2eb0f58cfd3b`, incident `E7DC39CE-98D0-471D-A040-11DCD4A4BBB9`, capture 2026-09-06 14:17:54.6138 +0800. Faulting thread 3 / ID 10419686 is on `com.apple.root.default-qos.cooperative`; EXC_BAD_ACCESS / SIGBUS / KERN_PROTECTION_FAILURE at `0x16bd37c10` touches a 16 KiB stack guard adjacent to its **544 KiB** worker stack.
 
@@ -271,4 +383,4 @@ The non-MainActor test's transaction constructor at **:223 had already returned*
 
 The required 100,000,000-byte authority/transaction/file bounds and 64 MiB native checkpoint bound have not been redefined; the ordinary versioned/ACK per-file enforcement gap is corrected at the shared reader entry and independently reviewed. Retained rebase history is not pruned: exhaustion fails closed and remains a capacity/latency activation gate. Account-scoped raw-source storage retains evidence without new cleanup permission; its storage lifetime and real-device performance remain gates. MainActor construction plus actual worker codec/transport coverage does not prove arbitrary nonisolated small-stack constructor safety.
 
-The immediate unclosed gate is the worker-stack crash during ledger recovery/validation, followed by correction review, a new source/test freeze and required complete verification. Existing MainActor constructor restrictions do not close it. Lifecycle/account-switch/deletion end-to-end acceptance, UI/Watch activation, device acceptance, capacity/latency measurement, and release gates also remain deferred. This work uses temporary fixtures only, no App test host, live CloudKit, Keychain, user data, installation, signing/archive/export, purchase/localization changes, upload, submission, merge or push. Keep the worktree and plan scratch until separately authorized integration. Neither Task 7 nor the disabled-sync validation milestone is complete; no release-ready candidate is claimed.
+At the historical eee4af4 blocked-report handoff, the immediate unclosed gate was worker-stack ledger recovery/validation, then correction review/refreeze/full verification. Existing MainActor constructor restrictions did not close it. The subsequently authorized correction and current validation are recorded at the top, without erasing this failure. Lifecycle/account-switch/deletion end-to-end acceptance, UI/Watch activation, device acceptance, capacity/latency measurement and release gates remain deferred. This work uses temporary fixtures only, no App test host, live CloudKit, Keychain, user data, installation, signing/archive/export, purchase/localization changes, upload, submission, merge or push. Keep worktree/scratch until separately authorized integration; no release-ready candidate is claimed.

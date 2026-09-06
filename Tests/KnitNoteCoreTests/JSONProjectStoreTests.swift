@@ -1950,7 +1950,8 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
 }
 
 @Suite(.serialized) @MainActor struct StoreBackupTransactionGateTests {
-@MainActor @Test func exportSerializesProjectYarnAndJournalMutations() async throws {
+@MainActor @Test(arguments: [false, true])
+func exportSerializesProjectYarnAndJournalMutations(delayedStart: Bool) async throws {
     let blocker = StoreOperationBlocker()
     let fixture = try StoreBackupFixture.make(metadataBlocker: blocker)
     defer {
@@ -1960,9 +1961,19 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     let store = fixture.store
     let project = try #require(store.projects.first)
     let export = Task { @MainActor in
-        try await store.exportBackup(appVersion: "1.0")
+        if delayedStart { try await Task.sleep(for: .seconds(11)) }
+        blocker.startObservingOperation()
+        defer { blocker.finishObservation(reachedBlock: false) }
+        return try await store.exportBackup(appVersion: "1.0")
     }
-    #expect(await Task.detached { blocker.waitUntilBlocked() }.value)
+    do {
+        try #require(await blocker.waitForObservedBlock())
+    } catch {
+        blocker.resume()
+        export.cancel()
+        _ = try? await export.value
+        throw error
+    }
 
     #expect(store.isDataOperationInProgress)
     #expect(throws: KnitNoteBackupError.operationInProgress) {
@@ -2918,11 +2929,72 @@ private struct StoreLaunchRecoveryFixture {
     return (package, pattern.id)
 }
 
+@Suite struct StoreBackupHandshakeTests {
+    @Test func signalBeforeWaitIsRetainedAndCompletionCannotOverwriteIt() async {
+        let blocker = StoreOperationBlocker()
+        // This tests the signal's first-result latch, independently of scheduling.
+        blocker.finishObservation(reachedBlock: true)
+        blocker.finishObservation(reachedBlock: false)
+        #expect(await blocker.waitForObservedBlock())
+    }
+
+    @Test func operationEndingWithoutBlockFailsInsteadOfHanging() async {
+        let blocker = StoreOperationBlocker()
+        blocker.finishObservation(reachedBlock: false)
+        blocker.finishObservation(reachedBlock: true)
+        #expect(await blocker.waitForObservedBlock() == false)
+    }
+
+    @Test func startedOperationWithoutSignalTimesOut() async {
+        let blocker = StoreOperationBlocker()
+        blocker.startObservingOperation(timeout: .milliseconds(20))
+        #expect(await blocker.waitForObservedBlock() == false)
+    }
+
+    @Test func cancelledWaitDoesNotHang() async {
+        let blocker = StoreOperationBlocker()
+        let waiter = Task { await blocker.waitForObservedBlock() }
+        waiter.cancel()
+        #expect(await waiter.value == false)
+    }
+}
+
 private final class StoreOperationBlocker: @unchecked Sendable {
+    private let observedBlock: AsyncStream<Bool>
+    private let observation: AsyncStream<Bool>.Continuation
     private let blocked = DispatchSemaphore(value: 0)
     private let continuation = DispatchSemaphore(value: 0)
     private let lock = NSLock()
     private var hasBlocked = false
+    private var observationFinished = false
+
+    init() {
+        let stream = AsyncStream<Bool>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        observedBlock = stream.stream
+        observation = stream.continuation
+    }
+
+    // Only the export handshake uses this observer. Its deadline starts when
+    // the operation actually runs, not while it is queued on MainActor.
+    func startObservingOperation(timeout: DispatchTimeInterval = .seconds(10)) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [weak self] in
+            self?.finishObservation(reachedBlock: false)
+        }
+    }
+
+    func waitForObservedBlock() async -> Bool {
+        for await result in observedBlock { return result }
+        return false
+    }
+
+    func finishObservation(reachedBlock: Bool) {
+        lock.lock()
+        guard !observationFinished else { lock.unlock(); return }
+        observationFinished = true
+        lock.unlock()
+        observation.yield(reachedBlock)
+        observation.finish()
+    }
 
     func blockOnce() {
         lock.lock()
@@ -2932,6 +3004,7 @@ private final class StoreOperationBlocker: @unchecked Sendable {
         }
         hasBlocked = true
         lock.unlock()
+        finishObservation(reachedBlock: true)
         blocked.signal()
         continuation.wait()
     }

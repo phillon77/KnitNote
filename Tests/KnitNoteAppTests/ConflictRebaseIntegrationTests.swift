@@ -4,6 +4,110 @@ import Testing
 @testable import KnitNote
 
 @MainActor @Suite struct ConflictRebaseIntegrationTests {
+    // Catches identity-only ACK, lost later edits, a reset retry budget, or
+    // unrelated FIFO/media mutation across a real Core/transport handoff retry.
+    @Test func combinedConflictHandoffEditRetryAndExactACKs() async throws {
+        let h = try ConflictHarness(); defer { h.f.remove() }
+        let other = try #require(h.f.store.projects.first { $0.id != h.f.projectID })
+        let png = try #require(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="))
+        try h.f.store.updateProject(id: other.id, name: "Other pending", toolType: nil,
+            toolSize: nil, toolNotes: nil, photoChange: .replace(png))
+        let before = try h.f.journal.pendingVersioned()
+        let id = SyncEntityID(kind: .project, uuid: h.f.projectID)
+        let issued = try #require(before.first { $0.mutation.recordID == id })
+        let unrelated = before.filter { $0.mutation.recordID != id }
+        #expect(unrelated.count >= 2)
+        let canonical = try #require(try h.f.checkpoints.load())
+        let live = h.f.root.appendingPathComponent("Live")
+        let evidenceFile = SyncAttachmentPublicationEvidenceFile(url: live.appendingPathComponent("SyncMetadata/attachment-versions.json"))
+        let evidence = try evidenceFile.load()
+        let photoURL = live.appendingPathComponent("ProjectPhotos").appendingPathComponent(
+            try #require(h.f.store.project(id: other.id)?.photoFilename))
+        let photo = try SyncRegularFileReader().read(photoURL, maximumBytes: 100_000_000)
+        let staged = try unrelated.compactMap { item -> (URL, SyncRegularFileRead)? in
+            guard let source = item.mutation.attachmentSource else { return nil }
+            return (source.fileURL, try SyncRegularFileReader().read(source.fileURL, maximumBytes: 100_000_000))
+        }
+        var remote = try CloudRecordCodec().decode(h.server)
+        remote.entityRevision = max(remote.entityRevision, try #require(issued.mutation.savedRecordVersion).record.entityRevision)
+        let replacement = try SyncMutation.save(recordVersion: .init(record: remote), mutationID: issued.mutation.mutationID)
+        let firstExpected = try before.map { $0.mutation.recordID == id
+            ? try SyncVersionedMutation(mutation: replacement, journalRevision: 1) : $0 }
+        var finalExpected: [SyncVersionedMutation] = []
+        let committer = ConflictCommitProbe(h.adapter, staleCount: 1)
+        let probe = ConflictTransportProbe(h.transport, staleCount: 1)
+        probe.beforeFirstStaleHandoff = {
+            #expect(try h.f.journal.pendingVersioned() == firstExpected)
+            #expect(h.f.store.project(id: h.f.projectID)?.name == "Remote")
+            #expect(try h.f.checkpoints.load()?.records == canonical.records.map { $0.id == id ? remote : $0 })
+            #expect(try SyncPublicationTransactionFile(archiveURL: h.f.archiveURL).load() == nil)
+            try h.rename("Later local edit")
+            let appended = try h.f.journal.pendingVersioned()
+            let later = try #require(appended.last)
+            #expect(appended == firstExpected + [later])
+            #expect(later.token.journalRevision == 0)
+            #expect(later.mutation.savedRecordVersion?.record.payload.fields["name"]?.value == .string("Later local edit"))
+            #expect((later.mutation.savedRecordVersion?.record.payload.fields["name"]?.stamp.logicalRevision ?? 0) > 1000)
+            // Capture the actual local immutable save before the retry callback;
+            // its causally newer fields must remain byte-for-byte unchanged.
+            finalExpected = try appended.map { item in
+                try .init(mutation: item.mutation, journalRevision: item.token.journalRevision
+                    + (item.mutation.recordID == id ? 1 : 0))
+            }
+            try await h.transport.schedule(appended)
+        }
+        let coordinator = h.coordinator(transport: probe, committer: committer)
+        await coordinator.start(); await h.transport.receiveZoneReady(h.f.zone)
+        let oldSent = try await h.outgoing()
+        #expect(try h.f.journal.pendingVersioned() == before)
+        await h.transport.receiveFailedSave(oldSent, error: h.conflict())
+        await until { probe.accepted == 1 }
+        #expect(committer.calls == 3 && probe.handoffs == 2)
+        #expect(!finalExpected.isEmpty)
+        #expect(try h.f.journal.pendingVersioned() == finalExpected)
+        #expect(finalExpected.filter { $0.mutation.recordID == id }.map { $0.token.journalRevision } == [2, 1])
+        #expect(h.f.store.project(id: h.f.projectID)?.name == "Later local edit")
+        let afterRetryCanonical = try h.f.checkpoints.load()
+        let newSent = try await h.outgoing()
+        #expect(try CloudRecordCodec().decode(newSent) == remote)
+        #expect(oldSent["syncAttemptID"] as? String != newSent["syncAttemptID"] as? String)
+        await h.transport.receiveSentChanges(savedRecords: [oldSent], deletedRecordIDs: [])
+        // The transport rejects this late callback before emitting .sent. This
+        // direct verifier control proves the original authority is stale; it
+        // does not claim the coordinator consumed a queued old .sent event.
+        let oldAuthority = try #require(committer.firstAttempt)
+        #expect(oldAuthority.token == issued.token)
+        #expect(oldSent["syncAttemptID"] as? String == oldAuthority.id.uuidString.lowercased())
+        await #expect(throws: CloudSyncTransportError.staleOperation) {
+            try await h.transport.verifySentMutation(oldAuthority.token,
+                attemptID: oldAuthority.id, accountEpoch: oldAuthority.epoch)
+        }
+        #expect(try h.f.journal.pendingVersioned() == finalExpected)
+        #expect(probe.cleanups == 0 && coordinator.status.lastCompleteSuccess == nil)
+        let firstCurrent = try #require(finalExpected.first { $0.mutation.recordID == id })
+        let afterFirstACK = finalExpected.filter { $0.mutation.identity != firstCurrent.mutation.identity }
+        await h.transport.receiveSentChanges(savedRecords: [newSent], deletedRecordIDs: [])
+        await until { probe.cleanups == 1 }
+        #expect(try h.f.journal.pendingVersioned() == afterFirstACK)
+        #expect(try h.f.journal.acknowledgeCurrentVersion(firstCurrent.token) == .alreadyAcknowledged)
+        #expect(try h.f.journal.acknowledgeCurrentVersion(issued.token) == .staleVersion)
+        let laterSent = try await h.outgoing()
+        #expect(try CloudRecordCodec().decode(laterSent) == afterFirstACK.last?.mutation.savedRecordVersion?.record)
+        await h.transport.receiveSentChanges(savedRecords: [laterSent], deletedRecordIDs: [])
+        await until { probe.cleanups == 2 }
+        #expect(try h.f.journal.pendingVersioned() == unrelated)
+        #expect(try h.f.checkpoints.load() == afterRetryCanonical)
+        #expect(try h.f.checkpoints.load()?.records.filter { $0.id != id } == canonical.records.filter { $0.id != id })
+        #expect(try evidenceFile.load() == evidence)
+        let afterPhoto = try SyncRegularFileReader().read(photoURL, maximumBytes: 100_000_000)
+        #expect(afterPhoto.data == photo.data && afterPhoto.inode == photo.inode && afterPhoto.device == photo.device)
+        for (url, original) in staged {
+            let current = try SyncRegularFileReader().read(url, maximumBytes: 100_000_000)
+            #expect(current.data == original.data && current.inode == original.inode && current.device == original.device)
+        }
+        #expect(committer.calls == 3 && probe.handoffs == 2 && probe.accepted == 1)
+    }
+
     @Test func actualWorkerConflictCommitsAndVerifiesExactSuccess() async throws {
         let h = try ConflictHarness(); defer { h.f.remove() }
         var events = h.transport.events.makeAsyncIterator()
@@ -399,9 +503,11 @@ private final class FixtureTagArchiver: NSKeyedArchiver {
     var calls = 0
     var staleCount: Int
     var afterFirstCommit: (() throws -> Void)?
+    var firstAttempt: (token: SyncMutationVersionToken, id: UUID, epoch: CloudSyncAccountEpoch)?
     init(_ base: JSONProjectStoreRemoteBatchCommitter, staleCount: Int = 0) { self.base = base; self.staleCount = staleCount }
     func commitServerRecordChanged(input: SyncConflictInput, accountEpoch: CloudSyncAccountEpoch) async throws -> SyncConflictCommitResult {
         calls += 1
+        if firstAttempt == nil { firstAttempt = (input.failedVersion, input.failedAttemptID, accountEpoch) }
         if staleCount > 0 { staleCount -= 1; return .stalePredecessor }
         let result = try await base.commitServerRecordChanged(input: input, accountEpoch: accountEpoch)
         if let action = afterFirstCommit { afterFirstCommit = nil; try action() }
@@ -418,6 +524,7 @@ private final class FixtureTagArchiver: NSKeyedArchiver {
     var accepted = 0
     var staleCount: Int
     init(_ base: CKSyncEngineTransport, staleCount: Int = 0) { self.base = base; events = base.events; self.staleCount = staleCount }
+    var beforeFirstStaleHandoff: (() async throws -> Void)?
     func start() async throws { try await base.start() }
     func schedule(_ mutations: [SyncVersionedMutation]) async throws { try await base.schedule(mutations) }
     func finishMutationReplay(completionID: UUID?) async throws { try await base.finishMutationReplay(completionID: completionID) }
@@ -437,7 +544,11 @@ private final class FixtureTagArchiver: NSKeyedArchiver {
     func acknowledgeSentMutation(_ token: SyncMutationVersionToken, attemptID: UUID) async throws { cleanups += 1; try await base.acknowledgeSentMutation(token, attemptID: attemptID) }
     func resolveFailedMutation(_ resolution: SyncConflictResolution, accountEpoch: CloudSyncAccountEpoch, expectedQueue: [SyncVersionedMutation]) async throws -> CloudConflictHandoffResult {
         handoffs += 1
-        if staleCount > 0 { staleCount -= 1; return .stale }
+        if staleCount > 0 {
+            staleCount -= 1
+            if let action = beforeFirstStaleHandoff { beforeFirstStaleHandoff = nil; try await action() }
+            return .stale
+        }
         let result = try await base.resolveFailedMutation(resolution, accountEpoch: accountEpoch, expectedQueue: expectedQueue)
         if result == .accepted { accepted += 1 }; return result
     }

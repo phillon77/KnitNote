@@ -4715,6 +4715,9 @@ final class PatternLibraryDeletionTransaction {
     /// Remote artwork is auxiliary presentation data: the durable YouTube
     /// pattern is saved first, and a cache failure never rolls it back.
     public func cacheYouTubeThumbnail(_ data: Data, patternID: UUID) async {
+        guard !isSessionWriteRevoked,
+              let work = try? sessionWork.begin(kind: .thumbnail) else { return }
+        defer { sessionWork.finish(work) }
         guard let pattern = patterns.first(where: { $0.id == patternID }),
               let asset = patternAssets.first(where: { $0.id == pattern.assetID }),
               asset.kind == .youtube else {
@@ -4728,6 +4731,7 @@ final class PatternLibraryDeletionTransaction {
         guard let stagedURL else { return }
         await afterYouTubeThumbnailStage()
         guard
+              !isSessionWriteRevoked,
               let currentPattern = patterns.first(where: { $0.id == patternID }),
               currentPattern.assetID == assetID,
               patternAssets.contains(where: { $0.id == assetID && $0.kind == .youtube }) else {
@@ -4742,6 +4746,9 @@ final class PatternLibraryDeletionTransaction {
     }
 
     public func patternThumbnailURL(patternID: UUID) async -> URL? {
+        guard !isSessionWriteRevoked,
+              let work = try? sessionWork.begin(kind: .thumbnail) else { return nil }
+        defer { sessionWork.finish(work) }
         guard loadError == nil,
               let pattern = patterns.first(where: { $0.id == patternID }),
               let asset = patternAssets.first(where: { $0.id == pattern.assetID })
@@ -4749,20 +4756,29 @@ final class PatternLibraryDeletionTransaction {
         let service = patternThumbnailService
         if asset.kind == .youtube {
             let cachedURL = service.cachedURL(assetID: asset.id)
-            return FileManager.default.fileExists(atPath: cachedURL.path) ? cachedURL : nil
+            let thumbnailURL = FileManager.default.fileExists(atPath: cachedURL.path)
+                ? cachedURL
+                : nil
+            guard !isSessionWriteRevoked else { return nil }
+            return thumbnailURL
         }
         guard let sourceURL = try? requiredPatternFileService().assetURL(asset) else {
             return nil
         }
-        return await Task.detached(priority: .utility) {
+        let thumbnailURL = await Task.detached(priority: .utility) {
             try? service.thumbnailURL(asset: asset, sourceURL: sourceURL)
         }.value
+        guard !isSessionWriteRevoked else { return nil }
+        return thumbnailURL
     }
 
     public func patternPDFPageThumbnailURL(
         assetID: UUID,
         pageIndex: Int
     ) async -> URL? {
+        guard !isSessionWriteRevoked,
+              let work = try? sessionWork.begin(kind: .thumbnail) else { return nil }
+        defer { sessionWork.finish(work) }
         guard !Task.isCancelled,
               let asset = patternAssets.first(where: { $0.id == assetID }),
               asset.kind == .pdf,
@@ -4781,7 +4797,8 @@ final class PatternLibraryDeletionTransaction {
         } onCancel: {
             renderingTask.cancel()
         }
-        guard !Task.isCancelled,
+        guard !isSessionWriteRevoked,
+              !Task.isCancelled,
               let currentAsset = patternAssets.first(where: { $0.id == asset.id }),
               currentAsset.sha256 == asset.sha256,
               currentAsset.kind == asset.kind,
@@ -5124,6 +5141,9 @@ final class PatternLibraryDeletionTransaction {
         caption: String?,
         createdAt: Date = .now
     ) async throws {
+        try requireSessionWriteAccess()
+        let work = try sessionWork.begin(kind: .journalPhoto)
+        defer { sessionWork.finish(work) }
         try requireAccess(.editJournal)
         guard let project = projects.first(where: { $0.id == projectID }) else {
             throw ProjectJournalMutationError.entryNotFound
@@ -5153,6 +5173,7 @@ final class PatternLibraryDeletionTransaction {
         }
 
         do {
+            try requireSessionWriteAccess()
             try Task.checkCancellation()
             let entry = try ProjectJournalEntry(
                 id: entryID,
@@ -5424,6 +5445,9 @@ final class PatternLibraryDeletionTransaction {
     }
     public func photoURL(for project: StoredProject) -> URL? { project.photoFilename.map(photoService.url(filename:)) }
     public func projectCoverURL(for project: StoredProject) async -> URL? {
+        guard !isSessionWriteRevoked,
+              let work = try? sessionWork.begin(kind: .thumbnail) else { return nil }
+        defer { sessionWork.finish(work) }
         if let photoURL = photoURL(for: project) {
             return photoURL
         }
@@ -5441,12 +5465,14 @@ final class PatternLibraryDeletionTransaction {
             let sourceURL = try? files.assetURL(asset)
         else { return nil }
         let service = patternThumbnailService
-        return await Task.detached(priority: .utility) {
+        let thumbnailURL = await Task.detached(priority: .utility) {
             try? service.thumbnailURL(
                 asset: asset,
                 sourceURL: sourceURL
             )
         }.value
+        guard !isSessionWriteRevoked else { return nil }
+        return thumbnailURL
     }
     public func photoURL(for yarn: StoredYarn) -> URL? { yarn.photoFilename.map(yarnPhotoService.url(filename:)) }
     public func journalPhotoURL(for entry: ProjectJournalEntry) -> URL? {

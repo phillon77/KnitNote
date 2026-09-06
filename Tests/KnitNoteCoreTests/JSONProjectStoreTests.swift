@@ -3184,6 +3184,365 @@ private enum StorePatternNativeTestError: Error, Equatable {
     }
 }
 
+enum StoreMediaRevokedEntry: CaseIterable, Sendable {
+    case youtubeThumbnail
+    case patternThumbnail
+    case patternPDFPageThumbnail
+    case directPhotoCover
+    case patternCover
+}
+
+private enum StoreMediaNativeTestError: Error, Equatable {
+    case journalThumbnailWrite
+}
+
+@Suite(.serialized) @MainActor struct StoreMediaSessionDrainTests {
+    @Test func revokedJournalEntryLeavesDomainAndFilesUntouched() async throws {
+        let fixture = try StoreBackupFixture.make()
+        defer { fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let photo = try makeStoreJPEG(red: 0.15)
+        let before = try backupEvidenceBytes(fixture.root)
+
+        fixture.store.revokeSessionWrites()
+        await #expect(throws: StoreSessionAccessError.revoked) {
+            try await fixture.store.addJournalEntry(
+                projectID: projectID,
+                photoData: photo,
+                caption: "revoked"
+            )
+        }
+
+        #expect(fixture.store.projects.first?.journalEntries.isEmpty == true)
+        #expect(try backupEvidenceBytes(fixture.root) == before)
+        try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+    }
+
+    @Test(arguments: StoreMediaRevokedEntry.allCases)
+    func revokedThumbnailAndCoverEntriesLeaveEvidenceUntouched(
+        _ entry: StoreMediaRevokedEntry
+    ) async throws {
+        let fixture = try StoreBackupFixture.make()
+        defer { fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        var patternID: UUID?
+        var assetID: UUID?
+
+        switch entry {
+        case .youtubeThumbnail:
+            let added = try await fixture.store.addYouTubePattern(
+                link: YouTubePatternLink(videoID: "dQw4w9WgXcQ"),
+                title: "Revoked video",
+                targetProjectID: projectID
+            )
+            patternID = added.patternID
+        case .patternThumbnail, .patternPDFPageThumbnail, .patternCover:
+            let source = fixture.root.appendingPathComponent("revoked.pdf")
+            try makeStorePatternPDF(at: source)
+            _ = try await fixture.store.importPatternFromProject(
+                source,
+                projectID: projectID
+            )
+            patternID = try #require(fixture.store.patterns.first?.id)
+            assetID = try #require(fixture.store.patternAssets.first?.id)
+        case .directPhotoCover:
+            let project = try #require(fixture.store.project(id: projectID))
+            try fixture.store.updateProject(
+                id: projectID,
+                name: project.name,
+                toolType: project.toolType,
+                toolSize: project.toolSize,
+                toolNotes: project.toolNotes,
+                photoChange: .replace(makeStoreJPEG(red: 0.25))
+            )
+        }
+
+        let project = try #require(fixture.store.project(id: projectID))
+        let thumbnail = try makeStoreJPEG(red: 0.35)
+        let before = try backupEvidenceBytes(fixture.root)
+        fixture.store.revokeSessionWrites()
+
+        switch entry {
+        case .youtubeThumbnail:
+            await fixture.store.cacheYouTubeThumbnail(
+                thumbnail,
+                patternID: try #require(patternID)
+            )
+        case .patternThumbnail:
+            #expect(await fixture.store.patternThumbnailURL(
+                patternID: try #require(patternID)
+            ) == nil)
+        case .patternPDFPageThumbnail:
+            #expect(await fixture.store.patternPDFPageThumbnailURL(
+                assetID: try #require(assetID),
+                pageIndex: 0
+            ) == nil)
+        case .directPhotoCover, .patternCover:
+            #expect(await fixture.store.projectCoverURL(for: project) == nil)
+        }
+
+        #expect(try backupEvidenceBytes(fixture.root) == before)
+        try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+    }
+
+    @Test(arguments: [false, true])
+    func journalSaveDrainsThroughReconcileAndPreservesNativeFailure(
+        failNativeWrite: Bool
+    ) async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(
+            journalBlocker: blocker,
+            failJournalThumbnailWrite: failNativeWrite
+        )
+        defer { blocker.resume(); fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let photo = try makeStoreJPEG(red: 0.45)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            try await fixture.store.addJournalEntry(
+                projectID: projectID,
+                photoData: photo,
+                caption: "late"
+            )
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await operation.value
+            throw error
+        }
+
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+
+        if failNativeWrite {
+            do {
+                try await operation.value
+                Issue.record("Expected the native journal thumbnail write failure")
+            } catch {
+                #expect(error as? StoreMediaNativeTestError == .journalThumbnailWrite)
+            }
+        } else {
+            await #expect(throws: StoreSessionAccessError.revoked) {
+                try await operation.value
+            }
+        }
+        try await drain.value
+        #expect(ended)
+        #expect(fixture.store.projects.first?.journalEntries.isEmpty == true)
+        let journalRoot = fixture.liveRoot.appendingPathComponent(
+            "ProjectJournalPhotos",
+            isDirectory: true
+        )
+        #expect(try FileManager.default.contentsOfDirectory(
+            at: journalRoot,
+            includingPropertiesForKeys: nil
+        ).isEmpty)
+    }
+
+    @Test func youtubeThumbnailStageRemainsTrackedAndIsDiscardedAfterRevocation() async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(thumbnailStageBlocker: blocker)
+        defer { blocker.resume(); fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let added = try await fixture.store.addYouTubePattern(
+            link: YouTubePatternLink(videoID: "dQw4w9WgXcQ"),
+            title: "Staged video",
+            targetProjectID: projectID
+        )
+        let assetID = try #require(fixture.store.patterns.first {
+            $0.id == added.patternID
+        }?.assetID)
+        let thumbnail = try makeStoreJPEG(red: 0.55)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            await fixture.store.cacheYouTubeThumbnail(
+                thumbnail,
+                patternID: added.patternID
+            )
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            await operation.value
+            throw error
+        }
+
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        #expect(!FileManager.default.fileExists(
+            atPath: fixture.thumbnailService.cachedURL(assetID: assetID).path
+        ))
+        blocker.resume()
+        await operation.value
+        try await drain.value
+
+        #expect(ended)
+        #expect(!FileManager.default.fileExists(
+            atPath: fixture.thumbnailService.cachedURL(assetID: assetID).path
+        ))
+        let stagedRoot = fixture.thumbnailService.directory.appendingPathComponent(
+            ".ExternalThumbnailStaging",
+            isDirectory: true
+        )
+        #expect(try FileManager.default.contentsOfDirectory(
+            at: stagedRoot,
+            includingPropertiesForKeys: nil
+        ).isEmpty)
+    }
+
+    @Test func pdfPageThumbnailRemainsTrackedAndRejectsItsLateURL() async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(thumbnailRenderBlocker: blocker)
+        defer { blocker.resume(); fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let source = fixture.root.appendingPathComponent("page-source.pdf")
+        try makeStorePatternPDF(at: source)
+        _ = try await fixture.store.importPatternFromProject(source, projectID: projectID)
+        let asset = try #require(fixture.store.patternAssets.first)
+        let operation = Task { @MainActor in
+            blocker.startObservingOperation()
+            defer { blocker.finishObservation(reachedBlock: false) }
+            return await fixture.store.patternPDFPageThumbnailURL(
+                assetID: asset.id,
+                pageIndex: 0
+            )
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = await operation.value
+            throw error
+        }
+
+        fixture.store.revokeSessionWrites()
+        let ready = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            ready.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(!ended)
+        blocker.resume()
+        let result = await operation.value
+        try await drain.value
+
+        #expect(ended)
+        #expect(result == nil)
+        #expect(FileManager.default.fileExists(atPath: source.path))
+        #expect(FileManager.default.fileExists(
+            atPath: fixture.thumbnailService.cachedPageURL(asset: asset, pageIndex: 0).path
+        ))
+    }
+
+    @Test(arguments: [false, true])
+    func ordinaryThumbnailAndPatternCoverRemainTrackedAndRejectLateURLs(
+        cover: Bool
+    ) async throws {
+        let blocker = StoreOperationBlocker()
+        let fixture = try StoreBackupFixture.make(thumbnailRenderBlocker: blocker)
+        defer { blocker.resume(); fixture.cleanup() }
+        let projectID = try #require(fixture.store.projects.first?.id)
+        let source = fixture.root.appendingPathComponent(
+            cover ? "cover-source.pdf" : "thumbnail-source.pdf"
+        )
+        try makeStorePatternPDF(at: source)
+        _ = try await fixture.store.importPatternFromProject(source, projectID: projectID)
+        let pattern = try #require(fixture.store.patterns.first)
+        let asset = try #require(fixture.store.patternAssets.first)
+        let storedSource = try fixture.store.patternAssetURL(patternID: pattern.id)
+        let project = try #require(fixture.store.project(id: projectID))
+        let ordinaryURL = fixture.thumbnailService.cachedURL(assetID: asset.id)
+        #expect(!FileManager.default.fileExists(atPath: ordinaryURL.path))
+
+        blocker.startObservingOperation()
+        let lockHolder = Task.detached {
+            try fixture.thumbnailService.thumbnailURL(
+                asset: asset,
+                sourceURL: storedSource,
+                pageIndex: 0
+            )
+        }
+        do {
+            try #require(await blocker.waitForObservedBlock())
+        } catch {
+            blocker.resume()
+            _ = try? await lockHolder.value
+            throw error
+        }
+
+        let operationReady = AsyncStream<Void>.makeStream()
+        let operation = Task { @MainActor in
+            operationReady.continuation.yield(())
+            if cover {
+                return await fixture.store.projectCoverURL(for: project)
+            }
+            return await fixture.store.patternThumbnailURL(patternID: pattern.id)
+        }
+        var operationIterator = operationReady.stream.makeAsyncIterator()
+        _ = await operationIterator.next()
+        fixture.store.revokeSessionWrites()
+        let drainReady = AsyncStream<Void>.makeStream()
+        var ended = false
+        let drain = Task { @MainActor in
+            drainReady.continuation.yield(())
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+            ended = true
+        }
+        var drainIterator = drainReady.stream.makeAsyncIterator()
+        _ = await drainIterator.next()
+        #expect(!ended)
+        blocker.resume()
+        let heldPageURL: URL
+        do {
+            heldPageURL = try await lockHolder.value
+        } catch {
+            blocker.resume()
+            _ = await operation.value
+            _ = try? await drain.value
+            throw error
+        }
+        let result = await operation.value
+        try await drain.value
+
+        #expect(ended)
+        #expect(result == nil)
+        #expect(heldPageURL == fixture.thumbnailService.cachedPageURL(
+            asset: asset,
+            pageIndex: 0
+        ))
+        #expect(FileManager.default.fileExists(atPath: ordinaryURL.path))
+        #expect(FileManager.default.fileExists(atPath: source.path))
+    }
+}
+
 private enum BackupEvidenceError: Error {
     case enumerationFailed(URL)
 }
@@ -3299,6 +3658,7 @@ private final class TwoStageBlocks: @unchecked Sendable {
     let workRoot: URL
     let replacementPackage: URL
     let service: KnitNoteBackupService
+    let thumbnailService: PatternThumbnailFileService
     let store: JSONProjectStore
 
     static func make(
@@ -3315,7 +3675,10 @@ private final class TwoStageBlocks: @unchecked Sendable {
         corruptInstalledArchive: Bool = false,
         failRollback: Bool = false,
         partialCommitCleanupFailure: Bool = false,
-        rollbackBlocker: StoreOperationBlocker? = nil
+        rollbackBlocker: StoreOperationBlocker? = nil,
+        thumbnailRenderBlocker: StoreOperationBlocker? = nil,
+        thumbnailStageBlocker: StoreOperationBlocker? = nil,
+        failJournalThumbnailWrite: Bool = false
     ) throws -> Self {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -3398,6 +3761,9 @@ private final class TwoStageBlocks: @unchecked Sendable {
                     try data.write(to: url, options: .atomic)
                     if ProjectJournalPhotoFilename.isFullImage(url.lastPathComponent) {
                         journalBlocker.blockOnce()
+                    } else if failJournalThumbnailWrite,
+                              ProjectJournalPhotoFilename.isThumbnail(url.lastPathComponent) {
+                        throw StoreMediaNativeTestError.journalThumbnailWrite
                     }
                 }
             )
@@ -3433,11 +3799,21 @@ private final class TwoStageBlocks: @unchecked Sendable {
         } else {
             patternInboxService = nil
         }
+        let thumbnailService = PatternThumbnailFileService(
+            directory: root.appendingPathComponent("ThumbnailCache"),
+            afterPageRender: { thumbnailRenderBlocker?.blockOnce() }
+        )
         let store = JSONProjectStore(
             url: archiveURL,
             journalPhotoService: journalService,
             patternFileService: patternService,
             patternInboxFileService: patternInboxService,
+            patternThumbnailService: thumbnailService,
+            afterYouTubeThumbnailStage: {
+                if let thumbnailStageBlocker {
+                    await Task.detached { thumbnailStageBlocker.blockOnce() }.value
+                }
+            },
             backupService: service
         )
         return Self(
@@ -3447,6 +3823,7 @@ private final class TwoStageBlocks: @unchecked Sendable {
             workRoot: workRoot,
             replacementPackage: replacementPackage,
             service: service,
+            thumbnailService: thumbnailService,
             store: store
         )
     }

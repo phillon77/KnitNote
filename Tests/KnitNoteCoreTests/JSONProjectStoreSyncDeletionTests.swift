@@ -339,6 +339,48 @@ import Testing
         #expect(try fixture.ledger().recentlyDeleted().isEmpty)
     }
 
+    @Test func revocationInsidePurgeReferencesPreservesRetainedDeletion() throws {
+        let fixture = try DeletionStoreFixture()
+        defer { fixture.cleanUp() }
+        try fixture.installCompleteArchive()
+        let journal = FileSyncMutationJournal(url: fixture.root.appendingPathComponent("pending.json"))
+        let store = fixture.store(sink: JournalSyncMutationSink(journal: journal))
+        try fixture.hydrate(store)
+        let project = try #require(store.projects.first)
+        try store.delete(id: project.id)
+        let ledger = try fixture.ledger()
+        let entry = try #require(try ledger.recentlyDeleted().first)
+        #expect(!entry.files.isEmpty)
+        let ack = Set(entry.exactRemovalVersions.map(\.versionID))
+        try journal.acknowledge(Set(try journal.pending().map(\.identity)))
+        let manifestURL = fixture.ledgerRoot.appendingPathComponent("ledger.json")
+        let archiveBefore = try Data(contentsOf: fixture.url)
+        let manifestBefore = try Data(contentsOf: manifestURL)
+        let markersBefore = try ledger.deletionMarkers()
+        let retainedBefore = try entry.files.map { proof in
+            let url = fixture.ledgerRoot.appendingPathComponent(proof.retainedRelativePath)
+            return (url, try Data(contentsOf: url))
+        }
+
+        #expect(throws: StoreSessionAccessError.revoked) {
+            try store.purgeRecentlyDeleted(
+                now: entry.deletedAt.addingTimeInterval(2592000),
+                acknowledgedVersions: ack
+            ) {
+                store.revokeSessionWrites()
+                return .init(acknowledgedRemovalVersionIDs: ack)
+            }
+        }
+
+        #expect(store.isSessionWriteRevoked)
+        #expect(try Data(contentsOf: fixture.url) == archiveBefore)
+        #expect(try Data(contentsOf: manifestURL) == manifestBefore)
+        #expect(try ledger.deletionMarkers() == markersBefore)
+        for (url, bytes) in retainedBefore {
+            #expect(try Data(contentsOf: url) == bytes)
+        }
+    }
+
     @Test(arguments: ["reminder", "legacy"], ["none", "existing", "explicit"])
     func pendingParentRetainsEmbeddedRemovalWhileLiveParentAloneAllowsPurge(kind: String, protection: String) throws {
         let fixture = try DeletionStoreFixture()

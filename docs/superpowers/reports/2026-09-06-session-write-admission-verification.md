@@ -5,7 +5,7 @@
 - Worktree: `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-device-sync-design`
 - Branch: `docs/cross-device-sync-design`
 - Baseline HEAD: `0195aed115353f91e8c51234a902e4050e43d717`
-- Candidate state: review-ready uncommitted diff; no source commit or frozen candidate SHA exists yet.
+- Candidate state: reviewed implementation commit `d8ad41e77aaae02de2e8a68e51a52433f1d5df29` plus a review-ready unstaged final-fix diff; a frozen successor candidate SHA does not exist yet.
 - Implemented only the synchronous, per-`JSONProjectStore` write-admission prerequisite. Revocation is monotonic for the store instance, is not persisted, and is not an account/session identity proof.
 - Added no App wiring, live service, signing, push, cleanup, migration, account-switch, or production activation behavior.
 
@@ -35,7 +35,7 @@
 - The four planned entry tests did not protect the inside-ownership or post-ACK checks. Added three focused real-fixture tests that preserve archive, checkpoint, journal authority, and publication-intent state. The ACK test has separate callback-1 and callback-2 cases; mutation REDs prove both post-callback checks and both ownership checks are observable.
 - `KnitNote.xcodeproj` uses explicit file references. The first unsigned macOS build-for-testing exited 65 with `cannot find 'StoreSessionAccessError' in scope` (`/tmp/session-admission-macos-pre-review.log`). Added the smallest `PBXFileReference` plus the same two Sources memberships as `JSONProjectStore.swift`.
 - After that membership correction, `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/session-admission-macos-derived CODE_SIGNING_ALLOWED=NO build-for-testing` exited 0 with `** TEST BUILD SUCCEEDED **` (`/tmp/session-admission-macos-pre-review-restored.log`). It emitted 3 existing AppIntents metadata-skip warnings. The DerivedData path is retained for controller reuse.
-- Independent implementation/spec and code-quality review found two Important issues: missing post-purchase-callback checks and loss of the revoked error in `persist`. Fix round 1 added the checks and explicit error preservation; scoped re-review confirmed both addressed, without new Critical/Important breakage. A test-only retain cycle in the two new callback fixtures is a deferred Minor for final review. Source commit, final integration review and full validation are still pending at this report snapshot.
+- Independent implementation/spec and code-quality review found two Important issues: missing post-purchase-callback checks and loss of the revoked error in `persist`. Fix round 1 added the checks and explicit error preservation; scoped re-review confirmed both addressed, without new Critical/Important breakage. Final integration review then found the purge callback boundary and two test-only retain cycles addressed in the final correction section below. Final rereview and frozen successor validation remain pending.
 
 ## Review round 1 correction evidence
 
@@ -49,6 +49,18 @@
 - Purchase-policy regression: `swift test --filter JSONProjectStoreEntitlementTests`; exit 0, 31 tests passed (`/tmp/session-admission-review1-entitlement-regression.log`). The log contains the existing CoreGraphics PDF diagnostic and no compiler warning.
 - These review corrections are intentionally unstaged over the exact staged v1 baseline. Rereview and frozen full validation remain pending.
 
+## Final integration review correction evidence
+
+- Added an immediate admission recheck after `purgeRecentlyDeleted` returns from its caller-supplied `references` callback. Revocation now escapes before reference interpretation, archive/canonical inspection, `SyncDeletionLedger.purge`, permanent-marker persistence, or retained-payload unlinking.
+- The focused fixture creates a real eligible project-deletion entry with retained files, revokes inside `references`, returns complete acknowledgement evidence, and compares archive bytes, `ledger.json`, each retained payload, and deletion markers.
+- Behavioral RED: `swift test --filter revocationInsidePurgeReferencesPreservesRetainedDeletion`; exit 1, 1 test / 1 suite with 4 issues (`/tmp/session-admission-final-fix-purge-red.log`). The call returned without error, changed the manifest and markers, and unlinked a retained file. Its clean compilation repeated the pre-existing deprecated `String(contentsOf:)` warning at `HighlightOverlayContractTests.swift:92`; no new compiler warning appeared.
+- Focused GREEN: the same command; exit 0, 1 test / 1 suite passed (`/tmp/session-admission-final-fix-purge-green.log`).
+- Covering GREEN: `swift test --filter 'JSONProjectStoreSyncDeletionTests|JSONProjectStoreSessionAdmissionTests'`; exit 0, 44 test functions / 2 suites passed (`/tmp/session-admission-final-fix-covering-green.log`).
+- Added simple `defer { store = nil }` cleanup in both callback-admission fixtures to remove the final review's test-only retain cycles.
+- Controller-reported affected run on `d8ad41e` (session 48269): exit 1, 814 tests / 47 suites; total 257.036 seconds, test time 173.754 seconds. The same existing `exportSerializesProjectYarnAndJournalMutations` blocker wait returned false at `JSONProjectStoreTests.swift:1965`. This second concurrent failure remains unresolved; its root cause is not proven and it is not a pass.
+- Final-fix `git diff --check`: exit 0, no output.
+- Final scoped rereview confirmed the purge guard and fixture-cycle corrections addressed, with no new Critical/Important breakage. Successor commit/SHA and controller-owned frozen validation remain pending at this snapshot; no broad affected rerun was performed in this fix wave.
+
 ## Remaining asynchronous writers and activation gates
 
 - Detached backup installation is not proven drained by this task.
@@ -61,7 +73,7 @@
 
 ## Candidate-bound full validation
 
-- Pending independent precommit review and any bounded review corrections.
-- Pending source commit and frozen source SHA.
+- Final scoped rereview completed; no open code findings remain from the task or final integration reviews.
+- Pending final-fix commit and frozen successor source SHA.
 - Pending controller-owned `swift test --no-parallel`, unsigned macOS build-for-testing, and unsigned generic-iOS build on the frozen source candidate.
 - The eleven-case Phase 4A matrix has not been run or passed by this task. Focused GREEN and the pre-review unsigned build do not substitute for candidate-bound full validation.

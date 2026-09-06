@@ -7503,6 +7503,7 @@ final class PatternLibraryDeletionTransaction {
         try beginDataOperation()
         defer { isDataOperationInProgress = false }
         var protected = try references()
+        try requireSessionWriteAccess()
         protected.acknowledgedRemovalVersionIDs.formIntersection(acknowledgedVersions)
         let archive = try archiveFromDisk()
         let current = ProjectArchive(version: ProjectArchive.currentVersion, projects: projects, yarns: yarns,

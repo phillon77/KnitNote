@@ -72,6 +72,7 @@ import Testing
     ) async throws {
         try await withRoot { root in
             var store: JSONProjectStore?
+            defer { store = nil }
             store = JSONProjectStore(
                 url: root.appendingPathComponent("projects-v1.json"),
                 authorizeMutation: { _ in
@@ -98,6 +99,7 @@ import Testing
     ) throws {
         try withRoot { root in
             var store: JSONProjectStore?
+            defer { store = nil }
             store = JSONProjectStore(
                 url: root.appendingPathComponent("projects-v1.json"),
                 authorizeMutation: { _ in .startTrial },

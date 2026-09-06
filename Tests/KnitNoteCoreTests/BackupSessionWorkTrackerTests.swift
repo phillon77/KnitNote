@@ -51,19 +51,54 @@ import Testing
         let root = URL(fileURLWithPath: "/tmp/unused-backup-root")
         let work = try tracker.begin(protecting: root)
         tracker.close()
-        let ready = AsyncStream<Void>.makeStream()
+        let ready = AsyncStream<Int>.makeStream()
         let cancelled = Task { @MainActor in
-            ready.continuation.yield(())
+            ready.continuation.yield(1)
+            try await tracker.waitUntilClosedAndIdle()
+        }
+        let peer = Task { @MainActor in
+            ready.continuation.yield(2)
             try await tracker.waitUntilClosedAndIdle()
         }
         var iterator = ready.stream.makeAsyncIterator()
-        _ = await iterator.next()
+        let registered = Set([
+            try #require(await iterator.next()),
+            try #require(await iterator.next()),
+        ])
+        #expect(registered == [1, 2])
         cancelled.cancel()
         await #expect(throws: CancellationError.self) { try await cancelled.value }
         #expect(tracker.protects(root))
-        let peer = Task { try await tracker.waitUntilClosedAndIdle() }
         tracker.finish(work)
         try await peer.value
+    }
+
+    @Test func twoRegisteredUncancelledWaitersBothReceiveFinalCompletion() async throws {
+        let tracker = BackupSessionWorkTracker()
+        let work = try tracker.begin(
+            protecting: URL(fileURLWithPath: "/tmp/unused-backup-root")
+        )
+        tracker.close()
+        let ready = AsyncStream<Int>.makeStream()
+        let first = Task { @MainActor in
+            ready.continuation.yield(1)
+            try await tracker.waitUntilClosedAndIdle()
+        }
+        let second = Task { @MainActor in
+            ready.continuation.yield(2)
+            try await tracker.waitUntilClosedAndIdle()
+        }
+        var iterator = ready.stream.makeAsyncIterator()
+        let registered = Set([
+            try #require(await iterator.next()),
+            try #require(await iterator.next()),
+        ])
+        #expect(registered == [1, 2])
+
+        tracker.finish(work)
+
+        try await first.value
+        try await second.value
     }
 
     @Test func cancellationBeforeEntryCannotReturnSuccess() async throws {

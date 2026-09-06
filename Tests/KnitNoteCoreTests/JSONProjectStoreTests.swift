@@ -2580,13 +2580,21 @@ private struct StoreLaunchRecoveryFixture {
             stageBlocker: prepare ? blocker : nil
         )
         defer { blocker.resume(); fixture.cleanup() }
+        let cancellationObserved = AsyncStream<Void>.makeStream()
         let operation = Task { @MainActor in
             blocker.startObservingOperation()
             defer { blocker.finishObservation(reachedBlock: false) }
-            if prepare {
-                _ = try await fixture.store.prepareBackupRestore(from: fixture.replacementPackage)
-            } else {
-                _ = try await fixture.store.exportBackup(appVersion: "1.0")
+            try await withTaskCancellationHandler {
+                if prepare {
+                    _ = try await fixture.store.prepareBackupRestore(
+                        from: fixture.replacementPackage
+                    )
+                } else {
+                    _ = try await fixture.store.exportBackup(appVersion: "1.0")
+                }
+            } onCancel: {
+                cancellationObserved.continuation.yield(())
+                cancellationObserved.continuation.finish()
             }
         }
         do {
@@ -2596,6 +2604,11 @@ private struct StoreLaunchRecoveryFixture {
             _ = try? await operation.value
             throw error
         }
+        operation.cancel()
+        var cancellationIterator = cancellationObserved.stream.makeAsyncIterator()
+        try #require(await cancellationIterator.next() != nil)
+        fixture.store.cleanupBackupArtifact(at: fixture.replacementPackage)
+        #expect(FileManager.default.fileExists(atPath: fixture.replacementPackage.path))
         fixture.store.revokeSessionWrites()
         let ready = AsyncStream<Void>.makeStream()
         var ended = false
@@ -2606,8 +2619,6 @@ private struct StoreLaunchRecoveryFixture {
         }
         var iterator = ready.stream.makeAsyncIterator()
         _ = await iterator.next()
-        #expect(!ended)
-        operation.cancel()
         #expect(!ended)
         blocker.resume()
         await #expect(throws: StoreSessionAccessError.revoked) {

@@ -36,7 +36,7 @@ import Testing
         let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
             initialAccountIdentifier: "account", assetStaging: staging, engineFactory: { _, _ in TestSyncEngineDriver() })
         try await transport.start()
-        try await transport.schedule([mutation, next])
+        try await transport.scheduleIssued([mutation, next])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(testZoneID())
         let cloud = try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID())
@@ -53,7 +53,7 @@ import Testing
         let restarted = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
             initialAccountIdentifier: "account", assetStaging: restartedStaging, engineFactory: { _, _ in TestSyncEngineDriver() })
         try await restarted.start()
-        try await restarted.schedule([next])
+        try await restarted.scheduleIssued([next])
         try await restarted.finishMutationReplay()
         #expect(FileManager.default.fileExists(atPath: url.path))
         #expect(try restartedStaging.assetForUpload(versionID: version.versionID, mutationID: next.mutationID).fileURL == nextURL)
@@ -91,7 +91,7 @@ import Testing
             try SyncMutation.save(recordVersion: SyncRecordVersion(record: testRecord(
                 uuid: String(format: "00000000-0000-0000-0000-%012d", index), revision: 1)), mutationID: UUID())
         }
-        try await transport.schedule(mutations)
+        try await transport.scheduleIssued(mutations)
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(testZoneID())
         let observation = RequestLimitObservation()
@@ -106,7 +106,7 @@ import Testing
         #expect(await observation.sizes == [4, 2, 2])
         // A one-record failure is terminal and keeps that mutation pending.
         let single = try testSaveMutation(revision: 1, mutationSuffix: 111)
-        try await transport.schedule([single])
+        try await transport.scheduleIssued([single])
         await driver.setSendAction {
             if let batch = await transport.recordZoneChangeBatch(pendingChanges: driver.pendingChanges(), scope: .all) {
                 await observation.append(batch.recordsToSave.count)
@@ -127,7 +127,7 @@ import Testing
             engineFactory: { _, _ in TestSyncEngineDriver() })
         var events = transport.events.makeAsyncIterator()
         try await transport.start()
-        try await transport.schedule([mutation])
+        try await transport.scheduleIssued([mutation])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(testZoneID())
         _ = await events.next()
@@ -154,7 +154,7 @@ import Testing
         let changes = try mutations.map { mutation in
             CKSyncEngine.PendingRecordZoneChange.saveRecord(try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID()).recordID)
         }
-        try await transport.schedule(mutations)
+        try await transport.scheduleIssued(mutations)
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(testZoneID())
         let large = try #require(await transport.recordZoneChangeBatch(pendingChanges: changes, scope: .all))
@@ -222,7 +222,7 @@ import Testing
         }
     }
 
-    @Test func conflictResolutionInstallsDurableTailAppendedWhileHeadWasInFlight() async throws {
+    @Test func permanentFailureWithoutRawServerCannotReplaceOrAcknowledgeHead() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
         let zoneID = testZoneID()
@@ -235,7 +235,7 @@ import Testing
         var iterator = transport.events.makeAsyncIterator()
         try await transport.start()
         let first = try testSaveMutation(revision: 1, mutationSuffix: 70)
-        try await transport.schedule([first])
+        try await transport.scheduleIssued([first])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
         _ = await iterator.next()
@@ -250,29 +250,10 @@ import Testing
         )?.recordsToSave.first)
         await transport.receiveFailedSave(outgoing, error: CKError(.invalidArguments))
         _ = await iterator.next()
-        let replacement = try testSaveMutation(revision: 2, mutationSuffix: 70)
-        let appended = try testSaveMutation(revision: 3, mutationSuffix: 72)
-
-        try await transport.resolveFailedMutation(
-            first.mutationID,
-            replacement: replacement,
-            followingReplacements: [appended]
-        )
-        let retried = try #require(await transport.recordZoneChangeBatch(
-            pendingChanges: [.saveRecord(recordID)],
-            scope: .all
-        )?.recordsToSave.first)
-        #expect(retried["syncMutationID"] as? String
-            == replacement.mutationID.uuidString.lowercased())
-        await driver.complete(.saveRecord(recordID))
-        await transport.receiveSentChanges(savedRecords: [retried], deletedRecordIDs: [])
-        _ = await iterator.next()
-        let successor = try #require(await transport.recordZoneChangeBatch(
-            pendingChanges: [.saveRecord(recordID)],
-            scope: .all
-        )?.recordsToSave.first)
-        #expect(successor["syncMutationID"] as? String
-            == appended.mutationID.uuidString.lowercased())
+        // An invalid-arguments event has no raw server authority and cannot be rebased.
+        await transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
+        #expect(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(recordID)], scope: .all) == nil)
+        #expect(await driver.pendingChanges() == [.saveRecord(recordID)])
     }
 
     @Test func stateWriteIsAtomicAndSynchronizesFileAndParentDirectory() throws {
@@ -439,7 +420,7 @@ import Testing
             recordVersion: SyncRecordVersion(record: nextDomain),
             mutationID: UUID(uuidString: "50000000-0000-0000-0000-000000000001")!
         )
-        try await transport.schedule([nextMutation])
+        try await transport.scheduleIssued([nextMutation])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
 
@@ -504,7 +485,7 @@ import Testing
         )
         try await transport.start()
         let first = try testSaveMutation(revision: 1, mutationSuffix: 41)
-        try await transport.schedule([first])
+        try await transport.scheduleIssued([first])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
         let recordID = cloudRecordID(
@@ -532,14 +513,14 @@ import Testing
         )?.parent?.recordID == saved.parent?.recordID)
 
         let second = try testSaveMutation(revision: 2, mutationSuffix: 42)
-        try await transport.schedule([second])
+        try await transport.scheduleIssued([second])
         let rebuilt = try #require(await transport.recordZoneChangeBatch(
             pendingChanges: [.saveRecord(recordID)],
             scope: .all
         )?.recordsToSave.first)
         #expect(rebuilt.parent?.recordID == saved.parent?.recordID)
 
-        let server = CKRecord(recordType: rebuilt.recordType, recordID: recordID)
+        let server = try CloudRecordCodec().encode(second.savedRecordVersion!.record, zoneID: zoneID)
         server.parent = CKRecord.Reference(
             recordID: CKRecord.ID(recordName: "conflict-parent", zoneID: zoneID),
             action: .none
@@ -554,22 +535,21 @@ import Testing
             accountIdentifier: accountIdentifier
         )?.parent?.recordID == server.parent?.recordID)
 
-        let deletion = SyncMutation.delete(
-            first.recordID,
-            mutationID: UUID(uuidString: "50000000-0000-0000-0000-000000000043")!
-        )
-        try await transport.resolveFailedMutation(second.mutationID, replacement: deletion)
-        let deleteBatch = try #require(await transport.recordZoneChangeBatch(
-            pendingChanges: [.deleteRecord(recordID)],
-            scope: .all
-        ))
+        #expect(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(recordID)], scope: .all) == nil)
+        // A restart must obtain fresh server authority. Explicit new delete fixtures
+        // exercise scoped system-field cleanup without manufacturing a conflict handoff.
+        let deletion = SyncMutation.delete(first.recordID, mutationID: UUID())
+        let restarted = CKSyncEngineTransport(zoneID: zoneID, stateStore: fixture.store,
+            systemFieldsStore: systemStore, initialAccountIdentifier: accountIdentifier, engineFactory: { _, _ in driver })
+        try await restarted.start()
+        try await restarted.scheduleIssued([deletion])
+        try await restarted.finishMutationReplay()
+        await restarted.receiveZoneReady(zoneID)
+        let deleteBatch = try #require(await restarted.recordZoneChangeBatch(pendingChanges: [.deleteRecord(recordID)], scope: .all))
         #expect(deleteBatch.recordIDsToDelete == [recordID])
         await driver.complete(.deleteRecord(recordID))
-        await transport.receiveSentChanges(savedRecords: [], deletedRecordIDs: [recordID])
-        #expect(try systemStore.load(
-            recordID: recordID,
-            accountIdentifier: accountIdentifier
-        ) == nil)
+        await restarted.receiveSentChanges(savedRecords: [], deletedRecordIDs: [recordID])
+        #expect(try systemStore.load(recordID: recordID, accountIdentifier: accountIdentifier) == nil)
     }
 
     @Test func systemFieldsStoreRejectsDestinationSymlinks() throws {
@@ -2248,7 +2228,7 @@ import Testing
             mutationID: UUID(uuidString: "60000000-0000-0000-0000-000000000003")!
         )
         await #expect(throws: CloudSyncTransportError.terminated) {
-            try await transport.schedule([mutation])
+            try await transport.scheduleIssued([mutation])
         }
 
         await driver.resumeCancellation()
@@ -2314,7 +2294,7 @@ import Testing
         )
 
         await #expect(throws: CloudSyncTransportError.notStarted) {
-            try await transport.schedule([mutation])
+            try await transport.scheduleIssued([mutation])
         }
         await driver.resumeCancellation()
         await reset.value
@@ -2339,7 +2319,7 @@ import Testing
             ),
             mutationID: UUID(uuidString: "60000000-0000-0000-0000-000000000002")!
         )
-        let scheduling = Task { try await transport.schedule([mutation]) }
+        let scheduling = Task { try await transport.scheduleIssued([mutation]) }
         await driver.waitUntilPendingReadSuspended()
 
         await transport.receiveAccountChange(previous: "account-a", current: "account-b")
@@ -2581,7 +2561,7 @@ import Testing
         )
         try await transport.start()
         let mutation = try testSaveMutation(revision: 1, mutationSuffix: 31)
-        try await transport.schedule([mutation])
+        try await transport.scheduleIssued([mutation])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(testZoneID())
         await materializer.suspendNextMaterialization()
@@ -2619,7 +2599,7 @@ import Testing
         )
         try await transport.start()
         let mutation = try testSaveMutation(revision: 1, mutationSuffix: 32)
-        try await transport.schedule([mutation])
+        try await transport.scheduleIssued([mutation])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(testZoneID())
         await materializer.suspendNextMaterialization()
@@ -2657,7 +2637,7 @@ import Testing
         )
         try await transport.start()
         let mutation = try testSaveMutation(revision: 1, mutationSuffix: 33)
-        try await transport.schedule([mutation])
+        try await transport.scheduleIssued([mutation])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(testZoneID())
         await materializer.suspendNextMaterialization()
@@ -2701,7 +2681,7 @@ import Testing
         let record = try testRecord(uuid: "00000000-0000-0000-0000-000000000010", revision: 1)
         let save = try SyncMutation.save(recordVersion: SyncRecordVersion(record: record), mutationID: firstID)
         let delete = SyncMutation.delete(record.id, mutationID: secondID)
-        try await transport.schedule([save, delete])
+        try await transport.scheduleIssued([save, delete])
         let recordID = cloudRecordID(kind: .project, uuid: record.id.uuid.uuidString, zoneID: zoneID)
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
@@ -2714,12 +2694,12 @@ import Testing
         )?.recordsToSave.first)
         await driver.complete(.saveRecord(recordID))
         await transport.receiveSentChanges(savedRecords: [savedRecord], deletedRecordIDs: [])
-        guard case let .sent(sentRecordID, sentMutationID)? = await iterator.next() else {
+        guard case let .sent(sentRecordID, _, _)? = await iterator.next() else {
             Issue.record("Expected first sent event")
             return
         }
-        #expect(sentRecordID == record.id)
-        #expect(sentMutationID == firstID)
+        #expect(sentRecordID.identity.recordID == record.id)
+        #expect(sentRecordID.identity.mutationID == firstID)
         #expect(await driver.pendingChanges() == [.deleteRecord(recordID)])
 
         _ = await transport.recordZoneChangeBatch(
@@ -2728,12 +2708,12 @@ import Testing
         )
         await driver.complete(.deleteRecord(recordID))
         await transport.receiveSentChanges(savedRecords: [], deletedRecordIDs: [recordID])
-        guard case let .sent(deletedRecordID, deletedMutationID)? = await iterator.next() else {
+        guard case let .sent(deletedRecordID, _, _)? = await iterator.next() else {
             Issue.record("Expected second sent event")
             return
         }
-        #expect(deletedRecordID == record.id)
-        #expect(deletedMutationID == secondID)
+        #expect(deletedRecordID.identity.recordID == record.id)
+        #expect(deletedRecordID.identity.mutationID == secondID)
         #expect(await driver.pendingChanges().isEmpty)
     }
 
@@ -2755,7 +2735,7 @@ import Testing
             mutationID: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!
         )
 
-        try await transport.schedule([mutation, mutation])
+        try await transport.scheduleIssued([mutation, mutation])
 
         #expect(await driver.pendingChanges() == [.saveRecord(recordID)])
         #expect(await driver.addCallCount() == 0)
@@ -2780,7 +2760,7 @@ import Testing
         try await transport.start()
 
         #expect(await transport.recordZoneChangeBatch(pendingChanges: [restored], scope: .all) == nil)
-        try await transport.schedule([.delete(
+        try await transport.scheduleIssued([.delete(
             entityID,
             mutationID: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!
         )])
@@ -2817,7 +2797,7 @@ import Testing
             engineFactory: { _, _ in driver }
         )
         try await transport.start()
-        try await transport.schedule([.delete(
+        try await transport.scheduleIssued([.delete(
             entityID,
             mutationID: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!
         )])
@@ -2895,7 +2875,7 @@ import Testing
             zoneID: zoneID
         )
         try systemStore.save(record, accountIdentifier: accountIdentifier)
-        try await transport.schedule([mutation])
+        try await transport.scheduleIssued([mutation])
         try await transport.finishMutationReplay()
         let sendsBeforeDeletion = await driver.sendCallCount()
 
@@ -2928,7 +2908,7 @@ import Testing
         await driver.completeDatabaseChange(zoneSave)
         await transport.receiveZoneReady(zoneID)
         let mutation = try testSaveMutation(revision: 1, mutationSuffix: 64)
-        try await transport.schedule([mutation])
+        try await transport.scheduleIssued([mutation])
         try await transport.finishMutationReplay()
         let recordID = cloudRecordID(
             kind: mutation.recordID.kind,
@@ -2976,7 +2956,7 @@ import Testing
             save.recordID,
             mutationID: UUID(uuidString: "40000000-0000-0000-0000-000000000063")!
         )
-        try await transport.schedule([save, deletion])
+        try await transport.scheduleIssued([save, deletion])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
         let recordID = cloudRecordID(
@@ -3033,7 +3013,7 @@ import Testing
                 ))!
             )
         }
-        try await transport.schedule(mutations)
+        try await transport.scheduleIssued(mutations)
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
 
@@ -3053,7 +3033,7 @@ import Testing
             engineFactory: { _, _ in scopedDriver }
         )
         try await scopedTransport.start()
-        try await scopedTransport.schedule(mutations)
+        try await scopedTransport.scheduleIssued(mutations)
         try await scopedTransport.finishMutationReplay()
         await scopedTransport.receiveZoneReady(zoneID)
         let scopedIDs = [ids[250], ids[3], ids[200]]
@@ -3110,7 +3090,7 @@ import Testing
             first.recordID,
             mutationID: UUID(uuidString: "40000000-0000-0000-0000-000000000003")!
         )
-        try await transport.schedule([first, second, third])
+        try await transport.scheduleIssued([first, second, third])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
         _ = await iterator.next()
@@ -3128,11 +3108,11 @@ import Testing
         #expect(firstReturnedRecord["syncMutationID"] as? String == first.mutationID.uuidString.lowercased())
         await driver.complete(.saveRecord(recordID))
         await transport.receiveSentChanges(savedRecords: [firstReturnedRecord], deletedRecordIDs: [])
-        guard case let .sent(_, firstID)? = await iterator.next() else {
+        guard case let .sent(firstToken, _, _)? = await iterator.next() else {
             Issue.record("Expected first send acknowledgement")
             return
         }
-        #expect(firstID == first.mutationID)
+        #expect(firstToken.identity.mutationID == first.mutationID)
 
         let secondBatch = await transport.recordZoneChangeBatch(
             pendingChanges: await driver.pendingChanges(),
@@ -3144,11 +3124,11 @@ import Testing
         #expect(await driver.pendingChanges() == [.saveRecord(recordID)])
         await driver.complete(.saveRecord(recordID))
         await transport.receiveSentChanges(savedRecords: [secondReturnedRecord], deletedRecordIDs: [])
-        guard case let .sent(_, secondID)? = await iterator.next() else {
+        guard case let .sent(secondToken, _, _)? = await iterator.next() else {
             Issue.record("Expected second send acknowledgement")
             return
         }
-        #expect(secondID == second.mutationID)
+        #expect(secondToken.identity.mutationID == second.mutationID)
         #expect(await driver.pendingChanges() == [.deleteRecord(recordID)])
     }
 
@@ -3169,7 +3149,7 @@ import Testing
             mutationID: UUID(uuidString: "40000000-0000-0000-0000-000000000012")!
         )
         let third = try testSaveMutation(revision: 3, mutationSuffix: 13)
-        try await transport.schedule([first, deletion, third])
+        try await transport.scheduleIssued([first, deletion, third])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
         let recordID = cloudRecordID(
@@ -3209,7 +3189,7 @@ import Testing
         var iterator = transport.events.makeAsyncIterator()
         try await transport.start()
         let first = try testSaveMutation(revision: 1, mutationSuffix: 21)
-        try await transport.schedule([first])
+        try await transport.scheduleIssued([first])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
         _ = await iterator.next()
@@ -3224,7 +3204,7 @@ import Testing
         )?.recordsToSave.first)
 
         await transport.receiveFailedSave(firstRecord, error: CKError(.invalidArguments))
-        guard case let .mutationFailed(_, failedID, .invalidArguments, _, _)? = await iterator.next() else {
+        guard case let  .mutationFailed(_, failedID, .invalidArguments, _, _, _)? = await iterator.next() else {
             Issue.record("Expected identified permanent head failure")
             return
         }
@@ -3234,32 +3214,12 @@ import Testing
             scope: .all
         ) == nil)
 
-        let replacement = try testSaveMutation(revision: 2, mutationSuffix: 22)
-        let sendsBeforeResolution = await driver.sendCallCount()
-        try await transport.resolveFailedMutation(first.mutationID, replacement: replacement)
-        #expect(await driver.sendCallCount() == sendsBeforeResolution + 1)
-        let replacementRecord = try #require(await transport.recordZoneChangeBatch(
-            pendingChanges: [.saveRecord(recordID)],
-            scope: .all
-        )?.recordsToSave.first)
-        #expect(replacementRecord["syncMutationID"] as? String == replacement.mutationID.uuidString.lowercased())
-
-        await transport.receiveFailedSave(
-            replacementRecord,
-            error: CKError(.accountTemporarilyUnavailable)
-        )
-        guard case let .failed(.retryable(code, _))? = await iterator.next() else {
-            Issue.record("Expected retryable transport failure")
-            return
-        }
-        #expect(code == CKError.Code.accountTemporarilyUnavailable.rawValue)
-        #expect(await transport.recordZoneChangeBatch(
-            pendingChanges: [.saveRecord(recordID)],
-            scope: .all
-        ) != nil)
+        await transport.receiveSentChanges(savedRecords: [firstRecord], deletedRecordIDs: [])
+        #expect(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(recordID)], scope: .all) == nil)
+        #expect(await driver.pendingChanges() == [.saveRecord(recordID)])
     }
 
-    @Test func retiringFailedHeadRemovesItsEnginePendingChange() async throws {
+    @Test func failedHeadCannotBeRetiredByUnverifiedSuccess() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
         let driver = TestSyncEngineDriver()
@@ -3271,7 +3231,7 @@ import Testing
         )
         try await transport.start()
         let mutation = try testSaveMutation(revision: 1, mutationSuffix: 51)
-        try await transport.schedule([mutation])
+        try await transport.scheduleIssued([mutation])
         try await transport.finishMutationReplay()
         await transport.receiveZoneReady(zoneID)
         let recordID = cloudRecordID(
@@ -3285,9 +3245,9 @@ import Testing
         )?.recordsToSave.first)
         await transport.receiveFailedSave(outgoing, error: CKError(.invalidArguments))
 
-        try await transport.resolveFailedMutation(mutation.mutationID, replacement: nil)
-
-        #expect(await driver.pendingChanges().isEmpty)
+        await transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
+        #expect(await driver.pendingChanges() == [.saveRecord(recordID)])
+        #expect(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(recordID)], scope: .all) == nil)
     }
 }
 
@@ -3650,4 +3610,11 @@ private func testSaveMutation(revision: UInt64, mutationSuffix: Int) throws -> S
             mutationSuffix
         ))!
     )
+}
+
+// Explicit original-issue convenience for standalone transport fixtures only.
+extension CKSyncEngineTransport {
+    func scheduleIssued(_ mutations: [SyncMutation]) async throws {
+        try await schedule(mutations.map { try SyncVersionedMutation(mutation: $0, journalRevision: 0) })
+    }
 }

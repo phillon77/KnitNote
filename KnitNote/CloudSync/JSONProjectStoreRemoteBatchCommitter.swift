@@ -52,8 +52,20 @@ import Foundation
         }
     }
 
-    func commitServerRecordChanged(failedMutation: SyncMutation, accountEpoch: CloudSyncAccountEpoch,
-        expectedRecordQueue: [SyncMutationIdentity], mergeResult: SyncMergeResult) async throws -> SyncFailedMutationCommitResult {
-        throw SyncRemoteBatchError.unsupportedConflictReplacement
+    func commitServerRecordChanged(input: SyncConflictInput, accountEpoch: CloudSyncAccountEpoch) async throws -> SyncConflictCommitResult {
+        try accountEpoch.requireCurrent()
+        guard try accountEpoch.verifiedAccountIdentity() == account,
+              input.accountIDHash == account.accountIDHash else { throw SyncConflictError.missingAuthority }
+        let batch = try SyncRemoteBatch(accountIDHash: input.accountIDHash, batchID: input.failedAttemptID,
+            records: [input.serverRecord], deletedRecordIDs: [])
+        let sources = try await attachmentSources(batch)
+        try accountEpoch.requireCurrent()
+        let preparation = try store.prepareConflictRebase(input, attachmentSources: sources)
+        return try store.commitConflictRebase(preparation) { commit in
+            try accountEpoch.withCurrent {
+                guard try accountEpoch.verifiedAccountIdentity() == account else { throw SyncConflictError.missingAuthority }
+                return try commit()
+            }
+        }
     }
 }

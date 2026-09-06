@@ -23,7 +23,7 @@ import Testing
         await drainCoordinatorTasks()
         await transport.receiveZoneReady(testZoneID())
         let cloudID = try CloudRecordCodec().encode(mutation.savedRecordVersion!.record, zoneID: testZoneID()).recordID
-        let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloudID)], scope: .all)?.recordsToSave.first)
+        let outgoing = try await coordinatorOutgoing(transport, cloudID)
         let stagedURL = try #require((outgoing["asset"] as? CKAsset)?.fileURL)
         await transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
         #expect(await eventually { coordinator.status.phase == .needsAttention })
@@ -46,6 +46,7 @@ import Testing
         let tail = try saveMutation(revision: 2, mutationSuffix: 95)
         let journal = FakeCoordinatorJournal([head, tail])
         let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            systemFieldsStore: FileCloudRecordSystemFieldsStore(url: fixture.root.appendingPathComponent("system.json"), zoneID: testZoneID()),
             initialAccountIdentifier: "account", containerIdentifier: "test.container", engineFactory: { _, _ in TestSyncEngineDriver() })
         let committer = FakeFetchedBatchCommitter(journal: journal)
         let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
@@ -57,7 +58,7 @@ import Testing
         let cloudID = try CloudRecordCodec().encode(head.savedRecordVersion!.record, zoneID: testZoneID()).recordID
         var attempts: Set<String> = []
         for revision: UInt64 in [3, 4] {
-            let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloudID)], scope: .all)?.recordsToSave.first)
+            let outgoing = try await coordinatorOutgoing(transport, cloudID)
             attempts.insert(try #require(outgoing["syncAttemptID"] as? String))
             let server = try CloudRecordCodec().encode(projectRecord(id: head.recordID, revision: revision, name: "server-\(revision)"), zoneID: testZoneID())
             await transport.receiveFailedSave(outgoing, error: CKError(.serverRecordChanged, userInfo: [CKRecordChangedErrorServerRecordKey: server]))
@@ -67,7 +68,7 @@ import Testing
         #expect(attempts.count == 2)
         #expect(journal.pendingMutations.last?.savedRecordVersion?.record.payload.fields["name"]?.value == .string("server-4"))
         for mutation in [head, tail] {
-            let outgoing = try #require(await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(cloudID)], scope: .all)?.recordsToSave.first)
+            let outgoing = try await coordinatorOutgoing(transport, cloudID)
             #expect(outgoing["syncMutationID"] as? String == mutation.mutationID.uuidString.lowercased())
             await transport.receiveSentChanges(savedRecords: [outgoing], deletedRecordIDs: [])
             await drainCoordinatorTasks()
@@ -81,7 +82,8 @@ import Testing
         let mutation = try saveMutation(revision: 1, mutationSuffix: 93)
         let journal = FakeCoordinatorJournal([mutation])
         let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
-            initialAccountIdentifier: "old-account", engineFactory: { _, _ in TestSyncEngineDriver() })
+            systemFieldsStore: FileCloudRecordSystemFieldsStore(url: fixture.root.appendingPathComponent("system.json"), zoneID: testZoneID()),
+            initialAccountIdentifier: "old-account", containerIdentifier: "test.container", engineFactory: { _, _ in TestSyncEngineDriver() })
         let committer = FakeFetchedBatchCommitter(journal: journal, suspendConflictCommit: true)
         let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
             mergeEngine: SyncMergeEngine(), recordProvider: FakeCoordinatorRecordProvider(records: [:]),
@@ -109,8 +111,7 @@ import Testing
         let coordinator = makeCoordinator(transport: transport, journal: journal, committer: committer)
         await coordinator.start()
         for revision: UInt64 in [3, 4] {
-            transport.emit(.mutationFailed(
-                recordID: first.recordID, mutationID: first.mutationID,
+            transport.emit(.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == first.identity }),
                 failure: .serverRecordChanged(recordID: first.recordID, serverRecord: projectRecord(
                     id: first.recordID, revision: revision, name: "server-\(revision)"
                 ))
@@ -119,7 +120,7 @@ import Testing
         }
         #expect(committer.conflictMutationIDs.count == 2)
         #expect(journal.pendingMutations.last?.savedRecordVersion?.record.payload.fields["name"]?.value == .string("server-4"))
-        transport.emit(.sent(recordID: first.recordID, mutationID: first.mutationID))
+        transport.emit(.sent(token: try (journal.pendingVersioned().first { $0.mutation.identity == first.identity }?.token ?? SyncMutationVersionToken(mutation: first)), attemptID: UUID(), accountEpoch: transport.accountEpoch))
         #expect(await eventually { journal.pendingMutations.map(\.identity) == [later.identity] })
     }
 
@@ -237,14 +238,14 @@ import Testing
         )
         await coordinator.start()
 
-        transport.emit(.sent(recordID: second.recordID, mutationID: second.mutationID))
+        transport.emit(.sent(token: try (journal.pendingVersioned().first { $0.mutation.identity == second.identity }?.token ?? SyncMutationVersionToken(mutation: second)), attemptID: UUID(), accountEpoch: transport.accountEpoch))
         await drainCoordinatorTasks()
         #expect(journal.pendingMutations == [first, second])
 
-        transport.emit(.sent(recordID: first.recordID, mutationID: first.mutationID))
+        transport.emit(.sent(token: try (journal.pendingVersioned().first { $0.mutation.identity == first.identity }?.token ?? SyncMutationVersionToken(mutation: first)), attemptID: UUID(), accountEpoch: transport.accountEpoch))
         #expect(await eventually { journal.pendingMutations == [second] })
 
-        transport.emit(.sent(recordID: first.recordID, mutationID: first.mutationID))
+        transport.emit(.sent(token: try (journal.pendingVersioned().first { $0.mutation.identity == first.identity }?.token ?? SyncMutationVersionToken(mutation: first)), attemptID: UUID(), accountEpoch: transport.accountEpoch))
         await drainCoordinatorTasks()
 
         #expect(journal.pendingMutations == [second])
@@ -333,7 +334,7 @@ import Testing
             records: [record], deleted: []
         ))
         #expect(await eventually { coordinator.status.issue == .durableCommit })
-        transport.emit(.sent(recordID: pending.recordID, mutationID: pending.mutationID))
+        transport.emit(.sent(token: try (journal.pendingVersioned().first { $0.mutation.identity == pending.identity }?.token ?? SyncMutationVersionToken(mutation: pending)), attemptID: UUID(), accountEpoch: transport.accountEpoch))
         transport.emit(.fetchRequestCompleted(requestID))
         transport.emit(.sendRequestCompleted(requestID))
         await drainCoordinatorTasks()
@@ -533,25 +534,19 @@ import Testing
         )
         await coordinator.start()
 
-        transport.emit(.mutationFailed(
-            recordID: later.recordID,
-            mutationID: later.mutationID,
+        transport.emit(.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == later.identity }),
             failure: .serverRecordChanged(recordID: later.recordID, serverRecord: server)
         ))
         await drainCoordinatorTasks()
         #expect(transport.resolvedMutationIDs.isEmpty)
 
         let repeatedAttempt = UUID()
-        transport.emit(.mutationFailed(
-            recordID: first.recordID,
-            mutationID: first.mutationID,
+        transport.emit(.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == first.identity }),
             failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server),
             accountEpoch: coordinatorTestEpoch(), attemptID: repeatedAttempt
         ))
         #expect(await eventually { transport.resolvedMutationIDs == [first.mutationID] })
-        transport.emit(.mutationFailed(
-            recordID: first.recordID,
-            mutationID: first.mutationID,
+        transport.emit(.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == first.identity }),
             failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server),
             accountEpoch: coordinatorTestEpoch(), attemptID: repeatedAttempt
         ))
@@ -611,9 +606,7 @@ import Testing
         )
         await coordinator.start()
 
-        transport.emit(.mutationFailed(
-            recordID: first.recordID,
-            mutationID: first.mutationID,
+        transport.emit(.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == first.identity }),
             failure: .serverRecordChanged(recordID: first.recordID, serverRecord: server)
         ))
         #expect(await committer.waitUntilConflictCommitSuspended())
@@ -680,8 +673,7 @@ import Testing
         await coordinator.start()
 
         transport.emit(.mutationFailed(
-            recordID: attachmentID,
-            mutationID: save.mutationID,
+            attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == save.identity }),
             failure: .serverRecordChanged(recordID: attachmentID, serverRecord: attachmentRecord)
         ))
 
@@ -708,9 +700,7 @@ import Testing
         await coordinator.start()
         let server = projectRecord(id: mutation.recordID, revision: 3, name: "server")
 
-        transport.emit(.mutationFailed(
-            recordID: mutation.recordID,
-            mutationID: mutation.mutationID,
+        transport.emit(.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == mutation.identity }),
             failure: .serverRecordChanged(recordID: mutation.recordID, serverRecord: server)
         ))
         #expect(await eventually { coordinator.status.issue == .durableCommit })
@@ -743,16 +733,14 @@ import Testing
             committer: committer
         )
         await coordinator.start()
-        let conflict = CloudSyncEvent.mutationFailed(
-            recordID: failed.recordID,
-            mutationID: failed.mutationID,
+        let conflict = CloudSyncEvent.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == failed.identity }),
             failure: .serverRecordChanged(recordID: failed.recordID, serverRecord: server)
         )
 
         transport.emit(conflict)
         #expect(await eventually { coordinator.status.issue == .durableCommit })
 
-        transport.emit(.sent(recordID: unrelated.recordID, mutationID: unrelated.mutationID))
+        transport.emit(.sent(token: try (journal.pendingVersioned().first { $0.mutation.identity == unrelated.identity }?.token ?? SyncMutationVersionToken(mutation: unrelated)), attemptID: UUID(), accountEpoch: transport.accountEpoch))
         transport.emit(.fetched(
             batchID: uuid(suffix: 65),
             accountEpoch: transport.accountEpoch,
@@ -791,9 +779,7 @@ import Testing
         )
         await coordinator.start()
         let server = projectRecord(id: mutation.recordID, revision: 3, name: "server")
-        let event = CloudSyncEvent.mutationFailed(
-            recordID: mutation.recordID,
-            mutationID: mutation.mutationID,
+        let event = CloudSyncEvent.mutationFailed(attempted: try #require(journal.pendingVersioned().first { $0.mutation.identity == mutation.identity }),
             failure: .serverRecordChanged(recordID: mutation.recordID, serverRecord: server)
         )
 
@@ -812,7 +798,7 @@ import Testing
         transport.emit(event)
         #expect(await eventually { transport.resolvedMutationIDs == [mutation.mutationID] })
 
-        #expect(committer.conflictMutationIDs == [mutation.mutationID, mutation.mutationID])
+        #expect(committer.conflictMutationIDs == [mutation.mutationID]) // exact retry reuses durable resolution
     }
 
     private func makeCoordinator(
@@ -854,8 +840,10 @@ private func coordinatorTestEpoch() -> CloudSyncAccountEpoch {
 }
 
 private extension CloudSyncEvent {
-    static func mutationFailed(recordID: SyncEntityID, mutationID: UUID, failure: CloudSyncFailure) -> Self {
-        .mutationFailed(recordID: recordID, mutationID: mutationID, failure: failure, accountEpoch: coordinatorTestEpoch())
+    static func mutationFailed(attempted: SyncVersionedMutation, failure: CloudSyncFailure,
+        accountEpoch: CloudSyncAccountEpoch = coordinatorTestEpoch(), attemptID: UUID = UUID()) -> Self {
+        .mutationFailed(recordID: attempted.mutation.recordID, mutationID: attempted.mutation.mutationID,
+            failure: failure, accountEpoch: accountEpoch, attemptID: attemptID, attempted: attempted)
     }
 }
 
@@ -975,6 +963,7 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
     private var resolvedReplacementStorage: [SyncMutation?] = []
     private var resolvedFollowingReplacementStorage: [[SyncMutation]] = []
     private var fetchRequestIDStorage: [UUID] = []
+    private var sentStorage: [UUID: (SyncMutationVersionToken, CloudSyncAccountEpoch)] = [:]
 
     init(
         recorder: CoordinatorOperationRecorder = CoordinatorOperationRecorder(),
@@ -1010,7 +999,8 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
     }
     func start() async throws { record("start") }
 
-    func schedule(_ mutations: [SyncMutation]) async throws {
+    func schedule(_ versioned: [SyncVersionedMutation]) async throws {
+        let mutations = versioned.map(\.mutation)
         withLock {
             scheduledStorage = mutations
             scheduleBatchStorage.append(mutations)
@@ -1030,11 +1020,10 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
         record("ackFetched:\(batchID.uuidString)")
     }
 
-    func resolveFailedMutation(
-        _ mutationID: UUID,
-        replacement: SyncMutation?,
-        followingReplacements: [SyncMutation]?
-    ) async throws {
+    func resolveFailedMutation(_ resolution: SyncConflictResolution, accountEpoch: CloudSyncAccountEpoch, expectedQueue: [SyncVersionedMutation]) async throws -> CloudConflictHandoffResult {
+        let mutationID = resolution.input.failedMutation.mutationID
+        let replacement = resolution.replacement
+        let followingReplacements = resolution.followingReplacements
         let shouldFail = withLock { () -> Bool in
             guard resolveFailuresRemaining > 0 else { return false }
             resolveFailuresRemaining -= 1
@@ -1044,9 +1033,21 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
         withLock {
             resolvedMutationStorage.append(mutationID)
             resolvedReplacementStorage.append(replacement)
-            resolvedFollowingReplacementStorage.append(followingReplacements ?? [])
+            resolvedFollowingReplacementStorage.append(followingReplacements)
         }
         record("resolve:\(mutationID.uuidString)")
+        return .accepted
+    }
+
+    func verifySentMutation(_ token: SyncMutationVersionToken, attemptID: UUID, accountEpoch: CloudSyncAccountEpoch) async throws {
+        try accountEpoch.requireCurrent()
+        guard withLock({ sentStorage[attemptID]?.0 == token && sentStorage[attemptID]?.1 === accountEpoch }) else { throw CloudSyncTransportError.staleOperation }
+    }
+    func acknowledgeSentMutation(_ token: SyncMutationVersionToken, attemptID: UUID) async throws {
+        try withLock {
+            guard sentStorage[attemptID]?.0 == token else { throw CloudSyncTransportError.staleOperation }
+            sentStorage.removeValue(forKey: attemptID)
+        }
     }
 
     func fetchNow(completionID: UUID?) async throws {
@@ -1071,6 +1072,9 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
     }
 
     func emit(_ event: CloudSyncEvent) {
+        if case let .sent(token, attemptID, epoch) = event {
+            withLock { sentStorage[attemptID] = (token, epoch) }
+        }
         if case .accountChanged = event {
             accountEpoch.invalidate()
         }
@@ -1084,16 +1088,17 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
         recorder.append(operation)
     }
 
-    private func withLock<T>(_ body: () -> T) -> T {
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
-        return body()
+        return try body()
     }
 }
 
 private final class FakeCoordinatorJournal: SyncMutationJournalProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [SyncMutation]
+    private var revisions: [SyncMutationIdentity: UInt64] = [:]
     private var acknowledgedStorage: [SyncMutationIdentity] = []
 
     init(_ mutations: [SyncMutation] = []) {
@@ -1110,9 +1115,14 @@ private final class FakeCoordinatorJournal: SyncMutationJournalProtocol, @unchec
     }
 
     func pending() throws -> [SyncMutation] { pendingMutations }
-    func pendingVersioned() throws -> [SyncVersionedMutation] { throw SyncConflictError.missingAuthority }
+    func pendingVersioned() throws -> [SyncVersionedMutation] { try withLock { try storage.map { try SyncVersionedMutation(mutation: $0, journalRevision: revisions[$0.identity, default: 0]) } } }
     func acknowledgeCurrentVersion(_ token: SyncMutationVersionToken) throws -> SyncVersionedAcknowledgementResult {
-        throw SyncConflictError.missingAuthority
+        try withLock {
+            guard let head = storage.first(where: { $0.recordID == token.identity.recordID }),
+                  try SyncMutationVersionToken(mutation: head, journalRevision: revisions[head.identity, default: 0]) == token else { return .staleVersion }
+            storage.removeAll { $0.identity == token.identity }; acknowledgedStorage.append(token.identity)
+            return .acknowledged
+        }
     }
 
     func acknowledge(_ identities: Set<SyncMutationIdentity>) throws {
@@ -1138,13 +1148,14 @@ private final class FakeCoordinatorJournal: SyncMutationJournalProtocol, @unchec
         }
         for (index, replacement) in zip(indices, replacements) {
             storage[index] = replacement
+            revisions[replacement.identity, default: 0] += 1
         }
     }
 
-    private func withLock<T>(_ body: () -> T) -> T {
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
-        return body()
+        return try body()
     }
 }
 
@@ -1174,6 +1185,7 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
     private let journal: FakeCoordinatorJournal?
     private var fetchedStorage: [FetchedCommitCapture] = []
     private var conflictStorage: [(UUID, SyncMergeResult)] = []
+    private var conflictResolutions: [UUID: SyncConflictResolution] = [:]
 
     init(
         recorder: CoordinatorOperationRecorder = CoordinatorOperationRecorder(),
@@ -1242,43 +1254,47 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
         await fetchedCommitGate?.resume()
     }
 
-    func commitServerRecordChanged(
-        failedMutation: SyncMutation,
-        accountEpoch: CloudSyncAccountEpoch,
-        expectedRecordQueue: [SyncMutationIdentity],
-        mergeResult: SyncMergeResult
-    ) async throws -> SyncFailedMutationCommitResult {
-        if let conflictCommitGate {
-            await conflictCommitGate.suspendOnce()
-        }
+    func commitServerRecordChanged(input: SyncConflictInput, accountEpoch: CloudSyncAccountEpoch) async throws -> SyncConflictCommitResult {
+        if let conflictCommitGate { await conflictCommitGate.suspendOnce() }
         return try accountEpoch.withCurrent {
-        let shouldFail = withLock { () -> Bool in
-            guard conflictFailuresRemaining > 0 else { return false }
-            conflictFailuresRemaining -= 1
-            return true
-        }
-        if failConflictCommit || shouldFail { throw FakeCoordinatorError.commitFailed }
-        let currentQueue = journal?.pendingMutations.filter {
-            $0.recordID == failedMutation.recordID
-        }
-        if let currentQueue, currentQueue.map(\.identity) != expectedRecordQueue {
-            return .staleRecordQueue
-        }
-        recorder.append("commitConflict:\(failedMutation.mutationID.uuidString)")
-        withLock { conflictStorage.append((failedMutation.mutationID, mergeResult)) }
-        let replacements = mergeResult.mutationsToUpload.filter {
-            $0.recordID == failedMutation.recordID
-        }
-        guard let replacement = replacements.first,
-              replacement.identity == failedMutation.identity else {
-            throw FakeCoordinatorError.inconsistentJournal
-        }
-        try journal?.replaceExactRecordQueue(failedMutation.identity, with: replacements)
-        return .committed(SyncFailedMutationResolution(
-            failedMutation: failedMutation.identity,
-            replacement: replacement,
-            followingReplacements: Array(replacements.dropFirst())
-        ))
+            let shouldFail = withLock { () -> Bool in
+                guard conflictFailuresRemaining > 0 else { return false }
+                conflictFailuresRemaining -= 1; return true
+            }
+            if failConflictCommit || shouldFail { throw FakeCoordinatorError.commitFailed }
+            guard let journal else { throw FakeCoordinatorError.inconsistentJournal }
+            let current = try journal.pendingVersioned().filter { $0.mutation.recordID == input.serverRecord.id }
+            guard current.map(\.mutation) == input.expectedRecordQueue, current.map(\.token) == input.expectedVersions else { return .stalePredecessor }
+            if let prior = withLock({ conflictResolutions[input.failedAttemptID] }) {
+                guard prior.input.failedVersion == input.failedVersion else { return .obsoleteFailure }
+                if current.map(\.token) == prior.versions { return .committed(prior) }
+            }
+            var base = input.serverRecord
+            var replacements: [SyncMutation] = []
+            var last: SyncMergeResult?
+            var attachmentHeads: [SyncAttachmentSlot: UUID] = [:]
+            for mutation in input.expectedRecordQueue {
+                let result = try SyncMergeEngine().merge(local: mutation.savedRecordVersion.map { [$0.record] } ?? [],
+                    remote: [base], pendingLocalMutations: [mutation])
+                guard let record = result.records.first(where: { $0.id == mutation.recordID }) else { throw FakeCoordinatorError.inconsistentJournal }
+                base = record; last = result
+                attachmentHeads.merge(result.resolvedAttachmentVersionIDs) { _, new in new }
+                if mutation.intent == .delete { replacements.append(mutation) }
+                else { replacements.append(try SyncMutation.save(recordVersion: SyncRecordVersion(record: record),
+                    attachmentSource: mutation.attachmentSource, mutationID: mutation.mutationID)) }
+            }
+            guard let first = replacements.first, let last else { throw FakeCoordinatorError.inconsistentJournal }
+            recorder.append("commitConflict:\(input.failedMutation.mutationID.uuidString)")
+            let complete = SyncMergeResult(records: last.records, conflicts: last.conflicts,
+                recordsToUpload: last.recordsToUpload, legacyRecordIDsToDelete: last.legacyRecordIDsToDelete,
+                mutationsToUpload: replacements, resolvedAttachmentVersionIDs: attachmentHeads)
+            withLock { conflictStorage.append((input.failedMutation.mutationID, complete)) }
+            try journal.replaceExactRecordQueue(input.failedMutation.identity, with: replacements)
+            let versions = try journal.pendingVersioned().filter { $0.mutation.recordID == input.serverRecord.id }.map(\.token)
+            let resolution = try SyncConflictResolution(transactionID: UUID(), input: input, replacement: first,
+                followingReplacements: Array(replacements.dropFirst()), versions: versions)
+            withLock { conflictResolutions[input.failedAttemptID] = resolution }
+            return .committed(resolution)
         }
     }
 
@@ -1295,10 +1311,10 @@ private final class FakeFetchedBatchCommitter: SyncFetchedBatchCommitting, @unch
         await conflictCommitGate?.resume()
     }
 
-    private func withLock<T>(_ body: () -> T) -> T {
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
-        return body()
+        return try body()
     }
 }
 
@@ -1345,4 +1361,12 @@ private enum FakeCoordinatorError: Error {
     case commitFailed
     case inconsistentJournal
     case transportResolutionFailed
+}
+
+@MainActor private func coordinatorOutgoing(_ transport: CKSyncEngineTransport, _ id: CKRecord.ID) async throws -> CKRecord {
+    for _ in 0..<1000 {
+        if let record = await transport.recordZoneChangeBatch(pendingChanges: [.saveRecord(id)], scope: .all)?.recordsToSave.first { return record }
+        try await Task.sleep(for: .milliseconds(2))
+    }
+    throw SyncConflictError.missingAuthority
 }

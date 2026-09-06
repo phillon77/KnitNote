@@ -35,6 +35,14 @@ struct FileCloudRecordSystemFieldsStore: @unchecked Sendable {
         return try matches.first.map { try Self.decodeRecord($0, expectedID: recordID) }
     }
 
+    /// Exact archived server-base authority, scoped by this store's zone and account.
+    func verificationEvidence(recordID: CKRecord.ID, accountIdentifier: String) throws -> Data? {
+        guard recordID.zoneID == zoneID else { throw CloudRecordSystemFieldsStoreError.wrongZone }
+        guard let data = try loadEnvelope().accounts[accountIdentifier]?[recordID.recordName] else { return nil }
+        _ = try Self.decodeRecord(data, expectedID: recordID)
+        return data
+    }
+
     func save(_ record: CKRecord, accountIdentifier: String) throws {
         try apply(
             records: [record],

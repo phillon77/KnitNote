@@ -326,26 +326,19 @@ import Testing
         #expect(try incoming.acknowledgements(accountIdentifier: "adapter-user", zoneID: f.zone, account: f.account).isEmpty)
     }
 
-    @Test func unsupportedRealConflictPreservesFIFOAndNeedsAttention() async throws {
+    @Test func realConflictCommitsRawServerAndPreservesVersionedFIFO() async throws {
         let f = try AdapterFixture(); defer { f.remove() }
         try f.store.updateProject(id: f.projectID, name: "Local", toolType: nil, toolSize: nil, toolNotes: nil, photoChange: .unchanged)
-        let pending = try f.journal.pending()
+        let pending = try f.journal.pendingVersioned()
         let head = try #require(pending.first)
-        let batch = try f.batch()
-        let transport = AdapterTransport()
-        let adapter = f.adapter { _ in throw Fault.injected }
-        let merge = try SyncMergeEngine().merge(local: [], remote: batch.records, pendingLocalMutations: [])
-        await #expect(throws: SyncRemoteBatchError.unsupportedConflictReplacement) {
-            try await adapter.commitServerRecordChanged(failedMutation: head, accountEpoch: f.epoch(), expectedRecordQueue: pending.map(\.identity), mergeResult: merge)
-        }
-        let coordinator = f.coordinator(adapter: adapter, transport: transport)
-        await coordinator.start()
-        transport.emit(.mutationFailed(recordID: head.recordID, mutationID: head.mutationID,
-            failure: .serverRecordChanged(recordID: head.recordID, serverRecord: batch.records[0]), accountEpoch: f.epoch()))
-        await drain { coordinator.status.phase == .needsAttention }
-        #expect(try f.journal.pending() == pending)
-        #expect(coordinator.status.issue == .durableCommit)
-        #expect(coordinator.status.lastCompleteSuccess == nil)
+        let input = try SyncConflictInput(accountIDHash: f.account.accountIDHash, failedAttemptID: UUID(),
+            failedMutation: head.mutation, failedVersion: head.token, serverRecord: f.batch().records[0],
+            expectedRecordQueue: pending.map(\.mutation), expectedVersions: pending.map(\.token))
+        let result = try await f.adapter { _ in }.commitServerRecordChanged(input: input, accountEpoch: f.epoch())
+        guard case .committed = result else { Issue.record("real adapter must commit"); return }
+        #expect(f.store.project(id: f.projectID)?.name == "Remote")
+        #expect(try f.journal.pendingVersioned().map { $0.token.journalRevision } == [1])
+        #expect(try f.journal.pending().map(\.identity) == pending.map { $0.mutation.identity })
     }
 
     @Test func acknowledgementProofOutlivesEngineStateAndRetiresInBothOrders() throws {
@@ -610,7 +603,7 @@ import Testing
     }
 }
 
-@MainActor private struct AdapterFixture {
+@MainActor struct AdapterFixture {
     let root: URL
     let account: SyncAccountIdentity
     let store: JSONProjectStore
@@ -689,11 +682,11 @@ import Testing
     }
 }
 
-private struct AdapterRecordProvider: SyncRecordProvider {
+struct AdapterRecordProvider: SyncRecordProvider {
     func record(for id: SyncEntityID) throws -> SyncRecord? { nil }
 }
 
-@MainActor private final class AdapterTransport: CloudSyncTransport {
+@MainActor final class AdapterTransport: CloudSyncTransport {
     nonisolated let events: AsyncStream<CloudSyncEvent>
     private let continuation: AsyncStream<CloudSyncEvent>.Continuation
     var acknowledged: [UUID] = []
@@ -703,7 +696,7 @@ private struct AdapterRecordProvider: SyncRecordProvider {
     init() { (events, continuation) = AsyncStream.makeStream() }
     func emit(_ event: CloudSyncEvent) { continuation.yield(event) }
     func start() async throws {}
-    func schedule(_ mutations: [SyncMutation]) async throws {}
+    func schedule(_ mutations: [SyncVersionedMutation]) async throws {}
     func finishMutationReplay(completionID: UUID?) async throws {}
     func acknowledgeFetchedBatch(_ batchID: UUID) async throws {
         beforeAck()
@@ -714,7 +707,9 @@ private struct AdapterRecordProvider: SyncRecordProvider {
         guard acknowledged.contains(batchID) else { throw RemoteBatchCommitterIntegrationTests.Fault.injected }
     }
     func finishFetchedBatchAcknowledgement(_ identity: SyncRemoteBatchIdentity) async throws { finished.append(identity.batchID) }
-    func resolveFailedMutation(_ mutationID: UUID, replacement: SyncMutation?, followingReplacements: [SyncMutation]?) async throws {}
+    func resolveFailedMutation(_ resolution: SyncConflictResolution, accountEpoch: CloudSyncAccountEpoch, expectedQueue: [SyncVersionedMutation]) async throws -> CloudConflictHandoffResult { throw CloudSyncTransportError.invalidReplacement }
+    func verifySentMutation(_ token: SyncMutationVersionToken, attemptID: UUID, accountEpoch: CloudSyncAccountEpoch) async throws { throw CloudSyncTransportError.staleOperation }
+    func acknowledgeSentMutation(_ token: SyncMutationVersionToken, attemptID: UUID) async throws { throw CloudSyncTransportError.staleOperation }
     func fetchNow(completionID: UUID?) async throws {}
     func sendNow(completionID: UUID?) async throws {}
 }

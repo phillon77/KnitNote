@@ -5,17 +5,15 @@ import Foundation
 protocol CloudSyncTransport: AnyObject, Sendable {
     var events: AsyncStream<CloudSyncEvent> { get }
     func start() async throws
-    func schedule(_ mutations: [SyncMutation]) async throws
+    func schedule(_ mutations: [SyncVersionedMutation]) async throws
     func finishMutationReplay(completionID: UUID?) async throws
     func acknowledgeFetchedBatch(_ batchID: UUID) async throws
     func verifyFetchedBatchAcknowledgement(_ batchID: UUID) async throws
     func finishFetchedBatchAcknowledgement(_ identity: SyncRemoteBatchIdentity) async throws
-    func acknowledgeSentMutation(_ identity: SyncMutationIdentity) async throws
-    func resolveFailedMutation(
-        _ mutationID: UUID,
-        replacement: SyncMutation?,
-        followingReplacements: [SyncMutation]?
-    ) async throws
+    func verifySentMutation(_ token: SyncMutationVersionToken, attemptID: UUID, accountEpoch: CloudSyncAccountEpoch) async throws
+    func acknowledgeSentMutation(_ token: SyncMutationVersionToken, attemptID: UUID) async throws
+    func resolveFailedMutation(_ resolution: SyncConflictResolution, accountEpoch: CloudSyncAccountEpoch,
+        expectedQueue: [SyncVersionedMutation]) async throws -> CloudConflictHandoffResult
     func fetchNow(completionID: UUID?) async throws
     func sendNow(completionID: UUID?) async throws
     func committedFetchReceipt(requestID: UUID) async throws -> CloudInitialFetchReceipt
@@ -34,15 +32,6 @@ extension CloudSyncTransport {
     func committedFetchReceipt(requestID: UUID) async throws -> CloudInitialFetchReceipt {
         throw CloudSyncTransportError.unknownFetchedBatch
     }
-    func acknowledgeSentMutation(_ identity: SyncMutationIdentity) async throws {}
-    func resolveFailedMutation(_ mutationID: UUID, replacement: SyncMutation?) async throws {
-        try await resolveFailedMutation(
-            mutationID,
-            replacement: replacement,
-            followingReplacements: nil
-        )
-    }
-
     func finishMutationReplay() async throws {
         try await finishMutationReplay(completionID: nil)
     }
@@ -56,6 +45,8 @@ extension CloudSyncTransport {
     }
 }
 
+enum CloudConflictHandoffResult: Equatable, Sendable { case accepted, stale }
+
 enum CloudSyncEvent: Sendable {
     case accountChanged(previous: String?, current: String?)
     case fetched(
@@ -66,10 +57,10 @@ enum CloudSyncEvent: Sendable {
     )
     case acknowledgedFetched(SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch)
     case fetchRequestCompleted(UUID)
-    case sent(recordID: SyncEntityID, mutationID: UUID)
+    case sent(token: SyncMutationVersionToken, attemptID: UUID, accountEpoch: CloudSyncAccountEpoch)
     case sendRequestCompleted(UUID)
     case mutationFailed(recordID: SyncEntityID, mutationID: UUID, failure: CloudSyncFailure,
-                        accountEpoch: CloudSyncAccountEpoch, attemptID: UUID = UUID())
+                        accountEpoch: CloudSyncAccountEpoch, attemptID: UUID, attempted: SyncVersionedMutation)
     case zoneReady
     case zoneDeleted
     case stateUpdated(Data)
@@ -289,6 +280,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var zoneResetDurabilityBlocked = false
     private var sendAttempts: [SyncEntityID: SendAttempt] = [:]
     private var failedMutationIDs: Set<UUID> = []
+    private var failedContexts: [SyncEntityID: FailedSendContext] = [:]
+    private var successContexts: [UUID: SendAttempt] = [:]
     private var deleteCallbackBarriers: Set<SyncEntityID> = []
     private var currentAccountIdentifier: String?
     private var accountResetBlocksRestart = false
@@ -302,9 +295,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var sendReadinessReceipt: CloudInitialFetchReceipt?
     /// The first entry is the mutation currently represented in CKSyncEngine.
     /// Later entries stay here until their predecessor is acknowledged.
-    private var queues: [SyncEntityID: [SyncMutation]] = [:]
-    private var awaitingJournalAcknowledgement: Set<SyncMutationIdentity> = []
-    private var acknowledgedUploadsAwaitingCleanup: Set<SyncMutationIdentity> = []
+    private var queues: [SyncEntityID: [SyncVersionedMutation]] = [:]
+    private var acknowledgedUploadsAwaitingCleanup: Set<UUID> = []
     private var batchLimit = 250
     private var splitRetryPending = false
 
@@ -494,28 +486,33 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
     }
 
-    func schedule(_ mutations: [SyncMutation]) async throws {
+    func schedule(_ mutations: [SyncVersionedMutation]) async throws {
         try requireNotTerminated()
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
         var enginePending = await engine.pendingChanges()
         try requireCurrentGeneration(operationGeneration)
-        for mutation in mutations {
-            let validated = try mutation.validated()
-            if case let .save(save) = validated {
-                _ = try codec.encode(save.recordVersion.record, zoneID: zoneID)
-            }
+        for versioned in mutations {
+            let validated = try SyncVersionedMutation(mutation: versioned.mutation, journalRevision: versioned.token.journalRevision)
+            guard validated == versioned else { throw CloudSyncTransportError.invalidReplacement }
+            if case let .save(save) = validated.mutation { _ = try codec.encode(save.recordVersion.record, zoneID: zoneID) }
+            // Pending journal replay may occur before the exact success event is consumed.
+            if successContexts.values.contains(where: { $0.attempted.token == validated.token }) { continue }
+            successContexts = successContexts.filter { $0.value.attempted.identity != validated.identity || $0.value.attempted.token == validated.token }
+            acknowledgedUploadsAwaitingCleanup = acknowledgedUploadsAwaitingCleanup.filter { successContexts[$0] != nil }
             var queue = queues[validated.recordID, default: []]
-            guard !queue.contains(where: { $0.mutationID == validated.mutationID }) else { continue }
-            queue.append(validated)
+            if let index = queue.firstIndex(where: { $0.identity == validated.identity }) {
+                guard queue[index] != validated else { continue }
+                guard validated.token.journalRevision > queue[index].token.journalRevision else {
+                    throw CloudSyncTransportError.invalidReplacement
+                }
+                queue[index] = validated
+                sendAttempts.removeValue(forKey: validated.recordID)
+            } else { queue.append(validated) }
             queues[validated.recordID] = queue
-            guard queue.count == 1 else { continue }
-            try await representCurrentMutation(
-                validated,
-                engine: engine,
-                enginePending: &enginePending,
-                generation: operationGeneration
-            )
+            guard queue.first == validated else { continue }
+            try await representCurrentMutation(validated.mutation, engine: engine,
+                enginePending: &enginePending, generation: operationGeneration)
         }
     }
 
@@ -654,65 +651,60 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         }
     }
 
-    func resolveFailedMutation(
-        _ mutationID: UUID,
-        replacement: SyncMutation?,
-        followingReplacements: [SyncMutation]?
-    ) async throws {
+    func resolveFailedMutation(_ resolution: SyncConflictResolution, accountEpoch expectedEpoch: CloudSyncAccountEpoch,
+        expectedQueue: [SyncVersionedMutation]) async throws -> CloudConflictHandoffResult {
         try requireNotTerminated()
-        guard let entry = queues.first(where: { $0.value.first?.mutationID == mutationID }),
-              failedMutationIDs.contains(mutationID) else {
-            throw CloudSyncTransportError.unknownFailedMutation
+        try expectedEpoch.requireCurrent()
+        guard expectedEpoch === accountEpoch, let engine else { throw CloudSyncAccountEpochError.stale }
+        let id = resolution.input.failedMutation.recordID
+        guard let failure = failedContexts[id],
+              failure.attempt.attemptID == resolution.input.failedAttemptID,
+              failure.attempt.attempted.mutation == resolution.input.failedMutation,
+              failure.attempt.attempted.token == resolution.input.failedVersion,
+              failure.serverRecord == resolution.input.serverRecord,
+              failure.serverSHA256 == (try serverDigest(resolution.input.serverRecord)),
+              try expectedEpoch.verifiedAccountIdentity().accountIDHash == resolution.input.accountIDHash else { return .stale }
+        let previous = zip(resolution.input.expectedRecordQueue, resolution.input.expectedVersions)
+        let previousQueue = try previous.map { mutation, token in
+            let pair = try SyncVersionedMutation(mutation: mutation, journalRevision: token.journalRevision)
+            guard pair.token == token else { throw CloudSyncTransportError.invalidReplacement }
+            return pair
         }
-        let previousQueue = entry.value
-        var queue = Array(previousQueue.dropFirst())
-        if let followingReplacements {
-            let validatedFollowing = try followingReplacements.map { try $0.validated() }
-            let previousTailIdentities = previousQueue.dropFirst().map(\.identity)
-            let replacementTailIdentities = validatedFollowing.map(\.identity)
-            guard validatedFollowing.allSatisfy({ $0.recordID == entry.key }),
-                  Set(replacementTailIdentities).count == replacementTailIdentities.count,
-                  replacementTailIdentities.starts(with: previousTailIdentities) else {
-                throw CloudSyncTransportError.invalidReplacement
-            }
-            queue = validatedFollowing
-        }
-        if let replacement {
-            let validated = try replacement.validated()
-            guard validated.recordID == entry.key else {
-                throw CloudSyncTransportError.invalidReplacement
-            }
-            if case let .save(save) = validated {
-                _ = try codec.encode(save.recordVersion.record, zoneID: zoneID)
-            }
-            queue.insert(validated, at: 0)
-        }
-        failedMutationIDs.remove(mutationID)
-        if queue.isEmpty {
-            queues.removeValue(forKey: entry.key)
-        } else {
-            queues[entry.key] = queue
-        }
-        guard let engine else { return }
+        let replacements = [resolution.replacement] + resolution.followingReplacements
+        guard expectedQueue.map(\.mutation) == replacements, expectedQueue.map(\.token) == resolution.versions,
+              queues[id] == previousQueue else { return .stale }
+        try verifyServerBase(failure)
         let operationGeneration = generation
         var pending = await engine.pendingChanges()
         try requireCurrentGeneration(operationGeneration)
-        if queue.isEmpty {
-            let recordID = Self.cloudRecordID(for: entry.key, zoneID: zoneID)
-            let obsolete = pending.filter { Self.recordID(for: $0) == recordID }
-            if !obsolete.isEmpty {
-                await engine.remove(obsolete)
-                try requireCurrentGeneration(operationGeneration)
-            }
-            return
-        }
-        try await representCurrentMutation(
-            queue[0],
-            engine: engine,
-            enginePending: &pending,
-            generation: operationGeneration
-        )
+        try expectedEpoch.requireCurrent()
+        guard expectedEpoch === accountEpoch, failedContexts[id] == failure, queues[id] == previousQueue else { return .stale }
+        try verifyServerBase(failure)
+        queues[id] = expectedQueue
+        failedContexts.removeValue(forKey: id)
+        failedMutationIDs.remove(resolution.input.failedMutation.mutationID)
+        try await representCurrentMutation(expectedQueue[0].mutation, engine: engine,
+            enginePending: &pending, generation: operationGeneration)
+        try expectedEpoch.requireCurrent()
+        guard queues[id] == expectedQueue else { return .stale }
+        // The handoff is installed before the ordinary send kick. Its callbacks
+        // may consume the queue, but an account/generation reset cannot accept it.
         await kickConfiguredZoneSend()
+        try expectedEpoch.requireCurrent()
+        try requireCurrentGeneration(operationGeneration)
+        return .accepted
+    }
+
+    private func serverDigest(_ record: SyncRecord) throws -> Data {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        return Data(SHA256.hash(data: try encoder.encode(record)))
+    }
+
+    private func verifyServerBase(_ failure: FailedSendContext) throws {
+        guard let systemFieldsStore, let expected = failure.systemFields,
+              let account = currentAccountIdentifier,
+              try systemFieldsStore.verificationEvidence(recordID: Self.cloudRecordID(for: failure.attempt.attempted.recordID, zoneID: zoneID),
+                accountIdentifier: account) == expected else { throw CloudSyncTransportError.invalidReplacement }
     }
 
     func sendNow(completionID: UUID?) async throws {
@@ -726,8 +718,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             guard mutationReplayFinished, let sendReadinessReceipt else { throw CloudSyncTransportError.unknownFetchedBatch }
             try sendReadinessReceipt.epoch.requireCurrent()
         }
-        for identity in acknowledgedUploadsAwaitingCleanup {
-            try cleanupAcknowledgedUpload(identity)
+        for attemptID in acknowledgedUploadsAwaitingCleanup {
+            try cleanupAcknowledgedUpload(attemptID)
         }
         let operationGeneration = generation
         // 250 -> 125 -> ... -> 1. Bound request-level retries even when a
@@ -879,7 +871,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         receiptFetchBatches.removeAll(); completedReceiptFetches.removeAll(); committedReceiptBatches.removeAll()
         sendReadinessReceipt = nil
         accountEpoch.invalidate()
-        awaitingJournalAcknowledgement.removeAll()
+        successContexts.removeAll()
         acknowledgedUploadsAwaitingCleanup.removeAll()
         splitRetryPending = false
         batchLimit = 250
@@ -910,6 +902,9 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         zoneResetDurabilityBlocked = false
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
+        failedContexts.removeAll()
+        successContexts.removeAll()
+        acknowledgedUploadsAwaitingCleanup.removeAll()
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
         return detachedEngine.map { driver in Task { await driver.cancelOperations() } }
     }
@@ -1229,6 +1224,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             }
         }
         sendAttempts.removeAll(keepingCapacity: false)
+        failedContexts.removeAll(); failedMutationIDs.removeAll()
+        successContexts.removeAll(); acknowledgedUploadsAwaitingCleanup.removeAll()
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
         zoneResetDurabilityBlocked = false
         eventContinuation.yield(.zoneDeleted)
@@ -1270,11 +1267,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             guard let entityID = Self.entityID(for: record.recordID),
                   let mutationID = Self.uuidField("syncMutationID", in: record),
                   let attemptID = Self.uuidField("syncAttemptID", in: record),
-                  sendAttempts[entityID] == SendAttempt(
-                    attemptID: attemptID,
-                    mutationID: mutationID,
-                    intent: .save
-                  ),
+                  attemptMatches(entityID, attemptID: attemptID, mutationID: mutationID, intent: .save),
                   queues[entityID]?.first?.mutationID == mutationID else { continue }
             do {
                 try persistSystemFields(record)
@@ -1326,23 +1319,33 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         guard let entityID = Self.entityID(for: record.recordID),
               let mutationID = Self.uuidField("syncMutationID", in: record),
               let attemptID = Self.uuidField("syncAttemptID", in: record),
-              sendAttempts[entityID] == SendAttempt(
-                attemptID: attemptID,
-                mutationID: mutationID,
-                intent: .save
-              ) else { return }
+              attemptMatches(entityID, attemptID: attemptID, mutationID: mutationID, intent: .save) else { return }
         let failedAttempt = sendAttempts.removeValue(forKey: entityID)!
         let failure = CloudSyncFailure.map(error, codec: codec)
         if failure == .limitExceeded, reduceBatch(after: failedAttempt) { return }
         if case .serverRecordChanged = failure, let serverRecord = error.serverRecord {
             do {
-                try persistSystemFields(serverRecord)
+                guard let systemFieldsStore, let currentAccountIdentifier,
+                      let raw = try? codec.decode(serverRecord), raw.id == failedAttempt.attempted.recordID else {
+                    throw CloudRecordSystemFieldsStoreError.unavailable
+                }
+                try accountEpoch.withCurrent {
+                    if let version = raw.payload.attachment, raw.deletedAt.value == nil {
+                        guard let url = (serverRecord["asset"] as? CKAsset)?.fileURL else { throw CloudAssetStagingError.unavailable }
+                        _ = try requireAssetStaging().installDownload(version: version, sourceURL: url)
+                    }
+                    try systemFieldsStore.save(serverRecord, accountIdentifier: currentAccountIdentifier)
+                }
+                guard
+                      let evidence = try systemFieldsStore.verificationEvidence(recordID: serverRecord.recordID, accountIdentifier: currentAccountIdentifier),
+                      raw.id == failedAttempt.attempted.recordID else { throw CloudRecordSystemFieldsStoreError.unavailable }
+                failedContexts[entityID] = FailedSendContext(attempt: failedAttempt, serverRecord: raw, serverSHA256: try serverDigest(raw), systemFields: evidence)
             } catch {
                 failedMutationIDs.insert(mutationID)
                 eventContinuation.yield(.mutationFailed(
                     recordID: entityID,
                     mutationID: mutationID,
-                    failure: .statePersistence, accountEpoch: accountEpoch, attemptID: attemptID
+                    failure: .statePersistence, accountEpoch: accountEpoch, attemptID: attemptID, attempted: failedAttempt.attempted
                 ))
                 return
             }
@@ -1354,7 +1357,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             eventContinuation.yield(.mutationFailed(
                 recordID: entityID,
                 mutationID: mutationID,
-                failure: failure, accountEpoch: accountEpoch, attemptID: attemptID
+                failure: failure, accountEpoch: accountEpoch, attemptID: attemptID, attempted: failedAttempt.attempted
             ))
         }
     }
@@ -1374,7 +1377,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             eventContinuation.yield(.mutationFailed(
                 recordID: entityID,
                 mutationID: attempt.mutationID,
-                failure: failure, accountEpoch: accountEpoch, attemptID: attempt.attemptID
+                failure: failure, accountEpoch: accountEpoch, attemptID: attempt.attemptID, attempted: attempt.attempted
             ))
         }
     }
@@ -1395,7 +1398,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         guard !terminalLatch.isTerminated,
               mutationReplayFinished,
               configuredZoneIsReady else { return nil }
-        var current: [SyncEntityID: SyncMutation] = [:]
+        var current: [SyncEntityID: SyncVersionedMutation] = [:]
         for (entityID, queue) in queues {
             guard let mutation = queue.first,
                   !failedMutationIDs.contains(mutation.mutationID),
@@ -1410,7 +1413,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                       recordID.zoneID == self.zoneID,
                       let entityID = Self.entityID(for: recordID),
                       let mutation = current[entityID] else { return false }
-                return self.pendingChange(for: mutation) == change
+                return self.pendingChange(for: mutation.mutation) == change
             }
         let bounded = Array(requested.prefix(batchLimit))
         guard !bounded.isEmpty else { return nil }
@@ -1421,13 +1424,12 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                   let mutation = current[entityID] else { continue }
             attempts[entityID] = SendAttempt(
                 attemptID: UUID(),
-                mutationID: mutation.mutationID,
-                intent: mutation.intent,
-                batchSize: bounded.count
+                attempted: mutation, generation: operationGeneration, zoneEpoch: operationZoneEpoch,
+                epoch: accountEpoch, batchSize: bounded.count
             )
         }
         let currentSnapshot = current
-        let attemptSnapshot = attempts
+        var attemptSnapshot = attempts
         let accountIdentifier = currentAccountIdentifier
         var materializedRecords: [CKRecord.ID: CKRecord] = [:]
         for change in bounded {
@@ -1450,7 +1452,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                 continue
             }
             do {
-                let record = try await recordMaterializer(mutation, baseRecord)
+                let record = try await recordMaterializer(mutation.mutation, baseRecord)
                 guard batchContextIsCurrent(
                     entityID: entityID,
                     mutation: mutation,
@@ -1464,7 +1466,12 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
                         throw CloudAssetStagingError.unavailable
                     }
                     try staging.stageUpload(version: version, source: source, mutationID: mutation.mutationID)
-                    record["asset"] = try staging.assetForUpload(versionID: version.versionID, mutationID: mutation.mutationID)
+                    let asset = try staging.assetForUpload(versionID: version.versionID, mutationID: mutation.mutationID)
+                    record["asset"] = asset
+                    guard let fileURL = asset.fileURL, let source = mutation.attachmentSource else { throw CloudAssetStagingError.unavailable }
+                    let relocated = try SyncMutation.save(recordVersion: mutation.savedRecordVersion!,
+                        attachmentSource: SyncAttachmentSource(fileURL: fileURL, contentSHA256: source.contentSHA256, byteCount: source.byteCount), mutationID: mutation.mutationID)
+                    attemptSnapshot[entityID]?.attempted = try SyncVersionedMutation(mutation: relocated, journalRevision: mutation.token.journalRevision)
                 }
                 record["syncMutationID"] = attempt.mutationID.uuidString.lowercased() as NSString
                 record["syncAttemptID"] = attempt.attemptID.uuidString.lowercased() as NSString
@@ -1478,6 +1485,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             generation: operationGeneration,
             zoneEpoch: operationZoneEpoch
         ), configuredZoneIsReady, mutationReplayFinished else { return nil }
+        attempts = attemptSnapshot
         let materializedSnapshot = materializedRecords
         let batch = await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: bounded) { recordID in
             materializedSnapshot[recordID]
@@ -1490,7 +1498,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         for (entityID, attempt) in attempts where representedIDs.contains(
             Self.cloudRecordID(for: entityID, zoneID: zoneID)
         ) {
-            guard batchContextIsCurrent(
+            guard queues[entityID]?.first?.token == attempt.attempted.token, batchContextIsCurrent(
                 entityID: entityID,
                 mutationID: attempt.mutationID,
                 intent: attempt.intent,
@@ -1620,22 +1628,17 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     ) async {
         guard cloudRecordID.zoneID == zoneID,
               let entityID = Self.entityID(for: cloudRecordID),
-              sendAttempts[entityID] == SendAttempt(
-                attemptID: attemptID,
-                mutationID: mutationID,
-                intent: intent
-              ),
+              attemptMatches(entityID, attemptID: attemptID, mutationID: mutationID, intent: intent),
               var queue = queues[entityID],
               let completed = queue.first,
               completed.intent == intent,
               completed.mutationID == mutationID else { return }
-        sendAttempts.removeValue(forKey: entityID)
+        guard let attempt = sendAttempts.removeValue(forKey: entityID),
+              completed.token == attempt.attempted.token else { return }
         if intent == .delete { deleteCallbackBarriers.insert(entityID) }
         queue.removeFirst()
-        if completed.savedRecordVersion?.record.payload.attachment != nil {
-            awaitingJournalAcknowledgement.insert(completed.identity)
-        }
-        eventContinuation.yield(.sent(recordID: entityID, mutationID: completed.mutationID))
+        successContexts[attemptID] = attempt
+        eventContinuation.yield(.sent(token: completed.token, attemptID: attemptID, accountEpoch: attempt.epoch))
         if queue.isEmpty {
             queues.removeValue(forKey: entityID)
             return
@@ -1647,7 +1650,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         guard generation == operationGeneration else { return }
         do {
             try await representCurrentMutation(
-                queue[0],
+                queue[0].mutation,
                 engine: engine,
                 enginePending: &pending,
                 generation: operationGeneration
@@ -1734,11 +1737,11 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
 
     private func batchContextIsCurrent(
         entityID: SyncEntityID,
-        mutation: SyncMutation,
+        mutation: SyncVersionedMutation,
         generation: UInt64,
         zoneEpoch: UInt64
     ) -> Bool {
-        batchContextIsCurrent(
+        queues[entityID]?.first == mutation && batchContextIsCurrent(
             entityID: entityID,
             mutationID: mutation.mutationID,
             intent: mutation.intent,
@@ -1796,7 +1799,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
               !accountIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw CloudRecordSystemFieldsStoreError.unavailable
         }
-        try systemFieldsStore.save(record, accountIdentifier: accountIdentifier)
+        try accountEpoch.withCurrent { try systemFieldsStore.save(record, accountIdentifier: accountIdentifier) }
     }
 
     private func removeSystemFields(_ recordID: CKRecord.ID) throws {
@@ -1817,17 +1820,13 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         failure: CloudSyncFailure
     ) {
         guard let entityID = Self.entityID(for: recordID),
-              sendAttempts[entityID] == SendAttempt(
-                attemptID: attemptID,
-                mutationID: mutationID,
-                intent: queues[entityID]?.first?.intent ?? .save
-              ) else { return }
-        sendAttempts.removeValue(forKey: entityID)
+              attemptMatches(entityID, attemptID: attemptID, mutationID: mutationID, intent: queues[entityID]?.first?.intent ?? .save) else { return }
+        guard let failedAttempt = sendAttempts.removeValue(forKey: entityID) else { return }
         failedMutationIDs.insert(mutationID)
         eventContinuation.yield(.mutationFailed(
             recordID: entityID,
             mutationID: mutationID,
-            failure: failure, accountEpoch: accountEpoch, attemptID: attemptID
+            failure: failure, accountEpoch: accountEpoch, attemptID: attemptID, attempted: failedAttempt.attempted
         ))
     }
 
@@ -1838,19 +1837,42 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         return assetStaging
     }
 
-    func acknowledgeSentMutation(_ identity: SyncMutationIdentity) async throws {
-        guard awaitingJournalAcknowledgement.contains(identity) else { return }
-        acknowledgedUploadsAwaitingCleanup.insert(identity)
-        try cleanupAcknowledgedUpload(identity)
+    func verifySentMutation(_ token: SyncMutationVersionToken, attemptID: UUID, accountEpoch expectedEpoch: CloudSyncAccountEpoch) async throws {
+        try requireNotTerminated()
+        try expectedEpoch.requireCurrent()
+        guard expectedEpoch === accountEpoch, let attempt = successContexts[attemptID],
+              attempt.epoch === expectedEpoch, attempt.generation == generation, attempt.zoneEpoch == zoneEpoch,
+              attempt.attempted.token == token else { throw CloudSyncTransportError.staleOperation }
     }
 
-    private func cleanupAcknowledgedUpload(_ identity: SyncMutationIdentity) throws {
-        let staging = try requireAssetStaging()
+    func acknowledgeSentMutation(_ token: SyncMutationVersionToken, attemptID: UUID) async throws {
+        try await verifySentMutation(token, attemptID: attemptID, accountEpoch: accountEpoch)
+        acknowledgedUploadsAwaitingCleanup.insert(attemptID)
+        try cleanupAcknowledgedUpload(attemptID)
+    }
+
+    private func cleanupAcknowledgedUpload(_ attemptID: UUID) throws {
+        guard let attempt = successContexts[attemptID],
+              attempt.epoch === accountEpoch, attempt.generation == generation,
+              attempt.zoneEpoch == zoneEpoch else { throw CloudSyncTransportError.staleOperation }
         try accountEpoch.withCurrent {
-            try staging.acknowledgeUpload(versionID: identity.recordID.uuid, mutationID: identity.mutationID)
+            if let version = attempt.attempted.savedRecordVersion?.record.payload.attachment {
+                // Never remove an upload reference now owned by a different journal revision.
+                guard !queues.values.joined().contains(where: {
+                    $0.identity == attempt.attempted.identity && $0.token != attempt.attempted.token
+                }) else { throw CloudSyncTransportError.staleOperation }
+                try requireAssetStaging().acknowledgeUpload(versionID: version.versionID, mutationID: attempt.mutationID)
+            }
         }
-        awaitingJournalAcknowledgement.remove(identity)
-        acknowledgedUploadsAwaitingCleanup.remove(identity)
+        successContexts.removeValue(forKey: attemptID)
+        acknowledgedUploadsAwaitingCleanup.remove(attemptID)
+    }
+
+    private func attemptMatches(_ id: SyncEntityID, attemptID: UUID, mutationID: UUID, intent: SyncMutationIntent) -> Bool {
+        guard let attempt = sendAttempts[id] else { return false }
+        return attempt.attemptID == attemptID && attempt.mutationID == mutationID && attempt.intent == intent
+            && attempt.generation == generation && attempt.zoneEpoch == zoneEpoch && attempt.epoch === accountEpoch
+            && queues[id]?.first?.token == attempt.attempted.token
     }
 
     private func reduceBatch(after attempt: SendAttempt) -> Bool {
@@ -1887,6 +1909,9 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         zoneResetInProgress = false
         sendAttempts.removeAll(keepingCapacity: false)
         failedMutationIDs.removeAll(keepingCapacity: false)
+        failedContexts.removeAll()
+        successContexts.removeAll()
+        acknowledgedUploadsAwaitingCleanup.removeAll()
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
         await detachedEngine?.cancelOperations()
     }
@@ -1920,13 +1945,33 @@ private struct DeferredStateUpdate {
 
 private struct SendAttempt: Equatable {
     let attemptID: UUID
-    let mutationID: UUID
-    let intent: SyncMutationIntent
+    var attempted: SyncVersionedMutation
+    let generation: UInt64
+    let zoneEpoch: UInt64
+    let epoch: CloudSyncAccountEpoch
     var batchSize = 1
-
+    var mutationID: UUID { attempted.mutation.mutationID }
+    var intent: SyncMutationIntent { attempted.mutation.intent }
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.attemptID == rhs.attemptID && lhs.mutationID == rhs.mutationID && lhs.intent == rhs.intent
+        lhs.attemptID == rhs.attemptID && lhs.attempted == rhs.attempted
+            && lhs.generation == rhs.generation && lhs.zoneEpoch == rhs.zoneEpoch && lhs.epoch === rhs.epoch
     }
+}
+
+private struct FailedSendContext: Equatable {
+    let attempt: SendAttempt
+    let serverRecord: SyncRecord
+    let serverSHA256: Data
+    let systemFields: Data?
+}
+
+private extension SyncVersionedMutation {
+    var recordID: SyncEntityID { mutation.recordID }
+    var mutationID: UUID { mutation.mutationID }
+    var identity: SyncMutationIdentity { mutation.identity }
+    var intent: SyncMutationIntent { mutation.intent }
+    var savedRecordVersion: SyncRecordVersion? { mutation.savedRecordVersion }
+    var attachmentSource: SyncAttachmentSource? { mutation.attachmentSource }
 }
 
 private extension CloudSyncFailure {

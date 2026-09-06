@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A55000000000000000000001 /* JSONProjectStoreRemoteBatchCommitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55000000000000000000002 /* JSONProjectStoreRemoteBatchCommitter.swift */; };
 		A55000000000000000000003 /* RemoteBatchCommitterIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55000000000000000000004 /* RemoteBatchCommitterIntegrationTests.swift */; };
+		A66000000000000000000003 /* ConflictRebaseIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A66000000000000000000004 /* ConflictRebaseIntegrationTests.swift */; };
 		DC0400000000000000000001 /* SyncCanonicalCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */; };
 		DC0400000000000000000002 /* SyncCanonicalCheckpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */; };
 		DC0400000000000000000003 /* SyncCanonicalCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */; };
@@ -502,6 +503,7 @@
 /* Begin PBXFileReference section */
 		A55000000000000000000002 /* JSONProjectStoreRemoteBatchCommitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONProjectStoreRemoteBatchCommitter.swift; sourceTree = "<group>"; };
 		A55000000000000000000004 /* RemoteBatchCommitterIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteBatchCommitterIntegrationTests.swift; sourceTree = "<group>"; };
+		A66000000000000000000004 /* ConflictRebaseIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictRebaseIntegrationTests.swift; sourceTree = "<group>"; };
 		DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCanonicalCheckpoint.swift; sourceTree = "<group>"; };
 		DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCanonicalCheckpointStore.swift; sourceTree = "<group>"; };
 		551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountTransitionCoordinator.swift; sourceTree = "<group>"; };
@@ -1018,6 +1020,7 @@
 				52B7BE71370E3844C127442D /* CloudRecordCodecTests.swift */,
 				D03C04E23B8721F67EFC6466 /* CloudSyncEngineTransportTests.swift */,
 				A55000000000000000000004 /* RemoteBatchCommitterIntegrationTests.swift */,
+				A66000000000000000000004 /* ConflictRebaseIntegrationTests.swift */,
 				49272A12F5EBAFF66BA3931A /* CreateProjectPresentationTests.swift */,
 				20158B6B7D83B67E2F5B3E14 /* EditProjectDeletionActionTests.swift */,
 				6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */,
@@ -2068,6 +2071,7 @@
 				D49E367D588606A53D0EAC9B /* CloudRecordCodecTests.swift in Sources */,
 				8E36309417BA3AF90713772D /* CloudSyncEngineTransportTests.swift in Sources */,
 				A55000000000000000000003 /* RemoteBatchCommitterIntegrationTests.swift in Sources */,
+				A66000000000000000000003 /* ConflictRebaseIntegrationTests.swift in Sources */,
 				9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */,
 				75F5F44DE9FB203222A758B9 /* EditProjectDeletionActionTests.swift in Sources */,
 				A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */,

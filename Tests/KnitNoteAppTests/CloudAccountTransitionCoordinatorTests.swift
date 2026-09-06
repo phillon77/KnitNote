@@ -339,7 +339,7 @@ private struct TransitionDurableCommitter: SyncFetchedBatchCommitting {
         await committed()
     }
     func didAcknowledgeFetchedBatch(batch: SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch) async throws { try accountEpoch.requireCurrent() }
-    func commitServerRecordChanged(failedMutation: SyncMutation, accountEpoch: CloudSyncAccountEpoch, expectedRecordQueue: [SyncMutationIdentity], mergeResult: SyncMergeResult) async throws -> SyncFailedMutationCommitResult { throw TransitionTestError.unexpected }
+    func commitServerRecordChanged(input: SyncConflictInput, accountEpoch: CloudSyncAccountEpoch) async throws -> SyncConflictCommitResult { throw TransitionTestError.unexpected }
 }
 
 private struct TransitionCommittedPayload: Codable {

@@ -5,7 +5,8 @@
 - Worktree: `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-device-sync-design`
 - Branch: `docs/cross-device-sync-design`
 - Baseline HEAD: `0195aed115353f91e8c51234a902e4050e43d717`
-- Candidate state: reviewed implementation commit `d8ad41e77aaae02de2e8a68e51a52433f1d5df29` plus a review-ready unstaged final-fix diff; a frozen successor candidate SHA does not exist yet.
+- Frozen source candidate: `3be009ad45f8640df280c94512fc25ea68d0a759`, successor to `d8ad41e77aaae02de2e8a68e51a52433f1d5df29`; version remains **1.7.0 (13)**. Independent task review, final integration review, and final scoped fix rereview are complete with no open code findings. The concurrent regression limitation below remains unresolved.
+- Frozen trees: Sources `6996743c5b4fd7035f72ee9d3674a6d1382e2071`; Tests `3003a42322bfe2c1a2686a5ef9fbfd726d35bff1`; KnitNote/CloudSync `503ae68f6dacb6a79dd16b4a1fcb9350e7d26c6b`. Source was unchanged throughout final validation; the final evidence update is documentation only.
 - Implemented only the synchronous, per-`JSONProjectStore` write-admission prerequisite. Revocation is monotonic for the store instance, is not persisted, and is not an account/session identity proof.
 - Added no App wiring, live service, signing, push, cleanup, migration, account-switch, or production activation behavior.
 
@@ -35,7 +36,7 @@
 - The four planned entry tests did not protect the inside-ownership or post-ACK checks. Added three focused real-fixture tests that preserve archive, checkpoint, journal authority, and publication-intent state. The ACK test has separate callback-1 and callback-2 cases; mutation REDs prove both post-callback checks and both ownership checks are observable.
 - `KnitNote.xcodeproj` uses explicit file references. The first unsigned macOS build-for-testing exited 65 with `cannot find 'StoreSessionAccessError' in scope` (`/tmp/session-admission-macos-pre-review.log`). Added the smallest `PBXFileReference` plus the same two Sources memberships as `JSONProjectStore.swift`.
 - After that membership correction, `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/session-admission-macos-derived CODE_SIGNING_ALLOWED=NO build-for-testing` exited 0 with `** TEST BUILD SUCCEEDED **` (`/tmp/session-admission-macos-pre-review-restored.log`). It emitted 3 existing AppIntents metadata-skip warnings. The DerivedData path is retained for controller reuse.
-- Independent implementation/spec and code-quality review found two Important issues: missing post-purchase-callback checks and loss of the revoked error in `persist`. Fix round 1 added the checks and explicit error preservation; scoped re-review confirmed both addressed, without new Critical/Important breakage. Final integration review then found the purge callback boundary and two test-only retain cycles addressed in the final correction section below. Final rereview and frozen successor validation remain pending.
+- Independent implementation/spec and code-quality review found two Important issues: missing post-purchase-callback checks and loss of the revoked error in `persist`. Fix round 1 added the checks and explicit error preservation; scoped re-review confirmed both addressed, without new Critical/Important breakage. Final integration review then found the purge callback boundary and two test-only retain cycles addressed in the final correction section below. Final scoped rereview confirmed both addressed with no new breakage; frozen successor validation is recorded below.
 
 ## Review round 1 correction evidence
 
@@ -47,7 +48,7 @@
 - Behavioral RED: the same command outside the sandbox; exit 1, 7 test functions / 1 suite, 4 issues (`/tmp/session-admission-review1-red-behavior.log`): authorization `.requiresUnlock` produced `.accessRestricted`; successful-purchase `.allow` produced `.invalidOrdinal`; successful-purchase `.requiresUnlock` produced `.accessRestricted`; the archive-writer seam produced `.persistenceFailed`. Authorization `.allow` already reached a later admission check and passed before the fix.
 - Corrected GREEN: `swift test --filter JSONProjectStoreSessionAdmissionTests`; exit 0, 7 test functions / 1 suite passed (`/tmp/session-admission-review1-green.log`).
 - Purchase-policy regression: `swift test --filter JSONProjectStoreEntitlementTests`; exit 0, 31 tests passed (`/tmp/session-admission-review1-entitlement-regression.log`). The log contains the existing CoreGraphics PDF diagnostic and no compiler warning.
-- These review corrections are intentionally unstaged over the exact staged v1 baseline. Rereview and frozen full validation remain pending.
+- At the round-1 snapshot these corrections were intentionally unstaged over the exact staged v1 baseline. They subsequently passed rereview and were committed in `d8ad41e`; frozen successor validation is recorded below.
 
 ## Final integration review correction evidence
 
@@ -59,7 +60,7 @@
 - Added simple `defer { store = nil }` cleanup in both callback-admission fixtures to remove the final review's test-only retain cycles.
 - Controller-reported affected run on `d8ad41e` (session 48269): exit 1, 814 tests / 47 suites; total 257.036 seconds, test time 173.754 seconds. The same existing `exportSerializesProjectYarnAndJournalMutations` blocker wait returned false at `JSONProjectStoreTests.swift:1965`. This second concurrent failure remains unresolved; its root cause is not proven and it is not a pass.
 - Final-fix `git diff --check`: exit 0, no output.
-- Final scoped rereview confirmed the purge guard and fixture-cycle corrections addressed, with no new Critical/Important breakage. Successor commit/SHA and controller-owned frozen validation remain pending at this snapshot; no broad affected rerun was performed in this fix wave.
+- Final scoped rereview confirmed the purge guard and fixture-cycle corrections addressed, with no new Critical/Important breakage. The correction was committed as `3be009a`; no broad concurrent affected rerun was performed in this fix wave.
 
 ## Remaining asynchronous writers and activation gates
 
@@ -74,6 +75,15 @@
 ## Candidate-bound full validation
 
 - Final scoped rereview completed; no open code findings remain from the task or final integration reviews.
-- Pending final-fix commit and frozen successor source SHA.
-- Pending controller-owned `swift test --no-parallel`, unsigned macOS build-for-testing, and unsigned generic-iOS build on the frozen source candidate.
+- All three commands below ran serially on frozen `3be009ad45f8640df280c94512fc25ea68d0a759`. Each used the inspected `/tmp/task4-run-bounded.py` runner and a separate, non-overwritten log. No App test host was launched. The worktree was clean at source freeze and before the report-only update.
+- `/usr/bin/swift test --no-parallel`: **exit 0, 2,478 tests / 180 suites passed**, test time 1426.609 seconds, total 1504.068 seconds; 3600-second runner limit was not reached. Log `/tmp/session-admission-final-full-core.log`; SHA256 `5420d312c9ea060bea52c45289e37483b6244f4eab3d981ec1c53107ea6554df`. There were 42 `warning:` text occurrences of the same existing deprecated `String(contentsOf:)` diagnostic at `HighlightOverlayContractTests.swift:92`, including rendered source-line repeats; this is not 42 distinct defects.
+- `/usr/bin/xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/session-admission-macos-derived CODE_SIGNING_ALLOWED=NO build-for-testing`: **exit 0, TEST BUILD SUCCEEDED**, total 14.697 seconds; 900-second runner limit not reached. Reused only this task's pre-review DerivedData cache, with a fresh actual build command. Log `/tmp/session-admission-final-macos.log`; SHA256 `21bf17e9beebbadddc317262ec300308d1bdabf60c20507ca03a67393c37a981`. Two AppIntents metadata-extraction-skipped warnings; no signing or test-host execution.
+- `/usr/bin/xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/session-admission-ios-derived CODE_SIGNING_ALLOWED=NO build`: **exit 0, BUILD SUCCEEDED**, total 70.834 seconds; 900-second runner limit not reached. DerivedData path was absent before this run. Log `/tmp/session-admission-final-ios.log`; SHA256 `6fd0d41cc4de88eee415f7b9876c50c86f04b9c0c39cc6e69e809b41bfffb707`. Three AppIntents metadata-extraction-skipped warnings; no installation or signing.
+- Fresh `git diff --check` and `plutil -lint KnitNote.xcodeproj/project.pbxproj` both exited 0 after validation. HEAD and all three tree identities above were read back unchanged before this documentation edit.
+- **Acceptance remains qualified:** the final full serial suite and unsigned builds passed; the two earlier default-concurrent affected runs remain real failures, not waived or repaired. There is no final-candidate default-concurrent pass. No merge, push, upload, submission, live sync activation, or physical-device acceptance occurred.
 - The eleven-case Phase 4A matrix has not been run or passed by this task. Focused GREEN and the pre-review unsigned build do not substitute for candidate-bound full validation.
+
+## Remaining concurrent-test investigation
+
+- Read-only inspection found that `StoreBackupTransactionGateTests` is marked `@Suite(.serialized)`, while its `StoreOperationBlocker.waitUntilBlocked()` uses a fixed 10-second semaphore wait from a detached task. Apple documents that suite serialization does not serialize it relative to unrelated suites: [Running tests serially or in parallel](https://developer.apple.com/documentation/Testing/Parallelization). This explains why the annotation alone does not exclude concurrent contention; it does **not** prove contention caused these failures.
+- Next diagnostic scope: establish a controlled baseline and instrument the blocker/export event timing in an isolated test fixture before deciding whether the defect is scheduling, fixture design, or production behavior. Do not extend the timeout, weaken assertions, or repeatedly rerun the same concurrent command merely to obtain green. Async drain/session-owner implementation and release acceptance are not unlocked by the serial pass.

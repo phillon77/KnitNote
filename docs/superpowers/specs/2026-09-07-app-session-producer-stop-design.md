@@ -34,6 +34,8 @@ stop時清除本身pendingSelection、failure、notice，保存並取消operatio
 
 stop同步設關閉狀態、解除project／entitlement訂閱，清除transport四個callback屬性，保存serialTask與三種retry／expiry Task後取消。已被transport或Combine另存的舊callback仍須檢查關閉狀態；僅把callback設nil不足以攔住它們。
 
+Combine訂閱先經thread-safe callback gate登記，再建立跳到MainActor的Task；Task以defer解除登記，即使self已釋放。stop先close gate，拒絕之後的新登記；drain也等待先前已接受的callback完成。這個gate只用短同步鎖保護非同步排程前的登記與等待者，不跨await持鎖，不代替store或account權威。不能只在MainActor Task開始後登記，否則stop可能漏掉尚未排到的工作。
+
 所有新start／receive／publish及內部activate／send／recover／timer continuation，在關閉後不再傳送、建立timer或更動store／ledger。已排隊工作在`await previous.value`之後重新檢查關閉狀態。等待涵蓋停用前接受的serial尾端及timer；保留原串列順序。
 
 不嘗試撤回已送到Watch的快照、不宣稱Watch遠端已清空。wire尚無account session證據；本段不啟用真實跨帳號Watch路徑。原正常單帳號start行為不改。

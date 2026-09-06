@@ -2547,6 +2547,17 @@ private struct StoreLaunchRecoveryFixture {
 }
 
 @Suite(.serialized) @MainActor struct StoreBackupSessionDrainTests {
+    @Test func backupWaitRetainsItsPublicOpenSessionError() async throws {
+        let fixture = try StoreBackupFixture.make()
+        defer { fixture.cleanup() }
+        await #expect(throws: BackupSessionDrainError.sessionStillActive) {
+            try await fixture.store.waitForBackupOperationsAfterRevocation()
+        }
+        await #expect(throws: StoreSessionDrainError.sessionStillActive) {
+            try await fixture.store.waitForTrackedBackgroundWritesAfterRevocation()
+        }
+    }
+
     @Test func revokedBackupEntriesAndCleanupLeaveOwnedDataUntouched() async throws {
         let fixture = try StoreBackupFixture.make()
         defer { fixture.cleanup() }

@@ -1,49 +1,5 @@
 import SwiftUI
 
-@MainActor
-final class PatternBackupReminderPresenter: ObservableObject {
-    @Published private(set) var isPresented: Bool
-    @Published private(set) var isShowingBackupSettings: Bool
-    private var coordinator: PatternBackupReminderCoordinator
-
-    init(history: BackupHistory = .init()) {
-        let coordinator = PatternBackupReminderCoordinator(history: history)
-        self.coordinator = coordinator
-        isPresented = coordinator.isPresented
-        isShowingBackupSettings = coordinator.isShowingBackupSettings
-    }
-
-    func accept(_ outcome: PatternImportOutcome) {
-        coordinator.accept(outcome)
-        publish()
-    }
-
-    func accept(_ outcomes: [PatternImportOutcome]) {
-        coordinator.accept(outcomes)
-        publish()
-    }
-
-    func acceptCreatedPattern() {
-        coordinator.acceptCreatedPattern()
-        publish()
-    }
-
-    func dismiss(openBackupSettings: Bool) {
-        coordinator.dismiss(openBackupSettings: openBackupSettings)
-        publish()
-    }
-
-    func closeBackupSettings() {
-        coordinator.closeBackupSettings()
-        publish()
-    }
-
-    private func publish() {
-        isPresented = coordinator.isPresented
-        isShowingBackupSettings = coordinator.isShowingBackupSettings
-    }
-}
-
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.locale) private var locale

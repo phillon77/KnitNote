@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 struct PendingInboxPatternSelection: Identifiable {
     let item: PatternInboxItem
@@ -17,25 +18,63 @@ struct PatternInboxNotice: Identifiable {
 }
 
 @MainActor
-final class PatternInboxProcessor: ObservableObject {
+final class PatternInboxProcessor: ObservableObject, AppSessionProducer {
     @Published private(set) var pendingSelection: PendingInboxPatternSelection?
     @Published private(set) var failure: PatternInboxFailure?
     @Published private(set) var notice: PatternInboxNotice?
 
     private let driver: PatternInboxDriver
     private let backupReminderPresenter: PatternBackupReminderPresenter
+    private let noticeDelay: @Sendable () async -> Void
     private var operationTask: Task<Void, Never>?
-    private var noticeTask: Task<Void, Never>?
+    private var noticeTasks: [UUID: Task<Void, Never>] = [:]
+    private var currentNoticeTaskID: UUID?
+    private var isStopped = false
+    private var stoppedTasks: [Task<Void, Never>] = []
 
-    init(
+    convenience init(
         store: JSONProjectStore,
         backupReminderPresenter: PatternBackupReminderPresenter
     ) {
-        driver = PatternInboxDriver(processing: PatternInboxStoreAdapter(store: store))
+        self.init(
+            driver: PatternInboxDriver(processing: PatternInboxStoreAdapter(store: store)),
+            backupReminderPresenter: backupReminderPresenter
+        )
+    }
+
+    init(
+        driver: PatternInboxDriver,
+        backupReminderPresenter: PatternBackupReminderPresenter,
+        noticeDelay: @escaping @Sendable () async -> Void = {
+            try? await Task.sleep(for: .seconds(3))
+        }
+    ) {
+        self.driver = driver
         self.backupReminderPresenter = backupReminderPresenter
+        self.noticeDelay = noticeDelay
+    }
+
+    func stopForSessionTransition() {
+        guard !isStopped else { return }
+        isStopped = true
+        stoppedTasks = [operationTask].compactMap { $0 } + Array(noticeTasks.values)
+        clearStoppedPresentationState()
+        stoppedTasks.forEach { $0.cancel() }
+    }
+
+    func waitForStoppedOperations() async throws {
+        guard isStopped else {
+            throw AppSessionProducerDrainError.producerStillActive
+        }
+        try Task.checkCancellation()
+        for task in stoppedTasks {
+            await task.value
+        }
+        try Task.checkCancellation()
     }
 
     func processPending() {
+        guard !isStopped else { return }
         startOperation { [driver] in
             try await driver.processPending()
         }
@@ -45,6 +84,7 @@ final class PatternInboxProcessor: ObservableObject {
         itemID: UUID,
         resolution: PatternImportDuplicateResolution
     ) {
+        guard !isStopped else { return }
         pendingSelection = nil
         startOperation { [driver] in
             try await driver.resolve(itemID: itemID, resolution: resolution)
@@ -52,15 +92,18 @@ final class PatternInboxProcessor: ObservableObject {
     }
 
     func retry() {
+        guard !isStopped else { return }
         failure = nil
         processPending()
     }
 
     func dismissFailure() {
+        guard !isStopped else { return }
         failure = nil
     }
 
     func discard() {
+        guard !isStopped else { return }
         guard let itemID = failure?.itemID else { return }
         failure = nil
         startOperation { [driver] in
@@ -71,7 +114,7 @@ final class PatternInboxProcessor: ObservableObject {
     private func startOperation(
         _ operation: @escaping @Sendable () async throws -> PatternInboxDriverUpdate
     ) {
-        guard operationTask == nil else { return }
+        guard !isStopped, operationTask == nil else { return }
         operationTask = Task {
             defer { operationTask = nil }
             do {
@@ -79,40 +122,98 @@ final class PatternInboxProcessor: ObservableObject {
             } catch is CancellationError {
                 return
             } catch {
-                failure = PatternInboxFailure(itemID: nil)
+                _ = publishPresentationChange {
+                    failure = PatternInboxFailure(itemID: nil)
+                }
             }
         }
     }
 
     private func apply(_ update: PatternInboxDriverUpdate) {
-        guard !update.isBusy else { return }
-        backupReminderPresenter.accept(update.imported)
+        guard !isStopped, !update.isBusy else { return }
+        let reminderCheckpoint = backupReminderPresenter.sessionPresentationCheckpoint()
+        let reminderMutation = backupReminderPresenter.accept(update.imported)
+        guard !isStopped else {
+            backupReminderPresenter.restoreSessionPresentation(
+                reminderCheckpoint,
+                replacing: reminderMutation
+            )
+            clearStoppedPresentationState()
+            return
+        }
         if !update.imported.isEmpty {
             showNotice(importCount: update.imported.count)
+            guard !isStopped else { return }
         }
         switch update.blocking {
         case let .selection(item, candidatePatternIDs):
-            failure = nil
-            pendingSelection = PendingInboxPatternSelection(
-                item: item,
-                candidatePatternIDs: candidatePatternIDs
-            )
+            guard publishPresentationChange({ failure = nil }) else { return }
+            _ = publishPresentationChange {
+                pendingSelection = PendingInboxPatternSelection(
+                    item: item,
+                    candidatePatternIDs: candidatePatternIDs
+                )
+            }
         case let .failure(itemID):
-            pendingSelection = nil
-            failure = PatternInboxFailure(itemID: itemID)
+            guard publishPresentationChange({ pendingSelection = nil }) else { return }
+            _ = publishPresentationChange {
+                failure = PatternInboxFailure(itemID: itemID)
+            }
         case nil:
-            pendingSelection = nil
-            failure = nil
+            guard publishPresentationChange({ pendingSelection = nil }) else { return }
+            _ = publishPresentationChange { failure = nil }
         }
     }
 
     private func showNotice(importCount: Int) {
-        noticeTask?.cancel()
+        guard !isStopped else { return }
+        if let currentNoticeTaskID {
+            noticeTasks[currentNoticeTaskID]?.cancel()
+        }
         let value = PatternInboxNotice(importCount: importCount)
-        notice = value
-        noticeTask = Task {
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled, notice?.id == value.id else { return }
+        guard publishPresentationChange({ notice = value }) else { return }
+
+        let taskID = UUID()
+        let task = Task { [noticeDelay] in
+            defer { noticeTaskDidFinish(taskID) }
+            await noticeDelay()
+            guard !isStopped,
+                  !Task.isCancelled,
+                  notice?.id == value.id else { return }
+            _ = publishPresentationChange { notice = nil }
+        }
+        currentNoticeTaskID = taskID
+        noticeTasks[taskID] = task
+    }
+
+    private func noticeTaskDidFinish(_ taskID: UUID) {
+        noticeTasks[taskID] = nil
+        if currentNoticeTaskID == taskID {
+            currentNoticeTaskID = nil
+        }
+    }
+
+    private func publishPresentationChange(_ change: () -> Void) -> Bool {
+        guard !isStopped else {
+            clearStoppedPresentationState()
+            return false
+        }
+        change()
+        guard !isStopped else {
+            clearStoppedPresentationState()
+            return false
+        }
+        return true
+    }
+
+    private func clearStoppedPresentationState() {
+        if pendingSelection != nil {
+            pendingSelection = nil
+        }
+        if failure != nil {
+            failure = nil
+        }
+        if notice != nil {
             notice = nil
         }
     }

@@ -446,6 +446,10 @@
 		3AE51DF46F0FE6E58FDF7BA5 /* SyncDeletionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 297F4F4B4BE51A487ADB7BCD /* SyncDeletionPolicy.swift */; };
 		5EBDAB5EE8B7C8B12D14BDC8 /* SyncPendingRecoveryPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB2059792EFF2B3512159E2 /* SyncPendingRecoveryPacket.swift */; };
 		6466CE9C8C5E1DFE0BFCC062 /* SyncRecoveryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */; };
+		D70100000000000000000001 /* AppSessionProducerLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70100000000000000000002 /* AppSessionProducerLifecycle.swift */; };
+		D70100000000000000000003 /* PatternBackupReminderPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70100000000000000000004 /* PatternBackupReminderPresenter.swift */; };
+		D70100000000000000000005 /* AppSessionProducerFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70100000000000000000006 /* AppSessionProducerFixtures.swift */; };
+		D70100000000000000000007 /* PatternInboxProcessorSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70100000000000000000008 /* PatternInboxProcessorSessionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -815,6 +819,10 @@
 		BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountRecoveryInventory.swift; sourceTree = "<group>"; };
 		D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecoveryVault.swift; sourceTree = "<group>"; };
 		FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeletionLedger.swift; sourceTree = "<group>"; };
+		D70100000000000000000002 /* AppSessionProducerLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionProducerLifecycle.swift; sourceTree = "<group>"; };
+		D70100000000000000000004 /* PatternBackupReminderPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternBackupReminderPresenter.swift; sourceTree = "<group>"; };
+		D70100000000000000000006 /* AppSessionProducerFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionProducerFixtures.swift; sourceTree = "<group>"; };
+		D70100000000000000000008 /* PatternInboxProcessorSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternInboxProcessorSessionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -832,6 +840,7 @@
 		00FA7869BBC2022A1F3126E0 /* Patterns */ = {
 			isa = PBXGroup;
 			children = (
+				D70100000000000000000004 /* PatternBackupReminderPresenter.swift */,
 				871B5DE057BA40B90AB5123D /* AddYouTubePatternView.swift */,
 				0921465E1F24F5FB8C1A449E /* ChooseLibraryPatternView.swift */,
 				1DB0EBE0E4F768F0A8C15CC6 /* ChoosePatternProjectView.swift */,
@@ -1016,6 +1025,7 @@
 		491A1A35F59A29BF49F08ADE /* KnitNoteAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				D70100000000000000000006 /* AppSessionProducerFixtures.swift */,
 				551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */,
 				BC4ED73108C3002C14F305FB /* CloudAssetDownloadStagingTests.swift */,
 				900C0FC5920D203F4AC599B6 /* CloudAssetFileStoreTests.swift */,
@@ -1037,6 +1047,7 @@
 				1E3AEB2A7F20F40D8B6D410F /* MacYarnLabelFileImporterTests.swift */,
 				C127EA72C285174A9611E5B1 /* StoreKitPurchaseServiceLifecycleTests.swift */,
 				2FE24E4A7CD8BA12753F7AFA /* YarnEditorDraftLabelTests.swift */,
+				D70100000000000000000008 /* PatternInboxProcessorSessionTests.swift */,
 			);
 			name = KnitNoteAppTests;
 			path = Tests/KnitNoteAppTests;
@@ -1053,6 +1064,7 @@
 		4D55FE9FD7B400E4A1009DF1 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				D70100000000000000000002 /* AppSessionProducerLifecycle.swift */,
 				DE009E064EA3668A5264ABF4 /* AppUpdateFixture.swift */,
 				A95C5E1E650AB6A145505E8B /* AppUpdateReminderLiveFactory.swift */,
 				A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */,
@@ -1677,6 +1689,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D70100000000000000000001 /* AppSessionProducerLifecycle.swift in Sources */,
+				D70100000000000000000003 /* PatternBackupReminderPresenter.swift in Sources */,
 				551111111111111111111113 /* CloudAccountTransitionCoordinator.swift in Sources */,
 				551111111111111111111115 /* CloudRecoveryVaultKeychain.swift in Sources */,
 				251026E9A3A8DA0C5B5FEC58 /* SyncRecoveryVault.swift in Sources */,
@@ -2073,6 +2087,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D70100000000000000000005 /* AppSessionProducerFixtures.swift in Sources */,
+				D70100000000000000000007 /* PatternInboxProcessorSessionTests.swift in Sources */,
 				551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */,
 				D441E394F6FDEFAEA92674F9 /* CloudAssetDownloadStagingTests.swift in Sources */,
 				0939455BBB049947CF911E2F /* CloudAssetFileStoreTests.swift in Sources */,

@@ -281,6 +281,8 @@ private enum CloudKitDevelopmentGate {
     root: URL, zoneID: CKRecordZone.ID,
     exchange: @Sendable (CKRecord) async throws -> CKRecord
 ) async throws {
+    // Offline-only fixture identity; the live helper below has its own container.
+    let containerIdentifier = "test.container"
     let stagingRoot = root.appendingPathComponent("staging")
     let staging = try CloudAssetStagingService(rootURL: stagingRoot, accountIdentifier: "probe-account")
     let mutation = try integrationAttachment(root: root)
@@ -291,47 +293,67 @@ private enum CloudKitDevelopmentGate {
     let stateStore = FileCloudSyncEngineStateStore(url: root.appendingPathComponent("engine"))
     let driver = TestSyncEngineDriver()
     let transport = CKSyncEngineTransport(zoneID: zoneID, stateStore: stateStore,
-        initialAccountIdentifier: "probe-account", assetStaging: staging, engineFactory: { _, _ in driver })
+        initialAccountIdentifier: "probe-account", assetStaging: staging,
+        containerIdentifier: containerIdentifier, engineFactory: { _, _ in driver })
     let domainURL = root.appendingPathComponent("committed-records.json")
     let committer = ProbeDurableCommitter(url: domainURL, staging: staging)
     let coordinator = KnitNoteCloudSyncCoordinator(transport: transport, journal: journal,
         mergeEngine: SyncMergeEngine(), recordProvider: committer, fetchedBatchCommitter: committer, screenshotMode: false)
-    await coordinator.start()
-    for _ in 0..<100 { await Task.yield() }
-    try await transport.finishMutationReplay()
-    await transport.receiveZoneReady(zoneID)
-    let pending = await driver.pendingChanges()
-    let first = try #require(await transport.recordZoneChangeBatch(pendingChanges: pending, scope: .all)?.recordsToSave.first)
-    let firstAsset = try #require(first["asset"] as? CKAsset)
-    let stagedURL = try #require(firstAsset.fileURL)
-    await transport.receiveFailedSave(first, error: CKError(.networkFailure))
-    let retry = try #require(await transport.recordZoneChangeBatch(pendingChanges: pending, scope: .all)?.recordsToSave.first)
-    let retryAsset = try #require(retry["asset"] as? CKAsset)
-    #expect(firstAsset !== retryAsset)
-    #expect(retryAsset.fileURL == stagedURL)
-    let fetched = try await exchange(retry)
-    await transport.receiveSentChanges(savedRecords: [retry], deletedRecordIDs: [])
-    for _ in 0..<2_000 {
-        if try journal.pending().isEmpty && !FileManager.default.fileExists(atPath: stagedURL.path) { break }
-        await Task.yield()
-    }
-    #expect(try FileSyncMutationJournal(url: journalURL).pending().isEmpty)
-    #expect(!FileManager.default.fileExists(atPath: stagedURL.path))
-    await transport.receiveFetchedChanges(records: [fetched], deletedRecordIDs: [])
-    for _ in 0..<2_000 {
-        if FileManager.default.fileExists(atPath: domainURL.path) { break }
-        await Task.yield()
-    }
-    let committed = try JSONDecoder().decode([SyncRecord].self, from: Data(contentsOf: domainURL))
-    #expect(committed.contains { $0.payload.attachment == version })
-    let restartedStaging = try CloudAssetStagingService(rootURL: stagingRoot, accountIdentifier: "probe-account")
-    let installed = try restartedStaging.installedDownload(version: version)
-    #expect(try Data(contentsOf: installed) == Data("Plan2 immutable attachment bytes".utf8))
-    let restartedTransport = CKSyncEngineTransport(zoneID: zoneID, stateStore: stateStore,
-        initialAccountIdentifier: "probe-account", assetStaging: restartedStaging,
-        engineFactory: { _, _ in TestSyncEngineDriver() })
-    try await restartedTransport.start()
-    #expect(try FileSyncMutationJournal(url: journalURL).pending().isEmpty)
+    var restartedTransport: CKSyncEngineTransport?
+    let result: Result<Void, any Error>
+    do {
+        await coordinator.start()
+        for _ in 0..<100 { await Task.yield() }
+        try await transport.finishMutationReplay()
+        await transport.receiveZoneReady(zoneID)
+        let pending = await driver.pendingChanges()
+        let first = try #require(await transport.recordZoneChangeBatch(pendingChanges: pending, scope: .all)?.recordsToSave.first)
+        let firstAsset = try #require(first["asset"] as? CKAsset)
+        let stagedURL = try #require(firstAsset.fileURL)
+        await transport.receiveFailedSave(first, error: CKError(.networkFailure))
+        let retry = try #require(await transport.recordZoneChangeBatch(pendingChanges: pending, scope: .all)?.recordsToSave.first)
+        let retryAsset = try #require(retry["asset"] as? CKAsset)
+        #expect(firstAsset !== retryAsset)
+        #expect(retryAsset.fileURL == stagedURL)
+        let fetched = try await exchange(retry)
+        await transport.receiveSentChanges(savedRecords: [retry], deletedRecordIDs: [])
+        for _ in 0..<2_000 {
+            if try journal.pending().isEmpty && !FileManager.default.fileExists(atPath: stagedURL.path) { break }
+            await Task.yield()
+        }
+        #expect(try FileSyncMutationJournal(url: journalURL).pending().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: stagedURL.path))
+        await transport.receiveFetchedChanges(records: [fetched], deletedRecordIDs: [])
+        for _ in 0..<2_000 {
+            if FileManager.default.fileExists(atPath: domainURL.path) { break }
+            await Task.yield()
+        }
+        let committed = try JSONDecoder().decode([SyncRecord].self, from: Data(contentsOf: domainURL))
+        #expect(committed.contains { $0.payload.attachment == version })
+        let restartedStaging = try CloudAssetStagingService(rootURL: stagingRoot, accountIdentifier: "probe-account")
+        let installed = try restartedStaging.installedDownload(version: version)
+        #expect(try Data(contentsOf: installed) == Data("Plan2 immutable attachment bytes".utf8))
+        let restarted = CKSyncEngineTransport(zoneID: zoneID, stateStore: stateStore,
+            initialAccountIdentifier: "probe-account", assetStaging: restartedStaging,
+            containerIdentifier: containerIdentifier,
+            engineFactory: { _, _ in TestSyncEngineDriver() })
+        restartedTransport = restarted
+        try await restarted.start()
+        #expect(try FileSyncMutationJournal(url: journalURL).pending().isEmpty)
+        result = .success(())
+    } catch { result = .failure(error) }
+    // Retain the consumer through all assertions, then independently join both
+    // engines even when the fixture caller throws/cancels before root removal.
+    await Task { @MainActor in
+        coordinator.stopForAccountTransition()
+        let cancellation = await transport.invalidateForAccountTransition()
+        await cancellation?.value
+        if let restartedTransport {
+            let cancellation = await restartedTransport.invalidateForAccountTransition()
+            await cancellation?.value
+        }
+    }.value
+    try result.get()
 }
 
 private final class ProbeDurableCommitter: SyncFetchedBatchCommitting, SyncRecordProvider, @unchecked Sendable {

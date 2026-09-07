@@ -58,6 +58,56 @@ public final class SyncCanonicalCheckpointStore {
         return try read(Self.name)?.value
     }
 
+    /// Read-only routing before construction: a missing canonical must not
+    /// create SyncMetadata and change the Original tree of a rolled-back
+    /// bootstrap. This is not activation or permission to publish a domain.
+    static func loadIfPresent(liveRoot: URL, account: SyncAccountIdentity,
+                              validateOwnership: () throws -> Void) throws -> SyncCanonicalCheckpoint? {
+        try validateOwnership()
+        let rootURL = try normalized(liveRoot)
+        var names = rootURL.path.split(separator: "/").map(String.init)
+        let root = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw SyncAccountStorageError.unavailable }
+        var handles = [Handle(root)]
+        for name in names { handles.append(try openDirectory(name, parent: handles.last!)) }
+        func validate() throws {
+            try validateOwnership()
+            try validateAncestry(handles, names: names)
+        }
+        try validate()
+        var metadata = stat()
+        if fstatat(handles.last!.fd, "SyncMetadata", &metadata, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw SyncAccountStorageError.unsafePath }
+            try validate()
+            return nil
+        }
+        handles.append(try openDirectory("SyncMetadata", parent: handles.last!))
+        names.append("SyncMetadata")
+        try validate()
+        func readExisting(_ name: String) throws -> SyncCanonicalCheckpoint? {
+            var before = stat()
+            if fstatat(handles.last!.fd, name, &before, AT_SYMLINK_NOFOLLOW) != 0 {
+                guard errno == ENOENT else { throw SyncAccountStorageError.unsafePath }
+                try validate(); return nil
+            }
+            guard before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1 else { throw SyncAccountStorageError.unsafePath }
+            let result = try SyncRegularFileReader().read(rootURL.appendingPathComponent("SyncMetadata/" + name),
+                maximumBytes: SyncCanonicalCheckpoint.maximumBytes)
+            try validate()
+            var after = stat()
+            guard fstatat(handles.last!.fd, name, &after, AT_SYMLINK_NOFOLLOW) == 0,
+                  identity(before) == result.identity, identity(after) == result.identity,
+                  after.st_mode & S_IFMT == S_IFREG, after.st_nlink == 1 else { throw SyncAccountStorageError.unsafePath }
+            let value = try JSONDecoder().decode(SyncCanonicalCheckpoint.self, from: result.data).validated()
+            guard value.accountIDHash == account.accountIDHash else { throw SyncPublicationError.corruptTransaction }
+            return value
+        }
+        let current = try readExisting(name)
+        _ = try readExisting(temporaryName)
+        try validate()
+        return current
+    }
+
     /// Verifies the consumer's named live root is this pinned account store.
     func validateBinding(liveRoot: URL, accountIDHash: String? = nil) throws {
         try validateBindings()

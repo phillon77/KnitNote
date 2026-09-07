@@ -1,7 +1,8 @@
 import Combine
+import CloudKit
 import Foundation
 
-private enum CloudSyncIssueError: Error { case failed }
+enum CloudSyncIssueError: Error { case failed; case issue(CloudSyncIssue) }
 
 enum CloudSyncIssue: Equatable, Sendable {
     case transport(CloudSyncFailure)
@@ -12,6 +13,13 @@ enum CloudSyncIssue: Equatable, Sendable {
     case operation
     case inconsistentEvent
     case accountChanged
+
+    var preservesLocalAccess: Bool {
+        switch self {
+        case .transport(.retryable), .transport(.quotaExceeded): true
+        default: false
+        }
+    }
 }
 
 struct CloudSyncStatusSnapshot: Equatable, Sendable {
@@ -62,6 +70,8 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
 
     private var eventLoopTask: Task<Void, Never>?
     private var started = false
+    private var transportStarted = false
+    private var startingTransport = false
     private var activeCycle: SyncCycle?
     private var accountInvalidated = false
     private var lastObservedPendingCount = 0
@@ -74,6 +84,8 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private var transitionWaiter: CheckedContinuation<Void, any Error>?
     private var transitionReady: ((CloudInitialFetchReceipt) throws -> Void)?
     var accountChangeHandler: ((String?, String?) -> Void)?
+    var failureHandler: ((CloudSyncIssue) -> Void)?
+    var transitionCompletionHandler: (() -> Void)?
 
     func startForAccountTransition(onReady: @escaping (CloudInitialFetchReceipt) throws -> Void) async throws {
         guard !started else { throw CloudSyncIssueError.failed }
@@ -95,9 +107,10 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
         finishTransitionWaiter(.failure(CancellationError()))
     }
 
-    private func finishTransitionWaiter(_ result: Result<Void, any Error>) {
+    private func finishTransitionWaiter(_ result: Result<Void, any Error>, retainReadiness: Bool = false) {
         let waiter = transitionWaiter
-        transitionWaiter = nil; transitionReady = nil
+        transitionWaiter = nil
+        if !retainReadiness { transitionReady = nil }
         waiter?.resume(with: result)
     }
 
@@ -124,20 +137,23 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     }
 
     func start() async {
-        guard !started else { return }
-        started = true
-        guard !screenshotMode else { return }
-
-        let events = transport.events
-        eventLoopTask = Task { @MainActor [weak self] in
-            for await event in events {
-                guard !Task.isCancelled, let self else { return }
-                await self.handle(event)
+        guard !screenshotMode, !accountInvalidated, !transportStarted, !startingTransport else { return }
+        if !started {
+            started = true
+            let events = transport.events
+            eventLoopTask = Task { @MainActor [weak self] in
+                for await event in events {
+                    guard !Task.isCancelled, let self else { return }
+                    await self.handle(event)
+                }
             }
         }
-
+        startingTransport = true
+        defer { startingTransport = false }
         do {
             try await transport.start()
+            guard !accountInvalidated else { return }
+            transportStarted = true
             let pending = try journal.pendingVersioned()
             lastObservedPendingCount = pending.count
             publish(phase: .waiting, pendingCount: pending.count, issue: nil)
@@ -146,17 +162,17 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
             }
             await performInitialSync()
         } catch {
-            fail(.operation)
+            handleOperationError(error)
         }
     }
 
     func syncNow() async {
         guard !screenshotMode, !accountInvalidated else { return }
-        guard started else {
+        guard transportStarted else {
             await start()
             return
         }
-        await beginCycle(mode: .manual)
+        await beginCycle(mode: transitionReady == nil ? .manual : .initial)
     }
 
     private func performInitialSync() async {
@@ -393,11 +409,13 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private func handleTransportFailure(_ failure: CloudSyncFailure) {
         activeCycle = nil
         if case .retryable = failure {
+            finishTransitionWaiter(.failure(CloudSyncIssueError.issue(.transport(failure))), retainReadiness: true)
             publish(
                 phase: .waiting,
                 pendingCount: currentPendingCount(),
                 issue: .transport(failure)
             )
+            failureHandler?(.transport(failure))
         } else {
             fail(.transport(failure))
         }
@@ -426,6 +444,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
                 try await transport.sendNow(completionID: cycle.id)
             }
             finishTransitionWaiter(.success(()))
+            transitionCompletionHandler?()
         } catch {
             handleOperationError(error)
         }
@@ -527,12 +546,13 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
 
     private func publishFailure(_ issue: CloudSyncIssue) {
         // Waiter and Combine callbacks run after ownership has been released.
-        finishTransitionWaiter(.failure(CloudSyncIssueError.failed))
+        finishTransitionWaiter(.failure(CloudSyncIssueError.issue(issue)), retainReadiness: issue.preservesLocalAccess)
         publish(
             phase: .needsAttention,
             pendingCount: currentPendingCount(),
             issue: issue
         )
+        failureHandler?(issue)
     }
 
     private func failFetched(_ batchID: UUID, issue: CloudSyncIssue) {
@@ -577,10 +597,11 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     }
 
     private func handleOperationError(_ error: Error) {
-        finishTransitionWaiter(.failure(error))
         activeCycle = nil
         if let failure = error as? CloudSyncFailure {
             handleTransportFailure(failure)
+        } else if let error = error as? CKError {
+            handleTransportFailure(CloudSyncFailure.map(error, codec: CloudRecordCodec()))
         } else {
             fail(.operation)
         }

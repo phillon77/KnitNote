@@ -17,24 +17,30 @@ enum CloudAccountTransitionPhase: Equatable { case stopping, frozen, sealed, cle
 struct CloudAccountDomainInstallation {
     let recordProvider: any SyncRecordProvider
     let fetchedBatchCommitter: any SyncFetchedBatchCommitting
+    var localAccessReady = false
 }
 
-/// Plan 4 integration gate. Implementations must stop all UI mutation publication,
-/// hide old records, and freeze canonical/journal writers until installation and
-/// the committed first fetch permit resumption. Installation must validate/load
-/// the current account's canonical data and supply its real durable committer.
+/// Stops publication and drains the old domain before recovery. A concrete
+/// activated domain may resume local access before fetch; older adapters keep
+/// their first-fetch gate. Neither path bypasses the transport receipt gate.
 @MainActor protocol CloudAccountDomainLifecycle: AnyObject {
     func stopPublishingAndHide() throws
     func freeze(account: CloudAccountBinding, paths: SyncAccountStorage.Paths, journal: FileSyncMutationJournal) async throws
     func discardClosedAccount() throws
-    func install(account: CloudAccountBinding, paths: SyncAccountStorage.Paths, journal: FileSyncMutationJournal) async throws -> CloudAccountDomainInstallation
+    func captureTransitionValidation() -> () throws -> Void
+    func recoverBootstrap(context: AppAccountDomainContext) throws
+    func install(context: AppAccountDomainContext, runtime: AppAccountDomainRuntime) async throws -> CloudAccountDomainInstallation
     func resumePublishing() throws
 }
 
 @MainActor final class CloudAccountTransitionCoordinator {
-    enum Failure: Error { case transitionInProgress, wrongAccount, invalidRecovery }
+    enum Failure: Error, Equatable { case transitionInProgress, wrongAccount, invalidRecovery, bootstrapRequired }
     private(set) var phase: CloudAccountTransitionPhase = .blocked
     private(set) var completed = false
+    private(set) var localAccessReady = false
+    private(set) var requiresBootstrap = false
+    var cloudStatus: CloudSyncStatusSnapshot? { session?.sync?.status }
+    var accountInvalidatedHandler: (() -> Void)?
     var currentTransport: CKSyncEngineTransport? { session?.transport }
     var currentJournal: FileSyncMutationJournal? { session?.journal }
     private let baseURL: URL
@@ -64,19 +70,22 @@ struct CloudAccountDomainInstallation {
     func transition(from old: CloudAccountBinding?, to new: CloudAccountBinding?, now: Date) async throws {
         guard !transitioning else { throw Failure.transitionInProgress }
         guard session == nil || session?.account == old else { throw Failure.wrongAccount }
-        transitioning = true; completed = false; phase = .stopping
+        transitioning = true; completed = false; localAccessReady = false; phase = .stopping
+        requiresBootstrap = false
         defer { transitioning = false }
         do {
+            try lifecycle.stopPublishingAndHide()
+            let validateTransition = lifecycle.captureTransitionValidation()
             // Immediate epoch invalidation/detachment happens before freeze can
             // suspend. Cancellation need not finish to make callbacks stale.
             if let transport = session?.transport { _ = await transport.invalidateForAccountTransition() }
             session?.sync?.stopForAccountTransition()
-            try lifecycle.stopPublishingAndHide()
             try Task.checkCancellation()
             if let old {
                 if session == nil { session = try open(old) }
                 guard let source = session, source.account == old else { throw Failure.wrongAccount }
                 try await lifecycle.freeze(account: old, paths: source.paths, journal: source.journal)
+                try source.storage.validateRuntimeJournalNamespace(paths: source.paths, account: old.identity, validateBootstrap: false)
                 phase = .frozen
                 try Task.checkCancellation()
                 if let transport = source.transport { try await transport.validateRecoveryBinding(account: old, paths: source.paths) }
@@ -105,10 +114,23 @@ struct CloudAccountDomainInstallation {
             }
             try Task.checkCancellation()
             guard let new else { completed = true; return }
+            try validateTransition()
             phase = .opening
             let destination = try open(new)
             session = destination
             try await lifecycle.freeze(account: new, paths: destination.paths, journal: destination.journal)
+            try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths, account: new.identity, validateBootstrap: false)
+            let context = AppAccountDomainContext(account: new, paths: destination.paths, journal: destination.journal,
+                validateOwnership: { [weak self, weak destination] in
+                    guard let self, let destination, self.session === destination, destination.isCurrent else {
+                        throw Failure.wrongAccount
+                    }
+                    try validateTransition()
+                    try destination.storage.withRecoveryOwnership(paths: destination.paths, account: new.identity,
+                        maximumBytes: self.maximumRecoveryBytes) { try $0.validate() }
+                })
+            destination.validateOwnership = context.validateOwnership
+            try context.validateOwnership()
             try Task.checkCancellation()
             if let selected = try destination.transaction.lifecycleSnapshot(now: now) {
                 if selected.phase == .sealed || selected.phase == .cleanupStarted {
@@ -121,31 +143,56 @@ struct CloudAccountDomainInstallation {
             } else {
                 try destination.transaction.synchronizeSelectionAbsence(now: now)
             }
-            try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
-                account: new.identity, validateBootstrap: true)
+            do {
+                try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
+                    account: new.identity, validateBootstrap: true)
+            } catch SyncBootstrapError.invalidPhase {
+                try lifecycle.recoverBootstrap(context: context)
+                try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
+                    account: new.identity, validateBootstrap: true)
+            }
             // Only after restore/verified consumption (or synchronized fresh
             // absence) may domain initialization or normal asset stores write.
-            let installation = try await lifecycle.install(account: new, paths: destination.paths, journal: destination.journal)
-            try Task.checkCancellation()
             let assets = try CloudAssetStagingService(rootURL: destination.paths.staging.appendingPathComponent("cloud-assets"), accountIdentifier: new.userRecordName)
             let state = FileCloudSyncEngineStateStore(url: destination.paths.engineState.appendingPathComponent("engine.json"))
             let fields = FileCloudRecordSystemFieldsStore(url: destination.paths.engineState.appendingPathComponent("system-fields.json"), zoneID: zoneID)
-            let transport = CKSyncEngineTransport(zoneID: zoneID, stateStore: state, systemFieldsStore: fields,
-                initialAccountIdentifier: new.userRecordName, assetStaging: assets, requiresInitialFetchReceipt: true, containerIdentifier: new.containerIdentifier, engineFactory: engineFactory)
+            let incoming = FileCloudIncomingBatchStore(url: state.relatedURL(pathExtension: "incoming-batches"))
+            let runtime = AppAccountDomainRuntime(assets: assets, incoming: incoming, zoneID: zoneID)
+            let installation = try await lifecycle.install(context: context, runtime: runtime)
+            destination.establishedLocalAccess = installation.localAccessReady
+            try Task.checkCancellation()
+            try context.validateOwnership()
+            let transport = CKSyncEngineTransport(zoneID: zoneID, stateStore: state, incomingBatchStore: incoming, systemFieldsStore: fields,
+                initialAccountIdentifier: new.userRecordName, assetStaging: assets,
+                requiresInitialFetchReceipt: true, containerIdentifier: new.containerIdentifier, engineFactory: engineFactory)
             destination.transport = transport
             try await transport.validateRecoveryBinding(account: new, paths: destination.paths)
             let sync = KnitNoteCloudSyncCoordinator(transport: transport, journal: destination.journal,
                 mergeEngine: SyncMergeEngine(), recordProvider: installation.recordProvider,
                 fetchedBatchCommitter: installation.fetchedBatchCommitter, screenshotMode: false)
             destination.sync = sync
-            sync.accountChangeHandler = { [weak self] _, current in
-                guard let self else { return }
-                Task { @MainActor in
-                    do {
-                        let next = try current.map { try CloudAccountBinding(containerIdentifier: new.containerIdentifier, userRecordName: $0) }
-                        try await self.transition(from: new, to: next, now: .now)
-                    } catch { self.phase = .blocked; self.completed = false }
+            sync.accountChangeHandler = { [weak self, weak destination] _, _ in
+                guard let self, let destination, self.session === destination else { return }
+                self.invalidate(destination)
+                self.accountInvalidatedHandler?()
+            }
+            sync.failureHandler = { [weak self, weak destination] issue in
+                guard let self, let destination, self.session === destination else { return }
+                if !issue.preservesLocalAccess { self.invalidate(destination) }
+                else {
+                    do { try context.validateOwnership(); self.completed = false }
+                    catch { self.invalidate(destination) }
                 }
+            }
+            sync.transitionCompletionHandler = { [weak self, weak destination] in
+                guard let self, let destination, self.session === destination, destination.isCurrent else { return }
+                do { try context.validateOwnership(); self.completed = true }
+                catch { self.invalidate(destination) }
+            }
+            if installation.localAccessReady {
+                try lifecycle.resumePublishing()
+                try context.validateOwnership()
+                localAccessReady = true
             }
             phase = .fetching
             try await sync.startForAccountTransition { [weak self, weak destination] receipt in
@@ -153,24 +200,54 @@ struct CloudAccountDomainInstallation {
                       receipt.epoch.accountIdentifier == new.userRecordName else { throw Failure.wrongAccount }
                 try Task.checkCancellation()
                 try receipt.epoch.requireCurrent()
-                try self.lifecycle.resumePublishing()
+                try context.validateOwnership()
+                if !self.localAccessReady { try self.lifecycle.resumePublishing(); self.localAccessReady = true }
                 self.phase = .ready
             }
             try Task.checkCancellation()
+            try context.validateOwnership()
             completed = true
         } catch {
+            if case let CloudSyncIssueError.issue(issue) = error, issue.preservesLocalAccess,
+               localAccessReady, let session, session.isCurrent, session.establishedLocalAccess {
+                do { try session.validateOwnership?(); return }
+                catch { /* Authority failure still takes the blocking path. */ }
+            }
             phase = .blocked; completed = false
+            requiresBootstrap = (error as? Failure) == .bootstrapRequired
+            localAccessReady = false
+            session?.isCurrent = false
             try? lifecycle.stopPublishingAndHide()
             session?.sync?.stopForAccountTransition()
             if let transport = session?.transport { _ = await transport.invalidateForAccountTransition() }
+            if let session {
+                // Cleanup must join rejected candidates even if the initiating
+                // task was cancelled. A failed drain remains retained by owner.
+                await Task { @MainActor [lifecycle] in
+                    try? await lifecycle.freeze(account: session.account, paths: session.paths, journal: session.journal)
+                }.value
+            }
             throw error
         }
+    }
+
+    func retrySync() async {
+        guard !transitioning, let session, session.isCurrent else { return }
+        do { try session.validateOwnership?() }
+        catch { invalidate(session); return }
+        await session.sync?.syncNow()
+    }
+
+    private func invalidate(_ destination: Session) {
+        destination.isCurrent = false
+        localAccessReady = false; completed = false; phase = .blocked
+        try? lifecycle.stopPublishingAndHide()
+        destination.sync?.stopForAccountTransition()
     }
 
     private func open(_ account: CloudAccountBinding) throws -> Session {
         let storage = SyncAccountStorage(baseURL: baseURL)
         let paths = try storage.open(identity: account.identity)
-        try storage.validateRuntimeJournalNamespace(paths: paths, account: account.identity, validateBootstrap: false)
         let journal = FileSyncMutationJournal(url: paths.mutationJournalURL)
         let vault = SyncRecoveryVault(directory: paths.vault, keychain: keychain)
         return Session(account: account, storage: storage, paths: paths, journal: journal,
@@ -186,6 +263,9 @@ struct CloudAccountDomainInstallation {
         let transaction: SyncAccountRecoveryTransaction
         var transport: CKSyncEngineTransport?
         var sync: KnitNoteCloudSyncCoordinator?
+        var isCurrent = true
+        var establishedLocalAccess = false
+        var validateOwnership: (() throws -> Void)?
         init(account: CloudAccountBinding, storage: SyncAccountStorage, paths: SyncAccountStorage.Paths,
              journal: FileSyncMutationJournal, transaction: SyncAccountRecoveryTransaction) {
             self.account = account; self.storage = storage; self.paths = paths

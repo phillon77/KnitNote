@@ -160,8 +160,10 @@ public final class SyncBootstrapTransaction {
               posixPath(live.appendingPathComponent(manifest.journalPath)) == posixPath(journalURL),
               manifest.original.keys.allSatisfy(safeRelativePath), manifest.installed.keys.allSatisfy(safeRelativePath),
               manifest.sourceArchiveFingerprint.count == 32,
-              manifest.original["projects-v1.json"]?.digest == manifest.sourceArchiveFingerprint,
-              manifest.phase == .committed || manifest.phase == .rolledBack else { throw SyncBootstrapError.invalidPhase }
+              manifest.original["projects-v1.json"]?.digest == manifest.sourceArchiveFingerprint else { throw SyncBootstrapError.corrupt }
+        // Only a valid nonterminal manifest authorizes the caller to enter the
+        // existing recovery route. Foreign or malformed authority is distinct.
+        guard manifest.phase == .committed || manifest.phase == .rolledBack else { throw SyncBootstrapError.invalidPhase }
         let transactionPrefix = namespace + manifest.id.uuidString + "/"
         guard owned.allSatisfy({ $0.relativePath == activePath || $0.relativePath.hasPrefix(transactionPrefix) }) else {
             throw SyncBootstrapError.corrupt

@@ -311,7 +311,10 @@ private final class TransitionMemoryKeys: SyncRecoveryVaultKeychain, @unchecked 
         if failFreeze { throw TransitionTestError.unexpected }
     }
     func discardClosedAccount() throws {}
-    func install(account: CloudAccountBinding, paths: SyncAccountStorage.Paths, journal: FileSyncMutationJournal) async throws -> CloudAccountDomainInstallation {
+    func captureTransitionValidation() -> () throws -> Void { {} }
+    func recoverBootstrap(context: AppAccountDomainContext) throws {}
+    func install(context: AppAccountDomainContext, runtime: AppAccountDomainRuntime) async throws -> CloudAccountDomainInstallation {
+        let account = context.account, paths = context.paths, journal = context.journal
         let archive = paths.workingSet.appendingPathComponent("projects-v1.json")
         try Data("installed canonical".utf8).write(to: archive)
         return .init(recordProvider: TransitionRecordProvider(journal: journal), fetchedBatchCommitter: TransitionDurableCommitter(url: archive, fail: failCommit, latch: commitLatch) { [weak self] in self?.committedAccounts.append(account.identity) })

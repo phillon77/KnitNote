@@ -5,6 +5,16 @@ import Testing
 @testable import KnitNote
 
 @Suite @MainActor struct KnitNoteCloudSyncCoordinatorTests {
+    @Test func retryableStartFailureIsTypedAndRetryReentersStartup() async {
+        let transport = FakeCoordinatorTransport(startFailure: CKError(.networkFailure))
+        let coordinator = makeCoordinator(transport: transport)
+        await coordinator.start()
+        #expect(coordinator.status.issue == .transport(.retryable(code: CKError.Code.networkFailure.rawValue, retryAfterSeconds: nil)))
+        await coordinator.syncNow()
+        #expect(await eventually { coordinator.status.lastCompleteSuccess == fixedNow })
+        #expect(transport.operations.filter { $0 == "start" }.count == 2)
+        coordinator.stopForAccountTransition()
+    }
     @Test func postJournalCleanupFailureRetriesOnNextSyncWithoutResendingAttachment() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -954,6 +964,7 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
     private let recorder: CoordinatorOperationRecorder
     private let automaticallyCompleteRequests: Bool
     private let fetchFailure: CloudSyncFailure?
+    private var startFailure: (any Error)?
     private var resolveFailuresRemaining: Int
     private var operationStorage: [String] = []
     private var scheduledStorage: [SyncMutation] = []
@@ -969,11 +980,13 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
         recorder: CoordinatorOperationRecorder = CoordinatorOperationRecorder(),
         automaticallyCompleteRequests: Bool = true,
         fetchFailure: CloudSyncFailure? = nil,
+        startFailure: (any Error)? = nil,
         resolveFailuresRemaining: Int = 0
     ) {
         self.recorder = recorder
         self.automaticallyCompleteRequests = automaticallyCompleteRequests
         self.fetchFailure = fetchFailure
+        self.startFailure = startFailure
         self.resolveFailuresRemaining = resolveFailuresRemaining
         var captured: AsyncStream<CloudSyncEvent>.Continuation!
         events = AsyncStream { captured = $0 }
@@ -997,7 +1010,11 @@ private final class FakeCoordinatorTransport: CloudSyncTransport, @unchecked Sen
     func finishFetchedBatchAcknowledgement(_ identity: SyncRemoteBatchIdentity) async throws {
         guard acknowledgedBatchIDs.contains(identity.batchID) else { throw FakeCoordinatorError.commitFailed }
     }
-    func start() async throws { record("start") }
+    func start() async throws {
+        record("start")
+        let failure = withLock { let value = startFailure; startFailure = nil; return value }
+        if let failure { throw failure }
+    }
 
     func schedule(_ versioned: [SyncVersionedMutation]) async throws {
         let mutations = versioned.map(\.mutation)

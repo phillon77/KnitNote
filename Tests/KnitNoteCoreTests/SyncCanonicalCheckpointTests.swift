@@ -5,6 +5,47 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncCanonicalCheckpointTests {
+    @Test func readOnlyRoutingLeavesAbsenceUntouchedAndLoadsExactCanonical() throws {
+        let f = try Fixture(); defer { f.remove() }
+        #expect(try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: f.root, account: account(), validateOwnership: {}) == nil)
+        #expect(!FileManager.default.fileExists(atPath: f.metadata.path))
+        var validations = 0
+        #expect(throws: Fault.revoked) {
+            try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: f.root, account: account(), validateOwnership: {
+                validations += 1
+                if validations == 2 { throw Fault.revoked }
+            })
+        }
+        #expect(!FileManager.default.fileExists(atPath: f.metadata.path))
+        let store = try SyncCanonicalCheckpointStore(liveRoot: f.root, account: account(), validateOwnership: {})
+        let value = try checkpoint()
+        try store.install(value, replacing: nil)
+        let before = try Data(contentsOf: f.canonical)
+        #expect(try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: f.root, account: account(), validateOwnership: {}) == value)
+        #expect(try Data(contentsOf: f.canonical) == before)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: f.metadata.path) == ["canonical.json"])
+    }
+
+    @Test(arguments: ["canonical.json", ".canonical-next.json"])
+    func readOnlyRoutingRejectsForeignCorruptAndUnsafeEvidence(name: String) throws {
+        let f = try Fixture(); defer { f.remove() }
+        try FileManager.default.createDirectory(at: f.metadata, withIntermediateDirectories: false)
+        let url = f.metadata.appendingPathComponent(name)
+        let foreign = try SyncCanonicalCheckpoint(accountIDHash: account("B").accountIDHash,
+            commitID: UUID(), archiveSHA256: Data(count: 32), records: [], legacyRecordIDsToDelete: [])
+        for bytes in [Data("corrupt".utf8), try foreign.encoded()] {
+            try bytes.write(to: url)
+            #expect(throws: (any Error).self) { try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: f.root, account: account(), validateOwnership: {}) }
+            #expect(try Data(contentsOf: url) == bytes)
+        }
+        try FileManager.default.removeItem(at: url)
+        let outside = f.root.appendingPathComponent("outside")
+        let bytes = try checkpoint().encoded(); try bytes.write(to: outside)
+        #expect(symlink(outside.path, url.path) == 0)
+        #expect(throws: SyncAccountStorageError.unsafePath) { try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: f.root, account: account(), validateOwnership: {}) }
+        #expect(try Data(contentsOf: outside) == bytes)
+    }
+
     @Test func checkpointRoundTripPreservesCommitIdentity() throws {
         let account = try SyncAccountIdentity(containerIdentifier: "test.container", userRecordName: "A")
         let value = try SyncCanonicalCheckpoint(accountIDHash: account.accountIDHash,

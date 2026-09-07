@@ -165,6 +165,10 @@ import Testing
             let result = try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account, journal: journal, archiveURL: f.archiveURL)
             #expect(result.entries.contains { $0.relativePath.hasPrefix(".KnitNote-SyncBootstrap/") })
             #expect(state == "rolledBack" || !result.packet.mutations.isEmpty)
+        } else if state == "wrongAccount" || state == "prepared" {
+            #expect(throws: state == "prepared" ? SyncBootstrapError.invalidPhase : SyncBootstrapError.corrupt) {
+                try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account, journal: journal, archiveURL: f.archiveURL)
+            }
         } else {
             #expect(throws: (any Error).self) {
                 try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account, journal: journal, archiveURL: f.archiveURL)

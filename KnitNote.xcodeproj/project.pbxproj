@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AD0908000000000000000001 /* AppAccountDomainLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0908000000000000000002 /* AppAccountDomainLifecycle.swift */; };
+		AD0908000000000000000003 /* AppAccountDomainLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0908000000000000000004 /* AppAccountDomainLifecycleTests.swift */; };
 		3BB8134C972E41F7503CCA07 /* AppAccountAttachmentResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81D996A112ABF55A917EE5F /* AppAccountAttachmentResolver.swift */; };
 		F692C205C5F56CC70FB4CD38 /* AppAccountDomainFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA8876A86B91DC978CADAFE /* AppAccountDomainFactory.swift */; };
 		772E1C8C2BC0C9D0BB9090DD /* AppAccountDomainFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FCFE590F6FE5EC6185DE1B /* AppAccountDomainFactoryTests.swift */; };
@@ -525,6 +527,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AD0908000000000000000002 /* AppAccountDomainLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountDomainLifecycle.swift; sourceTree = "<group>"; };
+		AD0908000000000000000004 /* AppAccountDomainLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountDomainLifecycleTests.swift; sourceTree = "<group>"; };
 		E81D996A112ABF55A917EE5F /* AppAccountAttachmentResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountAttachmentResolver.swift; sourceTree = "<group>"; };
 		DFA8876A86B91DC978CADAFE /* AppAccountDomainFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountDomainFactory.swift; sourceTree = "<group>"; };
 		D1FCFE590F6FE5EC6185DE1B /* AppAccountDomainFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountDomainFactoryTests.swift; sourceTree = "<group>"; };
@@ -1022,6 +1026,7 @@
 			children = (
 				E81D996A112ABF55A917EE5F /* AppAccountAttachmentResolver.swift */,
 				DFA8876A86B91DC978CADAFE /* AppAccountDomainFactory.swift */,
+				AD0908000000000000000002 /* AppAccountDomainLifecycle.swift */,
 				551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */,
 				551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */,
 				4312CABCB2407EF0B7CEA064 /* CloudAssetFileStore.swift */,
@@ -1066,6 +1071,7 @@
 				D70700000000000000000008 /* AppSessionOwnerTestSupport.swift */,
 				D70800000000000000000006 /* AppSessionCompositionTests.swift */,
 				D1FCFE590F6FE5EC6185DE1B /* AppAccountDomainFactoryTests.swift */,
+				AD0908000000000000000004 /* AppAccountDomainLifecycleTests.swift */,
 				D70800000000000000000008 /* AppSessionRootViewTests.swift */,
 				D7080000000000000000000A /* AppSessionCompositionTestSupport.swift */,
 				551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */,
@@ -1832,6 +1838,7 @@
 				A55000000000000000000001 /* JSONProjectStoreRemoteBatchCommitter.swift in Sources */,
 				3BB8134C972E41F7503CCA07 /* AppAccountAttachmentResolver.swift in Sources */,
 				F692C205C5F56CC70FB4CD38 /* AppAccountDomainFactory.swift in Sources */,
+				AD0908000000000000000001 /* AppAccountDomainLifecycle.swift in Sources */,
 				66D325D5CBFA9D9996ACC477 /* KnitNoteCore.swift in Sources */,
 				8011D0FED73F1F1085A6AC1E /* KnitNoteMacWindowSizingPolicy.swift in Sources */,
 				C7B6A7212DC2E3E04B871AAC /* KnittingCalculatorsView.swift in Sources */,
@@ -2163,6 +2170,7 @@
 				8E36309417BA3AF90713772D /* CloudSyncEngineTransportTests.swift in Sources */,
 				A55000000000000000000003 /* RemoteBatchCommitterIntegrationTests.swift in Sources */,
 				772E1C8C2BC0C9D0BB9090DD /* AppAccountDomainFactoryTests.swift in Sources */,
+				AD0908000000000000000003 /* AppAccountDomainLifecycleTests.swift in Sources */,
 				A66000000000000000000003 /* ConflictRebaseIntegrationTests.swift in Sources */,
 				9882C580D056538489D081F7 /* CreateProjectPresentationTests.swift in Sources */,
 				75F5F44DE9FB203222A758B9 /* EditProjectDeletionActionTests.swift in Sources */,

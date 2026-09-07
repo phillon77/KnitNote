@@ -89,13 +89,14 @@ struct CloudAccountDomainInstallation {
         do {
             try lifecycle.stopPublishingAndHide()
             let validateTransition = lifecycle.captureTransitionValidation()
-            // Revoke transport authority before cancellation suspends, and join
-            // its retained teardown before any freeze/inventory/cleanup.
+            // Revoke before cancellation suspends. Driver cancellation and the
+            // actual sync startup/event tasks must finish before any freeze.
             if let source = session {
                 invalidateTransport(source)
+                source.sync?.stopForAccountTransition()
                 await source.transportTeardown?.value
+                await source.sync?.waitForStoppedOperations()
             }
-            session?.sync?.stopForAccountTransition()
             try Task.checkCancellation()
             if let old, !reusingRetainedAccount {
                 if session == nil { session = try open(old) }
@@ -150,6 +151,7 @@ struct CloudAccountDomainInstallation {
             if let session {
                 invalidate(session)
                 await session.transportTeardown?.value
+                await session.sync?.waitForStoppedOperations()
             }
             if let session {
                 // Cleanup must join rejected candidates even if the initiating
@@ -292,9 +294,10 @@ struct CloudAccountDomainInstallation {
     }
 
     /// The caller first joins its retained transaction pump; this joins any
-    /// remaining engine cancellation that started at the synchronous boundary.
+    /// remaining driver cancellation and sync startup/event handling.
     func waitForStoppedOperations() async {
         await session?.transportTeardown?.value
+        await session?.sync?.waitForStoppedOperations()
     }
 
     private func invalidateTransport(_ destination: Session) {

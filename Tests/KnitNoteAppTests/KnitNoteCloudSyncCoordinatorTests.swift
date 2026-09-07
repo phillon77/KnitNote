@@ -5,6 +5,61 @@ import Testing
 @testable import KnitNote
 
 @Suite @MainActor struct KnitNoteCloudSyncCoordinatorTests {
+    @Test func transitionWaiterCancellationDoesNotJoinTheStartupTask() async throws {
+        let fixture = try StateStoreFixture()
+        let driver = TestSyncEngineDriver()
+        let transport = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+            initialAccountIdentifier: "startup-account", requiresInitialFetchReceipt: true,
+            containerIdentifier: "startup.container", engineFactory: { _, _ in driver })
+        let coordinator = KnitNoteCloudSyncCoordinator(transport: transport,
+            journal: FileSyncMutationJournal(url: fixture.root.appendingPathComponent("journal")),
+            mergeEngine: SyncMergeEngine(), recordProvider: FakeCoordinatorRecordProvider(records: [:]),
+            fetchedBatchCommitter: FakeFetchedBatchCommitter(), screenshotMode: false)
+        await driver.suspendNextFetch()
+        let startup = Task { try await coordinator.startForAccountTransition { _ in Issue.record("Stopped startup published readiness") } }
+        var join: Task<Void, Never>?
+        let result: Result<Void, any Error>
+        do {
+            for _ in 0..<3_000 {
+                if await driver.isFetchSuspended() { break }
+                try await Task.sleep(for: .milliseconds(1))
+            }
+            try #require(await driver.isFetchSuspended())
+            coordinator.stopForAccountTransition()
+            await #expect(throws: CancellationError.self) { try await startup.value }
+            let cancellation = await transport.invalidateForAccountTransition(); await cancellation?.value
+            #expect(await driver.completedCancellationCount() == 1)
+            var joined = false
+            join = Task { await coordinator.waitForStoppedOperations(); joined = true }
+            await drainCoordinatorTasks()
+            #expect(!joined)
+            #expect(await driver.isFetchSuspended())
+            await driver.resumeFetch()
+            await join?.value
+            #expect(joined)
+            result = .success(())
+        } catch { result = .failure(error) }
+        coordinator.stopForAccountTransition()
+        await driver.resumeFetch()
+        let cancellation = await transport.invalidateForAccountTransition(); await cancellation?.value
+        _ = await startup.result
+        await join?.value
+        await coordinator.waitForStoppedOperations()
+        fixture.remove()
+        try result.get()
+    }
+
+    @Test func failureCallbackRequestsStopWithoutJoiningItsOwnStartupOrEventLoop() async {
+        let transport = FakeCoordinatorTransport(startFailure: CKError(.notAuthenticated))
+        let coordinator = makeCoordinator(transport: transport)
+        var stopped = false
+        coordinator.failureHandler = { [weak coordinator] _ in coordinator?.stopForAccountTransition(); stopped = true }
+        await coordinator.start()
+        await coordinator.waitForStoppedOperations()
+        #expect(stopped)
+        #expect(coordinator.status.lastCompleteSuccess == nil)
+    }
+
     @Test func retryableStartFailureIsTypedAndRetryReentersStartup() async {
         let transport = FakeCoordinatorTransport(startFailure: CKError(.networkFailure))
         let coordinator = makeCoordinator(transport: transport)

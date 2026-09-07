@@ -5,6 +5,45 @@ import Testing
 @testable import KnitNote
 
 @MainActor @Suite struct AppAccountDomainLifecycleTests {
+    @Test(arguments: [false, true])
+    func activeEventResolutionJoinsBeforeSameAccountReopenOrLogout(logout: Bool) async throws {
+        try await withAccountLifecycleFixture { f in
+            _ = f.lifecycle.beginTransition()
+            try await f.coordinator.reconcileConfirmedAccount(f.a, now: f.now)
+            let old = try #require(f.owner.visibleSession).store
+            try f.rename(old, id: f.aID, name: "Before held resolution")
+            let journal = f.coordinator.currentJournal
+            let exact = try journal?.pending()
+            let gate = AccountLifecycleAttachmentGate()
+            f.suspendAttachmentResolution(with: gate)
+            await f.coordinator.currentTransport?.receiveFetchedChanges(records: [], deletedRecordIDs: [])
+            try await f.waitUntil { gate.entered }
+            let freezeCount = f.recording.freezeCount
+            _ = f.lifecycle.beginTransition()
+            var returned = false
+            let next = f.operation {
+                try await f.coordinator.reconcileConfirmedAccount(logout ? nil : f.a, now: f.now)
+                returned = true
+            }
+            await f.driver.waitUntilCancelled()
+            for _ in 0..<20 { await Task.yield() }
+            #expect(!returned && gate.completed == 0)
+            #expect(f.recording.freezeCount == freezeCount)
+            #expect(f.owner.visibleSession == nil && old.isSessionWriteRevoked)
+            #expect(f.coordinator.currentJournal === journal)
+            #expect(try journal?.pending() == exact)
+            gate.release()
+            try await next.value
+            #expect(returned && gate.completed >= 1)
+            if logout { #expect(f.coordinator.retainedAccount == nil) }
+            else {
+                #expect(f.coordinator.currentJournal === journal)
+                #expect(f.owner.visibleSession?.store.projects.first?.name == "Before held resolution")
+                #expect(f.coordinator.completed)
+            }
+        }
+    }
+
     @Test func retainedAccountReconcileReusesJournalAndRevalidatesCanonical() async throws {
         try await withAccountLifecycleFixture { f in
             _ = f.lifecycle.beginTransition()
@@ -429,6 +468,7 @@ import Testing
     var coordinator: CloudAccountTransitionCoordinator!
     var operations: [Task<Void, any Error>] = []
     var drains: [AccountLifecycleDrain] = []
+    var attachmentGates: [AccountLifecycleAttachmentGate] = []
     init(phase: String = "committed") throws {
         root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("AccountLifecycle-\(UUID())")
         defaults = try #require(UserDefaults(suiteName: suite))
@@ -455,6 +495,30 @@ import Testing
     func rename(_ store: JSONProjectStore, id: UUID, name: String) throws {
         try store.updateProject(id: id, name: name, toolType: nil, toolSize: nil, toolNotes: nil, photoChange: .unchanged)
     }
+    func suspendAttachmentResolution(with gate: AccountLifecycleAttachmentGate) {
+        attachmentGates.append(gate)
+        let resolve: (SyncRemoteBatch, CloudSyncAccountEpoch) async throws -> Void = { [weak self] batch, epoch in
+            let f = try #require(self)
+            let store = try #require(f.owner.visibleSession).store
+            let context = try #require(f.recording.context)
+            let runtime = try #require(f.recording.runtime)
+            let resolver = AppAccountAttachmentResolver(account: context.account.identity,
+                installedDownload: { try runtime.assets.installedDownload(version: $0) },
+                validateOwnership: context.validateOwnership)
+            let actual = JSONProjectStoreRemoteBatchCommitter(store: store, expectedAccount: context.account.identity,
+                attachmentSources: { batch in
+                    await gate.resolve()
+                    return try resolver.fetched(batch: batch)
+                }, verifyAcknowledgement: { identity in
+                    try runtime.incoming.verifyAcknowledgement(identity, accountIdentifier: context.account.userRecordName,
+                        zoneID: runtime.zoneID, account: context.account.identity)
+                })
+            defer { gate.completed += 1 }
+            try await actual.commitFetchedBatch(batch: batch, accountEpoch: epoch)
+        }
+        recording.commitOverride = resolve
+        recording.committer?.commitOverride = resolve
+    }
     func waitUntil(_ predicate: () -> Bool) async throws {
         for _ in 0..<3_000 { if predicate() { return }; try await Task.sleep(for: .milliseconds(1)) }
         throw AccountLifecycleError.timeout
@@ -472,11 +536,15 @@ import Testing
         _ = lifecycle.beginTransition()
         visible?.stopForSessionTransition()
         for drain in drains { drain.release() }
+        for gate in attachmentGates { gate.release() }
         await driver.resumeFetch()
         await driver.resumeCancellation()
         await driver.setFetchAction {}
+        coordinator?.stopForAccountTransition()
         if let transport = coordinator?.currentTransport { let cancellation = await transport.invalidateForAccountTransition(); await cancellation?.value }
         for operation in operations { _ = await operation.result }
+        await coordinator?.waitForStoppedOperations()
+        try? await waitUntil { attachmentGates.allSatisfy { $0.completed >= $0.enteredCount } }
         operations.removeAll()
         try? await owner.waitForRetiredSessions()
         try? await visible?.waitForStoppedOperations()
@@ -523,6 +591,7 @@ final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked Sendable
     var committer: AccountLifecycleCommitter?
     var freezeCount = 0
     var installationCount = 0
+    var commitOverride: ((SyncRemoteBatch, CloudSyncAccountEpoch) async throws -> Void)?
     init(_ concrete: AppAccountDomainLifecycle) { self.concrete = concrete }
     func stopPublishingAndHide() throws { try concrete.stopPublishingAndHide() }
     func captureTransitionValidation() -> () throws -> Void { concrete.captureTransitionValidation() }
@@ -537,6 +606,7 @@ final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked Sendable
         self.context = context; self.runtime = runtime
         let result = try await concrete.install(context: context, runtime: runtime)
         let observed = AccountLifecycleCommitter(result.fetchedBatchCommitter)
+        observed.commitOverride = commitOverride
         committer = observed
         return .init(recordProvider: result.recordProvider, fetchedBatchCommitter: observed, localAccessReady: result.localAccessReady)
     }
@@ -546,9 +616,11 @@ final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked Sendable
 @MainActor final class AccountLifecycleCommitter: SyncFetchedBatchCommitting {
     let actual: any SyncFetchedBatchCommitting
     var epoch: CloudSyncAccountEpoch?
+    var commitOverride: ((SyncRemoteBatch, CloudSyncAccountEpoch) async throws -> Void)?
     init(_ actual: any SyncFetchedBatchCommitting) { self.actual = actual }
     func commitFetchedBatch(batch: SyncRemoteBatch, accountEpoch: CloudSyncAccountEpoch) async throws {
-        try await actual.commitFetchedBatch(batch: batch, accountEpoch: accountEpoch)
+        if let commitOverride { try await commitOverride(batch, accountEpoch) }
+        else { try await actual.commitFetchedBatch(batch: batch, accountEpoch: accountEpoch) }
         epoch = accountEpoch
     }
     func didAcknowledgeFetchedBatch(batch: SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch) async throws {
@@ -556,5 +628,23 @@ final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked Sendable
     }
     func commitServerRecordChanged(input: SyncConflictInput, accountEpoch: CloudSyncAccountEpoch) async throws -> SyncConflictCommitResult {
         try await actual.commitServerRecordChanged(input: input, accountEpoch: accountEpoch)
+    }
+}
+
+@MainActor final class AccountLifecycleAttachmentGate {
+    var entered = false
+    var enteredCount = 0
+    var completed = 0
+    private var released = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func resolve() async {
+        entered = true
+        enteredCount += 1
+        if !released { await withCheckedContinuation { waiters.append($0) } }
+    }
+    func release() {
+        released = true
+        let pending = waiters; waiters.removeAll()
+        for waiter in pending { waiter.resume() }
     }
 }

@@ -189,12 +189,17 @@ import Testing
         let runtime = CloudAccountTransitionCoordinator(baseURL: seed.root, keychain: seed.keys, zoneID: testZoneID(),
             lifecycle: TransitionDomainFixture(), engineFactory: { _, _ in driver })
         let b = try CloudAccountBinding(containerIdentifier: "test", userRecordName: "B")
-        let run = Task { try await runtime.transition(from: seed.account, to: b, now: .now) }
+        var finished = false
+        let run = Task { defer { finished = true }; try await runtime.transition(from: seed.account, to: b, now: .now) }
         try await waitForFetch(runtime, driver: driver, task: run)
         let transport = try #require(runtime.currentTransport)
         run.cancel()
-        await #expect(throws: CancellationError.self) { try await run.value }
+        await driver.waitUntilCancelled()
+        for _ in 0..<20 { await Task.yield() }
+        #expect(!finished)
+        #expect(await driver.isFetchSuspended())
         await driver.resumeFetch()
+        await #expect(throws: CancellationError.self) { try await run.value }
         await transport.receiveFetchedChanges(records: [], deletedRecordIDs: [])
         #expect(runtime.phase == .blocked && !runtime.completed)
         #expect(await driver.sendCallCount() == 0)

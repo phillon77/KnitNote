@@ -5,6 +5,90 @@ import Testing
 @testable import KnitNote
 
 @MainActor @Suite struct AppAccountSessionControllerTests {
+    @Test func nestedStopDuringVisibilityHideCannotRestoreCheckingOrScheduleQuery() async throws {
+        try await withControllerFixture { f, q, c in
+            try await openA(f, q, c)
+            let observer = f.owner.$visibleSession.sink { if $0 == nil { c.stop() } }
+            c.accountDidChange()
+            #expect(c.state == .idle && f.owner.visibleSession == nil)
+            await c.waitUntilStopped()
+            c.start(); c.retry(); c.accountDidChange()
+            #expect(c.state == .idle)
+            #expect(await q.statusCount == 1)
+            observer.cancel()
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func completedDriverCancellationDoesNotFinishSuspendedSyncWork(manual: Bool) async throws {
+        try await withControllerFixture { f, q, c in
+            if manual { try await openA(f, q, c) }
+            await f.driver.suspendNextFetch()
+            if manual { c.foreground() }
+            else { c.start(); try await q.waitForStatus(1); await q.resolve(account: "A") }
+            try await f.waitForSuspendedFetch()
+            let freezeCount = f.recording.freezeCount
+            c.stop()
+            var joined = false
+            let stop = f.operation { await c.waitUntilStopped(); joined = true }
+            await f.driver.waitUntilCancelled()
+            for _ in 0..<20 { await Task.yield() }
+            #expect(await f.driver.completedCancellationCount() == 1)
+            #expect(await f.driver.isFetchSuspended())
+            #expect(!joined)
+            #expect(f.recording.freezeCount == freezeCount)
+            await f.driver.resumeFetch()
+            try await stop.value
+            #expect(joined && c.state == .idle && f.owner.visibleSession == nil)
+        }
+    }
+
+    @Test(arguments: ["stop", "same", "logout"])
+    func actualAttachmentResolutionMustFinishBeforeShutdownOrNextIdentity(action: String) async throws {
+        try await withControllerFixture { f, q, c in
+            let gate = AccountLifecycleAttachmentGate()
+            f.suspendAttachmentResolution(with: gate)
+            c.start(); try await q.waitForStatus(1); await q.resolve(account: "A")
+            try await f.waitUntil { gate.entered }
+            let journal = try #require(f.coordinator.currentJournal)
+            let pending = try journal.pending()
+            let before = try accountTree(f.root)
+            let freezeCount = f.recording.freezeCount
+            var joined = false
+            var stop: Task<Void, any Error>?
+            if action == "stop" {
+                c.stop()
+                stop = f.operation { await c.waitUntilStopped(); joined = true }
+            } else { c.accountDidChange() }
+            await f.driver.waitUntilCancelled()
+            for _ in 0..<20 { await Task.yield() }
+            #expect(!joined && gate.completed == 0)
+            #expect(await q.statusCount == 1)
+            #expect(f.recording.freezeCount == freezeCount)
+            #expect(try accountTree(f.root) == before)
+            #expect(try journal.pending() == pending)
+            gate.release()
+            if let stop {
+                try await stop.value
+                #expect(joined && c.state == .idle)
+            } else {
+                try await q.waitForStatus(2)
+                #expect(gate.completed == 1)
+                if action == "same" {
+                    await q.resolve(account: "A")
+                    try await f.waitUntil { f.coordinator.completed }
+                    #expect(c.state == .localReady && f.coordinator.currentJournal === journal)
+                    #expect(try vaultFiles(f.root, f.a).isEmpty)
+                } else {
+                    await q.resolveStatus(.noAccount)
+                    try await f.waitUntil { c.state == .noAccount }
+                    #expect(f.coordinator.retainedAccount == nil)
+                }
+            }
+            #expect(gate.completed >= 1)
+        }
+    }
+
     @Test func observerStopAtOpeningCannotStartStorageOrOverwriteIdle() async throws {
         try await withControllerFixture { f, q, c in
             let before = try accountTree(f.root)
@@ -349,7 +433,9 @@ import Testing
         controller?.stop()
         await q.finish()
         for drain in f.drains { drain.release() }
+        for gate in f.attachmentGates { gate.release() }
         await f.driver.resumeFetch(); await f.driver.resumeCancellation()
+        try? await f.waitUntil { f.attachmentGates.allSatisfy { $0.completed >= $0.enteredCount } }
         await controller?.waitUntilStopped()
         weak let released = controller
         controller = nil
@@ -377,13 +463,17 @@ private actor AccountControllerQuery {
         if finished { throw CancellationError() }
         return try await withCheckedThrowingContinuation { record = $0 }
     }
-    func waitForStatus(_ count: Int) async throws {
-        for _ in 0..<3_000 { if statusCount >= count && status != nil { return }; try await Task.sleep(for: .milliseconds(1)) }
-        throw ControllerTestError.timeout
+    private func statusReady(_ count: Int) -> Bool { statusCount >= count && status != nil }
+    private func recordReady(_ count: Int) -> Bool { recordCount >= count && record != nil }
+    // Poll on the controller executor, so synchronous filesystem fixtures cannot
+    // consume the probe budget while the controller itself is queued behind them.
+    @MainActor func waitForStatus(_ count: Int) async throws {
+        for _ in 0..<3_000 { if await statusReady(count) { return }; try await Task.sleep(for: .milliseconds(1)) }
+        throw ControllerTestError.queryTimeout(stage: "status", expected: count, actual: await statusCount)
     }
-    func waitForRecord(_ count: Int) async throws {
-        for _ in 0..<3_000 { if recordCount >= count && record != nil { return }; try await Task.sleep(for: .milliseconds(1)) }
-        throw ControllerTestError.timeout
+    @MainActor func waitForRecord(_ count: Int) async throws {
+        for _ in 0..<3_000 { if await recordReady(count) { return }; try await Task.sleep(for: .milliseconds(1)) }
+        throw ControllerTestError.queryTimeout(stage: "record", expected: count, actual: await recordCount)
     }
     func resolveStatus(_ value: CKAccountStatus) { status?.resume(returning: value); status = nil }
     func resolveRecord(_ value: Result<String, any Error>) { record?.resume(with: value); record = nil }
@@ -395,7 +485,7 @@ private actor AccountControllerQuery {
     }
     func finish() { finished = true; resolveStatus(.couldNotDetermine); resolveRecord(.failure(CancellationError())) }
 }
-private enum ControllerTestError: Error { case timeout }
+private enum ControllerTestError: Error { case queryTimeout(stage: String, expected: Int, actual: Int) }
 
 private func accountTree(_ root: URL) throws -> [String: Data] {
     let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]))

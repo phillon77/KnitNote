@@ -69,6 +69,8 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     private let now: () -> Date
 
     private var eventLoopTask: Task<Void, Never>?
+    private var startupTask: Task<Void, Never>?
+    private var startupRunning = false
     private var started = false
     private var transportStarted = false
     private var startingTransport = false
@@ -93,7 +95,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
             try await withCheckedThrowingContinuation { continuation in
                 transitionWaiter = continuation
                 transitionReady = onReady
-                Task { await self.start() }
+                _ = scheduleStartup()
             }
         } onCancel: {
             Task { @MainActor in self.stopForAccountTransition() }
@@ -103,6 +105,7 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     func stopForAccountTransition() {
         accountInvalidated = true
         activeCycle = nil
+        startupTask?.cancel()
         eventLoopTask?.cancel()
         finishTransitionWaiter(.failure(CancellationError()))
     }
@@ -133,10 +136,43 @@ final class KnitNoteCloudSyncCoordinator: ObservableObject {
     }
 
     deinit {
+        startupTask?.cancel()
         eventLoopTask?.cancel()
     }
 
     func start() async {
+        let task = scheduleStartup()
+        await withTaskCancellationHandler {
+            await task?.value
+        } onCancel: {
+            Task { @MainActor in self.stopForAccountTransition() }
+        }
+    }
+
+    /// Called by the external lifecycle owner after synchronous stop. Callback
+    /// handlers only request stop; they must not await their own event/start task.
+    func waitForStoppedOperations() async {
+        await startupTask?.value
+        await eventLoopTask?.value
+    }
+
+    private func scheduleStartup() -> Task<Void, Never>? {
+        guard !screenshotMode, !accountInvalidated else { return nil }
+        if startupRunning { return startupTask }
+        guard !transportStarted else { return nil }
+        startupRunning = true
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performStartup()
+            self.startupRunning = false
+        }
+        // Keep even a completed handle until it is replaced by a later retry;
+        // a stopped owner can always join the work it started.
+        startupTask = task
+        return task
+    }
+
+    private func performStartup() async {
         guard !screenshotMode, !accountInvalidated, !transportStarted, !startingTransport else { return }
         if !started {
             started = true

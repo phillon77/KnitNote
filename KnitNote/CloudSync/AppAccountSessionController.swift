@@ -86,10 +86,14 @@ import Foundation
 
     private func requestIdentity() {
         requestGeneration &+= 1
+        let requested = requestGeneration
         acceptedGeneration = nil; pendingQuery = true; pendingSync = false
         _ = lifecycle.beginTransition()
+        guard !stopped, requestGeneration == requested else { return }
         coordinator.stopForAccountTransition()
+        guard !stopped, requestGeneration == requested else { return }
         setState(.checking)
+        guard !stopped, requestGeneration == requested else { return }
         ensurePump()
     }
 

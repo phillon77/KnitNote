@@ -35,7 +35,7 @@ public func recoverUnderCurrentContext() throws -> SyncCanonicalBootstrapHandoff
 
 Nil means no active transaction or an interrupted transaction has rolled back; it is not canonical readiness. A nonnil result is issued only by the existing committed transaction's full handoff checks, and must cease to validate when the new freeze/ownership is released.
 
-- [ ] **Step 1: Add focused RED coverage.** Use actual prepared/installed/committed fixture trees, create a new context with the same account hash but fresh epoch/freeze UUIDs, and validate that exact new context through a revocable test guard. Existing `recoverInterruptedInstallation()` must still reject changed context; only the new explicit method can bridge it. Example shape using the existing private fixture:
+- [x] **Step 1: Add focused RED coverage.** Use actual prepared/installed/committed fixture trees, create a new context with the same account hash but fresh epoch/freeze UUIDs, and validate that exact new context through a revocable test guard. Existing `recoverInterruptedInstallation()` must still reject changed context; only the new explicit method can bridge it. Example shape using the existing private fixture:
 
 ```swift
 let fixture = try Fixture()
@@ -61,7 +61,7 @@ frozen = false
 
 Use a controlled complete empty remote only to seed explicit fixtures; do not introduce one into App production. Record API RED separately from behavioral mutation RED.
 
-- [ ] **Step 2: Implement the narrow internal bridge.** Reuse one validated manifest decoder, preserving exact-context validation for ordinary APIs. A private historical-context mode used only by `recoverUnderCurrentContext` must still validate envelope digest, version, account hash, exact live path, exact journal path, safe relative paths and current validator before any recovery mutation. An absent active manifest returns nil without creating an archive, journal or bootstrap directory.
+- [x] **Step 2: Implement the narrow internal bridge.** Reuse one validated manifest decoder, preserving exact-context validation for ordinary APIs. A private historical-context mode used only by `recoverUnderCurrentContext` must still validate envelope digest, version, account hash, exact live path, exact journal path, safe relative paths and current validator before any recovery mutation. An absent active manifest returns nil without creating an archive, journal or bootstrap directory.
 
 An implementation may build a private historical transaction facade using the decoded old context, provided its validator checks both the exact selected historical context and the *current* transaction's validator on every operation:
 
@@ -79,7 +79,7 @@ Committed branch: obtain the private preparation from the validated selected man
 
 Nonterminal branch: use existing interrupted recovery/rollback under that same current-authority guard. Only after exact Original is restored and the manifest is terminal rolledBack may its existing context fields be rebound to the current context, using the existing atomic persist/envelope format. This allows `prepare` on the current transaction after rollback. Preserve transaction ID, Original/installed proofs, mutations, receipt semantics and all retained trees. Revalidate current ownership and exact selected manifest before rebinding. On crash/failure retain enough old or terminal evidence for a later newly verified recovery. Do not rebind a corrupt or committed manifest simply to make normal APIs accept it.
 
-- [ ] **Step 3: Cover authority and interruption behavior.** Add actual assertions for each case, preserving original bytes/inventory on rejection:
+- [x] **Step 3: Cover authority and interruption behavior.** Add actual assertions for each case, preserving original bytes/inventory on rejection:
 
 1. Commit-before-canonical restart: same-account fresh epoch/freeze returns exact handoff; repeated recovery remains valid and leaves committed manifest/receipt/Original unchanged.
 2. Released new freeze or changed current authority rejects both recovery and previously retained handoff; an old context being syntactically valid cannot bypass it.
@@ -91,7 +91,7 @@ Nonterminal branch: use existing interrupted recovery/rollback under that same c
 
 Use synchronous boundary injection and exact file/inventory evidence; no sleeps, live factories or fake successful verifier. Any asynchronous store fixture must directly revoke/join before deleting its temporary root even when the body fails.
 
-- [ ] **Step 4: Focused GREEN and one behavioral RED.** Run affected bootstrap/canonical suites under the bounded runner:
+- [x] **Step 4: Focused GREEN and one behavioral RED.** Run affected bootstrap/canonical suites under the bounded runner:
 
 ```sh
 python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel --filter '(SyncBootstrapTransactionTests|SyncBootstrapCurrentContextRecoveryTests|JSONProjectStoreCanonicalDurabilityTests)'
@@ -99,7 +99,7 @@ python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel --fil
 
 Demonstrate a runtime RED by temporarily removing the new-current-context guard from the private bridge or retained handoff, showing the released-current-freeze test fails. Restore and rerun affected suites. Also retain existing exact-context ordinary-API tests to prove no global relaxation. No full Core/Xcode while another lane is active; coordinate with controller.
 
-- [ ] **Step 5: Self-review, exact-file commit and evidence.** Run diff check, record commands/exits/log hashes and exact changed file list. Verify only the explicit API can admit a historical context, failure does not rewrite corrupt evidence, and committed Original/receipt bytes are preserved. Commit scoped production/tests; preserve other worktree changes. Report limitations: this supplies recovery authority, not App readiness or cloud enablement.
+- [x] **Step 5: Self-review, exact-file commit and evidence.** Run diff check, record commands/exits/log hashes and exact changed file list. Verify only the explicit API can admit a historical context, failure does not rewrite corrupt evidence, and committed Original/receipt bytes are preserved. Commit scoped production/tests; preserve other worktree changes. Report limitations: this supplies recovery authority, not App readiness or cloud enablement.
 
 ```sh
 git diff --check
@@ -113,8 +113,8 @@ Only include the named optional test files if actually changed.
 
 **Files:** create `docs/superpowers/reports/2026-09-07-bootstrap-current-context-recovery-verification.md`.
 
-- [ ] Independent task review and whole-subplan review, specifically historical/current authority separation, committed immutable evidence, rollback/reprepare and real canonical activation. Scoped fixes if needed; do not repeat completed App-root review.
-- [ ] Freeze reviewed candidate, run full Core, existing actual-source App harness and unsigned macOS/iOS serially with unique logs and the inspected bounded runner. No live App launch. Full prior Core 2521/186 and root harness 73/7 are baseline only, not proof for changed Core authority.
+- [x] Independent task review and whole-subplan review, specifically historical/current authority separation, committed immutable evidence, rollback/reprepare and real canonical activation. Scoped fixes if needed; do not repeat completed App-root review.
+- [x] Freeze reviewed candidate, run full Core, existing actual-source App harness and unsigned macOS/iOS serially with unique logs and the inspected bounded runner. No live App launch. Full prior Core 2521/186 and root harness 73/7 are baseline only, not proof for changed Core authority.
 
 ```sh
 python3 /tmp/task4-run-bounded.py 3600 arch -arm64 swift test --no-parallel
@@ -123,7 +123,7 @@ python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -sc
 python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/bootstrap-current-ios-derived CODE_SIGNING_ALLOWED=NO build
 ```
 
-- [ ] Preserve final report, logs, candidate identities and ledger decisions; continue the App account domain installation/readiness plan using the actual new API. Keep the heartbeat active. Do not claim account integration complete or request another routine go-on.
+- [x] Preserve final report, logs, candidate identities and ledger decisions; continue the App account domain installation/readiness plan using the actual new API. Keep the heartbeat active. Do not claim account integration complete or request another routine go-on.
 
 ## Self-review
 

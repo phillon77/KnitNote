@@ -5,6 +5,44 @@ import Testing
 @testable import KnitNote
 
 @MainActor @Suite struct AppAccountDomainLifecycleTests {
+    @Test func retainedAccountReconcileReusesJournalAndRevalidatesCanonical() async throws {
+        try await withAccountLifecycleFixture { f in
+            _ = f.lifecycle.beginTransition()
+            try await f.coordinator.reconcileConfirmedAccount(f.a, now: f.now)
+            let store = try #require(f.owner.visibleSession).store
+            try f.rename(store, id: f.aID, name: "Retained advanced")
+            let journal = f.coordinator.currentJournal
+            let exact = try journal?.pending()
+            _ = f.lifecycle.beginTransition()
+            try await f.coordinator.reconcileConfirmedAccount(f.a, now: f.now)
+            #expect(f.coordinator.currentJournal === journal)
+            #expect(try journal?.pending() == exact)
+            #expect(f.owner.visibleSession?.store.projects.first?.name == "Retained advanced")
+        }
+    }
+
+    @Test func sameAccountReconcileAfterFailedSealRetainsExactOwnerAndPending() async throws {
+        try await withAccountLifecycleFixture { f in
+            _ = f.lifecycle.beginTransition()
+            try await f.coordinator.reconcileConfirmedAccount(f.a, now: f.now)
+            try f.rename(try #require(f.owner.visibleSession).store, id: f.aID, name: "Source survived")
+            let journal = f.coordinator.currentJournal
+            let exact = try journal?.pending()
+            f.keys.failInsert = true
+            _ = f.lifecycle.beginTransition()
+            await #expect(throws: (any Error).self) {
+                try await f.coordinator.reconcileConfirmedAccount(f.b, now: f.now)
+            }
+            #expect(f.coordinator.retainedAccount == f.a && f.owner.visibleSession == nil)
+            _ = f.lifecycle.beginTransition()
+            try await f.coordinator.reconcileConfirmedAccount(f.a, now: f.now)
+            #expect(f.coordinator.currentJournal === journal)
+            #expect(try journal?.pending() == exact)
+            #expect(f.owner.visibleSession?.store.projects.first?.name == "Source survived")
+            #expect(f.coordinator.completed)
+        }
+    }
+
     // Removing early local publication or dropping the receipt callback on failure
     // must fail: daily edits survive, but sends require the later real fetch.
     @Test(arguments: [CKError.Code.networkFailure, .quotaExceeded])
@@ -373,7 +411,7 @@ import Testing
     }
 }
 
-@MainActor private final class AccountLifecycleFixture {
+@MainActor final class AccountLifecycleFixture {
     let root: URL
     let a = try! CloudAccountBinding(containerIdentifier: "test.container", userRecordName: "A")
     let b = try! CloudAccountBinding(containerIdentifier: "test.container", userRecordName: "B")
@@ -448,7 +486,7 @@ import Testing
     }
     func remove() { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
 }
-@MainActor private func withAccountLifecycleFixture(phase: String = "committed", _ body: (AccountLifecycleFixture) async throws -> Void) async throws {
+@MainActor func withAccountLifecycleFixture(phase: String = "committed", _ body: (AccountLifecycleFixture) async throws -> Void) async throws {
     let f = try AccountLifecycleFixture(phase: phase)
     let result: Result<Void, any Error>
     do { result = .success(try await body(f)) } catch { result = .failure(error) }
@@ -458,7 +496,7 @@ import Testing
     try result.get()
 }
 private enum AccountLifecycleError: Error { case timeout }
-private final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked Sendable {
+final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [UUID: Data] = [:]
     var failInsert = false
@@ -466,7 +504,7 @@ private final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked 
     func key(for id: UUID) throws -> Data? { lock.lock(); defer { lock.unlock() }; return values[id] }
     func remove(for id: UUID) throws { lock.lock(); defer { lock.unlock() }; values[id] = nil }
 }
-@MainActor private final class AccountLifecycleDrain: AppSessionProducer {
+@MainActor final class AccountLifecycleDrain: AppSessionProducer {
     var entered = false
     private var released = false
     private var waiter: CheckedContinuation<Void, Never>?
@@ -478,12 +516,13 @@ private final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked 
     }
     func release() { released = true; waiter?.resume(); waiter = nil }
 }
-@MainActor private final class AccountLifecycleRecording: CloudAccountDomainLifecycle {
+@MainActor final class AccountLifecycleRecording: CloudAccountDomainLifecycle {
     let concrete: AppAccountDomainLifecycle
     var context: AppAccountDomainContext?
     var runtime: AppAccountDomainRuntime?
     var committer: AccountLifecycleCommitter?
     var freezeCount = 0
+    var installationCount = 0
     init(_ concrete: AppAccountDomainLifecycle) { self.concrete = concrete }
     func stopPublishingAndHide() throws { try concrete.stopPublishingAndHide() }
     func captureTransitionValidation() -> () throws -> Void { concrete.captureTransitionValidation() }
@@ -494,6 +533,7 @@ private final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked 
     func discardClosedAccount() throws { try concrete.discardClosedAccount() }
     func recoverBootstrap(context: AppAccountDomainContext) throws { try concrete.recoverBootstrap(context: context) }
     func install(context: AppAccountDomainContext, runtime: AppAccountDomainRuntime) async throws -> CloudAccountDomainInstallation {
+        installationCount += 1
         self.context = context; self.runtime = runtime
         let result = try await concrete.install(context: context, runtime: runtime)
         let observed = AccountLifecycleCommitter(result.fetchedBatchCommitter)
@@ -503,7 +543,7 @@ private final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked 
     func resumePublishing() throws { try concrete.resumePublishing() }
 }
 
-@MainActor private final class AccountLifecycleCommitter: SyncFetchedBatchCommitting {
+@MainActor final class AccountLifecycleCommitter: SyncFetchedBatchCommitting {
     let actual: any SyncFetchedBatchCommitting
     var epoch: CloudSyncAccountEpoch?
     init(_ actual: any SyncFetchedBatchCommitting) { self.actual = actual }

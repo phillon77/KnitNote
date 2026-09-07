@@ -288,9 +288,9 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var detachedEngineCancellation: Task<Void, Never>?
     private let requiresInitialFetchReceipt: Bool
     private let syncContainerIdentifier: String?
-    private var fetchedBatchSequence: UInt64 = 0
     private var activeReceiptFetch: UUID?
     private var receiptFetchBatches: [UUID: Set<UUID>] = [:]
+    private var incompleteReceiptBatches: Set<UUID> = []
     private var completedReceiptFetches: Set<UUID> = []
     private var committedReceiptBatches: Set<UUID> = []
     private var sendReadinessReceipt: CloudInitialFetchReceipt?
@@ -521,10 +521,11 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         try requireNotTerminated()
         guard let engine else { throw CloudSyncTransportError.notStarted }
         let operationGeneration = generation
-        let observedSequence = fetchedBatchSequence
+        let observedSequence = sourceObservationSequence
         if requiresInitialFetchReceipt {
             guard let completionID, activeReceiptFetch == nil else { throw CloudSyncTransportError.staleOperation }
             receiptFetchBatches.removeAll(); completedReceiptFetches.removeAll(); committedReceiptBatches.removeAll()
+            incompleteReceiptBatches.removeAll()
             activeReceiptFetch = completionID
             receiptFetchBatches[completionID] = []
         }
@@ -540,7 +541,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             try await engine.fetchChanges(.init(scope: .zoneIDs([zoneID])))
             try Task.checkCancellation()
             try requireCurrentGeneration(operationGeneration)
-            if requiresInitialFetchReceipt, fetchedBatchSequence == observedSequence {
+            if requiresInitialFetchReceipt, sourceObservationSequence == observedSequence {
                 // This is the successful current fetch's empty result. Give it
                 // the same durable incoming/merge/ACK chain as a populated batch.
                 receiveFetchedChanges(records: [], deletedRecordIDs: [])
@@ -870,6 +871,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         accountResetBlocksRestart = true
         activeReceiptFetch = nil
         receiptFetchBatches.removeAll(); completedReceiptFetches.removeAll(); committedReceiptBatches.removeAll()
+        incompleteReceiptBatches.removeAll()
         sendReadinessReceipt = nil
         accountEpoch.invalidate()
         successContexts.removeAll()
@@ -917,7 +919,8 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         try accountEpoch.requireCurrent()
         guard requiresInitialFetchReceipt, completedReceiptFetches.contains(requestID),
               let batches = receiptFetchBatches[requestID], !batches.isEmpty,
-              batches.isSubset(of: committedReceiptBatches), !inboundDurabilityBlocked else {
+              batches.isSubset(of: committedReceiptBatches), incompleteReceiptBatches.isEmpty,
+              !inboundDurabilityBlocked else {
             throw CloudSyncTransportError.unknownFetchedBatch
         }
         let receipt = CloudInitialFetchReceipt(requestID: requestID, batchIDs: batches, epoch: accountEpoch)
@@ -1067,6 +1070,12 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         sourcePendingFetchedBatchIDs.subtract(recording.fullyObservedBatchIDs)
         sourcePendingFetchedBatchIDs.formUnion(recording.partiallyObservedBatchIDs)
         sourceObservedFetchedBatchIDs.formUnion(recording.fullyObservedBatchIDs)
+        do { try recordReceiptObservation(recording) }
+        catch {
+            inboundDurabilityBlocked = true
+            eventContinuation.yield(.failed(.statePersistence))
+            return
+        }
         let newlyRequiredBatchIDs = Set(unacknowledgedFetchedBatchIDs).intersection(
             recording.fullyObservedBatchIDs
         )
@@ -1188,11 +1197,17 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         sourcePendingFetchedBatchIDs.subtract(recording.fullyObservedBatchIDs)
         sourcePendingFetchedBatchIDs.formUnion(recording.partiallyObservedBatchIDs)
         sourceObservedFetchedBatchIDs.formUnion(recording.fullyObservedBatchIDs)
+        do { try recordReceiptObservation(recording) }
+        catch {
+            inboundDurabilityBlocked = true
+            if sourceObservationCycleDepth > 0 { sourceObservationCycleFailed = true }
+            eventContinuation.yield(.failed(.statePersistence))
+            return
+        }
         guard let envelope = recording.deliveredEnvelope else { return }
         let batchID = envelope.batchID
         activeFetchedBatchIDs.append(batchID)
         unacknowledgedFetchedBatchIDs.append(batchID)
-        fetchedBatchSequence &+= 1
         if let activeReceiptFetch { receiptFetchBatches[activeReceiptFetch, default: []].insert(batchID) }
         eventContinuation.yield(.fetched(
             batchID: batchID,
@@ -1200,6 +1215,28 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
             records: envelope.records,
             deleted: envelope.deletedRecordIDs
         ))
+    }
+
+    /// Source redelivery may be fully deduplicated without a new envelope.
+    /// Observation selects this fetch's members, but only an exact durable ACK
+    /// can establish commitment. Verify before engine-state persistence can
+    /// retire a fully observed acknowledged envelope and its evidence.
+    private func recordReceiptObservation(_ recording: CloudIncomingBatchRecordingResult) throws {
+        guard requiresInitialFetchReceipt, let request = activeReceiptFetch else { return }
+        try accountEpoch.requireCurrent()
+        receiptFetchBatches[request, default: []].formUnion(recording.fullyObservedBatchIDs)
+        receiptFetchBatches[request, default: []].formUnion(recording.partiallyObservedBatchIDs)
+        incompleteReceiptBatches.subtract(recording.fullyObservedBatchIDs)
+        incompleteReceiptBatches.formUnion(recording.partiallyObservedBatchIDs)
+        let account = try accountEpoch.verifiedAccountIdentity()
+        let proofs = try acknowledgementSnapshot().acknowledged
+        for identity in proofs where recording.fullyObservedBatchIDs.contains(identity.batchID) {
+            try accountEpoch.withCurrent {
+                try incomingBatchStore.verifyAcknowledgement(identity, accountIdentifier: incomingAccountIdentifier,
+                    zoneID: zoneID, account: account)
+            }
+            committedReceiptBatches.insert(identity.batchID)
+        }
     }
 
     func receiveZoneReady(_ readyZoneID: CKRecordZone.ID) async {

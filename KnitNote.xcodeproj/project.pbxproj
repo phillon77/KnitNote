@@ -8,7 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		AA0908000000000000000001 /* CloudAccountIdentityQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0908000000000000000002 /* CloudAccountIdentityQuery.swift */; };
+		AC0908000000000000000001 /* AppAccountSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0908000000000000000002 /* AppAccountSessionController.swift */; };
 		AA0908000000000000000003 /* CloudAccountIdentityQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0908000000000000000004 /* CloudAccountIdentityQueryTests.swift */; };
+		AC0908000000000000000003 /* AppAccountSessionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0908000000000000000004 /* AppAccountSessionControllerTests.swift */; };
 		AD0908000000000000000001 /* AppAccountDomainLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0908000000000000000002 /* AppAccountDomainLifecycle.swift */; };
 		AD0908000000000000000003 /* AppAccountDomainLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0908000000000000000004 /* AppAccountDomainLifecycleTests.swift */; };
 		3BB8134C972E41F7503CCA07 /* AppAccountAttachmentResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81D996A112ABF55A917EE5F /* AppAccountAttachmentResolver.swift */; };
@@ -530,7 +532,9 @@
 
 /* Begin PBXFileReference section */
 		AA0908000000000000000002 /* CloudAccountIdentityQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountIdentityQuery.swift; sourceTree = "<group>"; };
+		AC0908000000000000000002 /* AppAccountSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountSessionController.swift; sourceTree = "<group>"; };
 		AA0908000000000000000004 /* CloudAccountIdentityQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountIdentityQueryTests.swift; sourceTree = "<group>"; };
+		AC0908000000000000000004 /* AppAccountSessionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountSessionControllerTests.swift; sourceTree = "<group>"; };
 		AD0908000000000000000002 /* AppAccountDomainLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountDomainLifecycle.swift; sourceTree = "<group>"; };
 		AD0908000000000000000004 /* AppAccountDomainLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountDomainLifecycleTests.swift; sourceTree = "<group>"; };
 		E81D996A112ABF55A917EE5F /* AppAccountAttachmentResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountAttachmentResolver.swift; sourceTree = "<group>"; };
@@ -1032,6 +1036,7 @@
 				DFA8876A86B91DC978CADAFE /* AppAccountDomainFactory.swift */,
 				AD0908000000000000000002 /* AppAccountDomainLifecycle.swift */,
 				AA0908000000000000000002 /* CloudAccountIdentityQuery.swift */,
+				AC0908000000000000000002 /* AppAccountSessionController.swift */,
 				551111111111111111111114 /* CloudAccountTransitionCoordinator.swift */,
 				551111111111111111111116 /* CloudRecoveryVaultKeychain.swift */,
 				4312CABCB2407EF0B7CEA064 /* CloudAssetFileStore.swift */,
@@ -1078,6 +1083,7 @@
 				D1FCFE590F6FE5EC6185DE1B /* AppAccountDomainFactoryTests.swift */,
 				AD0908000000000000000004 /* AppAccountDomainLifecycleTests.swift */,
 				AA0908000000000000000004 /* CloudAccountIdentityQueryTests.swift */,
+				AC0908000000000000000004 /* AppAccountSessionControllerTests.swift */,
 				D70800000000000000000008 /* AppSessionRootViewTests.swift */,
 				D7080000000000000000000A /* AppSessionCompositionTestSupport.swift */,
 				551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */,
@@ -1758,6 +1764,7 @@
 				D70800000000000000000003 /* AppSessionRootView.swift in Sources */,
 				D70100000000000000000003 /* PatternBackupReminderPresenter.swift in Sources */,
 				AA0908000000000000000001 /* CloudAccountIdentityQuery.swift in Sources */,
+				AC0908000000000000000001 /* AppAccountSessionController.swift in Sources */,
 				551111111111111111111113 /* CloudAccountTransitionCoordinator.swift in Sources */,
 				551111111111111111111115 /* CloudRecoveryVaultKeychain.swift in Sources */,
 				251026E9A3A8DA0C5B5FEC58 /* SyncRecoveryVault.swift in Sources */,
@@ -2167,6 +2174,7 @@
 				D70800000000000000000009 /* AppSessionCompositionTestSupport.swift in Sources */,
 				D70100000000000000000007 /* PatternInboxProcessorSessionTests.swift in Sources */,
 				AA0908000000000000000003 /* CloudAccountIdentityQueryTests.swift in Sources */,
+				AC0908000000000000000003 /* AppAccountSessionControllerTests.swift in Sources */,
 				551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */,
 				D441E394F6FDEFAEA92674F9 /* CloudAssetDownloadStagingTests.swift in Sources */,
 				0939455BBB049947CF911E2F /* CloudAssetFileStoreTests.swift in Sources */,

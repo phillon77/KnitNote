@@ -5,6 +5,89 @@ import Testing
 @testable import KnitNote
 
 @Suite struct CloudSyncEngineTransportTests {
+    // Current-fetch observation must retain the existing exact ACK authority
+    // across deduplication; an invented empty envelope is not that authority.
+    @Test(arguments: [false, true])
+    func receiptForAcknowledgedRedeliveryUsesOriginalBatch(populated: Bool) async throws {
+        try await withReceiptRedeliveryFixture(populated: populated, acknowledged: true) { f in
+            let request = UUID()
+            try await f.reopened.fetchNow(completionID: request)
+            let receipt = try await f.reopened.committedFetchReceipt(requestID: request)
+            #expect(receipt.batchIDs == [f.batchID])
+            try receipt.epoch.requireCurrent()
+            let cancelled = await f.reopened.invalidateForAccountTransition()
+            await cancelled?.value
+            #expect(throws: CloudSyncAccountEpochError.stale) { try receipt.epoch.requireCurrent() }
+        }
+    }
+
+    @Test func receiptForUnacknowledgedRedeliveryWaitsForActualAcknowledgement() async throws {
+        try await withReceiptRedeliveryFixture(populated: true, acknowledged: false) { f in
+            let request = UUID()
+            try await f.reopened.fetchNow(completionID: request)
+            await #expect(throws: CloudSyncTransportError.unknownFetchedBatch) {
+                try await f.reopened.committedFetchReceipt(requestID: request)
+            }
+            try await f.reopened.acknowledgeFetchedBatch(f.batchID)
+            let receipt = try await f.reopened.committedFetchReceipt(requestID: request)
+            #expect(receipt.batchIDs == [f.batchID])
+        }
+    }
+
+    @Test func acknowledgedPartialRedeliveryCannotAuthorizeReceipt() async throws {
+        try await withReceiptRedeliveryFixture(populated: true, acknowledged: true) { f in
+            await f.driver.setFetchAction {
+                await f.reopened.receiveFetchedChanges(records: Array(f.cloud.prefix(1)), deletedRecordIDs: [])
+            }
+            let request = UUID()
+            try await f.reopened.fetchNow(completionID: request)
+            await #expect(throws: CloudSyncTransportError.unknownFetchedBatch) {
+                try await f.reopened.committedFetchReceipt(requestID: request)
+            }
+        }
+    }
+
+    @Test func fetchFrontierAccountsForAcknowledgedHistoryOnlyAfterCompleteObservation() async throws {
+        try await withReceiptRedeliveryFixture(populated: true, acknowledged: true) { f in
+            let advanced = try testRecord(uuid: "00000000-0000-0000-0000-000000000010", revision: 2)
+            let advancedCloud = try CloudRecordCodec().encode(advanced, zoneID: testZoneID())
+            await f.driver.setFetchAction {
+                await f.reopened.receiveFetchedChanges(records: [advancedCloud, f.cloud[1]], deletedRecordIDs: [])
+            }
+            var events = f.reopened.events.makeAsyncIterator()
+            let request = UUID()
+            try await f.reopened.fetchNow(completionID: request)
+            guard case let .fetched(newID, _, _, _)? = await events.next() else { throw TestInterruption() }
+            await #expect(throws: CloudSyncTransportError.unknownFetchedBatch) {
+                try await f.reopened.committedFetchReceipt(requestID: request)
+            }
+            try await f.reopened.acknowledgeFetchedBatch(newID)
+            let receipt = try await f.reopened.committedFetchReceipt(requestID: request)
+            #expect(receipt.batchIDs == [f.batchID, newID])
+        }
+    }
+
+    @Test(arguments: ["account", "zone", "corrupt"])
+    func invalidRedeliveryAcknowledgementCannotAuthorizeReceipt(cut: String) async throws {
+        try await withReceiptRedeliveryFixture(populated: true, acknowledged: true) { f in
+            let incomingURL = f.fixture.url.appendingPathExtension("incoming-batches")
+            var document = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: incomingURL)) as? [String: Any])
+            var batches = try #require(document["batches"] as? [[String: Any]])
+            var acknowledgement = try #require(batches[0]["retiredAcknowledgement"] as? [String: Any])
+            if cut == "account" { acknowledgement["accountIDHash"] = String(repeating: "0", count: 64) }
+            if cut == "corrupt" { acknowledgement["contentSHA256"] = "corrupt" }
+            if cut == "zone" { batches[0]["zoneName"] = "ForeignZone" }
+            batches[0]["retiredAcknowledgement"] = acknowledgement
+            document["batches"] = batches
+            try JSONSerialization.data(withJSONObject: document, options: [.sortedKeys]).write(to: incomingURL)
+            let request = UUID()
+            _ = try? await f.reopened.fetchNow(completionID: request)
+            await #expect(throws: (any Error).self) {
+                try await f.reopened.committedFetchReceipt(requestID: request)
+            }
+        }
+    }
+
     @Test func restartRejectsIncomingAttachmentWhoseVerifiedInstalledBytesWereLost() async throws {
         let fixture = try StateStoreFixture()
         defer { fixture.remove() }
@@ -3515,7 +3598,57 @@ private actor RequestLimitObservation {
     func append(_ size: Int) { sizes.append(size) }
 }
 
-struct StateStoreFixture {
+private struct ReceiptRedeliveryFixture: Sendable {
+    let fixture: StateStoreFixture
+    let reopened: CKSyncEngineTransport
+    let driver: TestSyncEngineDriver
+    let batchID: UUID
+    let cloud: [CKRecord]
+}
+
+private func withReceiptRedeliveryFixture(populated: Bool, acknowledged: Bool,
+    _ body: (ReceiptRedeliveryFixture) async throws -> Void) async throws {
+    let fixture = try StateStoreFixture()
+    let original = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+        initialAccountIdentifier: "receipt-account", requiresInitialFetchReceipt: true,
+        containerIdentifier: "receipt.container", engineFactory: { _, _ in TestSyncEngineDriver() })
+    let driver = TestSyncEngineDriver()
+    let reopened = CKSyncEngineTransport(zoneID: testZoneID(), stateStore: fixture.store,
+        initialAccountIdentifier: "receipt-account", requiresInitialFetchReceipt: true,
+        containerIdentifier: "receipt.container", engineFactory: { _, _ in driver })
+    let result: Result<Void, any Error>
+    do {
+        let records = try populated ? [
+            testRecord(uuid: "00000000-0000-0000-0000-000000000010", revision: 1),
+            testRecord(uuid: "00000000-0000-0000-0000-000000000011", revision: 1)
+        ] : []
+        let cloud = try records.map { try CloudRecordCodec().encode($0, zoneID: testZoneID()) }
+        var events = original.events.makeAsyncIterator()
+        try await original.start()
+        await original.receiveFetchedChanges(records: cloud, deletedRecordIDs: [])
+        guard case let .fetched(batchID, epoch, _, _)? = await events.next() else {
+            throw TestInterruption()
+        }
+        if acknowledged {
+            let batch = try SyncRemoteBatch(accountIDHash: epoch.verifiedAccountIdentity().accountIDHash,
+                batchID: batchID, records: records, deletedRecordIDs: [])
+            try await original.acknowledgeFetchedBatch(batchID)
+            try await original.verifyFetchedBatchAcknowledgement(batchID)
+            try await original.finishFetchedBatchAcknowledgement(batch.identity)
+        }
+        let cancellation = await original.invalidateForAccountTransition(); await cancellation?.value
+        try await reopened.start()
+        if populated { await driver.setFetchAction { await reopened.receiveFetchedChanges(records: cloud, deletedRecordIDs: []) } }
+        result = .success(try await body(.init(fixture: fixture, reopened: reopened, driver: driver, batchID: batchID, cloud: cloud)))
+    } catch { result = .failure(error) }
+    await driver.setFetchAction {}
+    let originalStop = await original.invalidateForAccountTransition(); await originalStop?.value
+    let reopenedStop = await reopened.invalidateForAccountTransition(); await reopenedStop?.value
+    fixture.remove()
+    try result.get()
+}
+
+struct StateStoreFixture: Sendable {
     let root: URL
     let url: URL
     let store: FileCloudSyncEngineStateStore

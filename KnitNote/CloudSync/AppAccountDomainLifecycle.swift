@@ -19,6 +19,9 @@ import Foundation
     /// Call synchronously at the identity boundary, before starting async work.
     @discardableResult func beginTransition() -> UUID {
         let next = owner.beginTransition()
+        // A synchronous visibility observer may already have begun a newer
+        // lifecycle transition. Do not replace its token with this outer one.
+        guard owner.generation == next else { return next }
         generation = next; transitionOpen = true; freezeID = nil; bootstrap = nil
         rejectUnpublished()
         return next
@@ -39,17 +42,23 @@ import Foundation
     }
 
     func freeze(account: CloudAccountBinding, paths: SyncAccountStorage.Paths, journal: FileSyncMutationJournal) async throws {
+        try await waitForStoppedOperations()
+        guard paths.accountRoot.lastPathComponent == account.identity.accountIDHash,
+              journal.recoveryLocation.standardizedFileURL == paths.mutationJournalURL.standardizedFileURL else {
+            throw CloudAccountTransitionCoordinator.Failure.wrongAccount
+        }
+        freezeID = UUID()
+    }
+
+    /// Joins resources even when identity is unknown and no storage was opened.
+    /// Failure keeps each owner/candidate retained for a subsequent drain.
+    func waitForStoppedOperations() async throws {
         try await owner.waitForRetiredSessions()
         while let candidate = rejected.first {
             try await candidate.waitForStoppedOperations()
             rejected.removeAll { $0 === candidate }
         }
         try Task.checkCancellation()
-        guard paths.accountRoot.lastPathComponent == account.identity.accountIDHash,
-              journal.recoveryLocation.standardizedFileURL == paths.mutationJournalURL.standardizedFileURL else {
-            throw CloudAccountTransitionCoordinator.Failure.wrongAccount
-        }
-        freezeID = UUID()
     }
 
     func recoverBootstrap(context: AppAccountDomainContext) throws {

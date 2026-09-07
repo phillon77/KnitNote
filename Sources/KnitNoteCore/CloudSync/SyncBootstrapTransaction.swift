@@ -64,16 +64,19 @@ public struct SyncCanonicalBootstrapHandoff {
     let transactionID: UUID
     let checkpoint: SyncBootstrapCheckpoint
     let revalidate: () throws -> Void
+    let stagedAttachmentSource: (SyncAttachmentVersion) throws -> SyncAttachmentSource?
 
     fileprivate init(accountIDHash: String, liveRoot: URL, liveRootIdentity: SyncRegularFileIdentity,
                      transactionID: UUID, checkpoint: SyncBootstrapCheckpoint,
-                     revalidate: @escaping () throws -> Void) {
+                     revalidate: @escaping () throws -> Void,
+                     stagedAttachmentSource: @escaping (SyncAttachmentVersion) throws -> SyncAttachmentSource?) {
         self.accountIDHash = accountIDHash
         self.liveRoot = liveRoot
         self.liveRootIdentity = liveRootIdentity
         self.transactionID = transactionID
         self.checkpoint = checkpoint
         self.revalidate = revalidate
+        self.stagedAttachmentSource = stagedAttachmentSource
     }
 }
 
@@ -486,7 +489,29 @@ public final class SyncBootstrapTransaction {
         }
         try validate()
         return .init(accountIDHash: context.accountIDHash, liveRoot: live,
-                     liveRootIdentity: identity, transactionID: manifest.id, checkpoint: value, revalidate: validate)
+                     liveRootIdentity: identity, transactionID: manifest.id, checkpoint: value, revalidate: validate,
+                     stagedAttachmentSource: { [self] version in
+            try validate()
+            guard value.records.contains(where: { $0.id == .init(kind: .attachment, uuid: version.versionID)
+                && $0.payload.attachment == version }),
+                (0...Int64(maximumFileBytes)).contains(version.byteCount) else {
+                throw SyncBootstrapError.corrupt
+            }
+            let directory = transactionRoot(manifest.id).appendingPathComponent("Attachments")
+            try checkDirectory(directory)
+            let url = directory.appendingPathComponent(version.versionID.uuidString)
+            var status = stat()
+            guard lstat(url.path, &status) == 0 else {
+                guard errno == ENOENT else { throw SyncBootstrapError.unsafePath }
+                try validate()
+                return nil
+            }
+            let source = SyncAttachmentSource(fileURL: url, contentSHA256: version.contentSHA256,
+                byteCount: version.byteCount, isJournalStaged: true)
+            _ = try verifiedSource(source)
+            try validate()
+            return source
+        })
     }
 
     private func liveIdentity() throws -> SyncRegularFileIdentity {

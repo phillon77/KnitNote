@@ -6200,6 +6200,15 @@ final class PatternLibraryDeletionTransaction {
     /// and every subsequent mutation. No archive/journal reconstruction is used.
     public func activateSyncCanonicalState(checkpointStore: SyncCanonicalCheckpointStore,
         bootstrap: SyncCanonicalBootstrapHandoff?, attachmentSources: [UUID: SyncAttachmentSource]) throws {
+        try activateSyncCanonicalState(checkpointStore: checkpointStore, bootstrap: bootstrap,
+            attachmentSourceResolver: { _ in attachmentSources })
+    }
+
+    /// Source acquisition follows this owner's recovery decision, including a
+    /// daily marker whose committed archive belongs to a newer checkpoint.
+    func activateSyncCanonicalState(checkpointStore: SyncCanonicalCheckpointStore,
+        bootstrap: SyncCanonicalBootstrapHandoff?,
+        attachmentSourceResolver: (SyncCanonicalCheckpoint) throws -> [UUID: SyncAttachmentSource]) throws {
         try requireSessionWriteAccess()
         guard isSyncPublicationEnabled else { throw SyncPublicationError.sinkUnavailable }
         syncCanonicalActivationRequired = true
@@ -6251,6 +6260,7 @@ final class PatternLibraryDeletionTransaction {
                 case .committed:
                     // Issuance evidence may still need replay, so validate the
                     // candidate media/archive now and require evidence in publish.
+                    let attachmentSources = try attachmentSourceResolver(transition.candidate)
                     _ = try verifyCanonical(transition.candidate, sources: attachmentSources, requireEvidence: false)
                     syncCanonicalCheckpointStore = checkpointStore
                     syncHydratedAttachmentSources = attachmentSources
@@ -6260,7 +6270,7 @@ final class PatternLibraryDeletionTransaction {
                     guard let predecessor = current, currentDigest == transition.predecessorSHA256 else {
                         throw SyncPublicationError.corruptTransaction
                     }
-                    _ = try verifyCanonical(predecessor, sources: attachmentSources)
+                    _ = try verifyCanonical(predecessor, sources: attachmentSourceResolver(predecessor))
                     try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent())
                     try recoverDeletionLedger(publication: transaction)
                     try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent())
@@ -6277,13 +6287,13 @@ final class PatternLibraryDeletionTransaction {
                 let candidate = try SyncCanonicalCheckpoint(accountIDHash: bootstrap.accountIDHash,
                     commitID: bootstrap.transactionID, archiveSHA256: bootstrap.checkpoint.archiveSHA256,
                     records: bootstrap.checkpoint.records, legacyRecordIDsToDelete: bootstrap.checkpoint.legacyRecordIDsToDelete)
-                _ = try verifyCanonical(candidate, sources: attachmentSources)
+                _ = try verifyCanonical(candidate, sources: attachmentSourceResolver(candidate))
                 try bootstrap.revalidate()
                 try checkpointStore.install(candidate, replacing: nil)
                 current = candidate
             }
             guard let current else { throw SyncPublicationError.pendingRepair }
-            let verified = try verifyCanonical(current, sources: attachmentSources)
+            let verified = try verifyCanonical(current, sources: attachmentSourceResolver(current))
             try checkpointStore.validateBinding(liveRoot: url.deletingLastPathComponent(), accountIDHash: current.accountIDHash)
             // Exact installation also repairs an initial handoff interrupted
             // after rename, and refuses any unproven canonical temporary bytes.

@@ -4,6 +4,48 @@ import Testing
 @testable import KnitNoteCore
 
 struct JSONProjectStoreCanonicalDurabilityTests {
+    @Test @MainActor func recoveredBootstrapLocatorRetainsEveryConflictHeadAndRejectsChangedAuthority() throws {
+        let f = try Fixture(media: true, conflict: true); defer { f.remove() }
+        let context = SyncBootstrapContext(accountIDHash: f.account.accountIDHash, epoch: UUID(), freezeID: UUID())
+        var frozen = true
+        let transaction = try SyncBootstrapTransaction(liveRoot: f.live, context: context, validateContext: {
+            guard frozen, $0 == context else { throw SyncBootstrapError.contextChanged }
+        })
+        let handoff = try #require(try transaction.recoverUnderCurrentContext())
+        let versions = handoff.checkpoint.records.compactMap(\.payload.attachment)
+        #expect(versions.count == 2)
+        var sources: [UUID: SyncAttachmentSource] = [:]
+        for version in versions {
+            let source = try #require(try handoff.stagedAttachmentSource(version))
+            #expect(source.isJournalStaged)
+            #expect(source.contentSHA256 == version.contentSHA256)
+            sources[version.versionID] = source
+        }
+        let store = f.store()
+        try store.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: handoff, attachmentSources: sources)
+        frozen = false
+        #expect(throws: SyncBootstrapError.contextChanged) { try handoff.stagedAttachmentSource(versions[0]) }
+        frozen = true
+        try f.rename(store, "Daily authority")
+        #expect(throws: (any Error).self) { try handoff.stagedAttachmentSource(versions[0]) }
+    }
+
+    @Test @MainActor func bootstrapLocatorRejectsCorruptBytesAndImmutableIdentityMismatch() throws {
+        let f = try Fixture(media: true); defer { f.remove() }
+        let version = try #require(f.handoff.checkpoint.records.compactMap(\.payload.attachment).first)
+        let source = try #require(try f.handoff.stagedAttachmentSource(version))
+        let altered = try SyncAttachmentVersion(slot: version.slot, versionID: version.versionID,
+            conflictGroupID: version.conflictGroupID,
+            contentSHA256: Data(repeating: 7, count: 32), byteCount: version.byteCount,
+            mediaType: version.mediaType, displayFilename: version.displayFilename,
+            replacesVersionID: version.replacesVersionID)
+        #expect(throws: (any Error).self) { try f.handoff.stagedAttachmentSource(altered) }
+        try Data("corrupt".utf8).write(to: source.fileURL)
+        #expect(throws: (any Error).self) { try f.handoff.stagedAttachmentSource(version) }
+        try FileManager.default.removeItem(at: source.fileURL)
+        #expect(try f.handoff.stagedAttachmentSource(version) == nil)
+    }
+
     @Test @MainActor func recoveredCurrentOwnershipActivatesThenReopensCanonicalWithoutBootstrap() async throws {
         let f = try Fixture()
         var stores: [JSONProjectStore] = []

@@ -138,6 +138,95 @@ import Testing
         }
     }
 
+    // Missing transport invalidation leaves the real committed epoch and queued
+    // automatic callback alive; dropping its join permits teardown to escape.
+    @Test(arguments: ["initial", "ready", "retry", "account"])
+    func blockingFailureRevokesTransportAndJoinsCancellation(stage: String) async throws {
+        try await withAccountLifecycleFixture { f in
+            _ = f.lifecycle.beginTransition()
+            if stage == "retry" { await f.driver.failNextFetch(with: .networkFailure) }
+            if stage == "initial" { await f.driver.failNextFetch(with: .notAuthenticated) }
+            if stage != "initial" {
+                try await f.coordinator.transition(from: nil, to: f.a, now: f.now)
+                if stage == "retry" { await f.coordinator.retrySync() }
+                try await f.waitUntil { f.coordinator.completed && f.coordinator.cloudStatus?.phase != .syncing }
+                try #require(f.recording.committer?.epoch).requireCurrent()
+            }
+            let epoch = f.recording.committer?.epoch
+            let store = f.owner.visibleSession?.store
+            let transport = f.coordinator.currentTransport
+            var sentRecords: [CKRecord] = []
+            var pendingChanges: [CKSyncEngine.PendingRecordZoneChange] = []
+            if let store, let transport {
+                try f.rename(store, id: f.aID, name: "Pending before blocked")
+                try await transport.schedule(try #require(f.coordinator.currentJournal).pendingVersioned())
+                await transport.receiveZoneReady(f.zone)
+                pendingChanges = await f.driver.pendingChanges()
+                let batch = try #require(await transport.recordZoneChangeBatch(pendingChanges: pendingChanges, scope: .all))
+                sentRecords = batch.recordsToSave
+                #expect(!sentRecords.isEmpty)
+            }
+            let freezeCount = f.recording.freezeCount
+            await f.driver.suspendNextCancellation()
+            var returned = false
+            let run = f.operation {
+                if stage == "initial" {
+                    await #expect(throws: (any Error).self) { try await f.coordinator.transition(from: nil, to: f.a, now: f.now) }
+                } else if stage == "account", let transport {
+                    await transport.receiveAccountChange(previous: "A", current: "unverified")
+                } else {
+                    await f.driver.failNextFetch(with: .notAuthenticated)
+                    await f.coordinator.retrySync()
+                }
+                returned = true
+            }
+            try await f.waitUntil { f.recording.context != nil && f.coordinator.phase == .blocked && !f.coordinator.localAccessReady }
+            #expect(f.owner.visibleSession == nil)
+            #expect(store == nil || store?.isSessionWriteRevoked == true)
+            for _ in 0..<3_000 {
+                if await f.driver.isCancellationSuspended() { break }
+                try await Task.sleep(for: .milliseconds(1))
+            }
+            #expect(await f.driver.isCancellationSuspended())
+            let active = try #require(f.coordinator.currentTransport)
+            await #expect(throws: (any Error).self) { try await active.sendNow() }
+            if let epoch { #expect(throws: CloudSyncAccountEpochError.stale) { try epoch.requireCurrent() } }
+            #expect(await active.recordZoneChangeBatch(pendingChanges: pendingChanges, scope: .all) == nil)
+            let fields = try #require(f.recording.context).paths.engineState.appendingPathComponent("system-fields.json")
+            let before = try? Data(contentsOf: fields)
+            await active.receiveSentChanges(savedRecords: sentRecords, deletedRecordIDs: [])
+            #expect((try? Data(contentsOf: fields)) == before)
+            #expect(!returned)
+            #expect(f.recording.freezeCount == freezeCount + (stage == "initial" ? 1 : 0))
+            let journal = f.coordinator.currentJournal
+            let exact = try journal?.pending()
+            var switched = false
+            var next: Task<Void, any Error>?
+            var blockedRetryReturned = false
+            var blockedRetry: Task<Void, any Error>?
+            if stage == "account" {
+                blockedRetry = f.operation { await f.coordinator.retrySync(); blockedRetryReturned = true }
+                for _ in 0..<20 { _ = await f.driver.isCancellationSuspended() }
+                #expect(!blockedRetryReturned)
+                _ = f.lifecycle.beginTransition()
+                next = f.operation {
+                    try await f.coordinator.transition(from: f.a, to: nil, now: f.now)
+                    switched = true
+                }
+                // Actor round-trips let the new transition reach its join.
+                for _ in 0..<20 { _ = await f.driver.isCancellationSuspended() }
+                #expect(!switched && f.recording.freezeCount == freezeCount)
+                #expect(try journal?.pending() == exact)
+            }
+            await f.driver.resumeCancellation()
+            try await run.value
+            try await blockedRetry?.value
+            try await next?.value
+            #expect(returned)
+            #expect(await f.driver.completedCancellationCount() == 1)
+        }
+    }
+
     @Test func reentrantPublicationRevocationNeverLeavesCandidateVisible() async throws {
         try await withAccountLifecycleFixture { f in
         _ = f.lifecycle.beginTransition()
@@ -346,6 +435,7 @@ import Testing
         visible?.stopForSessionTransition()
         for drain in drains { drain.release() }
         await driver.resumeFetch()
+        await driver.resumeCancellation()
         await driver.setFetchAction {}
         if let transport = coordinator?.currentTransport { let cancellation = await transport.invalidateForAccountTransition(); await cancellation?.value }
         for operation in operations { _ = await operation.result }
@@ -392,17 +482,39 @@ private final class AccountLifecycleKeys: SyncRecoveryVaultKeychain, @unchecked 
     let concrete: AppAccountDomainLifecycle
     var context: AppAccountDomainContext?
     var runtime: AppAccountDomainRuntime?
+    var committer: AccountLifecycleCommitter?
+    var freezeCount = 0
     init(_ concrete: AppAccountDomainLifecycle) { self.concrete = concrete }
     func stopPublishingAndHide() throws { try concrete.stopPublishingAndHide() }
     func captureTransitionValidation() -> () throws -> Void { concrete.captureTransitionValidation() }
     func freeze(account: CloudAccountBinding, paths: SyncAccountStorage.Paths, journal: FileSyncMutationJournal) async throws {
+        freezeCount += 1
         try await concrete.freeze(account: account, paths: paths, journal: journal)
     }
     func discardClosedAccount() throws { try concrete.discardClosedAccount() }
     func recoverBootstrap(context: AppAccountDomainContext) throws { try concrete.recoverBootstrap(context: context) }
     func install(context: AppAccountDomainContext, runtime: AppAccountDomainRuntime) async throws -> CloudAccountDomainInstallation {
         self.context = context; self.runtime = runtime
-        return try await concrete.install(context: context, runtime: runtime)
+        let result = try await concrete.install(context: context, runtime: runtime)
+        let observed = AccountLifecycleCommitter(result.fetchedBatchCommitter)
+        committer = observed
+        return .init(recordProvider: result.recordProvider, fetchedBatchCommitter: observed, localAccessReady: result.localAccessReady)
     }
     func resumePublishing() throws { try concrete.resumePublishing() }
+}
+
+@MainActor private final class AccountLifecycleCommitter: SyncFetchedBatchCommitting {
+    let actual: any SyncFetchedBatchCommitting
+    var epoch: CloudSyncAccountEpoch?
+    init(_ actual: any SyncFetchedBatchCommitting) { self.actual = actual }
+    func commitFetchedBatch(batch: SyncRemoteBatch, accountEpoch: CloudSyncAccountEpoch) async throws {
+        try await actual.commitFetchedBatch(batch: batch, accountEpoch: accountEpoch)
+        epoch = accountEpoch
+    }
+    func didAcknowledgeFetchedBatch(batch: SyncRemoteBatchIdentity, accountEpoch: CloudSyncAccountEpoch) async throws {
+        try await actual.didAcknowledgeFetchedBatch(batch: batch, accountEpoch: accountEpoch)
+    }
+    func commitServerRecordChanged(input: SyncConflictInput, accountEpoch: CloudSyncAccountEpoch) async throws -> SyncConflictCommitResult {
+        try await actual.commitServerRecordChanged(input: input, accountEpoch: accountEpoch)
+    }
 }

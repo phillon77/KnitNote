@@ -285,6 +285,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     private var deleteCallbackBarriers: Set<SyncEntityID> = []
     private var currentAccountIdentifier: String?
     private var accountResetBlocksRestart = false
+    private var detachedEngineCancellation: Task<Void, Never>?
     private let requiresInitialFetchReceipt: Bool
     private let syncContainerIdentifier: String?
     private var fetchedBatchSequence: UInt64 = 0
@@ -865,7 +866,7 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
     /// Detaches before cancellation can suspend. Durable files remain untouched
     /// until the account owner's authenticated recovery transaction cleans them.
     func invalidateForAccountTransition() -> Task<Void, Never>? {
-        guard !accountResetBlocksRestart else { return nil }
+        guard !accountResetBlocksRestart else { return detachedEngineCancellation }
         accountResetBlocksRestart = true
         activeReceiptFetch = nil
         receiptFetchBatches.removeAll(); completedReceiptFetches.removeAll(); committedReceiptBatches.removeAll()
@@ -906,7 +907,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         successContexts.removeAll()
         acknowledgedUploadsAwaitingCleanup.removeAll()
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
-        return detachedEngine.map { driver in Task { await driver.cancelOperations() } }
+        if let driver = detachedEngine {
+            detachedEngineCancellation = Task { await driver.cancelOperations() }
+        }
+        return detachedEngineCancellation
     }
 
     func committedFetchReceipt(requestID: UUID) async throws -> CloudInitialFetchReceipt {
@@ -1919,7 +1923,10 @@ actor CKSyncEngineTransport: CloudSyncTransport, CKSyncEngineDelegate {
         successContexts.removeAll()
         acknowledgedUploadsAwaitingCleanup.removeAll()
         deleteCallbackBarriers.removeAll(keepingCapacity: false)
-        await detachedEngine?.cancelOperations()
+        if let driver = detachedEngine {
+            detachedEngineCancellation = Task { await driver.cancelOperations() }
+        }
+        await detachedEngineCancellation?.value
     }
 }
 

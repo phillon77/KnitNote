@@ -76,9 +76,12 @@ struct CloudAccountDomainInstallation {
         do {
             try lifecycle.stopPublishingAndHide()
             let validateTransition = lifecycle.captureTransitionValidation()
-            // Immediate epoch invalidation/detachment happens before freeze can
-            // suspend. Cancellation need not finish to make callbacks stale.
-            if let transport = session?.transport { _ = await transport.invalidateForAccountTransition() }
+            // Revoke transport authority before cancellation suspends, and join
+            // its retained teardown before any freeze/inventory/cleanup.
+            if let source = session {
+                invalidateTransport(source)
+                await source.transportTeardown?.value
+            }
             session?.sync?.stopForAccountTransition()
             try Task.checkCancellation()
             if let old {
@@ -218,8 +221,10 @@ struct CloudAccountDomainInstallation {
             localAccessReady = false
             session?.isCurrent = false
             try? lifecycle.stopPublishingAndHide()
-            session?.sync?.stopForAccountTransition()
-            if let transport = session?.transport { _ = await transport.invalidateForAccountTransition() }
+            if let session {
+                invalidate(session)
+                await session.transportTeardown?.value
+            }
             if let session {
                 // Cleanup must join rejected candidates even if the initiating
                 // task was cancelled. A failed drain remains retained by owner.
@@ -232,17 +237,30 @@ struct CloudAccountDomainInstallation {
     }
 
     func retrySync() async {
-        guard !transitioning, let session, session.isCurrent else { return }
+        guard !transitioning, let session else { return }
+        guard session.isCurrent else { await session.transportTeardown?.value; return }
         do { try session.validateOwnership?() }
-        catch { invalidate(session); return }
+        catch { invalidate(session); await session.transportTeardown?.value; return }
         await session.sync?.syncNow()
+        await session.transportTeardown?.value
     }
 
     private func invalidate(_ destination: Session) {
         destination.isCurrent = false
         localAccessReady = false; completed = false; phase = .blocked
         try? lifecycle.stopPublishingAndHide()
+        invalidateTransport(destination)
         destination.sync?.stopForAccountTransition()
+    }
+
+    private func invalidateTransport(_ destination: Session) {
+        guard destination.transportTeardown == nil, let transport = destination.transport else { return }
+        // The retained session owns the join; this task captures only transport,
+        // not coordinator/session, and survives cancellation of its caller.
+        destination.transportTeardown = Task {
+            let cancellation = await transport.invalidateForAccountTransition()
+            await cancellation?.value
+        }
     }
 
     private func open(_ account: CloudAccountBinding) throws -> Session {
@@ -263,6 +281,7 @@ struct CloudAccountDomainInstallation {
         let transaction: SyncAccountRecoveryTransaction
         var transport: CKSyncEngineTransport?
         var sync: KnitNoteCloudSyncCoordinator?
+        var transportTeardown: Task<Void, Never>?
         var isCurrent = true
         var establishedLocalAccess = false
         var validateOwnership: (() throws -> Void)?

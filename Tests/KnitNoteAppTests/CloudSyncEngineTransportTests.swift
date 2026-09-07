@@ -2217,6 +2217,10 @@ import Testing
         consumer.cancel()
         await driver.waitUntilCancellationSuspended()
 
+        let invalidation = await transport.invalidateForAccountTransition()
+        let repeated = await transport.invalidateForAccountTransition()
+        #expect(invalidation != nil && repeated != nil)
+
         await #expect(throws: CloudSyncTransportError.terminated) {
             try await transport.start()
         }
@@ -2232,6 +2236,9 @@ import Testing
         }
 
         await driver.resumeCancellation()
+        await invalidation?.value
+        await repeated?.value
+        #expect(await driver.completedCancellationCount() == 1)
     }
 
     @Test func accountChangePreservesDurableStateUntilSealedCleanupAndBlocksRestart() async throws {
@@ -3473,6 +3480,8 @@ actor TestSyncEngineDriver: CKSyncEngineDriving {
     }
 
     func suspendNextCancellation() { shouldSuspendCancellation = true }
+    func isCancellationSuspended() -> Bool { cancellationResume != nil }
+    func completedCancellationCount() -> Int { cancellationCount }
 
     func waitUntilCancellationSuspended() async {
         guard shouldSuspendCancellation || cancellationResume == nil else { return }
@@ -3480,6 +3489,7 @@ actor TestSyncEngineDriver: CKSyncEngineDriving {
     }
 
     func resumeCancellation() {
+        shouldSuspendCancellation = false
         cancellationResume?.resume()
         cancellationResume = nil
     }

@@ -1,6 +1,6 @@
-# App session producer stop — partial overnight handoff
+# App session producer stop — verified local subplan
 
-**Latest update: interactive Task 2 fix2 completed and committed as `9900bc82b008891d37575901b70fbc3c7a78549e`.** Both remaining findings passed scoped independent review. The overnight snapshot below is historical; its pending Task 2 status and uncommitted identities are superseded by the final section. This remains a partial-plan report, not release approval.
+**Latest: all three local tasks, whole-current-plan review and the single final fix rereview are complete. Frozen candidate `4710efc96fa70b9f8705b04c6141182b0519714d` passed full Core, no-host and unsigned macOS/iOS validation.** Read the final frozen-validation section for current status. Earlier pending/uncommitted statements below are retained historical snapshots, not current blockers. This completes only the local producer-stop subplan, not full App account integration or release acceptance.
 
 Cutoff: 2026-09-07 08:00 Asia/Taipei. This is NOT a completed-plan verification or release approval.
 
@@ -127,3 +127,64 @@ Final pre-report source identities: group test SHA-256 `c8569315a3fb72fd2ae81705
 The final GREEN logs contain no warning/error/issue/failure diagnostics. `git diff --check` and PBX lint passed, and no scoped fixture roots remained. Harness `/tmp/knitnote-app-producer-nsUcPJ`, caches `/tmp/knitnote-app-producer-cache-nsUcPJ` and runner `/tmp/task4-run-bounded.py` remain preserved. Detailed commands, excluded compile-only attempt, all finding dispositions, self-review and cannot-verify boundaries are in `.superpowers/sdd/2026-09-07-app-session-producer-stop/final-fix-report.md`.
 
 No source mutant was used in this fix wave; the old helper supplied the behavioral RED. This evidence does not establish final whole-plan approval, complete Core or platform validation, native adapter shutdown, App owner integration, live cloud/device/account-switch acceptance, release identity or release authorization. No automation was restarted and no commit, push, signing, install, upload or submission occurred.
+
+## Final frozen validation — controller execution
+
+Candidate: `4710efc96fa70b9f8705b04c6141182b0519714d`; branch `docs/cross-device-sync-design`; version 1.7.0 (13). Task 3 was committed as `d97cb8db3aba7e94532bad4dcf5e9ae95ce77f19`; the final test/documentation fix was committed as the candidate above. Final review found one Important and two Minor issues; all were addressed and the scoped rereview passed (`final-review.md` and `final-fix-review.md` in the preserved SDD workspace). No new architectural ruling was required in the final fix.
+
+All four commands were run serially by the controller. HEAD and all tracked content remained unchanged from before the first command until after the final native process ended. Each command had a bounded outer watchdog and a unique no-clobber raw log. All exited 0 without timeout. Afterward, the working tree was clean and HEAD/trees matched the freeze; an exact scoped process scan found only the scan itself, not remaining validation processes. This report update happened only after that readback.
+
+| Check and raw log | Final result | SHA-256 |
+| --- | --- | --- |
+| Full Core: `/tmp/app-session-producer-final-core-20260907-01.log` | 2520 tests / 186 suites, exit 0, 1407.618 s | `b14c7df4a5a08818d0d597e265e5de7f3e4455ce2d3c93d9984137defbd8d393` |
+| Full no-host: `/tmp/app-session-producer-final-nohost-20260907-01.log` | 34 tests / 3 suites, exit 0, 1.927 s | `85fbe4e083cb5e9615a36a86ce3e839af3d89bec369a7b188a9ca3cfc86962e3` |
+| macOS: `/tmp/app-session-producer-final-macos-20260907-01.log` | TEST BUILD SUCCEEDED, exit 0, 45.597 s | `9a9e7fca1d1bf3f55fcc3072049ab8be17902b7aecb3002e1c8b4bf68cb3061d` |
+| iOS: `/tmp/app-session-producer-final-ios-20260907-01.log` | BUILD SUCCEEDED, exit 0, 45.212 s | `5dc8d628156f457679a97c9dc0ae5b826ec3b1a016aa24443f972e1cf73ca411` |
+
+Commands (full Core from the worktree, no-host from `/tmp/knitnote-app-producer-nsUcPJ`, builds from the worktree):
+
+```text
+python3 /tmp/task4-run-bounded.py 3600 arch -arm64 swift test --no-parallel
+python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel
+python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination platform=macOS,arch=arm64 -derivedDataPath /tmp/app-session-producer-macos-derived CODE_SIGNING_ALLOWED=NO build-for-testing
+python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination generic/platform=iOS -derivedDataPath /tmp/app-session-producer-ios-derived CODE_SIGNING_ALLOWED=NO build
+```
+
+Swift commands used `SWIFTPM_MODULECACHE_OVERRIDE=/tmp/knitnote-app-producer-cache-nsUcPJ/swiftpm` and `CLANG_MODULE_CACHE_PATH=/tmp/knitnote-app-producer-cache-nsUcPJ/clang`. Harness Package SHA remains `60e88476a87fc23d4de02399f83d65276c8000c7a1756641716facbadea5a44f`; all 15 source/test links resolve to this checkout. Xcode was `/Applications/Xcode.app/Contents/Developer`, Swift 6.3.3. Builds compile targets only; no App host, physical device, live service, signing, installation or upload ran.
+
+### Frozen tree identities
+
+| Candidate path | Git tree/blob |
+| --- | --- |
+| `Sources` | `e95550a541be26609812713062a5dfe0fc5dd166` |
+| `KnitNote/App` | `0ff6f9c049df7ef6a8c911027ae49ef6d88182d6` |
+| `KnitNote/Patterns` | `4afafac064a09a7b7fabdfe1f20a38507cffe76c` |
+| `KnitNote/WatchSync` | `083f032a092a118a3902aaa097c2bd474dbae44b` |
+| `Tests` | `145b3cf833b8c3c152cfd43df7a64ae6ba3d46d8` |
+| `KnitNote.xcodeproj/project.pbxproj` | `cebc700c6197bcd794e658272f4cab24ab4dcc35` |
+
+### Diagnostics, not a pristine-output claim
+
+- Full Core has no recorded Swift Testing failure. It prints three `release archive provenance inventory mismatch` messages in deliberate rejection cases, plus chained Python FileNotFoundError/ValueError tracebacks for four deliberately missing archive/Info.plist fixtures. `ReleaseAuditLocalizationTests.swift:1194` explicitly expects those manifest commands to return nonzero, and the enclosing tests pass. These diagnostics are retained, not suppressed or called compiler failures.
+- The prior CGPDF diagnostic is historical; it was not observed in this frozen full-Core log. This is not a claim that its underlying cause was fixed.
+- macOS and iOS each print three App Intents metadata-extraction warnings because those targets have no AppIntents.framework dependency; the same warning exists in the prior platform baseline. Both builds succeed; no compiler error was recorded. Full no-host output has no warning/error/recorded-issue diagnostic.
+
+### Remaining integration and release gates
+
+The next subplan is the App-owned session/generation wiring: hide and invalidate old UI/entry points, own the fixed producer/store group, and coordinate account lifecycle without rebinding old work. Native `PhoneWatchSession` callback/FIFO/reactivation work still needs its own local admission/stop/drain boundary. That is distinct from remote Watch clearing/account-wire evidence. Live CloudKit, screenshot/live-factory isolation, physical cross-device/account-switch acceptance, purchase/localization/store metadata, exact signed archive/submission identity and release authorization remain open. None is inferred from this local subplan's pass.
+
+Keep this branch, worktree, SDD reports, raw logs and harness in place. The existing overnight automation remains paused. No merge, push, signing, install, upload, submission or production-data cleanup occurred. Live App Store Connect state was not checked. The later docs-only commit preserves this evidence and must retain the frozen code/test/PBX trees above.
+
+### Rulings retained in decision order
+
+1. Controller-owned frozen full validation after reviews, implementer focused checks only — cost: cross-range failures may surface later.
+2. Review actual precommit diffs and commit only approved files — cost: extra covering checks after fixes.
+3. Preserve SDD workspace and evidence — cost: disk usage.
+4. Final review covers the current plan plus concrete callers, not all historical branch changes — cost: separate pre-release historical review remains necessary.
+5. Add an independent actual native-store pending-work test — cost: fixture complexity and boundary-specific validation.
+6. Retain all retired inbox notice tasks and handle synchronous reentry, allowing only a narrow production-equivalent delay seam — cost: internal ownership and regression-test complexity.
+7. Track all three Watch timer lifetimes through the existing gate and test transport reentry — cost: broader gate responsibility and controlled fixtures.
+8. Exercise expiry through actual entitlement logic with in-memory purchase/trial inputs — cost: fixture maintenance.
+9. Permit minimal presenter mutation/publication bookkeeping to preserve newer user actions and history — cost: reentry bookkeeping and regression coverage.
+10. Make gate async wait MainActor while synchronous admission methods remain thread-safe — cost: a future non-UI waiter needs an actor hop.
+11. Permit immutable/read-only lifecycle observations and require cancellation-isolated release/join-before-delete cleanup, including RED paths — cost: observation/test-fixture maintenance; no mutable authority or Task-list seam.

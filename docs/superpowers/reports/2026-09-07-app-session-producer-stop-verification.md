@@ -102,3 +102,28 @@ Task 3 is implemented locally at unchanged HEAD `1c1a426ee634d8b18d0add21b7e99fb
 - Native temporary directories are not asserted byte-identical because real import may create then roll back native directories. Authority assertions are the store's unpublished pattern state, retained original source bytes and byte-identical independent B. Cleanup runs only after released/joined native work.
 
 Task 3 tests do not establish whole-App freeze, account readiness, durable health, cleanup authority, real cross-device acceptance or release readiness. Independent review/controller commit and final whole-plan/frozen full Core/no-host/platform validation remain pending. App owner/account lifecycle integration and live cloud/device acceptance remain later work. No automation was restarted and no push, sign, install, upload or submission occurred.
+
+## Consolidated final-review fix wave
+
+The whole-plan review at HEAD `d97cb8db3aba7e94532bad4dcf5e9ae95ce77f19` found one Important test-cleanup gap and two Minor scope/proof items. This append records their local fix and implementer evidence; controller scoped rereview, commit and final frozen validation remain pending.
+
+- Mixed-group fixture cleanup now runs its entire release/stop/join/delete sequence inside a fresh retained MainActor Task. The operation result is preserved separately. Inbox, Watch and group/store drains and root deletion are throwing operations, so a failed join cannot be reported as completion or reach deletion.
+- A cancelled-fixture-caller regression admits actual inbox work, cancels the fixture owner, and observes the actual inbox drain result while the root still exists. On the old helper it deterministically saw `CancellationError` and failed 1 test / 1 suite with one issue. Its separate fresh MainActor safety task joined the real inbox work before the old helper deleted the root. Final source passes without that fallback.
+- The unrelated empty MainActor Task fence was removed from the stopped-entry inbox test. No stronger negative-completion claim, deliberate mutant or production seam was added.
+- The design now limits no-new-activation/send/reply and drain claims to coordinator-initiated or coordinator-accepted work. `PhoneWatchSession` native callback/FIFO/reactivation Tasks are not stopped or joined by the coordinator; a future App owner needs a separate local native-adapter gate, distinct from remote Watch/account/wire gates. No native adapter production work occurred.
+
+Evidence:
+
+| Evidence | Result | SHA-256 |
+| --- | --- | --- |
+| `/tmp/app-session-producer-final-fix-cancelled-fixture-red-20260907-01.log` | old-helper RED: 1 test / 1 suite, 1 issue, exit 1, 4.87s, 26 lines | `4249afbc1273ad5665a7b6aaded8dfa8ec46c82ab65af62412cf424535326917` |
+| `/tmp/app-session-producer-final-fix-cancelled-fixture-green-20260907-02.log` | regression GREEN: 1 test / 1 suite, exit 0, 3.105s, 25 lines | `5f7575f4f7a3fdf2a58d647e24fbf1bde1518abd66b74c506ca1392060ae9547` |
+| `/tmp/app-session-producer-final-fix-focused-green-20260907-01.log` | combined affected App: 19 tests / 2 suites, exit 0, 4.023s, 66 lines | `51cd90c4b0af6c3d0c6dae87c5ce0b573fa6bacf75f8ed22a6d44ef58d8e51fb` |
+| `/tmp/app-session-producer-final-fix-entire-harness-green-20260907-01.log` | entire actual-source harness: 34 tests / 3 suites, exit 0, 0.818s, 90 lines | `c400e50b0c29f8a0caa487c7a4d2b708acee74675a38039c14f3531f42463f15` |
+| `/tmp/app-session-producer-final-fix-core-affected-20260907-01.log` | affected Core: 336 tests / 41 suites, exit 0, 13.758s, 833 lines | `a9f6efa86089d80ddbcefea65dcb6a744aa54d42618f691e0725a13615d94cf8` |
+
+Final pre-report source identities: group test SHA-256 `c8569315a3fb72fd2ae817058db4b06c5fd94aec6da5a4d79e01baad18f2c458` / blob `8b22d433c0a7417697840ecb339a2ff26083727d`; inbox test `a305664b5f275817fdb97c7ec5e95696ee4daf5aeba5f86997ca858cf67109df` / `afc063f0f49b91bf57f993fef05900a5e069a193`; spec `21c8149d943f790dfc60360bcabfc26c93c62c05ce1b0140b50c3c99c2b0d1b0` / `4fc33a5cbabfd83df4ad8bb4682b382b3c027eea`; unchanged production group `7e5a5365512820de6267b91045808f020f3dfb288941b3b6d772408e247a7308` / `c665f6d4255b598b01e2ad09b3b2fe64d65476db`; unchanged PBX `58c77511468f8807eba90c59e1b5582e40254faf9ffee0fb468935a7e0c403d0` / `cebc700c6197bcd794e658272f4cab24ab4dcc35`.
+
+The final GREEN logs contain no warning/error/issue/failure diagnostics. `git diff --check` and PBX lint passed, and no scoped fixture roots remained. Harness `/tmp/knitnote-app-producer-nsUcPJ`, caches `/tmp/knitnote-app-producer-cache-nsUcPJ` and runner `/tmp/task4-run-bounded.py` remain preserved. Detailed commands, excluded compile-only attempt, all finding dispositions, self-review and cannot-verify boundaries are in `.superpowers/sdd/2026-09-07-app-session-producer-stop/final-fix-report.md`.
+
+No source mutant was used in this fix wave; the old helper supplied the behavioral RED. This evidence does not establish final whole-plan approval, complete Core or platform validation, native adapter shutdown, App owner integration, live cloud/device/account-switch acceptance, release identity or release authorization. No automation was restarted and no commit, push, signing, install, upload or submission occurred.

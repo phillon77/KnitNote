@@ -238,6 +238,52 @@ struct AppSessionProducerGroupTests {
             #expect(completed.count == 2)
         }
     }
+
+    @Test func cancelledFixtureCallerStillJoinsInboxBeforeDeletingRoot() async throws {
+        let operationStarted = ProducerTestMainActorEvent()
+        let operationRelease = ProducerTestMainActorEvent()
+        let terminationObservedBeforeDelete = ProducerTestMainActorEvent()
+        var fixtureRoot: URL?
+
+        let caller = Task { @MainActor in
+            try await withProducerGroupFixture(
+                observeInboxDrainBeforeDelete: { result, fixture in
+                    let succeededWithoutSafetyJoin: Bool
+                    switch result {
+                    case .success:
+                        succeededWithoutSafetyJoin = true
+                    case .failure:
+                        succeededWithoutSafetyJoin = false
+                        let safetyJoin = Task { @MainActor in
+                            fixture.inbox.stopForSessionTransition()
+                            try await fixture.inbox.waitForStoppedOperations()
+                        }
+                        try await safetyJoin.value
+                    }
+                    #expect(succeededWithoutSafetyJoin)
+                    #expect(FileManager.default.fileExists(atPath: fixture.root.path))
+                    terminationObservedBeforeDelete.signal()
+                }
+            ) { fixture in
+                fixtureRoot = fixture.root
+                fixture.inbox.processPending()
+                await fixture.processing.waitUntilProcessStarts()
+                operationStarted.signal()
+                await operationRelease.wait()
+                try Task.checkCancellation()
+            }
+        }
+
+        await operationStarted.wait()
+        caller.cancel()
+        operationRelease.signal()
+        await #expect(throws: CancellationError.self) {
+            try await caller.value
+        }
+
+        #expect(terminationObservedBeforeDelete.count == 1)
+        #expect(fixtureRoot.map { !FileManager.default.fileExists(atPath: $0.path) } == true)
+    }
 }
 
 private enum ProducerGroupTestError: Error {
@@ -364,23 +410,38 @@ private struct ProducerGroupFixture {
         self.group = group
     }
 
-    func releaseJoinAndCleanup() async {
+    func releaseJoinAndCleanup(
+        observeInboxDrainBeforeDelete: @MainActor (
+            Result<Void, any Error>,
+            ProducerGroupFixture
+        ) async throws -> Void = { _, _ in }
+    ) async throws {
         await processing.release()
         transport.onActivate = nil
         transport.onUpdateApplicationContext = nil
         group.stopForSessionTransition()
         inbox.stopForSessionTransition()
         watch.stopForSessionTransition()
-        _ = try? await inbox.waitForStoppedOperations()
-        _ = try? await watch.waitForStoppedOperations()
-        _ = try? await group.waitForStoppedOperations()
+        do {
+            try await inbox.waitForStoppedOperations()
+        } catch {
+            try await observeInboxDrainBeforeDelete(.failure(error), self)
+            throw error
+        }
+        try await observeInboxDrainBeforeDelete(.success(()), self)
+        try await watch.waitForStoppedOperations()
+        try await group.waitForStoppedOperations()
         defaults.removePersistentDomain(forName: defaultsSuiteName)
-        try? FileManager.default.removeItem(at: root)
+        try FileManager.default.removeItem(at: root)
     }
 }
 
 @MainActor
 private func withProducerGroupFixture(
+    observeInboxDrainBeforeDelete: @escaping @MainActor (
+        Result<Void, any Error>,
+        ProducerGroupFixture
+    ) async throws -> Void = { _, _ in },
     operation: @MainActor (ProducerGroupFixture) async throws -> Void
 ) async throws {
     let fixture = try ProducerGroupFixture()
@@ -390,7 +451,12 @@ private func withProducerGroupFixture(
     } catch {
         result = .failure(error)
     }
-    await fixture.releaseJoinAndCleanup()
+    let cleanup = Task { @MainActor in
+        try await fixture.releaseJoinAndCleanup(
+            observeInboxDrainBeforeDelete: observeInboxDrainBeforeDelete
+        )
+    }
+    try await cleanup.value
     try result.get()
 }
 

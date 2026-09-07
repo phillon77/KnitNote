@@ -311,8 +311,6 @@ import Testing
         fixture.processor.discard()
         await fixture.processing.release()
         try await fixture.processor.waitForStoppedOperations()
-        let mainActorFence = Task { @MainActor in () }
-        await mainActorFence.value
         let snapshot = await fixture.processing.snapshot()
 
         #expect(snapshot == ProducerTestInboxProcessingSnapshot(

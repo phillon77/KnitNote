@@ -35,7 +35,7 @@ Worktree: `/Users/longzhenzhong/Documents/毛線編織 App/.worktrees/cross-devi
 - Produces `public func prepareReconstruction(remote: SyncBootstrapRemoteSnapshot, pendingSnapshot: SyncBootstrapPendingSnapshot, counterReminderContext: SyncCounterReminderMergeContext = .init()) throws -> SyncBootstrapPreparation`.
 - Existing ordinary `prepare` signature remains unchanged and missing-source rejecting.
 
-- [ ] **Step 1: Add behavioral/API RED tests using actual transaction fixtures.**
+- [x] **Step 1: Add behavioral/API RED tests using actual transaction fixtures.**
 
 Extend existing private fixture helpers in place. Obtain a complete remote export before removing only the test fixture's archive; do not open a store to cause automatic archive creation. Capture original tree after absence is established. Minimal principal test shape:
 
@@ -61,7 +61,7 @@ try transaction.canonicalHandoff(preparation).revalidate()
 
 Also establish ordinary `prepare` absent-source failure as the existing behavioral RED that motivates the distinct route. Record compile-only RED separately from behavioral evidence.
 
-- [ ] **Step 2: Run and retain RED output.**
+- [x] **Step 2: Run and retain RED output.**
 
 ```sh
 env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel --filter SyncBootstrapTransactionTests
@@ -69,7 +69,7 @@ env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION python3 /tmp/task4-run-bounded.py 900 a
 
 Use a new `/tmp/missing-archive-bootstrap-task1-red-01.log`, shell redirection permitted for command output. Expected new entry/source-proof API missing; existing absent-source route rejects. Do not run the full Core suite here.
 
-- [ ] **Step 3: Implement versioned source evidence and shared validation.**
+- [x] **Step 3: Implement versioned source evidence and shared validation.**
 
 Custom encode/decode the exact spec forms: archive writes unchanged v1 shape, absence writes v2 source kind/tree hash and omits archive hash. Receipt legacy absent version is allowed only with legacy archive hash; v2 requires `formatVersion: 2`. Reject mixed fields/unknown kinds/versions/bad hash lengths. Refactor the existing duplicated manifest source checks into one internal validator consumed by normal decoding and terminal account recovery. Validation uses original inventory, account and live/journal path; source-kind mismatch is corruption, not fallback.
 
@@ -82,7 +82,7 @@ public var sourceArchiveFingerprint: Data? {
 
 Do not write a v2 archive transaction merely to normalize old data. Cover Codable wire keys with `JSONSerialization` assertions and literal legacy receipt bytes. Keep original v1 `version:2` tampering test rejected because it lacks valid absence evidence.
 
-- [ ] **Step 4: Implement reconstruction through shared existing staged transaction machinery.**
+- [x] **Step 4: Implement reconstruction through shared existing staged transaction machinery.**
 
 Resolve interrupted authority through existing owner paths; this entry rejects contradictory remaining archive/publication/canonical evidence without modifying it. Use no-follow archive absence check distinguishing ENOENT from all other errors. Validate complete/context/pending/source tree before copying; preserve `Original` and full staged original. Skip only ordinary source-archive decode/export roundtrip/backup validation of an absent archive, not final merged validation. Factor common stage/checkpoint/evidence/mutation/manifest code so ordinary and absence routes cannot drift.
 
@@ -97,9 +97,11 @@ let materialized = try ProjectArchiveSyncMapper.materialize(
 
 `sources` comes from existing staging verifier applied to remote sources plus every exact validated pending attachment source. The in-memory base is metadata only. Preserve pending journal FIFO identities/source bytes and existing legacy reminder/deletion repair gates. Install/commit/rollback reuse existing real directory moves; no fake original source file. Revalidate original inventory/context before prepared manifest and every existing boundary.
 
-- [ ] **Step 5: Add and run the complete focused regression matrix.**
+- [x] **Step 5: Add and run the complete focused regression matrix.**
 
 Use actual fixtures, parameterization and existing `SyncBootstrapBoundary.allCases`. Cover: populated and empty complete remote; pending-only full project graph; remote-only graph plus overlapping pending; pending immutable attachment and FIFO identities; source archive appearing/changing, symlink/directory/error and stale freeze/context; incomplete remote; missing parent/attachment; unsupported legacy reminder pending; unresolved publication/canonical evidence; exact rollback at every existing boundary; fresh-context committed handoff; literal v1 compatibility; malformed v2 discriminator/hash/mixed evidence; real account terminal recovery for v2 committed and rolled-back evidence. Preserve test-only source file contents to compare bytes after rejection/recovery. Confirm actual canonical activation with existing activation fixture, not handoff existence alone.
+
+Clarification from reproduced integration failure: committed v2 covers full account seal/cleanup; rolled-back v2 covers actual `storage.withRecoveryInventory` plus `validateTerminalRecovery`. Preserve/report the full-seal `unsafeBinding` failure caused by Inventory's archive-required contract. Do not weaken that guard here. Full missing-source sealing, including cancelled pre-prepare restores, is load-bearing downstream work rather than a passing acceptance claim.
 
 ```sh
 env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION python3 /tmp/task4-run-bounded.py 1200 arch -arm64 swift test --no-parallel --filter 'SyncBootstrapTransactionTests|SyncAccountRecoveryTransactionTests|SyncCanonical'
@@ -107,7 +109,7 @@ env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION python3 /tmp/task4-run-bounded.py 1200 
 
 Verify actual suite names before selecting; append all necessary directly affected named suites rather than broad undocumented filters. Behavioral mutation RED should remove the absent-source proof check and demonstrate a specific safety test fails, then restore code and rerun final focused GREEN. Do not use timeout increases as a fix. Keep all failed and final logs, hashes and exit statuses in the report.
 
-- [ ] **Step 6: Self-review and commit exact task files.**
+- [x] **Step 6: Self-review and commit exact task files.**
 
 ```sh
 git diff --check
@@ -121,9 +123,9 @@ Adjust exact test-file staging to actual changed covering files, never `git add 
 
 **Files:** create `docs/superpowers/reports/2026-09-08-missing-archive-bootstrap-verification.md`; update this plan's checkboxes. Controller task, no production code changes.
 
-- [ ] Read Task 1 full report and final log output/hashes, inspect exact diff and issue task review with spec/global constraints. Resolve all load-bearing findings using the same implementer and scoped re-review. Preserve all rulings and costs.
-- [ ] Run one final broad review of this subplan, explicitly carrying downstream full-fetch/ACK and canonical-probe/live-helper gates. Do not claim these are implemented by Core preparation.
-- [ ] Freeze full SHA/source trees. Run serial final Core with `env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION`, then actual-source App harness with explicit `KNITNOTE_RUN_CLOUDKIT_INTEGRATION=0`, root harness, unsigned macOS build-for-testing and generic iOS build. Exact established commands/harness manifests are in the prior committed identity verification report; use fresh `/tmp/missing-archive-bootstrap-frozen-01-*` logs and derived paths, verify they do not exist, and stop chain on failure. No production edits while frozen.
-- [ ] Verify every final exit and diagnostic, unchanged source trees and 1.7.0 (13); record hashes, failures/limits and all rulings in report. Commit docs, preserve ledger, then continue the real App full-fetch/ACK integration. Do not push/merge/upload/submit from this task.
+- [x] Read Task 1 full report and final log output/hashes, inspect exact diff and issue task review with spec/global constraints. Resolve all load-bearing findings using the same implementer and scoped re-review. Preserve all rulings and costs.
+- [x] Run one final broad review of this subplan, explicitly carrying downstream full-fetch/ACK and canonical-probe/live-helper gates. Do not claim these are implemented by Core preparation.
+- [x] Freeze full SHA/source trees. Run serial final Core with `env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION`, then actual-source App harness with explicit `KNITNOTE_RUN_CLOUDKIT_INTEGRATION=0`, root harness, unsigned macOS build-for-testing and generic iOS build. Exact established commands/harness manifests are in the prior committed identity verification report; use fresh `/tmp/missing-archive-bootstrap-frozen-01-*` logs and derived paths, verify they do not exist, and stop chain on failure. No production edits while frozen.
+- [x] Verify every final exit and diagnostic, unchanged source trees and 1.7.0 (13); record hashes, failures/limits and all rulings in report. Commit docs, preserve ledger, then continue the real App full-fetch/ACK integration. Do not push/merge/upload/submit from this task.
 
 Self-review: Task 1 owns the whole tightly-coupled format/prepare/recovery change, so no reviewer sees a half-migrated reader set. Task 2 consumes its exact committed candidate. Empty Core metadata base is never an App readiness shortcut. No other bootstrap, identity or producer plan is repeated.

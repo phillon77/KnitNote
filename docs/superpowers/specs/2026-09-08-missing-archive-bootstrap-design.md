@@ -1,6 +1,6 @@
 # Missing-archive bootstrap preparation design
 
-Date: 2026-09-08. Status: technical design under the user's delegated routine implementation authority; not implemented, not cloud or release acceptance.
+Date: 2026-09-08. Status: Core preparation implemented and locally verified at 08c7475; see ../reports/2026-09-08-missing-archive-bootstrap-verification.md. Full missing-archive account sealing and App/cloud/release acceptance remain incomplete.
 
 Baseline: `196404a` (production `1d7563dd9f67f9406a27db7b80ff57d2697b9e6e`), isolated `docs/cross-device-sync-design` worktree. Parent policy: `2026-09-06-cloud-sync-app-session-lifecycle-design.md` and `2026-09-07-app-session-owner-integration-design.md` in this directory.
 
@@ -69,6 +69,7 @@ All existing boundaries must be exercised: prepared, first move, staged move, in
 - Missing parent/media, malformed pending, legacy reminder pending, source mutation, archive appearing during preparation, symlink/path hazards and stale context do not install or lose original bytes.
 - Every crash boundary recovers original or committed result; committed restart activates through actual `JSONProjectStore` canonical activation, not a fake success callback.
 - Terminal account recovery validates new committed/rolled-back evidence while unchanged v1 evidence stays readable.
+- Scope clarification from actual integration test: v2 committed evidence must pass full account seal/cleanup; v2 rolled-back evidence is checked by the actual terminal bootstrap validator under storage inventory ownership. Full seal of an absent-archive tree is currently rejected earlier by the independent recovery inventory format. Keep that failure visible as a load-bearing App integration prerequisite, including cancellation after restored pending but before first bootstrap prepare; this task does not relax that format or claim full absent-source sealing.
 - No test invokes live factories; focused TDD and independent review precede one frozen full validation after the cohesive integration work.
 
 ## Explicit downstream obligations

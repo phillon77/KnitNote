@@ -458,6 +458,11 @@
 		D70700000000000000000003 /* AppSessionOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70700000000000000000004 /* AppSessionOwner.swift */; };
 		D70700000000000000000005 /* AppSessionOwnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70700000000000000000006 /* AppSessionOwnerTests.swift */; };
 		D70700000000000000000007 /* AppSessionOwnerTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70700000000000000000008 /* AppSessionOwnerTestSupport.swift */; };
+		D70800000000000000000001 /* AppSessionComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70800000000000000000002 /* AppSessionComposition.swift */; };
+		D70800000000000000000003 /* AppSessionRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70800000000000000000004 /* AppSessionRootView.swift */; };
+		D70800000000000000000005 /* AppSessionCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70800000000000000000006 /* AppSessionCompositionTests.swift */; };
+		D70800000000000000000007 /* AppSessionRootViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70800000000000000000008 /* AppSessionRootViewTests.swift */; };
+		D70800000000000000000009 /* AppSessionCompositionTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7080000000000000000000A /* AppSessionCompositionTestSupport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -839,6 +844,11 @@
 		D70700000000000000000004 /* AppSessionOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionOwner.swift; sourceTree = "<group>"; };
 		D70700000000000000000006 /* AppSessionOwnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionOwnerTests.swift; sourceTree = "<group>"; };
 		D70700000000000000000008 /* AppSessionOwnerTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionOwnerTestSupport.swift; sourceTree = "<group>"; };
+		D70800000000000000000002 /* AppSessionComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionComposition.swift; sourceTree = "<group>"; };
+		D70800000000000000000004 /* AppSessionRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionRootView.swift; sourceTree = "<group>"; };
+		D70800000000000000000006 /* AppSessionCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionCompositionTests.swift; sourceTree = "<group>"; };
+		D70800000000000000000008 /* AppSessionRootViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionRootViewTests.swift; sourceTree = "<group>"; };
+		D7080000000000000000000A /* AppSessionCompositionTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionCompositionTestSupport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1046,6 +1056,9 @@
 				D70300000000000000000004 /* AppSessionProducerGroupTests.swift */,
 				D70700000000000000000006 /* AppSessionOwnerTests.swift */,
 				D70700000000000000000008 /* AppSessionOwnerTestSupport.swift */,
+				D70800000000000000000006 /* AppSessionCompositionTests.swift */,
+				D70800000000000000000008 /* AppSessionRootViewTests.swift */,
+				D7080000000000000000000A /* AppSessionCompositionTestSupport.swift */,
 				551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */,
 				BC4ED73108C3002C14F305FB /* CloudAssetDownloadStagingTests.swift */,
 				900C0FC5920D203F4AC599B6 /* CloudAssetFileStoreTests.swift */,
@@ -1089,6 +1102,8 @@
 				D70300000000000000000002 /* AppSessionProducerGroup.swift */,
 				D70700000000000000000002 /* AppSessionResources.swift */,
 				D70700000000000000000004 /* AppSessionOwner.swift */,
+				D70800000000000000000002 /* AppSessionComposition.swift */,
+				D70800000000000000000004 /* AppSessionRootView.swift */,
 				DE009E064EA3668A5264ABF4 /* AppUpdateFixture.swift */,
 				A95C5E1E650AB6A145505E8B /* AppUpdateReminderLiveFactory.swift */,
 				A26BFE850787E49A2CD9E010 /* KnitNoteApp.swift */,
@@ -1718,6 +1733,8 @@
 				D70300000000000000000001 /* AppSessionProducerGroup.swift in Sources */,
 				D70700000000000000000001 /* AppSessionResources.swift in Sources */,
 				D70700000000000000000003 /* AppSessionOwner.swift in Sources */,
+				D70800000000000000000001 /* AppSessionComposition.swift in Sources */,
+				D70800000000000000000003 /* AppSessionRootView.swift in Sources */,
 				D70100000000000000000003 /* PatternBackupReminderPresenter.swift in Sources */,
 				551111111111111111111113 /* CloudAccountTransitionCoordinator.swift in Sources */,
 				551111111111111111111115 /* CloudRecoveryVaultKeychain.swift in Sources */,
@@ -2120,6 +2137,9 @@
 				D70300000000000000000003 /* AppSessionProducerGroupTests.swift in Sources */,
 				D70700000000000000000005 /* AppSessionOwnerTests.swift in Sources */,
 				D70700000000000000000007 /* AppSessionOwnerTestSupport.swift in Sources */,
+				D70800000000000000000005 /* AppSessionCompositionTests.swift in Sources */,
+				D70800000000000000000007 /* AppSessionRootViewTests.swift in Sources */,
+				D70800000000000000000009 /* AppSessionCompositionTestSupport.swift in Sources */,
 				D70100000000000000000007 /* PatternInboxProcessorSessionTests.swift in Sources */,
 				551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */,
 				D441E394F6FDEFAEA92674F9 /* CloudAssetDownloadStagingTests.swift in Sources */,

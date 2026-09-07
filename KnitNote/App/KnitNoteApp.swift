@@ -40,14 +40,10 @@ private extension Scene {
 @main
 struct KnitNoteApp: App {
     @StateObject private var entitlementCoordinator: EntitlementCoordinator
-    @StateObject private var projectStore: JSONProjectStore
-    @StateObject private var patternInboxProcessor: PatternInboxProcessor
-    @StateObject private var patternBackupReminderPresenter: PatternBackupReminderPresenter
+    @StateObject private var sessionOwner: AppSessionOwner
     @StateObject private var appUpdateReminderCoordinator: AppUpdateReminderCoordinator
-    @StateObject private var reminderPresentationStore: KnittingReminderPresentationStore
     private let screenshotMode: StoreScreenshotMode?
 #if os(iOS)
-    @StateObject private var phoneWatchSyncCoordinator: PhoneWatchSyncCoordinator
     private let languageSelectionProjection: LanguageSelectionProjection?
 #endif
     @AppStorage("languageSelection") private var storedLanguage = LanguageSelection.system.rawValue
@@ -90,72 +86,88 @@ struct KnitNoteApp: App {
         _appUpdateReminderCoordinator = StateObject(
             wrappedValue: appUpdateReminderCoordinator
         )
-        #if os(iOS)
-        let languageSelectionProjection = LanguageSelectionProjection.live()
-        self.languageSelectionProjection = languageSelectionProjection
-        let initialLanguageSelection = UserDefaults.standard
-            .string(forKey: "languageSelection")
-            .flatMap(LanguageSelection.init(rawValue:)) ?? .system
-        languageSelectionProjection?.write(initialLanguageSelection)
-        let entitlementProjectionWriter = try? EntitlementProjectionWriter.live()
-        #endif
-        let entitlementCoordinator = EntitlementCoordinator.configured(
-            screenshotMode: screenshotMode != nil,
-            onSnapshotChange: { snapshot, generatedAt in
-                #if os(iOS)
-                try? entitlementProjectionWriter?.write(
-                    snapshot: snapshot,
-                    generatedAt: generatedAt
-                )
-                #endif
-            }
-        )
-        _entitlementCoordinator = StateObject(wrappedValue: entitlementCoordinator)
-        let projectStore = screenshotMode.map {
-            JSONProjectStore.live(
-                baseDirectory: $0.baseDirectory,
-                authorizeMutation: { entitlementCoordinator.authorize($0) },
-                commitSuccessfulMutation: {
-                    entitlementCoordinator.commitSuccessfulMutation($0)
+        let launch: AppSessionLaunchResources
+        let owner = AppSessionOwner()
+        do {
+            launch = try AppSessionComposition.makeLaunch(
+                screenshotBaseDirectory: screenshotMode?.baseDirectory,
+                backupHistory: BackupHistory(),
+                makeScreenshotStore: { directory, entitlement in
+                    JSONProjectStore.live(
+                        baseDirectory: directory,
+                        authorizeMutation: { entitlement.authorize($0) },
+                        commitSuccessfulMutation: { entitlement.commitSuccessfulMutation($0) }
+                    )
+                },
+                makeLocal: {
+                    // Everything opening live services or app-group projections
+                    // stays inside the lazily selected local shipping route.
+                    let languageProjection: LanguageSelectionProjection?
+#if os(iOS)
+                    languageProjection = LanguageSelectionProjection.live()
+                    let initialLanguage = UserDefaults.standard.string(forKey: "languageSelection")
+                        .flatMap(LanguageSelection.init(rawValue:)) ?? .system
+                    languageProjection?.write(initialLanguage)
+                    let entitlementProjection = try? EntitlementProjectionWriter.live()
+#else
+                    languageProjection = nil
+#endif
+                    let entitlement = EntitlementCoordinator.configured(
+                        screenshotMode: false,
+                        onSnapshotChange: { snapshot, generatedAt in
+#if os(iOS)
+                            try? entitlementProjection?.write(snapshot: snapshot, generatedAt: generatedAt)
+#endif
+                        }
+                    )
+                    let store = JSONProjectStore.live(
+                        authorizeMutation: { entitlement.authorize($0) },
+                        commitSuccessfulMutation: { entitlement.commitSuccessfulMutation($0) }
+                    )
+                    return AppSessionLocalDependencies(
+                        store: store,
+                        entitlementCoordinator: entitlement,
+                        languageSelectionProjection: languageProjection,
+                        makeWatch: { fixedStore in
+#if os(iOS)
+                            let adapter = PhoneWatchSession()
+                            let supportRoot = FileManager.default
+                                .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                                .appendingPathComponent("KnitNote", isDirectory: true)
+                            return AppSessionWatchResources(
+                                coordinator: PhoneWatchSyncCoordinator(
+                                    projectStore: fixedStore,
+                                    entitlementCoordinator: entitlement,
+                                    transport: adapter,
+                                    applicationSupportRoot: supportRoot,
+                                    languageCode: {
+                                        let selection = UserDefaults.standard.string(forKey: "languageSelection")
+                                            .flatMap(LanguageSelection.init(rawValue:)) ?? .system
+                                        return LanguageSettings(selection: selection).resolvedLanguage().rawValue
+                                    }
+                                ),
+                                adapter: adapter
+                            )
+#else
+                            return nil
+#endif
+                        }
+                    )
                 }
             )
-        } ?? JSONProjectStore.live(
-            authorizeMutation: { entitlementCoordinator.authorize($0) },
-            commitSuccessfulMutation: {
-                entitlementCoordinator.commitSuccessfulMutation($0)
-            }
-        )
-        _projectStore = StateObject(wrappedValue: projectStore)
-        _reminderPresentationStore = StateObject(
-            wrappedValue: KnittingReminderPresentationStore()
-        )
-        let patternBackupReminderPresenter = PatternBackupReminderPresenter()
-        _patternBackupReminderPresenter = StateObject(
-            wrappedValue: patternBackupReminderPresenter
-        )
-        _patternInboxProcessor = StateObject(
-            wrappedValue: PatternInboxProcessor(
-                store: projectStore,
-                backupReminderPresenter: patternBackupReminderPresenter
-            )
-        )
+            // This is the existing non-sync local store, not an account-ready
+            // installation or a verified legacy adoption result.
+            try owner.publishPreparedSession(launch.session, for: owner.generation)
+        } catch {
+            preconditionFailure("Unable to assemble the local App session")
+        }
+        _sessionOwner = StateObject(wrappedValue: owner)
+        _entitlementCoordinator = StateObject(wrappedValue: launch.entitlementCoordinator)
 #if os(iOS)
-        let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(
-            projectStore: projectStore,
-            entitlementCoordinator: entitlementCoordinator,
-            transport: PhoneWatchSession(),
-            languageCode: {
-                let selection = UserDefaults.standard
-                    .string(forKey: "languageSelection")
-                    .flatMap { LanguageSelection(rawValue: $0) } ?? .system
-                return LanguageSettings(selection: selection).resolvedLanguage().rawValue
-            }
-        )
-        _phoneWatchSyncCoordinator = StateObject(
-            wrappedValue: phoneWatchSyncCoordinator
-        )
+        languageSelectionProjection = launch.languageSelectionProjection
+        // Preserve the local-only Watch route, starting after full publication.
         if screenshotMode == nil {
-            phoneWatchSyncCoordinator.start()
+            owner.visibleSession?.presentation?.watch?.coordinator.start()
         }
 #endif
     }
@@ -173,7 +185,7 @@ struct KnitNoteApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
+            AppSessionRootView(owner: sessionOwner) {
                 if let screenshotMode {
                     StoreScreenshotRootView(
                         scene: screenshotMode.scene,
@@ -181,22 +193,20 @@ struct KnitNoteApp: App {
                     )
                 } else {
                     RootView(storedLanguage: $storedLanguage)
-                        .environmentObject(appUpdateReminderCoordinator)
                 }
+            } unavailable: {
+                ProgressView(LocaleAwareText.string("common.loading", locale: appLocale))
             }
                 .environment(\.locale, appLocale)
-                .environmentObject(projectStore)
-                .environmentObject(reminderPresentationStore)
                 .environmentObject(entitlementCoordinator)
-                .environmentObject(patternInboxProcessor)
-                .environmentObject(patternBackupReminderPresenter)
+                .environmentObject(appUpdateReminderCoordinator)
                 .preferredColorScheme(.light)
 #if os(iOS)
                 .onChange(of: storedLanguage) { _, newValue in
                     languageSelectionProjection?.write(
                         LanguageSelection(rawValue: newValue) ?? .system
                     )
-                    phoneWatchSyncCoordinator.publishLatestSnapshotIfChanged()
+                    sessionOwner.visibleSession?.presentation?.watch?.coordinator.publishLatestSnapshotIfChanged()
                 }
 #endif
                 .knitNoteMacMinimumWindowContentSize()

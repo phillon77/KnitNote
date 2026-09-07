@@ -30,7 +30,7 @@ import Testing
         #expect(failures == [mutation.expectedFailure])
     }
 
-    @Test func productionAppResolvesFixtureAfterScreenshotModeAndOnlyInjectsItIntoNormalRoot() throws {
+    @Test func productionAppKeepsFixtureRoutingAndSharesUpdatesOutsideTheSessionBoundary() throws {
         let source = try updateFixtureSource("KnitNote/App/KnitNoteApp.swift")
         let appInit = try updateFixtureFunction(signature: "    init()", in: source)
         let body = try updateFixtureFunction(signature: "    var body: some Scene", in: source)
@@ -41,7 +41,13 @@ import Testing
         #expect(appInit.contains("preconditionFailure(\"App update fixture is invalid or overlaps screenshot mode\")"))
         #expect(appInit.contains("if screenshotMode == nil"))
         #expect(appInit.contains("AppUpdateReminderLiveFactory.make(fixture: appUpdateFixture)"))
-        #expect(body.contains("RootView(storedLanguage: $storedLanguage)\n                        .environmentObject(appUpdateReminderCoordinator)"))
+        #expect(appInit.contains("if screenshotMode == nil {\n            appUpdateReminderCoordinator = AppUpdateReminderLiveFactory.make(fixture: appUpdateFixture)\n        } else {\n            appUpdateReminderCoordinator = AppUpdateReminderCoordinator(\n                enabled: false,"))
+        #expect(body.contains("AppSessionRootView(owner: sessionOwner)"))
+        #expect(body.contains("RootView(storedLanguage: $storedLanguage)"))
+        let unavailable = try #require(body.range(of: "} unavailable: {"))
+        let sharedUpdate = try #require(body.range(of: ".environmentObject(appUpdateReminderCoordinator)"))
+        #expect(unavailable.lowerBound < sharedUpdate.lowerBound)
+        #expect(body.contains(".environmentObject(entitlementCoordinator)\n                .environmentObject(appUpdateReminderCoordinator)"))
         #expect(!appInit.contains("ProcessInfo.processInfo.environment"))
     }
 

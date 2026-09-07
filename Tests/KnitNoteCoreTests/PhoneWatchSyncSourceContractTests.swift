@@ -9,7 +9,7 @@ import Testing
         #expect(app.contains("LanguageSettings(selection: selection)"))
         #expect(app.contains(".resolvedLanguage().rawValue"))
         #expect(app.contains(".onChange(of: storedLanguage)"))
-        #expect(app.contains("phoneWatchSyncCoordinator.publishLatestSnapshotIfChanged()"))
+        #expect(app.contains("sessionOwner.visibleSession?.presentation?.watch?.coordinator.publishLatestSnapshotIfChanged()"))
         #expect(coordinator.contains("private let languageCode: () -> String"))
         #expect(coordinator.contains("let languageCode = languageCode()"))
         #expect(coordinator.contains("locale: Locale(identifier: languageCode)"))
@@ -45,12 +45,15 @@ import Testing
         #expect(coordinator.contains("refreshLocalizedError()"))
     }
 
-    @Test func appOwnsAndStartsPhoneCoordinatorForItsLifetime() throws {
+    @Test func appOwnsOneSessionAndStartsItsPhoneCoordinatorAfterPublication() throws {
         let app = try source("KnitNote/App/KnitNoteApp.swift")
 
-        #expect(app.contains("@StateObject private var phoneWatchSyncCoordinator"))
+        #expect(app.contains("@StateObject private var sessionOwner: AppSessionOwner"))
         #expect(app.contains("PhoneWatchSyncCoordinator("))
-        #expect(app.contains("phoneWatchSyncCoordinator.start()"))
+        let publication = try #require(app.range(of: "try owner.publishPreparedSession(launch.session, for: owner.generation)"))
+        let start = try #require(app.range(of: "owner.visibleSession?.presentation?.watch?.coordinator.start()"))
+        #expect(publication.lowerBound < start.lowerBound)
+        #expect(app.contains("if screenshotMode == nil {"))
         #expect(!app.contains(".onAppear"))
     }
 

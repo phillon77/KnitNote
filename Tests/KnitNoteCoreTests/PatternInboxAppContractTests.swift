@@ -5,8 +5,10 @@ import Testing
     @Test func rootProcessesTheInboxAtLaunchAndWheneverTheSceneBecomesActive() throws {
         let app = try readRepositoryFile("KnitNote/App/KnitNoteApp.swift")
         let root = try readRepositoryFile("KnitNote/App/RootView.swift")
+        let boundary = try readRepositoryFile("KnitNote/App/AppSessionRootView.swift")
 
-        #expect(app.contains(".environmentObject(patternInboxProcessor)"))
+        #expect(app.contains("AppSessionRootView(owner: sessionOwner)"))
+        #expect(boundary.contains(".environmentObject(presentation.patternInboxProcessor)"))
         #expect(root.contains("@Environment(\\.scenePhase)"))
         #expect(root.contains(".task(id: scenePhase)"))
         #expect(root.contains("patternInboxProcessor.processPending()"))

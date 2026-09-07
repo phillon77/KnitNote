@@ -4,6 +4,45 @@ import Testing
 @testable import KnitNoteCore
 
 struct JSONProjectStoreCanonicalDurabilityTests {
+    @Test @MainActor func recoveredCurrentOwnershipActivatesThenReopensCanonicalWithoutBootstrap() async throws {
+        let f = try Fixture()
+        var stores: [JSONProjectStore] = []
+        func exercise() throws {
+            let current = SyncBootstrapContext(accountIDHash: f.account.accountIDHash, epoch: UUID(), freezeID: UUID())
+            var frozen = true
+            let transaction = try SyncBootstrapTransaction(liveRoot: f.live, context: current, validateContext: { candidate in
+                guard frozen, candidate == current else { throw SyncBootstrapError.contextChanged }
+            })
+            #expect(try f.checkpoints.load() == nil)
+            let handoff = try #require(try transaction.recoverUnderCurrentContext())
+            #expect(handoff.transactionID == f.handoff.transactionID)
+            let store = f.store(); stores.append(store)
+            try store.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: handoff, attachmentSources: [:])
+            let initial = try #require(try f.checkpoints.load())
+            #expect(initial.records == handoff.checkpoint.records)
+            frozen = false
+            #expect(throws: SyncBootstrapError.contextChanged) { try handoff.revalidate() }
+            store.revokeSessionWrites()
+            let reopened = f.store(journal: f.freshJournal()); stores.append(reopened)
+            try reopened.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: nil, attachmentSources: [:])
+            #expect(reopened.projects.first?.id == f.projectID)
+            #expect(try f.checkpoints.load() == initial)
+            try f.rename(reopened, "After restart")
+            #expect(reopened.syncPublicationError == nil)
+            let edited = try #require(try f.checkpoints.load())
+            #expect(edited.commitID != initial.commitID)
+            frozen = true
+            #expect(throws: (any Error).self) { try transaction.recoverUnderCurrentContext() }
+            #expect(try f.checkpoints.load() == edited)
+        }
+        let result = Result { try exercise() }
+        for store in stores { store.revokeSessionWrites() }
+        // Join independently of the test body's result before deleting its root.
+        for store in stores { try await store.waitForTrackedBackgroundWritesAfterRevocation() }
+        f.remove()
+        try result.get()
+    }
+
     @Test(arguments: SyncCanonicalPublicationBoundary.allCases)
     @MainActor func everyPublicationBoundaryReopensExactDurableAuthority(boundary: SyncCanonicalPublicationBoundary) throws {
         let f = try Fixture(); defer { f.remove() }

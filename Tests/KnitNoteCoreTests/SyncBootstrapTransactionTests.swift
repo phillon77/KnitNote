@@ -4,6 +4,271 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapTransactionTests {
+    @Test func currentContextRecoveryPreservesCommittedEvidenceAndRevokesRetainedHandoff() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let old = try fixture.transaction()
+        let prepared = try old.prepare(local: fixture.export(), sourceArchive: fixture.archive,
+            remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true))
+        try old.install(prepared)
+        let receipt = try old.commit(prepared)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        var frozen = true
+        var authority = current
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard frozen, candidate == current, candidate == authority else { throw SyncBootstrapError.contextChanged }
+            })
+        let before = try treeBytes(fixture.root)
+        #expect(throws: (any Error).self) { try restarted.recoverInterruptedInstallation() }
+        #expect(throws: (any Error).self) { try restarted.canonicalHandoff(prepared) }
+        for _ in 0..<2 {
+            let handoff = try #require(try restarted.recoverUnderCurrentContext())
+            #expect(handoff.transactionID == receipt.transactionID)
+            #expect(handoff.accountIDHash == receipt.accountIDHash)
+            try handoff.revalidate()
+            frozen = false
+            #expect(throws: SyncBootstrapError.contextChanged) { try handoff.revalidate() }
+            #expect(throws: SyncBootstrapError.contextChanged) { try restarted.recoverUnderCurrentContext() }
+            frozen = true
+            authority = .init(accountIDHash: current.accountIDHash, epoch: UUID(), freezeID: UUID())
+            #expect(throws: SyncBootstrapError.contextChanged) { try handoff.revalidate() }
+            #expect(throws: SyncBootstrapError.contextChanged) { try restarted.recoverUnderCurrentContext() }
+            authority = current
+            #expect(try treeBytes(fixture.root) == before)
+        }
+        #expect(throws: (any Error).self) { try restarted.recoverInterruptedInstallation() }
+    }
+
+    @Test(arguments: SyncBootstrapBoundary.allCases)
+    func currentContextRecoveryRestoresExactPendingSourcesAndAllowsFreshPrepare(_ point: SyncBootstrapBoundary) throws {
+        let fixture = try Fixture(completeMedia: true); defer { fixture.remove() }
+        let local = try fixture.export()
+        let attachment = try #require(local.records.first { $0.id.kind == .attachment })
+        let mutation = try SyncMutation.save(recordVersion: SyncRecordVersion(record: attachment),
+            attachmentSource: local.attachments[attachment.id.uuid], mutationID: UUID())
+        let journalURL = fixture.live.appendingPathComponent("SyncMetadata/bootstrap-journal")
+        try FileSyncMutationJournal(url: journalURL).enqueue([mutation])
+        let pending = try FileSyncMutationJournal(url: journalURL).pending()
+        let source = try #require(pending.first?.attachmentSource)
+        let sourceBytes = try Data(contentsOf: source.fileURL)
+        let original = try treeBytes(fixture.live)
+        var fired = false
+        let old = try fixture.transaction(boundary: { reached in
+            if reached == point && !fired { fired = true; throw SyncBootstrapError.corrupt }
+            if fired && reached == .afterRollbackIntent { throw SyncBootstrapError.corrupt }
+        })
+        do {
+            let prepared = try old.prepare(local: local, sourceArchive: fixture.archive,
+                remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true),
+                pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: try old.sourceFingerprint()))
+            try old.install(prepared)
+            if [.afterRollbackIntent, .afterFailedMove, .afterOriginalRestore].contains(point) {
+                try old.rollback(prepared)
+            } else { _ = try old.commit(prepared) }
+        } catch {}
+        #expect(fired)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        var frozen = true
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard frozen, candidate == current else { throw SyncBootstrapError.contextChanged }
+            })
+        let interrupted = try treeBytes(fixture.root)
+        #expect(throws: (any Error).self) { try restarted.recoverInterruptedInstallation() }
+        frozen = false
+        #expect(throws: SyncBootstrapError.contextChanged) { try restarted.recoverUnderCurrentContext() }
+        #expect(try treeBytes(fixture.root) == interrupted)
+        frozen = true
+        #expect(try restarted.recoverUnderCurrentContext() == nil)
+        #expect(try treeBytes(fixture.live) == original)
+        #expect(try FileSyncMutationJournal(url: journalURL).pending() == pending)
+        #expect(try Data(contentsOf: source.fileURL) == sourceBytes)
+        #expect(try Data(contentsOf: fixture.live.appendingPathComponent("private-unsent.bin")) == Data([1, 2, 3]))
+        #expect(throws: (any Error).self) { try old.recoverInterruptedInstallation() }
+        #expect(try restarted.recoverInterruptedInstallation() == nil)
+        let restored = try fixture.readArchive()
+        let fresh = try restarted.prepare(local: ProjectArchiveSyncMapper.export(archive: restored, liveRoot: fixture.live, deviceID: "local"),
+            sourceArchive: restored,
+            remote: .init(context: current, records: [], attachments: [:], isComplete: true),
+            pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: try restarted.sourceFingerprint()))
+        #expect(try treeBytes(fresh.originalBackupRoot) == original)
+        #expect(throws: (any Error).self) { try old.install(fresh) }
+        try restarted.install(fresh)
+        _ = try restarted.commit(fresh)
+    }
+
+    @Test(arguments: ["envelope", "digest", "version", "account", "live", "journal", "relative", "checkpoint", "receipt", "original", "archive", "daily-authority", "symlink"])
+    func currentContextRecoveryRejectsCorruptOrForeignSelectedEvidenceWithoutWrites(_ damage: String) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let old = try fixture.transaction()
+        let prepared = try old.prepare(local: fixture.export(), sourceArchive: fixture.archive,
+            remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true))
+        try old.install(prepared)
+        _ = try old.commit(prepared)
+        let manifestURL = prepared.accountOwnedRoots[0].appendingPathComponent("active.json")
+        switch damage {
+        case "envelope": try Data("broken-envelope".utf8).write(to: manifestURL)
+        case "digest", "version", "account", "live", "journal", "relative":
+            var envelope = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+            let encodedPayload = try #require(envelope["payload"] as? String)
+            let payload = try #require(Data(base64Encoded: encodedPayload))
+            var manifest = try #require(try JSONSerialization.jsonObject(with: payload) as? [String: Any])
+            switch damage {
+            case "digest": break
+            case "version": manifest["version"] = 2
+            case "account":
+                var context = try #require(manifest["context"] as? [String: Any])
+                context["accountIDHash"] = String(repeating: "b", count: 64)
+                manifest["context"] = context
+            case "live": manifest["livePath"] = fixture.root.appendingPathComponent("Other").path
+            case "journal": manifest["journalPath"] = "SyncMetadata/other-journal"
+            default:
+                var original = try #require(manifest["original"] as? [String: Any])
+                original["../outside"] = original["projects-v1.json"]
+                manifest["original"] = original
+            }
+            let changed = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
+            envelope["payload"] = changed.base64EncodedString()
+            envelope["digest"] = (damage == "digest" ? Data(repeating: 0, count: 32) : Data(SHA256.hash(data: changed))).base64EncodedString()
+            try JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys]).write(to: manifestURL)
+        case "checkpoint": try Data("corrupt-checkpoint".utf8).write(to: fixture.live.appendingPathComponent("SyncMetadata/bootstrap-canonical.json"))
+        case "receipt": try Data("corrupt-receipt".utf8).write(to: fixture.live.appendingPathComponent("SyncMetadata/bootstrap-receipt.json"))
+        case "original": try Data([9]).write(to: prepared.originalBackupRoot.appendingPathComponent("private-unsent.bin"))
+        case "archive": try Data("changed-archive".utf8).write(to: fixture.live.appendingPathComponent("projects-v1.json"))
+        case "symlink":
+            let work = prepared.accountOwnedRoots[0]
+            let moved = work.deletingLastPathComponent().appendingPathComponent("Moved")
+            try FileManager.default.moveItem(at: work, to: moved)
+            try FileManager.default.createSymbolicLink(at: work, withDestinationURL: moved)
+        default: try Data([9]).write(to: fixture.live.appendingPathComponent("SyncMetadata/revision-ledger.extra"))
+        }
+        let before = try treeBytes(fixture.root)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard candidate == current else { throw SyncBootstrapError.contextChanged }
+            })
+        #expect(throws: (any Error).self) { try restarted.recoverUnderCurrentContext() }
+        #expect(try treeBytes(fixture.root) == before)
+    }
+
+    @Test func currentContextRecoveryAbsenceCreatesNothingAndDoesNotAdoptOtherNamespaces() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let old = try fixture.transaction()
+        let prepared = try old.prepare(local: fixture.export(), sourceArchive: fixture.archive,
+            remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true))
+        try old.install(prepared)
+        _ = try old.commit(prepared)
+        let otherAccount = SyncBootstrapContext(accountIDHash: String(repeating: "b", count: 64), epoch: UUID(), freezeID: UUID())
+        let sameAccount = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let before = try treeBytes(fixture.root)
+        for (live, context) in [(fixture.live, otherAccount), (fixture.root.appendingPathComponent("MissingLive"), sameAccount)] {
+            let transaction = try SyncBootstrapTransaction(liveRoot: live, context: context,
+                journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                    guard candidate == context else { throw SyncBootstrapError.contextChanged }
+                })
+            // No selected evidence grants no canonical readiness, even though a
+            // different account/live namespace contains a committed transaction.
+            #expect(try transaction.recoverUnderCurrentContext() == nil)
+            #expect(try treeBytes(fixture.root) == before)
+        }
+        let wrongJournal = try SyncBootstrapTransaction(liveRoot: fixture.live, context: sameAccount,
+            journalRelativePath: "SyncMetadata/other-journal", validateContext: { candidate in
+                guard candidate == sameAccount else { throw SyncBootstrapError.contextChanged }
+            })
+        #expect(throws: (any Error).self) { try wrongJournal.recoverUnderCurrentContext() }
+        #expect(try treeBytes(fixture.root) == before)
+        let empty = fixture.root.appendingPathComponent("Empty")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        let missing = try SyncBootstrapTransaction(liveRoot: empty.appendingPathComponent("Live"), context: sameAccount,
+            validateContext: { candidate in guard candidate == sameAccount else { throw SyncBootstrapError.contextChanged } })
+        #expect(try missing.recoverUnderCurrentContext() == nil)
+        #expect(try treeBytes(empty).isEmpty)
+        let alias = fixture.root.appendingPathComponent("Alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: fixture.root)
+        let withAlias = try treeBytes(fixture.root)
+        #expect(throws: SyncBootstrapError.unsafePath) {
+            try SyncBootstrapTransaction(liveRoot: alias.appendingPathComponent("Live"), context: sameAccount,
+                validateContext: { candidate in guard candidate == sameAccount else { throw SyncBootstrapError.contextChanged } })
+                .recoverUnderCurrentContext()
+        }
+        #expect(try treeBytes(fixture.root) == withAlias)
+    }
+
+    @Test func currentContextRecoveryRevocationDuringRollbackRetainsEvidenceForNextOwner() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let old = try fixture.transaction()
+        let prepared = try old.prepare(local: fixture.export(), sourceArchive: fixture.archive,
+            remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true))
+        let original = try treeBytes(prepared.originalBackupRoot)
+        try old.install(prepared)
+        let installed = try treeBytes(fixture.live)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        var frozen = true
+        var reachedIntent = false
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard frozen, candidate == current else { throw SyncBootstrapError.contextChanged }
+            }, boundary: { reached in
+                if reached == .afterRollbackIntent { reachedIntent = true; frozen = false }
+            })
+        #expect(throws: SyncBootstrapError.contextChanged) { try restarted.recoverUnderCurrentContext() }
+        #expect(reachedIntent)
+        #expect(try treeBytes(fixture.live) == installed)
+        #expect(try treeBytes(prepared.originalBackupRoot) == original)
+        let interrupted = try treeBytes(fixture.root)
+        #expect(throws: SyncBootstrapError.contextChanged) { try restarted.recoverUnderCurrentContext() }
+        #expect(try treeBytes(fixture.root) == interrupted)
+        let next = SyncBootstrapContext(accountIDHash: current.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let finalOwner = try SyncBootstrapTransaction(liveRoot: fixture.live, context: next,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard candidate == next else { throw SyncBootstrapError.contextChanged }
+            })
+        #expect(try finalOwner.recoverUnderCurrentContext() == nil)
+        #expect(try treeBytes(fixture.live) == original)
+        #expect(try treeBytes(prepared.originalBackupRoot) == original)
+        #expect(throws: (any Error).self) { try old.recoverInterruptedInstallation() }
+    }
+
+    @Test(arguments: [false, true])
+    func currentContextRecoveryDoesNotRebindCorruptTerminalRollback(originalDamaged: Bool) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let old = try fixture.transaction()
+        let prepared = try old.prepare(local: fixture.export(), sourceArchive: fixture.archive,
+            remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true))
+        try old.install(prepared)
+        try old.rollback(prepared)
+        let damagedRoot = originalDamaged ? prepared.originalBackupRoot : fixture.live
+        try Data([9]).write(to: damagedRoot.appendingPathComponent("private-unsent.bin"))
+        let before = try treeBytes(fixture.root)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard candidate == current else { throw SyncBootstrapError.contextChanged }
+            })
+        #expect(throws: (any Error).self) { try restarted.recoverUnderCurrentContext() }
+        #expect(try treeBytes(fixture.root) == before)
+        #expect(throws: (any Error).self) { try restarted.recoverInterruptedInstallation() }
+    }
+
+    private func treeBytes(_ root: URL) throws -> [String: Data] {
+        var result: [String: Data] = [:]
+        func walk(_ directory: URL, prefix: String) throws {
+            for entry in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]) {
+                let values = try entry.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                let relative = prefix + entry.lastPathComponent
+                if values.isSymbolicLink == true {
+                    result[relative + "@"] = Data(try FileManager.default.destinationOfSymbolicLink(atPath: entry.path).utf8)
+                } else if values.isDirectory == true {
+                    result[relative + "/"] = Data()
+                    try walk(entry, prefix: relative + "/")
+                } else { result[relative] = try Data(contentsOf: entry) }
+            }
+        }
+        try walk(root, prefix: "")
+        return result
+    }
+
     @Test func canonicalHandoffRequiresCommitAndRevalidatesOriginalReceiptAndFreeze() throws {
         let fixture = try Fixture(); defer { fixture.remove() }
         var frozen = true

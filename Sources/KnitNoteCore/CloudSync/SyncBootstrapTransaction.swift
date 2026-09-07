@@ -98,10 +98,10 @@ public final class SyncBootstrapTransaction {
     public static let defaultJournalRelativePath = "SyncMetadata/pending.json"
     private enum Phase: String, Codable { case prepared, installed, committed, rollingBack, rolledBack }
     private struct FileProof: Codable, Equatable { let bytes: Int64; let digest: Data }
-    private struct Manifest: Codable {
+    private struct Manifest: Codable, Equatable {
         let version: Int
         let id: UUID
-        let context: SyncBootstrapContext
+        var context: SyncBootstrapContext
         let livePath: String
         let journalPath: String
         let sourceArchiveFingerprint: Data
@@ -401,6 +401,50 @@ public final class SyncBootstrapTransaction {
         return nil
     }
 
+    /// Explicit restart recovery after the caller has freshly verified account
+    /// ownership and acquired a new freeze. Nil is not canonical readiness.
+    /// Committed evidence keeps its durable context; the returned capability is
+    /// guarded by this transaction's current ownership for its entire lifetime.
+    public func recoverUnderCurrentContext() throws -> SyncCanonicalBootstrapHandoff? {
+        try checkContext()
+        guard exists(activeURL) else { return nil }
+        let selectedBytes = try read(activeURL)
+        let selected = try decodeManifest(selectedBytes)
+        let historicalContext = selected.context
+        let currentContext = context
+        let currentValidator = validateContext
+        let historical = try SyncBootstrapTransaction(liveRoot: live, context: historicalContext,
+            journalRelativePath: journalPath, patternFolderNameContext: patternFolderNameContext,
+            validateContext: { candidate in
+                guard candidate == historicalContext else { throw SyncBootstrapError.contextChanged }
+                try currentValidator(currentContext)
+            }, boundary: boundary)
+        try historical.checkContext()
+        guard try historical.read(activeURL) == selectedBytes else { throw SyncBootstrapError.sourceChanged }
+        if selected.phase == .committed {
+            return try historical.canonicalHandoff(historical.preparation(selected))
+        }
+
+        _ = try historical.recoverInterruptedInstallation()
+        let terminalBytes = try historical.read(activeURL)
+        var terminal = try historical.loadManifest()
+        var expected = selected
+        expected.phase = .rolledBack
+        guard terminal == expected,
+              try historical.inventory(historical.transactionRoot(terminal.id).appendingPathComponent("Original")) == terminal.original,
+              try historical.inventory(live) == terminal.original else { throw SyncBootstrapError.corrupt }
+        try historical.checkContext()
+        guard try historical.read(activeURL) == terminalBytes else { throw SyncBootstrapError.sourceChanged }
+        // Only exact completed rollback may acquire the current context so a
+        // fresh prepare can follow. A failed write leaves terminal old evidence
+        // recoverable by a later owner using this same entry point.
+        if terminal.context != context {
+            terminal.context = context
+            try persist(terminal)
+        }
+        return nil
+    }
+
     public func sourceFingerprint() throws -> Data {
         try checkContext()
         return Self.hash(try Self.encode(inventory(live)))
@@ -565,10 +609,17 @@ public final class SyncBootstrapTransaction {
         try write(Self.encode(Envelope(payload: data, digest: Self.hash(data))), to: activeURL)
     }
     private func loadManifest() throws -> Manifest {
-        let envelope = try JSONDecoder().decode(Envelope.self, from: read(activeURL))
+        let manifest = try decodeManifest(read(activeURL))
+        guard manifest.context == context else { throw SyncBootstrapError.corrupt }
+        return manifest
+    }
+    /// Shared evidence validation; only explicit current-context recovery may
+    /// select a historical epoch/freeze. All ordinary APIs use loadManifest.
+    private func decodeManifest(_ data: Data) throws -> Manifest {
+        let envelope = try JSONDecoder().decode(Envelope.self, from: data)
         guard Self.hash(envelope.payload) == envelope.digest else { throw SyncBootstrapError.corrupt }
         let manifest = try JSONDecoder().decode(Manifest.self, from: envelope.payload)
-        guard manifest.version == 1, manifest.context == context, manifest.livePath == live.path,
+        guard manifest.version == 1, manifest.context.accountIDHash == context.accountIDHash, manifest.livePath == live.path,
               manifest.journalPath == journalPath,
               manifest.original.keys.allSatisfy(Self.safeRelativePath), manifest.installed.keys.allSatisfy(Self.safeRelativePath) else { throw SyncBootstrapError.corrupt }
         return manifest

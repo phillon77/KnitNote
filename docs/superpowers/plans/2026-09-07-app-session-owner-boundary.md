@@ -33,7 +33,7 @@
 - Produces `@MainActor final class AppSessionOwner: ObservableObject`, `@Published private(set) var visibleSession: AppSessionResources?`, `private(set) var generation: UUID`; methods `beginTransition() -> UUID`, `waitForRetiredSessions() async throws`, `publishPreparedSession(_:for:) throws`.
 - Failures `staleGeneration`, `retiredWorkPending`, `stoppedSession` at App layer; no new store or cloud errors. Initial owner has no visible session and a fresh generation. Publication failure leaves candidate ownership with caller (owner does not stop unrelated candidates). Document this explicit ownership contract.
 
-- [ ] **Step 1: Create the failing actual-source test harness and tests.** Make a fresh `mktemp -d /tmp/knitnote-app-owner-XXXXXX` harness using the previous native harness manifest shape, symlinking Core and actual required App/test files. Read prior harness inventory only, never its completed ledger. Record exact symlinks/manifest. Use new test imports `Foundation`, `Testing`, `@testable import KnitNote`. Example behavior test below requires fixture to create two distinct real stores in isolated roots and independently drain before deleting them.
+- [x] **Step 1: Create the failing actual-source test harness and tests.** Make a fresh `mktemp -d /tmp/knitnote-app-owner-XXXXXX` harness using the previous native harness manifest shape, symlinking Core and actual required App/test files. Read prior harness inventory only, never its completed ledger. Record exact symlinks/manifest. Use new test imports `Foundation`, `Testing`, `@testable import KnitNote`. Example behavior test below requires fixture to create two distinct real stores in isolated roots and independently drain before deleting them.
 
 ```swift
 @Test @MainActor func transitionImmediatelyHidesAndRevokesOldStore() async throws {
@@ -55,7 +55,7 @@
 
 Use actual available read-only revocation API; if not public, assert a real existing mutation throws StoreSessionAccessError.revoked instead of adding broad production access. A missing-type RED establishes API only; use runtime mutations for hide/stop/stale-publish/drain assertions.
 
-- [ ] **Step 2: Implement fixed resource ownership.** Generate resource id, hold exact store, and create group from producers constructed with that same store. Stop flag before forwarding stop; repeated stop safe. Drain delegates to fixed group and rejects open use. No store replacement, cleanup or journal rebinding. Producers remain strongly held through group lifetime.
+- [x] **Step 2: Implement fixed resource ownership.** Generate resource id, hold exact store, and create group from producers constructed with that same store. Stop flag before forwarding stop; repeated stop safe. Drain delegates to fixed group and rejects open use. No store replacement, cleanup or journal rebinding. Producers remain strongly held through group lifetime.
 
 ```swift
 func stopForSessionTransition() {
@@ -68,7 +68,7 @@ func waitForStoppedOperations() async throws {
 }
 ```
 
-- [ ] **Step 3: Implement owner synchronous invalidation and retained drain.** In beginTransition, advance generation and take a strong local of current session before publishing nil; record the old bundle for drain exactly once by identity, then stop it synchronously. Observable notifications can synchronously reenter owner: protect transition/publication critical sections with explicit synchronous reentry state or snapshot comparisons, never let nested calls publish during half-complete stop. No await inside this boundary, no lock across await.
+- [x] **Step 3: Implement owner synchronous invalidation and retained drain.** In beginTransition, advance generation and take a strong local of current session before publishing nil; record the old bundle for drain exactly once by identity, then stop it synchronously. Observable notifications can synchronously reenter owner: protect transition/publication critical sections with explicit synchronous reentry state or snapshot comparisons, never let nested calls publish during half-complete stop. No await inside this boundary, no lock across await.
 
 ```swift
 // Publication preconditions; reevaluate after any externally observable callout.
@@ -79,9 +79,9 @@ guard !candidate.isStopped else { throw Failure.stoppedSession }
 
 Reject replacing an existing different visible session without beginTransition (add `sessionAlreadyVisible` App error); idempotent publication of the same visible object may return without another notification. Store admission must still be open at publication. The owner does not close arbitrary rejected candidates. `waitForRetiredSessions` captures exact retired identities, waits each existing producer/store group, and removes only successfully drained identical entries. A thrown/cancelled wait retains unresolved resources and cannot clear newer retirement or authorize publication. Multiple waiters may share group work but must not discard each other's new retirements; loop/recheck until no retired entries remain. Do not retain untracked Task fire-and-forget cleanup, retry timers or mutable test gate authority.
 
-- [ ] **Step 4: Exercise real ownership and adversarial sequencing.** Cover empty initial owner; synchronous hide/revoke and all registered producer stops before any await; old generation denied after two transitions; replacement requires transition; already-stopped and externally revoked store denied; same-object publication idempotence; held real producer work prevents new publication; two drain waiters with one cancelled; failed drain retains resource; newer transition during drain cannot be erased by earlier completion; synchronous Combine subscriber reentry during visibleSession change; rejected B remains untouched and usable by its caller; actual inbox, coordinator and native adapter registered together and all stopped. Use immutable signals and explicit native/producer start/end events, no sleeps/yields/empty Task fences. Teardown always releases and independently joins actual work in a fresh uncancelled task before deleting roots, even under deliberately broken owner drain. Do not use the method being deliberately broken as the only cleanup proof.
+- [x] **Step 4: Exercise real ownership and adversarial sequencing.** Cover empty initial owner; synchronous hide/revoke and all registered producer stops before any await; old generation denied after two transitions; replacement requires transition; already-stopped and externally revoked store denied; same-object publication idempotence; held real producer work prevents new publication; two drain waiters with one cancelled; failed drain retains resource; newer transition during drain cannot be erased by earlier completion; synchronous Combine subscriber reentry during visibleSession change; rejected B remains untouched and usable by its caller; actual inbox, coordinator and native adapter registered together and all stopped. Use immutable signals and explicit native/producer start/end events, no sleeps/yields/empty Task fences. Teardown always releases and independently joins actual work in a fresh uncancelled task before deleting roots, even under deliberately broken owner drain. Do not use the method being deliberately broken as the only cleanup proof.
 
-- [ ] **Step 5: Verify, self-review and commit scoped changes.** Run focused RED/GREEN as needed, complete fresh owner harness once, and existing producer/native tests in the same actual-source harness before committing. Record command, log path, exit and warnings, names and exact SHA. Controller owns review and broad frozen validation; do not run full Core independently.
+- [x] **Step 5: Verify, self-review and commit scoped changes.** Run focused RED/GREEN as needed, complete fresh owner harness once, and existing producer/native tests in the same actual-source harness before committing. Record command, log path, exit and warnings, names and exact SHA. Controller owns review and broad frozen validation; do not run full Core independently.
 
 ```sh
 python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel
@@ -99,8 +99,8 @@ Explicitly add optional fixture file only if used. Do not alter App startup or a
 
 **Interfaces:** Consumes Task 1 reviewed SHA, actual-source harness and reports; produces durable exact-candidate local boundary evidence, not full owner integration acceptance.
 
-- [ ] **Step 1: Task and whole-subplan independent reviews.** Task review checks spec/quality and reentry/retirement/cancellation invariants. Final review spans subplan baseline `81941c7` to candidate, names external constraints and parked findings. Fix and scoped rereview before freeze.
-- [ ] **Step 2: Freeze candidate and run serial full Core, combined owner/producer/native no-host, unsigned macOS build-for-testing and iOS build.** Use inspected bounded runner, unique logs and derived data. Do not combine results from differing source trees.
+- [x] **Step 1: Task and whole-subplan independent reviews.** Task review checks spec/quality and reentry/retirement/cancellation invariants. Final review spans subplan baseline `81941c7` to candidate, names external constraints and parked findings. Fix and scoped rereview before freeze.
+- [x] **Step 2: Freeze candidate and run serial full Core, combined owner/producer/native no-host, unsigned macOS build-for-testing and iOS build.** Use inspected bounded runner, unique logs and derived data. Do not combine results from differing source trees.
 
 ```sh
 python3 /tmp/task4-run-bounded.py 3600 arch -arm64 swift test --no-parallel
@@ -111,7 +111,7 @@ python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -sc
 python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/app-owner-boundary-ios-derived CODE_SIGNING_ALLOWED=NO build
 ```
 
-- [ ] **Step 3: Save evidence and remaining integration work.** Report exact source/test/PBX identity, raw command summaries, log hashes, any warnings, review outcomes/rulings and cleanup evidence. Preserve local worktree; do not push or restart automation. Explicit next tasks: full session composition/presentation ownership, identity and account transaction/readiness, UI generation subtree and startup wiring. The approved larger integration remains incomplete until those are implemented and tested.
+- [x] **Step 3: Save evidence and remaining integration work.** Report exact source/test/PBX identity, raw command summaries, log hashes, any warnings, review outcomes/rulings and cleanup evidence. Preserve local worktree; do not push or restart automation. Explicit next tasks: full session composition/presentation ownership, identity and account transaction/readiness, UI generation subtree and startup wiring. The approved larger integration remains incomplete until those are implemented and tested.
 
 ## Self-review
 
